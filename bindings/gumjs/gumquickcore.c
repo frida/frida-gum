@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
@@ -3071,6 +3071,7 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
   {
     GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
     GumInterceptor * interceptor = core->interceptor->interceptor;
+    gboolean interceptor_was_ignoring_us = FALSE;
     GumStalker * stalker = NULL;
 
     if (exceptions == GUM_QUICK_EXCEPTIONS_PROPAGATE ||
@@ -3083,7 +3084,8 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
       {
         _gum_quick_scope_suspend (&scope);
 
-        gum_interceptor_unignore_current_thread (interceptor);
+        interceptor_was_ignoring_us =
+            gum_interceptor_maybe_unignore_current_thread (interceptor);
       }
 
       if (traps == GUM_QUICK_CODE_TRAPS_ALL)
@@ -3108,7 +3110,8 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
 
     if (scheduling == GUM_QUICK_SCHEDULING_COOPERATIVE)
     {
-      gum_interceptor_ignore_current_thread (interceptor);
+      if (interceptor_was_ignoring_us)
+        gum_interceptor_ignore_current_thread (interceptor);
 
       _gum_quick_scope_resume (&scope);
     }

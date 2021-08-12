@@ -2628,6 +2628,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   {
     auto unlocker = g_newa (ScriptUnlocker, 1);
     auto interceptor = core->script->interceptor.interceptor;
+    gboolean interceptor_was_ignoring_us = FALSE;
     GumStalker * stalker = NULL;
 
     if (exceptions == GUM_V8_EXCEPTIONS_PROPAGATE ||
@@ -2640,7 +2641,8 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
       {
         new (unlocker) ScriptUnlocker (core);
 
-        gum_interceptor_unignore_current_thread (interceptor);
+        interceptor_was_ignoring_us =
+            gum_interceptor_maybe_unignore_current_thread (interceptor);
       }
 
       if (traps == GUM_V8_CODE_TRAPS_ALL)
@@ -2666,7 +2668,8 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
     if (scheduling == GUM_V8_SCHEDULING_COOPERATIVE)
     {
-      gum_interceptor_ignore_current_thread (interceptor);
+      if (interceptor_was_ignoring_us)
+        gum_interceptor_ignore_current_thread (interceptor);
 
       unlocker->~ScriptUnlocker ();
     }
