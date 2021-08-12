@@ -1322,8 +1322,6 @@ _gum_quick_scope_suspend (GumQuickScope * self)
   GumQuickCore * core = self->core;
   guint i;
 
-  gum_interceptor_end_transaction (core->interceptor->interceptor);
-
   JS_Suspend (core->rt, &self->thread_state);
 
   g_assert (core->current_scope != NULL);
@@ -1333,6 +1331,8 @@ _gum_quick_scope_suspend (GumQuickScope * self)
 
   self->previous_mutex_depth = core->mutex_depth;
   core->mutex_depth = 0;
+
+  gum_interceptor_end_transaction (core->interceptor->interceptor);
 
   for (i = 0; i != self->previous_mutex_depth; i++)
     g_rec_mutex_unlock (core->mutex);
@@ -1347,6 +1347,8 @@ _gum_quick_scope_resume (GumQuickScope * self)
   for (i = 0; i != self->previous_mutex_depth; i++)
     g_rec_mutex_lock (core->mutex);
 
+  gum_interceptor_begin_transaction (core->interceptor->interceptor);
+
   g_assert (core->current_scope == NULL);
   core->current_scope = g_steal_pointer (&self->previous_scope);
   core->current_owner = self->previous_owner;
@@ -1355,8 +1357,6 @@ _gum_quick_scope_resume (GumQuickScope * self)
   self->previous_mutex_depth = 0;
 
   JS_Resume (core->rt, &self->thread_state);
-
-  gum_interceptor_begin_transaction (core->interceptor->interceptor);
 }
 
 JSValue
