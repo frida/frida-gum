@@ -3845,6 +3845,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
     backpatch.inline_cache.ic_offset = ic_offset;
     gum_stalker_notify_backpatch (ctx->observer, ctx->stalker, &backpatch,
         sizeof(backpatch));
+    return;
   }
 }
 
