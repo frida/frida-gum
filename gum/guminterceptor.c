@@ -599,6 +599,19 @@ gum_interceptor_unignore_current_thread (GumInterceptor * self)
   interceptor_ctx->ignore_level--;
 }
 
+gboolean
+gum_interceptor_maybe_unignore_current_thread (GumInterceptor * self)
+{
+  InterceptorThreadContext * interceptor_ctx;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+  if (interceptor_ctx->ignore_level <= 0)
+    return FALSE;
+
+  interceptor_ctx->ignore_level--;
+  return TRUE;
+}
+
 void
 gum_interceptor_ignore_other_threads (GumInterceptor * self)
 {

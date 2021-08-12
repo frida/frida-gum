@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -60,6 +60,8 @@ GUM_API GumInvocationStack * gum_interceptor_get_current_stack (void);
 
 GUM_API void gum_interceptor_ignore_current_thread (GumInterceptor * self);
 GUM_API void gum_interceptor_unignore_current_thread (GumInterceptor * self);
+GUM_API gboolean gum_interceptor_maybe_unignore_current_thread (
+    GumInterceptor * self);
 
 GUM_API void gum_interceptor_ignore_other_threads (GumInterceptor * self);
 GUM_API void gum_interceptor_unignore_other_threads (GumInterceptor * self);
