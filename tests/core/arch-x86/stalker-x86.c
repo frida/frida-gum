@@ -95,8 +95,12 @@ TESTLIST_BEGIN (stalker)
 
 #ifdef HAVE_LINUX
   TESTENTRY (prefetch)
-  TESTENTRY (prefetch_backpatch);
+  TESTENTRY (prefetch_backpatch)
   TESTENTRY (observer)
+#endif
+
+#ifdef HAVE_I386
+  TESTENTRY (ic_var)
 #endif
 TESTLIST_END ()
 
@@ -3126,6 +3130,35 @@ gum_test_stalker_observer_notify_backpatch (GumStalkerObserver * self,
 
   written = write (bp_ctx.pipes[STDOUT_FILENO], backpatch, size);
   g_assert_cmpint (written, ==, size);
+}
+
+#endif
+
+#ifdef HAVE_I386
+
+TESTCASE (ic_var)
+{
+  GumMemoryRange runner_range;
+  GumStalker * stalker;
+
+  runner_range.base_address = 0;
+  runner_range.size = 0;
+  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
+  g_assert_cmpuint (runner_range.base_address, !=, 0);
+  g_assert_cmpuint (runner_range.size, !=, 0);
+
+  stalker = g_object_new (GUM_TYPE_STALKER,
+      "ic-entries", 32,
+      NULL);
+
+  gum_stalker_follow_me (stalker, NULL, NULL);
+  pretend_workload (&runner_range);
+  gum_stalker_unfollow_me (stalker);
+
+  while (gum_stalker_garbage_collect (stalker))
+    g_usleep (10000);
+
+  g_object_unref (stalker);
 }
 
 #endif

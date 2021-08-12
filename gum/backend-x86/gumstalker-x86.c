@@ -83,6 +83,7 @@ typedef struct _GumBackpatchCall GumBackpatchCall;
 typedef struct _GumBackpatchRet GumBackpatchRet;
 typedef struct _GumBackpatchJmp GumBackpatchJmp;
 typedef struct _GumBackpatchInlineCache GumBackpatchInlineCache;
+typedef struct _GumIcEntry GumIcEntry;
 
 typedef guint GumVirtualizationRequirements;
 
@@ -94,9 +95,17 @@ typedef DWORD GumNativeRegisterValue;
 # endif
 #endif
 
+enum
+{
+  PROP_0,
+  PROP_IC_ENTRIES,
+};
+
 struct _GumStalker
 {
   GObject parent;
+
+  guint ic_entries;
 
   gsize ctx_size;
   gsize ctx_header_size;
@@ -416,6 +425,12 @@ struct _GumBackpatch
   };
 };
 
+struct _GumIcEntry
+{
+  gpointer real_start;
+  gpointer code_start;
+};
+
 enum _GumVirtualizationRequirements
 {
   GUM_REQUIRE_NOTHING         = 0,
@@ -426,6 +441,10 @@ enum _GumVirtualizationRequirements
 
 static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
+static void gum_stalker_get_property (GObject * object, guint property_id,
+    GValue * value, GParamSpec * pspec);
+static void gum_stalker_set_property (GObject * object, guint property_id,
+    const GValue * value, GParamSpec * pspec);
 
 G_GNUC_INTERNAL void _gum_stalker_do_follow_me (GumStalker * self,
     GumStalkerTransformer * transformer, GumEventSink * sink,
@@ -492,6 +511,7 @@ static void gum_exec_ctx_maybe_emit_compile_event (GumExecCtx * ctx,
 
 static gboolean gum_stalker_iterator_is_out_of_space (
     GumStalkerIterator * self);
+static gsize gum_stalker_get_ic_entry_size (GumStalker * stalker);
 
 static void gum_stalker_invoke_callout (GumCalloutEntry * entry,
     GumCpuContext * cpu_context);
@@ -677,6 +697,13 @@ gum_stalker_class_init (GumStalkerClass * klass)
 
   object_class->dispose = gum_stalker_dispose;
   object_class->finalize = gum_stalker_finalize;
+  object_class->get_property = gum_stalker_get_property;
+  object_class->set_property = gum_stalker_set_property;
+
+  g_object_class_install_property (object_class, PROP_IC_ENTRIES,
+      g_param_spec_uint ("ic-entries", "IC Entries", "Inline Cache Entries",
+      2, 32, 2,
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
 
   _gum_thread_exit_impl = gum_find_thread_exit_implementation ();
 }
@@ -831,6 +858,42 @@ gum_stalker_finalize (GObject * object)
   g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
+}
+
+static void
+gum_stalker_get_property (GObject * object,
+                          guint property_id,
+                          GValue * value,
+                          GParamSpec * pspec)
+{
+  GumStalker * self = GUM_STALKER (object);
+
+  switch (property_id)
+  {
+    case PROP_IC_ENTRIES:
+      g_value_set_uint (value, self->ic_entries);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+  }
+}
+
+static void
+gum_stalker_set_property (GObject * object,
+                          guint property_id,
+                          const GValue * value,
+                          GParamSpec * pspec)
+{
+  GumStalker * self = GUM_STALKER (object);
+
+  switch (property_id)
+  {
+    case PROP_IC_ENTRIES:
+      self->ic_entries = g_value_get_uint (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+  }
 }
 
 GumStalker *
@@ -2458,7 +2521,14 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
       self->exec_context->stalker,
       self->generator_context->instruction->end - block->real_start);
 
-  return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size;
+  return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size +
+      gum_stalker_get_ic_entry_size (self->exec_context->stalker);
+}
+
+static gsize
+gum_stalker_get_ic_entry_size (GumStalker * self)
+{
+  return self->ic_entries * (2 * sizeof (gpointer));
 }
 
 void
@@ -3413,7 +3483,8 @@ gum_exec_block_new (GumExecCtx * ctx)
   gsize code_available;
 
   code_available = gum_slab_available (&code_slab->slab);
-  if (code_available < GUM_EXEC_BLOCK_MIN_CAPACITY)
+  if (code_available < GUM_EXEC_BLOCK_MIN_CAPACITY +
+      gum_stalker_get_ic_entry_size (ctx->stalker))
   {
     GumAddressSpec data_spec;
 
@@ -3736,8 +3807,9 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 {
   gboolean just_unfollowed;
   GumExecCtx * ctx;
-  gpointer * ic_entries;
-  guint offset;
+  GumStalker * stalker;
+  GumIcEntry * ic_entries;
+  guint i;
 
   just_unfollowed = block == NULL;
   if (just_unfollowed)
@@ -3748,21 +3820,25 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
   if (!gum_exec_ctx_may_now_backpatch (ctx, block))
     return;
 
-  ic_entries = (gpointer *) from->code_start + ic_offset;
-  offset = (ic_entries[0] == NULL) ? 0 : 2;
+  stalker = ctx->stalker;
+  ic_entries = (GumIcEntry *) (from->code_start + ic_offset);
 
-  if (ic_entries[offset + 0] == NULL)
+  for (i = 0; i != stalker->ic_entries; i++)
   {
-    const gsize ic_slot_size = 2 * sizeof (gpointer);
+    if (ic_entries[i].real_start == block->real_start)
+      return;
+
+    if (ic_entries[i].real_start != NULL)
+      continue;
 
     gum_spinlock_acquire (&ctx->code_lock);
 
-    gum_stalker_thaw (ctx->stalker, ic_entries + offset, ic_slot_size);
+    gum_stalker_thaw (stalker, &ic_entries[i], sizeof (GumIcEntry));
 
-    ic_entries[offset + 0] = block->real_start;
-    ic_entries[offset + 1] = block->code_start;
+    ic_entries[i].real_start = block->real_start;
+    ic_entries[i].code_start = block->code_start;
 
-    gum_stalker_freeze (ctx->stalker, ic_entries + offset, ic_slot_size);
+    gum_stalker_freeze (stalker, &ic_entries[i], sizeof (GumIcEntry));
 
     gum_spinlock_release (&ctx->code_lock);
 
@@ -3777,6 +3853,8 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 
       gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
     }
+
+    return;
   }
 }
 
@@ -4113,19 +4191,23 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        const GumBranchTarget * target,
                                        GumGeneratorContext * gc)
 {
-  const gint trust_threshold = block->ctx->stalker->trust_threshold;
+  GumStalker * stalker = block->ctx->stalker;
+  const gint trust_threshold = stalker->trust_threshold;
   GumX86Writer * cw = gc->code_writer;
   const GumAddress call_code_start = cw->pc;
   const GumPrologType opened_prolog = gc->opened_prolog;
   gboolean can_backpatch_statically;
-  gpointer * ic_entries = NULL;
+  GumIcEntry * ic_entries = NULL;
+  gpointer * ic_match = NULL;
   GumExecCtxReplaceCurrentBlockFunc entry_func;
   gconstpointer push_application_retaddr = cw->code + 1;
   gconstpointer perform_stack_push = cw->code + 2;
   gconstpointer look_in_cache = cw->code + 3;
-  gconstpointer try_second = cw->code + 4;
-  gconstpointer resolve_dynamically = cw->code + 5;
-  gconstpointer beach = cw->code + 6;
+  gconstpointer loop = cw->code + 4;
+  gconstpointer try_next = cw->code + 5;
+  gconstpointer resolve_dynamically = cw->code + 6;
+  gconstpointer beach = cw->code + 7;
+
   GumAddress ret_real_address, ret_code_address;
 
   can_backpatch_statically =
@@ -4136,8 +4218,17 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   if (trust_threshold >= 0 && !can_backpatch_statically)
   {
     gpointer null_ptr = NULL;
-    gpointer ic1_real, ic1_code;
-    gpointer ic2_real, ic2_code;
+    /*
+     * Value stored in the code_start field of the IcEntry when empty, so that
+     * it can be more easily identified when debugging.
+     */
+    gpointer magic_ptr = GSIZE_TO_POINTER (0xbaadd00ddeadface);
+    /*
+     * Scratch space used to store the matched code_start field so we can jump
+     * there once we have restored all of the target context.
+     */
+    gpointer match_ptr = GSIZE_TO_POINTER (0xbaadd00dcafef00d);
+    guint i;
 
     if (opened_prolog == GUM_PROLOG_NONE)
     {
@@ -4163,44 +4254,84 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       gc->accumulated_stack_delta += sizeof (gpointer);
     }
 
-    gum_x86_writer_put_jmp_short_label (cw, look_in_cache);
+    /*
+     * We need to use a near rather than short jump since our inline cache is
+     * larger than the maximum distance of a short jump (-128 to +127).
+     */
+    gum_x86_writer_put_jmp_near_label (cw, look_in_cache);
 
     ic_entries = gum_x86_writer_cur (cw);
-    ic1_real = ic_entries;
-    gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-    ic1_code = gum_x86_writer_cur (cw);
-    gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-    ic2_real = gum_x86_writer_cur (cw);
-    gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-    ic2_code = gum_x86_writer_cur (cw);
-    gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
+
+    /* Write our empty inline cache entries */
+    for (i = 0; i != stalker->ic_entries; i++)
+    {
+      gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
+      gum_x86_writer_put_bytes (cw, (guint8 *) &magic_ptr, sizeof (magic_ptr));
+    }
+
+    /*
+     * Write a token which we can replace with our matched ic entry code_start
+     * so we can use it as scratch space and retrieve and jump to it once we
+     * have restored the target application context.
+     */
+    ic_match = gum_x86_writer_cur (cw);
+    gum_x86_writer_put_bytes (cw, (guint8 *) &match_ptr, sizeof (match_ptr));
 
     gum_x86_writer_put_label (cw, look_in_cache);
 
+    gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
     gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
 
-    gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
-        GUM_ADDRESS (ic1_real));
-    gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw, GUM_REG_XSP, 0, GUM_REG_XAX);
-    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, try_second,
-        GUM_NO_HINT);
-    gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
-    gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_IC, cw);
-    gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (ic1_code));
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+        GUM_ADDRESS (ic_entries));
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
+        GUM_ADDRESS (&ic_entries[stalker->ic_entries]));
 
-    gum_x86_writer_put_label (cw, try_second);
-    gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
-        GUM_ADDRESS (ic2_real));
-    gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw, GUM_REG_XSP, 0, GUM_REG_XAX);
-    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, resolve_dynamically,
-        GUM_NO_HINT);
-    gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
-    gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_IC, cw);
-    gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (ic2_code));
+    /*
+     * Write our inline assembly which iterates through the IcEntry structures,
+     * attempting to match the real_start member with the target block address.
+     */
+    gum_x86_writer_put_label (cw, loop);
+    gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XCX);
 
+    /* If real_start != target block, then continue */
+    gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw, GUM_REG_XSP, 0, GUM_REG_XAX);
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, try_next,
+        GUM_NO_HINT);
+
+    /*
+     * If real_start == NULL, then break: we have reached the end of the
+     * initialized IcEntry structures.
+     */
+    gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_XAX, 0);
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE, resolve_dynamically,
+        GUM_NO_HINT);
+
+    /* We found a match, stash the code_start value in the ic_match */
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XCX, GUM_REG_XCX,
+        G_STRUCT_OFFSET (GumIcEntry, code_start));
+    gum_x86_writer_put_mov_near_ptr_reg (cw, GUM_ADDRESS (ic_match),
+        GUM_REG_XCX);
+
+    /* Restore the target context and jump at ic_match */
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
+    gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_IC, cw);
+    gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (ic_match));
+
+    /* Increment our position through the IcEntry array */
+    gum_x86_writer_put_label (cw, try_next);
+    gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XCX, sizeof (GumIcEntry));
+    gum_x86_writer_put_cmp_reg_reg (cw, GUM_REG_XCX, GUM_REG_XBX);
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JLE, loop,
+        GUM_LIKELY);
+
+    /* Cache miss, do it the hard way */
     gum_x86_writer_put_label (cw, resolve_dynamically);
     gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
     gum_exec_block_close_prolog (block, gc);
+
   }
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
@@ -4334,15 +4465,18 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         GumExecCtxReplaceCurrentBlockFunc func,
                                         GumGeneratorContext * gc)
 {
-  const gint trust_threshold = block->ctx->stalker->trust_threshold;
+  GumStalker * stalker = block->ctx->stalker;
+  const gint trust_threshold = stalker->trust_threshold;
   GumX86Writer * cw = gc->code_writer;
   const GumAddress code_start = cw->pc;
   const GumPrologType opened_prolog = gc->opened_prolog;
   gboolean can_backpatch_statically;
-  gpointer * ic_entries = NULL;
+  GumIcEntry * ic_entries = NULL;
+  gpointer * ic_match = NULL;
   gconstpointer look_in_cache = cw->code + 1;
-  gconstpointer try_second = cw->code + 2;
-  gconstpointer resolve_dynamically = cw->code + 3;
+  gconstpointer loop = cw->code + 2;
+  gconstpointer try_next = cw->code + 3;
+  gconstpointer resolve_dynamically = cw->code + 4;
 
   can_backpatch_statically =
       trust_threshold >= 0 &&
@@ -4351,50 +4485,97 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 
   if (trust_threshold >= 0 && !can_backpatch_statically)
   {
+    guint i;
     gpointer null_ptr = NULL;
-    gpointer ic1_real, ic1_code;
-    gpointer ic2_real, ic2_code;
+    /*
+     * Value stored in the code_start field of the IcEntry when empty, so that
+     * it can be more easily identified when debugging.
+     */
+    gpointer magic_ptr = GSIZE_TO_POINTER (0xbaadd00ddeadface);
+    /*
+     * Scratch space used to store the matched code_start field so we can jump
+     * there once we have restored all of the target context.
+     */
+    gpointer match_ptr = GSIZE_TO_POINTER (0xbaadd00dcafef00d);
 
     gum_exec_block_close_prolog (block, gc);
 
-    gum_x86_writer_put_jmp_short_label (cw, look_in_cache);
+    /*
+     * We need to use a near rather than short jump since our inline cache is
+     * larger than the maximum distance of a short jump (-128 to +127).
+     */
+    gum_x86_writer_put_jmp_near_label (cw, look_in_cache);
 
     ic_entries = gum_x86_writer_cur (cw);
-    ic1_real = ic_entries;
-    gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-    ic1_code = gum_x86_writer_cur (cw);
-    gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-    ic2_real = gum_x86_writer_cur (cw);
-    gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-    ic2_code = gum_x86_writer_cur (cw);
-    gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
+
+    /* Write our empty inline cache entries */
+    for (i = 0; i != stalker->ic_entries; i++)
+    {
+      gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
+      gum_x86_writer_put_bytes (cw, (guint8 *) &magic_ptr, sizeof (magic_ptr));
+    }
+
+    /*
+     * Write a token which we can replace with our matched ic entry code_start
+     * so we can use it as scratch space and retrieve and jump to it once we
+     * have restored the target application context.
+     */
+    ic_match = gum_x86_writer_cur (cw);
+    gum_x86_writer_put_bytes (cw, (guint8 *) &match_ptr, sizeof (match_ptr));
 
     gum_x86_writer_put_label (cw, look_in_cache);
     gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
 
+    gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
     gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
 
-    gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
-        GUM_ADDRESS (ic1_real));
-    gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw, GUM_REG_XSP, 0, GUM_REG_XAX);
-    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, try_second,
-        GUM_NO_HINT);
-    gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
-    gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_IC, cw);
-    gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (ic1_code));
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+        GUM_ADDRESS (ic_entries));
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
+        GUM_ADDRESS (&ic_entries[stalker->ic_entries]));
 
-    gum_x86_writer_put_label (cw, try_second);
-    gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
-        GUM_ADDRESS (ic2_real));
-    gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw, GUM_REG_XSP, 0, GUM_REG_XAX);
-    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, resolve_dynamically,
-        GUM_NO_HINT);
-    gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
-    gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_IC, cw);
-    gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (ic2_code));
+    /*
+     * Write our inline assembly which iterates through the IcEntry structures,
+     * attempting to match the real_start member with the target block address.
+     */
+    gum_x86_writer_put_label (cw, loop);
+    gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XCX);
 
+    /* If real_start != target block, then continue */
+    gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw, GUM_REG_XSP, 0, GUM_REG_XAX);
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, try_next,
+        GUM_NO_HINT);
+
+    /*
+     * If real_start == NULL, then break: we have reached the end of the
+     * initialized IcEntry structures.
+     */
+    gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_XAX, 0);
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JE, resolve_dynamically,
+        GUM_NO_HINT);
+
+    /* We found a match, stash the code_start value in the ic_match */
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XCX, GUM_REG_XCX,
+        G_STRUCT_OFFSET (GumIcEntry, code_start));
+    gum_x86_writer_put_mov_near_ptr_reg (cw, GUM_ADDRESS (ic_match),
+        GUM_REG_XCX);
+
+    /* Restore the target context and jump at ic_match */
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
+    gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_IC, cw);
+    gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (ic_match));
+
+    /* Increment our position through the IcEntry array */
+    gum_x86_writer_put_label (cw, try_next);
+    gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XCX, sizeof (GumIcEntry));
+    gum_x86_writer_put_cmp_reg_reg (cw, GUM_REG_XCX, GUM_REG_XBX);
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JLE, loop, GUM_NO_HINT);
+
+    /* Cache miss, do it the hard way */
     gum_x86_writer_put_label (cw, resolve_dynamically);
     gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
     gum_exec_block_close_prolog (block, gc);
   }
 
