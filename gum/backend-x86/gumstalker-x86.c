@@ -201,7 +201,7 @@ struct _GumExecCtx
   GumEventType sink_mask;
   void (* sink_process_impl) (GumEventSink * self, const GumEvent * event,
       GumCpuContext * cpu_context);
-  GumStalkerStats * stats;
+  GumStalkerObserver * observer;
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
@@ -1317,19 +1317,19 @@ gum_stalker_maybe_reactivate (GumStalker * self,
 }
 
 void
-gum_stalker_set_stats (GumStalker * self,
-                       GumStalkerStats * stats)
+gum_stalker_set_observer (GumStalker * self,
+                          GumStalkerObserver * observer)
 {
   GumExecCtx * ctx;
 
   ctx = gum_stalker_get_exec_ctx (self);
   g_assert (ctx != NULL);
 
-  if (stats != NULL)
-    g_object_ref (stats);
-  if (ctx->stats != NULL)
-    g_object_unref (ctx->stats);
-  ctx->stats = stats;
+  if (observer != NULL)
+    g_object_ref (observer);
+  if (ctx->observer != NULL)
+    g_object_unref (ctx->observer);
+  ctx->observer = observer;
 }
 
 void
@@ -1740,7 +1740,7 @@ gum_exec_ctx_new (GumStalker * stalker,
   ctx->sink_mask = gum_event_sink_query_mask (ctx->sink);
   ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (ctx->sink)->process;
 
-  ctx->stats = NULL;
+  ctx->observer = NULL;
 
   ctx->frames = (GumExecFrame *) (base + stalker->frames_offset);
   ctx->first_frame =
@@ -1814,7 +1814,7 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 
   g_object_unref (ctx->sink);
   g_object_unref (ctx->transformer);
-  g_clear_object (&ctx->stats);
+  g_clear_object (&ctx->observer);
 
   gum_x86_relocator_clear (&ctx->relocator);
   gum_x86_writer_clear (&ctx->code_writer);
@@ -1973,8 +1973,8 @@ gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
         GumExecCtx * ctx, \
         gpointer start_address) \
     { \
-      if (ctx->stats != NULL) \
-        gum_stalker_stats_increment_##name (ctx->stats); \
+      if (ctx->observer != NULL) \
+        gum_stalker_observer_increment_##name (ctx->observer); \
       \
       return gum_exec_ctx_switch_block (ctx, start_address); \
     }
@@ -2005,8 +2005,8 @@ static gpointer GUM_THUNK
 gum_exec_ctx_switch_block (GumExecCtx * ctx,
                            gpointer start_address)
 {
-  if (ctx->stats != NULL)
-    gum_stalker_stats_increment_total (ctx->stats);
+  if (ctx->observer != NULL)
+    gum_stalker_observer_increment_total (ctx->observer);
 
   if (start_address == gum_stalker_unfollow_me ||
       start_address == gum_stalker_deactivate)

@@ -113,8 +113,8 @@ gum_stalker_deactivate (GumStalker * self)
 }
 
 void
-gum_stalker_set_stats (GumStalker * self,
-                       GumStalkerStats * stats)
+gum_stalker_set_observer (GumStalker * self,
+                          GumStalkerObserver * observer)
 {
 }
 

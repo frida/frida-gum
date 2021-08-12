@@ -1164,8 +1164,8 @@ gum_stalker_maybe_reactivate (GumStalker * self,
 }
 
 void
-gum_stalker_set_stats (GumStalker * self,
-                       GumStalkerStats * stats)
+gum_stalker_set_observer (GumStalker * self,
+                          GumStalkerObserver * observer)
 {
 }
 

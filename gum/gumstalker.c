@@ -33,7 +33,8 @@ static void gum_callback_stalker_transformer_transform_block (
     GumStalkerTransformer * transformer, GumStalkerIterator * iterator,
     GumStalkerOutput * output);
 
-static void gum_stalker_stats_default_init (GumStalkerStatsInterface * iface);
+static void gum_stalker_observer_default_init (
+    GumStalkerObserverInterface * iface);
 
 G_DEFINE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer,
     G_TYPE_OBJECT)
@@ -52,7 +53,7 @@ G_DEFINE_TYPE_EXTENDED (GumCallbackStalkerTransformer,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_TRANSFORMER,
                             gum_callback_stalker_transformer_iface_init))
 
-G_DEFINE_INTERFACE (GumStalkerStats, gum_stalker_stats, G_TYPE_OBJECT)
+G_DEFINE_INTERFACE (GumStalkerObserver, gum_stalker_observer, G_TYPE_OBJECT)
 
 static void
 gum_stalker_transformer_default_init (GumStalkerTransformerInterface * iface)
@@ -177,56 +178,56 @@ gum_callback_stalker_transformer_transform_block (
 }
 
 static void
-gum_stalker_stats_default_init (GumStalkerStatsInterface * iface)
+gum_stalker_observer_default_init (GumStalkerObserverInterface * iface)
 {
 }
 
-#define GUM_DEFINE_STATS_INCREMENT(name) \
+#define GUM_DEFINE_OBSERVER_INCREMENT(name) \
     void \
-    gum_stalker_stats_increment_##name (GumStalkerStats * stats) \
+    gum_stalker_observer_increment_##name (GumStalkerObserver * observer) \
     { \
-      GumStalkerStatsInterface * iface; \
+      GumStalkerObserverInterface * iface; \
       \
-      iface = GUM_STALKER_STATS_GET_IFACE (stats); \
+      iface = GUM_STALKER_OBSERVER_GET_IFACE (observer); \
       g_assert (iface != NULL); \
       \
       if (iface->increment_##name == NULL) \
         return; \
       \
-      iface->increment_##name (stats); \
+      iface->increment_##name (observer); \
     }
 
-GUM_DEFINE_STATS_INCREMENT (total)
+GUM_DEFINE_OBSERVER_INCREMENT (total)
 
-GUM_DEFINE_STATS_INCREMENT (call_imm)
-GUM_DEFINE_STATS_INCREMENT (call_reg)
+GUM_DEFINE_OBSERVER_INCREMENT (call_imm)
+GUM_DEFINE_OBSERVER_INCREMENT (call_reg)
 
-GUM_DEFINE_STATS_INCREMENT (call_mem)
+GUM_DEFINE_OBSERVER_INCREMENT (call_mem)
 
-GUM_DEFINE_STATS_INCREMENT (excluded_call_reg)
+GUM_DEFINE_OBSERVER_INCREMENT (excluded_call_reg)
 
-GUM_DEFINE_STATS_INCREMENT (ret_slow_path)
+GUM_DEFINE_OBSERVER_INCREMENT (ret_slow_path)
 
-GUM_DEFINE_STATS_INCREMENT (ret)
+GUM_DEFINE_OBSERVER_INCREMENT (ret)
 
-GUM_DEFINE_STATS_INCREMENT (post_call_invoke)
-GUM_DEFINE_STATS_INCREMENT (excluded_call_imm)
+GUM_DEFINE_OBSERVER_INCREMENT (post_call_invoke)
+GUM_DEFINE_OBSERVER_INCREMENT (excluded_call_imm)
 
-GUM_DEFINE_STATS_INCREMENT (jmp_imm)
-GUM_DEFINE_STATS_INCREMENT (jmp_reg)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_imm)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_reg)
 
-GUM_DEFINE_STATS_INCREMENT (jmp_mem)
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_imm)
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_mem)
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_reg)
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_jcxz)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_mem)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_imm)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_mem)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_reg)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_jcxz)
 
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_cc)
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_cbz)
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_cbnz)
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_tbz)
-GUM_DEFINE_STATS_INCREMENT (jmp_cond_tbnz)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_cc)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_cbz)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_cbnz)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_tbz)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_tbnz)
 
-GUM_DEFINE_STATS_INCREMENT (jmp_continuation)
+GUM_DEFINE_OBSERVER_INCREMENT (jmp_continuation)
 
-GUM_DEFINE_STATS_INCREMENT (sysenter_slow_path)
+GUM_DEFINE_OBSERVER_INCREMENT (sysenter_slow_path)
