@@ -35,6 +35,13 @@ gum_stalker_new (void)
   return g_object_new (GUM_TYPE_STALKER, NULL);
 }
 
+GumStalker *
+gum_stalker_new_with_ic_entries (guint ic_entries)
+{
+  g_warning ("Stalker Inline Cache Entries Not Configurable");
+  return g_object_new (GUM_TYPE_STALKER, NULL);
+}
+
 void
 gum_stalker_exclude (GumStalker * self,
                      const GumMemoryRange * range)

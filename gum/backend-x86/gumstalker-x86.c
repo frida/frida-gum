@@ -34,7 +34,6 @@
 #define GUM_DATA_SLAB_SIZE_DYNAMIC  (GUM_CODE_SLAB_SIZE_DYNAMIC / 5)
 #define GUM_SCRATCH_SLAB_SIZE       16384
 #define GUM_EXEC_BLOCK_MIN_CAPACITY 1024
-#define GUM_IC_ENTRIES              16
 
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_INVALIDATE_TRAMPOLINE_SIZE            16
@@ -145,6 +144,8 @@ struct _GumStalker
   GArray * wow_transition_impls;
 # endif
 #endif
+
+  guint ic_entries;
 };
 
 struct _GumInfectContext
@@ -432,6 +433,12 @@ enum _GumBackpatchType
   GUM_BACKPATCH_INLINE_CACHE,
 };
 
+enum
+{
+  PROP_0,
+  PROP_IC_ENTRIES
+};
+
 static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
 
@@ -669,6 +676,9 @@ static gboolean gum_store_thread_exit_match (GumAddress address, gsize size,
     gpointer user_data);
 #endif
 
+static void gum_stalker_set_property (GObject * object, guint property_id,
+    const GValue * value, GParamSpec * pspec);
+
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
 static gpointer _gum_thread_exit_impl;
@@ -686,8 +696,32 @@ gum_stalker_class_init (GumStalkerClass * klass)
 
   object_class->dispose = gum_stalker_dispose;
   object_class->finalize = gum_stalker_finalize;
+  object_class->set_property = gum_stalker_set_property;
+
+  g_object_class_install_property (object_class, PROP_IC_ENTRIES,
+      g_param_spec_uint ("ic-entries", "IC Entries", "Inline Cache Entries", 2,
+      32, 2, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS));
 
   _gum_thread_exit_impl = gum_find_thread_exit_implementation ();
+}
+
+static void
+gum_stalker_set_property (GObject * object,
+                          guint property_id,
+                          const GValue * value,
+                          GParamSpec * pspec)
+{
+  GumStalker * self = GUM_STALKER (object);
+
+  switch (property_id)
+  {
+    case PROP_IC_ENTRIES:
+      self->ic_entries = g_value_get_uint (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+  }
 }
 
 static void
@@ -846,6 +880,12 @@ GumStalker *
 gum_stalker_new (void)
 {
   return g_object_new (GUM_TYPE_STALKER, NULL);
+}
+
+GumStalker *
+gum_stalker_new_with_ic_entries (guint ic_entries)
+{
+  return g_object_new (GUM_TYPE_STALKER, "ic-entries", ic_entries, NULL);
 }
 
 void
@@ -2420,7 +2460,7 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
 static gsize
 gum_stalker_get_ic_entry_size (GumStalker * self)
 {
-  return GUM_IC_ENTRIES * 2 * sizeof (gpointer);
+  return self->ic_entries * 2 * sizeof (gpointer);
 }
 
 void
@@ -3710,7 +3750,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
     return;
 
 
-  for (guint idx = 0; idx < GUM_IC_ENTRIES; idx++)
+  for (guint idx = 0; idx < ctx->stalker->ic_entries; idx++)
   {
     GumStalker * stalker = ctx->stalker;
 
@@ -4143,7 +4183,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     ic_entries = gum_x86_writer_cur (cw);
 
     /* Write our empty inline cache entries */
-    for (guint idx = 0; idx < GUM_IC_ENTRIES; idx++)
+    for (guint idx = 0; idx < block->ctx->stalker->ic_entries; idx++)
     {
         gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
         gum_x86_writer_put_bytes (cw, (guint8 *) &magic_ptr, sizeof (magic_ptr));
@@ -4165,7 +4205,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
         GUM_ADDRESS (ic_entries));
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
-        GUM_ADDRESS (&ic_entries[GUM_IC_ENTRIES]));
+        GUM_ADDRESS (&ic_entries[block->ctx->stalker->ic_entries]));
 
     /*
      * Write our inline assembly which iterates through the IcEntry structures,
@@ -4386,7 +4426,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     ic_entries = gum_x86_writer_cur (cw);
 
     /* Write our empty inline cache entries */
-    for (guint idx = 0; idx < GUM_IC_ENTRIES; idx++)
+    for (guint idx = 0; idx < block->ctx->stalker->ic_entries; idx++)
     {
         gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
         gum_x86_writer_put_bytes (cw, (guint8 *) &magic_ptr, sizeof (magic_ptr));
@@ -4409,7 +4449,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
         GUM_ADDRESS (ic_entries));
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
-        GUM_ADDRESS (&ic_entries[GUM_IC_ENTRIES]));
+        GUM_ADDRESS (&ic_entries[block->ctx->stalker->ic_entries]));
 
     /*
      * Write our inline assembly which iterates through the IcEntry structures,

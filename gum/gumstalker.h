@@ -153,6 +153,7 @@ struct _GumCallDetails
 GUM_API gboolean gum_stalker_is_supported (void);
 
 GUM_API GumStalker * gum_stalker_new (void);
+GUM_API GumStalker * gum_stalker_new_with_ic_entries (guint ic_entries);
 
 GUM_API void gum_stalker_exclude (GumStalker * self,
     const GumMemoryRange * range);
