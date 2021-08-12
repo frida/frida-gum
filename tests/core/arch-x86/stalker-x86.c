@@ -95,17 +95,35 @@ TESTLIST_BEGIN (stalker)
 
 #ifdef HAVE_LINUX
   TESTENTRY (prefetch)
+  TESTENTRY (prefetch_backpatch);
   TESTENTRY (observer)
 #endif
 TESTLIST_END ()
 
 #ifdef HAVE_LINUX
 
+#define GUM_TYPE_TEST_STALKER_OBSERVER (gum_test_stalker_observer_get_type ())
+G_DECLARE_FINAL_TYPE (GumTestStalkerObserver, gum_test_stalker_observer, GUM,
+                      TEST_STALKER_OBSERVER, GObject)
+
+typedef struct _PrefetchBackpatchContext PrefetchBackpatchContext;
+
 struct _GumTestStalkerObserver
 {
   GObject parent;
 
   guint64 total;
+};
+
+struct _PrefetchBackpatchContext
+{
+  GumStalker * stalker;
+  int pipes[2];
+  GumTestStalkerObserver * observer;
+  GumMemoryRange runner_range;
+  GumStalkerTransformer * transformer;
+  gboolean entry_reached;
+  guint count;
 };
 
 #endif
@@ -150,12 +168,13 @@ static void prefetch_activation_target (void);
 static void prefetch_write_blocks (int fd, GHashTable * table);
 static void prefetch_read_blocks (int fd, GHashTable * table);
 
+static void prefetch_backpatch_tranform (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void entry_callout (GumCpuContext * cpu_context, gpointer user_data);
+static int prefetch_on_fork (void);
+
 static GHashTable * prefetch_compiled = NULL;
 static GHashTable * prefetch_executed = NULL;
-
-#define GUM_TYPE_TEST_STALKER_OBSERVER (gum_test_stalker_observer_get_type ())
-G_DECLARE_FINAL_TYPE (GumTestStalkerObserver, gum_test_stalker_observer, GUM,
-                      TEST_STALKER_OBSERVER, GObject)
 
 static void gum_test_stalker_observer_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -164,6 +183,8 @@ static void gum_test_stalker_observer_class_init (
 static void gum_test_stalker_observer_init (GumTestStalkerObserver * self);
 static void gum_test_stalker_observer_increment_total (
     GumStalkerObserver * observer);
+static void gum_test_stalker_observer_notify_backpatch (
+    GumStalkerObserver * self, const GumBackpatch * backpatch, gsize size);
 
 G_DEFINE_TYPE_EXTENDED (GumTestStalkerObserver,
                         gum_test_stalker_observer,
@@ -171,6 +192,8 @@ G_DEFINE_TYPE_EXTENDED (GumTestStalkerObserver,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_OBSERVER,
                             gum_test_stalker_observer_iface_init))
+
+static PrefetchBackpatchContext bp_ctx;
 #endif
 
 static const guint8 flat_code[] = {
@@ -2871,6 +2894,165 @@ prefetch_read_blocks (int fd,
   }
 }
 
+TESTCASE (prefetch_backpatch)
+{
+  gchar * contents;
+  guint64 val;
+  int pipe_size;
+  void * fork_addr;
+  GumInterceptor * interceptor;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  bp_ctx.stalker = fixture->stalker;
+
+  g_assert_cmpint (pipe (bp_ctx.pipes), ==, 0);
+  g_assert_true (g_unix_set_fd_nonblocking (bp_ctx.pipes[0], TRUE, NULL));
+  g_assert_true (g_unix_set_fd_nonblocking (bp_ctx.pipes[1], TRUE, NULL));
+
+  g_assert_true (g_file_get_contents ("/proc/sys/fs/pipe-max-size", &contents,
+      NULL, NULL));
+  val = g_ascii_strtoull (contents, NULL, 10);
+  g_assert_cmpuint (val, <=, G_MAXINT32);
+  pipe_size = (int) val;
+  g_free (contents);
+
+  g_assert_cmpint (fcntl (bp_ctx.pipes[0], F_SETPIPE_SZ, pipe_size), ==,
+      pipe_size);
+  g_assert_cmpint (fcntl (bp_ctx.pipes[1], F_SETPIPE_SZ, pipe_size), ==,
+      pipe_size);
+
+  bp_ctx.observer = g_object_new (GUM_TYPE_TEST_STALKER_OBSERVER, NULL);
+
+  gum_process_enumerate_modules (store_range_of_test_runner,
+      &bp_ctx.runner_range);
+  g_assert_cmpuint (bp_ctx.runner_range.base_address, !=, 0);
+  g_assert_cmpuint (bp_ctx.runner_range.size, !=, 0);
+
+  bp_ctx.transformer = gum_stalker_transformer_make_from_callback (
+      prefetch_backpatch_tranform, NULL, NULL);
+
+  fork_addr = GSIZE_TO_POINTER (gum_module_find_export_by_name (NULL, "fork"));
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_begin_transaction (interceptor);
+  g_assert_cmpint (gum_interceptor_replace (interceptor, fork_addr,
+      prefetch_on_fork, NULL), ==, GUM_REPLACE_OK);
+  gum_interceptor_end_transaction (interceptor);
+
+  gum_stalker_set_trust_threshold (fixture->stalker, 0);
+
+  gum_stalker_follow_me (bp_ctx.stalker, bp_ctx.transformer, NULL);
+
+  gum_stalker_set_observer (bp_ctx.stalker,
+      GUM_STALKER_OBSERVER (bp_ctx.observer));
+
+  pretend_workload (&bp_ctx.runner_range);
+  _exit (0);
+}
+
+static void
+prefetch_backpatch_tranform (GumStalkerIterator * iterator,
+                             GumStalkerOutput * output,
+                             gpointer user_data)
+{
+  const cs_insn * instr;
+
+  while (gum_stalker_iterator_next (iterator, &instr))
+  {
+    if (instr->address == GPOINTER_TO_SIZE (pretend_workload))
+    {
+      gum_stalker_iterator_put_callout (iterator, entry_callout, NULL, NULL);
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+entry_callout (GumCpuContext * cpu_context,
+               gpointer user_data)
+{
+  guint counts[3], i;
+
+  for (i = 0; i != G_N_ELEMENTS (counts); i++)
+  {
+    pid_t pid;
+    int res, status;
+
+    pid = fork ();
+    g_assert_cmpint (pid, >=, 0);
+
+    if (pid == 0)
+    {
+      /* Child */
+      bp_ctx.entry_reached = TRUE;
+      return;
+    }
+
+    /* Parent */
+    counts[i] = bp_ctx.count;
+    res = waitpid (pid, &status, 0);
+    g_assert_cmpint (res, ==, pid);
+    g_assert_cmpint (WIFEXITED (status), !=, 0);
+    g_assert_cmpint (WEXITSTATUS (status), ==, 0);
+  }
+
+  /*
+   * When we fork the first child, we shouldn't have any backpatches to
+   * prefetch.
+   */
+  g_assert_cmpuint (counts[0], ==, 0);
+
+  /*
+   * Just as we fork the second child, we should prefetch the backpatches from
+   * the first time the child ran.
+   */
+  g_assert_cmpuint (counts[1], >, 0);
+
+  /*
+   * Before we fork the third child, we should prefetch the new backpatches from
+   * the second run of the child, there should be less since the child should
+   * have already inherited the backpatches we applied from the first run.
+   */
+  g_assert_cmpuint (counts[2], <, counts[1]);
+
+  gum_stalker_unfollow_me (bp_ctx.stalker);
+
+  close (bp_ctx.pipes[STDIN_FILENO]);
+  close (bp_ctx.pipes[STDOUT_FILENO]);
+
+  _exit (0);
+}
+
+static int
+prefetch_on_fork (void)
+{
+  int n;
+  gsize size;
+  char buf[PIPE_BUF] = { 0, };
+
+  bp_ctx.count = 0;
+  for (n = read (bp_ctx.pipes[STDIN_FILENO], &size, sizeof (size));
+       n >= 0;
+       n = read (bp_ctx.pipes[STDIN_FILENO], &size, sizeof (size)))
+  {
+    g_assert_cmpint (read (bp_ctx.pipes[STDIN_FILENO], buf, size), ==, size);
+    gum_stalker_prefetch_backpatch (bp_ctx.stalker, (const GumBackpatch *) buf);
+    bp_ctx.count++;
+  }
+  g_assert_cmpint (n, ==, -1);
+  g_assert_cmpint (errno, ==, EAGAIN);
+
+  if (g_test_verbose ())
+    g_print ("Prefetches (%u)\n", bp_ctx.count);
+
+  return fork ();
+}
+
 TESTCASE (observer)
 {
   GumTestStalkerObserver * test_observer;
@@ -2910,6 +3092,7 @@ gum_test_stalker_observer_iface_init (gpointer g_iface,
   GumStalkerObserverInterface * iface = g_iface;
 
   iface->increment_total = gum_test_stalker_observer_increment_total;
+  iface->notify_backpatch = gum_test_stalker_observer_notify_backpatch;
 }
 
 static void
@@ -2926,6 +3109,23 @@ static void
 gum_test_stalker_observer_increment_total (GumStalkerObserver * observer)
 {
   GUM_TEST_STALKER_OBSERVER (observer)->total++;
+}
+
+static void
+gum_test_stalker_observer_notify_backpatch (GumStalkerObserver * self,
+                                            const GumBackpatch * backpatch,
+                                            gsize size)
+{
+  int written;
+
+  if (!bp_ctx.entry_reached)
+    return;
+
+  written = write (bp_ctx.pipes[STDOUT_FILENO], &size, sizeof (size));
+  g_assert_cmpint (written, ==, sizeof (size));
+
+  written = write (bp_ctx.pipes[STDOUT_FILENO], backpatch, size);
+  g_assert_cmpint (written, ==, size);
 }
 
 #endif

@@ -44,10 +44,12 @@ G_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
 G_DECLARE_INTERFACE (GumStalkerObserver, gum_stalker_observer, GUM,
     STALKER_OBSERVER, GObject)
 
-typedef void (* GumStalkerObserverIncrementFunc) (GumStalkerObserver * self);
-
 typedef struct _GumStalkerIterator GumStalkerIterator;
 typedef struct _GumStalkerOutput GumStalkerOutput;
+typedef struct _GumBackpatch GumBackpatch;
+typedef void (* GumStalkerIncrementFunc) (GumStalkerObserver * self);
+typedef void (* GumStalkerNotifyBackpatchFunc) (GumStalkerObserver * self,
+    const GumBackpatch * backpatch, gsize size);
 typedef union _GumStalkerWriter GumStalkerWriter;
 typedef void (* GumStalkerTransformerCallback) (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
@@ -72,50 +74,52 @@ struct _GumStalkerObserverInterface
   GTypeInterface parent;
 
   /* Common */
-  GumStalkerObserverIncrementFunc increment_total;
+  GumStalkerIncrementFunc increment_total;
 
-  GumStalkerObserverIncrementFunc increment_call_imm;
-  GumStalkerObserverIncrementFunc increment_call_reg;
+  GumStalkerIncrementFunc increment_call_imm;
+  GumStalkerIncrementFunc increment_call_reg;
 
   /* x86 only */
-  GumStalkerObserverIncrementFunc increment_call_mem;
+  GumStalkerIncrementFunc increment_call_mem;
 
   /* Arm64 only */
-  GumStalkerObserverIncrementFunc increment_excluded_call_reg;
+  GumStalkerIncrementFunc increment_excluded_call_reg;
 
   /* x86 only */
-  GumStalkerObserverIncrementFunc increment_ret_slow_path;
+  GumStalkerIncrementFunc increment_ret_slow_path;
 
   /* Arm64 only */
-  GumStalkerObserverIncrementFunc increment_ret;
+  GumStalkerIncrementFunc increment_ret;
 
   /* Common */
-  GumStalkerObserverIncrementFunc increment_post_call_invoke;
-  GumStalkerObserverIncrementFunc increment_excluded_call_imm;
+  GumStalkerIncrementFunc increment_post_call_invoke;
+  GumStalkerIncrementFunc increment_excluded_call_imm;
 
   /* Common */
-  GumStalkerObserverIncrementFunc increment_jmp_imm;
-  GumStalkerObserverIncrementFunc increment_jmp_reg;
+  GumStalkerIncrementFunc increment_jmp_imm;
+  GumStalkerIncrementFunc increment_jmp_reg;
 
   /* x86 only */
-  GumStalkerObserverIncrementFunc increment_jmp_mem;
-  GumStalkerObserverIncrementFunc increment_jmp_cond_imm;
-  GumStalkerObserverIncrementFunc increment_jmp_cond_mem;
-  GumStalkerObserverIncrementFunc increment_jmp_cond_reg;
-  GumStalkerObserverIncrementFunc increment_jmp_cond_jcxz;
+  GumStalkerIncrementFunc increment_jmp_mem;
+  GumStalkerIncrementFunc increment_jmp_cond_imm;
+  GumStalkerIncrementFunc increment_jmp_cond_mem;
+  GumStalkerIncrementFunc increment_jmp_cond_reg;
+  GumStalkerIncrementFunc increment_jmp_cond_jcxz;
 
   /* Arm64 only */
-  GumStalkerObserverIncrementFunc increment_jmp_cond_cc;
-  GumStalkerObserverIncrementFunc increment_jmp_cond_cbz;
-  GumStalkerObserverIncrementFunc increment_jmp_cond_cbnz;
-  GumStalkerObserverIncrementFunc increment_jmp_cond_tbz;
-  GumStalkerObserverIncrementFunc increment_jmp_cond_tbnz;
+  GumStalkerIncrementFunc increment_jmp_cond_cc;
+  GumStalkerIncrementFunc increment_jmp_cond_cbz;
+  GumStalkerIncrementFunc increment_jmp_cond_cbnz;
+  GumStalkerIncrementFunc increment_jmp_cond_tbz;
+  GumStalkerIncrementFunc increment_jmp_cond_tbnz;
 
   /* Common */
-  GumStalkerObserverIncrementFunc increment_jmp_continuation;
+  GumStalkerIncrementFunc increment_jmp_continuation;
 
   /* x86 only */
-  GumStalkerObserverIncrementFunc increment_sysenter_slow_path;
+  GumStalkerIncrementFunc increment_sysenter_slow_path;
+
+  GumStalkerNotifyBackpatchFunc notify_backpatch;
 };
 
 union _GumStalkerWriter
@@ -284,6 +288,8 @@ GUM_API void gum_stalker_set_observer (GumStalker * self,
  */
 GUM_API void gum_stalker_prefetch (GumStalker * self, gconstpointer address,
     gint recycle_count);
+GUM_API void gum_stalker_prefetch_backpatch (GumStalker * self,
+    const GumBackpatch * notification);
 
 GUM_API void gum_stalker_invalidate (GumStalker * self, gconstpointer address);
 GUM_API void gum_stalker_invalidate_for_thread (GumStalker * self,
@@ -342,6 +348,9 @@ GUM_DECLARE_OBSERVER_INCREMENT (jmp_cond_tbnz)
 GUM_DECLARE_OBSERVER_INCREMENT (jmp_continuation)
 
 GUM_DECLARE_OBSERVER_INCREMENT (sysenter_slow_path)
+
+GUM_API void gum_stalker_observer_notify_backpatch (
+    GumStalkerObserver * observer, const GumBackpatch * backpatch, gsize size);
 
 GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);

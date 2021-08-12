@@ -1128,6 +1128,12 @@ gum_stalker_prefetch (GumStalker * self,
 }
 
 void
+gum_stalker_prefetch_backpatch (GumStalker * self,
+                                const GumBackpatch * backpatch)
+{
+}
+
+void
 gum_stalker_invalidate (GumStalker * self,
                         gconstpointer address)
 {

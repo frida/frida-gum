@@ -231,3 +231,19 @@ GUM_DEFINE_OBSERVER_INCREMENT (jmp_cond_tbnz)
 GUM_DEFINE_OBSERVER_INCREMENT (jmp_continuation)
 
 GUM_DEFINE_OBSERVER_INCREMENT (sysenter_slow_path)
+
+void
+gum_stalker_observer_notify_backpatch (GumStalkerObserver * observer,
+                                       const GumBackpatch * backpatch,
+                                       gsize size)
+{
+  GumStalkerObserverInterface * iface;
+
+  iface = GUM_STALKER_OBSERVER_GET_IFACE (observer);
+  g_assert (iface != NULL);
+
+  if (iface->notify_backpatch == NULL)
+    return;
+
+  iface->notify_backpatch (observer, backpatch, size);
+}
