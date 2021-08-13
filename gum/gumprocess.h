@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -18,7 +18,6 @@ G_BEGIN_DECLS
 
 typedef guint GumProcessId;
 typedef gsize GumThreadId;
-typedef guint GumThreadState;
 typedef struct _GumThreadDetails GumThreadDetails;
 typedef struct _GumModuleDetails GumModuleDetails;
 typedef guint GumImportType;
@@ -37,14 +36,13 @@ typedef enum {
   GUM_CODE_SIGNING_REQUIRED
 } GumCodeSigningPolicy;
 
-enum _GumThreadState
-{
+typedef enum {
   GUM_THREAD_RUNNING = 1,
   GUM_THREAD_STOPPED,
   GUM_THREAD_WAITING,
   GUM_THREAD_UNINTERRUPTIBLE,
   GUM_THREAD_HALTED
-};
+} GumThreadState;
 
 struct _GumThreadDetails
 {
