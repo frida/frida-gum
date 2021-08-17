@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -35,9 +35,21 @@
 #include <dispatch/dispatch.h>
 #include <mach/mach.h>
 
+#define GUM_EXCEPTOR_BACKEND_LOCK(o) g_rec_mutex_lock (&(o)->mutex)
+#define GUM_EXCEPTOR_BACKEND_UNLOCK(o) g_rec_mutex_unlock (&(o)->mutex)
+
 #define GUM_EXCEPTOR_BACKEND_MESSAGE_STOP 1
 
+typedef guint GumExceptorState;
 typedef struct _GumExceptionPortSet GumExceptionPortSet;
+
+enum _GumExceptorState
+{
+  GUM_EXCEPTOR_DETACHED = 1,
+  GUM_EXCEPTOR_ATTACHED,
+  GUM_EXCEPTOR_PAUSED,
+  GUM_EXCEPTOR_DISPOSED
+};
 
 struct _GumExceptionPortSet
 {
@@ -52,8 +64,9 @@ struct _GumExceptorBackend
 {
   GObject parent;
 
-  gboolean attached;
-  gboolean disposed;
+  GRecMutex mutex;
+
+  GumExceptorState state;
 
   GumExceptionHandler handler;
   gpointer handler_data;
@@ -68,10 +81,14 @@ struct _GumExceptorBackend
   GumInterceptor * interceptor;
 };
 
+static void gum_exceptor_backend_recover_from_fork (void);
+
 static void gum_exceptor_backend_dispose (GObject * object);
+static void gum_exceptor_backend_finalize (GObject * object);
 
 static void gum_exceptor_backend_attach (GumExceptorBackend * self);
 static void gum_exceptor_backend_detach (GumExceptorBackend * self);
+static void gum_exceptor_restore_old_ports (GumExceptorBackend * self);
 static void gum_exceptor_backend_start_worker_thread (
     GumExceptorBackend * self);
 static void gum_exceptor_backend_stop_worker_thread (GumExceptorBackend * self);
@@ -132,29 +149,49 @@ static gboolean was_attached_before_fork = FALSE;
 void
 _gum_exceptor_backend_prepare_to_fork (void)
 {
-  if (the_backend == NULL || !the_backend->attached)
+  if (the_backend == NULL)
   {
     was_attached_before_fork = FALSE;
     return;
   }
 
-  was_attached_before_fork = TRUE;
+  GUM_EXCEPTOR_BACKEND_LOCK (the_backend);
 
-  gum_exceptor_backend_detach (the_backend);
+  if (the_backend->state != GUM_EXCEPTOR_DETACHED)
+  {
+    was_attached_before_fork = TRUE;
+
+    gum_exceptor_backend_detach (the_backend);
+  }
+  else
+  {
+    was_attached_before_fork = FALSE;
+  }
+
+  GUM_EXCEPTOR_BACKEND_UNLOCK (the_backend);
 }
 
 void
 _gum_exceptor_backend_recover_from_fork_in_parent (void)
 {
-  if (was_attached_before_fork)
-    gum_exceptor_backend_attach (the_backend);
+  gum_exceptor_backend_recover_from_fork ();
 }
 
 void
 _gum_exceptor_backend_recover_from_fork_in_child (void)
 {
+  gum_exceptor_backend_recover_from_fork ();
+}
+
+static void
+gum_exceptor_backend_recover_from_fork (void)
+{
   if (was_attached_before_fork)
+  {
+    GUM_EXCEPTOR_BACKEND_LOCK (the_backend);
     gum_exceptor_backend_attach (the_backend);
+    GUM_EXCEPTOR_BACKEND_UNLOCK (the_backend);
+  }
 }
 
 static void
@@ -163,11 +200,16 @@ gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
   object_class->dispose = gum_exceptor_backend_dispose;
+  object_class->finalize = gum_exceptor_backend_finalize;
 }
 
 static void
 gum_exceptor_backend_init (GumExceptorBackend * self)
 {
+  g_rec_mutex_init (&self->mutex);
+
+  self->state = GUM_EXCEPTOR_DETACHED;
+
   self->interceptor = gum_interceptor_obtain ();
 
   the_backend = self;
@@ -178,20 +220,34 @@ gum_exceptor_backend_dispose (GObject * object)
 {
   GumExceptorBackend * self = GUM_EXCEPTOR_BACKEND (object);
 
-  if (!self->disposed)
-  {
-    self->disposed = TRUE;
+  GUM_EXCEPTOR_BACKEND_LOCK (self);
 
-    if (self->attached)
+  if (self->state != GUM_EXCEPTOR_DISPOSED)
+  {
+    if (self->state != GUM_EXCEPTOR_DETACHED)
       gum_exceptor_backend_detach (self);
 
     g_object_unref (self->interceptor);
     self->interceptor = NULL;
 
     the_backend = NULL;
+
+    self->state = GUM_EXCEPTOR_DISPOSED;
   }
 
+  GUM_EXCEPTOR_BACKEND_UNLOCK (self);
+
   G_OBJECT_CLASS (gum_exceptor_backend_parent_class)->dispose (object);
+}
+
+static void
+gum_exceptor_backend_finalize (GObject * object)
+{
+  GumExceptorBackend * self = GUM_EXCEPTOR_BACKEND (object);
+
+  g_rec_mutex_clear (&self->mutex);
+
+  G_OBJECT_CLASS (gum_exceptor_backend_parent_class)->finalize (object);
 }
 
 GumExceptorBackend *
@@ -205,7 +261,11 @@ gum_exceptor_backend_new (GumExceptionHandler handler,
   backend->handler_data = user_data;
 
   if (!gum_process_is_debugger_attached ())
+  {
+    GUM_EXCEPTOR_BACKEND_LOCK (backend);
     gum_exceptor_backend_attach (backend);
+    GUM_EXCEPTOR_BACKEND_UNLOCK (backend);
+  }
 
   return backend;
 }
@@ -219,7 +279,9 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   GumExceptionPortSet * old_ports;
   struct sigaction action;
 
-  g_assert (!self->attached);
+  g_assert (self->state == GUM_EXCEPTOR_DETACHED);
+
+  self->state = GUM_EXCEPTOR_ATTACHED;
 
   self_task = mach_task_self ();
 
@@ -274,8 +336,6 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   gum_interceptor_end_transaction (interceptor);
 
   gum_exceptor_backend_start_worker_thread (self);
-
-  self->attached = TRUE;
 }
 
 static void
@@ -283,10 +343,10 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
 {
   GumInterceptor * interceptor = self->interceptor;
   mach_port_t self_task;
-  GumExceptionPortSet * old_ports;
-  mach_msg_type_number_t port_index;
 
-  g_assert (self->attached);
+  g_assert (self->state != GUM_EXCEPTOR_DETACHED);
+
+  self->state = GUM_EXCEPTOR_DETACHED;
 
   gum_interceptor_begin_transaction (interceptor);
 
@@ -301,30 +361,46 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
 
   self_task = mach_task_self ();
 
-  old_ports = &self->old_ports;
-  for (port_index = 0; port_index != old_ports->count; port_index++)
-  {
-    kern_return_t kr;
-
-    kr = task_set_exception_ports (self_task,
-        old_ports->masks[port_index],
-        old_ports->handlers[port_index],
-        old_ports->behaviors[port_index],
-        old_ports->flavors[port_index]);
-    g_assert (kr == KERN_SUCCESS);
-  }
+  gum_exceptor_restore_old_ports (self);
 
   gum_exceptor_backend_stop_worker_thread (self);
-
-  gum_exception_port_set_mod_refs (old_ports, -1);
-  old_ports->count = 0;
 
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_SEND, -1);
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_RECEIVE,
       -1);
   self->server_port = MACH_PORT_NULL;
+}
 
-  self->attached = FALSE;
+static void
+gum_exceptor_backend_pause (GumExceptorBackend * self)
+{
+  g_assert (self->state == GUM_EXCEPTOR_ATTACHED);
+
+  self->state = GUM_EXCEPTOR_PAUSED;
+
+  gum_exceptor_restore_old_ports (self);
+}
+
+static void
+gum_exceptor_restore_old_ports (GumExceptorBackend * self)
+{
+  GumExceptionPortSet * old_ports = &self->old_ports;
+  mach_msg_type_number_t i;
+
+  for (i = 0; i != old_ports->count; i++)
+  {
+    kern_return_t kr;
+
+    kr = task_set_exception_ports (mach_task_self (),
+        old_ports->masks[i],
+        old_ports->handlers[i],
+        old_ports->behaviors[i],
+        old_ports->flavors[i]);
+    g_assert (kr == KERN_SUCCESS);
+  }
+
+  gum_exception_port_set_mod_refs (old_ports, -1);
+  old_ports->count = 0;
 }
 
 static void
@@ -339,11 +415,16 @@ gum_exceptor_backend_start_worker_thread (GumExceptorBackend * self)
 static void
 gum_exceptor_backend_stop_worker_thread (GumExceptorBackend * self)
 {
-  g_assert (self->worker != NULL);
+  GThread * worker;
+
+  worker = g_steal_pointer (&self->worker);
+  g_assert (worker != NULL);
 
   gum_exceptor_backend_send_stop_request (self);
-  g_thread_join (self->worker);
-  self->worker = NULL;
+
+  GUM_EXCEPTOR_BACKEND_UNLOCK (self);
+  g_thread_join (worker);
+  GUM_EXCEPTOR_BACKEND_LOCK (self);
 }
 
 static void
@@ -444,13 +525,9 @@ catch_mach_exception_raise_state_identity (
     mach_msg_type_number_t * new_state_count)
 {
   GumExceptorBackend * self = the_backend;
-  mach_port_t self_task;
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
-  kern_return_t kr;
-
-  self_task = mach_task_self ();
 
   ed.thread_id = thread;
 
@@ -511,108 +588,28 @@ catch_mach_exception_raise_state_identity (
     gum_darwin_unparse_unified_thread_state (cpu_context,
         (GumDarwinUnifiedThreadState *) new_state);
     *new_state_count = old_state_count;
-
-    kr = KERN_SUCCESS;
   }
   else
   {
-    GumExceptionPortSet * old_ports = &self->old_ports;
-    mach_msg_type_number_t port_index;
-    exception_data_t small_code;
-    mach_msg_type_number_t code_index;
+    GUM_EXCEPTOR_BACKEND_LOCK (self);
 
-    small_code = g_newa (exception_data_type_t, code_count);
-    for (code_index = 0; code_index != code_count; code_index++)
-    {
-      small_code[code_index] = code[code_index];
-    }
+    /*
+     * We cannot forward to the previous handler due to task and thread ports
+     * being guarded. So instead we revert to the previous handler, pretend we
+     * handled the exception, and assume that an identical exception will be
+     * generated right after. That time around the original handler will receive
+     * the exception and be able to handle it.
+     */
+    if (self->state == GUM_EXCEPTOR_ATTACHED)
+      gum_exceptor_backend_pause (self);
 
-    kr = KERN_FAILURE;
+    GUM_EXCEPTOR_BACKEND_UNLOCK (self);
 
-    for (port_index = 0; port_index != old_ports->count; port_index++)
-    {
-      exception_mask_t mask = old_ports->masks[port_index];
-      mach_port_t port = old_ports->handlers[port_index];
-      exception_behavior_t behavior = old_ports->behaviors[port_index];
-      gboolean is_modern;
-
-      if (port == MACH_PORT_NULL)
-        continue;
-
-      if ((mask & (1 << exception)) == 0)
-        continue;
-
-      is_modern = behavior & MACH_EXCEPTION_CODES;
-
-      switch (behavior & ~MACH_EXCEPTION_CODES)
-      {
-        case EXCEPTION_DEFAULT:
-        {
-          if (is_modern)
-          {
-            kr = mach_exception_raise (port, thread, task, exception, code,
-                code_count);
-          }
-          else
-          {
-            kr = exception_raise (port, thread, task, exception, small_code,
-                code_count);
-          }
-
-          if (kr == KERN_SUCCESS)
-          {
-            *new_state_count = old_state_count;
-            kr = thread_get_state (thread, GUM_DARWIN_THREAD_STATE_FLAVOR,
-                new_state, new_state_count);
-          }
-
-          break;
-        }
-        case EXCEPTION_STATE:
-        {
-          if (is_modern)
-          {
-            kr = mach_exception_raise_state (port, exception, code, code_count,
-                flavor, old_state, old_state_count, new_state, new_state_count);
-          }
-          else
-          {
-            kr = exception_raise_state (port, exception, small_code, code_count,
-                flavor, old_state, old_state_count, new_state, new_state_count);
-          }
-
-          break;
-        }
-        case EXCEPTION_STATE_IDENTITY:
-        {
-          if (is_modern)
-          {
-            kr = mach_exception_raise_state_identity (port, thread, task,
-                exception, code, code_count, flavor, old_state,
-                old_state_count, new_state, new_state_count);
-          }
-          else
-          {
-            kr = exception_raise_state_identity (port, thread, task, exception,
-                small_code, code_count, flavor, old_state, old_state_count,
-                new_state, new_state_count);
-          }
-
-          break;
-        }
-        default:
-        {
-          g_assert_not_reached ();
-          break;
-        }
-      }
-
-      if (kr == KERN_SUCCESS)
-        break;
-    }
+    memcpy (new_state, old_state, old_state_count * sizeof (natural_t));
+    *new_state_count = old_state_count;
   }
 
-  return kr;
+  return KERN_SUCCESS;
 }
 
 static void
@@ -686,11 +683,11 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
     exception_behavior_array_t old_behaviors,
     exception_flavor_array_t old_flavors)
 {
+  kern_return_t kr;
   mach_port_t self_task;
   GumExceptorBackend * self;
   GumInvocationContext * ctx;
   GumExceptionPortSet all_ports, filtered_ports;
-  kern_return_t kr;
   gboolean found_server_port;
   mach_msg_type_number_t src_index, dst_index;
 
@@ -705,11 +702,16 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
   self = GUM_EXCEPTOR_BACKEND (
       gum_invocation_context_get_replacement_data (ctx));
 
+  GUM_EXCEPTOR_BACKEND_LOCK (self);
+
+  if (self->state != GUM_EXCEPTOR_ATTACHED)
+    goto passthrough_after_unlock;
+
   kr = task_get_exception_ports (task, exception_mask, all_ports.masks,
       &all_ports.count, all_ports.handlers, all_ports.behaviors,
       all_ports.flavors);
   if (kr != KERN_SUCCESS)
-    return kr;
+    goto propagate_result;
 
   found_server_port = FALSE;
 
@@ -748,7 +750,15 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
   gum_exception_port_set_extract (&filtered_ports, masks, masks_count,
       old_handlers, old_behaviors, old_flavors);
 
-  return KERN_SUCCESS;
+  kr = KERN_SUCCESS;
+
+propagate_result:
+  GUM_EXCEPTOR_BACKEND_UNLOCK (self);
+
+  return kr;
+
+passthrough_after_unlock:
+  GUM_EXCEPTOR_BACKEND_UNLOCK (self);
 
 passthrough:
   return task_get_exception_ports (task, exception_mask, masks, masks_count,
@@ -763,6 +773,7 @@ gum_exceptor_backend_replacement_task_set_exception_ports (
     exception_behavior_t behavior,
     thread_state_flavor_t new_flavor)
 {
+  kern_return_t kr;
   mach_port_t self_task;
   GumExceptorBackend * self;
   GumInvocationContext * ctx;
@@ -780,20 +791,23 @@ gum_exceptor_backend_replacement_task_set_exception_ports (
   self = GUM_EXCEPTOR_BACKEND (
       gum_invocation_context_get_replacement_data (ctx));
 
+  GUM_EXCEPTOR_BACKEND_LOCK (self);
+
+  if (self->state != GUM_EXCEPTOR_ATTACHED)
+    goto passthrough_after_unlock;
+
   inside_mask = self->exception_mask & exception_mask;
   if (inside_mask == 0)
-    goto passthrough;
+    goto passthrough_after_unlock;
 
   outside_mask = exception_mask & ~self->exception_mask;
 
   if (outside_mask != 0)
   {
-    kern_return_t kr;
-
     kr = task_set_exception_ports (task, outside_mask, new_port, behavior,
         new_flavor);
     if (kr != KERN_SUCCESS)
-      return kr;
+      goto propagate_result;
   }
 
   in_ports.count = 1;
@@ -811,7 +825,15 @@ gum_exceptor_backend_replacement_task_set_exception_ports (
   gum_exception_port_set_mod_refs (&self->old_ports, -1);
   gum_exception_port_set_copy (&imploded_next_ports, &self->old_ports);
 
-  return KERN_SUCCESS;
+  kr = KERN_SUCCESS;
+
+propagate_result:
+  GUM_EXCEPTOR_BACKEND_UNLOCK (self);
+
+  return kr;
+
+passthrough_after_unlock:
+  GUM_EXCEPTOR_BACKEND_UNLOCK (self);
 
 passthrough:
   return task_set_exception_ports (task, exception_mask, new_port, behavior,
@@ -831,6 +853,7 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
     exception_behavior_array_t old_behaviors,
     exception_flavor_array_t old_flavors)
 {
+  kern_return_t kr;
   mach_port_t self_task;
   GumExceptorBackend * self;
   GumInvocationContext * ctx;
@@ -850,9 +873,14 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
   self = GUM_EXCEPTOR_BACKEND (
       gum_invocation_context_get_replacement_data (ctx));
 
+  GUM_EXCEPTOR_BACKEND_LOCK (self);
+
+  if (self->state != GUM_EXCEPTOR_ATTACHED)
+    goto passthrough_after_unlock;
+
   inside_mask = self->exception_mask & exception_mask;
   if (inside_mask == 0)
-    goto passthrough;
+    goto passthrough_after_unlock;
 
   outside_mask = exception_mask & ~self->exception_mask;
 
@@ -873,14 +901,12 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
 
   if (outside_mask != 0)
   {
-    kern_return_t kr;
-
     kr = task_swap_exception_ports (task, outside_mask, new_port, behavior,
         new_flavor, prev_outside_ports.masks, &prev_outside_ports.count,
         prev_outside_ports.handlers, prev_outside_ports.behaviors,
         prev_outside_ports.flavors);
     if (kr != KERN_SUCCESS)
-      return kr;
+      goto propagate_result;
 
     gum_exception_port_set_explode (&prev_outside_ports, &out_ports);
   }
@@ -900,7 +926,15 @@ gum_exceptor_backend_replacement_task_swap_exception_ports (
   gum_exception_port_set_mod_refs (&self->old_ports, -1);
   gum_exception_port_set_copy (&imploded_next_ports, &self->old_ports);
 
-  return KERN_SUCCESS;
+  kr = KERN_SUCCESS;
+
+propagate_result:
+  GUM_EXCEPTOR_BACKEND_UNLOCK (self);
+
+  return kr;
+
+passthrough_after_unlock:
+  GUM_EXCEPTOR_BACKEND_UNLOCK (self);
 
 passthrough:
   return task_swap_exception_ports (task, exception_mask, new_port, behavior,
