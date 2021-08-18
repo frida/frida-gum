@@ -24,9 +24,7 @@
  *     $(xcrun --sdk macosx --show-sdk-path)/usr/include/mach/mach_exc.defs
  */
 #include "exc.h"
-#include "excclient.c"
 #include "machexc.h"
-#include "machexcclient.c"
 #undef msgh_request_port
 #undef msgh_reply_port
 #include "machexcserver.c"
