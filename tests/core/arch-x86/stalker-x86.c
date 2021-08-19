@@ -102,7 +102,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (observer)
 #endif
 
-#ifdef HAVE_I386
+#ifndef HAVE_WINDOWS
   TESTENTRY (ic_var)
 #endif
 TESTLIST_END ()
@@ -3137,7 +3137,7 @@ gum_test_stalker_observer_notify_backpatch (GumStalkerObserver * self,
 
 #endif
 
-#ifdef HAVE_I386
+#ifndef HAVE_WINDOWS
 
 TESTCASE (ic_var)
 {
