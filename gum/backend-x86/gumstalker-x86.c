@@ -38,9 +38,13 @@
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_INVALIDATE_TRAMPOLINE_SIZE            16
 # define GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX 3
+# define GUM_IC_MAGIC_EMPTY                        0xdeadface
+# define GUM_IC_MAGIC_SCRATCH                      0xcafef00d
 #else
 # define GUM_INVALIDATE_TRAMPOLINE_SIZE            17
 # define GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX 9
+# define GUM_IC_MAGIC_EMPTY                        0xbaadd00ddeadface
+# define GUM_IC_MAGIC_SCRATCH                      0xbaadd00dcafef00d
 #endif
 #define GUM_MINIMAL_PROLOG_RETURN_OFFSET \
     ((GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX + 2) * sizeof (gpointer))
@@ -4288,16 +4292,8 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   if (trust_threshold >= 0 && !can_backpatch_statically)
   {
     gpointer null_ptr = NULL;
-    /*
-     * Value stored in the code_start field of the IcEntry when empty, so that
-     * it can be more easily identified when debugging.
-     */
-    gpointer magic_ptr = GSIZE_TO_POINTER (0xbaadd00ddeadface);
-    /*
-     * Scratch space used to store the matched code_start field so we can jump
-     * there once we have restored all of the target context.
-     */
-    gpointer match_ptr = GSIZE_TO_POINTER (0xbaadd00dcafef00d);
+    gsize empty_val = GUM_IC_MAGIC_EMPTY;
+    gsize scratch_val = GUM_IC_MAGIC_SCRATCH;
     guint i;
 
     if (opened_prolog == GUM_PROLOG_NONE)
@@ -4332,11 +4328,10 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
     ic_entries = gum_x86_writer_cur (cw);
 
-    /* Write our empty inline cache entries */
     for (i = 0; i != stalker->ic_entries; i++)
     {
       gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-      gum_x86_writer_put_bytes (cw, (guint8 *) &magic_ptr, sizeof (magic_ptr));
+      gum_x86_writer_put_bytes (cw, (guint8 *) &empty_val, sizeof (empty_val));
     }
 
     /*
@@ -4345,7 +4340,8 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
      * have restored the target application context.
      */
     ic_match = gum_x86_writer_cur (cw);
-    gum_x86_writer_put_bytes (cw, (guint8 *) &match_ptr, sizeof (match_ptr));
+    gum_x86_writer_put_bytes (cw, (guint8 *) &scratch_val,
+        sizeof (scratch_val));
 
     gum_x86_writer_put_label (cw, look_in_cache);
 
@@ -4557,16 +4553,8 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   {
     guint i;
     gpointer null_ptr = NULL;
-    /*
-     * Value stored in the code_start field of the IcEntry when empty, so that
-     * it can be more easily identified when debugging.
-     */
-    gpointer magic_ptr = GSIZE_TO_POINTER (0xbaadd00ddeadface);
-    /*
-     * Scratch space used to store the matched code_start field so we can jump
-     * there once we have restored all of the target context.
-     */
-    gpointer match_ptr = GSIZE_TO_POINTER (0xbaadd00dcafef00d);
+    gsize empty_val = GUM_IC_MAGIC_EMPTY;
+    gsize scratch_val = GUM_IC_MAGIC_SCRATCH;
 
     gum_exec_block_close_prolog (block, gc);
 
@@ -4578,11 +4566,10 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 
     ic_entries = gum_x86_writer_cur (cw);
 
-    /* Write our empty inline cache entries */
     for (i = 0; i != stalker->ic_entries; i++)
     {
       gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-      gum_x86_writer_put_bytes (cw, (guint8 *) &magic_ptr, sizeof (magic_ptr));
+      gum_x86_writer_put_bytes (cw, (guint8 *) &empty_val, sizeof (empty_val));
     }
 
     /*
@@ -4591,7 +4578,8 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
      * have restored the target application context.
      */
     ic_match = gum_x86_writer_cur (cw);
-    gum_x86_writer_put_bytes (cw, (guint8 *) &match_ptr, sizeof (match_ptr));
+    gum_x86_writer_put_bytes (cw, (guint8 *) &scratch_val,
+        sizeof (scratch_val));
 
     gum_x86_writer_put_label (cw, look_in_cache);
     gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
