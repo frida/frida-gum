@@ -16,6 +16,9 @@
 # include <fcntl.h>
 # include <unistd.h>
 # include <sys/wait.h>
+# ifndef F_SETPIPE_SZ
+#  define F_SETPIPE_SZ 1031
+# endif
 #endif
 
 TESTLIST_BEGIN (stalker)
