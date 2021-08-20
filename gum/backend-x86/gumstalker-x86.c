@@ -4464,7 +4464,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_ret), 3,
         GUM_ARG_REGISTER, GUM_REG_XAX,
-        GUM_ARG_ADDRESS, block,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, ret_code_address - GUM_ADDRESS (block->code_start));
   }
 
@@ -4502,10 +4502,10 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_call), 6,
         GUM_ARG_REGISTER, GUM_REG_XAX,
-        GUM_ARG_ADDRESS, block,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, call_code_start - GUM_ADDRESS (block->code_start),
         GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog),
-        GUM_ARG_ADDRESS, ret_real_address,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ret_real_address),
         GUM_ARG_ADDRESS, ret_code_address - GUM_ADDRESS (block->code_start));
   }
 
@@ -4661,7 +4661,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_jmp), 4,
         GUM_ARG_REGISTER, GUM_REG_XAX,
-        GUM_ARG_ADDRESS, block,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, code_start - GUM_ADDRESS (block->code_start),
         GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog));
   }
