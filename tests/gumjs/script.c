@@ -8470,7 +8470,7 @@ TESTCASE (script_memory_usage)
 {
   GumScript * script;
   GTimer * timer;
-  guint before, after;
+  guint before, after, i;
 
   if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
@@ -8489,26 +8489,35 @@ TESTCASE (script_memory_usage)
 
   before = gum_peek_private_memory_usage ();
 
-  g_timer_reset (timer);
-  script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "const foo = 42;", NULL, NULL);
-  g_print ("created in %u ms\n",
-      (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
+  for (i = 0; i != 1000; i++)
+  {
+    g_timer_reset (timer);
+    script = gum_script_backend_create_sync (fixture->backend, "testcase",
+        "const foo = 42;", NULL, NULL);
+    g_print ("[Run #%u] created in %u ms\n",
+        i + 1,
+        (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
 
-  g_timer_reset (timer);
-  gum_script_load_sync (script, NULL);
-  g_print ("loaded in %u ms\n",
-      (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
+    g_timer_reset (timer);
+    gum_script_load_sync (script, NULL);
+    g_print ("loaded in %u ms\n",
+        (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
 
-  after = gum_peek_private_memory_usage ();
-  g_print ("memory usage: %u bytes\n", after - before);
+    after = gum_peek_private_memory_usage ();
+    g_print ("memory usage before unload: %u bytes\n", after - before);
 
-  g_timer_reset (timer);
-  gum_script_unload_sync (script, NULL);
-  g_print ("unloaded in %u ms\n",
-      (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
+    g_timer_reset (timer);
+    gum_script_unload_sync (script, NULL);
+    g_print ("unloaded in %u ms\n",
+        (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
 
-  g_object_unref (script);
+    g_object_unref (script);
+
+    after = gum_peek_private_memory_usage ();
+    g_print ("memory usage after unload: %u bytes\n", after - before);
+
+    //g_usleep (50000);
+  }
 }
 
 TESTCASE (source_maps_should_be_supported_for_our_runtime)
