@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumquickvalue.h"
+
+#include <gum/gum-init.h>
 
 #include <stdarg.h>
 #include <string.h>
@@ -17,10 +19,16 @@ static void gum_quick_args_free_cstring_later (GumQuickArgs * self,
 static void gum_quick_args_free_array_later (GumQuickArgs * self, GArray * a);
 static void gum_quick_args_free_bytes_later (GumQuickArgs * self, GBytes * b);
 
+static JSClassID gum_get_class_id_for_class_def (const JSClassDef * def);
+static void gum_deinit_class_ids (void);
+
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
 static const gchar * gum_thread_state_to_string (GumThreadState state);
 static const gchar * gum_memory_operation_to_string (
     GumMemoryOperation operation);
+
+G_LOCK_DEFINE_STATIC (gum_class_ids);
+static GHashTable * gum_class_ids;
 
 void
 _gum_quick_args_init (GumQuickArgs * args,
@@ -1920,8 +1928,7 @@ _gum_quick_create_class (JSContext * ctx,
   JSClassID id;
   JSValue proto;
 
-  id = 0;
-  JS_NewClassID (&id);
+  id = gum_get_class_id_for_class_def (def);
 
   JS_NewClass (core->rt, id, def);
 
@@ -1944,8 +1951,7 @@ _gum_quick_create_subclass (JSContext * ctx,
   JSClassID id;
   JSValue proto;
 
-  id = 0;
-  JS_NewClassID (&id);
+  id = gum_get_class_id_for_class_def (def);
 
   JS_NewClass (core->rt, id, def);
 
@@ -1957,6 +1963,37 @@ _gum_quick_create_subclass (JSContext * ctx,
 
   *klass = id;
   *prototype = proto;
+}
+
+static JSClassID
+gum_get_class_id_for_class_def (const JSClassDef * def)
+{
+  JSClassID id;
+
+  G_LOCK (gum_class_ids);
+
+  if (gum_class_ids == NULL)
+  {
+    gum_class_ids = g_hash_table_new (NULL, NULL);
+    _gum_register_destructor (gum_deinit_class_ids);
+  }
+
+  id = GPOINTER_TO_UINT (g_hash_table_lookup (gum_class_ids, def));
+  if (id == 0)
+  {
+    JS_NewClassID (&id);
+    g_hash_table_insert (gum_class_ids, (gpointer) def, GUINT_TO_POINTER (id));
+  }
+
+  G_UNLOCK (gum_class_ids);
+
+  return id;
+}
+
+static void
+gum_deinit_class_ids (void)
+{
+  g_hash_table_unref (gum_class_ids);
 }
 
 JSValue
