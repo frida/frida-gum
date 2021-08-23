@@ -28,6 +28,7 @@
 #define FOOTERS                   0
 #define INSECURE                  1
 #define NO_MALLINFO               0
+#define REALLOC_ZERO_BYTES_FREES  1
 #ifdef HAVE_LIBC_MALLINFO
 # include <malloc.h>
 # define STRUCT_MALLINFO_DECLARED 1
