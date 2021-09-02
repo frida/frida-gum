@@ -163,6 +163,7 @@
     <None Include="runtime\console.js" />
     <None Include="runtime\hexdump.js" />
     <None Include="runtime\objc.js" />
+    <None Include="runtime\swift.js" />
     <None Include="runtime\java.js" />
     <None Include="runtime\cmodule-tcc\inttypes.h" />
     <None Include="runtime\cmodule-tcc\stdint.h" />
@@ -199,14 +200,14 @@ REM. &gt; $(IntDir)gumjs\bindings.stamp
   <ItemGroup>
     <CustomBuild Include="generate-runtime.py">
       <FileType>Document</FileType>
-      <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumquickscript-runtime.h;$(IntDir)gumjs\gumquickscript-objc.h;$(IntDir)gumjs\gumquickscript-java.h;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumcmodule-runtime.h</Outputs>
+      <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumquickscript-runtime.h;$(IntDir)gumjs\gumquickscript-objc.h;$(IntDir)gumjs\gumquickscript-swift.h;$(IntDir)gumjs\gumquickscript-java.h;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-swift.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumcmodule-runtime.h</Outputs>
       <Message>Generating runtime</Message>
       <Command>mkdir $(IntDir)gumjs 2&gt;NUL
 generate-runtime.py $(PlatformShortName) $(ProjectDir) ..\..\gum $(SolutionDir)build\sdk-windows\$(Platform)-$(Configuration)\include\capstone $(SolutionDir)build\sdk-windows\$(Platform)-$(Configuration)\lib $(SolutionDir)build\tmp-windows\Win32-$(Configuration)\gumquickcompile\gumquickcompile.exe $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>runtime\entrypoint-quickjs.js;runtime\entrypoint-v8.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-quickjs.js;runtime\error-handler-v8.js;runtime\console.js;runtime\hexdump.js;runtime\objc.js;runtime\java.js;runtime\cmodule-tcc\inttypes.h;runtime\cmodule-tcc\stdint.h;runtime\cmodule-tcc\stdio.h;runtime\cmodule-tcc\stdlib.h;runtime\cmodule-tcc\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\gumprocess.h;runtime\cmodule\gum\gummodulemap.h;runtime\cmodule\gum\gummemory.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;runtime\cmodule\gum\gummetalarray.h;runtime\cmodule\gum\gummetalhash.h;runtime\cmodule\gum\gumspinlock.h;runtime\cmodule\json-glib\json-glib.h;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>runtime\entrypoint-quickjs.js;runtime\entrypoint-v8.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-quickjs.js;runtime\error-handler-v8.js;runtime\console.js;runtime\hexdump.js;runtime\objc.js;runtime\swift.js;runtime\java.js;runtime\cmodule-tcc\inttypes.h;runtime\cmodule-tcc\stdint.h;runtime\cmodule-tcc\stdio.h;runtime\cmodule-tcc\stdlib.h;runtime\cmodule-tcc\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\gumprocess.h;runtime\cmodule\gum\gummodulemap.h;runtime\cmodule\gum\gummemory.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;runtime\cmodule\gum\gummetalarray.h;runtime\cmodule\gum\gummetalhash.h;runtime\cmodule\gum\gumspinlock.h;runtime\cmodule\json-glib\json-glib.h;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 

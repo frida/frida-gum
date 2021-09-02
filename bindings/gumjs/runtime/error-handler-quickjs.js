@@ -82,12 +82,13 @@ function mapSourcePosition(position) {
 function findSourceMap(source) {
   if (source === Script.fileName)
     return Script.sourceMap;
-  else if (source === '/_frida.js')
+  if (source === '/_frida.js')
     return Frida.sourceMap;
-  else if (source === '/_objc.js')
+  if (source === '/_objc.js')
     return Frida._objcSourceMap;
-  else if (source === '/_java.js')
+  if (source === '/_swift.js')
+    return Frida._swiftSourceMap;
+  if (source === '/_java.js')
     return Frida._javaSourceMap;
-  else
-    return null;
+  return null;
 }

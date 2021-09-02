@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -35,6 +35,8 @@ public:
   const gchar * GetRuntimeSourceMap () const;
   GumV8Bundle * GetObjCBundle ();
   const gchar * GetObjCSourceMap () const;
+  GumV8Bundle * GetSwiftBundle ();
+  const gchar * GetSwiftSourceMap () const;
   GumV8Bundle * GetJavaBundle ();
   const gchar * GetJavaSourceMap () const;
   GumScriptScheduler * GetScheduler () const { return scheduler; }
@@ -86,6 +88,7 @@ private:
   v8::Isolate * shared_isolate;
   GumV8Bundle * runtime_bundle;
   GumV8Bundle * objc_bundle;
+  GumV8Bundle * swift_bundle;
   GumV8Bundle * java_bundle;
   GumScriptScheduler * scheduler;
   std::unordered_set<std::shared_ptr<GumV8Operation>> js_ops;

@@ -116,6 +116,16 @@ Object.defineProperties(engine, {
       return m;
     }
   },
+  Swift: {
+    enumerable: true,
+    configurable: true,
+    get: function () {
+      Frida._loadSwift();
+      const m = Frida._swift;
+      Object.defineProperty(engine, 'Swift', { value: m });
+      return m;
+    }
+  },
   Java: {
     enumerable: true,
     configurable: true,
