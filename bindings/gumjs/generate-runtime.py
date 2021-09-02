@@ -327,6 +327,7 @@ if __name__ == '__main__':
     quick_tmp_dir = os.path.join(output_dir, "runtime-build-quick")
     runtime = os.path.abspath(os.path.join(quick_tmp_dir, "frida.js"))
     objc = os.path.abspath(os.path.join(quick_tmp_dir, "objc.js"))
+    swift = os.path.abspath(os.path.join(quick_tmp_dir, "swift.js"))
     java = os.path.abspath(os.path.join(quick_tmp_dir, "java.js"))
 
     quick_options = [
@@ -334,16 +335,19 @@ if __name__ == '__main__':
     ]
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-quickjs.js", "-o", runtime] + quick_options, cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + quick_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/swift.js", "-o", swift] + quick_options, cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + quick_options, cwd=input_dir)
 
     generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", input_dir, [runtime], quickcompile)
     generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", input_dir, [objc], quickcompile)
+    generate_runtime_quick("swift", output_dir, "gumquickscript-swift.h", input_dir, [swift], quickcompile)
     generate_runtime_quick("java", output_dir, "gumquickscript-java.h", input_dir, [java], quickcompile)
 
 
     v8_tmp_dir = os.path.join(output_dir, "runtime-build-v8")
     runtime = os.path.abspath(os.path.join(v8_tmp_dir, "frida.js"))
     objc = os.path.abspath(os.path.join(v8_tmp_dir, "objc.js"))
+    swift = os.path.abspath(os.path.join(v8_tmp_dir, "swift.js"))
     java = os.path.abspath(os.path.join(v8_tmp_dir, "java.js"))
 
     v8_options = [
@@ -351,10 +355,12 @@ if __name__ == '__main__':
     ]
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/entrypoint-v8.js", "-o", runtime] + v8_options, cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/objc.js", "-o", objc] + v8_options, cwd=input_dir)
+    subprocess.check_call([node_script_path("frida-compile"), "./runtime/swift.js", "-o", swift] + v8_options, cwd=input_dir)
     subprocess.check_call([node_script_path("frida-compile"), "./runtime/java.js", "-o", java] + v8_options, cwd=input_dir)
 
     generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
     generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
+    generate_runtime_v8("swift", output_dir, "gumv8script-swift.h", [swift])
     generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
 
 

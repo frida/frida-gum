@@ -189,8 +189,10 @@ static void gumjs_global_get (Local<Name> property,
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
+GUMJS_DECLARE_GETTER (gumjs_frida_swift_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
+GUMJS_DECLARE_FUNCTION (gumjs_frida_swift_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
@@ -366,6 +368,7 @@ static const GumV8Property gumjs_frida_values[] =
   { "heapSize", gumjs_frida_get_heap_size, NULL },
   { "sourceMap", gumjs_frida_get_source_map, NULL },
   { "_objcSourceMap", gumjs_frida_objc_get_source_map, NULL },
+  { "_swiftSourceMap", gumjs_frida_swift_get_source_map, NULL },
   { "_javaSourceMap", gumjs_frida_java_get_source_map, NULL },
 
   { NULL, NULL }
@@ -374,6 +377,7 @@ static const GumV8Property gumjs_frida_values[] =
 static const GumV8Function gumjs_frida_functions[] =
 {
   { "_loadObjC", gumjs_frida_objc_load },
+  { "_loadSwift", gumjs_frida_swift_load },
   { "_loadJava", gumjs_frida_java_load },
 
   { NULL, NULL }
@@ -1411,6 +1415,17 @@ GUMJS_DEFINE_GETTER (gumjs_frida_objc_get_source_map)
     info.GetReturnValue ().Set (map);
 }
 
+GUMJS_DEFINE_GETTER (gumjs_frida_swift_get_source_map)
+{
+  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
+      core->script->backend);
+
+  Local<Object> map;
+  if (gumjs_source_map_new (platform->GetSwiftSourceMap (), core)
+      .ToLocal (&map))
+    info.GetReturnValue ().Set (map);
+}
+
 GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
 {
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
@@ -1427,6 +1442,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
       core->script->backend);
 
   gum_v8_bundle_run (platform->GetObjCBundle ());
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
+{
+  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
+      core->script->backend);
+
+  gum_v8_bundle_run (platform->GetSwiftBundle ());
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)

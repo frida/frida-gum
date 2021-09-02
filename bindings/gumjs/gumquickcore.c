@@ -14,6 +14,7 @@
 #include "gumquickscript-java.h"
 #include "gumquickscript-objc.h"
 #include "gumquickscript-priv.h"
+#include "gumquickscript-swift.h"
 #include "gumquickstalker.h"
 #include "gumsourcemap.h"
 
@@ -175,8 +176,10 @@ GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
 GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
+GUMJS_DECLARE_GETTER (gumjs_frida_swift_get_source_map)
 GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
+GUMJS_DECLARE_FUNCTION (gumjs_frida_swift_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
@@ -374,8 +377,10 @@ static const JSCFunctionListEntry gumjs_frida_entries[] =
   JS_CGETSET_DEF ("heapSize", gumjs_frida_get_heap_size, NULL),
   JS_CGETSET_DEF ("sourceMap", gumjs_frida_get_source_map, NULL),
   JS_CGETSET_DEF ("_objcSourceMap", gumjs_frida_objc_get_source_map, NULL),
+  JS_CGETSET_DEF ("_swiftSourceMap", gumjs_frida_swift_get_source_map, NULL),
   JS_CGETSET_DEF ("_javaSourceMap", gumjs_frida_java_get_source_map, NULL),
   JS_CFUNC_DEF ("_loadObjC", 0, gumjs_frida_objc_load),
+  JS_CFUNC_DEF ("_loadSwift", 0, gumjs_frida_swift_load),
   JS_CFUNC_DEF ("_loadJava", 0, gumjs_frida_java_load),
 };
 
@@ -1515,6 +1520,11 @@ GUMJS_DEFINE_GETTER (gumjs_frida_objc_get_source_map)
   return gumjs_source_map_new (gumjs_objc_source_map, core);
 }
 
+GUMJS_DEFINE_GETTER (gumjs_frida_swift_get_source_map)
+{
+  return gumjs_source_map_new (gumjs_swift_source_map, core);
+}
+
 GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
 {
   return gumjs_source_map_new (gumjs_java_source_map, core);
@@ -1523,6 +1533,13 @@ GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
   gum_quick_bundle_load (gumjs_objc_modules, ctx);
+
+  return JS_UNDEFINED;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
+{
+  gum_quick_bundle_load (gumjs_swift_modules, ctx);
 
   return JS_UNDEFINED;
 }
