@@ -432,6 +432,7 @@ private:
 
 GumV8Platform::GumV8Platform ()
   : objc_bundle (NULL),
+    swift_bundle (NULL),
     java_bundle (NULL),
     scheduler (gum_script_backend_get_scheduler ()),
     page_allocator (new GumV8PageAllocator ()),
@@ -488,6 +489,7 @@ GumV8Platform::Dispose ()
     HandleScope handle_scope (shared_isolate);
 
     g_clear_pointer (&objc_bundle, gum_v8_bundle_free);
+    g_clear_pointer (&swift_bundle, gum_v8_bundle_free);
     g_clear_pointer (&java_bundle, gum_v8_bundle_free);
 
     g_clear_pointer (&runtime_bundle, gum_v8_bundle_free);
