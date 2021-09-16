@@ -608,10 +608,10 @@ gum_compile_script_task_run (GumScriptTask * task,
   else
   {
     gum_script_task_return_error (task, error);
-
-    JS_FreeContext (ctx);
-    JS_FreeRuntime (rt);
   }
+
+  JS_FreeContext (ctx);
+  JS_FreeRuntime (rt);
 }
 
 static void
