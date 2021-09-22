@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,6 +10,8 @@
 #include "gumscripttask.h"
 #include "gumv8script-priv.h"
 #include "gumv8value.h"
+
+#include <cstring>
 
 using namespace v8;
 
@@ -68,6 +70,12 @@ static void gum_v8_script_get_property (GObject * object, guint property_id,
     GValue * value, GParamSpec * pspec);
 static void gum_v8_script_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec);
+static GumESProgram * gum_v8_script_compile (GumV8Script * self,
+    Isolate * isolate, Local<Context> context, GError ** error);
+static MaybeLocal<Module> gum_resolve_module (Local<Context> context,
+    Local<String> specifier, Local<Module> referrer);
+static MaybeLocal<Module> gum_ensure_module_loaded (Isolate * isolate,
+    Local<Context> context, GumESAsset * asset, GumESProgram * program);
 static void gum_v8_script_destroy_context (GumV8Script * self);
 
 static void gum_v8_script_load (GumScript * script, GCancellable * cancellable,
@@ -109,6 +117,14 @@ static void gum_v8_script_emit (GumV8Script * self, const gchar * message,
     GBytes * data);
 static gboolean gum_v8_script_do_emit (GumEmitData * d);
 static void gum_v8_emit_data_free (GumEmitData * d);
+
+static GumESProgram * gum_es_program_new (void);
+static void gum_es_program_free (GumESProgram * program);
+
+static GumESAsset * gum_es_asset_new_take (gchar * name, gchar * alias,
+    gpointer data, gsize data_size);
+static GumESAsset * gum_es_asset_ref (GumESAsset * asset);
+static void gum_es_asset_unref (GumESAsset * asset);
 
 G_DEFINE_TYPE_EXTENDED (GumV8Script,
                         gum_v8_script,
@@ -354,20 +370,156 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_code_relocator_realize (&self->code_relocator);
     _gum_v8_stalker_realize (&self->stalker);
 
-    auto resource_name_str = g_strconcat ("/", self->name, ".js", NULL);
-    auto resource_name = String::NewFromUtf8 (isolate, resource_name_str)
+    self->program = gum_v8_script_compile (self, isolate, context, error);
+  }
+
+  if (self->program == NULL)
+  {
+    gum_v8_script_destroy_context (self);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static GumESProgram *
+gum_v8_script_compile (GumV8Script * self,
+                       Isolate * isolate,
+                       Local<Context> context,
+                       GError ** error)
+{
+  GumESProgram * program = gum_es_program_new ();
+  context->SetAlignedPointerInEmbedderData (0, program);
+
+  const gchar * source = self->source;
+  const gchar * package_marker = "📦\n";
+  const gchar * delimiter_marker = "\n✄\n";
+  const gchar * alias_marker = "\n↻ ";
+
+  if (g_str_has_prefix (source, package_marker))
+  {
+    program->entrypoints = g_ptr_array_new ();
+    program->es_assets = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
+        (GDestroyNotify) gum_es_asset_unref);
+    program->es_modules = g_hash_table_new (NULL, NULL);
+
+    const gchar * source_end = source + std::strlen (source);
+    const gchar * header_cursor = source + std::strlen (package_marker);
+
+    do
+    {
+      GumESAsset * entrypoint = NULL;
+
+      const gchar * asset_cursor = strstr (header_cursor, delimiter_marker);
+      if (asset_cursor == NULL)
+        goto malformed_package;
+
+      const gchar * header_end = asset_cursor;
+
+      for (guint i = 0; header_cursor != header_end; i++)
+      {
+        if (i != 0 && !g_str_has_prefix (asset_cursor, delimiter_marker))
+          goto malformed_package;
+        asset_cursor += std::strlen (delimiter_marker);
+
+        const gchar * size_end;
+        guint64 asset_size =
+            g_ascii_strtoull (header_cursor, (gchar **) &size_end, 10);
+        if (asset_size == 0 || asset_size > GUM_MAX_ASSET_SIZE)
+          goto malformed_package;
+        if (asset_cursor + asset_size > source_end)
+          goto malformed_package;
+
+        const gchar * rest_start = size_end + 1;
+        const gchar * rest_end = std::strchr (rest_start, '\n');
+
+        gchar * asset_name = g_strndup (rest_start, rest_end - rest_start);
+
+        gchar * asset_alias = NULL;
+        if (g_str_has_prefix (rest_end, alias_marker))
+        {
+          const gchar * alias_start = rest_end + std::strlen (alias_marker);
+          const gchar * alias_end = std::strchr (alias_start, '\n');
+          asset_alias = g_strndup (alias_start, alias_end - alias_start);
+          rest_end = alias_end;
+        }
+
+        if (g_hash_table_contains (program->es_assets, asset_name) ||
+            (asset_alias != NULL &&
+              g_hash_table_contains (program->es_assets, asset_alias)))
+        {
+          g_free (asset_alias);
+          g_free (asset_name);
+          goto malformed_package;
+        }
+
+        gchar * asset_data = g_strndup (asset_cursor, asset_size);
+
+        auto asset = gum_es_asset_new_take (asset_name, asset_alias, asset_data,
+            asset_size);
+        g_hash_table_insert (program->es_assets, asset_name, asset);
+        if (asset_alias != NULL)
+        {
+          g_hash_table_insert (program->es_assets, asset_alias,
+              gum_es_asset_ref (asset));
+        }
+
+        if (entrypoint == NULL && g_str_has_suffix (asset_name, ".js"))
+          entrypoint = asset;
+
+        header_cursor = rest_end;
+        asset_cursor += asset_size;
+      }
+
+      if (entrypoint == NULL)
+        goto malformed_package;
+
+      Local<Module> module;
+      TryCatch trycatch (isolate);
+      auto result =
+          gum_ensure_module_loaded (isolate, context, entrypoint, program);
+      if (!result.ToLocal (&module))
+      {
+        Local<Value> exception = trycatch.Exception ();
+        auto exception_obj = exception.As<Object> ();
+        auto message = exception_obj->Get (context,
+              _gum_v8_string_new_ascii (isolate, "message"))
+            .ToLocalChecked ()
+            .As<String> ();
+        String::Utf8Value message_str (isolate, message);
+        g_set_error_literal (error,
+            G_IO_ERROR,
+            G_IO_ERROR_FAILED,
+            *message_str);
+        goto propagate_error;
+      }
+
+      g_ptr_array_add (program->entrypoints, entrypoint);
+
+      if (g_str_has_prefix (asset_cursor, delimiter_marker))
+        header_cursor = asset_cursor + std::strlen (delimiter_marker);
+      else
+        header_cursor = NULL;
+    }
+    while (header_cursor != NULL);
+  }
+  else
+  {
+    program->global_filename = g_strconcat ("/", self->name, ".js", NULL);
+    program->global_source = self->source;
+
+    auto resource_name = String::NewFromUtf8 (isolate, program->global_filename)
         .ToLocalChecked ();
     ScriptOrigin origin (resource_name);
-    g_free (resource_name_str);
 
     auto source = String::NewFromUtf8 (isolate, self->source).ToLocalChecked ();
 
+    Local<Script> code;
     TryCatch trycatch (isolate);
     auto maybe_code = Script::Compile (context, source, &origin);
-    Local<Script> code;
     if (maybe_code.ToLocal (&code))
     {
-      self->code = new GumPersistent<Script>::type (isolate, code);
+      program->global_code = new GumPersistent<Script>::type (isolate, code);
     }
     else
     {
@@ -376,16 +528,159 @@ gum_v8_script_create_context (GumV8Script * self,
       String::Utf8Value exception_str (isolate, exception);
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
           message->GetLineNumber (context).FromMaybe (-1), *exception_str);
+      goto propagate_error;
     }
   }
 
-  if (self->code == NULL)
+  goto beach;
+
+malformed_package:
   {
-    gum_v8_script_destroy_context (self);
-    return FALSE;
+    g_set_error (error,
+        G_IO_ERROR,
+        G_IO_ERROR_INVALID_DATA,
+        "Malformed package");
+
+    goto propagate_error;
+  }
+propagate_error:
+  {
+    context->SetAlignedPointerInEmbedderData (0, nullptr);
+    gum_es_program_free (program);
+    program = NULL;
+
+    goto beach;
+  }
+beach:
+  {
+    return program;
+  }
+}
+
+static MaybeLocal<Module>
+gum_resolve_module (Local<Context> context,
+                    Local<String> specifier,
+                    Local<Module> referrer)
+{
+  auto isolate = context->GetIsolate ();
+  auto program =
+      (GumESProgram *) context->GetAlignedPointerFromEmbedderData (0);
+
+  auto referrer_module = (GumESAsset *) g_hash_table_lookup (
+      program->es_modules, GINT_TO_POINTER (referrer->ScriptId ()));
+
+  GumESAsset * target_module;
+  String::Utf8Value specifier_str (isolate, specifier);
+  if (g_str_has_prefix (*specifier_str, "./"))
+  {
+    GString * target_path = g_string_new ("");
+
+    const gchar * referrer_path = referrer_module->name;
+    const gchar * last_slash = std::strrchr (referrer_path, '/');
+    g_string_append_len (target_path, referrer_path,
+        last_slash - referrer_path);
+
+    g_string_append (target_path, *specifier_str + 1);
+
+    target_module = (GumESAsset *) g_hash_table_lookup (program->es_assets,
+        target_path->str);
+
+    g_string_free (target_path, TRUE);
+  }
+  else
+  {
+    target_module = (GumESAsset *) g_hash_table_lookup (program->es_assets,
+        *specifier_str);
+  }
+  if (target_module == NULL)
+    goto not_found;
+
+  return gum_ensure_module_loaded (isolate, context, target_module, program);
+
+not_found:
+  {
+    _gum_v8_throw (isolate, "could not load module '%s'", *specifier_str);
+    return MaybeLocal<Module> ();
+  }
+}
+
+static MaybeLocal<Module>
+gum_ensure_module_loaded (Isolate * isolate,
+                          Local<Context> context,
+                          GumESAsset * asset,
+                          GumESProgram * program)
+{
+  if (asset->module != nullptr)
+    return Local<Module>::New (isolate, *asset->module);
+
+  auto source_str = String::NewFromUtf8 (isolate, (const char *) asset->data)
+      .ToLocalChecked ();
+
+  auto resource_name = String::NewFromUtf8 (isolate, asset->name)
+      .ToLocalChecked ();
+  auto resource_line_offset = Local<Integer> ();
+  auto resource_column_offset = Local<Integer> ();
+  auto resource_is_shared_cross_origin = Local<Boolean> ();
+  auto script_id = Local<Integer> ();
+  auto source_map_url = Local<Value> ();
+  auto resource_is_opaque = Local<Boolean> ();
+  auto is_wasm = Local<Boolean> ();
+  auto is_module = True (isolate);
+  ScriptOrigin origin (
+      resource_name,
+      resource_line_offset,
+      resource_column_offset,
+      resource_is_shared_cross_origin,
+      script_id,
+      source_map_url,
+      resource_is_opaque,
+      is_wasm,
+      is_module);
+
+  ScriptCompiler::Source source (source_str, origin);
+
+  Local<Module> module;
+  gchar * error_description = NULL;
+  int line = -1;
+  {
+    TryCatch trycatch (isolate);
+    auto compile_result = ScriptCompiler::CompileModule (isolate, &source);
+    if (!compile_result.ToLocal (&module))
+    {
+      Local<Value> exception = trycatch.Exception ();
+      auto exception_obj = exception.As<Object> ();
+      auto message = exception_obj->Get (context,
+            _gum_v8_string_new_ascii (isolate, "message"))
+          .ToLocalChecked ()
+          .As<String> ();
+      String::Utf8Value message_str (isolate, message);
+      error_description = g_strdup (*message_str);
+      line = trycatch.Message ()->GetLineNumber (context).FromMaybe (-1);
+    }
+  }
+  if (error_description != NULL)
+  {
+    _gum_v8_throw (isolate,
+        "could not parse '%s' line %d: %s",
+        asset->name,
+        line,
+        error_description);
+    g_free (error_description);
+    return MaybeLocal<Module> ();
   }
 
-  return TRUE;
+  asset->module = new GumPersistent<Module>::type (isolate, module);
+
+  g_hash_table_insert (program->es_modules,
+      GINT_TO_POINTER (module->ScriptId ()), asset);
+
+  bool success = false;
+  auto instantiate_result =
+      module->InstantiateModule (context, gum_resolve_module);
+  if (!instantiate_result.To (&success) || !success)
+    return MaybeLocal<Module> ();
+
+  return module;
 }
 
 static void
@@ -419,8 +714,8 @@ gum_v8_script_destroy_context (GumV8Script * self)
     g_signal_emit (self, gum_v8_script_signals[CONTEXT_DESTROYED], 0, &context);
   }
 
-  delete self->code;
-  self->code = nullptr;
+  gum_es_program_free (self->program);
+  self->program = NULL;
   delete self->context;
   self->context = nullptr;
 
@@ -508,7 +803,7 @@ gum_v8_script_perform_load_task (GumV8Script * self,
 {
   if (self->state == GUM_SCRIPT_STATE_UNLOADED)
   {
-    if (self->code == NULL)
+    if (self->program == NULL)
     {
       gum_v8_script_create_context (self, NULL);
     }
@@ -516,14 +811,30 @@ gum_v8_script_perform_load_task (GumV8Script * self,
     {
       ScriptScope scope (self);
       auto isolate = self->isolate;
+      auto context = isolate->GetCurrentContext ();
 
       auto platform =
           (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
       gum_v8_bundle_run (platform->GetRuntimeBundle ());
 
-      auto code = Local<Script>::New (isolate, *self->code);
-      auto result = code->Run (isolate->GetCurrentContext ());
-      _gum_v8_ignore_result (result);
+      auto program = self->program;
+      if (program->entrypoints != NULL)
+      {
+        auto entrypoints = program->entrypoints;
+        for (guint i = 0; i != entrypoints->len; i++)
+        {
+          auto entrypoint = (GumESAsset *) g_ptr_array_index (entrypoints, i);
+          auto module = Local<Module>::New (isolate, *entrypoint->module);
+          auto result = module->Evaluate (context);
+          _gum_v8_ignore_result (result);
+        }
+      }
+      else
+      {
+        auto code = Local<Script>::New (isolate, *program->global_code);
+        auto result = code->Run (context);
+        _gum_v8_ignore_result (result);
+      }
     }
 
     self->state = GUM_SCRIPT_STATE_LOADED;
@@ -756,4 +1067,72 @@ gum_v8_emit_data_free (GumEmitData * d)
   g_object_unref (d->script);
 
   g_slice_free (GumEmitData, d);
+}
+
+static GumESProgram *
+gum_es_program_new (void)
+{
+  return g_slice_new0 (GumESProgram);
+}
+
+static void
+gum_es_program_free (GumESProgram * program)
+{
+  if (program == NULL)
+    return;
+
+  delete program->global_code;
+  g_free (program->global_filename);
+
+  g_clear_pointer (&program->es_modules, g_hash_table_unref);
+  g_clear_pointer (&program->es_assets, g_hash_table_unref);
+  g_clear_pointer (&program->entrypoints, g_ptr_array_unref);
+
+  g_slice_free (GumESProgram, program);
+}
+
+static GumESAsset *
+gum_es_asset_new_take (gchar * name,
+                       gchar * alias,
+                       gpointer data,
+                       gsize data_size)
+{
+  auto asset = g_slice_new (GumESAsset);
+
+  asset->ref_count = 1;
+
+  asset->name = name;
+  asset->alias = alias;
+
+  asset->data = data;
+  asset->data_size = data_size;
+
+  asset->module = nullptr;
+
+  return asset;
+}
+
+static GumESAsset *
+gum_es_asset_ref (GumESAsset * asset)
+{
+  g_atomic_int_inc (&asset->ref_count);
+
+  return asset;
+}
+
+static void
+gum_es_asset_unref (GumESAsset * asset)
+{
+  if (asset == NULL)
+    return;
+
+  if (!g_atomic_int_dec_and_test (&asset->ref_count))
+    return;
+
+  delete asset->module;
+  g_free (asset->data);
+  g_free (asset->alias);
+  g_free (asset->name);
+
+  g_slice_free (GumESAsset, asset);
 }
