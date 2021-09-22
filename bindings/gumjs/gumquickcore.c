@@ -19,6 +19,7 @@
 #include "gumsourcemap.h"
 
 #include <ffi.h>
+#include <string.h>
 #ifdef _MSC_VER
 # include <intrin.h>
 #endif
@@ -174,16 +175,11 @@ GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
-GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
-GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
-GUMJS_DECLARE_GETTER (gumjs_frida_swift_get_source_map)
-GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_swift_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
-GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
-GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
+GUMJS_DECLARE_FUNCTION (gumjs_script_find_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
@@ -375,10 +371,6 @@ static const JSCFunctionListEntry gumjs_frida_entries[] =
 {
   JS_PROP_STRING_DEF ("version", FRIDA_VERSION, JS_PROP_C_W_E),
   JS_CGETSET_DEF ("heapSize", gumjs_frida_get_heap_size, NULL),
-  JS_CGETSET_DEF ("sourceMap", gumjs_frida_get_source_map, NULL),
-  JS_CGETSET_DEF ("_objcSourceMap", gumjs_frida_objc_get_source_map, NULL),
-  JS_CGETSET_DEF ("_swiftSourceMap", gumjs_frida_swift_get_source_map, NULL),
-  JS_CGETSET_DEF ("_javaSourceMap", gumjs_frida_java_get_source_map, NULL),
   JS_CFUNC_DEF ("_loadObjC", 0, gumjs_frida_objc_load),
   JS_CFUNC_DEF ("_loadSwift", 0, gumjs_frida_swift_load),
   JS_CFUNC_DEF ("_loadJava", 0, gumjs_frida_java_load),
@@ -387,8 +379,7 @@ static const JSCFunctionListEntry gumjs_frida_entries[] =
 static const JSCFunctionListEntry gumjs_script_entries[] =
 {
   JS_PROP_STRING_DEF ("runtime", "QJS", JS_PROP_C_W_E),
-  JS_CGETSET_DEF ("fileName", gumjs_script_get_file_name, NULL),
-  JS_CGETSET_DEF ("sourceMap", gumjs_script_get_source_map, NULL),
+  JS_CFUNC_DEF ("_findSourceMap", 0, gumjs_script_find_source_map),
   JS_CFUNC_DEF ("_nextTick", 0, gumjs_script_next_tick),
   JS_CFUNC_DEF ("pin", 0, gumjs_script_pin),
   JS_CFUNC_DEF ("unpin", 0, gumjs_script_unpin),
@@ -875,6 +866,7 @@ _gum_quick_core_init (GumQuickCore * self,
                       JSContext * ctx,
                       JSValue ns,
                       GRecMutex * mutex,
+                      GumESProgram * program,
                       const gchar * runtime_source_map,
                       GumQuickInterceptor * interceptor,
                       GumQuickStalker * stalker,
@@ -892,6 +884,7 @@ _gum_quick_core_init (GumQuickCore * self,
   g_object_unref (self->backend);
 
   self->script = script;
+  self->program = program;
   self->runtime_source_map = runtime_source_map;
   self->interceptor = interceptor;
   self->stalker = stalker;
@@ -1510,26 +1503,6 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
   return JS_NewUint32 (ctx, gum_peek_private_memory_usage ());
 }
 
-GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
-{
-  return gumjs_source_map_new (core->runtime_source_map, core);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_frida_objc_get_source_map)
-{
-  return gumjs_source_map_new (gumjs_objc_source_map, core);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_frida_swift_get_source_map)
-{
-  return gumjs_source_map_new (gumjs_swift_source_map, core);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
-{
-  return gumjs_source_map_new (gumjs_java_source_map, core);
-}
-
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
   gum_quick_bundle_load (gumjs_objc_modules, ctx);
@@ -1551,71 +1524,91 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
   return JS_UNDEFINED;
 }
 
-GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
+GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
 {
-  JSValue result;
-  gchar * name, * file_name;
+  GumESProgram * program = core->program;
+  JSValue map = JS_NULL;
+  const gchar * name, * json;
+  gchar * json_malloc_data = NULL;
 
-  g_object_get (core->script, "name", &name, NULL);
-  file_name = g_strconcat ("/", name, ".js", NULL);
-  result = JS_NewString (ctx, file_name);
-  g_free (file_name);
-  g_free (name);
+  if (!_gum_quick_args_parse (args, "s", &name))
+    return JS_EXCEPTION;
 
-  return result;
-}
+  json = NULL;
 
-GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
-{
-  JSValue result;
-  gchar * source;
-  GRegex * regex;
-  GMatchInfo * match_info;
-
-  g_object_get (core->script, "source", &source, NULL);
-
-  if (source == NULL)
-    return JS_NULL;
-
-  regex = g_regex_new ("//[#@][ \\t]sourceMappingURL=[ \\t]*"
-      "data:application/json;.*?base64,([^\\s'\"]*)[ \\t]*$",
-      G_REGEX_MULTILINE, 0, NULL);
-  g_regex_match (regex, source, 0, &match_info);
-  if (g_match_info_matches (match_info))
+  if (program->es_assets != NULL)
   {
-    gchar * data_encoded;
-    gsize size;
-    gchar * data;
+    gchar * map_name;
+    GumESAsset * map_asset;
 
-    data_encoded = g_match_info_fetch (match_info, 1);
+    map_name = g_strconcat (name, ".map", NULL);
 
-    data = (gchar *) g_base64_decode (data_encoded, &size);
-    if (data != NULL && g_utf8_validate (data, size, NULL))
+    map_asset = g_hash_table_lookup (program->es_assets, map_name);
+    if (map_asset != NULL)
     {
-      gchar * data_utf8;
-
-      data_utf8 = g_strndup (data, size);
-      result = gumjs_source_map_new (data_utf8, core);
-      g_free (data_utf8);
+      json = map_asset->data;
     }
-    else
-    {
-      result = JS_NULL;
-    }
-    g_free (data);
 
-    g_free (data_encoded);
+    g_free (map_name);
   }
-  else
+
+  if (json == NULL)
   {
-    result = JS_NULL;
+    if (g_strcmp0 (name, program->global_filename) == 0)
+    {
+      GRegex * pattern;
+      GMatchInfo * match_info;
+
+      pattern = g_regex_new ("//[#@][ \\t]sourceMappingURL=[ \\t]*"
+          "data:application/json;.*?base64,([^\\s'\"]*)[ \\t]*$",
+          G_REGEX_MULTILINE, 0, NULL);
+
+      g_regex_match (pattern, program->global_source, 0, &match_info);
+      if (g_match_info_matches (match_info))
+      {
+        gchar * data_encoded, * data;
+        gsize size;
+
+        data_encoded = g_match_info_fetch (match_info, 1);
+
+        data = (gchar *) g_base64_decode (data_encoded, &size);
+        if (data != NULL && g_utf8_validate (data, size, NULL))
+        {
+          json_malloc_data = g_strndup (data, size);
+          json = json_malloc_data;
+        }
+        g_free (data);
+
+        g_free (data_encoded);
+      }
+
+      g_match_info_free (match_info);
+      g_regex_unref (pattern);
+    }
+    else if (strcmp (name, "/_frida.js") == 0)
+    {
+      json = core->runtime_source_map;
+    }
+    else if (strcmp (name, "/_objc.js") == 0)
+    {
+      json = gumjs_objc_source_map;
+    }
+    else if (strcmp (name, "/_swift.js") == 0)
+    {
+      json = gumjs_swift_source_map;
+    }
+    else if (strcmp (name, "/_java.js") == 0)
+    {
+      json = gumjs_java_source_map;
+    }
   }
-  g_match_info_free (match_info);
-  g_regex_unref (regex);
 
-  g_free (source);
+  if (json != NULL)
+    map = gumjs_source_map_new (json, core);
 
-  return result;
+  g_free (json_malloc_data);
+
+  return map;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)

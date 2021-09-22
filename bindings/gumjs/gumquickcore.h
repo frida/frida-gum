@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -54,6 +54,7 @@ struct _GumQuickCore
 {
   GumQuickScript * script;
   GumQuickScriptBackend * backend;
+  GumESProgram * program;
   const gchar * runtime_source_map;
   GumQuickInterceptor * interceptor;
   GumQuickStalker * stalker;
@@ -241,9 +242,9 @@ struct _GumQuickKernelResource
 
 G_GNUC_INTERNAL void _gum_quick_core_init (GumQuickCore * self,
     GumQuickScript * script, JSContext * ctx, JSValue ns, GRecMutex * mutex,
-    const gchar * runtime_source_map, GumQuickInterceptor * interceptor,
-    GumQuickStalker * stalker, GumQuickMessageEmitter message_emitter,
-    GumScriptScheduler * scheduler);
+    GumESProgram * program, const gchar * runtime_source_map,
+    GumQuickInterceptor * interceptor, GumQuickStalker * stalker,
+    GumQuickMessageEmitter message_emitter, GumScriptScheduler * scheduler);
 G_GNUC_INTERNAL gboolean _gum_quick_core_flush (GumQuickCore * self,
     GumQuickFlushNotify flush_notify);
 G_GNUC_INTERNAL void _gum_quick_core_dispose (GumQuickCore * self);

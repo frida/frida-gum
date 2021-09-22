@@ -187,16 +187,11 @@ static void gumjs_global_get (Local<Name> property,
     const PropertyCallbackInfo<Value> & info);
 
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
-GUMJS_DECLARE_GETTER (gumjs_frida_get_source_map)
-GUMJS_DECLARE_GETTER (gumjs_frida_objc_get_source_map)
-GUMJS_DECLARE_GETTER (gumjs_frida_swift_get_source_map)
-GUMJS_DECLARE_GETTER (gumjs_frida_java_get_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_swift_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
-GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
-GUMJS_DECLARE_GETTER (gumjs_script_get_source_map)
+GUMJS_DECLARE_FUNCTION (gumjs_script_find_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
@@ -366,10 +361,6 @@ static const GumV8Function gumjs_global_functions[] =
 static const GumV8Property gumjs_frida_values[] =
 {
   { "heapSize", gumjs_frida_get_heap_size, NULL },
-  { "sourceMap", gumjs_frida_get_source_map, NULL },
-  { "_objcSourceMap", gumjs_frida_objc_get_source_map, NULL },
-  { "_swiftSourceMap", gumjs_frida_swift_get_source_map, NULL },
-  { "_javaSourceMap", gumjs_frida_java_get_source_map, NULL },
 
   { NULL, NULL }
 };
@@ -383,16 +374,9 @@ static const GumV8Function gumjs_frida_functions[] =
   { NULL, NULL }
 };
 
-static const GumV8Property gumjs_script_values[] =
-{
-  { "fileName", gumjs_script_get_file_name, NULL },
-  { "sourceMap", gumjs_script_get_source_map, NULL },
-
-  { NULL, NULL }
-};
-
 static const GumV8Function gumjs_script_functions[] =
 {
+  { "_findSourceMap", gumjs_script_find_source_map },
   { "_nextTick", gumjs_script_next_tick },
   { "pin", gumjs_script_pin },
   { "unpin", gumjs_script_unpin },
@@ -541,7 +525,6 @@ _gum_v8_core_init (GumV8Core * self,
       _gum_v8_string_new_ascii (isolate, FRIDA_VERSION), ReadOnly);
 
   auto script_module = _gum_v8_create_module ("Script", scope, isolate);
-  _gum_v8_module_add (module, script_module, gumjs_script_values, isolate);
   _gum_v8_module_add (module, script_module, gumjs_script_functions, isolate);
   script_module->Set (_gum_v8_string_new_ascii (isolate, "runtime"),
       _gum_v8_string_new_ascii (isolate, "V8"), ReadOnly);
@@ -1398,44 +1381,6 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
   info.GetReturnValue ().Set (gum_peek_private_memory_usage ());
 }
 
-GUMJS_DEFINE_GETTER (gumjs_frida_get_source_map)
-{
-  Local<Object> map;
-  if (gumjs_source_map_new (core->runtime_source_map, core).ToLocal (&map))
-    info.GetReturnValue ().Set (map);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_frida_objc_get_source_map)
-{
-  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->backend);
-
-  Local<Object> map;
-  if (gumjs_source_map_new (platform->GetObjCSourceMap (), core).ToLocal (&map))
-    info.GetReturnValue ().Set (map);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_frida_swift_get_source_map)
-{
-  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->backend);
-
-  Local<Object> map;
-  if (gumjs_source_map_new (platform->GetSwiftSourceMap (), core)
-      .ToLocal (&map))
-    info.GetReturnValue ().Set (map);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_frida_java_get_source_map)
-{
-  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->backend);
-
-  Local<Object> map;
-  if (gumjs_source_map_new (platform->GetJavaSourceMap (), core).ToLocal (&map))
-    info.GetReturnValue ().Set (map);
-}
-
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
@@ -1460,53 +1405,80 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
   gum_v8_bundle_run (platform->GetJavaBundle ());
 }
 
-GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
+GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
 {
-  Local<Value> result;
+  gchar * name;
+  if (!_gum_v8_args_parse (args, "s", &name))
+    return;
 
-  auto script = core->script;
-  if (script->code != nullptr)
+  const gchar * json = NULL;
+  gchar * json_malloc_data = NULL;
+
+  GumESProgram * program = core->script->program;
+  if (program->es_assets != NULL)
   {
-    auto code = Local<Script>::New (isolate, *script->code);
-    auto file_name = code->GetUnboundScript ()->GetScriptName ();
-    if (file_name->IsString ())
-      result = file_name;
+    gchar * map_name = g_strconcat (name, ".map", NULL);
+
+    auto map_asset =
+        (GumESAsset *) g_hash_table_lookup (program->es_assets, map_name);
+    if (map_asset != NULL)
+    {
+      json = (const gchar *) map_asset->data;
+    }
+
+    g_free (map_name);
   }
 
-  if (!result.IsEmpty ())
-    info.GetReturnValue ().Set (result);
-  else
-    info.GetReturnValue ().SetNull ();
-}
-
-GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
-{
-  gchar * json = NULL;
-
-  auto script = core->script;
-  if (script->code != nullptr)
+  if (json == NULL)
   {
-    auto code = Local<Script>::New (isolate, *script->code);
-
-    auto url_value = code->GetUnboundScript ()->GetSourceMappingURL ();
-    if (url_value->IsString ())
+    if (g_strcmp0 (name, program->global_filename) == 0)
     {
-      String::Utf8Value url_utf8 (isolate, url_value);
-      auto url = *url_utf8;
+      auto code = Local<Script>::New (isolate, *program->global_code);
 
-      auto base64_start = strstr (url, "base64,");
-
-      if (g_str_has_prefix (url, "data:application/json;") &&
-          base64_start != NULL)
+      auto url_value = code->GetUnboundScript ()->GetSourceMappingURL ();
+      if (url_value->IsString ())
       {
-        base64_start += 7;
+        String::Utf8Value url_utf8 (isolate, url_value);
+        auto url = *url_utf8;
 
-        gsize size;
-        auto data = (gchar *) g_base64_decode (base64_start, &size);
-        if (data != NULL && g_utf8_validate (data, size, NULL))
-          json = data;
-        else
+        auto base64_start = strstr (url, "base64,");
+
+        if (g_str_has_prefix (url, "data:application/json;") &&
+            base64_start != NULL)
+        {
+          base64_start += 7;
+
+          gsize size;
+          auto data = (gchar *) g_base64_decode (base64_start, &size);
+          if (data != NULL && g_utf8_validate (data, size, NULL))
+          {
+            json_malloc_data = g_strndup (data, size);
+            json = json_malloc_data;
+          }
           g_free (data);
+        }
+      }
+    }
+    else
+    {
+      auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
+          core->script->backend);
+
+      if (strcmp (name, "/_frida.js") == 0)
+      {
+        json = core->runtime_source_map;
+      }
+      else if (strcmp (name, "/_objc.js") == 0)
+      {
+        json = platform->GetObjCSourceMap ();
+      }
+      else if (strcmp (name, "/_swift.js") == 0)
+      {
+        json = platform->GetSwiftSourceMap ();
+      }
+      else if (strcmp (name, "/_java.js") == 0)
+      {
+        json = platform->GetJavaSourceMap ();
       }
     }
   }
@@ -1516,12 +1488,14 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map)
     Local<Object> map;
     if (gumjs_source_map_new (json, core).ToLocal (&map))
       info.GetReturnValue ().Set (map);
-    g_free (json);
   }
   else
   {
     info.GetReturnValue ().SetNull ();
   }
+
+  g_free (json_malloc_data);
+  g_free (name);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)

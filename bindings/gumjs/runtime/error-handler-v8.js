@@ -76,7 +76,7 @@ function mapSourcePosition(position) {
   let item = sourceMapCache[position.source];
   if (item === undefined) {
     item = sourceMapCache[position.source] = {
-      map: findSourceMap(position.source)
+      map: Script._findSourceMap(position.source)
     };
   }
 
@@ -107,20 +107,6 @@ function mapEvalOrigin(origin) {
   }
 
   return origin;
-}
-
-function findSourceMap(source) {
-  if (source === Script.fileName)
-    return Script.sourceMap;
-  if (source === '/_frida.js')
-    return Frida.sourceMap;
-  if (source === '/_objc.js')
-    return Frida._objcSourceMap;
-  if (source === '/_swift.js')
-    return Frida._swiftSourceMap;
-  if (source === '/_java.js')
-    return Frida._javaSourceMap;
-  return null;
 }
 
 function cloneCallSite(frame) {

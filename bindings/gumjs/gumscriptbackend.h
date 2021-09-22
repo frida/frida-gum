@@ -12,6 +12,8 @@
 
 G_BEGIN_DECLS
 
+#define GUM_MAX_ASSET_SIZE (100 * 1024 * 1024)
+
 #define GUM_TYPE_SCRIPT_BACKEND (gum_script_backend_get_type ())
 G_DECLARE_INTERFACE (GumScriptBackend, gum_script_backend, GUM, SCRIPT_BACKEND,
     GObject)

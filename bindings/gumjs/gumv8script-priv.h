@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -31,6 +31,7 @@
 #include "gumv8thread.h"
 
 typedef guint GumScriptState;
+struct GumESProgram;
 
 struct _GumV8Script
 {
@@ -63,11 +64,35 @@ struct _GumV8Script
   GumV8CodeRelocator code_relocator;
   GumV8Stalker stalker;
   GumPersistent<v8::Context>::type * context;
-  GumPersistent<v8::Script>::type * code;
+  GumESProgram * program;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
   GDestroyNotify message_handler_data_destroy;
+};
+
+struct GumESProgram
+{
+  GPtrArray * entrypoints;
+  GHashTable * es_assets;
+  GHashTable * es_modules;
+
+  gchar * global_filename;
+  const gchar * global_source;
+  GumPersistent<v8::Script>::type * global_code;
+};
+
+struct GumESAsset
+{
+  gint ref_count;
+
+  gchar * name;
+  gchar * alias;
+
+  gpointer data;
+  gsize data_size;
+
+  GumPersistent<v8::Module>::type * module;
 };
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -51,7 +51,7 @@ struct _GumQuickScript
   GSList * on_unload;
   JSRuntime * rt;
   JSContext * ctx;
-  JSValue code;
+  GumESProgram * program;
   GumQuickCore core;
   GumQuickKernel kernel;
   GumQuickMemory memory;
@@ -340,7 +340,8 @@ gum_quick_script_create_context (GumQuickScript * self,
   GumQuickCore * core = &self->core;
   JSRuntime * rt;
   JSContext * ctx;
-  JSValue val, global_obj;
+  GumESProgram * program;
+  JSValue global_obj;
   GumQuickScope scope = { core, NULL, };
 
   g_assert (self->ctx == NULL);
@@ -353,20 +354,20 @@ gum_quick_script_create_context (GumQuickScript * self,
 
   if (self->bytecode != NULL)
   {
-    val = gum_quick_script_backend_read_program (self->backend, ctx,
+    program = gum_quick_script_backend_read_program (self->backend, ctx,
         self->bytecode, error);
   }
   else
   {
-    val = gum_quick_script_backend_compile_program (self->backend, ctx,
+    program = gum_quick_script_backend_compile_program (self->backend, ctx,
         self->name, self->source, error);
   }
-  if (JS_IsException (val))
+  if (program == NULL)
     goto malformed_program;
 
   self->rt = rt;
   self->ctx = ctx;
-  self->code = val;
+  self->program = program;
 
   global_obj = JS_GetGlobalObject (ctx);
 
@@ -375,7 +376,7 @@ gum_quick_script_create_context (GumQuickScript * self,
 
   _gum_quick_core_init (core, self, ctx, global_obj,
       gum_quick_script_backend_get_scope_mutex (self->backend),
-      gumjs_frida_source_map, &self->interceptor, &self->stalker,
+      program, gumjs_frida_source_map, &self->interceptor, &self->stalker,
       gum_quick_script_emit,
       gum_quick_script_backend_get_scheduler (self->backend));
 
@@ -455,8 +456,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 
     core->current_scope = &scope;
 
-    JS_FreeValue (self->ctx, self->code);
-    self->code = JS_NULL;
+    gum_es_program_free (self->program, self->ctx);
+    self->program = NULL;
 
     JS_FreeContext (self->ctx);
     self->ctx = NULL;
@@ -555,7 +556,8 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
   {
     GumQuickScope scope;
     JSContext * ctx;
-    JSValue result;
+    GArray * entrypoints;
+    guint i;
 
     if (self->ctx == NULL)
     {
@@ -568,13 +570,18 @@ gum_quick_script_perform_load_task (GumQuickScript * self,
 
     gum_quick_bundle_load (gumjs_runtime_modules, ctx);
 
-    result = JS_EvalFunction (ctx, self->code);
-    self->code = JS_NULL;
+    entrypoints = self->program->entrypoints;
+    for (i = 0; i != entrypoints->len; i++)
+    {
+      JSValue result;
 
-    if (JS_IsException (result))
-      _gum_quick_scope_catch_and_emit (&scope);
+      result = JS_EvalFunction (ctx, g_array_index (entrypoints, JSValue, i));
+      if (JS_IsException (result))
+        _gum_quick_scope_catch_and_emit (&scope);
 
-    JS_FreeValue (ctx, result);
+      JS_FreeValue (ctx, result);
+    }
+    g_array_set_size (entrypoints, 0);
 
     _gum_quick_scope_leave (&scope);
 
