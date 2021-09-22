@@ -582,6 +582,8 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   GumX86Writer * cw = ctx->code_writer;
   guint mod, reg, rm;
   gboolean is_rip_relative;
+  GumAddress address;
+  gssize offset;
   GumCpuReg cpu_regs[7] = {
     GUM_REG_RAX, GUM_REG_RCX, GUM_REG_RDX, GUM_REG_RBX, GUM_REG_RBP,
     GUM_REG_RSI, GUM_REG_RDI
@@ -605,6 +607,17 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   is_rip_relative = (mod == 0 && rm == 5);
   if (!is_rip_relative)
     return FALSE;
+
+  address = GUM_ADDRESS (insn->address + insn->size + x86->disp);
+  offset = address - (GUM_ADDRESS (cw->code) + insn->size);
+
+  if (offset >= G_MININT32 && offset <= G_MAXINT32)
+  {
+    gum_memcpy (code, ctx->start, ctx->len);
+    *((gint32 *) &code[ctx->len - sizeof (gint32)]) = (gint32) offset;
+    gum_x86_writer_put_bytes (cw, code, ctx->len);
+    return TRUE;
+  }
 
   if (insn->id == X86_INS_CALL || insn->id == X86_INS_JMP)
   {
