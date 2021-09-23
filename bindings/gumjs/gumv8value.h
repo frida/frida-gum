@@ -120,6 +120,8 @@ G_GNUC_INTERNAL void _gum_v8_parse_exception_details (
 
 G_GNUC_INTERNAL v8::Local<v8::Value> _gum_v8_error_new_take_error (
     v8::Isolate * isolate, GError ** error);
+G_GNUC_INTERNAL gchar * _gum_v8_error_get_message (v8::Isolate * isolate,
+    v8::Local<v8::Value> error);
 
 G_GNUC_INTERNAL const gchar * _gum_v8_thread_state_to_string (
     GumThreadState state);

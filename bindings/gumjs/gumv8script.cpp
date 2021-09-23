@@ -480,17 +480,10 @@ gum_v8_script_compile (GumV8Script * self,
           gum_ensure_module_loaded (isolate, context, entrypoint, program);
       if (!result.ToLocal (&module))
       {
-        Local<Value> exception = trycatch.Exception ();
-        auto exception_obj = exception.As<Object> ();
-        auto message = exception_obj->Get (context,
-              _gum_v8_string_new_ascii (isolate, "message"))
-            .ToLocalChecked ()
-            .As<String> ();
-        String::Utf8Value message_str (isolate, message);
-        g_set_error_literal (error,
-            G_IO_ERROR,
-            G_IO_ERROR_FAILED,
-            *message_str);
+        gchar * message =
+            _gum_v8_error_get_message (isolate, trycatch.Exception ());
+        g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED, message);
+        g_free (message);
         goto propagate_error;
       }
 
@@ -638,22 +631,17 @@ gum_ensure_module_loaded (Isolate * isolate,
 
   ScriptCompiler::Source source (source_str, origin);
 
-  Local<Module> module;
   gchar * error_description = NULL;
   int line = -1;
+
+  Local<Module> module;
   {
     TryCatch trycatch (isolate);
     auto compile_result = ScriptCompiler::CompileModule (isolate, &source);
     if (!compile_result.ToLocal (&module))
     {
-      Local<Value> exception = trycatch.Exception ();
-      auto exception_obj = exception.As<Object> ();
-      auto message = exception_obj->Get (context,
-            _gum_v8_string_new_ascii (isolate, "message"))
-          .ToLocalChecked ()
-          .As<String> ();
-      String::Utf8Value message_str (isolate, message);
-      error_description = g_strdup (*message_str);
+      error_description =
+          _gum_v8_error_get_message (isolate, trycatch.Exception ());
       line = trycatch.Message ()->GetLineNumber (context).FromMaybe (-1);
     }
   }

@@ -1583,6 +1583,19 @@ _gum_v8_error_new_take_error (Isolate * isolate,
   return result;
 }
 
+gchar *
+_gum_v8_error_get_message (Isolate * isolate,
+                           Local<Value> error)
+{
+  auto obj = error.As<Object> ();
+  auto message = obj->Get (isolate->GetCurrentContext (),
+        _gum_v8_string_new_ascii (isolate, "message"))
+      .ToLocalChecked ()
+      .As<String> ();
+  String::Utf8Value message_str (isolate, message);
+  return g_strdup (*message_str);
+}
+
 const gchar *
 _gum_v8_thread_state_to_string (GumThreadState state)
 {
