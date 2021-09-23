@@ -662,10 +662,22 @@ gum_ensure_module_loaded (Isolate * isolate,
       GINT_TO_POINTER (module->ScriptId ()), asset);
 
   bool success = false;
-  auto instantiate_result =
-      module->InstantiateModule (context, gum_resolve_module);
-  if (!instantiate_result.To (&success) || !success)
+  {
+    TryCatch trycatch (isolate);
+    auto instantiate_result =
+        module->InstantiateModule (context, gum_resolve_module);
+    if (!instantiate_result.To (&success) || !success)
+    {
+      error_description =
+          _gum_v8_error_get_message (isolate, trycatch.Exception ());
+    }
+  }
+  if (error_description != NULL)
+  {
+    _gum_v8_throw_literal (isolate, error_description);
+    g_free (error_description);
     return MaybeLocal<Module> ();
+  }
 
   g_free (asset->data);
   asset->data = NULL;
