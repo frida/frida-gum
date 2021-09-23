@@ -799,7 +799,7 @@ TESTCASE (rip_relative_call)
    * means we can test the cases when the offset to the RIP relative
    * instruction can't simply be modified. To avoid bloating the image though,
    * we instead copy in a template so that our input buffer can be uninitialized
-   * actually reside in the .bss section.
+   * and actually reside in the .bss section.
    */
   memcpy (input, input_template, sizeof (input_template));
   g_assert (((input - expected_output) < G_MININT32) ||
