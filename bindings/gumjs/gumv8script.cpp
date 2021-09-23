@@ -511,11 +511,11 @@ gum_v8_script_compile (GumV8Script * self,
         .ToLocalChecked ();
     ScriptOrigin origin (resource_name);
 
-    auto source = String::NewFromUtf8 (isolate, self->source).ToLocalChecked ();
+    auto source_str = String::NewFromUtf8 (isolate, source).ToLocalChecked ();
 
     Local<Script> code;
     TryCatch trycatch (isolate);
-    auto maybe_code = Script::Compile (context, source, &origin);
+    auto maybe_code = Script::Compile (context, source_str, &origin);
     if (maybe_code.ToLocal (&code))
     {
       program->global_code = new GumPersistent<Script>::type (isolate, code);
