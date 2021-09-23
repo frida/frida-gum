@@ -834,8 +834,8 @@ TESTCASE (rip_relative_adjust_offset)
    * input is also on the stack so that it is within 2GB of the output and thus
    * we can test it can be relocated by just updating the offset.
    */
-  g_assert (((input - expected_output) > G_MININT32) &&
-      ((input - expected_output) < G_MAXINT32));
+  g_assert (((input - expected_output) >= G_MININT32) &&
+      ((input - expected_output) <= G_MAXINT32));
 
   *((gint32 *) (expected_output + 2)) += (input - fixture->output);
 
