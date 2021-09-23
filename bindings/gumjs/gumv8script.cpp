@@ -36,6 +36,7 @@ enum
 enum _GumScriptState
 {
   GUM_SCRIPT_STATE_CREATED,
+  GUM_SCRIPT_STATE_LOADING,
   GUM_SCRIPT_STATE_LOADED,
   GUM_SCRIPT_STATE_UNLOADING,
   GUM_SCRIPT_STATE_UNLOADED
@@ -87,7 +88,10 @@ static void gum_v8_script_load_sync (GumScript * script,
     GCancellable * cancellable);
 static void gum_v8_script_do_load (GumScriptTask * task, GumV8Script * self,
     gpointer task_data, GCancellable * cancellable);
-static void gum_v8_script_execute_entrypoints (GumV8Script * self);
+static void gum_v8_script_execute_entrypoints (GumV8Script * self,
+    GumScriptTask * task);
+static void gum_v8_script_on_entrypoints_executed (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_v8_script_unload (GumScript * script,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
@@ -786,10 +790,10 @@ gum_v8_script_do_load (GumScriptTask * task,
   if (self->state != GUM_SCRIPT_STATE_CREATED)
     goto invalid_operation;
 
-  self->state = GUM_SCRIPT_STATE_LOADED;
-  gum_v8_script_execute_entrypoints (self);
+  self->state = GUM_SCRIPT_STATE_LOADING;
 
-  gum_script_task_return_pointer (task, NULL, NULL);
+  gum_v8_script_execute_entrypoints (self, task);
+
   return;
 
 invalid_operation:
@@ -803,34 +807,98 @@ invalid_operation:
 }
 
 static void
-gum_v8_script_execute_entrypoints (GumV8Script * self)
+gum_v8_script_execute_entrypoints (GumV8Script * self,
+                                   GumScriptTask * task)
 {
-  ScriptScope scope (self);
-  auto isolate = self->isolate;
-  auto context = isolate->GetCurrentContext ();
-
-  auto platform =
-      (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
-  gum_v8_bundle_run (platform->GetRuntimeBundle ());
-
-  auto program = self->program;
-  if (program->entrypoints != NULL)
+  bool done;
   {
-    auto entrypoints = program->entrypoints;
-    for (guint i = 0; i != entrypoints->len; i++)
+    ScriptScope scope (self);
+    auto isolate = self->isolate;
+    auto context = isolate->GetCurrentContext ();
+
+    auto platform =
+        (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
+    gum_v8_bundle_run (platform->GetRuntimeBundle ());
+
+    auto program = self->program;
+    if (program->entrypoints != NULL)
     {
-      auto entrypoint = (GumESAsset *) g_ptr_array_index (entrypoints, i);
-      auto module = Local<Module>::New (isolate, *entrypoint->module);
-      auto result = module->Evaluate (context);
+      auto entrypoints = program->entrypoints;
+
+      auto pending = Array::New (isolate, entrypoints->len);
+      for (guint i = 0; i != entrypoints->len; i++)
+      {
+        auto entrypoint = (GumESAsset *) g_ptr_array_index (entrypoints, i);
+        auto module = Local<Module>::New (isolate, *entrypoint->module);
+        auto promise = module->Evaluate (context);
+        pending->Set (context, i, promise.ToLocalChecked ()).Check ();
+      }
+
+      auto promise_class = context->Global ()
+          ->Get (context, _gum_v8_string_new_ascii (isolate, "Promise"))
+          .ToLocalChecked ().As<Object> ();
+      auto all_settled = promise_class
+          ->Get (context, _gum_v8_string_new_ascii (isolate, "allSettled"))
+          .ToLocalChecked ().As<Function> ();
+
+      Local<Value> argv[] = { pending };
+      auto load_request = all_settled
+          ->Call (context, promise_class, G_N_ELEMENTS (argv), argv)
+          .ToLocalChecked ().As<Promise> ();
+
+      load_request->Then (context,
+          Function::New (context, gum_v8_script_on_entrypoints_executed,
+            External::New (isolate, g_object_ref (task)), 1,
+            ConstructorBehavior::kThrow)
+          .ToLocalChecked ())
+          .ToLocalChecked ();
+
+      done = false;
+    }
+    else
+    {
+      auto code = Local<Script>::New (isolate, *program->global_code);
+      auto result = code->Run (context);
       _gum_v8_ignore_result (result);
+
+      done = true;
     }
   }
-  else
+
+  if (done)
   {
-    auto code = Local<Script>::New (isolate, *program->global_code);
-    auto result = code->Run (context);
-    _gum_v8_ignore_result (result);
+    self->state = GUM_SCRIPT_STATE_LOADED;
+
+    gum_script_task_return_pointer (task, NULL, NULL);
   }
+}
+
+static void
+gum_v8_script_on_entrypoints_executed (const FunctionCallbackInfo<Value> & info)
+{
+  auto task = (GumScriptTask *) info.Data ().As<External> ()->Value ();
+  auto self = (GumV8Script *)
+      g_async_result_get_source_object (G_ASYNC_RESULT (task));
+  auto isolate = info.GetIsolate ();
+  auto context = isolate->GetCurrentContext ();
+
+  auto values = info[0].As<Array> ();
+  uint32_t n = values->Length ();
+  auto reason_str = _gum_v8_string_new_ascii (isolate, "reason");
+  for (uint32_t i = 0; i != n; i++)
+  {
+    auto value = values->Get (context, i).ToLocalChecked ().As<Object> ();
+    auto reason = value->Get (context, reason_str).ToLocalChecked ();
+    if (!reason->IsUndefined ())
+      _gum_v8_core_on_unhandled_exception (&self->core, reason);
+  }
+
+  self->state = GUM_SCRIPT_STATE_LOADED;
+
+  gum_script_task_return_pointer (task, NULL, NULL);
+
+  g_object_unref (self);
+  g_object_unref (task);
 }
 
 static void
