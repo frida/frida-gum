@@ -837,7 +837,7 @@ TESTCASE (rip_relative_adjust_offset)
   g_assert (((input - expected_output) >= G_MININT32) &&
       ((input - expected_output) <= G_MAXINT32));
 
-  *((gint32 *) (expected_output + 2)) += (input - fixture->output);
+  *((gint32 *) (expected_output + 2)) += input - fixture->output;
 
   gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
   SETUP_RELOCATOR_WITH (input);
