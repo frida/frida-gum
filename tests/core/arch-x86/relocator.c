@@ -39,6 +39,7 @@ TESTLIST_BEGIN (relocator)
   TESTENTRY (rip_relative_push_red_zone)
   TESTENTRY (rip_relative_cmpxchg)
   TESTENTRY (rip_relative_call)
+  TESTENTRY (rip_relative_adjust_offset)
 #endif
 TESTLIST_END ()
 
@@ -581,7 +582,7 @@ TESTCASE (eob_but_not_eoi_on_jcxz)
 
 TESTCASE (rip_relative_move_different_target)
 {
-  guint8 input[] = {
+  static guint8 input[] = {
     0x8b, 0x15, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rip + 1] */
     0xc3,                               /* ret                */
     0x01, 0x02, 0x03, 0x04
@@ -593,6 +594,15 @@ TESTCASE (rip_relative_move_different_target)
     0x8b, 0x90, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rax + 1] */
     0x58                                /* pop rax            */
   };
+
+  /*
+   * Since our test fixture writes our output to a stack buffer, we mark our
+   * input buffer as static so that it is part of the .data section and thus
+   * more than 2GB from the stack. This means we can test the cases when the
+   * offset to the RIP relative instruction can't simply be modified.
+   */
+  g_assert (((input - expected_output) < G_MININT32) ||
+      ((input - expected_output) > G_MAXINT32));
 
   *((gpointer *) (expected_output + 3)) = (gpointer) (input + 6);
 
@@ -606,7 +616,7 @@ TESTCASE (rip_relative_move_different_target)
 
 TESTCASE (rip_relative_move_same_target)
 {
-  guint8 input[] = {
+  static guint8 input[] = {
     0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
     0xc3,                               /* ret                */
     0x01, 0x02, 0x03, 0x04
@@ -618,6 +628,15 @@ TESTCASE (rip_relative_move_same_target)
     0x8b, 0x81, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rcx + 1] */
     0x59                                /* pop rcx            */
   };
+
+  /*
+   * Since our test fixture writes our output to a stack buffer, we mark our
+   * input buffer as static so that it is part of the .data section and thus
+   * more than 2GB from the stack. This means we can test the cases when the
+   * offset to the RIP relative instruction can't simply be modified.
+   */
+  g_assert (((input - expected_output) < G_MININT32) ||
+      ((input - expected_output) > G_MAXINT32));
 
   *((gpointer *) (expected_output + 3)) = (gpointer) (input + 6);
 
@@ -631,7 +650,7 @@ TESTCASE (rip_relative_move_same_target)
 
 TESTCASE (rip_relative_push)
 {
-  const guint8 input[] = {
+  static const guint8 input[] = {
     0xff, 0x35,                         /* push [rip + imm32]   */
     0x01, 0x02, 0x03, 0x04
   };
@@ -650,6 +669,15 @@ TESTCASE (rip_relative_push)
     0x58                                /* pop rax */
   };
 
+  /*
+   * Since our test fixture writes our output to a stack buffer, we mark our
+   * input buffer as static so that it is part of the .data section and thus
+   * more than 2GB from the stack. This means we can test the cases when the
+   * offset to the RIP relative instruction can't simply be modified.
+   */
+  g_assert (((input - expected_output) < G_MININT32) ||
+      ((input - expected_output) > G_MAXINT32));
+
   *((gpointer *) (expected_output + 4)) = (gpointer) (input + 6);
 
   gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
@@ -662,7 +690,7 @@ TESTCASE (rip_relative_push)
 
 TESTCASE (rip_relative_push_red_zone)
 {
-  const guint8 input[] = {
+  static const guint8 input[] = {
     0xff, 0x35,                         /* push [rip + imm32]   */
     0x01, 0x02, 0x03, 0x04
   };
@@ -686,6 +714,15 @@ TESTCASE (rip_relative_push_red_zone)
           0x80, 0x00, 0x00, 0x00
   };
 
+  /*
+   * Since our test fixture writes our output to a stack buffer, we mark our
+   * input buffer as static so that it is part of the .data section and thus
+   * more than 2GB from the stack. This means we can test the cases when the
+   * offset to the RIP relative instruction can't simply be modified.
+   */
+  g_assert (((input - expected_output) < G_MININT32) ||
+      ((input - expected_output) > G_MAXINT32));
+
   *((gpointer *) (expected_output + 12)) = (gpointer) (input + 6);
 
   gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_UNIX);
@@ -698,7 +735,7 @@ TESTCASE (rip_relative_push_red_zone)
 
 TESTCASE (rip_relative_cmpxchg)
 {
-  const guint8 input[] = {
+  static const guint8 input[] = {
     0xf0, 0x48, 0x0f, 0xb1, 0x0d,       /* lock cmpxchg [rip + 1], rcx */
           0x01, 0x00, 0x00, 0x00
   };
@@ -710,6 +747,15 @@ TESTCASE (rip_relative_cmpxchg)
                 0x01, 0x00, 0x00, 0x00,
     0x5a                                /* pop rdx            */
   };
+
+  /*
+   * Since our test fixture writes our output to a stack buffer, we mark our
+   * input buffer as static so that it is part of the .data section and thus
+   * more than 2GB from the stack. This means we can test the cases when the
+   * offset to the RIP relative instruction can't simply be modified.
+   */
+  g_assert (((input - expected_output) < G_MININT32) ||
+      ((input - expected_output) > G_MAXINT32));
 
   *((gpointer *) (expected_output + 3)) = (gpointer) (input + 9);
 
@@ -727,7 +773,7 @@ TESTCASE (rip_relative_call)
     0xff, 0x15,                   /* call [rip + 0x1234] */
           0x34, 0x12, 0x00, 0x00
   };
-  guint8 * input;
+  static guint8 input[sizeof(input_template) + 0x1234];
   guint8 expected_output[] = {
     0x50,                         /* push rax */
     0x48, 0xb8,                   /* movabs rax, <return_address> */
@@ -745,9 +791,19 @@ TESTCASE (rip_relative_call)
     /* return_address: */
   };
 
-  /* Make a copy to avoid GCC array bounds checking. */
-  input = g_alloca (sizeof (input_template));
+  /*
+   * Our input buffer must be at least 0x1234 + 6 bytes long to avoid GCC
+   * warning about static array bounds checking. Since our test fixture writes
+   * our output to a stack buffer, we want to mark our input buffer as static so
+   * that it is part of the image and thus more than 2GB from the stack. This
+   * means we can test the cases when the offset to the RIP relative
+   * instruction can't simply be modified. To avoid bloating the image though,
+   * we instead copy in a template so that our input buffer can be uninitialized
+   * and actually reside in the .bss section.
+   */
   memcpy (input, input_template, sizeof (input_template));
+  g_assert (((input - expected_output) < G_MININT32) ||
+      ((input - expected_output) > G_MAXINT32));
 
   *((gpointer *) (expected_output + 3)) =
       fixture->output + sizeof (expected_output);
@@ -758,6 +814,35 @@ TESTCASE (rip_relative_call)
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 6);
+  gum_x86_relocator_write_one (&fixture->rl);
+  assert_output_equals (expected_output);
+}
+
+TESTCASE (rip_relative_adjust_offset)
+{
+  guint8 input[] = {
+    0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
+    0xc3,                               /* ret                */
+    0x01, 0x02, 0x03, 0x04
+  };
+  guint8 expected_output[] = {
+    0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
+  };
+
+  /*
+   * Since our test fixture writes our output to a stack buffer, we ensure our
+   * input is also on the stack so that it is within 2GB of the output and thus
+   * we can test it can be relocated by just updating the offset.
+   */
+  g_assert (((input - expected_output) >= G_MININT32) &&
+      ((input - expected_output) <= G_MAXINT32));
+
+  *((gint32 *) (expected_output + 2)) += input - fixture->output;
+
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
+  SETUP_RELOCATOR_WITH (input);
+
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
   assert_output_equals (expected_output);
 }
