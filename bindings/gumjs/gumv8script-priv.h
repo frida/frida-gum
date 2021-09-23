@@ -78,7 +78,6 @@ struct GumESProgram
   GHashTable * es_modules;
 
   gchar * global_filename;
-  const gchar * global_source;
   GumPersistent<v8::Script>::type * global_code;
 };
 

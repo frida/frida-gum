@@ -35,9 +35,10 @@ enum
 
 enum _GumScriptState
 {
-  GUM_SCRIPT_STATE_UNLOADED = 1,
+  GUM_SCRIPT_STATE_CREATED,
   GUM_SCRIPT_STATE_LOADED,
-  GUM_SCRIPT_STATE_UNLOADING
+  GUM_SCRIPT_STATE_UNLOADING,
+  GUM_SCRIPT_STATE_UNLOADED
 };
 
 struct GumUnloadNotifyCallback
@@ -86,8 +87,7 @@ static void gum_v8_script_load_sync (GumScript * script,
     GCancellable * cancellable);
 static void gum_v8_script_do_load (GumScriptTask * task, GumV8Script * self,
     gpointer task_data, GCancellable * cancellable);
-static void gum_v8_script_perform_load_task (GumV8Script * self,
-    GumScriptTask * task);
+static void gum_v8_script_execute_entrypoints (GumV8Script * self);
 static void gum_v8_script_unload (GumScript * script,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
@@ -152,7 +152,7 @@ gum_v8_script_class_init (GumV8ScriptClass * klass)
       G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_SOURCE,
       g_param_spec_string ("source", "Source", "Source code", NULL,
-      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      (GParamFlags) (G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
       g_param_spec_boxed ("main-context", "MainContext",
@@ -195,7 +195,7 @@ gum_v8_script_iface_init (gpointer g_iface,
 static void
 gum_v8_script_init (GumV8Script * self)
 {
-  self->state = GUM_SCRIPT_STATE_UNLOADED;
+  self->state = GUM_SCRIPT_STATE_CREATED;
   self->on_unload = NULL;
 }
 
@@ -224,10 +224,10 @@ gum_v8_script_dispose (GObject * object)
   }
   else
   {
-    if (self->state == GUM_SCRIPT_STATE_UNLOADED && self->context != NULL)
+    if (self->state == GUM_SCRIPT_STATE_CREATED && self->context != nullptr)
       gum_v8_script_destroy_context (self);
 
-    self->isolate = NULL;
+    self->isolate = nullptr;
 
     g_clear_pointer (&self->main_context, g_main_context_unref);
     g_clear_pointer (&self->backend, g_object_unref);
@@ -259,9 +259,6 @@ gum_v8_script_get_property (GObject * object,
   {
     case PROP_NAME:
       g_value_set_string (value, self->name);
-      break;
-    case PROP_SOURCE:
-      g_value_set_string (value, self->source);
       break;
     case PROP_MAIN_CONTEXT:
       g_value_set_boxed (value, self->main_context);
@@ -378,6 +375,9 @@ gum_v8_script_create_context (GumV8Script * self,
     gum_v8_script_destroy_context (self);
     return FALSE;
   }
+
+  g_free (self->source);
+  self->source = NULL;
 
   return TRUE;
 }
@@ -506,7 +506,6 @@ gum_v8_script_compile (GumV8Script * self,
   else
   {
     program->global_filename = g_strconcat ("/", self->name, ".js", NULL);
-    program->global_source = self->source;
 
     auto resource_name = String::NewFromUtf8 (isolate, program->global_filename)
         .ToLocalChecked ();
@@ -680,6 +679,9 @@ gum_ensure_module_loaded (Isolate * isolate,
   if (!instantiate_result.To (&success) || !success)
     return MaybeLocal<Module> ();
 
+  g_free (asset->data);
+  asset->data = NULL;
+
   return module;
 }
 
@@ -781,66 +783,54 @@ gum_v8_script_do_load (GumScriptTask * task,
                        gpointer task_data,
                        GCancellable * cancellable)
 {
-  switch (self->state)
+  if (self->state != GUM_SCRIPT_STATE_CREATED)
+    goto invalid_operation;
+
+  self->state = GUM_SCRIPT_STATE_LOADED;
+  gum_v8_script_execute_entrypoints (self);
+
+  gum_script_task_return_pointer (task, NULL, NULL);
+  return;
+
+invalid_operation:
   {
-    case GUM_SCRIPT_STATE_UNLOADED:
-    case GUM_SCRIPT_STATE_LOADED:
-      gum_v8_script_perform_load_task (self, task);
-      break;
-    case GUM_SCRIPT_STATE_UNLOADING:
-      gum_v8_script_once_unloaded (self,
-          (GumUnloadNotifyFunc) gum_v8_script_perform_load_task,
-          g_object_ref (task), g_object_unref);
-      break;
-    default:
-      g_assert_not_reached ();
+    gum_script_task_return_error (task,
+        g_error_new_literal (
+          G_IO_ERROR,
+          G_IO_ERROR_NOT_SUPPORTED,
+          "Invalid operation"));
   }
 }
 
 static void
-gum_v8_script_perform_load_task (GumV8Script * self,
-                                 GumScriptTask * task)
+gum_v8_script_execute_entrypoints (GumV8Script * self)
 {
-  if (self->state == GUM_SCRIPT_STATE_UNLOADED)
+  ScriptScope scope (self);
+  auto isolate = self->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto platform =
+      (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
+  gum_v8_bundle_run (platform->GetRuntimeBundle ());
+
+  auto program = self->program;
+  if (program->entrypoints != NULL)
   {
-    if (self->program == NULL)
+    auto entrypoints = program->entrypoints;
+    for (guint i = 0; i != entrypoints->len; i++)
     {
-      gum_v8_script_create_context (self, NULL);
+      auto entrypoint = (GumESAsset *) g_ptr_array_index (entrypoints, i);
+      auto module = Local<Module>::New (isolate, *entrypoint->module);
+      auto result = module->Evaluate (context);
+      _gum_v8_ignore_result (result);
     }
-
-    {
-      ScriptScope scope (self);
-      auto isolate = self->isolate;
-      auto context = isolate->GetCurrentContext ();
-
-      auto platform =
-          (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
-      gum_v8_bundle_run (platform->GetRuntimeBundle ());
-
-      auto program = self->program;
-      if (program->entrypoints != NULL)
-      {
-        auto entrypoints = program->entrypoints;
-        for (guint i = 0; i != entrypoints->len; i++)
-        {
-          auto entrypoint = (GumESAsset *) g_ptr_array_index (entrypoints, i);
-          auto module = Local<Module>::New (isolate, *entrypoint->module);
-          auto result = module->Evaluate (context);
-          _gum_v8_ignore_result (result);
-        }
-      }
-      else
-      {
-        auto code = Local<Script>::New (isolate, *program->global_code);
-        auto result = code->Run (context);
-        _gum_v8_ignore_result (result);
-      }
-    }
-
-    self->state = GUM_SCRIPT_STATE_LOADED;
   }
-
-  gum_script_task_return_pointer (task, NULL, NULL);
+  else
+  {
+    auto code = Local<Script>::New (isolate, *program->global_code);
+    auto result = code->Run (context);
+    _gum_v8_ignore_result (result);
+  }
 }
 
 static void
@@ -885,25 +875,25 @@ gum_v8_script_do_unload (GumScriptTask * task,
                          gpointer task_data,
                          GCancellable * cancellable)
 {
-  switch (self->state)
+  if (self->state != GUM_SCRIPT_STATE_LOADED)
+    goto invalid_operation;
+
+  self->state = GUM_SCRIPT_STATE_UNLOADING;
+  gum_v8_script_once_unloaded (self,
+      (GumUnloadNotifyFunc) gum_v8_script_complete_unload_task,
+      g_object_ref (task), g_object_unref);
+
+  gum_v8_script_try_unload (self);
+
+  return;
+
+invalid_operation:
   {
-    case GUM_SCRIPT_STATE_UNLOADED:
-      gum_v8_script_complete_unload_task (self, task);
-      break;
-    case GUM_SCRIPT_STATE_LOADED:
-      self->state = GUM_SCRIPT_STATE_UNLOADING;
-      gum_v8_script_once_unloaded (self,
-          (GumUnloadNotifyFunc) gum_v8_script_complete_unload_task,
-          g_object_ref (task), g_object_unref);
-      gum_v8_script_try_unload (self);
-      break;
-    case GUM_SCRIPT_STATE_UNLOADING:
-      gum_v8_script_once_unloaded (self,
-          (GumUnloadNotifyFunc) gum_v8_script_complete_unload_task,
-          g_object_ref (task), g_object_unref);
-      break;
-    default:
-      g_assert_not_reached ();
+    gum_script_task_return_error (task,
+        g_error_new_literal (
+          G_IO_ERROR,
+          G_IO_ERROR_NOT_SUPPORTED,
+          "Invalid operation"));
   }
 }
 

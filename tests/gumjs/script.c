@@ -373,7 +373,6 @@ TESTLIST_BEGIN (script)
   TESTGROUP_END ()
 
   TESTENTRY (script_can_be_compiled_to_bytecode)
-  TESTENTRY (script_can_be_reloaded)
   TESTENTRY (script_should_not_leak_if_destroyed_before_load)
   TESTENTRY (script_memory_usage)
   TESTENTRY (source_maps_should_be_supported_for_our_runtime)
@@ -8432,21 +8431,6 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   }
 
   g_bytes_unref (code);
-}
-
-TESTCASE (script_can_be_reloaded)
-{
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(typeof global.badger);"
-      "global.badger = 42;");
-  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
-  gum_script_load_sync (fixture->script, NULL);
-  EXPECT_NO_MESSAGES ();
-  gum_script_unload_sync (fixture->script, NULL);
-  gum_script_unload_sync (fixture->script, NULL);
-  EXPECT_NO_MESSAGES ();
-  gum_script_load_sync (fixture->script, NULL);
-  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 }
 
 TESTCASE (script_should_not_leak_if_destroyed_before_load)

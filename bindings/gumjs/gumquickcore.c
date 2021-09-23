@@ -1529,7 +1529,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
   GumESProgram * program = core->program;
   JSValue map = JS_NULL;
   const gchar * name, * json;
-  gchar * json_malloc_data = NULL;
 
   if (!_gum_quick_args_parse (args, "s", &name))
     return JS_EXCEPTION;
@@ -1556,34 +1555,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
   {
     if (g_strcmp0 (name, program->global_filename) == 0)
     {
-      GRegex * pattern;
-      GMatchInfo * match_info;
-
-      pattern = g_regex_new ("//[#@][ \\t]sourceMappingURL=[ \\t]*"
-          "data:application/json;.*?base64,([^\\s'\"]*)[ \\t]*$",
-          G_REGEX_MULTILINE, 0, NULL);
-
-      g_regex_match (pattern, program->global_source, 0, &match_info);
-      if (g_match_info_matches (match_info))
-      {
-        gchar * data_encoded, * data;
-        gsize size;
-
-        data_encoded = g_match_info_fetch (match_info, 1);
-
-        data = (gchar *) g_base64_decode (data_encoded, &size);
-        if (data != NULL && g_utf8_validate (data, size, NULL))
-        {
-          json_malloc_data = g_strndup (data, size);
-          json = json_malloc_data;
-        }
-        g_free (data);
-
-        g_free (data_encoded);
-      }
-
-      g_match_info_free (match_info);
-      g_regex_unref (pattern);
+      json = program->global_source_map;
     }
     else if (strcmp (name, "/_frida.js") == 0)
     {
@@ -1605,8 +1577,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
 
   if (json != NULL)
     map = gumjs_source_map_new (json, core);
-
-  g_free (json_malloc_data);
 
   return map;
 }

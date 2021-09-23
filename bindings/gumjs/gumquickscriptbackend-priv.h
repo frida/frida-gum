@@ -24,7 +24,7 @@ struct _GumESProgram
   GHashTable * es_assets;
 
   gchar * global_filename;
-  const gchar * global_source;
+  gchar * global_source_map;
 };
 
 struct _GumESAsset

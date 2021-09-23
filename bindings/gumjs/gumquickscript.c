@@ -88,7 +88,8 @@ enum
 
 enum _GumScriptState
 {
-  GUM_SCRIPT_STATE_UNLOADED = 1,
+  GUM_SCRIPT_STATE_CREATED,
+  GUM_SCRIPT_STATE_UNLOADED,
   GUM_SCRIPT_STATE_LOADED,
   GUM_SCRIPT_STATE_UNLOADING
 };
@@ -133,8 +134,7 @@ static void gum_quick_script_load_sync (GumScript * script,
     GCancellable * cancellable);
 static void gum_quick_script_do_load (GumScriptTask * task,
     GumQuickScript * self, gpointer task_data, GCancellable * cancellable);
-static void gum_quick_script_perform_load_task (GumQuickScript * self,
-    GumScriptTask * task);
+static void gum_quick_script_execute_entrypoints (GumQuickScript * self);
 static void gum_quick_script_unload (GumScript * script,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
@@ -187,10 +187,10 @@ gum_quick_script_class_init (GumQuickScriptClass * klass)
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_SOURCE,
       g_param_spec_string ("source", "Source", "Source code", NULL,
-      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+      G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_BYTECODE,
       g_param_spec_boxed ("bytecode", "Bytecode", "Bytecode", G_TYPE_BYTES,
-      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+      G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
       g_param_spec_boxed ("main-context", "MainContext",
       "MainContext being used", G_TYPE_MAIN_CONTEXT,
@@ -225,7 +225,7 @@ gum_quick_script_init (GumQuickScript * self)
 {
   self->name = g_strdup ("agent");
 
-  self->state = GUM_SCRIPT_STATE_UNLOADED;
+  self->state = GUM_SCRIPT_STATE_CREATED;
   self->on_unload = NULL;
 }
 
@@ -244,7 +244,7 @@ gum_quick_script_dispose (GObject * object)
   }
   else
   {
-    if (self->state == GUM_SCRIPT_STATE_UNLOADED && self->ctx != NULL)
+    if (self->state == GUM_SCRIPT_STATE_CREATED && self->ctx != NULL)
       gum_quick_script_destroy_context (self);
 
     g_clear_pointer (&self->main_context, g_main_context_unref);
@@ -278,12 +278,6 @@ gum_quick_script_get_property (GObject * object,
   {
     case PROP_NAME:
       g_value_set_string (value, self->name);
-      break;
-    case PROP_SOURCE:
-      g_value_set_string (value, self->source);
-      break;
-    case PROP_BYTECODE:
-      g_value_set_boxed (value, self->bytecode);
       break;
     case PROP_MAIN_CONTEXT:
       g_value_set_boxed (value, self->main_context);
@@ -405,6 +399,12 @@ gum_quick_script_create_context (GumQuickScript * self,
   JS_FreeValue (ctx, global_obj);
 
   core->current_scope = NULL;
+
+  g_free (self->source);
+  self->source = NULL;
+
+  g_bytes_unref (self->bytecode);
+  self->bytecode = NULL;
 
   return TRUE;
 
@@ -532,63 +532,51 @@ gum_quick_script_do_load (GumScriptTask * task,
                           gpointer task_data,
                           GCancellable * cancellable)
 {
-  switch (self->state)
+  if (self->state != GUM_SCRIPT_STATE_CREATED)
+    goto invalid_operation;
+
+  self->state = GUM_SCRIPT_STATE_LOADED;
+  gum_quick_script_execute_entrypoints (self);
+
+  gum_script_task_return_pointer (task, NULL, NULL);
+  return;
+
+invalid_operation:
   {
-    case GUM_SCRIPT_STATE_UNLOADED:
-    case GUM_SCRIPT_STATE_LOADED:
-      gum_quick_script_perform_load_task (self, task);
-      break;
-    case GUM_SCRIPT_STATE_UNLOADING:
-      gum_quick_script_once_unloaded (self,
-          (GumUnloadNotifyFunc) gum_quick_script_perform_load_task,
-          g_object_ref (task), g_object_unref);
-      break;
-    default:
-      g_assert_not_reached ();
+    gum_script_task_return_error (task,
+        g_error_new_literal (
+          G_IO_ERROR,
+          G_IO_ERROR_NOT_SUPPORTED,
+          "Invalid operation"));
   }
 }
 
 static void
-gum_quick_script_perform_load_task (GumQuickScript * self,
-                                    GumScriptTask * task)
+gum_quick_script_execute_entrypoints (GumQuickScript * self)
 {
-  if (self->state == GUM_SCRIPT_STATE_UNLOADED)
+  GumQuickScope scope;
+  JSContext * ctx = self->ctx;
+  GArray * entrypoints;
+  guint i;
+
+  _gum_quick_scope_enter (&scope, &self->core);
+
+  gum_quick_bundle_load (gumjs_runtime_modules, ctx);
+
+  entrypoints = self->program->entrypoints;
+  for (i = 0; i != entrypoints->len; i++)
   {
-    GumQuickScope scope;
-    JSContext * ctx;
-    GArray * entrypoints;
-    guint i;
+    JSValue result;
 
-    if (self->ctx == NULL)
-    {
-      gum_quick_script_create_context (self, NULL);
-    }
+    result = JS_EvalFunction (ctx, g_array_index (entrypoints, JSValue, i));
+    if (JS_IsException (result))
+      _gum_quick_scope_catch_and_emit (&scope);
 
-    ctx = self->ctx;
-
-    _gum_quick_scope_enter (&scope, &self->core);
-
-    gum_quick_bundle_load (gumjs_runtime_modules, ctx);
-
-    entrypoints = self->program->entrypoints;
-    for (i = 0; i != entrypoints->len; i++)
-    {
-      JSValue result;
-
-      result = JS_EvalFunction (ctx, g_array_index (entrypoints, JSValue, i));
-      if (JS_IsException (result))
-        _gum_quick_scope_catch_and_emit (&scope);
-
-      JS_FreeValue (ctx, result);
-    }
-    g_array_set_size (entrypoints, 0);
-
-    _gum_quick_scope_leave (&scope);
-
-    self->state = GUM_SCRIPT_STATE_LOADED;
+    JS_FreeValue (ctx, result);
   }
+  g_array_set_size (entrypoints, 0);
 
-  gum_script_task_return_pointer (task, NULL, NULL);
+  _gum_quick_scope_leave (&scope);
 }
 
 static void
@@ -635,25 +623,25 @@ gum_quick_script_do_unload (GumScriptTask * task,
                             gpointer task_data,
                             GCancellable * cancellable)
 {
-  switch (self->state)
+  if (self->state != GUM_SCRIPT_STATE_LOADED)
+    goto invalid_operation;
+
+  self->state = GUM_SCRIPT_STATE_UNLOADING;
+  gum_quick_script_once_unloaded (self,
+      (GumUnloadNotifyFunc) gum_quick_script_complete_unload_task,
+      g_object_ref (task), g_object_unref);
+
+  gum_quick_script_try_unload (self);
+
+  return;
+
+invalid_operation:
   {
-    case GUM_SCRIPT_STATE_UNLOADED:
-      gum_quick_script_complete_unload_task (self, task);
-      break;
-    case GUM_SCRIPT_STATE_LOADED:
-      self->state = GUM_SCRIPT_STATE_UNLOADING;
-      gum_quick_script_once_unloaded (self,
-          (GumUnloadNotifyFunc) gum_quick_script_complete_unload_task,
-          g_object_ref (task), g_object_unref);
-      gum_quick_script_try_unload (self);
-      break;
-    case GUM_SCRIPT_STATE_UNLOADING:
-      gum_quick_script_once_unloaded (self,
-          (GumUnloadNotifyFunc) gum_quick_script_complete_unload_task,
-          g_object_ref (task), g_object_unref);
-      break;
-    default:
-      g_assert_not_reached ();
+    gum_script_task_return_error (task,
+        g_error_new_literal (
+          G_IO_ERROR,
+          G_IO_ERROR_NOT_SUPPORTED,
+          "Invalid operation"));
   }
 }
 
