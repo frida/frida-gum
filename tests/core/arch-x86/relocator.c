@@ -715,7 +715,7 @@ TESTCASE (rip_relative_push_red_zone)
   };
 
   /*
-   * Since our test fixture writes our output to a stack buffer, we mark out
+   * Since our test fixture writes our output to a stack buffer, we mark our
    * input buffer as static so that it is part of the .data section and thus
    * more than 2GB from the stack. This means we can test the cases when the
    * offset to the RIP relative instruction can't simply be modified.
