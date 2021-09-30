@@ -12,6 +12,7 @@
 #include "gumquickscriptbackend-priv.h"
 
 #include <gum/gumexceptor.h>
+#include <ffi.h>
 
 #define GUM_QUICK_CORE_ATOM(core, name) \
     core->G_PASTE (atom_for_, name)
@@ -43,6 +44,7 @@ typedef struct _GumQuickCpuContext GumQuickCpuContext;
 typedef guint GumQuickCpuContextAccess;
 typedef struct _GumQuickNativeResource GumQuickNativeResource;
 typedef struct _GumQuickKernelResource GumQuickKernelResource;
+typedef struct _GumQuickNativeCallback GumQuickNativeCallback;
 
 typedef void (* GumQuickWeakNotify) (gpointer data);
 typedef void (* GumQuickFlushNotify) (GumQuickScript * script);
@@ -238,6 +240,21 @@ struct _GumQuickKernelResource
   GumQuickUInt64 u64;
 
   GumQuickKernelDestroyNotify notify;
+};
+
+struct _GumQuickNativeCallback
+{
+  GumQuickNativePointer native_pointer;
+
+  JSValue wrapper;
+  JSValue func;
+  ffi_closure * closure;
+  ffi_cif cif;
+  ffi_type ** atypes;
+  GSList * data;
+
+  GumQuickCore * core;
+  gint interceptor_replacement;
 };
 
 G_GNUC_INTERNAL void _gum_quick_core_init (GumQuickCore * self,
