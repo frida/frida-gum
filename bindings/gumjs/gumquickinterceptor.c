@@ -668,7 +668,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 
   c = JS_GetOpaque (entry->replacement, core->native_callback_class);
   if (c != NULL)
-    c->interceptor_replacement++;
+    c->interceptor_replacement_count++;
 
   g_hash_table_insert (self->replacement_by_address, target, entry);
 
@@ -738,7 +738,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
     GumQuickNativeCallback * c =
         JS_GetOpaque (entry->replacement, core->native_callback_class);
     if (c != NULL)
-      c->interceptor_replacement--;
+      c->interceptor_replacement_count--;
   }
 
   g_hash_table_remove (self->replacement_by_address, target);

@@ -3086,7 +3086,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   GumV8InvocationContext * jic = NULL;
   GumV8CallbackContext * jcc = NULL;
   auto ic = gum_interceptor_get_current_invocation ();
-  if (ic != NULL && self->interceptor_replacement > 0)
+  if (ic != NULL && self->interceptor_replacement_count > 0)
   {
     jic = _gum_v8_interceptor_obtain_invocation_context (interceptor);
     _gum_v8_invocation_context_reset (jic, ic);

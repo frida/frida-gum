@@ -254,7 +254,7 @@ struct _GumQuickNativeCallback
   GSList * data;
 
   GumQuickCore * core;
-  gint interceptor_replacement;
+  gint interceptor_replacement_count;
 };
 
 G_GNUC_INTERNAL void _gum_quick_core_init (GumQuickCore * self,

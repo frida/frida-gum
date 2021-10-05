@@ -722,7 +722,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
     {
       auto callback = (GumV8NativeCallback *)
           instance->GetInternalField (0).As<External> ()->Value ();
-      callback->interceptor_replacement++;
+      callback->interceptor_replacement_count++;
     }
 
     g_hash_table_insert (module->replacement_by_address, target, entry);
@@ -783,7 +783,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
     {
       auto callback = (GumV8NativeCallback *)
           instance->GetInternalField (0).As<External> ()->Value ();
-      callback->interceptor_replacement--;
+      callback->interceptor_replacement_count--;
     }
   }
 
