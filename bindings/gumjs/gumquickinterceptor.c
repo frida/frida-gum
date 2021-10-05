@@ -726,7 +726,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   GumQuickInterceptor * self;
   gpointer target;
   GumQuickReplaceEntry * entry;
-  GumQuickNativeCallback * c;
 
   self = gumjs_get_parent_module (core);
 
@@ -736,7 +735,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   entry = g_hash_table_lookup (self->replacement_by_address, target);
   if (entry != NULL)
   {
-    c = JS_GetOpaque (entry->replacement, core->native_callback_class);
+    GumQuickNativeCallback * c =
+        JS_GetOpaque (entry->replacement, core->native_callback_class);
     if (c != NULL)
       c->interceptor_replacement--;
   }

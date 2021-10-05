@@ -716,7 +716,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   if (replace_ret == GUM_REPLACE_OK)
   {
     auto native_callback = Local<FunctionTemplate>::New (isolate,
-      *core->native_callback);
+        *core->native_callback);
     auto instance = replacement_function_value.As<Object> ();
     if (native_callback->HasInstance (instance))
     {
@@ -776,7 +776,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   if (entry != NULL)
   {
     auto native_callback = Local<FunctionTemplate>::New (isolate,
-      *core->native_callback);
+        *core->native_callback);
     auto replacement_value (Local<Value>::New (isolate, *entry->replacement));
     auto instance = replacement_value.As<Object> ();
     if (native_callback->HasInstance (instance))

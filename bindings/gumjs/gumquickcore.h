@@ -11,8 +11,8 @@
 #include "gumquickscript.h"
 #include "gumquickscriptbackend-priv.h"
 
-#include <gum/gumexceptor.h>
 #include <ffi.h>
+#include <gum/gumexceptor.h>
 
 #define GUM_QUICK_CORE_ATOM(core, name) \
     core->G_PASTE (atom_for_, name)
