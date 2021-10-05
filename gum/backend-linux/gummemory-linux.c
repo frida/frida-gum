@@ -188,7 +188,7 @@ gum_memory_get_protection (gconstpointer address,
   while (fgets (line, sizeof (line), fp) != NULL)
   {
     gpointer start, end;
-    gchar protection[16];
+    gchar protection[4 + 1];
 
     sscanf (line, "%p-%p %s ", &start, &end, protection);
 
