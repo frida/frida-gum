@@ -1024,6 +1024,9 @@ _gum_v8_core_finalize (GumV8Core * self)
   delete self->callback_context;
   self->callback_context = nullptr;
 
+  delete self->native_callback;
+  self->native_callback = nullptr;
+
   delete self->native_function;
   self->native_function = nullptr;
 
