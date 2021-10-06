@@ -61,6 +61,9 @@ struct GumV8FindModuleByNameContext
   GumV8Process * parent;
 };
 
+GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
+GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
+GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
@@ -90,6 +93,9 @@ const gchar * gum_v8_script_exception_type_to_string (GumExceptionType type);
 
 static const GumV8Function gumjs_process_functions[] =
 {
+  { "getCurrentDir", gumjs_process_get_current_dir },
+  { "getHomeDir", gumjs_process_get_home_dir },
+  { "getTmpDir", gumjs_process_get_tmp_dir },
   { "isDebuggerAttached", gumjs_process_is_debugger_attached },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id },
   { "_enumerateThreads", gumjs_process_enumerate_threads },
@@ -152,6 +158,32 @@ _gum_v8_process_dispose (GumV8Process * self)
 void
 _gum_v8_process_finalize (GumV8Process * self)
 {
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_dir)
+{
+  gchar * dir_opsys = g_get_current_dir ();
+  gchar * dir_utf8 = g_filename_display_name (dir_opsys);
+  info.GetReturnValue ().Set (
+      String::NewFromUtf8 (isolate, dir_utf8).ToLocalChecked ());
+  g_free (dir_utf8);
+  g_free (dir_opsys);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_get_home_dir)
+{
+  gchar * dir = g_filename_display_name (g_get_home_dir ());
+  info.GetReturnValue ().Set (
+      String::NewFromUtf8 (isolate, dir).ToLocalChecked ());
+  g_free (dir);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_get_tmp_dir)
+{
+  gchar * dir = g_filename_display_name (g_get_tmp_dir ());
+  info.GetReturnValue ().Set (
+      String::NewFromUtf8 (isolate, dir).ToLocalChecked ());
+  g_free (dir);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)

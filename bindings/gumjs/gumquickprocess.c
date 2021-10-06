@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -76,6 +76,9 @@ struct _GumQuickFindRangeByAddressContext
   GumQuickCore * core;
 };
 
+GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
+GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
+GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
@@ -109,6 +112,9 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_PROP_STRING_DEF ("arch", GUM_SCRIPT_ARCH, JS_PROP_C_W_E),
   JS_PROP_STRING_DEF ("platform", GUM_SCRIPT_PLATFORM, JS_PROP_C_W_E),
   JS_PROP_INT32_DEF ("pointerSize", GLIB_SIZEOF_VOID_P, JS_PROP_C_W_E),
+  JS_CFUNC_DEF ("getCurrentDir", 0, gumjs_process_get_current_dir),
+  JS_CFUNC_DEF ("getHomeDir", 0, gumjs_process_get_home_dir),
+  JS_CFUNC_DEF ("getTmpDir", 0, gumjs_process_get_tmp_dir),
   JS_CFUNC_DEF ("isDebuggerAttached", 0, gumjs_process_is_debugger_attached),
   JS_CFUNC_DEF ("getCurrentThreadId", 0, gumjs_process_get_current_thread_id),
   JS_CFUNC_DEF ("_enumerateThreads", 0, gumjs_process_enumerate_threads),
@@ -172,6 +178,44 @@ static GumQuickProcess *
 gumjs_get_parent_module (GumQuickCore * core)
 {
   return _gum_quick_core_load_module_data (core, "process");
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_dir)
+{
+  JSValue result;
+  gchar * dir_opsys, * dir_utf8;
+
+  dir_opsys = g_get_current_dir ();
+  dir_utf8 = g_filename_display_name (dir_opsys);
+  result = JS_NewString (ctx, dir_utf8);
+  g_free (dir_utf8);
+  g_free (dir_opsys);
+
+  return result;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_get_home_dir)
+{
+  JSValue result;
+  gchar * dir;
+
+  dir = g_filename_display_name (g_get_home_dir ());
+  result = JS_NewString (ctx, dir);
+  g_free (dir);
+
+  return result;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_get_tmp_dir)
+{
+  JSValue result;
+  gchar * dir;
+
+  dir = g_filename_display_name (g_get_tmp_dir ());
+  result = JS_NewString (ctx, dir);
+  g_free (dir);
+
+  return result;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
