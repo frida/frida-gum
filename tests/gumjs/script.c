@@ -165,6 +165,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_page_size_is_available)
     TESTENTRY (process_pointer_size_is_available)
     TESTENTRY (process_should_support_nested_signal_handling)
+    TESTENTRY (process_current_dir_can_be_queried)
+    TESTENTRY (process_home_dir_can_be_queried)
+    TESTENTRY (process_tmp_dir_can_be_queried)
 #ifndef HAVE_QNX
     TESTENTRY (process_debugger_status_is_available)
 #endif
@@ -3890,6 +3893,24 @@ TESTCASE (process_should_support_nested_signal_handling)
 #else
   g_print ("<skipping, only supported on Linux for now> ");
 #endif
+}
+
+TESTCASE (process_current_dir_can_be_queried)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(typeof Process.getCurrentDir());");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+}
+
+TESTCASE (process_home_dir_can_be_queried)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(typeof Process.getHomeDir());");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+}
+
+TESTCASE (process_tmp_dir_can_be_queried)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(typeof Process.getTmpDir());");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
 }
 
 TESTCASE (process_debugger_status_is_available)
