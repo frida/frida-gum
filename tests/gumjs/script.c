@@ -1931,16 +1931,25 @@ TESTCASE (native_callback_should_get_accurate_backtraces_2)
     "    }"
     "  });"
 
+    "  const interceptHere = detector['- matchesInString:options:range:'];"
+    "  Interceptor.attach(interceptHere.implementation, {"
+    "    onEnter() {}"
+    "  });"
+
     "  detector.matchesInString_options_range_(testString, 0, range);"
 
     "  const origImpl = method.implementation;"
     "  method.implementation = ObjC.implement(method,"
     "    function (handle, selector, ...args) {"
     "      if (sample === null) {"
-    "        sample = Thread.backtrace(this.context, Backtracer.ACCURATE);"
-    "        sampleRet = this.returnAddress;"
-    "        send('returnAddress ' +"
-    "            (sample[0].equals(sampleRet) ? 'ok' : 'error'));"
+    "        if (!this.context.pc.isNull()) {"
+    "          send('returnAddress error');"
+    "        } else {"
+    "          sample = Thread.backtrace(this.context, Backtracer.ACCURATE);"
+    "          sampleRet = this.returnAddress;"
+    "          send('returnAddress ' +"
+    "              (sample[0].equals(sampleRet) ? 'ok' : 'error'));"
+    "        }"
     "      }"
     "      return origImpl(handle, selector, ...args);"
     "    });"
@@ -5898,7 +5907,8 @@ TESTCASE (replaced_function_should_have_invocation_context)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function () {"
-      "  send(this.returnAddress instanceof NativePointer);"
+      "  send(this.returnAddress instanceof NativePointer &&"
+      "      !this.context.pc.isNull());"
       "  return 0;"
       "}, 'int', ['int']));",
       target_function_int);

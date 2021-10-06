@@ -642,6 +642,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   JSValue replacement_value;
   GumQuickReplaceEntry * entry = NULL;
   GumReplaceReturn replace_ret;
+  GumQuickNativeCallback * c;
 
   self = gumjs_get_parent_module (core);
 
@@ -664,6 +665,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
       replacement_function, replacement_data);
   if (replace_ret != GUM_REPLACE_OK)
     goto unable_to_replace;
+
+  c = JS_GetOpaque (entry->replacement, core->native_callback_class);
+  if (c != NULL)
+    c->interceptor_replacement_count++;
 
   g_hash_table_insert (self->replacement_by_address, target, entry);
 
@@ -720,11 +725,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 {
   GumQuickInterceptor * self;
   gpointer target;
+  GumQuickReplaceEntry * entry;
 
   self = gumjs_get_parent_module (core);
 
   if (!_gum_quick_args_parse (args, "p", &target))
     return JS_EXCEPTION;
+
+  entry = g_hash_table_lookup (self->replacement_by_address, target);
+  if (entry != NULL)
+  {
+    GumQuickNativeCallback * c =
+        JS_GetOpaque (entry->replacement, core->native_callback_class);
+    if (c != NULL)
+      c->interceptor_replacement_count--;
+  }
 
   g_hash_table_remove (self->replacement_by_address, target);
 

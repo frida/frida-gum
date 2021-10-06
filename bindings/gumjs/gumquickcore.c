@@ -18,7 +18,6 @@
 #include "gumquickstalker.h"
 #include "gumsourcemap.h"
 
-#include <ffi.h>
 #include <string.h>
 #ifdef _MSC_VER
 # include <intrin.h>
@@ -37,7 +36,6 @@ typedef guint8 GumQuickExceptionsBehavior;
 typedef guint8 GumQuickCodeTraps;
 typedef guint8 GumQuickReturnValueShape;
 typedef struct _GumQuickFFIFunction GumQuickFFIFunction;
-typedef struct _GumQuickNativeCallback GumQuickNativeCallback;
 typedef struct _GumQuickCallbackContext GumQuickCallbackContext;
 
 struct _GumQuickFlushCallback
@@ -134,20 +132,6 @@ struct _GumQuickFFIFunction
   guint nargs_fixed;
   ffi_abi abi;
   GSList * data;
-};
-
-struct _GumQuickNativeCallback
-{
-  GumQuickNativePointer native_pointer;
-
-  JSValue wrapper;
-  JSValue func;
-  ffi_closure * closure;
-  ffi_cif cif;
-  ffi_type ** atypes;
-  GSList * data;
-
-  GumQuickCore * core;
 };
 
 struct _GumQuickCallbackContext
@@ -3683,7 +3667,7 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   }
 
   ic = gum_interceptor_get_current_invocation ();
-  if (ic != NULL)
+  if (ic != NULL && self->interceptor_replacement_count > 0)
   {
     jic = _gum_quick_interceptor_obtain_invocation_context (core->interceptor);
     _gum_quick_invocation_context_reset (jic, ic);

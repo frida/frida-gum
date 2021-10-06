@@ -13,6 +13,7 @@
 #include "gumv8script.h"
 #include "gumv8scriptbackend.h"
 
+#include <ffi.h>
 #include <gum/gumexceptor.h>
 #include <gum/gumprocess.h>
 #include <v8/v8.h>
@@ -106,6 +107,7 @@ struct GumV8Core
   GumPersistent<v8::String>::type * value_key;
   GumPersistent<v8::String>::type * system_error_key;
 
+  GumPersistent<v8::FunctionTemplate>::type * native_callback;
   GumPersistent<v8::FunctionTemplate>::type * callback_context;
   GumPersistent<v8::Object>::type * callback_context_value;
 
@@ -139,6 +141,22 @@ struct GumV8ByteArray
   gpointer data;
   gsize size;
   GumV8Core * core;
+};
+
+struct GumV8NativeCallback
+{
+  gint ref_count;
+
+  GumPersistent<v8::Object>::type * wrapper;
+
+  GumPersistent<v8::Function>::type * func;
+  ffi_closure * closure;
+  ffi_cif cif;
+  ffi_type ** atypes;
+  GSList * data;
+
+  GumV8Core * core;
+  gint interceptor_replacement_count;
 };
 
 G_GNUC_INTERNAL void _gum_v8_core_init (GumV8Core * self,

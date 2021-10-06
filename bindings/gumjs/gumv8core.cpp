@@ -16,7 +16,6 @@
 #include "gumv8scope.h"
 #include "gumv8script-priv.h"
 
-#include <ffi.h>
 #ifdef _MSC_VER
 # include <intrin.h>
 #endif
@@ -123,21 +122,6 @@ struct GumV8NativeFunction
   gboolean is_variadic;
   uint32_t nargs_fixed;
   ffi_abi abi;
-  GSList * data;
-
-  GumV8Core * core;
-};
-
-struct GumV8NativeCallback
-{
-  gint ref_count;
-
-  GumPersistent<Object>::type * wrapper;
-
-  GumPersistent<Function>::type * func;
-  ffi_closure * closure;
-  ffi_cif cif;
-  ffi_type ** atypes;
   GSList * data;
 
   GumV8Core * core;
@@ -572,6 +556,8 @@ _gum_v8_core_init (GumV8Core * self,
       gumjs_native_callback_construct, scope, module, isolate);
   native_callback->Inherit (native_pointer);
   native_callback->InstanceTemplate ()->SetInternalFieldCount (1);
+  self->native_callback =
+      new GumPersistent<FunctionTemplate>::type (isolate, native_callback);
 
   auto cc = _gum_v8_create_class ("CallbackContext", nullptr, scope,
       module, isolate);
@@ -1037,6 +1023,9 @@ _gum_v8_core_finalize (GumV8Core * self)
 
   delete self->callback_context;
   self->callback_context = nullptr;
+
+  delete self->native_callback;
+  self->native_callback = nullptr;
 
   delete self->native_function;
   self->native_function = nullptr;
@@ -3100,7 +3089,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   GumV8InvocationContext * jic = NULL;
   GumV8CallbackContext * jcc = NULL;
   auto ic = gum_interceptor_get_current_invocation ();
-  if (ic != NULL)
+  if (ic != NULL && self->interceptor_replacement_count > 0)
   {
     jic = _gum_v8_interceptor_obtain_invocation_context (interceptor);
     _gum_v8_invocation_context_reset (jic, ic);
