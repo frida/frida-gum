@@ -1933,7 +1933,7 @@ TESTCASE (native_callback_should_get_accurate_backtraces_2)
 
     "  const interceptHere = detector['- matchesInString:options:range:'];"
     "  Interceptor.attach(interceptHere.implementation, {"
-    "    onEnter() { }"
+    "    onEnter() {}"
     "  });"
 
     "  detector.matchesInString_options_range_(testString, 0, range);"
