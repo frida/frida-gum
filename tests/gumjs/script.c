@@ -5908,7 +5908,7 @@ TESTCASE (replaced_function_should_have_invocation_context)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function () {"
       "  send(this.returnAddress instanceof NativePointer &&"
-      "     !this.context.pc.isNull());"
+      "      !this.context.pc.isNull());"
       "  return 0;"
       "}, 'int', ['int']));",
       target_function_int);
