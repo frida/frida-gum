@@ -67,6 +67,8 @@ GUM_DEFINE_FFI_TYPE (ssize_t, gint16, FFI_TYPE_SINT16)
 # error "size_t detection missing"
 #endif
 
+GUM_DEFINE_FFI_TYPE (bool, gboolean, FFI_TYPE_SINT8)
+
 static const GumFFITypeMapping gum_ffi_type_mappings[] =
 {
   { "void", &ffi_type_void },
@@ -89,7 +91,7 @@ static const GumFFITypeMapping gum_ffi_type_mappings[] =
   { "uint32", &ffi_type_uint32 },
   { "int64", &ffi_type_sint64 },
   { "uint64", &ffi_type_uint64 },
-  { "bool", &ffi_type_schar }
+  { "bool", &gum_ffi_type_bool }
 };
 
 static const GumFFIABIMapping gum_ffi_abi_mappings[] =

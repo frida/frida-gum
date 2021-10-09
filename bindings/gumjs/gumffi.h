@@ -37,6 +37,7 @@ union _GumFFIValue
   guint32 v_uint32;
   gint64 v_sint64;
   guint64 v_uint64;
+  gboolean v_boolean;
 };
 
 #else
@@ -116,6 +117,7 @@ union _GumFFIValue
       guchar v_uchar;
       gint8 v_sint8;
       guint8 v_uint8;
+      gboolean v_boolean;
     };
   };
 # else
@@ -155,6 +157,7 @@ union _GumFFIValue
       guchar v_uchar;
       gint8 v_sint8;
       guint8 v_uint8;
+      gboolean v_boolean;
     };
   };
 # endif
@@ -166,6 +169,7 @@ union _GumFFIValue
 
 extern ffi_type gum_ffi_type_size_t;
 extern ffi_type gum_ffi_type_ssize_t;
+extern ffi_type gum_ffi_type_bool;
 
 G_GNUC_INTERNAL gboolean gum_ffi_try_get_type_by_name (const gchar * name,
     ffi_type ** type);

@@ -3682,6 +3682,12 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
       goto error_expected_number;
     value->v_double = svalue->NumberValue (context).ToChecked ();
   }
+  else if (type == &gum_ffi_type_bool)
+  {
+    if (!svalue->IsBoolean ())
+      goto error_expected_boolean;
+    value->v_boolean = svalue->BooleanValue (isolate);
+  }
   else if (type->type == FFI_TYPE_STRUCT)
   {
     if (!svalue->IsArray ())
@@ -3740,6 +3746,11 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
 error_expected_number:
   {
     _gum_v8_throw_ascii_literal (isolate, "expected number");
+    return FALSE;
+  }
+error_expected_boolean:
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected boolean");
     return FALSE;
   }
 error_unsupported_type:
@@ -3848,6 +3859,10 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   else if (type == &ffi_type_double)
   {
     *svalue = Number::New (isolate, value->v_double);
+  }
+  else if (type == &gum_ffi_type_bool)
+  {
+    *svalue = Boolean::New (isolate, value->v_boolean);
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {

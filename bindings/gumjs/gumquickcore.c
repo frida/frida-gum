@@ -4394,6 +4394,14 @@ gum_quick_value_to_ffi (JSContext * ctx,
       return FALSE;
     val->v_double = d;
   }
+  else if (type == &gum_ffi_type_bool)
+  {
+    gboolean b;
+
+    if (!_gum_quick_boolean_get (ctx, sval, &b))
+      return FALSE;
+    val->v_boolean = b;
+  }
   else if (type->type == FFI_TYPE_STRUCT)
   {
     ffi_type ** const field_types = type->elements, ** t;
@@ -4545,6 +4553,10 @@ gum_quick_value_from_ffi (JSContext * ctx,
   else if (type == &ffi_type_double)
   {
     return JS_NewFloat64 (ctx, val->v_double);
+  }
+  else if (type == &gum_ffi_type_bool)
+  {
+    return JS_NewBool (ctx, val->v_boolean);
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
