@@ -2056,6 +2056,11 @@ gum_exec_ctx_dispose (GumExecCtx * ctx)
     gum_stalker_thaw (stalker, gum_slab_start (slab), slab->offset);
   }
 
+  for (slab = &ctx->slow_slab->slab; slab != NULL; slab = slab->next)
+  {
+    gum_stalker_thaw (stalker, gum_slab_start (slab), slab->offset);
+  }
+
   for (slab = &ctx->data_slab->slab; slab != NULL; slab = slab->next)
   {
     GumExecBlock * blocks;
@@ -3707,7 +3712,7 @@ gum_exec_block_new (GumExecCtx * ctx)
   block->slow_start = gum_slab_cursor (&slow_slab->slab);
 
   gum_stalker_thaw (stalker, block->code_start, code_available);
-  gum_stalker_thaw (stalker, block->slow_slab, slow_available);
+  gum_stalker_thaw (stalker, block->slow_start, slow_available);
 
   return block;
 }
@@ -3743,11 +3748,9 @@ gum_exec_block_commit (GumExecBlock * block)
   block->capacity = block->code_size + snapshot_size;
 
   gum_slab_reserve (&block->code_slab->slab, block->capacity);
-
   gum_stalker_freeze (stalker, block->code_start, block->code_size);
 
   gum_slab_reserve (&block->slow_slab->slab, block->slow_size);
-
   gum_stalker_freeze (stalker, block->slow_start, block->slow_size);
 }
 
