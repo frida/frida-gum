@@ -3830,6 +3830,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
     p.type = GUM_BACKPATCH_JMP;
     p.to = block->real_start;
     p.from = from->real_start;
+    p.jmp.code_offset = code_offset;
     p.jmp.backpatch_jmp_idx = backpatch_jmp_idx;
 
     gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
