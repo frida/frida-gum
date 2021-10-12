@@ -34,6 +34,7 @@
 #define GUM_DATA_SLAB_SIZE_DYNAMIC  (GUM_CODE_SLAB_SIZE_DYNAMIC / 5)
 #define GUM_SCRATCH_SLAB_SIZE       16384
 #define GUM_EXEC_BLOCK_MIN_CAPACITY 1024
+#define GUM_DATA_BLOCK_MIN_CAPACITY (sizeof (GumExecBlock) + 1024)
 
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_INVALIDATE_TRAMPOLINE_SIZE            16
@@ -281,6 +282,8 @@ struct _GumExecBlock
 
   GumExecBlockFlags flags;
   gint recycle_count;
+
+  GumIcEntry * ic_entries;
 };
 
 enum _GumExecBlockFlags
@@ -411,7 +414,6 @@ struct _GumBackpatchJmp
 
 struct _GumBackpatchInlineCache
 {
-  gsize ic_offset;
 };
 
 struct _GumBackpatch
@@ -582,7 +584,7 @@ static void gum_exec_block_backpatch_jmp (GumExecBlock * block,
 static void gum_exec_block_backpatch_ret (GumExecBlock * block,
     GumExecBlock * from, gsize code_offset);
 static void gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
-    GumExecBlock * from, gsize ic_offset);
+    GumExecBlock * from);
 
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
@@ -1513,9 +1515,7 @@ gum_stalker_prefetch_backpatch (GumStalker * self,
     }
     case GUM_BACKPATCH_INLINE_CACHE:
     {
-      const GumBackpatchInlineCache * ic = &backpatch->inline_cache;
-      gum_exec_block_backpatch_inline_cache (block_to, block_from,
-          ic->ic_offset);
+      gum_exec_block_backpatch_inline_cache (block_to, block_from);
       break;
     }
     default:
@@ -3555,6 +3555,7 @@ gum_exec_block_new (GumExecCtx * ctx)
   GumCodeSlab * code_slab = ctx->code_slab;
   GumDataSlab * data_slab = ctx->data_slab;
   gsize code_available;
+  gsize data_available;
 
   code_available = gum_slab_available (&code_slab->slab);
   if (code_available < GUM_EXEC_BLOCK_MIN_CAPACITY +
@@ -3577,12 +3578,14 @@ gum_exec_block_new (GumExecCtx * ctx)
     code_available = gum_slab_available (&code_slab->slab);
   }
 
-  block = gum_slab_try_reserve (&data_slab->slab, sizeof (GumExecBlock));
-  if (block == NULL)
+  data_available = gum_slab_available (&data_slab->slab);
+  if (data_available < GUM_DATA_BLOCK_MIN_CAPACITY +
+      gum_stalker_get_ic_entry_size (ctx->stalker))
   {
     data_slab = gum_exec_ctx_add_data_slab (ctx, gum_data_slab_new (ctx));
-    block = gum_slab_reserve (&data_slab->slab, sizeof (GumExecBlock));
   }
+
+  block = gum_slab_reserve (&data_slab->slab, sizeof (GumExecBlock));
 
   block->ctx = ctx;
   block->code_slab = code_slab;
@@ -3876,8 +3879,7 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
 
 static void
 gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
-                                       GumExecBlock * from,
-                                       gsize ic_offset)
+                                       GumExecBlock * from)
 {
   gboolean just_unfollowed;
   GumExecCtx * ctx;
@@ -3895,7 +3897,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
     return;
 
   stalker = ctx->stalker;
-  ic_entries = (GumIcEntry *) (from->code_start + ic_offset);
+  ic_entries = from->ic_entries;
 
   for (i = 0; i != stalker->ic_entries; i++)
   {
@@ -3907,12 +3909,8 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 
     gum_spinlock_acquire (&ctx->code_lock);
 
-    gum_stalker_thaw (stalker, &ic_entries[i], sizeof (GumIcEntry));
-
     ic_entries[i].real_start = block->real_start;
     ic_entries[i].code_start = block->code_start;
-
-    gum_stalker_freeze (stalker, &ic_entries[i], sizeof (GumIcEntry));
 
     gum_spinlock_release (&ctx->code_lock);
 
@@ -3923,7 +3921,6 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
       p.type = GUM_BACKPATCH_INLINE_CACHE;
       p.to = block->real_start;
       p.from = from->real_start;
-      p.inline_cache.ic_offset = ic_offset;
 
       gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
     }
@@ -4271,16 +4268,15 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   const GumAddress call_code_start = cw->pc;
   const GumPrologType opened_prolog = gc->opened_prolog;
   gboolean can_backpatch_statically;
-  GumIcEntry * ic_entries = NULL;
   gpointer * ic_match = NULL;
   GumExecCtxReplaceCurrentBlockFunc entry_func;
   gconstpointer push_application_retaddr = cw->code + 1;
   gconstpointer perform_stack_push = cw->code + 2;
-  gconstpointer look_in_cache = cw->code + 3;
-  gconstpointer loop = cw->code + 4;
-  gconstpointer try_next = cw->code + 5;
-  gconstpointer resolve_dynamically = cw->code + 6;
-  gconstpointer beach = cw->code + 7;
+  GumSlab * data_slab = &block->ctx->data_slab->slab;
+  gconstpointer loop = cw->code + 3;
+  gconstpointer try_next = cw->code + 4;
+  gconstpointer resolve_dynamically = cw->code + 5;
+  gconstpointer beach = cw->code + 6;
 
   GumAddress ret_real_address, ret_code_address;
 
@@ -4320,18 +4316,13 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       gc->accumulated_stack_delta += sizeof (gpointer);
     }
 
-    /*
-     * We need to use a near rather than short jump since our inline cache is
-     * larger than the maximum distance of a short jump (-128 to +127).
-     */
-    gum_x86_writer_put_jmp_near_label (cw, look_in_cache);
-
-    ic_entries = gum_x86_writer_cur (cw);
+    block->ic_entries = gum_slab_reserve (data_slab,
+        gum_stalker_get_ic_entry_size (stalker));
 
     for (i = 0; i != stalker->ic_entries; i++)
     {
-      gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-      gum_x86_writer_put_bytes (cw, (guint8 *) &empty_val, sizeof (empty_val));
+      block->ic_entries[i].real_start = null_ptr;
+      block->ic_entries[i].code_start = GSIZE_TO_POINTER (empty_val);
     }
 
     /*
@@ -4343,15 +4334,13 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_x86_writer_put_bytes (cw, (guint8 *) &scratch_val,
         sizeof (scratch_val));
 
-    gum_x86_writer_put_label (cw, look_in_cache);
-
     gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
     gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
 
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
-        GUM_ADDRESS (ic_entries));
+        GUM_ADDRESS (block->ic_entries));
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
-        GUM_ADDRESS (&ic_entries[stalker->ic_entries]));
+        GUM_ADDRESS (&block->ic_entries[stalker->ic_entries]));
 
     /*
      * Write our inline assembly which iterates through the IcEntry structures,
@@ -4402,7 +4391,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
-  if (ic_entries == NULL)
+  if (block->ic_entries == NULL)
   {
     gum_x86_writer_put_call_near_label (cw, push_application_retaddr);
 
@@ -4509,14 +4498,12 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
         GUM_ARG_ADDRESS, ret_code_address - GUM_ADDRESS (block->code_start));
   }
 
-  if (ic_entries != NULL)
+  if (block->ic_entries != NULL)
   {
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_backpatch_inline_cache), 3,
+        GUM_ADDRESS (gum_exec_block_backpatch_inline_cache), 2,
         GUM_ARG_REGISTER, GUM_REG_XAX,
-        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
-        GUM_ARG_ADDRESS, GUM_ADDRESS (ic_entries) -
-            GUM_ADDRESS (block->code_start));
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block));
   }
 
   /* Execute the generated code */
@@ -4537,7 +4524,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   const GumAddress code_start = cw->pc;
   const GumPrologType opened_prolog = gc->opened_prolog;
   gboolean can_backpatch_statically;
-  GumIcEntry * ic_entries = NULL;
+  GumSlab * data_slab = &block->ctx->data_slab->slab;
   gpointer * ic_match = NULL;
   gconstpointer look_in_cache = cw->code + 1;
   gconstpointer loop = cw->code + 2;
@@ -4564,12 +4551,13 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
      */
     gum_x86_writer_put_jmp_near_label (cw, look_in_cache);
 
-    ic_entries = gum_x86_writer_cur (cw);
+    block->ic_entries = gum_slab_reserve (data_slab,
+        gum_stalker_get_ic_entry_size (stalker));
 
     for (i = 0; i != stalker->ic_entries; i++)
     {
-      gum_x86_writer_put_bytes (cw, (guint8 *) &null_ptr, sizeof (null_ptr));
-      gum_x86_writer_put_bytes (cw, (guint8 *) &empty_val, sizeof (empty_val));
+      block->ic_entries[i].real_start = null_ptr;
+      block->ic_entries[i].code_start = GSIZE_TO_POINTER (empty_val);
     }
 
     /*
@@ -4588,9 +4576,9 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
 
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
-        GUM_ADDRESS (ic_entries));
+        GUM_ADDRESS (block->ic_entries));
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
-        GUM_ADDRESS (&ic_entries[stalker->ic_entries]));
+        GUM_ADDRESS (&block->ic_entries[stalker->ic_entries]));
 
     /*
      * Write our inline assembly which iterates through the IcEntry structures,
@@ -4666,14 +4654,12 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
         GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog));
   }
 
-  if (ic_entries != NULL)
+  if (block->ic_entries != NULL)
   {
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-        GUM_ADDRESS (gum_exec_block_backpatch_inline_cache), 3,
+        GUM_ADDRESS (gum_exec_block_backpatch_inline_cache), 2,
         GUM_ARG_REGISTER, GUM_REG_XAX,
-        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
-        GUM_ARG_ADDRESS, GUM_ADDRESS (ic_entries) -
-            GUM_ADDRESS (block->code_start));
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block));
   }
 
   gum_exec_block_close_prolog (block, gc);
