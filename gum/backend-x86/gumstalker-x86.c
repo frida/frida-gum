@@ -35,6 +35,7 @@
 #define GUM_SCRATCH_SLAB_SIZE       16384
 #define GUM_EXEC_BLOCK_MIN_CAPACITY 1024
 #define GUM_DATA_BLOCK_MIN_CAPACITY (sizeof (GumExecBlock) + 1024)
+#define GUM_MAX_BACKPATCH_JMP_ADDRS 4
 
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_INVALIDATE_TRAMPOLINE_SIZE            16
@@ -284,6 +285,9 @@ struct _GumExecBlock
   gint recycle_count;
 
   GumIcEntry * ic_entries;
+
+  GumAddress backpatch_jmp_addr[GUM_MAX_BACKPATCH_JMP_ADDRS];
+  GumAddress backpatch_jmp_shim_target[GUM_MAX_BACKPATCH_JMP_ADDRS];
 };
 
 enum _GumExecBlockFlags
@@ -409,7 +413,7 @@ struct _GumBackpatchRet
 struct _GumBackpatchJmp
 {
   gsize code_offset;
-  GumPrologType opened_prolog;
+  guint8 backpatch_jmp_idx;
 };
 
 struct _GumBackpatchInlineCache
@@ -580,7 +584,7 @@ static void gum_exec_block_backpatch_call (GumExecBlock * block,
     GumExecBlock * from, gsize code_offset, GumPrologType opened_prolog,
     gpointer ret_real_address, gsize ret_code_offset);
 static void gum_exec_block_backpatch_jmp (GumExecBlock * block,
-    GumExecBlock * from, gsize code_offset, GumPrologType opened_prolog);
+    GumExecBlock * from, gsize code_offset, guint8 backpatch_jmp_idx);
 static void gum_exec_block_backpatch_ret (GumExecBlock * block,
     GumExecBlock * from, gsize code_offset);
 static void gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
@@ -1510,7 +1514,7 @@ gum_stalker_prefetch_backpatch (GumStalker * self,
     {
       const GumBackpatchJmp * jmp = &backpatch->jmp;
       gum_exec_block_backpatch_jmp (block_to, block_from, jmp->code_offset,
-          jmp->opened_prolog);
+          jmp->backpatch_jmp_idx);
       break;
     }
     case GUM_BACKPATCH_INLINE_CACHE:
@@ -3788,13 +3792,10 @@ static void
 gum_exec_block_backpatch_jmp (GumExecBlock * block,
                               GumExecBlock * from,
                               gsize code_offset,
-                              GumPrologType opened_prolog)
+                              guint8 backpatch_jmp_idx)
 {
   gboolean just_unfollowed;
   GumExecCtx * ctx;
-  guint8 * code_start;
-  const gsize code_max_size = 128;
-  GumX86Writer * cw;
 
   just_unfollowed = block == NULL;
   if (just_unfollowed)
@@ -3805,24 +3806,18 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
   if (!gum_exec_ctx_may_now_backpatch (ctx, block))
     return;
 
-  code_start = from->code_start + code_offset;
 
   gum_spinlock_acquire (&ctx->code_lock);
 
-  gum_stalker_thaw (ctx->stalker, code_start, code_max_size);
-
-  cw = &ctx->code_writer;
-  gum_x86_writer_reset (cw, code_start);
-
-  if (opened_prolog != GUM_PROLOG_NONE)
+  if (code_offset == 0)
   {
-    gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
+    from->backpatch_jmp_addr[backpatch_jmp_idx] = GUM_ADDRESS (block->code_start);
   }
-
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (block->code_start));
-
-  gum_x86_writer_flush (cw);
-  gum_stalker_freeze (ctx->stalker, code_start, code_max_size);
+  else
+  {
+    from->backpatch_jmp_addr[backpatch_jmp_idx] = GUM_ADDRESS (from->code_start + code_offset);
+    from->backpatch_jmp_shim_target[backpatch_jmp_idx] = GUM_ADDRESS (block->code_start);
+  }
 
   gum_spinlock_release (&ctx->code_lock);
 
@@ -3833,8 +3828,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
     p.type = GUM_BACKPATCH_JMP;
     p.to = block->real_start;
     p.from = from->real_start;
-    p.jmp.code_offset = code_offset;
-    p.jmp.opened_prolog = opened_prolog;
+    p.jmp.backpatch_jmp_idx = backpatch_jmp_idx;
 
     gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
   }
@@ -4520,7 +4514,8 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   GumStalker * stalker = block->ctx->stalker;
   const gint trust_threshold = stalker->trust_threshold;
   GumX86Writer * cw = gc->code_writer;
-  const GumAddress code_start = cw->pc;
+  guint8 backpatch_jmp_idx = 0;
+  gsize backpatch_shim_offset = 0;
   const GumPrologType opened_prolog = gc->opened_prolog;
   gboolean can_backpatch_statically;
   gpointer * ic_match = NULL;
@@ -4533,7 +4528,27 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
       !target->is_indirect &&
       target->base == X86_REG_INVALID;
 
-  if (trust_threshold >= 0 && !can_backpatch_statically)
+  if (can_backpatch_statically)
+  {
+    for (backpatch_jmp_idx = 0; backpatch_jmp_idx < GUM_MAX_BACKPATCH_JMP_ADDRS; backpatch_jmp_idx++)
+    {
+      if (block->backpatch_jmp_addr[backpatch_jmp_idx] == GUM_ADDRESS (NULL)) break;
+    }
+
+    g_assert (backpatch_jmp_idx <= GUM_MAX_BACKPATCH_JMP_ADDRS);
+
+    gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->backpatch_jmp_addr[backpatch_jmp_idx]));
+
+    if (opened_prolog != GUM_PROLOG_NONE)
+    {
+      backpatch_shim_offset = (cw->pc - GUM_ADDRESS (block->code_start));
+      gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
+      gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->backpatch_jmp_shim_target[backpatch_jmp_idx]));
+    }
+
+    block->backpatch_jmp_addr[backpatch_jmp_idx] = cw->pc;
+  }
+  else if (trust_threshold >= 0)
   {
     guint i;
     gpointer null_ptr = NULL;
@@ -4626,8 +4641,8 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
         GUM_ADDRESS (gum_exec_block_backpatch_jmp), 4,
         GUM_ARG_REGISTER, GUM_REG_XAX,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
-        GUM_ARG_ADDRESS, code_start - GUM_ADDRESS (block->code_start),
-        GUM_ARG_ADDRESS, GUM_ADDRESS (opened_prolog));
+        GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_shim_offset),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (backpatch_jmp_idx));
   }
 
   if (block->ic_entries != NULL)
