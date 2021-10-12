@@ -74,6 +74,7 @@ static gboolean gum_x86_writer_put_short_jmp (GumX86Writer * self,
     gconstpointer target);
 static gboolean gum_x86_writer_put_near_jmp (GumX86Writer * self,
     gconstpointer target);
+static void gum_x86_writer_put_ud2 (GumX86Writer * self);
 static void gum_x86_writer_describe_cpu_reg (GumX86Writer * self,
     GumCpuReg reg, GumCpuRegInfo * ri);
 
@@ -1071,9 +1072,11 @@ gum_x86_writer_put_jmp_address (GumX86Writer * self,
 
       self->code[0] = 0xff;
       self->code[1] = 0x25;
-      *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-      *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (address);
-      gum_x86_writer_commit (self, 14);
+      *((gint32 *) (self->code + 2)) = GINT32_TO_LE (2); /* rip + 2 */
+      *((guint8 *) (self->code + 6)) = 0x0f;
+      *((guint8 *) (self->code + 7)) = 0x0b;
+      *((guint64 *) (self->code + 8)) = GUINT64_TO_LE (address);
+      gum_x86_writer_commit (self, 16);
     }
   }
 
@@ -1118,9 +1121,11 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
 
     self->code[0] = 0xff;
     self->code[1] = 0x25;
-    *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-    *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (GPOINTER_TO_SIZE (target));
-    gum_x86_writer_commit (self, 14);
+    *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 2 */
+    *((guint8 *) (self->code + 6)) = 0x0f;
+    *((guint8 *) (self->code + 7)) = 0x0b;
+    *((guint64 *) (self->code + 8)) = GUINT64_TO_LE (GPOINTER_TO_SIZE (target));
+    gum_x86_writer_commit (self, 16);
   }
 
   return TRUE;
@@ -1168,6 +1173,8 @@ gum_x86_writer_put_jmp_reg (GumX86Writer * self,
   self->code[1] = 0xe0 | ri.index;
   gum_x86_writer_commit (self, 2);
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
 }
 
@@ -1199,6 +1206,8 @@ gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
 
   if (ri.meta == GUM_META_REG_XSP)
     gum_x86_writer_put_u8 (self, 0x24);
+
+  gum_x86_writer_put_ud2 (self);
 
   return TRUE;
 }
@@ -1246,6 +1255,8 @@ gum_x86_writer_put_jmp_reg_offset_ptr (GumX86Writer * self,
     gum_x86_writer_commit (self, 4);
   }
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
 }
 
@@ -1272,7 +1283,17 @@ gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
 
   gum_x86_writer_commit (self, 6);
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
+}
+
+static void
+gum_x86_writer_put_ud2 (GumX86Writer * self)
+{
+  gum_x86_writer_put_u8 (self, 0x0f);
+  gum_x86_writer_put_u8 (self, 0x0b);
+  gum_x86_writer_commit (self, 2);
 }
 
 gboolean
