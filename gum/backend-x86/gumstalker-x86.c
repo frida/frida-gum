@@ -30,6 +30,8 @@
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
 #define GUM_CODE_SLAB_SIZE_DYNAMIC  (4 * 1024 * 1024)
+#define GUM_SLOW_SLAB_SIZE_INITIAL  (128 * 1024)
+#define GUM_SLOW_SLAB_SIZE_DYNAMIC  (4 * 1024 * 1024)
 #define GUM_DATA_SLAB_SIZE_INITIAL  (GUM_CODE_SLAB_SIZE_INITIAL / 5)
 #define GUM_DATA_SLAB_SIZE_DYNAMIC  (GUM_CODE_SLAB_SIZE_DYNAMIC / 5)
 #define GUM_SCRATCH_SLAB_SIZE       16384
@@ -75,6 +77,7 @@ typedef guint GumExecBlockFlags;
 typedef struct _GumExecFrame GumExecFrame;
 
 typedef struct _GumCodeSlab GumCodeSlab;
+typedef struct _GumSlowSlab GumSlowSlab;
 typedef struct _GumDataSlab GumDataSlab;
 typedef struct _GumSlab GumSlab;
 
@@ -125,6 +128,10 @@ struct _GumStalker
   goffset code_slab_offset;
   gsize code_slab_size_initial;
   gsize code_slab_size_dynamic;
+
+  goffset slow_slab_offset;
+  gsize slow_slab_size_initial;
+  gsize slow_slab_size_dynamic;
 
   goffset data_slab_offset;
   gsize data_slab_size_initial;
@@ -211,6 +218,7 @@ struct _GumExecCtx
 #endif
 
   GumX86Writer code_writer;
+  GumX86Writer slow_writer;
   GumX86Relocator relocator;
 
   GumStalkerTransformer * transformer;
@@ -242,6 +250,7 @@ struct _GumExecCtx
 
   GumSpinlock code_lock;
   GumCodeSlab * code_slab;
+  GumSlowSlab * slow_slab;
   GumDataSlab * data_slab;
   GumCodeSlab * scratch_slab;
   GumMetalHashTable * mappings;
@@ -272,10 +281,12 @@ struct _GumExecBlock
 {
   GumExecCtx * ctx;
   GumCodeSlab * code_slab;
+  GumSlowSlab * slow_slab;
   GumExecBlock * storage_block;
 
   guint8 * real_start;
   guint8 * code_start;
+  guint8 * slow_start;
   guint real_size;
   guint code_size;
   guint capacity;
@@ -319,6 +330,13 @@ struct _GumCodeSlab
   gpointer invalidator;
 };
 
+struct _GumSlowSlab
+{
+  GumSlab slab;
+
+  gpointer invalidator;
+};
+
 struct _GumDataSlab
 {
   GumSlab slab;
@@ -343,6 +361,7 @@ struct _GumGeneratorContext
   GumInstruction * instruction;
   GumX86Relocator * relocator;
   GumX86Writer * code_writer;
+  GumX86Writer * slow_writer;
   gpointer continuation_real_address;
   GumPrologType opened_prolog;
   guint accumulated_stack_delta;
@@ -495,6 +514,8 @@ static void gum_exec_ctx_free (GumExecCtx * ctx);
 static void gum_exec_ctx_dispose (GumExecCtx * ctx);
 static GumCodeSlab * gum_exec_ctx_add_code_slab (GumExecCtx * ctx,
     GumCodeSlab * code_slab);
+static GumSlowSlab * gum_exec_ctx_add_slow_slab (GumExecCtx * ctx,
+    GumSlowSlab * code_slab);
 static GumDataSlab * gum_exec_ctx_add_data_slab (GumExecCtx * ctx,
     GumDataSlab * data_slab);
 static void gum_exec_ctx_compute_code_address_spec (GumExecCtx * ctx,
@@ -556,7 +577,8 @@ static gboolean gum_exec_ctx_is_helper_reachable (GumExecCtx * ctx,
     gpointer * helper_ptr);
 
 static void gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
-    const GumBranchTarget * target, GumGeneratorContext * gc);
+    const GumBranchTarget * target, GumGeneratorContext * gc,
+    GumX86Writer * cw);
 static void gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     GumCpuReg target_register, GumCpuReg source_register,
     gpointer ip, GumGeneratorContext * gc);
@@ -643,13 +665,16 @@ static gpointer gum_exec_block_write_inline_data (GumX86Writer * cw,
     gconstpointer data, gsize size, GumAddress * address);
 
 static void gum_exec_block_open_prolog (GumExecBlock * block,
-    GumPrologType type, GumGeneratorContext * gc);
+    GumPrologType type, GumGeneratorContext * gc, GumX86Writer * cw);
 static void gum_exec_block_close_prolog (GumExecBlock * block,
-    GumGeneratorContext * gc);
+    GumGeneratorContext * gc, GumX86Writer * cw);
 
 static GumCodeSlab * gum_code_slab_new (GumExecCtx * ctx);
+static GumSlowSlab * gum_slow_slab_new (GumExecCtx * ctx);
 static void gum_code_slab_free (GumCodeSlab * code_slab);
 static void gum_code_slab_init (GumCodeSlab * code_slab, gsize slab_size,
+    gsize page_size);
+static void gum_slow_slab_init (GumSlowSlab * slow_slab, gsize slab_size,
     gsize page_size);
 
 static GumDataSlab * gum_data_slab_new (GumExecCtx * ctx);
@@ -742,10 +767,14 @@ gum_stalker_init (GumStalker * self)
   self->thunks_size = page_size;
   self->code_slab_size_initial =
       GUM_ALIGN_SIZE (GUM_CODE_SLAB_SIZE_INITIAL, page_size);
+  self->slow_slab_size_initial =
+      GUM_ALIGN_SIZE (GUM_SLOW_SLAB_SIZE_INITIAL, page_size);
   self->data_slab_size_initial =
       GUM_ALIGN_SIZE (GUM_DATA_SLAB_SIZE_INITIAL, page_size);
   self->code_slab_size_dynamic =
       GUM_ALIGN_SIZE (GUM_CODE_SLAB_SIZE_DYNAMIC, page_size);
+  self->code_slab_size_dynamic =
+      GUM_ALIGN_SIZE (GUM_SLOW_SLAB_SIZE_DYNAMIC, page_size);
   self->data_slab_size_dynamic =
       GUM_ALIGN_SIZE (GUM_DATA_SLAB_SIZE_DYNAMIC, page_size);
   self->scratch_slab_size = GUM_ALIGN_SIZE (GUM_SCRATCH_SLAB_SIZE, page_size);
@@ -755,6 +784,7 @@ gum_stalker_init (GumStalker * self)
       self->frames_size +
       self->thunks_size +
       self->code_slab_size_initial +
+      self->slow_slab_size_initial +
       self->data_slab_size_initial +
       self->scratch_slab_size +
       0;
@@ -762,8 +792,10 @@ gum_stalker_init (GumStalker * self)
   self->frames_offset = self->ctx_header_size;
   self->thunks_offset = self->frames_offset + self->frames_size;
   self->code_slab_offset = self->thunks_offset + self->thunks_size;
-  self->data_slab_offset =
+  self->slow_slab_offset =
       self->code_slab_offset + self->code_slab_size_initial;
+  self->data_slab_offset =
+      self->slow_slab_offset + self->slow_slab_size_initial;
   self->scratch_slab_offset =
       self->data_slab_offset + self->data_slab_size_initial;
 
@@ -1891,6 +1923,7 @@ gum_exec_ctx_new (GumStalker * stalker,
   GumExecCtx * ctx;
   guint8 * base;
   GumCodeSlab * code_slab;
+  GumSlowSlab * slow_slab;
   GumDataSlab * data_slab;
 
   base = gum_memory_allocate (NULL, stalker->ctx_size, stalker->page_size,
@@ -1938,6 +1971,11 @@ gum_exec_ctx_new (GumStalker * stalker,
   gum_code_slab_init (code_slab, stalker->code_slab_size_initial,
       stalker->page_size);
   gum_exec_ctx_add_code_slab (ctx, code_slab);
+
+  slow_slab = (GumSlowSlab *) (base + stalker->slow_slab_offset);
+  gum_slow_slab_init (slow_slab, stalker->slow_slab_size_initial,
+      stalker->page_size);
+  gum_exec_ctx_add_slow_slab (ctx, slow_slab);
 
   data_slab = (GumDataSlab *) (base + stalker->data_slab_offset);
   gum_data_slab_init (data_slab, stalker->data_slab_size_initial);
@@ -2042,6 +2080,15 @@ gum_exec_ctx_add_code_slab (GumExecCtx * ctx,
   code_slab->slab.next = &ctx->code_slab->slab;
   ctx->code_slab = code_slab;
   return code_slab;
+}
+
+static GumSlowSlab *
+gum_exec_ctx_add_slow_slab (GumExecCtx * ctx,
+                            GumSlowSlab * slow_slab)
+{
+  slow_slab->slab.next = &ctx->slow_slab->slab;
+  ctx->slow_slab = slow_slab;
+  return slow_slab;
 }
 
 static GumDataSlab *
@@ -2325,6 +2372,7 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
 
   slab = block->code_slab;
   block->code_slab = ctx->scratch_slab;
+  block->slow_slab = ctx->slow_slab;
   scratch_base = ctx->scratch_slab->slab.data;
 
   gum_exec_ctx_compile_block (ctx, block, block->real_start, scratch_base,
@@ -2387,14 +2435,20 @@ gum_exec_ctx_compile_block (GumExecCtx * ctx,
                             guint * output_size)
 {
   GumX86Writer * cw = &ctx->code_writer;
+  GumX86Writer * cws = &ctx->slow_writer;
   GumX86Relocator * rl = &ctx->relocator;
   GumGeneratorContext gc;
   GumStalkerIterator iterator;
   GumStalkerOutput output;
   gboolean all_labels_resolved;
+  gboolean all_slow_labels_resolved;
 
   gum_x86_writer_reset (cw, output_code);
   cw->pc = output_pc;
+
+  gum_x86_writer_reset (cws, block->slow_start);
+  cws->pc = GUM_ADDRESS (block->slow_start);
+
   gum_x86_relocator_reset (rl, input_code, cw);
 
   gum_ensure_code_readable (input_code, ctx->stalker->page_size);
@@ -2402,6 +2456,7 @@ gum_exec_ctx_compile_block (GumExecCtx * ctx,
   gc.instruction = NULL;
   gc.relocator = rl;
   gc.code_writer = cw;
+  gc.slow_writer = cws;
   gc.continuation_real_address = NULL;
   gc.opened_prolog = GUM_PROLOG_NONE;
   gc.accumulated_stack_delta = 0;
@@ -2440,6 +2495,10 @@ gum_exec_ctx_compile_block (GumExecCtx * ctx,
   all_labels_resolved = gum_x86_writer_flush (cw);
   if (!all_labels_resolved)
     g_error ("Failed to resolve labels");
+
+  all_slow_labels_resolved = gum_x86_writer_flush (cws);
+  if (!all_slow_labels_resolved)
+    g_error ("Failed to resolve slow labels");
 
   *input_size = rl->input_cur - rl->input_start;
   *output_size = gum_x86_writer_offset (cw);
@@ -2578,7 +2637,7 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
       break;
   }
 
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
   if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
   {
@@ -2690,12 +2749,12 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
   gum_exec_block_set_last_callout_entry (block,
       GSIZE_TO_POINTER (entry_address));
 
-  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc, gc->code_writer);
   gum_x86_writer_put_call_address_with_aligned_arguments (cw,
       GUM_CALL_CAPI, GUM_ADDRESS (gum_stalker_invoke_callout), 2,
       GUM_ARG_ADDRESS, entry_address,
       GUM_ARG_REGISTER, GUM_REG_XBX);
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
 }
 
 static void
@@ -3304,10 +3363,9 @@ gum_exec_ctx_is_helper_reachable (GumExecCtx * ctx,
 static void
 gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
                                                const GumBranchTarget * target,
-                                               GumGeneratorContext * gc)
+                                               GumGeneratorContext * gc,
+                                               GumX86Writer * cw)
 {
-  GumX86Writer * cw = gc->code_writer;
-
   if (!target->is_indirect)
   {
     if (target->base == X86_REG_INVALID)
@@ -3560,8 +3618,10 @@ gum_exec_block_new (GumExecCtx * ctx)
   GumExecBlock * block;
   GumStalker * stalker = ctx->stalker;
   GumCodeSlab * code_slab = ctx->code_slab;
+  GumSlowSlab * slow_slab = ctx->slow_slab;
   GumDataSlab * data_slab = ctx->data_slab;
   gsize code_available;
+  gsize slow_available;
   gsize data_available;
   guint8 misalign;
 
@@ -3586,6 +3646,24 @@ gum_exec_block_new (GumExecCtx * ctx)
     code_available = gum_slab_available (&code_slab->slab);
   }
 
+  slow_available = gum_slab_available (&slow_slab->slab);
+  if (slow_available < GUM_EXEC_BLOCK_MIN_CAPACITY)
+  {
+    GumAddressSpec data_spec;
+
+    slow_slab = gum_exec_ctx_add_slow_slab (ctx, gum_slow_slab_new (ctx));
+
+    gum_exec_ctx_compute_data_address_spec (ctx, data_slab->slab.size,
+        &data_spec);
+    if (!gum_address_spec_is_satisfied_by (&data_spec,
+            gum_slab_start (&data_slab->slab)))
+    {
+      data_slab = gum_exec_ctx_add_data_slab (ctx, gum_data_slab_new (ctx));
+    }
+
+    slow_available = gum_slab_available (&code_slab->slab);
+  }
+
   data_available = gum_slab_available (&data_slab->slab);
   if (data_available < GUM_DATA_BLOCK_MIN_CAPACITY +
       gum_stalker_get_ic_entry_size (ctx->stalker))
@@ -3597,6 +3675,7 @@ gum_exec_block_new (GumExecCtx * ctx)
 
   block->ctx = ctx;
   block->code_slab = code_slab;
+  block->slow_slab = slow_slab;
 
   misalign = GPOINTER_TO_SIZE(gum_slab_cursor (&code_slab->slab)) & 0x7;
   if (misalign != 0)
@@ -3605,8 +3684,10 @@ gum_exec_block_new (GumExecCtx * ctx)
   }
 
   block->code_start = gum_slab_cursor (&code_slab->slab);
+  block->slow_start = gum_slab_cursor (&slow_slab->slab);
 
   gum_stalker_thaw (stalker, block->code_start, code_available);
+  gum_stalker_thaw (stalker, block->slow_slab, slow_available);
 
   return block;
 }
@@ -3972,7 +4053,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     {
       GumBranchTarget next_instruction = { 0, };
 
-      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
+      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc, gc->code_writer);
       gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
           GUM_ADDRESS (insn->end));
       gum_x86_writer_put_mov_near_ptr_reg (cw,
@@ -3980,11 +4061,11 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
           GUM_ADDRESS (&ctx->pending_calls));
       gum_x86_writer_put_inc_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
-      gum_exec_block_close_prolog (block, gc);
+      gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
       gum_x86_relocator_write_one_no_label (gc->relocator);
 
-      gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+      gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc, gc->code_writer);
 
       gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
           GUM_ADDRESS (&ctx->pending_calls));
@@ -4013,7 +4094,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     is_false =
         GUINT_TO_POINTER ((GPOINTER_TO_UINT (insn->start) << 16) | 0xbabe);
 
-    gum_exec_block_close_prolog (block, gc);
+    gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
     gum_x86_writer_put_jcc_short_label (cw, X86_INS_JCXZ, is_true, GUM_NO_HINT);
     gum_x86_writer_put_jmp_near_label (cw, is_false);
@@ -4042,7 +4123,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     {
       g_assert (!target.is_indirect);
 
-      gum_exec_block_close_prolog (block, gc);
+      gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
       gum_x86_writer_put_jcc_near_label (cw, gum_negate_jcc (insn->ci->id),
           is_false, GUM_NO_HINT);
@@ -4143,7 +4224,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   gpointer * saved_ret_addr;
   gpointer continuation;
 
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
   saved_ret_addr = GSIZE_TO_POINTER (cw->pc + saved_ret_addr_offset);
   continuation = GSIZE_TO_POINTER (cw->pc + saved_ret_addr_offset + 4);
@@ -4185,7 +4266,7 @@ gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
   const gsize wow64_transition_addr_offset = 0x14 + 2;
   const gsize saved_ret_addr_offset = 0x1a;
 
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
   gpointer * saved_ret_addr = GSIZE_TO_POINTER (cw->pc + saved_ret_addr_offset);
   gpointer continuation = GSIZE_TO_POINTER (cw->pc + saved_ret_addr_offset + 4);
@@ -4281,7 +4362,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
     if (opened_prolog == GUM_PROLOG_NONE)
     {
-      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
+      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc, gc->code_writer);
       gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
       gum_x86_writer_put_push_reg (cw, GUM_REG_XDX);
     }
@@ -4307,8 +4388,8 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     }
     else
     {
-      gum_exec_block_close_prolog (block, gc);
-      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
+      gum_exec_block_close_prolog (block, gc, gc->code_writer);
+      gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc, gc->code_writer);
       gc->accumulated_stack_delta += sizeof (gpointer);
     }
 
@@ -4331,7 +4412,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
 
     gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
-    gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+    gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc, gc->code_writer);
 
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
         GUM_ADDRESS (block->ic_entries));
@@ -4368,11 +4449,11 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_x86_writer_put_label (cw, resolve_dynamically);
     gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
     gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
-    gum_exec_block_close_prolog (block, gc);
+    gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
   }
 
-  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc, gc->code_writer);
 
   if (block->ic_entries == NULL)
   {
@@ -4405,7 +4486,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   }
 
   /* Generate code for the target */
-  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc, gc->code_writer);
   gum_x86_writer_put_pop_reg (cw, GUM_THUNK_REG_ARG1);
   gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG0,
       GUM_ADDRESS (block->ctx));
@@ -4483,7 +4564,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   }
 
   /* Execute the generated code */
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->ctx->resume_at));
 }
@@ -4526,6 +4607,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   GumStalker * stalker = block->ctx->stalker;
   const gint trust_threshold = stalker->trust_threshold;
   GumX86Writer * cw = gc->code_writer;
+  GumX86Writer * cws = gc->slow_writer;
   guint8 backpatch_jmp_idx = 0;
   gsize backpatch_shim_offset = 0;
   const GumPrologType opened_prolog = gc->opened_prolog;
@@ -4567,7 +4649,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     gsize empty_val = GUM_IC_MAGIC_EMPTY;
     gsize scratch_val = GUM_IC_MAGIC_SCRATCH;
 
-    gum_exec_block_close_prolog (block, gc);
+    gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
     block->ic_entries = gum_slab_reserve (data_slab,
         gum_stalker_get_ic_entry_size (stalker));
@@ -4586,10 +4668,10 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     ic_match = gum_slab_reserve (data_slab, sizeof (scratch_val));
     *ic_match = GSIZE_TO_POINTER (scratch_val);
 
-    gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc);
+    gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc, gc->code_writer);
 
     gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
-    gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+    gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc, gc->code_writer);
 
     gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
         GUM_ADDRESS (block->ic_entries));
@@ -4625,12 +4707,14 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     gum_x86_writer_put_label (cw, resolve_dynamically);
     gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
     gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
-    gum_exec_block_close_prolog (block, gc);
+    gum_exec_block_close_prolog (block, gc, gc->code_writer);
   }
 
-  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+  // gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (cws->code));
 
-  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc, gc->code_writer);
+
+  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc, gc->code_writer);
   gum_x86_writer_put_pop_reg (cw, GUM_THUNK_REG_ARG1);
   gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG0,
       GUM_ADDRESS (block->ctx));
@@ -4665,7 +4749,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block));
   }
 
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->ctx->resume_at));
 }
@@ -4676,7 +4760,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
 {
   GumX86Writer * cw = gc->code_writer;
 
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
       GUM_REG_XSP, -GUM_RED_ZONE_SIZE);
@@ -4721,7 +4805,7 @@ gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
   if ((block->ctx->sink_mask & GUM_RET) != 0)
   {
     gum_exec_block_write_ret_event_code (block, gc, GUM_CODE_UNINTERRUPTIBLE);
-    gum_exec_block_close_prolog (block, gc);
+    gum_exec_block_close_prolog (block, gc, gc->code_writer);
   }
 
   /*
@@ -4770,7 +4854,7 @@ gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
   /*
    * Slow path (resolve dynamically)
    */
-  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc, gc->code_writer);
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_THUNK_REG_ARG1,
       GUM_ADDRESS (saved_ret_addr));
@@ -4784,7 +4868,7 @@ gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->ctx->resume_at));
 
   gum_x86_relocator_skip_one_no_label (gc->relocator);
@@ -4800,9 +4884,9 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
 {
   GumX86Writer * cw = gc->code_writer;
 
-  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc, gc->code_writer);
 
-  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
+  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc, gc->code_writer);
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
 
   gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
@@ -4820,7 +4904,7 @@ gum_exec_block_write_ret_event_code (GumExecBlock * block,
                                      GumGeneratorContext * gc,
                                      GumCodeContext cc)
 {
-  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc, gc->code_writer);
 
   gum_x86_writer_put_call_address_with_aligned_arguments (gc->code_writer,
       GUM_CALL_CAPI, GUM_ADDRESS (gum_exec_ctx_emit_ret_event), 3,
@@ -4836,7 +4920,7 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
                                       GumGeneratorContext * gc,
                                       GumCodeContext cc)
 {
-  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc, gc->code_writer);
 
   gum_x86_writer_put_call_address_with_aligned_arguments (gc->code_writer,
       GUM_CALL_CAPI, GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 3,
@@ -4852,7 +4936,7 @@ gum_exec_block_write_block_event_code (GumExecBlock * block,
                                        GumGeneratorContext * gc,
                                        GumCodeContext cc)
 {
-  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc, gc->code_writer);
 
   gum_x86_writer_put_call_address_with_aligned_arguments (gc->code_writer,
       GUM_CALL_CAPI, GUM_ADDRESS (gum_exec_ctx_emit_block_event), 3,
@@ -4884,7 +4968,7 @@ gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
   gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, beach, GUM_LIKELY);
 
   opened_prolog = gc->opened_prolog;
-  gum_exec_block_close_prolog (block, gc);
+  gum_exec_block_close_prolog (block, gc, gc->code_writer);
   gc->opened_prolog = opened_prolog;
 
   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&ctx->resume_at));
@@ -4917,7 +5001,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
                                       GumGeneratorContext * gc)
 {
   g_assert (gc->opened_prolog == GUM_PROLOG_NONE);
-  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
+  gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc, gc->code_writer);
 
   gum_x86_writer_put_call_address_with_aligned_arguments (gc->code_writer,
       GUM_CALL_CAPI, GUM_ADDRESS (gum_exec_block_invoke_call_probes),
@@ -5012,7 +5096,8 @@ gum_exec_block_write_inline_data (GumX86Writer * cw,
 static void
 gum_exec_block_open_prolog (GumExecBlock * block,
                             GumPrologType type,
-                            GumGeneratorContext * gc)
+                            GumGeneratorContext * gc,
+                            GumX86Writer * cw)
 {
   if (gc->opened_prolog >= type)
     return;
@@ -5023,17 +5108,18 @@ gum_exec_block_open_prolog (GumExecBlock * block,
   gc->opened_prolog = type;
   gc->accumulated_stack_delta = 0;
 
-  gum_exec_ctx_write_prolog (block->ctx, type, gc->code_writer);
+  gum_exec_ctx_write_prolog (block->ctx, type, cw);
 }
 
 static void
 gum_exec_block_close_prolog (GumExecBlock * block,
-                             GumGeneratorContext * gc)
+                             GumGeneratorContext * gc,
+                             GumX86Writer * cw)
 {
   if (gc->opened_prolog == GUM_PROLOG_NONE)
     return;
 
-  gum_exec_ctx_write_epilog (block->ctx, gc->opened_prolog, gc->code_writer);
+  gum_exec_ctx_write_epilog (block->ctx, gc->opened_prolog, cw);
 
   gc->accumulated_stack_delta = 0;
   gc->opened_prolog = GUM_PROLOG_NONE;
@@ -5053,6 +5139,24 @@ gum_code_slab_new (GumExecCtx * ctx)
       stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
 
   gum_code_slab_init (slab, slab_size, stalker->page_size);
+
+  return slab;
+}
+
+static GumSlowSlab *
+gum_slow_slab_new (GumExecCtx * ctx)
+{
+  GumSlowSlab * slab;
+  GumStalker * stalker = ctx->stalker;
+  const gsize slab_size = stalker->code_slab_size_dynamic;
+  GumAddressSpec spec;
+
+  gum_exec_ctx_compute_code_address_spec (ctx, slab_size, &spec);
+
+  slab = gum_memory_allocate_near (&spec, slab_size, stalker->page_size,
+      stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
+
+  gum_slow_slab_init (slab, slab_size, stalker->page_size);
 
   return slab;
 }
@@ -5077,6 +5181,22 @@ gum_code_slab_init (GumCodeSlab * code_slab,
   gum_slab_init (&code_slab->slab, slab_size, header_size);
 
   code_slab->invalidator = NULL;
+}
+
+static void
+gum_slow_slab_init (GumSlowSlab * slow_slab,
+                    gsize slab_size,
+                    gsize page_size)
+{
+  /*
+   * We don't want to thaw and freeze the header just to update the offset,
+   * so we trade a little memory for speed.
+   */
+  const gsize header_size = GUM_ALIGN_SIZE (sizeof (GumCodeSlab), page_size);
+
+  gum_slab_init (&slow_slab->slab, slab_size, header_size);
+
+  slow_slab->invalidator = NULL;
 }
 
 static GumDataSlab *
