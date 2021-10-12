@@ -288,6 +288,8 @@ struct _GumExecBlock
 
   GumAddress backpatch_jmp_addr[GUM_MAX_BACKPATCH_JMP_ADDRS];
   GumAddress backpatch_jmp_shim_target[GUM_MAX_BACKPATCH_JMP_ADDRS];
+
+  GumAddress ret_code_address;
 };
 
 enum _GumExecBlockFlags
@@ -606,6 +608,8 @@ static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
 static void gum_exec_block_write_push_application_retaddr (GumExecBlock * block,
     GumGeneratorContext * gc);
+static void gum_exec_block_write_call_last_stack_push (GumExecBlock * block,
+    GumGeneratorContext * gc, GumAddress ret_real_address);
 static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     const GumBranchTarget * target, GumExecCtxReplaceCurrentBlockFunc func,
     GumGeneratorContext * gc);
@@ -4282,13 +4286,12 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gpointer * ic_match = NULL;
   GumExecCtxReplaceCurrentBlockFunc entry_func;
   gconstpointer push_application_retaddr = cw->code + 1;
-  gconstpointer perform_stack_push = cw->code + 2;
   GumSlab * data_slab = &block->ctx->data_slab->slab;
-  gconstpointer match = cw->code + 3;
-  gconstpointer resolve_dynamically = cw->code + 4;
-  gconstpointer beach = cw->code + 5;
+  gconstpointer match = cw->code + 2;
+  gconstpointer resolve_dynamically = cw->code + 3;
+  gconstpointer beach = cw->code + 4;
 
-  GumAddress ret_real_address, ret_code_address;
+  const GumAddress ret_real_address = GUM_ADDRESS (gc->instruction->end);
 
   can_backpatch_statically =
       trust_threshold >= 0 &&
@@ -4310,9 +4313,10 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     // {
     //   backpatch_shim_offset = (cw->pc - GUM_ADDRESS (block->code_start));
     //   gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
-    //   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->backpatch_jmp_shim_target[backpatch_jmp_idx]));
+    //
     // }
 
+    gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->backpatch_jmp_shim_target[backpatch_jmp_idx]));
     block->backpatch_jmp_addr[backpatch_jmp_idx] = cw->pc;
   }
   else if (trust_threshold >= 0)
@@ -4341,7 +4345,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
      * (gc->instruction->end), and ret_code_address (cw->pc) for the generated
      * return block
      */
-    gum_x86_writer_put_call_near_label (cw, perform_stack_push);
+    gum_exec_block_write_call_last_stack_push (block, gc, ret_real_address);
 
     if (opened_prolog == GUM_PROLOG_NONE)
     {
@@ -4429,7 +4433,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
      * (gc->instruction->end), and ret_code_address (cw->pc) for the generated
      * return block
      */
-    gum_x86_writer_put_call_near_label (cw, perform_stack_push);
+    gum_exec_block_write_call_last_stack_push (block, gc, ret_real_address);
   }
 
   gc->accumulated_stack_delta += sizeof (gpointer);
@@ -4463,8 +4467,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_x86_writer_put_jmp_near_label (cw, beach);
 
   /* Generate code for handling the return */
-  ret_real_address = GUM_ADDRESS (gc->instruction->end);
-  ret_code_address = cw->pc;
+  block->ret_code_address = cw->pc;
 
   gum_exec_ctx_write_prolog (block->ctx, GUM_PROLOG_MINIMAL, cw);
 
@@ -4488,29 +4491,11 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
         GUM_ADDRESS (gum_exec_block_backpatch_ret), 3,
         GUM_ARG_REGISTER, GUM_REG_XAX,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
-        GUM_ARG_ADDRESS, ret_code_address - GUM_ADDRESS (block->code_start));
+        GUM_ARG_ADDRESS, block->ret_code_address - GUM_ADDRESS (block->code_start));
   }
 
   gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_MINIMAL, cw);
   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->ctx->resume_at));
-
-  gum_x86_writer_put_label (cw, push_application_retaddr);
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XAX,
-      GUM_ADDRESS (&block->ctx->app_stack));
-  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XAX, sizeof (gpointer));
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
-      GUM_ADDRESS (gc->instruction->end));
-  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_REG_XAX, GUM_REG_XCX);
-  gum_x86_writer_put_mov_near_ptr_reg (cw,
-      GUM_ADDRESS (&block->ctx->app_stack), GUM_REG_XAX);
-  gum_x86_writer_put_ret (cw);
-
-  gum_x86_writer_put_label (cw, perform_stack_push);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX, ret_real_address);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XDX, ret_code_address);
-  gum_x86_writer_put_call_address (cw,
-      GUM_ADDRESS (block->ctx->last_stack_push));
-  gum_x86_writer_put_ret (cw);
 
   gum_x86_writer_put_label (cw, beach);
 
@@ -4560,6 +4545,20 @@ gum_exec_block_write_push_application_retaddr (GumExecBlock * block,
   gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_REG_XAX, GUM_REG_XCX);
   gum_x86_writer_put_mov_near_ptr_reg (cw,
       GUM_ADDRESS (&block->ctx->app_stack), GUM_REG_XAX);
+}
+
+static void
+gum_exec_block_write_call_last_stack_push (GumExecBlock * block,
+                                           GumGeneratorContext * gc,
+                                           GumAddress ret_real_address)
+{
+  GumX86Writer * cw = gc->code_writer;
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX, ret_real_address);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XDX, GUM_ADDRESS(&block->ret_code_address));
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XDX, GUM_REG_XDX);
+  gum_x86_writer_put_call_address (cw,
+      GUM_ADDRESS (block->ctx->last_stack_push));
 }
 
 static void
