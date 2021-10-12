@@ -3754,7 +3754,13 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
       GUM_ADDRESS (ret_real_address));
   gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
 
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (block->code_start));
+  if (gum_stalker_is_excluding (ctx->stalker, block->real_start))
+  {
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (block->real_start));
+  } else {
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (block->code_start));
+  }
+
 
   gum_x86_writer_flush (cw);
   g_assert (gum_x86_writer_offset (cw) <= code_max_size);
