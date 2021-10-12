@@ -3556,6 +3556,7 @@ gum_exec_block_new (GumExecCtx * ctx)
   GumDataSlab * data_slab = ctx->data_slab;
   gsize code_available;
   gsize data_available;
+  guint8 misalign;
 
   code_available = gum_slab_available (&code_slab->slab);
   if (code_available < GUM_EXEC_BLOCK_MIN_CAPACITY +
@@ -3589,6 +3590,12 @@ gum_exec_block_new (GumExecCtx * ctx)
 
   block->ctx = ctx;
   block->code_slab = code_slab;
+
+  misalign = GPOINTER_TO_SIZE(gum_slab_cursor (&code_slab->slab)) & 0x7;
+  if (misalign != 0)
+  {
+    code_slab->slab.offset += (8 - misalign);
+  }
 
   block->code_start = gum_slab_cursor (&code_slab->slab);
 
