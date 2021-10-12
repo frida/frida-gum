@@ -76,6 +76,8 @@ static GumESProgram * gum_v8_script_compile (GumV8Script * self,
     Isolate * isolate, Local<Context> context, GError ** error);
 static MaybeLocal<Module> gum_resolve_module (Local<Context> context,
     Local<String> specifier, Local<Module> referrer);
+static gchar * gum_normalize_module_name (const gchar * base_name,
+    const gchar * name, GumESProgram * program);
 static MaybeLocal<Module> gum_ensure_module_loaded (Isolate * isolate,
     Local<Context> context, GumESAsset * asset, GumESProgram * program);
 static void gum_v8_script_destroy_context (GumV8Script * self);
@@ -565,29 +567,15 @@ gum_resolve_module (Local<Context> context,
   auto referrer_module = (GumESAsset *) g_hash_table_lookup (
       program->es_modules, GINT_TO_POINTER (referrer->ScriptId ()));
 
-  GumESAsset * target_module;
   String::Utf8Value specifier_str (isolate, specifier);
-  if (g_str_has_prefix (*specifier_str, "./"))
-  {
-    GString * target_path = g_string_new ("");
+  gchar * name = gum_normalize_module_name (referrer_module->name,
+      *specifier_str, program);
 
-    const gchar * referrer_path = referrer_module->name;
-    const gchar * last_slash = std::strrchr (referrer_path, '/');
-    g_string_append_len (target_path, referrer_path,
-        last_slash - referrer_path);
+  GumESAsset * target_module = (GumESAsset *) g_hash_table_lookup (
+      program->es_assets, name);
 
-    g_string_append (target_path, *specifier_str + 1);
+  g_free (name);
 
-    target_module = (GumESAsset *) g_hash_table_lookup (program->es_assets,
-        target_path->str);
-
-    g_string_free (target_path, TRUE);
-  }
-  else
-  {
-    target_module = (GumESAsset *) g_hash_table_lookup (program->es_assets,
-        *specifier_str);
-  }
   if (target_module == NULL)
     goto not_found;
 
@@ -598,6 +586,75 @@ not_found:
     _gum_v8_throw (isolate, "could not load module '%s'", *specifier_str);
     return MaybeLocal<Module> ();
   }
+}
+
+static gchar *
+gum_normalize_module_name (const gchar * base_name,
+                           const gchar * name,
+                           GumESProgram * program)
+{
+  if (name[0] != '.')
+  {
+    auto asset = (GumESAsset *) g_hash_table_lookup (program->es_assets, name);
+    if (asset != NULL)
+      return g_strdup (asset->name);
+
+    return g_strdup (name);
+  }
+
+  /* The following is exactly like QuickJS' default implementation: */
+
+  guint base_dir_length;
+  auto base_dir_end = strrchr (base_name, '/');
+  if (base_dir_end != NULL)
+    base_dir_length = base_dir_end - base_name;
+  else
+    base_dir_length = 0;
+
+  auto result = (gchar *) g_malloc (base_dir_length + 1 + strlen (name) + 1);
+  memcpy (result, base_name, base_dir_length);
+  result[base_dir_length] = '\0';
+
+  auto cursor = name;
+  while (TRUE)
+  {
+    if (g_str_has_prefix (cursor, "./"))
+    {
+      cursor += 2;
+    }
+    else if (g_str_has_prefix (cursor, "../"))
+    {
+      if (result[0] == '\0')
+        break;
+
+      gchar * new_end = strrchr (result, '/');
+      if (new_end != NULL)
+        new_end++;
+      else
+        new_end = result;
+
+      if (strcmp (new_end, ".") == 0 || strcmp (new_end, "..") == 0)
+        break;
+
+      if (new_end > result)
+        new_end--;
+
+      *new_end = '\0';
+
+      cursor += 3;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  if (result[0] != '\0')
+    strcat (result, "/");
+
+  strcat (result, cursor);
+
+  return result;
 }
 
 static MaybeLocal<Module>
