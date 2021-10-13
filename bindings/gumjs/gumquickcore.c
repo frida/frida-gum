@@ -170,6 +170,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_bind_weak)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unbind_weak)
 GUMJS_DECLARE_FINALIZER (gumjs_weak_ref_finalize)
+static gboolean gum_quick_core_invoke_pending_weak_callbacks_in_idle (
+    GumQuickCore * self);
 GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
 static JSValue gum_quick_core_on_global_get (JSContext * ctx, JSAtom name,
     void * opaque);
@@ -1719,18 +1721,58 @@ GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
     g_hash_table_remove (core->weak_callbacks, GUINT_TO_POINTER (entry->id));
   }
 
-  for (i = 0; i != callbacks->len; i++)
+  g_queue_push_tail (&core->pending_weak_refs, ref);
+
+  if (core->pending_weak_source == NULL)
   {
-    GumQuickWeakCallback * entry =
-        &g_array_index (callbacks, GumQuickWeakCallback, i);
-    _gum_quick_scope_call_void (core->current_scope, entry->callback,
-        JS_UNDEFINED, 0, NULL);
-    JS_FreeValue (core->ctx, entry->callback);
+    GSource * source = g_idle_source_new ();
+
+    g_source_set_callback (source,
+        (GSourceFunc) gum_quick_core_invoke_pending_weak_callbacks_in_idle,
+        core, NULL);
+    g_source_attach (source,
+        gum_script_scheduler_get_js_context (core->scheduler));
+    g_source_unref (source);
+
+    _gum_quick_core_pin (core);
+
+    core->pending_weak_source = source;
+  }
+}
+
+static gboolean
+gum_quick_core_invoke_pending_weak_callbacks_in_idle (GumQuickCore * self)
+{
+  GumQuickWeakRef * ref;
+  GumQuickScope scope;
+
+  _gum_quick_scope_enter (&scope, self);
+
+  self->pending_weak_source = NULL;
+
+  while ((ref = g_queue_pop_head (&self->pending_weak_refs)) != NULL)
+  {
+    GArray * callbacks = ref->callbacks;
+    guint i;
+
+    for (i = 0; i != callbacks->len; i++)
+    {
+      GumQuickWeakCallback * entry =
+          &g_array_index (callbacks, GumQuickWeakCallback, i);
+      _gum_quick_scope_call_void (&scope, entry->callback, JS_UNDEFINED,
+          0, NULL);
+      JS_FreeValue (self->ctx, entry->callback);
+    }
+    g_array_free (callbacks, TRUE);
+
+    g_slice_free (GumQuickWeakRef, ref);
   }
 
-  g_array_free (ref->callbacks, TRUE);
+  _gum_quick_core_unpin (self);
 
-  g_slice_free (GumQuickWeakRef, ref);
+  _gum_quick_scope_leave (&scope);
+
+  return FALSE;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
