@@ -1746,9 +1746,9 @@ gum_quick_core_invoke_pending_weak_callbacks_in_idle (GumQuickCore * self)
   GumQuickWeakRef * ref;
   GumQuickScope scope;
 
-  self->pending_weak_source = NULL;
-
   _gum_quick_scope_enter (&scope, self);
+
+  self->pending_weak_source = NULL;
 
   while ((ref = g_queue_pop_head (&self->pending_weak_refs)) != NULL)
   {
