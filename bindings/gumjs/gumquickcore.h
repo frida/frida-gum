@@ -93,6 +93,8 @@ struct _GumQuickCore
   JSValue weak_map_get_method;
   JSValue weak_map_set_method;
   JSValue weak_map_delete_method;
+  GQueue pending_weak_callbacks;
+  GSource * pending_weak_source;
 
   GHashTable * scheduled_callbacks;
   guint next_callback_id;
