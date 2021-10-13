@@ -29,7 +29,6 @@
 #define GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY { NULL, }
 
 typedef struct _GumQuickWeakCallback GumQuickWeakCallback;
-typedef struct _GumQuickPendingWeakCallback GumQuickPendingWeakCallback;
 typedef struct _GumQuickFlushCallback GumQuickFlushCallback;
 typedef struct _GumQuickFFIFunctionParams GumQuickFFIFunctionParams;
 typedef guint8 GumQuickSchedulingBehavior;
@@ -55,12 +54,6 @@ struct _GumQuickWeakCallback
 {
   guint id;
   JSValue callback;
-};
-
-struct _GumQuickPendingWeakCallback
-{
-  JSValue callback;
-  GumQuickScript * script;
 };
 
 struct _GumQuickScheduledCallback
@@ -177,6 +170,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_bind_weak)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unbind_weak)
 GUMJS_DECLARE_FINALIZER (gumjs_weak_ref_finalize)
+static gboolean gum_quick_core_invoke_pending_weak_callbacks_in_idle (
+    GumQuickCore * self);
 GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
 static JSValue gum_quick_core_on_global_get (JSContext * ctx, JSAtom name,
     void * opaque);
@@ -342,13 +337,6 @@ static JSValue gum_quick_value_from_ffi (JSContext * ctx,
 
 static void gum_quick_core_setup_atoms (GumQuickCore * self);
 static void gum_quick_core_teardown_atoms (GumQuickCore * self);
-
-static gboolean gum_quick_core_invoke_pending_weak_callbacks_in_idle (
-    GumQuickCore * self);
-static GumQuickPendingWeakCallback * gum_quick_pending_weak_callback_new (
-    GumQuickCore * self, JSValue callback);
-static void gum_quick_pending_weak_callback_free (
-    GumQuickPendingWeakCallback * self);
 
 static const JSCFunctionListEntry gumjs_root_entries[] =
 {
@@ -1720,27 +1708,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_unbind_weak)
 GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
 {
   GumQuickWeakRef * ref;
-  gboolean in_teardown;
   GArray * callbacks;
   guint i;
 
   ref = JS_GetOpaque (val, core->weak_ref_class);
-  in_teardown = JS_IsNull(ref->target);
-  ref->target = JS_NULL;
   callbacks = ref->callbacks;
 
   for (i = 0; i != callbacks->len; i++)
   {
-    GumQuickPendingWeakCallback * pending;
     GumQuickWeakCallback * entry =
         &g_array_index (callbacks, GumQuickWeakCallback, i);
     g_hash_table_remove (core->weak_callbacks, GUINT_TO_POINTER (entry->id));
-
-    pending = gum_quick_pending_weak_callback_new (core, entry->callback);
-    g_queue_push_tail (&core->pending_weak_callbacks, pending);
   }
 
-  if (!in_teardown && core->pending_weak_source == NULL)
+  g_queue_push_tail (&core->pending_weak_refs, ref);
+
+  if (core->pending_weak_source == NULL)
   {
     GSource * source = g_idle_source_new ();
 
@@ -1755,29 +1738,34 @@ GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
 
     core->pending_weak_source = source;
   }
-
-  g_array_free (ref->callbacks, TRUE);
-
-  g_slice_free (GumQuickWeakRef, ref);
 }
 
 static gboolean
 gum_quick_core_invoke_pending_weak_callbacks_in_idle (GumQuickCore * self)
 {
-  GumQuickPendingWeakCallback * pending;
+  GumQuickWeakRef * ref;
   GumQuickScope scope;
 
   self->pending_weak_source = NULL;
 
   _gum_quick_scope_enter (&scope, self);
 
-  while ((pending = (GumQuickPendingWeakCallback *)
-      g_queue_pop_head (&self->pending_weak_callbacks)) != NULL)
+  while ((ref = g_queue_pop_head (&self->pending_weak_refs)) != NULL)
   {
-    _gum_quick_scope_call_void (&scope, pending->callback,
-        JS_UNDEFINED, 0, NULL);
-    JS_FreeValue (self->ctx, pending->callback);
-    gum_quick_pending_weak_callback_free (pending);
+    GArray * callbacks = ref->callbacks;
+    guint i;
+
+    for (i = 0; i != callbacks->len; i++)
+    {
+      GumQuickWeakCallback * entry =
+          &g_array_index (callbacks, GumQuickWeakCallback, i);
+      _gum_quick_scope_call_void (&scope, entry->callback, JS_UNDEFINED,
+          0, NULL);
+      JS_FreeValue (self->ctx, entry->callback);
+    }
+    g_array_free (callbacks, TRUE);
+
+    g_slice_free (GumQuickWeakRef, ref);
   }
 
   _gum_quick_core_unpin (self);
@@ -1785,27 +1773,6 @@ gum_quick_core_invoke_pending_weak_callbacks_in_idle (GumQuickCore * self)
   _gum_quick_scope_leave (&scope);
 
   return FALSE;
-}
-
-static GumQuickPendingWeakCallback *
-gum_quick_pending_weak_callback_new (GumQuickCore * self,
-                                     JSValue callback)
-{
-  GumQuickPendingWeakCallback * cb;
-
-  cb = g_slice_new (GumQuickPendingWeakCallback);
-  cb->callback = callback;
-  cb->script = g_object_ref (self->script);
-
-  return cb;
-}
-
-static void
-gum_quick_pending_weak_callback_free (GumQuickPendingWeakCallback * self)
-{
-  g_object_unref (self->script);
-
-  g_slice_free (GumQuickPendingWeakCallback, self);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
