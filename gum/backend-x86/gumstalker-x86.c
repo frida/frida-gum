@@ -4378,7 +4378,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
 
     gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->backpatch_jmp_shim_target[backpatch_jmp_idx]));
-    block->backpatch_jmp_addr[backpatch_jmp_idx] = cw->pc;
+    block->backpatch_jmp_addr[backpatch_jmp_idx] = GUM_ADDRESS (cws->pc);
   }
   else if (trust_threshold >= 0)
   {
@@ -4669,7 +4669,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
       gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->backpatch_jmp_shim_target[backpatch_jmp_idx]));
     }
 
-    block->backpatch_jmp_addr[backpatch_jmp_idx] = cw->pc;
+    block->backpatch_jmp_addr[backpatch_jmp_idx] = GUM_ADDRESS (cws->pc);
   }
   else if (trust_threshold >= 0)
   {
