@@ -374,6 +374,9 @@ struct _GError
   gchar * message;
 };
 
+void g_error_free (GError * error);
+void g_clear_error (GError ** err);
+
 typedef struct _GIConv * GIConv;
 
 GIConv g_iconv_open (const gchar * to_codeset, const gchar * from_codeset);
