@@ -382,12 +382,12 @@ gsize g_iconv (GIConv converter,
     gchar ** outbuf, gsize * outbytes_left);
 gint g_iconv_close (GIConv converter);
 
-gchar* g_convert (const gchar * str, gssize len,
+gchar * g_convert (const gchar * str, gssize len,
     const gchar * to_codeset, const gchar * from_codeset,
     gsize * bytes_read, gsize * bytes_written, GError ** error);
 gchar * g_convert_with_iconv (const gchar * str, gssize len, GIConv converter,
     gsize * bytes_read, gsize * bytes_written, GError ** error);
-gchar* g_convert_with_fallback (const gchar * str, gssize len,
+gchar * g_convert_with_fallback (const gchar * str, gssize len,
     const gchar * to_codeset, const gchar * from_codeset, const gchar * fallback,
     gsize * bytes_read, gsize * bytes_written, GError ** error);
 
