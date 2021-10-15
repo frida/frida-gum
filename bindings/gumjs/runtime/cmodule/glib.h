@@ -374,7 +374,7 @@ struct _GError
   gchar * message;
 };
 
-typedef struct _GIConv *GIConv;
+typedef struct _GIConv * GIConv;
 
 GIConv g_iconv_open (const gchar * to_codeset, const gchar * from_codeset);
 gsize g_iconv (GIConv converter,
