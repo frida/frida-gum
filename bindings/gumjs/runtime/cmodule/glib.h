@@ -375,7 +375,7 @@ struct _GError
 };
 
 void g_error_free (GError * error);
-void g_clear_error (GError ** err);
+void g_clear_error (GError ** error);
 
 typedef struct _GIConv * GIConv;
 
