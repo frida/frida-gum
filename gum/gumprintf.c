@@ -111,12 +111,12 @@
 #include "gummemory.h"
 
 #include <errno.h>
+#include <float.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <float.h>
 
 #if defined (HAVE_UNSIGNED_LONG_LONG_INT) || defined (_MSC_VER)
 #define ULLONG unsigned long long int
