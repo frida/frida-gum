@@ -111,6 +111,7 @@
 #include "gummemory.h"
 
 #include <errno.h>
+#include <float.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -125,8 +126,12 @@
 
 #if defined (HAVE_LONG_DOUBLE)
 # define LDOUBLE long double
+# define LDOUBLE_MIN_10_EXP LDBL_MIN_10_EXP
+# define LDOUBLE_MAX_10_EXP LDBL_MAX_10_EXP
 #else
 # define LDOUBLE double
+# define LDOUBLE_MIN_10_EXP DBL_MIN_10_EXP
+# define LDOUBLE_MAX_10_EXP DBL_MAX_10_EXP
 #endif
 
 #if defined (HAVE_LONG_LONG_INT)
@@ -879,7 +884,7 @@ fmtflt (gchar * str,
   const gchar * infnan = NULL;
   char iconvert[MAX_CONVERT_LENGTH];
   char fconvert[MAX_CONVERT_LENGTH];
-  char econvert[4]; /* "e-12" (without nul-termination). */
+  char econvert[5]; /* "e-308" (without nul-termination). */
   char esign = 0;
   char sign = 0;
   gint leadfraczeros = 0;
@@ -1058,12 +1063,12 @@ again:
     }
 
     /*
-     * Convert the exponent.  The sizeof (econvert) is 4.  So, the
-     * econvert buffer can hold e.g. "e+99" and "e-99".  We don't
-     * support an exponent which contains more than two digits.
+     * Convert the exponent.  The sizeof (econvert) is 5.  So, the
+     * econvert buffer can hold e.g. "e+999" and "e-999".  We don't
+     * support an exponent which contains more than three digits.
      * Therefore, the following stores are safe.
      */
-    epos = convert (exponent, econvert, 2, 10, 0);
+    epos = convert (exponent, econvert, 3, 10, 0);
     /*
      * C99 says: "The exponent always contains at least two digits,
      * and only as many more digits as necessary to represent the
@@ -1199,15 +1204,16 @@ getexponent (LDOUBLE value)
   gint exponent = 0;
 
   /*
-   * We check for 99 > exponent > -99 in order to work around possible
-   * endless loops which could happen (at least) in the second loop (at
-   * least) if we're called with an infinite value.  However, we checked
-   * for infinity before calling this function using our ISINF() macro, so
-   * this might be somewhat paranoid.
+   * We check for LDOUBLE_MAX_10_EXP > exponent > LDOUBLE_MIN_10_EXP in
+   * order to work around possible endless loops which could happen
+   * (at least) in the second loop (at least) if we're called with an
+   * infinite value.  However, we checked for infinity before calling
+   * this function using our ISINF() macro, so this might be somewhat
+   * paranoid.
    */
-  while (tmp < 1.0 && tmp > 0.0 && --exponent > -99)
+  while (tmp < 1.0 && tmp > 0.0 && --exponent >= LDOUBLE_MIN_10_EXP)
     tmp *= 10;
-  while (tmp >= 10.0 && ++exponent < 99)
+  while (tmp >= 10.0 && ++exponent <= LDOUBLE_MAX_10_EXP)
     tmp /= 10;
 
   return exponent;
