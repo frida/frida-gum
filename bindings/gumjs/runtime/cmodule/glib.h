@@ -364,4 +364,35 @@ const gchar * g_checksum_get_string (GChecksum * checksum);
 void g_checksum_get_digest (GChecksum * checksum, guint8 * buffer,
     gsize * digest_len);
 
+typedef guint32 GQuark;
+typedef struct _GError GError;
+
+struct _GError
+{
+  GQuark domain;
+  gint code;
+  gchar * message;
+};
+
+void g_error_free (GError * error);
+void g_clear_error (GError ** error);
+
+typedef struct _GIConv * GIConv;
+
+GIConv g_iconv_open (const gchar * to_codeset, const gchar * from_codeset);
+gsize g_iconv (GIConv converter,
+    gchar ** inbuf, gsize * inbytes_left,
+    gchar ** outbuf, gsize * outbytes_left);
+gint g_iconv_close (GIConv converter);
+
+gchar * g_convert (const gchar * str, gssize len,
+    const gchar * to_codeset, const gchar * from_codeset,
+    gsize * bytes_read, gsize * bytes_written, GError ** error);
+gchar * g_convert_with_iconv (const gchar * str, gssize len, GIConv converter,
+    gsize * bytes_read, gsize * bytes_written, GError ** error);
+gchar * g_convert_with_fallback (const gchar * str, gssize len,
+    const gchar * to_codeset, const gchar * from_codeset,
+    const gchar * fallback, gsize * bytes_read, gsize * bytes_written,
+    GError ** error);
+
 #endif
