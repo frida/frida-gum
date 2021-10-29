@@ -614,7 +614,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   if (offset >= G_MININT32 && offset <= G_MAXINT32)
   {
     gum_memcpy (code, ctx->start, ctx->len);
-    *((gint32 *) &code[ctx->len - sizeof (gint32)]) = (gint32) offset;
+    *((gint32 *) &code[x86->encoding.disp_offset]) = (gint32) offset;
     gum_x86_writer_put_bytes (cw, code, ctx->len);
     return TRUE;
   }
