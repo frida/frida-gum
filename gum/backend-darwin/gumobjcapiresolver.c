@@ -415,7 +415,8 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
       GumObjcClassMetadata * klass;
 
       klass = g_hash_table_lookup (class_by_handle, super_handle);
-      klass->subclasses = g_slist_prepend (klass->subclasses, handle);
+      if (klass != NULL)
+        klass->subclasses = g_slist_prepend (klass->subclasses, handle);
     }
   }
 
