@@ -12,12 +12,6 @@
 typedef struct _GumMatchToken GumMatchToken;
 typedef enum _GumMatchType GumMatchType;
 
-struct _GumMatchPattern
-{
-  GPtrArray * tokens;
-  guint size;
-};
-
 enum _GumMatchType
 {
   GUM_MATCH_EXACT,

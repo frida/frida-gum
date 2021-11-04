@@ -103,7 +103,10 @@ GUM_API void gum_memory_scan (const GumMemoryRange * range,
     gpointer user_data);
 
 GUM_API GumMatchPattern * gum_match_pattern_new_from_string (
-    const gchar * match_combined_str);
+  const gchar * pattern_str);
+GUM_API guint gum_match_pattern_get_size (const GumMatchPattern * pattern);
+GUM_API GPtrArray * gum_match_pattern_get_tokens (
+    const GumMatchPattern * pattern);
 GUM_API void gum_match_pattern_free (GumMatchPattern * pattern);
 
 GUM_API void gum_ensure_code_readable (gconstpointer address, gsize size);
