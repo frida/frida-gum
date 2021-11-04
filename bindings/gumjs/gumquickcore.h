@@ -115,6 +115,7 @@ struct _GumQuickCore
   JSClassID cpu_context_class;
   JSClassID source_map_class;
   JSValue source_map_ctor;
+  JSClassID match_pattern_class;
 
 #define GUM_DECLARE_ATOM(id) \
     JSAtom G_PASTE (atom_for_, id)
