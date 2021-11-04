@@ -88,6 +88,8 @@ struct GumV8Core
 
   GHashTable * source_maps;
 
+  GHashTable * match_patterns;
+
   GumPersistent<v8::FunctionTemplate>::type * int64;
   GumPersistent<v8::Object>::type * int64_value;
 
@@ -115,6 +117,9 @@ struct GumV8Core
   GumPersistent<v8::Object>::type * cpu_context_value;
 
   GumPersistent<v8::FunctionTemplate>::type * source_map;
+
+  // TODO: how to finalize / release?
+  GumPersistent<v8::FunctionTemplate>::type * match_pattern;
 };
 
 struct GumV8NativeResource

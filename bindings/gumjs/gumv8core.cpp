@@ -143,6 +143,12 @@ struct GumV8SourceMap
   GumV8Core * core;
 };
 
+struct GumV8MatchPattern
+{
+  GumPersistent<Object>::type * wrapper;
+  GumMatchPattern * handle;
+};
+
 static gboolean gum_v8_core_handle_crashed_js (GumExceptionDetails * details,
     gpointer user_data);
 
@@ -305,6 +311,11 @@ static void gum_v8_source_map_free (GumV8SourceMap * self);
 static void gum_v8_source_map_on_weak_notify (
     const WeakCallbackInfo<GumV8SourceMap> & info);
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_match_pattern_construct)
+static GumV8MatchPattern * gum_v8_match_pattern_new (Local<Object> wrapper,
+    GumMatchPattern * pattern, GumV8Core * core);
+static void gum_v8_match_pattern_free (GumV8MatchPattern * self);
+
 static GumV8ExceptionSink * gum_v8_exception_sink_new (
     Local<Function> callback, Isolate * isolate);
 static void gum_v8_exception_sink_free (GumV8ExceptionSink * sink);
@@ -454,6 +465,11 @@ static const GumV8Function gumjs_source_map_functions[] =
   { "_resolve", gumjs_source_map_resolve },
 
   { NULL, NULL }
+};
+
+static const GumV8Property gumjs_match_pattern_values[] =
+{
+  { NULL, NULL, NULL }
 };
 
 void
@@ -730,6 +746,13 @@ _gum_v8_core_init (GumV8Core * self,
   self->source_map =
       new GumPersistent<FunctionTemplate>::type (isolate, source_map);
 
+  auto match_pattern = _gum_v8_create_class ("MatchPattern",
+      gumjs_match_pattern_construct, scope, module, isolate);
+  _gum_v8_class_add (match_pattern, gumjs_match_pattern_values, module,
+      isolate);
+  self->match_pattern =
+      new GumPersistent<FunctionTemplate>::type (isolate, match_pattern);
+
   gum_exceptor_add (self->exceptor, gum_v8_core_handle_crashed_js, self);
 }
 
@@ -791,6 +814,9 @@ _gum_v8_core_realize (GumV8Core * self)
 
   self->source_maps = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_source_map_free);
+
+  self->match_patterns = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_match_pattern_free);
 
   Local<Value> zero = Integer::New (isolate, 0);
 
@@ -3396,6 +3422,57 @@ gum_v8_source_map_on_weak_notify (const WeakCallbackInfo<GumV8SourceMap> & info)
   HandleScope handle_scope (info.GetIsolate ());
   auto self = info.GetParameter ();
   g_hash_table_remove (self->core->source_maps, self);
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
+{
+  if (!info.IsConstructCall()) {
+    _gum_v8_throw_ascii_literal (isolate,
+        "use `new MatchPattern()` to create a new instance");
+    return;
+  }
+
+  gchar * pattern_str;
+  if (!_gum_v8_args_parse (args, "s", &pattern_str))
+    return;
+
+  auto pattern = gum_match_pattern_new_from_string (pattern_str);
+
+  g_free (pattern_str);
+
+  if (pattern == NULL) {
+      _gum_v8_throw (isolate, "invalid match pattern");
+      return;
+  }
+
+  wrapper->SetInternalField (0, External::New (isolate, pattern));
+  gum_v8_match_pattern_new (wrapper, pattern, module);
+}
+
+static GumV8MatchPattern *
+gum_v8_match_pattern_new (
+    Local<Object> wrapper,
+    GumMatchPattern * handle,
+    GumV8Core * core)
+{
+  auto pattern = g_slice_new (GumV8MatchPattern);
+
+  pattern->wrapper = new GumPersistent<Object>::type (core->isolate, wrapper);
+  pattern->handle = handle;
+
+  g_hash_table_add (core->match_patterns, pattern);
+
+  return pattern;
+}
+
+static void
+gum_v8_match_pattern_free (GumV8MatchPattern * self)
+{
+  delete self->wrapper;
+
+  gum_match_pattern_free (self->handle);
+
+  g_slice_free (GumV8MatchPattern, self);
 }
 
 static GumV8ExceptionSink *
