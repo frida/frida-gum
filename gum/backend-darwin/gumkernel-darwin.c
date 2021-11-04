@@ -318,15 +318,17 @@ gum_kernel_scan (const GumMemoryRange * range,
 {
   GumKernelScanContext ctx;
   GumAddress cursor, end;
+  guint pattern_size;
   gsize size, max_chunk_size;
 
   ctx.func = func;
   ctx.user_data = user_data;
 
   cursor = range->base_address;
+  pattern_size = gum_match_pattern_get_size (pattern);
   size = range->size;
-  max_chunk_size = MAX (pattern->size * 2, 2048 * 512);
-  end = cursor + size - pattern->size;
+  max_chunk_size = MAX (pattern_size * 2, 2048 * 512);
+  end = cursor + size - pattern_size;
 
   while (cursor <= end)
   {
@@ -353,8 +355,8 @@ gum_kernel_scan (const GumMemoryRange * range,
     if (!ctx.carry_on)
       return;
 
-    cursor += chunk_size - pattern->size + 1;
-    size -= chunk_size - pattern->size + 1;
+    cursor += chunk_size - pattern_size + 1;
+    size -= chunk_size - pattern_size + 1;
   }
 }
 
