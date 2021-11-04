@@ -208,6 +208,40 @@ Object.defineProperties(Memory, {
       Memory._patchCode(address, size, apply);
     }
   },
+  scan: {
+    enumerable: true,
+    value: function (address, size, pattern, callbacks) {
+      const wrappedArgs = arguments;
+
+      return new Promise(function (resolve, reject) {
+        if (wrappedArgs.length < 4) {
+          reject(new Error('missing argument'));
+          return;
+        }
+
+        if (typeof(callbacks) !== 'object') {
+          reject(new Error('expected an object containing callbacks'));
+          return;
+        }
+
+        try {
+          Memory._scan(address, size, pattern, {
+            onMatch: callbacks.onMatch,
+            onComplete: () => {
+              callbacks.onComplete?.();
+              resolve();
+            },
+            onError: (reason) => {
+              callbacks.onError?.(reason);
+              reject(new Error(reason));
+            }
+          });
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }
+  }
 });
 
 makeEnumerateApi(Module, 'enumerateImports', 1);
