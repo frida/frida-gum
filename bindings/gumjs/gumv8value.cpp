@@ -1252,7 +1252,7 @@ _gum_v8_native_pointer_get (Local<Value> value,
 
   if (!success)
   {
-    _gum_v8_throw_ascii_literal (isolate, "expected a NativePointer object");
+    _gum_v8_throw_ascii_literal (isolate, "expected a pointer");
     return FALSE;
   }
 
