@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -196,7 +197,7 @@ static const JSCFunctionListEntry gumjs_memory_entries[] =
   JS_CFUNC_DEF ("allocUtf8String", 0, gumjs_memory_alloc_utf8_string),
   JS_CFUNC_DEF ("allocUtf16String", 0, gumjs_memory_alloc_utf16_string),
 
-  JS_CFUNC_DEF ("scan", 0, gumjs_memory_scan),
+  JS_CFUNC_DEF ("_scan", 0, gumjs_memory_scan),
   JS_CFUNC_DEF ("scanSync", 0, gumjs_memory_scan_sync),
 };
 
@@ -931,21 +932,63 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   GumMemoryScanContext sc;
   gpointer address;
   gsize size;
-  const gchar * match_str;
+  JSValue pattern_val;
+  JSValue callbacks;
 
-  if (!_gum_quick_args_parse (args, "pZsF{onMatch,onError?,onComplete}",
-      &address, &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete))
+  if (args->count < 4)
+    return _gum_quick_throw_literal (ctx, "missing argument");
+
+  if (!_gum_quick_native_pointer_get (ctx, args->elements[0], core,
+      &address))
     return JS_EXCEPTION;
-  sc.range.base_address = GUM_ADDRESS (address);
-  sc.range.size = size;
-  sc.pattern = gum_match_pattern_new_from_string (match_str);
-  sc.result = GUM_QUICK_MATCH_CONTINUE;
-  sc.ctx = ctx;
-  sc.core = core;
+
+  if (!_gum_quick_size_get (ctx, args->elements[1], core, &size))
+    return JS_EXCEPTION;
+
+  pattern_val = args->elements[2];
+
+  if (JS_IsString (pattern_val)) {
+    const gchar * match_str;
+
+    if (!_gum_quick_string_get (ctx, args->elements[2], &match_str))
+      return JS_EXCEPTION;
+
+    sc.pattern = gum_match_pattern_new_from_string (match_str);
+    JS_FreeCString (ctx, match_str);
+  } else if (JS_IsObject (pattern_val)) {
+    sc.pattern = JS_GetOpaque(pattern_val, core->match_pattern_class);
+  } else {
+    return _gum_quick_throw_literal (ctx,
+        "expected either a pattern string or a MatchPattern object");
+  }
 
   if (sc.pattern == NULL)
     return _gum_quick_throw_literal (ctx, "invalid match pattern");
 
+  callbacks = args->elements[3];
+
+  if (!JS_IsObject (callbacks)) {
+    return _gum_quick_throw_literal (ctx,
+        "expected an object containing callbacks");
+  }
+
+  sc.on_match = JS_GetPropertyStr (ctx, callbacks, "onMatch");
+  sc.on_complete = JS_GetPropertyStr (ctx, callbacks, "onComplete");
+
+  if (!JS_IsFunction (ctx, sc.on_match)) {
+    return _gum_quick_throw_literal (ctx, "expected a callback value");
+  }
+
+  sc.on_complete = JS_GetPropertyStr (ctx, callbacks, "onComplete");
+  sc.on_error = JS_GetPropertyStr (ctx, callbacks, "onError");
+
+  sc.range.base_address = GUM_ADDRESS (address);
+  sc.range.size = size;
+  sc.result = GUM_QUICK_MATCH_CONTINUE;
+  sc.ctx = ctx;
+  sc.core = core;
+
+  /* TODO: When to free? */
   JS_DupValue (ctx, sc.on_match);
   JS_DupValue (ctx, sc.on_error);
   JS_DupValue (ctx, sc.on_complete);
