@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -183,7 +184,7 @@ static const GumV8Function gumjs_memory_functions[] =
   { "allocUtf8String", gumjs_memory_alloc_utf8_string },
   { "allocUtf16String", gumjs_memory_alloc_utf16_string },
 
-  { "scan", gumjs_memory_scan },
+  { "_scan", gumjs_memory_scan },
   { "scanSync", gumjs_memory_scan_sync },
 
   { NULL, NULL }
@@ -911,39 +912,89 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 {
   gpointer address;
   gsize size;
-  gchar * match_str;
-  Local<Function> on_match, on_error, on_complete;
-  if (!_gum_v8_args_parse (args, "pZsF{onMatch,onError?,onComplete}",
-      &address, &size, &match_str, &on_match, &on_error, &on_complete))
+
+  if (info.Length () < 4) {
+    _gum_v8_throw_ascii_literal (isolate, "missing argument");
     return;
+  }
+
+  if (!_gum_v8_native_pointer_get (info[0], &address, core))
+    return;
+
+  if (!_gum_v8_size_get (info[1], &size, core))
+    return;
+
+  auto pattern_val = info[2];
+  GumMatchPattern * pattern = NULL;
+
+  if (pattern_val->IsString()) {
+    String::Utf8Value pattern_utf8 (isolate, pattern_val);
+    pattern = gum_match_pattern_new_from_string (*pattern_utf8);
+  } else if (pattern_val->IsObject()) {
+    auto pattern_obj = pattern_val.As<Object> ();
+    pattern = (GumMatchPattern *)pattern_obj->GetInternalField (0)
+        .As<External> ()->Value ();
+  } else {
+    _gum_v8_throw_ascii_literal (isolate,
+        "expected either a pattern string or a MatchPattern object");
+    return;
+  }
+
+  if (pattern == nullptr) {
+    _gum_v8_throw_ascii_literal (isolate,
+        "expected either a pattern string or a MatchPattern object");
+    return;
+  }
+
+  if (!info[3]->IsObject ()) {
+    _gum_v8_throw_ascii_literal (isolate,
+        "expected an object containing callbacks");
+    return;
+  }
+
+  auto callbacks_obj = info[3].As<Object> ();
+  auto context = isolate->GetCurrentContext ();
+  Local<Value> on_match_val, on_complete_val, on_error_val;
+  Local<Function> on_match, on_complete, on_error;
+
+  if (!callbacks_obj->Get (context, _gum_v8_string_new_ascii (isolate,
+          "onMatch")).ToLocal (&on_match_val) ||
+      !on_match_val->IsFunction ()) {
+    _gum_v8_throw_literal (isolate, "expected a callback value");
+    return;
+  }
+
+  on_match = on_match_val.As<Function> ();
+
+  if (callbacks_obj->Get (context, _gum_v8_string_new_ascii (isolate,
+          "onComplete")).ToLocal (&on_complete_val) &&
+      !on_complete_val.IsEmpty ()) {
+    on_complete = on_complete_val.As <Function> ();
+  }
+
+  if (callbacks_obj->Get (context, _gum_v8_string_new_ascii (isolate,
+          "onError")).ToLocal (&on_error_val) &&
+      !on_error_val.IsEmpty ()) {
+    on_error = on_error_val.As <Function> ();
+  }
 
   GumMemoryRange range;
   range.base_address = GUM_ADDRESS (address);
   range.size = size;
 
-  auto pattern = gum_match_pattern_new_from_string (match_str);
-
-  g_free (match_str);
-
-  if (pattern != NULL)
-  {
-    auto ctx = g_slice_new0 (GumMemoryScanContext);
-    ctx->range = range;
-    ctx->pattern = pattern;
-    ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
-    if (!on_error.IsEmpty ())
-      ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
+  auto ctx = g_slice_new0 (GumMemoryScanContext);
+  ctx->range = range;
+  ctx->pattern = pattern;
+  ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
+  if (!on_complete.IsEmpty ())
     ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
-    ctx->core = core;
+  if (!on_error.IsEmpty ())
+    ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
+  ctx->core = core;
 
-    _gum_v8_core_pin (core);
-    _gum_v8_core_push_job (core, (GumScriptJobFunc) gum_memory_scan_context_run,
-        ctx, (GDestroyNotify) gum_memory_scan_context_free);
-  }
-  else
-  {
-    _gum_v8_throw_ascii_literal (isolate, "invalid match pattern");
-  }
+  _gum_v8_core_pin (core);
+  _gum_v8_core_push_job (core, (GumScriptJobFunc) gum_memory_scan_context_run,
+      ctx, (GDestroyNotify) gum_memory_scan_context_free);
 }
 
 static void
