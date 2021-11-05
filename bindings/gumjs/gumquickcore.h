@@ -120,6 +120,7 @@ struct _GumQuickCore
     JSAtom G_PASTE (atom_for_, id)
 
   GUM_DECLARE_ATOM (abi);
+  GUM_DECLARE_ATOM (access);
   GUM_DECLARE_ATOM (address);
   GUM_DECLARE_ATOM (autoClose);
   GUM_DECLARE_ATOM (base);
@@ -145,6 +146,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (port);
   GUM_DECLARE_ATOM (protection);
   GUM_DECLARE_ATOM (prototype);
+  GUM_DECLARE_ATOM (read);
   GUM_DECLARE_ATOM (resource);
   GUM_DECLARE_ATOM (scheduling);
   GUM_DECLARE_ATOM (section);
@@ -156,6 +158,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (traps);
   GUM_DECLARE_ATOM (type);
   GUM_DECLARE_ATOM (value);
+  GUM_DECLARE_ATOM (written);
 
 #if defined (HAVE_I386)
   GUM_DECLARE_ATOM (disp);
