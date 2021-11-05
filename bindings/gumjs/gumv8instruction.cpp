@@ -30,6 +30,7 @@ GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_operands)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_read)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_written)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_access)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_groups)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
 static void gum_v8_instruction_on_weak_notify (
@@ -66,6 +67,8 @@ static Local<Array> gum_parse_regs (const uint16_t * regs, uint8_t count,
 static Local<Array> gum_parse_groups (const uint8_t * groups, uint8_t count,
     GumV8Instruction * module);
 
+static const gchar * gum_access_type_to_string (uint8_t access_type);
+
 static const GumV8Function gumjs_instruction_module_functions[] =
 {
   { "_parse", gumjs_instruction_parse },
@@ -83,6 +86,7 @@ static const GumV8Property gumjs_instruction_values[] =
   { "operands", gumjs_instruction_get_operands, NULL },
   { "regsRead", gumjs_instruction_get_regs_read, NULL },
   { "regsWritten", gumjs_instruction_get_regs_written, NULL },
+  { "regsAccess", gumjs_instruction_get_regs_access, NULL },
   { "groups", gumjs_instruction_get_groups, NULL },
 
   { NULL, NULL, NULL }
@@ -374,6 +378,35 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_written,
       detail->regs_write_count, module));
 }
 
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_access,
+                           GumV8InstructionValue)
+{
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
+  auto core = module->core;
+  auto capstone = module->capstone;
+
+  cs_regs regs_read, regs_write;
+  uint8_t regs_read_count, regs_write_count;
+
+  if (cs_regs_access (capstone, self->insn, 
+                      regs_read, &regs_read_count,
+                      regs_write, &regs_write_count)) {
+    return;
+  }
+
+  auto result_regs_read = gum_parse_regs (regs_read, regs_read_count, module);
+  auto result_regs_written = gum_parse_regs (regs_write, regs_write_count, module);
+
+  auto result = Object::New (core->isolate);
+
+  _gum_v8_object_set (result, "read", result_regs_read, core);
+  _gum_v8_object_set (result, "written", result_regs_written, core);
+
+  info.GetReturnValue ().Set (result);
+}
+
 GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_groups,
                            GumV8InstructionValue)
 {
@@ -462,6 +495,8 @@ gum_parse_operands (const cs_insn * insn,
     }
 
     _gum_v8_object_set_uint (element, "size", op->size, core);
+
+    _gum_v8_object_set_ascii (element, "access", gum_access_type_to_string (op->access), core);
 
     elements->Set (context, op_index, element).Check ();
   }
@@ -584,6 +619,8 @@ gum_parse_operands (const cs_insn * insn,
 
     _gum_v8_object_set (element, "subtracted",
         Boolean::New (isolate, op->subtracted), core);
+
+    _gum_v8_object_set_ascii (element, "access", gum_access_type_to_string (op->access), core);
 
     elements->Set (context, op_index, element).Check ();
   }
@@ -762,6 +799,8 @@ gum_parse_operands (const cs_insn * insn,
       _gum_v8_object_set_uint (element, "vectorIndex", op->vector_index, core);
     }
 
+    _gum_v8_object_set_ascii (element, "access", gum_access_type_to_string (op->access), core);
+
     elements->Set (context, op_index, element).Check ();
   }
 
@@ -913,6 +952,8 @@ gum_parse_operands (const cs_insn * insn,
         g_assert_not_reached ();
     }
 
+    _gum_v8_object_set_ascii (element, "access", gum_access_type_to_string (op->access), core);
+
     elements->Set (context, op_index, element).Check ();
   }
 
@@ -983,4 +1024,20 @@ gum_parse_groups (const uint8_t * groups,
   }
 
   return elements;
+}
+
+static const gchar *
+gum_access_type_to_string (uint8_t access_type)
+{
+  switch (access_type)
+  {
+    case CS_AC_READ | CS_AC_WRITE:  return "rw";
+    case CS_AC_READ: return "r";
+    case CS_AC_WRITE:  return "w";
+    case CS_AC_INVALID:  return "invalid";
+    default:
+      g_assert_not_reached ();
+  }
+
+  return NULL;
 }

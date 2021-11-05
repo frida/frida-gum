@@ -545,6 +545,8 @@ TESTCASE (instruction_can_be_parsed)
       "send(stosd.mnemonic);"
       "send(stosd.regsRead);"
       "send(stosd.regsWritten);"
+      "send(stosd.regsAccess.read);"
+      "send(stosd.regsAccess.written);"
       "send(stosd.groups);"
 
       "const mov = Instruction.parse(stosd.next);"
@@ -554,11 +556,15 @@ TESTCASE (instruction_can_be_parsed)
       "send(operands[0].type);"
       "send(operands[0].value);"
       "send(operands[0].size);"
+      "send(operands[0].access);"
       "send(operands[1].type);"
       "send(operands[1].value);"
       "send(operands[1].size);"
+      "send(operands[1].access);"
       "send(mov.regsRead);"
       "send(mov.regsWritten);"
+      "send(mov.regsAccess.read);"
+      "send(mov.regsAccess.written);"
       "send(mov.groups);"
 
       "const call = Instruction.parse(mov.next);"
@@ -581,6 +587,8 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("\"stosd\"");
   EXPECT_SEND_MESSAGE_WITH ("[\"eax\",\"rdi\",\"rflags\"]");
   EXPECT_SEND_MESSAGE_WITH ("[\"rdi\"]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"eax\",\"rdi\",\"rflags\"]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"rdi\"]");
   EXPECT_SEND_MESSAGE_WITH ("[]");
 
   EXPECT_SEND_MESSAGE_WITH ("\"mov\"");
@@ -588,11 +596,15 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("\"reg\"");
   EXPECT_SEND_MESSAGE_WITH ("\"eax\"");
   EXPECT_SEND_MESSAGE_WITH ("4");
+  EXPECT_SEND_MESSAGE_WITH ("\"w\"");
   EXPECT_SEND_MESSAGE_WITH ("\"imm\"");
   EXPECT_SEND_MESSAGE_WITH ("\"42\"");
   EXPECT_SEND_MESSAGE_WITH ("4");
+  EXPECT_SEND_MESSAGE_WITH ("\"invalid\"");
   EXPECT_SEND_MESSAGE_WITH ("[]");
   EXPECT_SEND_MESSAGE_WITH ("[]");
+  EXPECT_SEND_MESSAGE_WITH ("[]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"eax\"]");
   EXPECT_SEND_MESSAGE_WITH ("[]");
 
   EXPECT_SEND_MESSAGE_WITH ("\"call\"");
@@ -621,9 +633,11 @@ TESTCASE (instruction_can_be_parsed)
       "send(operands.length);"
       "send(operands[0].type);"
       "send(operands[0].value);"
+      "send(operands[0].access);"
       "send(operands[1].type);"
       "send(operands[1].value.base);"
       "send(operands[1].value.scale);"
+      "send(operands[1].access);"
       "const disp = operands[1].value.disp;"
       "send(ldr.address.add(4 + disp).readU32());"
 
@@ -662,9 +676,11 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_SEND_MESSAGE_WITH ("\"reg\"");
   EXPECT_SEND_MESSAGE_WITH ("\"r0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"w\"");
   EXPECT_SEND_MESSAGE_WITH ("\"mem\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pc\"");
   EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("\"r\"");
   EXPECT_SEND_MESSAGE_WITH ("42");
 
   EXPECT_SEND_MESSAGE_WITH ("\"bl\"");
@@ -704,7 +720,9 @@ TESTCASE (instruction_can_be_parsed)
       "send(operands.length);"
       "send(operands[0].type);"
       "send(operands[0].value);"
+      "send(operands[0].access);"
       "send(operands[1].type);"
+      "send(operands[1].access);"
       "send(ptr(operands[1].value).readU64().valueOf());"
 
       "const str = Instruction.parse(ldr.next);"
@@ -749,7 +767,9 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_SEND_MESSAGE_WITH ("\"reg\"");
   EXPECT_SEND_MESSAGE_WITH ("\"x0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"rw\"");
   EXPECT_SEND_MESSAGE_WITH ("\"imm\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"r\"");
   EXPECT_SEND_MESSAGE_WITH ("42");
 
   EXPECT_SEND_MESSAGE_WITH ("\"str\"");
