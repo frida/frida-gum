@@ -19,6 +19,7 @@ gboolean gum_x86_reader_insn_is_jcc (const cs_insn * insn);
 gpointer gum_x86_reader_try_get_relative_call_target (gconstpointer address);
 gpointer gum_x86_reader_try_get_relative_jump_target (gconstpointer address);
 gpointer gum_x86_reader_try_get_indirect_jump_target (gconstpointer address);
+cs_insn * gum_x86_reader_disassemble_instruction_at (gconstpointer address);
 
 G_END_DECLS
 
