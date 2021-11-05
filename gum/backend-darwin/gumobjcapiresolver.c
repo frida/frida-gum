@@ -337,6 +337,58 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
   return TRUE;
 }
 
+gchar *
+gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
+                                              GumAddress address)
+{
+  GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
+  GHashTableIter iter;
+  GumObjcClassMetadata * klass;
+
+  g_hash_table_iter_init (&iter, self->class_by_handle);
+
+  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
+  {
+    const gchar all_method_types[] = { '+', '-', '\0' };
+    const gchar * t;
+
+    if (gum_objc_class_metadata_is_disposed (klass))
+    {
+      g_hash_table_iter_remove (&iter);
+      continue;
+    }
+
+    for (t = all_method_types; *t != '\0'; t++)
+    {
+      const Method * method_handles;
+      guint count, i;
+
+      method_handles = gum_objc_class_metadata_get_methods (klass, *t, &count);
+
+      for (i = 0; i != count; i++)
+      {
+        Method handle = method_handles[i];
+        GumAddress imp;
+
+        imp = GUM_ADDRESS (self->method_getImplementation (handle));
+
+        if (imp == address)
+        {
+          const gchar * name;
+          const gchar prefix[3] = { *t, '[', '\0' };
+          const gchar suffix[2] = { ']', '\0' };
+
+          name = self->sel_getName (self->method_getName (handle));
+
+          return g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
+        }
+      }
+    }
+  }
+
+  return NULL;
+}
+
 static gchar
 gum_method_type_from_match_info (GMatchInfo * match_info,
                                  gint match_num)
@@ -470,58 +522,6 @@ gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
   *count = *cached_method_count;
 
   return *cached_methods;
-}
-
-gchar *
-gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
-                                              GumAddress address)
-{
-  GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
-  GHashTableIter iter;
-  GumObjcClassMetadata * klass;
-
-  g_hash_table_iter_init (&iter, self->class_by_handle);
-
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
-  {
-    const gchar all_method_types[] = { '+', '-', '\0' };
-    const gchar * t;
-
-    if (gum_objc_class_metadata_is_disposed (klass))
-    {
-      g_hash_table_iter_remove (&iter);
-      continue;
-    }
-
-    for (t = all_method_types; *t != '\0'; t++)
-    {
-      const Method * method_handles;
-      guint count, i;
-
-      method_handles = gum_objc_class_metadata_get_methods (klass, *t, &count);
-
-      for (i = 0; i != count; i++)
-      {
-        Method handle = method_handles[i];
-        GumAddress imp;
-
-        imp = GUM_ADDRESS (self->method_getImplementation (handle));
-
-        if (imp == address)
-        {
-          const gchar * name;
-          const gchar prefix[3] = { *t, '[', '\0' };
-          const gchar suffix[2] = { ']', '\0' };
-
-          name = self->sel_getName (self->method_getName (handle));
-
-          return g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
-        }
-      }
-    }
-  }
-
-  return NULL;
 }
 
 static gboolean
