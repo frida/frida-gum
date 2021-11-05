@@ -155,8 +155,9 @@ struct GumV8NativeCallback
   ffi_type ** atypes;
   GSList * data;
 
-  GumV8Core * core;
   gint interceptor_replacement_count;
+
+  GumV8Core * core;
 };
 
 G_GNUC_INTERNAL void _gum_v8_core_init (GumV8Core * self,
