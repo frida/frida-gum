@@ -3537,6 +3537,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   cb->wrapper = wrapper;
   cb->func = func;
   cb->core = core;
+  cb->interceptor_replacement_count = 0;
 
   if (!gum_quick_ffi_type_get (ctx, rtype_value, core, &rtype, &cb->data))
     goto propagate_exception;
