@@ -721,7 +721,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
     if (native_callback->HasInstance (instance))
     {
       auto callback = (GumV8NativeCallback *)
-          instance->GetInternalField (0).As<External> ()->Value ();
+          instance->GetInternalField (1).As<External> ()->Value ();
       callback->interceptor_replacement_count++;
     }
 
@@ -782,7 +782,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
     if (native_callback->HasInstance (instance))
     {
       auto callback = (GumV8NativeCallback *)
-          instance->GetInternalField (0).As<External> ()->Value ();
+          instance->GetInternalField (1).As<External> ()->Value ();
       callback->interceptor_replacement_count--;
     }
   }
