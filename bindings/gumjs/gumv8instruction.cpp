@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 EvilWind <evilwind@protonmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -28,9 +29,9 @@ GUMJS_DECLARE_GETTER (gumjs_instruction_get_size)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_mnemonic)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_operands)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_accessed)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_read)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_written)
-GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_access)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_groups)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
 static void gum_v8_instruction_on_weak_notify (
@@ -84,9 +85,9 @@ static const GumV8Property gumjs_instruction_values[] =
   { "mnemonic", gumjs_instruction_get_mnemonic, NULL },
   { "opStr", gumjs_instruction_get_op_str, NULL },
   { "operands", gumjs_instruction_get_operands, NULL },
+  { "regsAccessed", gumjs_instruction_get_regs_accessed, NULL },
   { "regsRead", gumjs_instruction_get_regs_read, NULL },
   { "regsWritten", gumjs_instruction_get_regs_written, NULL },
-  { "regsAccess", gumjs_instruction_get_regs_access, NULL },
   { "groups", gumjs_instruction_get_groups, NULL },
 
   { NULL, NULL, NULL }
@@ -354,6 +355,37 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_operands,
   info.GetReturnValue ().Set (gum_parse_operands (self->insn, module));
 }
 
+GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_accessed,
+                           GumV8InstructionValue)
+{
+  if (!gum_v8_instruction_check_valid (self, isolate))
+    return;
+
+  auto core = module->core;
+  auto capstone = module->capstone;
+
+  cs_regs regs_read, regs_write;
+  uint8_t regs_read_count, regs_write_count;
+
+  if (cs_regs_access (capstone, self->insn,
+        regs_read, &regs_read_count,
+        regs_write, &regs_write_count) != 0)
+  {
+    _gum_v8_throw (isolate, "not yet supported on this architecture");
+    return;
+  }
+
+  auto result = Object::New (core->isolate);
+
+  _gum_v8_object_set (result, "read",
+      gum_parse_regs (regs_read, regs_read_count, module), core);
+
+  _gum_v8_object_set (result, "written",
+      gum_parse_regs (regs_write, regs_write_count, module), core);
+
+  info.GetReturnValue ().Set (result);
+}
+
 GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_read,
                            GumV8InstructionValue)
 {
@@ -376,35 +408,6 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_written,
 
   info.GetReturnValue ().Set (gum_parse_regs (detail->regs_write,
       detail->regs_write_count, module));
-}
-
-GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_access,
-                           GumV8InstructionValue)
-{
-  if (!gum_v8_instruction_check_valid (self, isolate))
-    return;
-
-  auto core = module->core;
-  auto capstone = module->capstone;
-
-  cs_regs regs_read, regs_write;
-  uint8_t regs_read_count, regs_write_count;
-
-  if (cs_regs_access (capstone, self->insn, 
-                      regs_read, &regs_read_count,
-                      regs_write, &regs_write_count)) {
-    return;
-  }
-
-  auto result_regs_read = gum_parse_regs (regs_read, regs_read_count, module);
-  auto result_regs_written = gum_parse_regs (regs_write, regs_write_count, module);
-
-  auto result = Object::New (core->isolate);
-
-  _gum_v8_object_set (result, "read", result_regs_read, core);
-  _gum_v8_object_set (result, "written", result_regs_written, core);
-
-  info.GetReturnValue ().Set (result);
 }
 
 GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_groups,

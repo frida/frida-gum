@@ -543,10 +543,10 @@ TESTCASE (instruction_can_be_parsed)
 
       "const stosd = Instruction.parse(code);"
       "send(stosd.mnemonic);"
+      "send(stosd.regsAccessed.read);"
+      "send(stosd.regsAccessed.written);"
       "send(stosd.regsRead);"
       "send(stosd.regsWritten);"
-      "send(stosd.regsAccess.read);"
-      "send(stosd.regsAccess.written);"
       "send(stosd.groups);"
 
       "const mov = Instruction.parse(stosd.next);"
@@ -561,10 +561,10 @@ TESTCASE (instruction_can_be_parsed)
       "send(operands[1].value);"
       "send(operands[1].size);"
       "send(operands[1].access);"
+      "send(mov.regsAccessed.read);"
+      "send(mov.regsAccessed.written);"
       "send(mov.regsRead);"
       "send(mov.regsWritten);"
-      "send(mov.regsAccess.read);"
-      "send(mov.regsAccess.written);"
       "send(mov.groups);"
 
       "const call = Instruction.parse(mov.next);"

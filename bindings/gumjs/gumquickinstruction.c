@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 EvilWind <evilwind@protonmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,9 +21,9 @@ GUMJS_DECLARE_GETTER (gumjs_instruction_get_size)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_mnemonic)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_operands)
+GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_accessed)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_read)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_written)
-GUMJS_DECLARE_GETTER (gumjs_instruction_get_regs_access)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_groups)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_json)
@@ -79,9 +80,9 @@ static const JSCFunctionListEntry gumjs_instruction_entries[] =
   JS_CGETSET_DEF ("mnemonic", gumjs_instruction_get_mnemonic, NULL),
   JS_CGETSET_DEF ("opStr", gumjs_instruction_get_op_str, NULL),
   JS_CGETSET_DEF ("operands", gumjs_instruction_get_operands, NULL),
+  JS_CGETSET_DEF ("regsAccessed", gumjs_instruction_get_regs_accessed, NULL),
   JS_CGETSET_DEF ("regsRead", gumjs_instruction_get_regs_read, NULL),
   JS_CGETSET_DEF ("regsWritten", gumjs_instruction_get_regs_written, NULL),
-  JS_CGETSET_DEF ("regsAccess", gumjs_instruction_get_regs_access, NULL),
   JS_CGETSET_DEF ("groups", gumjs_instruction_get_groups, NULL),
   JS_CFUNC_DEF ("toString", 0, gumjs_instruction_to_string),
   JS_CFUNC_DEF ("toJSON", 0, gumjs_instruction_to_json),
@@ -328,6 +329,44 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_operands)
   return gum_parse_operands (ctx, self->insn, parent->capstone, parent->core);
 }
 
+GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_accessed)
+{
+  JSValue result;
+  GumQuickInstruction * parent;
+  GumQuickInstructionValue * self;
+  csh capstone;
+  cs_regs regs_read, regs_write;
+  uint8_t regs_read_count, regs_write_count;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  capstone = parent->capstone;
+
+  if (cs_regs_access (capstone, self->insn,
+        regs_read, &regs_read_count,
+        regs_write, &regs_write_count) != 0)
+  {
+    return _gum_quick_throw_literal (ctx,
+        "not yet supported on this architecture");
+  }
+
+  result = JS_NewObject (ctx);
+
+  JS_DefinePropertyValue (ctx, result,
+      GUM_QUICK_CORE_ATOM (core, read),
+      gum_parse_regs (ctx, regs_read, regs_read_count, capstone),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, result,
+      GUM_QUICK_CORE_ATOM (core, written),
+      gum_parse_regs (ctx, regs_write, regs_write_count, capstone),
+      JS_PROP_C_W_E);
+
+  return result;
+}
+
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_read)
 {
   GumQuickInstruction * parent;
@@ -360,44 +399,6 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_written)
 
   return gum_parse_regs (ctx, d->regs_write, d->regs_write_count,
       parent->capstone);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_access)
-{
-  GumQuickInstruction * parent;
-  GumQuickInstructionValue * self;
-
-  parent = gumjs_get_parent_module (core);
-
-  if (!_gum_quick_instruction_get (ctx, this_val, parent, &self))
-    return JS_EXCEPTION;
-
-  csh capstone = parent->capstone;
-
-  cs_regs regs_read, regs_write;
-  uint8_t regs_read_count, regs_write_count;
-
-  if (cs_regs_access (capstone, self->insn, 
-                      regs_read, &regs_read_count,
-                      regs_write, &regs_write_count)) {
-    return JS_EXCEPTION;
-  }
-
-  JSValue result_regs_read = gum_parse_regs (ctx, regs_read, regs_read_count, capstone);
-  JSValue result_regs_written = gum_parse_regs (ctx, regs_write, regs_write_count, capstone);
-
-  JSValue result = JS_NewObject (ctx);
-
-  JS_DefinePropertyValue (ctx, result,
-    GUM_QUICK_CORE_ATOM (core, read),
-    result_regs_read,
-    JS_PROP_C_W_E);
-  JS_DefinePropertyValue (ctx, result,
-    GUM_QUICK_CORE_ATOM (core, written),
-    result_regs_written,
-    JS_PROP_C_W_E);
-
-  return result;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_groups)
