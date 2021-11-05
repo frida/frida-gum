@@ -179,9 +179,7 @@ static void prefetch_backpatch_tranform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void entry_callout (GumCpuContext * cpu_context, gpointer user_data);
 static int prefetch_on_fork (void);
-
-static GHashTable * prefetch_compiled = NULL;
-static GHashTable * prefetch_executed = NULL;
+static void prefetch_backpatch_simple_workload (GumMemoryRange * runner_range);
 
 static void gum_test_stalker_observer_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -193,6 +191,8 @@ static void gum_test_stalker_observer_increment_total (
 static void gum_test_stalker_observer_notify_backpatch (
     GumStalkerObserver * self, const GumBackpatch * backpatch, gsize size);
 
+static gsize get_max_pipe_size (void);
+
 G_DEFINE_TYPE_EXTENDED (GumTestStalkerObserver,
                         gum_test_stalker_observer,
                         G_TYPE_OBJECT,
@@ -200,6 +200,8 @@ G_DEFINE_TYPE_EXTENDED (GumTestStalkerObserver,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_STALKER_OBSERVER,
                             gum_test_stalker_observer_iface_init))
 
+static GHashTable * prefetch_compiled = NULL;
+static GHashTable * prefetch_executed = NULL;
 static PrefetchBackpatchContext bp_ctx;
 #endif
 
@@ -2753,7 +2755,6 @@ TESTCASE (prefetch)
   }
 
   g_assert_cmpuint (compiled_size_run1, >, 0);
-  g_assert_cmpuint (compiled_size_run1, ==, executed_size_run1);
 
   /* Prefetch the blocks */
   g_hash_table_iter_init (&iter, compiled_run1);
@@ -2782,7 +2783,6 @@ TESTCASE (prefetch)
   }
 
   g_assert_cmpuint (compiled_size_run2, ==, 0);
-  g_assert_cmpuint (executed_size_run2, ==, executed_size_run1);
 
   /* Free resources */
   g_hash_table_unref (compiled_run2);
@@ -2903,9 +2903,7 @@ prefetch_read_blocks (int fd,
 
 TESTCASE (prefetch_backpatch)
 {
-  gchar * contents;
-  guint64 val;
-  int pipe_size;
+  gsize pipe_size;
   void * fork_addr;
   GumInterceptor * interceptor;
 
@@ -2921,12 +2919,7 @@ TESTCASE (prefetch_backpatch)
   g_assert_true (g_unix_set_fd_nonblocking (bp_ctx.pipes[0], TRUE, NULL));
   g_assert_true (g_unix_set_fd_nonblocking (bp_ctx.pipes[1], TRUE, NULL));
 
-  g_assert_true (g_file_get_contents ("/proc/sys/fs/pipe-max-size", &contents,
-      NULL, NULL));
-  val = g_ascii_strtoull (contents, NULL, 10);
-  g_assert_cmpuint (val, <=, G_MAXINT32);
-  pipe_size = (int) val;
-  g_free (contents);
+  pipe_size = get_max_pipe_size ();
 
   g_assert_cmpint (fcntl (bp_ctx.pipes[0], F_SETPIPE_SZ, pipe_size), ==,
       pipe_size);
@@ -2957,7 +2950,13 @@ TESTCASE (prefetch_backpatch)
   gum_stalker_set_observer (bp_ctx.stalker,
       GUM_STALKER_OBSERVER (bp_ctx.observer));
 
-  pretend_workload (&bp_ctx.runner_range);
+  /*
+   * Our maximum pipe size is likely to be fairly modest (without reconfiguring
+   * the system). So we use a relatively simple workload so that we don't
+   * saturate it.
+   */
+  prefetch_backpatch_simple_workload (&bp_ctx.runner_range);
+
   _exit (0);
 }
 
@@ -3060,6 +3059,26 @@ prefetch_on_fork (void)
   return fork ();
 }
 
+GUM_NOINLINE static void
+prefetch_backpatch_simple_workload (GumMemoryRange * runner_range)
+{
+  const guint8 * buf;
+  gsize limit, i;
+  guint8 val;
+
+  buf = GSIZE_TO_POINTER (runner_range->base_address);
+  limit = MIN (runner_range->size, 65536);
+
+  val = 0;
+  for (i = 0; i != limit; i++)
+  {
+    val = val ^ buf[i];
+  }
+
+  if (g_test_verbose ())
+    g_print ("Result: 0x%02x\n", val);
+}
+
 TESTCASE (observer)
 {
   GumTestStalkerObserver * test_observer;
@@ -3133,6 +3152,23 @@ gum_test_stalker_observer_notify_backpatch (GumStalkerObserver * self,
 
   written = write (bp_ctx.pipes[STDOUT_FILENO], backpatch, size);
   g_assert_cmpint (written, ==, size);
+}
+
+static gsize
+get_max_pipe_size (void)
+{
+  guint64 val;
+  gchar * contents;
+
+  g_assert_true (g_file_get_contents ("/proc/sys/fs/pipe-max-size", &contents,
+      NULL, NULL));
+
+  val = g_ascii_strtoull (contents, NULL, 10);
+  g_assert_cmpuint (val, <=, G_MAXINT32);
+
+  g_free (contents);
+
+  return (gsize) val;
 }
 
 #endif

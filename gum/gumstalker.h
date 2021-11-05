@@ -47,9 +47,12 @@ G_DECLARE_INTERFACE (GumStalkerObserver, gum_stalker_observer, GUM,
 typedef struct _GumStalkerIterator GumStalkerIterator;
 typedef struct _GumStalkerOutput GumStalkerOutput;
 typedef struct _GumBackpatch GumBackpatch;
+typedef struct _GumBackpatchInstruction GumBackpatchInstruction;
 typedef void (* GumStalkerIncrementFunc) (GumStalkerObserver * self);
 typedef void (* GumStalkerNotifyBackpatchFunc) (GumStalkerObserver * self,
     const GumBackpatch * backpatch, gsize size);
+typedef void (* GumStalkerSwitchCallbackFunc) (GumStalkerObserver * self,
+    gpointer start_address, const cs_insn * from_insn, gpointer * target);
 typedef union _GumStalkerWriter GumStalkerWriter;
 typedef void (* GumStalkerTransformerCallback) (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
@@ -120,6 +123,8 @@ struct _GumStalkerObserverInterface
   GumStalkerIncrementFunc increment_sysenter_slow_path;
 
   GumStalkerNotifyBackpatchFunc notify_backpatch;
+
+  GumStalkerSwitchCallbackFunc switch_callback;
 };
 
 union _GumStalkerWriter
@@ -357,6 +362,10 @@ GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
 GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
 GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
+
+GUM_API void gum_stalker_observer_switch_callback (
+    GumStalkerObserver * observer, gpointer start_address,
+    const cs_insn * from_insn, gpointer * target);
 
 G_END_DECLS
 
