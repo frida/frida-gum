@@ -2906,7 +2906,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   callback = g_slice_new0 (GumV8NativeCallback);
   callback->ref_count = 1;
-  callback->interceptor_replacement_count = 0;
   callback->func = new GumPersistent<Function>::type (isolate, func_value);
   callback->core = core;
 
