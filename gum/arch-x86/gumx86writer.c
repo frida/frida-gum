@@ -2915,12 +2915,73 @@ gum_x86_writer_put_padding (GumX86Writer * self,
   gum_x86_writer_commit (self, n);
 }
 
+/*
+ * Whilst the 0x90 opcode for NOP is commonly known, the Intel Optimization
+ * Manual actually lists a number of different NOP instructions ranging from
+ * one to nine bytes in length. By using longer NOP instructions, we can more
+ * efficiently pad unused space with the processor being able to skip more
+ * bytes per execution cycle.
+ */
 void
 gum_x86_writer_put_nop_padding (GumX86Writer * self,
                                 guint n)
 {
-  gum_memset (self->code, 0x90, n);
-  gum_x86_writer_commit (self, n);
+  static const struct {
+    guint8 one[1];
+    guint8 two[2];
+    guint8 three[3];
+    guint8 four[4];
+    guint8 five[5];
+    guint8 six[6];
+    guint8 seven[7];
+    guint8 eight[8];
+    guint8 nine[9];
+  } nops = {
+    /* NOP */
+    .one =   { 0x90 },
+    /* 66 NOP */
+    .two =   { 0x66, 0x90 },
+    /* NOP DWORD ptr [EAX] */
+    .three = { 0x0f, 0x1f, 0x00 },
+    /* NOP DWORD ptr [EAX + 00H] */
+    .four =  { 0x0f, 0x1f, 0x40, 0x00 },
+    /* NOP DWORD ptr [EAX + EAX*1 + 00H] */
+    .five =  { 0x0f, 0x1f, 0x44, 0x00, 0x00 },
+    /* 66 NOP DWORD ptr [EAX + EAX*1 + 00H] */
+    .six =   { 0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00 },
+    /* NOP DWORD ptr [EAX + 00000000H] */
+    .seven = { 0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00 },
+    /* NOP DWORD ptr [EAX + EAX*1 + 00000000H] */
+    .eight = { 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    /* 66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] */
+    .nine =  { 0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+  };
+  static const guint8 * nop_index[9] = {
+    nops.one,
+    nops.two,
+    nops.three,
+    nops.four,
+    nops.five,
+    nops.six,
+    nops.seven,
+    nops.eight,
+    nops.nine,
+  };
+  static const guint max_nop = G_N_ELEMENTS (nop_index);
+  guint remaining;
+
+  for (remaining = n; remaining != 0; remaining -= max_nop)
+  {
+    if (remaining < max_nop)
+    {
+      gum_memcpy (self->code, nop_index[remaining - 1], remaining);
+      gum_x86_writer_commit (self, remaining);
+      break;
+    }
+
+    gum_memcpy (self->code, nop_index[max_nop - 1], max_nop);
+    gum_x86_writer_commit (self, max_nop);
+  }
 }
 
 void
