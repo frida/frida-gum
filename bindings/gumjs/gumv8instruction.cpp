@@ -499,7 +499,8 @@ gum_parse_operands (const cs_insn * insn,
 
     _gum_v8_object_set_uint (element, "size", op->size, core);
 
-    _gum_v8_object_set_ascii (element, "access", gum_access_type_to_string (op->access), core);
+    _gum_v8_object_set_ascii (element, "access",
+        gum_access_type_to_string (op->access), core);
 
     elements->Set (context, op_index, element).Check ();
   }
@@ -623,7 +624,8 @@ gum_parse_operands (const cs_insn * insn,
     _gum_v8_object_set (element, "subtracted",
         Boolean::New (isolate, op->subtracted), core);
 
-    _gum_v8_object_set_ascii (element, "access", gum_access_type_to_string (op->access), core);
+    _gum_v8_object_set_ascii (element, "access",
+        gum_access_type_to_string (op->access), core);
 
     elements->Set (context, op_index, element).Check ();
   }
@@ -802,7 +804,8 @@ gum_parse_operands (const cs_insn * insn,
       _gum_v8_object_set_uint (element, "vectorIndex", op->vector_index, core);
     }
 
-    _gum_v8_object_set_ascii (element, "access", gum_access_type_to_string (op->access), core);
+    _gum_v8_object_set_ascii (element, "access",
+        gum_access_type_to_string (op->access), core);
 
     elements->Set (context, op_index, element).Check ();
   }
@@ -955,8 +958,6 @@ gum_parse_operands (const cs_insn * insn,
         g_assert_not_reached ();
     }
 
-    _gum_v8_object_set_ascii (element, "access", gum_access_type_to_string (op->access), core);
-
     elements->Set (context, op_index, element).Check ();
   }
 
@@ -1034,10 +1035,9 @@ gum_access_type_to_string (uint8_t access_type)
 {
   switch (access_type)
   {
-    case CS_AC_READ | CS_AC_WRITE:  return "rw";
-    case CS_AC_READ: return "r";
-    case CS_AC_WRITE:  return "w";
-    case CS_AC_INVALID:  return "invalid";
+    case CS_AC_READ:               return "r";
+    case CS_AC_WRITE:              return "w";
+    case CS_AC_READ | CS_AC_WRITE: return "rw";
     default:
       g_assert_not_reached ();
   }

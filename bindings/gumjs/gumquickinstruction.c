@@ -867,7 +867,6 @@ gum_parse_operands (JSContext * ctx,
           JS_NewInt32 (ctx, op->vector_index),
           JS_PROP_C_W_E);
     }
-
     JS_DefinePropertyValue (ctx, op_obj,
         GUM_QUICK_CORE_ATOM (core, access),
         gum_access_type_to_string (ctx, op->access),
@@ -1035,10 +1034,6 @@ gum_parse_operands (JSContext * ctx,
         GUM_QUICK_CORE_ATOM (core, value),
         val,
         JS_PROP_C_W_E);
-    JS_DefinePropertyValue (ctx, op_obj,
-        GUM_QUICK_CORE_ATOM (core, access),
-        gum_access_type_to_string (ctx, op->access),
-        JS_PROP_C_W_E);
 
     JS_DefinePropertyValueUint32 (ctx, result, i, op_obj, JS_PROP_C_W_E);
   }
@@ -1117,24 +1112,22 @@ static JSValue
 gum_access_type_to_string (JSContext * ctx,
                            uint8_t access_type)
 {
-  gchar* result_string = NULL;
+  const gchar * str = NULL;
+
   switch (access_type)
   {
-    case CS_AC_READ | CS_AC_WRITE:
-      result_string = "rw";
-      break;
     case CS_AC_READ:
-      result_string = "r";
+      str = "r";
       break;
     case CS_AC_WRITE:
-      result_string = "w";
+      str = "w";
       break;
-    case CS_AC_INVALID:
-      result_string = "invalid";
+    case CS_AC_READ | CS_AC_WRITE:
+      str = "rw";
       break;
     default:
       g_assert_not_reached ();
   }
 
-  return JS_NewString (ctx, result_string);
+  return JS_NewString (ctx, str);
 }
