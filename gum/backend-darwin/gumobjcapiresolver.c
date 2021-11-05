@@ -29,6 +29,7 @@ struct _GumObjcApiResolver
   GHashTable * class_by_handle;
 
   gint (* objc_getClassList) (Class * buffer, gint class_count);
+  Class (* objc_lookUpClass) (const gchar * name);
   Class (* class_getSuperclass) (Class klass);
   const gchar * (* class_getName) (Class klass);
   Method * (* class_copyMethodList) (Class klass, guint * method_count);
@@ -36,7 +37,6 @@ struct _GumObjcApiResolver
   SEL (* method_getName) (Method method);
   IMP (* method_getImplementation) (Method method);
   const gchar * (* sel_getName) (SEL selector);
-  Class (* objc_lookUpClass) (const gchar *aClassName);
 };
 
 struct _GumObjcClassMetadata
@@ -128,6 +128,7 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
       goto beach
 
   GUM_TRY_ASSIGN_OBJC_FUNC (objc_getClassList);
+  GUM_TRY_ASSIGN_OBJC_FUNC (objc_lookUpClass);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getSuperclass);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getName);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_copyMethodList);
@@ -135,7 +136,6 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
   GUM_TRY_ASSIGN_OBJC_FUNC (method_getName);
   GUM_TRY_ASSIGN_OBJC_FUNC (method_getImplementation);
   GUM_TRY_ASSIGN_OBJC_FUNC (sel_getName);
-  GUM_TRY_ASSIGN_OBJC_FUNC (objc_lookUpClass);
 
   self->available = TRUE;
   self->class_by_handle = gum_objc_api_resolver_create_snapshot (self);
@@ -425,6 +425,53 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
   return class_by_handle;
 }
 
+static void
+gum_objc_class_metadata_free (GumObjcClassMetadata * klass)
+{
+  g_slist_free (klass->subclasses);
+
+  if (klass->instance_methods != NULL)
+    gum_libc_free (klass->instance_methods);
+
+  if (klass->class_methods != NULL)
+    gum_libc_free (klass->class_methods);
+
+  g_slice_free (GumObjcClassMetadata, klass);
+}
+
+static const Method *
+gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
+                                     gchar type,
+                                     guint * count)
+{
+  Method ** cached_methods;
+  guint * cached_method_count;
+
+  if (type == '+')
+  {
+    cached_methods = &self->class_methods;
+    cached_method_count = &self->class_method_count;
+  }
+  else
+  {
+    cached_methods = &self->instance_methods;
+    cached_method_count = &self->instance_method_count;
+  }
+
+  if (*cached_methods == NULL)
+  {
+    GumObjcApiResolver * resolver = self->resolver;
+
+    *cached_methods = resolver->class_copyMethodList (
+        (type == '+') ? resolver->object_getClass (self->handle) : self->handle,
+        cached_method_count);
+  }
+
+  *count = *cached_method_count;
+
+  return *cached_methods;
+}
+
 gchar *
 gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
                                               GumAddress address)
@@ -477,57 +524,11 @@ gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
   return NULL;
 }
 
-static void
-gum_objc_class_metadata_free (GumObjcClassMetadata * klass)
-{
-  g_slist_free (klass->subclasses);
-
-  if (klass->instance_methods != NULL)
-    gum_libc_free (klass->instance_methods);
-
-  if (klass->class_methods != NULL)
-    gum_libc_free (klass->class_methods);
-
-  g_slice_free (GumObjcClassMetadata, klass);
-}
-
-static const Method *
-gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
-                                     gchar type,
-                                     guint * count)
-{
-  Method ** cached_methods;
-  guint * cached_method_count;
-
-  if (type == '+')
-  {
-    cached_methods = &self->class_methods;
-    cached_method_count = &self->class_method_count;
-  }
-  else
-  {
-    cached_methods = &self->instance_methods;
-    cached_method_count = &self->instance_method_count;
-  }
-
-  if (*cached_methods == NULL)
-  {
-    GumObjcApiResolver * resolver = self->resolver;
-
-    *cached_methods = resolver->class_copyMethodList (
-        (type == '+') ? resolver->object_getClass (self->handle) : self->handle,
-        cached_method_count);
-  }
-
-  *count = *cached_method_count;
-
-  return *cached_methods;
-}
-
 static gboolean
 gum_objc_class_metadata_is_disposed (GumObjcClassMetadata * self)
 {
   GumObjcApiResolver * resolver = self->resolver;
+
   return resolver->objc_lookUpClass (self->name) != self->handle;
 }
 
