@@ -1116,6 +1116,9 @@ gum_access_type_to_string (JSContext * ctx,
 
   switch (access_type)
   {
+    case CS_AC_INVALID:
+      str = "";
+      break;
     case CS_AC_READ:
       str = "r";
       break;

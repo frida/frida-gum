@@ -1035,6 +1035,7 @@ gum_access_type_to_string (uint8_t access_type)
 {
   switch (access_type)
   {
+    case CS_AC_INVALID:            return "";
     case CS_AC_READ:               return "r";
     case CS_AC_WRITE:              return "w";
     case CS_AC_READ | CS_AC_WRITE: return "rw";
