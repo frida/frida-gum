@@ -74,6 +74,7 @@ static gboolean gum_x86_writer_put_short_jmp (GumX86Writer * self,
     gconstpointer target);
 static gboolean gum_x86_writer_put_near_jmp (GumX86Writer * self,
     gconstpointer target);
+static void gum_x86_writer_put_ud2 (GumX86Writer * self);
 static void gum_x86_writer_describe_cpu_reg (GumX86Writer * self,
     GumCpuReg reg, GumCpuRegInfo * ri);
 
@@ -1071,9 +1072,11 @@ gum_x86_writer_put_jmp_address (GumX86Writer * self,
 
       self->code[0] = 0xff;
       self->code[1] = 0x25;
-      *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-      *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (address);
-      gum_x86_writer_commit (self, 14);
+      *((gint32 *) (self->code + 2)) = GINT32_TO_LE (2); /* RIP + 2 */
+      self->code[6] = 0x0f;
+      self->code[7] = 0x0b;
+      *((guint64 *) (self->code + 8)) = GUINT64_TO_LE (address);
+      gum_x86_writer_commit (self, 16);
     }
   }
 
@@ -1116,11 +1119,15 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
     if (self->target_cpu != GUM_CPU_AMD64)
       return FALSE;
 
-    self->code[0] = 0xff;
+    self->code[0] = 0xff;                               /* JMP [RIP + 2] */
     self->code[1] = 0x25;
-    *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-    *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (GPOINTER_TO_SIZE (target));
-    gum_x86_writer_commit (self, 14);
+    *((gint32 *) (self->code + 2)) = GINT32_TO_LE (2);  /* RIP + 2 */
+
+    self->code[6] = 0x0f;                               /* UD2 */
+    self->code[7] = 0x0b;
+
+    *((guint64 *) (self->code + 8)) = GUINT64_TO_LE (GPOINTER_TO_SIZE (target));
+    gum_x86_writer_commit (self, 16);
   }
 
   return TRUE;
@@ -1168,6 +1175,8 @@ gum_x86_writer_put_jmp_reg (GumX86Writer * self,
   self->code[1] = 0xe0 | ri.index;
   gum_x86_writer_commit (self, 2);
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
 }
 
@@ -1199,6 +1208,8 @@ gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
 
   if (ri.meta == GUM_META_REG_XSP)
     gum_x86_writer_put_u8 (self, 0x24);
+
+  gum_x86_writer_put_ud2 (self);
 
   return TRUE;
 }
@@ -1246,6 +1257,8 @@ gum_x86_writer_put_jmp_reg_offset_ptr (GumX86Writer * self,
     gum_x86_writer_commit (self, 4);
   }
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
 }
 
@@ -1272,7 +1285,30 @@ gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
 
   gum_x86_writer_commit (self, 6);
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
+}
+
+/*
+ * This instruction causes a UD exception when executed, which isn't very
+ * useful, however its presence also stalls the branch predictor. e.g. if the
+ * CPU encounters a `JMP [reg]` instruction, and there is no entry in its branch
+ * target buffer (cache of previous branches) it will assume that execution
+ * continues with the next instruction (which is where compilers will typically
+ * place the most common branch of a switch statement). However, in most cases
+ * (e.g. Stalker) such indirect branches will typically be used to divert
+ * control flow to an address which can only be determined at runtime. As such
+ * by following these branches with `UD2`, we can prevent the speculative
+ * execution of subsequent instructions and hence the overhead of unwinding
+ * them.
+ */
+static void
+gum_x86_writer_put_ud2 (GumX86Writer * self)
+{
+  gum_x86_writer_put_u8 (self, 0x0f);
+  gum_x86_writer_put_u8 (self, 0x0b);
+  gum_x86_writer_commit (self, 2);
 }
 
 gboolean
