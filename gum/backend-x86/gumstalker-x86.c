@@ -5025,7 +5025,8 @@ gum_exec_block_write_call_event_code (GumExecBlock * block,
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc, gc->code_writer);
 
-  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc, gc->code_writer);
+  gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc,
+      gc->code_writer);
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
 
   gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
