@@ -4497,7 +4497,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gboolean can_backpatch_statically;
   gpointer * ic_match = NULL;
   GumExecCtxReplaceCurrentBlockFunc entry_func;
-  GumAddress ret_code_address;
+  GumAddress ret_code_address = 0;
   GumAddress ret_real_address = GUM_ADDRESS (gc->instruction->end);
 
   can_backpatch_statically =
