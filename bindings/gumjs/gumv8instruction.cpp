@@ -361,13 +361,10 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_regs_accessed,
   if (!gum_v8_instruction_check_valid (self, isolate))
     return;
 
-  auto core = module->core;
-  auto capstone = module->capstone;
-
   cs_regs regs_read, regs_write;
   uint8_t regs_read_count, regs_write_count;
 
-  if (cs_regs_access (capstone, self->insn,
+  if (cs_regs_access (module->capstone, self->insn,
         regs_read, &regs_read_count,
         regs_write, &regs_write_count) != 0)
   {
