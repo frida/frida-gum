@@ -1308,7 +1308,6 @@ gum_x86_writer_put_ud2 (GumX86Writer * self)
 {
   gum_x86_writer_put_u8 (self, 0x0f);
   gum_x86_writer_put_u8 (self, 0x0b);
-  gum_x86_writer_commit (self, 2);
 }
 
 gboolean
