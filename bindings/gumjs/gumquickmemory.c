@@ -947,7 +947,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
   pattern_val = args->elements[2];
 
-  if (JS_IsString (pattern_val)) {
+  if (JS_IsString (pattern_val))
+  {
     const gchar * match_str;
 
     if (!_gum_quick_string_get (ctx, args->elements[2], &match_str))
@@ -955,9 +956,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
     sc.pattern = gum_match_pattern_new_from_string (match_str);
     JS_FreeCString (ctx, match_str);
-  } else if (JS_IsObject (pattern_val)) {
+  }
+  else if (JS_IsObject (pattern_val))
+  {
     sc.pattern = JS_GetOpaque(pattern_val, core->match_pattern_class);
-  } else {
+  }
+  else
+  {
     return _gum_quick_throw_literal (ctx,
         "expected either a pattern string or a MatchPattern object");
   }
@@ -967,7 +972,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
   callbacks = args->elements[3];
 
-  if (!JS_IsObject (callbacks)) {
+  if (!JS_IsObject (callbacks))
+  {
     return _gum_quick_throw_literal (ctx,
         "expected an object containing callbacks");
   }
@@ -975,9 +981,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   sc.on_match = JS_GetPropertyStr (ctx, callbacks, "onMatch");
   sc.on_complete = JS_GetPropertyStr (ctx, callbacks, "onComplete");
 
-  if (!JS_IsFunction (ctx, sc.on_match)) {
+  if (!JS_IsFunction (ctx, sc.on_match))
     return _gum_quick_throw_literal (ctx, "expected a callback value");
-  }
 
   sc.on_complete = JS_GetPropertyStr (ctx, callbacks, "onComplete");
   sc.on_error = JS_GetPropertyStr (ctx, callbacks, "onError");

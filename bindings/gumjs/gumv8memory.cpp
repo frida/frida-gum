@@ -913,7 +913,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   gpointer address;
   gsize size;
 
-  if (info.Length () < 4) {
+  if (info.Length () < 4)
+  {
     _gum_v8_throw_ascii_literal (isolate, "missing argument");
     return;
   }
@@ -927,26 +928,33 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   auto pattern_val = info[2];
   GumMatchPattern * pattern = NULL;
 
-  if (pattern_val->IsString()) {
+  if (pattern_val->IsString())
+  {
     String::Utf8Value pattern_utf8 (isolate, pattern_val);
     pattern = gum_match_pattern_new_from_string (*pattern_utf8);
-  } else if (pattern_val->IsObject()) {
+  }
+  else if (pattern_val->IsObject())
+  {
     auto pattern_obj = pattern_val.As<Object> ();
     pattern = (GumMatchPattern *)pattern_obj->GetInternalField (0)
         .As<External> ()->Value ();
-  } else {
+  }
+  else
+  {
     _gum_v8_throw_ascii_literal (isolate,
         "expected either a pattern string or a MatchPattern object");
     return;
   }
 
-  if (pattern == nullptr) {
+  if (pattern == nullptr)
+  {
     _gum_v8_throw_ascii_literal (isolate,
         "expected either a pattern string or a MatchPattern object");
     return;
   }
 
-  if (!info[3]->IsObject ()) {
+  if (!info[3]->IsObject ())
+  {
     _gum_v8_throw_ascii_literal (isolate,
         "expected an object containing callbacks");
     return;
@@ -959,7 +967,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
   if (!callbacks_obj->Get (context, _gum_v8_string_new_ascii (isolate,
           "onMatch")).ToLocal (&on_match_val) ||
-      !on_match_val->IsFunction ()) {
+      !on_match_val->IsFunction ())
+  {
     _gum_v8_throw_literal (isolate, "expected a callback value");
     return;
   }
@@ -968,13 +977,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
   if (callbacks_obj->Get (context, _gum_v8_string_new_ascii (isolate,
           "onComplete")).ToLocal (&on_complete_val) &&
-      !on_complete_val.IsEmpty ()) {
+      !on_complete_val.IsEmpty ())
+  {
     on_complete = on_complete_val.As <Function> ();
   }
 
   if (callbacks_obj->Get (context, _gum_v8_string_new_ascii (isolate,
           "onError")).ToLocal (&on_error_val) &&
-      !on_error_val.IsEmpty ()) {
+      !on_error_val.IsEmpty ())
+  {
     on_error = on_error_val.As <Function> ();
   }
 

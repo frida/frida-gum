@@ -374,14 +374,17 @@ gum_match_pattern_new_from_string (const gchar * pattern_str)
   GumMatchPattern * result = NULL;
 
   if (g_str_has_prefix (pattern_str, "/") &&
-      g_str_has_suffix (pattern_str, "/")) {
+      g_str_has_suffix (pattern_str, "/"))
+  {
     gchar * regex_str;
 
     regex_str = g_strndup (pattern_str + 1, strlen (pattern_str) - 2);
     result = gum_match_pattern_new_from_regex (regex_str);
 
     g_free (regex_str);
-  } else {
+  }
+  else
+  {
     result = gum_match_pattern_new_from_hexstring (pattern_str);
   }
 
@@ -399,9 +402,8 @@ gum_match_pattern_new_from_regex (const gchar * regex_str)
   regex = g_regex_new (regex_str, G_REGEX_OPTIMIZE,
       G_REGEX_MATCH_NOTEMPTY, NULL);
 
-  if (regex == NULL) {
+  if (regex == NULL)
     goto beach;
-  }
 
   pattern = gum_match_pattern_new ();
   pattern->regex = regex;

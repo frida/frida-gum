@@ -3426,7 +3426,8 @@ gum_v8_source_map_on_weak_notify (const WeakCallbackInfo<GumV8SourceMap> & info)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
 {
-  if (!info.IsConstructCall()) {
+  if (!info.IsConstructCall())
+  {
     _gum_v8_throw_ascii_literal (isolate,
         "use `new MatchPattern()` to create a new instance");
     return;
@@ -3440,7 +3441,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
 
   g_free (pattern_str);
 
-  if (pattern == NULL) {
+  if (pattern == NULL)
+  {
       _gum_v8_throw (isolate, "invalid match pattern");
       return;
   }
