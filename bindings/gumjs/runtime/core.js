@@ -226,7 +226,10 @@ Object.defineProperties(Memory, {
       if (!isInt || isLessThanZero)
         throw new Error('expected an unsigned integer');
 
-      if (typeof(pattern) !== 'string' && !(pattern instanceof MatchPattern))
+      if (typeof(pattern) === 'string')
+        /* XXX: test if it's a valid pattern */
+        new MatchPattern(pattern);
+      else if (!(pattern instanceof MatchPattern))
         throw new Error('expected either a pattern string or a MatchPattern object');
 
       if (typeof(callbacks) !== 'object')

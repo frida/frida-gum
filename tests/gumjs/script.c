@@ -6360,11 +6360,18 @@ TESTCASE (memory_scan_handles_bad_arguments)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(0x1337), 7, 0xbadcafe, {"
-        "onMatch(address, size) {},"
-        "onComplete() {}"
+      "  onMatch(address, size) {},"
+      "  onComplete() {}"
       "});");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: expected either a pattern string or a MatchPattern object");
+
+  COMPILE_AND_LOAD_SCRIPT (
+    "Memory.scan(ptr(0x1337), 7, 'bad pattern', {"
+    "  onMatch(addres, size) {}"
+    "});"
+  );
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid match pattern");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(0x1337), 7, '13 37', 'non-object');");
