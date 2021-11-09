@@ -4641,6 +4641,7 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
     GUM_QUICK_CORE_ATOM (self, id) = JS_NewAtom (ctx, name)
 
   GUM_SETUP_ATOM (abi);
+  GUM_SETUP_ATOM (access);
   GUM_SETUP_ATOM (address);
   GUM_SETUP_ATOM (autoClose);
   GUM_SETUP_ATOM (base);
@@ -4666,6 +4667,7 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
   GUM_SETUP_ATOM (port);
   GUM_SETUP_ATOM (protection);
   GUM_SETUP_ATOM (prototype);
+  GUM_SETUP_ATOM (read);
   GUM_SETUP_ATOM_NAMED (resource, "$r");
   GUM_SETUP_ATOM (scheduling);
   GUM_SETUP_ATOM (section);
@@ -4677,6 +4679,7 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
   GUM_SETUP_ATOM (traps);
   GUM_SETUP_ATOM (type);
   GUM_SETUP_ATOM (value);
+  GUM_SETUP_ATOM (written);
 
 #if defined (HAVE_I386)
   GUM_SETUP_ATOM (disp);
@@ -4714,6 +4717,7 @@ gum_quick_core_teardown_atoms (GumQuickCore * self)
     GUM_QUICK_CORE_ATOM (self, id) = JS_ATOM_NULL
 
   GUM_TEARDOWN_ATOM (abi);
+  GUM_TEARDOWN_ATOM (access);
   GUM_TEARDOWN_ATOM (address);
   GUM_TEARDOWN_ATOM (autoClose);
   GUM_TEARDOWN_ATOM (base);
@@ -4739,6 +4743,7 @@ gum_quick_core_teardown_atoms (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (port);
   GUM_TEARDOWN_ATOM (protection);
   GUM_TEARDOWN_ATOM (prototype);
+  GUM_TEARDOWN_ATOM (read);
   GUM_TEARDOWN_ATOM (resource);
   GUM_TEARDOWN_ATOM (scheduling);
   GUM_TEARDOWN_ATOM (section);
@@ -4750,6 +4755,7 @@ gum_quick_core_teardown_atoms (GumQuickCore * self)
   GUM_TEARDOWN_ATOM (traps);
   GUM_TEARDOWN_ATOM (type);
   GUM_TEARDOWN_ATOM (value);
+  GUM_TEARDOWN_ATOM (written);
 
 #if defined (HAVE_I386)
   GUM_TEARDOWN_ATOM (disp);

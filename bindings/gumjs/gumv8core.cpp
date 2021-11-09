@@ -555,7 +555,7 @@ _gum_v8_core_init (GumV8Core * self,
   auto native_callback = _gum_v8_create_class ("NativeCallback",
       gumjs_native_callback_construct, scope, module, isolate);
   native_callback->Inherit (native_pointer);
-  native_callback->InstanceTemplate ()->SetInternalFieldCount (1);
+  native_callback->InstanceTemplate ()->SetInternalFieldCount (2);
   self->native_callback =
       new GumPersistent<FunctionTemplate>::type (isolate, native_callback);
 
@@ -2955,6 +2955,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   }
 
   wrapper->SetInternalField (0, External::New (isolate, func));
+  wrapper->SetInternalField (1, External::New (isolate, callback));
 
   callback->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
   callback->wrapper->SetWeak (callback,

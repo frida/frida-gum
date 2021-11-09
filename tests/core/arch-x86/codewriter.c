@@ -348,35 +348,41 @@ TESTCASE (flush_on_free)
 
 TESTCASE (jmp_rcx)
 {
-  const guint8 expected_code[] = { 0xff, 0xe1 };
+  /* jmp rcx; ud2 */
+  const guint8 expected_code[] = { 0xff, 0xe1, 0x0f, 0x0b };
   gum_x86_writer_put_jmp_reg (&fixture->cw, GUM_REG_RCX);
   assert_output_equals (expected_code);
 }
 
 TESTCASE (jmp_r8)
 {
-  const guint8 expected_code[] = { 0x41, 0xff, 0xe0 };
+  /* jmp r8; ud2 */
+  const guint8 expected_code[] = { 0x41, 0xff, 0xe0, 0x0f, 0x0b };
   gum_x86_writer_put_jmp_reg (&fixture->cw, GUM_REG_R8);
   assert_output_equals (expected_code);
 }
 
 TESTCASE (jmp_rsp_ptr)
 {
-  const guint8 expected_code[] = { 0xff, 0x24, 0x24 };
+  /* jmp qword ptr [rsp]; ud2 */
+  const guint8 expected_code[] = { 0xff, 0x24, 0x24, 0x0f, 0x0b };
   gum_x86_writer_put_jmp_reg_ptr (&fixture->cw, GUM_REG_RSP);
   assert_output_equals (expected_code);
 }
 
 TESTCASE (jmp_r8_ptr)
 {
-  const guint8 expected_code[] = { 0x41, 0xff, 0x20 };
+  /* jmp qword ptr [r8]; ud2 */
+  const guint8 expected_code[] = { 0x41, 0xff, 0x20, 0x0f, 0x0b };
   gum_x86_writer_put_jmp_reg_ptr (&fixture->cw, GUM_REG_R8);
   assert_output_equals (expected_code);
 }
 
 TESTCASE (jmp_near_ptr_for_ia32)
 {
-  const guint8 expected_code[] = { 0xff, 0x25, 0x78, 0x56, 0x34, 0x12 };
+  /* jmp qword ptr [rip + 0x12345678]; ud2 */
+  const guint8 expected_code[] = { 0xff, 0x25, 0x78, 0x56, 0x34, 0x12, 0x0f,
+      0x0b };
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
   gum_x86_writer_put_jmp_near_ptr (&fixture->cw, 0x12345678);
   assert_output_equals (expected_code);
@@ -384,7 +390,9 @@ TESTCASE (jmp_near_ptr_for_ia32)
 
 TESTCASE (jmp_near_ptr_for_amd64)
 {
-  const guint8 expected_code[] = { 0xff, 0x25, 0x16, 0x00, 0x00, 0x00 };
+  /* jmp qword ptr [rip + 0x16]; ud2 */
+  const guint8 expected_code[] = { 0xff, 0x25, 0x16, 0x00, 0x00, 0x00, 0x0f,
+      0x0b };
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
   gum_x86_writer_put_jmp_near_ptr (&fixture->cw,
       GUM_ADDRESS (fixture->output + 28));

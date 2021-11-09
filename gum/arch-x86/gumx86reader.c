@@ -8,7 +8,6 @@
 
 static gpointer try_get_relative_call_or_jump_target (gconstpointer address,
     guint call_or_jump);
-static cs_insn * disassemble_instruction_at (gconstpointer address);
 
 guint
 gum_x86_reader_insn_length (guint8 * code)
@@ -16,7 +15,7 @@ gum_x86_reader_insn_length (guint8 * code)
   guint result;
   cs_insn * insn;
 
-  insn = disassemble_instruction_at (code);
+  insn = gum_x86_reader_disassemble_instruction_at (code);
   if (insn == NULL)
     return 0;
   result = insn->size;
@@ -74,7 +73,7 @@ gum_x86_reader_try_get_indirect_jump_target (gconstpointer address)
   cs_insn * insn;
   cs_x86_op * op;
 
-  insn = disassemble_instruction_at (address);
+  insn = gum_x86_reader_disassemble_instruction_at (address);
   if (insn == NULL)
     return NULL;
 
@@ -105,7 +104,7 @@ try_get_relative_call_or_jump_target (gconstpointer address,
   cs_insn * insn;
   cs_x86_op * op;
 
-  insn = disassemble_instruction_at (address);
+  insn = gum_x86_reader_disassemble_instruction_at (address);
   if (insn == NULL)
     return NULL;
 
@@ -118,8 +117,8 @@ try_get_relative_call_or_jump_target (gconstpointer address,
   return result;
 }
 
-static cs_insn *
-disassemble_instruction_at (gconstpointer address)
+cs_insn *
+gum_x86_reader_disassemble_instruction_at (gconstpointer address)
 {
   csh capstone;
   cs_insn * insn = NULL;

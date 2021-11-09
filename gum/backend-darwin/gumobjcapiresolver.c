@@ -2,6 +2,7 @@
  * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C)      2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,6 +30,7 @@ struct _GumObjcApiResolver
   GHashTable * class_by_handle;
 
   gint (* objc_getClassList) (Class * buffer, gint class_count);
+  Class (* objc_lookUpClass) (const gchar * name);
   Class (* class_getSuperclass) (Class klass);
   const gchar * (* class_getName) (Class klass);
   Method * (* class_copyMethodList) (Class klass, guint * method_count);
@@ -76,6 +78,8 @@ static GHashTable * gum_objc_api_resolver_create_snapshot (
 static void gum_objc_class_metadata_free (GumObjcClassMetadata * klass);
 static const Method * gum_objc_class_metadata_get_methods (
     GumObjcClassMetadata * self, gchar type, guint * count);
+static gboolean gum_objc_class_metadata_is_disposed (
+    GumObjcClassMetadata * self);
 
 G_DEFINE_TYPE_EXTENDED (GumObjcApiResolver,
                         gum_objc_api_resolver,
@@ -125,6 +129,7 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
       goto beach
 
   GUM_TRY_ASSIGN_OBJC_FUNC (objc_getClassList);
+  GUM_TRY_ASSIGN_OBJC_FUNC (objc_lookUpClass);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getSuperclass);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getName);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_copyMethodList);
@@ -204,6 +209,12 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
   {
     const gchar * class_name = klass->name;
     gchar * class_name_copy = NULL;
+
+    if (gum_objc_class_metadata_is_disposed (klass))
+    {
+      g_hash_table_iter_remove (&iter);
+      continue;
+    }
 
     if (ignore_case)
     {
@@ -311,7 +322,11 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
     GumObjcClassMetadata * subclass;
 
     subclass = g_hash_table_lookup (self->class_by_handle, subclass_handle);
-    g_assert (subclass != NULL);
+    if (subclass == NULL)
+      continue;
+
+    if (gum_objc_class_metadata_is_disposed (subclass))
+      continue;
 
     carry_on = gum_objc_api_resolver_enumerate_matches_for_class (self,
         subclass, method_type, method_spec, visited_classes, ignore_case, func,
@@ -321,6 +336,58 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
   }
 
   return TRUE;
+}
+
+gchar *
+gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
+                                              GumAddress address)
+{
+  GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
+  GHashTableIter iter;
+  GumObjcClassMetadata * klass;
+
+  g_hash_table_iter_init (&iter, self->class_by_handle);
+
+  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
+  {
+    const gchar all_method_types[] = { '+', '-', '\0' };
+    const gchar * t;
+
+    if (gum_objc_class_metadata_is_disposed (klass))
+    {
+      g_hash_table_iter_remove (&iter);
+      continue;
+    }
+
+    for (t = all_method_types; *t != '\0'; t++)
+    {
+      const Method * method_handles;
+      guint count, i;
+
+      method_handles = gum_objc_class_metadata_get_methods (klass, *t, &count);
+
+      for (i = 0; i != count; i++)
+      {
+        Method handle = method_handles[i];
+        GumAddress imp;
+
+        imp = GUM_ADDRESS (self->method_getImplementation (handle));
+
+        if (imp == address)
+        {
+          const gchar * name;
+          const gchar prefix[3] = { *t, '[', '\0' };
+          const gchar suffix[2] = { ']', '\0' };
+
+          name = self->sel_getName (self->method_getName (handle));
+
+          return g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
+        }
+      }
+    }
+  }
+
+  return NULL;
 }
 
 static gchar
@@ -401,7 +468,8 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
       GumObjcClassMetadata * klass;
 
       klass = g_hash_table_lookup (class_by_handle, super_handle);
-      klass->subclasses = g_slist_prepend (klass->subclasses, handle);
+      if (klass != NULL)
+        klass->subclasses = g_slist_prepend (klass->subclasses, handle);
     }
   }
 
@@ -457,48 +525,11 @@ gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
   return *cached_methods;
 }
 
-gchar *
-gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
-                                              GumAddress address)
+static gboolean
+gum_objc_class_metadata_is_disposed (GumObjcClassMetadata * self)
 {
-  GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
-  GHashTableIter iter;
-  GumObjcClassMetadata * klass;
+  GumObjcApiResolver * resolver = self->resolver;
 
-  g_hash_table_iter_init (&iter, self->class_by_handle);
-
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
-  {
-    const gchar all_method_types[] = { '+', '-', '\0' };
-    const gchar * t;
-
-    for (t = all_method_types; *t != '\0'; t++)
-    {
-      const Method * method_handles;
-      guint count, i;
-
-      method_handles = gum_objc_class_metadata_get_methods (klass, *t, &count);
-
-      for (i = 0; i != count; i++)
-      {
-        Method handle = method_handles[i];
-        GumAddress imp;
-
-        imp = GUM_ADDRESS (self->method_getImplementation (handle));
-
-        if (imp == address)
-        {
-          const gchar * name;
-          const gchar prefix[3] = { *t, '[', '\0' };
-          const gchar suffix[2] = { ']', '\0' };
-
-          name = self->sel_getName (self->method_getName (handle));
-
-          return g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
-        }
-      }
-    }
-  }
-
-  return NULL;
+  return resolver->objc_lookUpClass (self->name) != self->handle;
 }
+

@@ -74,6 +74,7 @@ static gboolean gum_x86_writer_put_short_jmp (GumX86Writer * self,
     gconstpointer target);
 static gboolean gum_x86_writer_put_near_jmp (GumX86Writer * self,
     gconstpointer target);
+static void gum_x86_writer_put_ud2 (GumX86Writer * self);
 static void gum_x86_writer_describe_cpu_reg (GumX86Writer * self,
     GumCpuReg reg, GumCpuRegInfo * ri);
 
@@ -1071,9 +1072,11 @@ gum_x86_writer_put_jmp_address (GumX86Writer * self,
 
       self->code[0] = 0xff;
       self->code[1] = 0x25;
-      *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-      *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (address);
-      gum_x86_writer_commit (self, 14);
+      *((gint32 *) (self->code + 2)) = GINT32_TO_LE (2); /* RIP + 2 */
+      self->code[6] = 0x0f;
+      self->code[7] = 0x0b;
+      *((guint64 *) (self->code + 8)) = GUINT64_TO_LE (address);
+      gum_x86_writer_commit (self, 16);
     }
   }
 
@@ -1116,11 +1119,15 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
     if (self->target_cpu != GUM_CPU_AMD64)
       return FALSE;
 
-    self->code[0] = 0xff;
+    self->code[0] = 0xff;                               /* JMP [RIP + 2] */
     self->code[1] = 0x25;
-    *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-    *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (GPOINTER_TO_SIZE (target));
-    gum_x86_writer_commit (self, 14);
+    *((gint32 *) (self->code + 2)) = GINT32_TO_LE (2);  /* RIP + 2 */
+
+    self->code[6] = 0x0f;                               /* UD2 */
+    self->code[7] = 0x0b;
+
+    *((guint64 *) (self->code + 8)) = GUINT64_TO_LE (GPOINTER_TO_SIZE (target));
+    gum_x86_writer_commit (self, 16);
   }
 
   return TRUE;
@@ -1168,6 +1175,8 @@ gum_x86_writer_put_jmp_reg (GumX86Writer * self,
   self->code[1] = 0xe0 | ri.index;
   gum_x86_writer_commit (self, 2);
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
 }
 
@@ -1199,6 +1208,8 @@ gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
 
   if (ri.meta == GUM_META_REG_XSP)
     gum_x86_writer_put_u8 (self, 0x24);
+
+  gum_x86_writer_put_ud2 (self);
 
   return TRUE;
 }
@@ -1246,6 +1257,8 @@ gum_x86_writer_put_jmp_reg_offset_ptr (GumX86Writer * self,
     gum_x86_writer_commit (self, 4);
   }
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
 }
 
@@ -1272,7 +1285,29 @@ gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
 
   gum_x86_writer_commit (self, 6);
 
+  gum_x86_writer_put_ud2 (self);
+
   return TRUE;
+}
+
+/*
+ * This instruction causes a UD exception when executed, which isn't very
+ * useful, however its presence also stalls the branch predictor. e.g. if the
+ * CPU encounters a `JMP [reg]` instruction, and there is no entry in its branch
+ * target buffer (cache of previous branches) it will assume that execution
+ * continues with the next instruction (which is where compilers will typically
+ * place the most common branch of a switch statement). However, in most cases
+ * (e.g. Stalker) such indirect branches will typically be used to divert
+ * control flow to an address which can only be determined at runtime. As such
+ * by following these branches with `UD2`, we can prevent the speculative
+ * execution of subsequent instructions and hence the overhead of unwinding
+ * them.
+ */
+static void
+gum_x86_writer_put_ud2 (GumX86Writer * self)
+{
+  gum_x86_writer_put_u8 (self, 0x0f);
+  gum_x86_writer_put_u8 (self, 0x0b);
 }
 
 gboolean
@@ -2879,12 +2914,73 @@ gum_x86_writer_put_padding (GumX86Writer * self,
   gum_x86_writer_commit (self, n);
 }
 
+/*
+ * Whilst the 0x90 opcode for NOP is commonly known, the Intel Optimization
+ * Manual actually lists a number of different NOP instructions ranging from
+ * one to nine bytes in length. By using longer NOP instructions, we can more
+ * efficiently pad unused space with the processor being able to skip more
+ * bytes per execution cycle.
+ */
 void
 gum_x86_writer_put_nop_padding (GumX86Writer * self,
                                 guint n)
 {
-  gum_memset (self->code, 0x90, n);
-  gum_x86_writer_commit (self, n);
+  static const struct {
+    guint8 one[1];
+    guint8 two[2];
+    guint8 three[3];
+    guint8 four[4];
+    guint8 five[5];
+    guint8 six[6];
+    guint8 seven[7];
+    guint8 eight[8];
+    guint8 nine[9];
+  } nops = {
+    /* NOP */
+    .one =   { 0x90 },
+    /* 66 NOP */
+    .two =   { 0x66, 0x90 },
+    /* NOP DWORD ptr [EAX] */
+    .three = { 0x0f, 0x1f, 0x00 },
+    /* NOP DWORD ptr [EAX + 00H] */
+    .four =  { 0x0f, 0x1f, 0x40, 0x00 },
+    /* NOP DWORD ptr [EAX + EAX*1 + 00H] */
+    .five =  { 0x0f, 0x1f, 0x44, 0x00, 0x00 },
+    /* 66 NOP DWORD ptr [EAX + EAX*1 + 00H] */
+    .six =   { 0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00 },
+    /* NOP DWORD ptr [EAX + 00000000H] */
+    .seven = { 0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00 },
+    /* NOP DWORD ptr [EAX + EAX*1 + 00000000H] */
+    .eight = { 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    /* 66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] */
+    .nine =  { 0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+  };
+  static const guint8 * nop_index[9] = {
+    nops.one,
+    nops.two,
+    nops.three,
+    nops.four,
+    nops.five,
+    nops.six,
+    nops.seven,
+    nops.eight,
+    nops.nine,
+  };
+  static const guint max_nop = G_N_ELEMENTS (nop_index);
+  guint remaining;
+
+  for (remaining = n; remaining != 0; remaining -= max_nop)
+  {
+    if (remaining < max_nop)
+    {
+      gum_memcpy (self->code, nop_index[remaining - 1], remaining);
+      gum_x86_writer_commit (self, remaining);
+      break;
+    }
+
+    gum_memcpy (self->code, nop_index[max_nop - 1], max_nop);
+    gum_x86_writer_commit (self, max_nop);
+  }
 }
 
 void
