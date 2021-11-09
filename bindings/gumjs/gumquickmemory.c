@@ -966,7 +966,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   sc.ctx = ctx;
   sc.core = core;
 
-  /* TODO: When to free? */
   JS_DupValue (ctx, sc.on_match);
   JS_DupValue (ctx, sc.on_error);
   JS_DupValue (ctx, sc.on_complete);
