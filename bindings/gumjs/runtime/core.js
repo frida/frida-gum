@@ -211,20 +211,31 @@ Object.defineProperties(Memory, {
   scan: {
     enumerable: true,
     value: function (address, size, pattern, callbacks) {
-      const wrappedArgs = arguments;
+      if (arguments.length < 4)
+        throw new Error('missing argument');
+
+      if (!(address instanceof NativePointer))
+        throw new Error('expected a pointer');
+
+      const isInt = Number.isInteger(size) || (size instanceof Int64) ||
+          (size instanceof UInt64);
+      const isLessThanZero = (typeof(size.toNumber) === 'function') ?
+          size.toNumber() < 0 :
+          size < 0;
+
+      if (!isInt || isLessThanZero)
+        throw new Error('expected an unsigned integer');
+
+      if (typeof(pattern) !== 'string' && !(pattern instanceof MatchPattern))
+        throw new Error('expected either a pattern string or a MatchPattern object');
+
+      if (typeof(callbacks) !== 'object')
+        throw new Error('expected an object containing callbacks');
+
+      if (!callbacks.hasOwnProperty('onMatch'))
+        throw new Error('expected a callback value');
 
       return new Promise(function (resolve, reject) {
-        if (wrappedArgs.length < 4) {
-          reject(new Error('missing argument'));
-          return;
-        }
-
-        if (typeof(callbacks) !== 'object') {
-          reject(new Error('expected an object containing callbacks'));
-          return;
-        }
-
-        try {
           Memory._scan(address, size, pattern, {
             onMatch: callbacks.onMatch,
             onComplete: () => {
@@ -236,9 +247,6 @@ Object.defineProperties(Memory, {
               reject(new Error(reason));
             }
           });
-        } catch (e) {
-          reject(e);
-        }
       });
     }
   }

@@ -6342,37 +6342,40 @@ TESTCASE (memory_scan_handles_unreadable_memory)
 
 TESTCASE (memory_scan_handles_bad_arguments)
 {
-  COMPILE_AND_LOAD_SCRIPT ("Memory.scan().catch((e) => send(e.message));");
-  EXPECT_SEND_MESSAGE_WITH ("\"missing argument\"");
+  COMPILE_AND_LOAD_SCRIPT ("Memory.scan();");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: missing argument");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(0x1337, 7, '13 37', {"
-        "onMatch(address, size) {}, onComplete() {}"
-      "}).catch(e => send(e.message));");
-  EXPECT_SEND_MESSAGE_WITH ("\"expected a pointer\"");
+      "  onMatch(address, size) {}, onComplete() {}"
+      "});");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: expected a pointer");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(0x1337), -7, '13 37', {"
-        "onMatch(address, size) {}, onComplete() {}"
-      "}).catch(e => send(e.message));");
-  EXPECT_SEND_MESSAGE_WITH ("\"expected an unsigned integer\"");
+      "  onMatch(address, size) {}, onComplete() {}"
+      "});");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: expected an unsigned integer");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(0x1337), 7, 0xbadcafe, {"
         "onMatch(address, size) {},"
         "onComplete() {}"
-      "}).catch(e => send(e.message));");
-  EXPECT_SEND_MESSAGE_WITH (
-      "\"expected either a pattern string or a MatchPattern object\"");
+      "});");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: expected either a pattern string or a MatchPattern object");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Memory.scan(ptr(0x1337), 7, '13 37', 'non-object').catch(e => send(e.message));");
-  EXPECT_SEND_MESSAGE_WITH ("\"expected an object containing callbacks\"");
+      "Memory.scan(ptr(0x1337), 7, '13 37', 'non-object');");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: expected an object containing callbacks");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Memory.scan(ptr(0x1337), 7, '13 37', { onComplete() {} }).catch(e => send(e.message));"
+      "Memory.scan(ptr(0x1337), 7, '13 37', { onComplete() {} });"
   );
-  EXPECT_SEND_MESSAGE_WITH ("\"expected a callback value\"");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: expected a callback value");
 }
 
 TESTCASE (memory_access_can_be_monitored)
