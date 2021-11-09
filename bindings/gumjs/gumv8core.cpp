@@ -3452,10 +3452,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
 }
 
 static GumV8MatchPattern *
-gum_v8_match_pattern_new (
-    Local<Object> wrapper,
-    GumMatchPattern * handle,
-    GumV8Core * core)
+gum_v8_match_pattern_new (Local<Object> wrapper,
+                          GumMatchPattern * handle,
+                          GumV8Core * core)
 {
   auto pattern = g_slice_new (GumV8MatchPattern);
 

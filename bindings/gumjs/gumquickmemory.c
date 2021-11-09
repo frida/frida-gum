@@ -932,9 +932,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf16_string)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 {
-  GumMemoryScanContext sc;
   gpointer address;
   gsize size;
+  GumMemoryScanContext sc;
   JSValue callbacks;
 
   if (args->count < 4)

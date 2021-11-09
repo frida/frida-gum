@@ -118,7 +118,6 @@ struct GumV8Core
 
   GumPersistent<v8::FunctionTemplate>::type * source_map;
 
-  // TODO: how to finalize / release?
   GumPersistent<v8::FunctionTemplate>::type * match_pattern;
 };
 
