@@ -3735,10 +3735,14 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
   cw = &ctx->code_writer;
   gum_x86_writer_reset (cw, code_start);
 
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP, GUM_REG_XSP,
+      -sizeof (gpointer));
   gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (ret_real_address));
-  gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_REG_XSP, sizeof (gpointer),
+      GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
 
   gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (target));
 
@@ -4503,9 +4507,14 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     gum_exec_ctx_write_epilog (block->ctx, GUM_PROLOG_IC, cw);
 
     /* Push the real return address */
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP, GUM_REG_XSP,
+        -sizeof (gpointer));
     gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
-    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX, ret_real_address);
-    gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+        GUM_ADDRESS (ret_real_address));
+    gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_REG_XSP,
+        sizeof (gpointer), GUM_REG_XAX);
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
 
     gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (ic_match));
   }
@@ -4577,9 +4586,17 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   /* Execute the generated code */
   gum_exec_block_close_prolog (block, gc, cws);
+
+  /* Push the real return address */
+  gum_x86_writer_put_lea_reg_reg_offset (cws, GUM_REG_XSP, GUM_REG_XSP,
+      -sizeof (gpointer));
   gum_x86_writer_put_push_reg (cws, GUM_REG_XAX);
-  gum_x86_writer_put_mov_reg_address (cws, GUM_REG_XAX, ret_real_address);
-  gum_x86_writer_put_xchg_reg_reg_ptr (cws, GUM_REG_XAX, GUM_REG_XSP);
+  gum_x86_writer_put_mov_reg_address (cws, GUM_REG_XAX,
+      GUM_ADDRESS (ret_real_address));
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cws, GUM_REG_XSP,
+      sizeof (gpointer), GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (cws, GUM_REG_XAX);
+
   gum_x86_writer_put_jmp_near_ptr (cws, GUM_ADDRESS (&block->ctx->resume_at));
 }
 
