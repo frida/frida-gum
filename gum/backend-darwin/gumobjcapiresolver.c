@@ -7,8 +7,11 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#include "guminterceptor.h"
+
 #include "gumobjcapiresolver.h"
 #include "gumobjcapiresolver-priv.h"
+#include "gumobjcdisposeclasspairmonitor.h"
 
 #include "gumprocess.h"
 
@@ -28,6 +31,8 @@ struct _GumObjcApiResolver
 
   gboolean available;
   GHashTable * class_by_handle;
+
+  GumObjcDisposeClassPairMonitor * monitor;
 
   gint (* objc_getClassList) (Class * buffer, gint class_count);
   Class (* objc_lookUpClass) (const gchar * name);
@@ -59,6 +64,8 @@ struct _GumObjcClassMetadata
 static void gum_objc_api_resolver_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_objc_api_resolver_finalize (GObject * object);
+static void gum_objc_api_resolver_ensure_class_by_handle (
+    GumObjcApiResolver * self);
 static void gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
     const gchar * query, GumFoundApiFunc func, gpointer user_data,
     GError ** error);
@@ -138,8 +145,11 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
   GUM_TRY_ASSIGN_OBJC_FUNC (method_getImplementation);
   GUM_TRY_ASSIGN_OBJC_FUNC (sel_getName);
 
+  self->monitor = gum_objc_dispose_class_pair_monitor_obtain ();
+
   self->available = TRUE;
-  self->class_by_handle = gum_objc_api_resolver_create_snapshot (self);
+
+  self->class_by_handle = NULL;
 
 beach:
   if (objc != NULL)
@@ -150,6 +160,8 @@ static void
 gum_objc_api_resolver_finalize (GObject * object)
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (object);
+
+  g_object_unref (self->monitor);
 
   g_clear_pointer (&self->class_by_handle, g_hash_table_unref);
 
@@ -171,6 +183,17 @@ gum_objc_api_resolver_new (void)
   }
 
   return GUM_API_RESOLVER (resolver);
+}
+
+static void
+gum_objc_api_resolver_ensure_class_by_handle (GumObjcApiResolver * self)
+{
+  g_rec_mutex_lock (&self->monitor->mutex);
+
+  if (self->class_by_handle == NULL)
+    self->class_by_handle = gum_objc_api_resolver_create_snapshot (self);
+
+  g_rec_mutex_unlock (&self->monitor->mutex);
 }
 
 static void
@@ -201,6 +224,8 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
   method_spec = gum_pattern_spec_from_match_info (query_info, 3, ignore_case);
 
   g_match_info_free (query_info);
+
+  gum_objc_api_resolver_ensure_class_by_handle (self);
 
   g_hash_table_iter_init (&iter, self->class_by_handle);
   carry_on = TRUE;
@@ -343,23 +368,35 @@ gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
                                               GumAddress address)
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
-  GHashTableIter iter;
-  GumObjcClassMetadata * klass;
+  gchar * result = NULL;
+  gint class_count, class_index;
+  Class * classes;
 
-  g_hash_table_iter_init (&iter, self->class_by_handle);
+  g_rec_mutex_lock (&self->monitor->mutex);
 
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
+  class_count = self->objc_getClassList (NULL, 0);
+  classes = g_malloc (class_count * sizeof (Class));
+  self->objc_getClassList (classes, class_count);
+
+  for (class_index = 0;
+      class_index != class_count && result == NULL;
+      class_index++)
   {
-    const gchar all_method_types[] = { '+', '-', '\0' };
+    Class handle = classes[class_index];
+    GumObjcClassMetadata * klass;
     const gchar * t;
+    const gchar all_method_types[] = { '+', '-', '\0' };
 
-    if (gum_objc_class_metadata_is_disposed (klass))
-    {
-      g_hash_table_iter_remove (&iter);
-      continue;
-    }
+    klass = g_slice_new (GumObjcClassMetadata);
+    klass->handle = handle;
+    klass->name = self->class_getName (handle);
+    klass->class_methods = NULL;
+    klass->instance_methods = NULL;
+    klass->subclasses = NULL;
 
-    for (t = all_method_types; *t != '\0'; t++)
+    klass->resolver = self;
+
+    for (t = all_method_types; *t != '\0' && result == NULL; t++)
     {
       const Method * method_handles;
       guint count, i;
@@ -381,13 +418,20 @@ gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
 
           name = self->sel_getName (self->method_getName (handle));
 
-          return g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
+          result = g_strconcat (prefix, klass->name, " ", name, suffix, NULL);
+          break;
         }
       }
     }
+
+    gum_objc_class_metadata_free (klass);
   }
 
-  return NULL;
+  g_rec_mutex_unlock (&self->monitor->mutex);
+
+  g_free (classes);
+
+  return result;
 }
 
 static gchar
