@@ -2950,8 +2950,11 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
     {
       gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
           GUM_REG_XSP, -GUM_RED_ZONE_SIZE);
-      gum_x86_writer_put_pushfx (cw);
+
       gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+      gum_x86_writer_put_lahf (cw);
+      gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+
       gum_x86_writer_put_push_reg (cw, GUM_REG_XBX);
       gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBX, GUM_REG_XSP);
 
@@ -2995,8 +2998,11 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
     case GUM_PROLOG_IC:
     {
       gum_x86_writer_put_pop_reg (cw, GUM_REG_XBX);
+
       gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
-      gum_x86_writer_put_popfx (cw);
+      gum_x86_writer_put_sahf (cw);
+      gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+
       gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XSP,
           GUM_ADDRESS (&ctx->app_stack));
 
@@ -3510,7 +3516,7 @@ gum_exec_ctx_load_real_register_from_ic_frame_into (GumExecCtx * ctx,
   if (source_meta == GUM_REG_XAX)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register, GUM_REG_XBX,
-        sizeof (gpointer));
+        2 * sizeof (gpointer));
   }
   else if (source_meta == GUM_REG_XBX)
   {
