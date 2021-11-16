@@ -94,6 +94,8 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   /* Get the raw addresses */
   RtlCaptureContext (&context);
 
+  
+
   frame.AddrPC.Mode = AddrModeFlat;
   frame.AddrFrame.Mode = AddrModeFlat;
   frame.AddrStack.Mode = AddrModeFlat;
@@ -101,7 +103,8 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
 #if GLIB_SIZEOF_VOID_P == 4
-    context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
+    //context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
+    context.Eip = cpu_context->eip;
 
     context.Edi = cpu_context->edi;
     context.Esi = cpu_context->esi;
@@ -116,7 +119,8 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrFrame.Offset = cpu_context->ebp;
     frame.AddrStack.Offset = cpu_context->esp;
 #else
-    context.Rip = *((gsize *) GSIZE_TO_POINTER (cpu_context->rsp));
+    //context.Rip = *((gsize *) GSIZE_TO_POINTER (cpu_context->rsp));
+    context.Rip = cpu_context->rip;
 
     context.R15 = cpu_context->r15;
     context.R14 = cpu_context->r14;
@@ -165,9 +169,12 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   current_process = GetCurrentProcess ();
   current_thread = GetCurrentThread ();
 
+  invocation_stack = gum_interceptor_get_current_stack();
+
   dbghelp->Lock ();
 
   depth = MIN (limit, GUM_MAX_BACKTRACE_DEPTH);
+
 
   for (i = 0; i < depth + skip_count; i++)
   {
@@ -199,6 +206,22 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
       {
         g_assert (return_addresses->len <
             G_N_ELEMENTS (return_addresses->items));
+
+        gpointer AddrPC = GSIZE_TO_POINTER(frame.AddrPC.Offset);
+
+        gpointer TranslatedAddrPC = gum_invocation_stack_translate(
+            invocation_stack, AddrPC);
+
+        if (AddrPC != TranslatedAddrPC)
+        {
+#if GLIB_SIZEOF_VOID_P == 4
+            context.Eip = GPOINTER_TO_SIZE(TranslatedAddrPC);
+#else
+            context.Rip = GPOINTER_TO_SIZE(TranslatedAddrPC);
+#endif
+            frame.AddrPC.Offset = GPOINTER_TO_SIZE(TranslatedAddrPC);
+        }
+
         return_addresses->items[return_addresses->len++] =
             GSIZE_TO_POINTER (frame.AddrPC.Offset);
       }
@@ -208,9 +231,16 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   dbghelp->Unlock ();
 
   invocation_stack = gum_interceptor_get_current_stack ();
-  for (i = 0; i != return_addresses->len; i++)
+
+  if (return_addresses->len >= 2)
   {
-    return_addresses->items[i] = gum_invocation_stack_translate (
-        invocation_stack, return_addresses->items[i]);
+    for (i = 1; i != return_addresses->len; i++)
+    {
+      return_addresses->items[i - 1] = gum_invocation_stack_translate(
+          invocation_stack, return_addresses->items[i]);
+    }
   }
+
+  if (return_addresses->len)
+      return_addresses->len--;
 }
