@@ -972,6 +972,9 @@ _gum_v8_core_dispose (GumV8Core * self)
   g_hash_table_unref (self->source_maps);
   self->source_maps = NULL;
 
+  g_hash_table_unref (self->match_patterns);
+  self->match_patterns = NULL;
+
   g_hash_table_unref (self->kernel_resources);
   self->kernel_resources = NULL;
   g_hash_table_unref (self->native_resources);
