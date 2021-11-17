@@ -146,11 +146,11 @@ static void gum_memory_scan_context_run (GumMemoryScanContext * self);
 static gboolean gum_memory_scan_context_emit_match (GumAddress address,
     gsize size, GumMemoryScanContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
+static gboolean gum_append_match (GumAddress address, gsize size,
+    GumMemoryScanSyncContext * sc);
 static gboolean gum_parse_memory_scan_args (JSContext * ctx,
     const GumQuickArgs * args, gpointer * address, gsize * size,
     GumMatchPattern ** pattern);
-static gboolean gum_append_match (GumAddress address, gsize size,
-    GumMemoryScanSyncContext * sc);
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
@@ -1129,6 +1129,29 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 }
 
 static gboolean
+gum_append_match (GumAddress address,
+                  gsize size,
+                  GumMemoryScanSyncContext * sc)
+{
+  JSContext * ctx = sc->ctx;
+  GumQuickCore * core = sc->core;
+  JSValue m;
+
+  m = JS_NewObject (ctx);
+  JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, address),
+      _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, size),
+      JS_NewUint32 (ctx, size),
+      JS_PROP_C_W_E);
+
+  JS_DefinePropertyValueUint32 (ctx, sc->matches, sc->index, m, JS_PROP_C_W_E);
+  sc->index++;
+
+  return TRUE;
+}
+
+static gboolean
 gum_parse_memory_scan_args (JSContext * ctx,
                             const GumQuickArgs * args,
                             gpointer * address,
@@ -1181,29 +1204,6 @@ invalid_type:
         "expected either a pattern string or a MatchPattern object");
     return FALSE;
   }
-}
-
-static gboolean
-gum_append_match (GumAddress address,
-                  gsize size,
-                  GumMemoryScanSyncContext * sc)
-{
-  JSContext * ctx = sc->ctx;
-  GumQuickCore * core = sc->core;
-  JSValue m;
-
-  m = JS_NewObject (ctx);
-  JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, address),
-      _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core),
-      JS_PROP_C_W_E);
-  JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, size),
-      JS_NewUint32 (ctx, size),
-      JS_PROP_C_W_E);
-
-  JS_DefinePropertyValueUint32 (ctx, sc->matches, sc->index, m, JS_PROP_C_W_E);
-  sc->index++;
-
-  return TRUE;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
