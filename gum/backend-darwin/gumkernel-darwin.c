@@ -705,12 +705,12 @@ gum_kernel_do_find_base_address (void)
   if (base == 0)
   {
     version = gum_kernel_get_version ();
-    if (version >= 16.0) // iOS 10.0+
+    if (version >= 16.0) /* iOS 10.0+ */
     {
       base = gum_kernel_bruteforce_base (
           G_GUINT64_CONSTANT (0xfffffff007004000));
     }
-    else if (version >= 15.0) // iOS 9.0+
+    else if (version >= 15.0) /* iOS 9.0+ */
     {
       base = gum_kernel_bruteforce_base (
           G_GUINT64_CONSTANT (0xffffff8004004000));
