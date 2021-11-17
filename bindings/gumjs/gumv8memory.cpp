@@ -140,11 +140,11 @@ static void gum_memory_scan_context_run (GumMemoryScanContext * self);
 static gboolean gum_memory_scan_context_emit_match (GumAddress address,
     gsize size, GumMemoryScanContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
-static gboolean gum_memory_scan_args_parse (GumV8Core * core,
-    const FunctionCallbackInfo<Value> & info, gpointer * address, gsize * size,
-    GumMatchPattern ** pattern);
 static gboolean gum_append_match (GumAddress address, gsize size,
     GumMemoryScanSyncContext * ctx);
+static gboolean gum_parse_memory_scan_args (GumV8Core * core,
+    const FunctionCallbackInfo<Value> & info, gpointer * address, gsize * size,
+    GumMatchPattern ** pattern);
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
@@ -923,7 +923,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
     return;
   }
 
-  if (!gum_memory_scan_args_parse (core, info, &address, &size, &pattern))
+  if (!gum_parse_memory_scan_args (core, info, &address, &size, &pattern))
     return;
 
   if (!info[3]->IsObject ())
@@ -1088,7 +1088,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
     return;
   }
 
-  if (!gum_memory_scan_args_parse (core, info, &address, &size, &pattern))
+  if (!gum_parse_memory_scan_args (core, info, &address, &size, &pattern))
     return;
 
   GumMemoryRange range;
@@ -1120,7 +1120,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 }
 
 static gboolean
-gum_memory_scan_args_parse (GumV8Core * core,
+gum_append_match (GumAddress address,
+                  gsize size,
+                  GumMemoryScanSyncContext * ctx)
+{
+  GumV8Core * core = ctx->core;
+
+  auto match = Object::New (core->isolate);
+  _gum_v8_object_set_pointer (match, "address", address, core);
+  _gum_v8_object_set_uint (match, "size", size, core);
+  ctx->matches->Set (core->isolate->GetCurrentContext (),
+      ctx->matches->Length (), match).ToChecked ();
+
+  return TRUE;
+}
+
+static gboolean
+gum_parse_memory_scan_args (GumV8Core * core,
                             const FunctionCallbackInfo<Value> & info,
                             gpointer * address,
                             gsize * size,
@@ -1158,22 +1174,6 @@ gum_memory_scan_args_parse (GumV8Core * core,
         "invalid match pattern");
     return FALSE;
   }
-
-  return TRUE;
-}
-
-static gboolean
-gum_append_match (GumAddress address,
-                  gsize size,
-                  GumMemoryScanSyncContext * ctx)
-{
-  GumV8Core * core = ctx->core;
-
-  auto match = Object::New (core->isolate);
-  _gum_v8_object_set_pointer (match, "address", address, core);
-  _gum_v8_object_set_uint (match, "size", size, core);
-  ctx->matches->Set (core->isolate->GetCurrentContext (),
-      ctx->matches->Length (), match).ToChecked ();
 
   return TRUE;
 }
