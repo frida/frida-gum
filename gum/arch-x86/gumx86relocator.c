@@ -544,8 +544,8 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
           target, GUM_NO_HINT);
     }
     else if (ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ ||
-             !gum_x86_writer_put_jcc_near (ctx->code_writer, ctx->insn->id,
-             target, GUM_NO_HINT))
+        !gum_x86_writer_put_jcc_near (ctx->code_writer, ctx->insn->id, target,
+          GUM_NO_HINT))
     {
       gsize unique_id = GPOINTER_TO_SIZE (ctx->code_writer->code) << 1;
       gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
