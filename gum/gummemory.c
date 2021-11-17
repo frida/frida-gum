@@ -57,8 +57,7 @@ static void gum_memory_scan_raw (const GumMemoryRange * range,
     const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
     gpointer user_data);
 static void gum_memory_scan_regex (const GumMemoryRange * range,
-    const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
-    gpointer user_data);
+    const GRegex * regex, GumMemoryScanMatchFunc func, gpointer user_data);
 static GumMatchPattern * gum_match_pattern_new_from_hexstring (
     const gchar * match_combined_str);
 static GumMatchPattern * gum_match_pattern_new_from_regex (
@@ -303,7 +302,7 @@ gum_memory_scan (const GumMemoryRange * range,
   if (pattern->regex == NULL)
     gum_memory_scan_raw (range, pattern, func, user_data);
   else
-    gum_memory_scan_regex (range, pattern, func, user_data);
+    gum_memory_scan_regex (range, pattern->regex, func, user_data);
 }
 
 static void
@@ -367,14 +366,13 @@ gum_memory_scan_raw (const GumMemoryRange * range,
 
 static void
 gum_memory_scan_regex (const GumMemoryRange * range,
-                       const GumMatchPattern * pattern,
+                       const GRegex * regex,
                        GumMemoryScanMatchFunc func,
                        gpointer user_data)
 {
   GMatchInfo * info;
 
-  g_regex_match (pattern->regex, (const gchar *) range->base_address, 0,
-      &info);
+  g_regex_match (regex, (const gchar *) range->base_address, 0, &info);
 
   while (g_match_info_matches (info))
   {
