@@ -941,22 +941,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   if (args->count < 4)
     return _gum_quick_throw_literal (ctx, "missing argument");
 
-  if (!gum_memory_scan_args_parse (ctx, core, args, &address, &size,
-      &sc.pattern))
+  if (!gum_memory_scan_args_parse (ctx, args, &address, &size, &sc.pattern))
     return JS_EXCEPTION;
 
   callbacks = args->elements[3];
-
   if (!JS_IsObject (callbacks))
-  {
-    return _gum_quick_throw_literal (ctx,
-        "expected an object containing callbacks");
-  }
+    goto invalid_callbacks_object;
 
   sc.on_match = JS_GetPropertyStr (ctx, callbacks, "onMatch");
-
   if (!JS_IsFunction (ctx, sc.on_match))
-    return _gum_quick_throw_literal (ctx, "expected a callback value");
+    goto missing_callback_value;
 
   sc.on_complete = JS_GetPropertyStr (ctx, callbacks, "onComplete");
   sc.on_error = JS_GetPropertyStr (ctx, callbacks, "onError");
@@ -978,6 +972,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
       (GDestroyNotify) gum_memory_scan_context_free);
 
   return JS_UNDEFINED;
+
+invalid_callbacks_object:
+  {
+    return _gum_quick_throw_literal (ctx,
+        "expected an object containing callbacks");
+  }
+missing_callback_value:
+  {
+    return _gum_quick_throw_literal (ctx, "expected a callback value");
+  }
 }
 
 static void
@@ -1085,7 +1089,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
   if (args->count < 3)
     return _gum_quick_throw_literal (ctx, "missing argument");
 
-  if (!gum_memory_scan_args_parse (ctx, core, args, &address, &size, &pattern))
+  if (!gum_memory_scan_args_parse (ctx, args, &address, &size, &pattern))
     return JS_EXCEPTION;
 
   range.base_address = GUM_ADDRESS (address);
@@ -1118,16 +1122,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 
 static gboolean
 gum_memory_scan_args_parse (JSContext * ctx,
-                            GumQuickCore * core,
                             const GumQuickArgs * args,
                             gpointer * address,
                             gsize * size,
                             GumMatchPattern ** pattern)
 {
+  const GumQuickCore * core = args->core;
   JSValue pattern_val;
 
-  if (!_gum_quick_native_pointer_get (ctx, args->elements[0], core,
-      address))
+  if (!_gum_quick_native_pointer_get (ctx, args->elements[0], core, address))
     return FALSE;
 
   if (!_gum_quick_size_get (ctx, args->elements[1], core, size))
@@ -1143,26 +1146,34 @@ gum_memory_scan_args_parse (JSContext * ctx,
       return FALSE;
 
     *pattern = gum_match_pattern_new_from_string (match_str);
+
     JS_FreeCString (ctx, match_str);
   }
   else if (JS_IsObject (pattern_val))
   {
-    *pattern = JS_GetOpaque(pattern_val, core->match_pattern_class);
+    *pattern = JS_GetOpaque (pattern_val, core->match_pattern_class);
   }
   else
+  {
+    goto invalid_type;
+  }
+
+  if (*pattern == NULL)
+    goto invalid_value;
+
+  return TRUE;
+
+invalid_type:
   {
     _gum_quick_throw_literal (ctx,
         "expected either a pattern string or a MatchPattern object");
     return FALSE;
   }
-
-  if (*pattern == NULL)
+invalid_value:
   {
     _gum_quick_throw_literal (ctx, "invalid match pattern");
     return FALSE;
   }
-
-  return TRUE;
 }
 
 static gboolean
