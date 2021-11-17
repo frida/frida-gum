@@ -323,9 +323,9 @@ gum_memory_scan_raw (const GumMemoryRange * range,
     mask_data = (guint8 *) needle->masks->data;
   }
 
-  pattern_size = gum_match_pattern_get_size (pattern);
   needle_data = (guint8 *) needle->bytes->data;
   needle_len = needle->bytes->len;
+  pattern_size = gum_match_pattern_get_size (pattern);
 
   cur = GSIZE_TO_POINTER (range->base_address);
   end_address = cur + range->size - (pattern_size - needle->offset) + 1;
