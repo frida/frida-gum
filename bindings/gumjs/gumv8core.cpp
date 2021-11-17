@@ -3318,8 +3318,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
 
   if (pattern == NULL)
   {
-      _gum_v8_throw (isolate, "invalid match pattern");
-      return;
+    _gum_v8_throw_literal (isolate, "invalid match pattern");
+    return;
   }
 
   wrapper->SetInternalField (0, External::New (isolate, pattern));
