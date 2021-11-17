@@ -315,7 +315,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   {
     if ((size % page_size) != 0)
     {
-      return _gum_quick_native_resource_new (ctx, g_malloc0 (size), g_free, core);
+      return _gum_quick_native_resource_new (ctx, g_malloc0 (size), g_free,
+          core);
     }
     else
     {

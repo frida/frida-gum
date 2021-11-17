@@ -6273,7 +6273,9 @@ TESTCASE (memory_can_be_scanned_asynchronously)
       "    send('onMatch offset=' + address.sub(" GUM_PTR_CONST ").toInt32()"
       "      + ' size=' + size);"
       "  }"
-      "})).catch(e => console.error(e.message)).then(() => send('DONE'));", haystack, haystack);
+      "}))"
+      ".catch(e => console.error(e.message))"
+      ".then(() => send('DONE'));", haystack, haystack);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"DONE\"");
