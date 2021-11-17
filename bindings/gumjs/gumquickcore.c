@@ -3951,14 +3951,14 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
   wrapper = JS_NULL;
 
   if (!_gum_quick_args_parse (args, "s", &pattern_str))
-    goto propogate_exception;
+    goto propagate_exception;
 
   proto = JS_GetProperty (ctx, new_target,
       GUM_QUICK_CORE_ATOM (core, prototype));
   wrapper = JS_NewObjectProtoClass (ctx, proto, core->match_pattern_class);
   JS_FreeValue (ctx, proto);
   if (JS_IsException (wrapper))
-    goto propogate_exception;
+    goto propagate_exception;
 
   pattern = gum_match_pattern_new_from_string (pattern_str);
   if (pattern == NULL)
@@ -3971,9 +3971,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
 invalid_match_pattern:
   {
     _gum_quick_throw_literal (ctx, "invalid match pattern");
-    goto propogate_exception;
+    goto propagate_exception;
   }
-propogate_exception:
+propagate_exception:
   {
     JS_FreeValue (ctx, wrapper);
 
