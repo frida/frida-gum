@@ -94,8 +94,6 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   /* Get the raw addresses */
   RtlCaptureContext (&context);
 
-  
-
   frame.AddrPC.Mode = AddrModeFlat;
   frame.AddrFrame.Mode = AddrModeFlat;
   frame.AddrStack.Mode = AddrModeFlat;
@@ -103,7 +101,6 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
 #if GLIB_SIZEOF_VOID_P == 4
-    //context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
     context.Eip = cpu_context->eip;
 
     context.Edi = cpu_context->edi;
@@ -119,7 +116,6 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrFrame.Offset = cpu_context->ebp;
     frame.AddrStack.Offset = cpu_context->esp;
 #else
-    //context.Rip = *((gsize *) GSIZE_TO_POINTER (cpu_context->rsp));
     context.Rip = cpu_context->rip;
 
     context.R15 = cpu_context->r15;
@@ -175,7 +171,6 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
   depth = MIN (limit, GUM_MAX_BACKTRACE_DEPTH);
 
-
   for (i = 0; i < depth + skip_count; i++)
   {
 #if GLIB_SIZEOF_VOID_P == 4
@@ -204,22 +199,21 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     {
       if (i >= skip_count)
       {
+        gpointer pc, translated_pc;
+
         g_assert (return_addresses->len <
             G_N_ELEMENTS (return_addresses->items));
 
-        gpointer AddrPC = GSIZE_TO_POINTER(frame.AddrPC.Offset);
-
-        gpointer TranslatedAddrPC = gum_invocation_stack_translate(
-            invocation_stack, AddrPC);
-
-        if (AddrPC != TranslatedAddrPC)
+        pc = GSIZE_TO_POINTER (frame.AddrPC.Offset);
+        translated_pc = gum_invocation_stack_translate (invocation_stack, pc);
+        if (translated_pc != pc)
         {
 #if GLIB_SIZEOF_VOID_P == 4
-            context.Eip = GPOINTER_TO_SIZE(TranslatedAddrPC);
+          context.Eip = GPOINTER_TO_SIZE (translated_pc);
 #else
-            context.Rip = GPOINTER_TO_SIZE(TranslatedAddrPC);
+          context.Rip = GPOINTER_TO_SIZE (translated_pc);
 #endif
-            frame.AddrPC.Offset = GPOINTER_TO_SIZE(TranslatedAddrPC);
+          frame.AddrPC.Offset = GPOINTER_TO_SIZE (translated_pc);
         }
 
         return_addresses->items[return_addresses->len++] =
@@ -229,8 +223,6 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   }
 
   dbghelp->Unlock ();
-
-  invocation_stack = gum_interceptor_get_current_stack ();
 
   if (return_addresses->len >= 2)
   {
