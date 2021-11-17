@@ -913,21 +913,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf16_string)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 {
-  gpointer address;
-  gsize size;
-  GumMatchPattern * pattern;
-
   if (info.Length () < 4)
   {
     _gum_v8_throw_ascii_literal (isolate, "missing argument");
     return;
   }
 
+  gpointer address;
+  gsize size;
+  GumMatchPattern * pattern;
   if (!gum_parse_memory_scan_args (core, info, &address, &size, &pattern))
     return;
 
   if (!info[3]->IsObject ())
   {
+    gum_match_pattern_unref (pattern);
+
     _gum_v8_throw_ascii_literal (isolate,
         "expected an object containing callbacks");
     return;
@@ -942,6 +943,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
           "onMatch")).ToLocal (&on_match_val) ||
       !on_match_val->IsFunction ())
   {
+    gum_match_pattern_unref (pattern);
+
     _gum_v8_throw_literal (isolate, "expected a callback value");
     return;
   }
@@ -950,16 +953,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
   if (callbacks_obj->Get (context, _gum_v8_string_new_ascii (isolate,
           "onComplete")).ToLocal (&on_complete_val) &&
-      !on_complete_val.IsEmpty ())
+      on_complete_val->IsFunction ())
   {
-    on_complete = on_complete_val.As <Function> ();
+    on_complete = on_complete_val.As<Function> ();
   }
 
   if (callbacks_obj->Get (context, _gum_v8_string_new_ascii (isolate,
           "onError")).ToLocal (&on_error_val) &&
-      !on_error_val.IsEmpty ())
+      on_error_val->IsFunction ())
   {
-    on_error = on_error_val.As <Function> ();
+    on_error = on_error_val.As<Function> ();
   }
 
   GumMemoryRange range;
@@ -1078,16 +1081,15 @@ gum_memory_scan_context_emit_match (GumAddress address,
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 {
-  gpointer address;
-  gsize size;
-  GumMatchPattern * pattern;
-
   if (info.Length () < 3)
   {
     _gum_v8_throw_ascii_literal (isolate, "missing argument");
     return;
   }
 
+  gpointer address;
+  gsize size;
+  GumMatchPattern * pattern;
   if (!gum_parse_memory_scan_args (core, info, &address, &size, &pattern))
     return;
 
@@ -1149,30 +1151,29 @@ gum_parse_memory_scan_args (GumV8Core * core,
     return FALSE;
 
   auto pattern_val = info[2];
-
   if (pattern_val->IsString())
   {
     String::Utf8Value pattern_utf8 (core->isolate, pattern_val);
     *pattern = gum_match_pattern_new_from_string (*pattern_utf8);
-  }
-  else if (pattern_val->IsObject())
-  {
-    auto pattern_obj = pattern_val.As<Object> ();
-    *pattern = (GumMatchPattern *)pattern_obj->GetInternalField (0)
-        .As<External> ()->Value ();
+    if (*pattern == NULL)
+    {
+      _gum_v8_throw_ascii_literal (core->isolate, "invalid match pattern");
+      return FALSE;
+    }
   }
   else
   {
-    _gum_v8_throw_ascii_literal (core->isolate,
-        "expected either a pattern string or a MatchPattern object");
-    return FALSE;
-  }
-
-  if (*pattern == nullptr)
-  {
-    _gum_v8_throw_ascii_literal (core->isolate,
-        "invalid match pattern");
-    return FALSE;
+    auto match_pattern = Local<FunctionTemplate>::New (isolate,
+        *core->match_pattern);
+    if (!match_pattern->HasInstance (pattern_val))
+    {
+      _gum_v8_throw_ascii_literal (core->isolate,
+          "expected either a pattern string or a MatchPattern object");
+      return FALSE;
+    }
+    *pattern = (GumMatchPattern *) pattern_val.As<Object> ()
+        ->GetInternalField (0).As<External> ()->Value ();
+    *pattern = gum_match_pattern_ref (*pattern);
   }
 
   return TRUE;
