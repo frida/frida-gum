@@ -6342,9 +6342,6 @@ TESTCASE (memory_scan_handles_unreadable_memory)
 
 TESTCASE (memory_scan_handles_bad_arguments)
 {
-  COMPILE_AND_LOAD_SCRIPT ("Memory.scan();");
-  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: missing argument");
-
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(0x1337, 7, '13 37', {"
       "  onMatch(address, size) {}, onComplete() {}"
@@ -6372,11 +6369,6 @@ TESTCASE (memory_scan_handles_bad_arguments)
     "});"
   );
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid match pattern");
-
-  COMPILE_AND_LOAD_SCRIPT (
-      "Memory.scan(ptr(0x1337), 7, '13 37', 'non-object');");
-  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: expected an object containing callbacks");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(0x1337), 7, '13 37', { onComplete() {} });"
