@@ -482,7 +482,7 @@ gum_kernel_scan_section (const gchar * section_name,
 
   gum_kernel_scan (&range, pattern, func, user_data);
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   return TRUE;
 }
@@ -838,7 +838,7 @@ gum_kernel_has_kld (GumAddress address)
   gum_kernel_scan (&range, pattern,
       (GumMemoryScanMatchFunc) gum_kernel_find_first_hit, &found);
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   return found;
 }

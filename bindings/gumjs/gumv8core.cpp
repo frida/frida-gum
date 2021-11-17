@@ -3346,7 +3346,7 @@ gum_v8_match_pattern_free (GumV8MatchPattern * self)
 {
   delete self->wrapper;
 
-  gum_match_pattern_free (self->handle);
+  gum_match_pattern_unref (self->handle);
 
   g_slice_free (GumV8MatchPattern, self);
 }

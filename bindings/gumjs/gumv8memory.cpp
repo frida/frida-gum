@@ -986,7 +986,7 @@ gum_memory_scan_context_free (GumMemoryScanContext * self)
 {
   auto core = self->core;
 
-  gum_match_pattern_free (self->pattern);
+  gum_match_pattern_unref (self->pattern);
 
   {
     ScriptScope script_scope (core->script);
@@ -1107,7 +1107,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
         &ctx);
   }
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   if (gum_exceptor_catch (core->exceptor, &scope))
   {

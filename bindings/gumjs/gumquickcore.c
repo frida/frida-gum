@@ -3989,7 +3989,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_match_pattern_finalize)
   if (p == NULL)
     return;
 
-  gum_match_pattern_free (p);
+  gum_match_pattern_unref (p);
 }
 
 static gboolean

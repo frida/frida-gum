@@ -47,6 +47,7 @@
 
 struct _GumMatchPattern
 {
+  gint ref_count;
   GPtrArray * tokens;
   guint size;
   GRegex * regex;
@@ -513,7 +514,7 @@ parse_error:
   {
     g_strfreev (parts);
     if (pattern != NULL)
-      gum_match_pattern_free (pattern);
+      gum_match_pattern_unref (pattern);
 
     return NULL;
   }
@@ -525,12 +526,35 @@ gum_match_pattern_new (void)
   GumMatchPattern * pattern;
 
   pattern = g_slice_new (GumMatchPattern);
+  pattern->ref_count = 1;
   pattern->tokens =
       g_ptr_array_new_with_free_func ((GDestroyNotify) gum_match_token_free);
   pattern->size = 0;
   pattern->regex = NULL;
 
   return pattern;
+}
+
+GumMatchPattern *
+gum_match_pattern_ref (GumMatchPattern * pattern)
+{
+  g_atomic_int_inc (&pattern->ref_count);
+
+  return pattern;
+}
+
+void
+gum_match_pattern_unref (GumMatchPattern * pattern)
+{
+  if (g_atomic_int_dec_and_test (&pattern->ref_count))
+  {
+    if (pattern->regex != NULL)
+      g_regex_unref (pattern->regex);
+    else
+      g_ptr_array_free (pattern->tokens, TRUE);
+
+    g_slice_free (GumMatchPattern, pattern);
+  }
 }
 
 guint
@@ -543,17 +567,6 @@ GPtrArray *
 gum_match_pattern_get_tokens (const GumMatchPattern * pattern)
 {
   return pattern->tokens;
-}
-
-void
-gum_match_pattern_free (GumMatchPattern * pattern)
-{
-  if (pattern->regex != NULL)
-    g_regex_unref (pattern->regex);
-  else
-    g_ptr_array_free (pattern->tokens, TRUE);
-
-  g_slice_free (GumMatchPattern, pattern);
 }
 
 static void

@@ -1358,7 +1358,7 @@ gum_store_dl_mutex_pointer_if_found_in_section (
         details->address + (GUM_ADDRESS (mutex_in_file) - range.base_address));
   }
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   return FALSE;
 }
@@ -1391,7 +1391,7 @@ gum_store_libdl_info_pointer_if_found_in_section (
   {
     pattern = gum_match_pattern_new_from_string ("6c 69 62 64 6c 2e 73 6f 00");
     gum_memory_scan (&range, pattern, gum_store_first_scan_match, libdl_info);
-    gum_match_pattern_free (pattern);
+    gum_match_pattern_unref (pattern);
   }
   else if (strcmp (details->name, ".bss") == 0)
   {
@@ -1471,7 +1471,7 @@ gum_find_function_by_signature (GumAddress address,
     gum_memory_scan (&range, pattern,
         (GumMemoryScanMatchFunc) gum_store_function_signature_match, &ctx);
 
-    gum_match_pattern_free (pattern);
+    gum_match_pattern_unref (pattern);
 
     if (ctx.num_matches == 1)
       return GSIZE_TO_POINTER (ctx.match + s->displacement);

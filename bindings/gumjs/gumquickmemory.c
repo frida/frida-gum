@@ -1000,7 +1000,7 @@ gum_memory_scan_context_free (GumMemoryScanContext * self)
   _gum_quick_core_unpin (core);
   _gum_quick_scope_leave (&scope);
 
-  gum_match_pattern_free (self->pattern);
+  gum_match_pattern_unref (self->pattern);
 
   g_slice_free (GumMemoryScanContext, self);
 }
@@ -1109,7 +1109,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
         &sc);
   }
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   if (gum_exceptor_catch (core->exceptor, &scope))
   {

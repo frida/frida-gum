@@ -776,7 +776,7 @@ gum_kernel_scan_context_free (GumKernelScanContext * self)
 {
   auto core = self->core;
 
-  gum_match_pattern_free (self->pattern);
+  gum_match_pattern_unref (self->pattern);
 
   {
     ScriptScope script_scope (core->script);
@@ -876,7 +876,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan_sync)
 
   info.GetReturnValue ().Set (ctx.matches);
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 }
 
 static gboolean

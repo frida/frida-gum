@@ -512,7 +512,7 @@ namespace Gum {
 	}
 
 	[Compact]
-	[CCode (free_function = "gum_match_pattern_free")]
+	[CCode (free_function = "gum_match_pattern_unref")]
 	public class MatchPattern {
 		public MatchPattern.from_string (string match_str);
 	}

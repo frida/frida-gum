@@ -188,7 +188,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 2);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 0), ==, 0x13);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 1), ==, 0x37);
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 37");
   g_assert_nonnull (pattern);
@@ -197,7 +197,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 0)->bytes->len, ==, 2);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 0), ==, 0x13);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 1), ==, 0x37);
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   pattern = gum_match_pattern_new_from_string ("1 37");
   g_assert_null (pattern);
@@ -218,7 +218,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 1, 0), ==, 0x42);
   g_assert_cmpuint (GUM_PATTERN_NTH_TOKEN (pattern, 2)->bytes->len, ==, 1);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 2, 0), ==, 0x37);
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 ? 37");
   g_assert_null (pattern);
@@ -247,7 +247,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 0), ==, 0x13);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 1, 0), ==, 0x37);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_MASK (pattern, 1, 0), ==, 0x0f);
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 37 : ff 0f");
   g_assert_nonnull (pattern);
@@ -258,7 +258,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 0), ==, 0x13);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 1, 0), ==, 0x37);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_MASK (pattern, 1, 0), ==, 0x0f);
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 ?7");
   g_assert_nonnull (pattern);
@@ -269,7 +269,7 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 0), ==, 0x13);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 1, 0), ==, 0x47);
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_MASK (pattern, 1, 0), ==, 0x0f);
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 37 : ff");
   g_assert_null (pattern);
@@ -308,7 +308,7 @@ TESTCASE (scan_range_finds_three_exact_matches)
   gum_memory_scan (&range, pattern, match_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 }
 
 TESTCASE (scan_range_finds_three_wildcarded_matches)
@@ -341,7 +341,7 @@ TESTCASE (scan_range_finds_three_wildcarded_matches)
 
   g_assert_cmpuint (ctx.number_of_calls, ==, 3);
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 }
 
 TESTCASE (scan_range_finds_three_masked_matches)
@@ -374,7 +374,7 @@ TESTCASE (scan_range_finds_three_masked_matches)
 
   g_assert_cmpuint (ctx.number_of_calls, ==, 3);
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 }
 
 TESTCASE (scan_range_finds_three_regex_matches)
@@ -401,7 +401,7 @@ TESTCASE (scan_range_finds_three_regex_matches)
 
   gum_memory_scan (&range, pattern, match_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 3);
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 }
 
 TESTCASE (is_memory_readable_handles_mixed_page_protections)
