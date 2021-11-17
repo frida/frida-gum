@@ -146,7 +146,7 @@ static void gum_memory_scan_context_run (GumMemoryScanContext * self);
 static gboolean gum_memory_scan_context_emit_match (GumAddress address,
     gsize size, GumMemoryScanContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
-static gboolean gum_memory_scan_args_parse (JSContext * ctx,
+static gboolean gum_parse_memory_scan_args (JSContext * ctx,
     const GumQuickArgs * args, gpointer * address, gsize * size,
     GumMatchPattern ** pattern);
 static gboolean gum_append_match (GumAddress address, gsize size,
@@ -941,7 +941,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   if (args->count < 4)
     return _gum_quick_throw_literal (ctx, "missing argument");
 
-  if (!gum_memory_scan_args_parse (ctx, args, &address, &size, &sc.pattern))
+  if (!gum_parse_memory_scan_args (ctx, args, &address, &size, &sc.pattern))
     return JS_EXCEPTION;
 
   callbacks = args->elements[3];
@@ -1098,7 +1098,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
   if (args->count < 3)
     return _gum_quick_throw_literal (ctx, "missing argument");
 
-  if (!gum_memory_scan_args_parse (ctx, args, &address, &size, &pattern))
+  if (!gum_parse_memory_scan_args (ctx, args, &address, &size, &pattern))
     return JS_EXCEPTION;
 
   range.base_address = GUM_ADDRESS (address);
@@ -1130,7 +1130,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 }
 
 static gboolean
-gum_memory_scan_args_parse (JSContext * ctx,
+gum_parse_memory_scan_args (JSContext * ctx,
                             const GumQuickArgs * args,
                             gpointer * address,
                             gsize * size,
