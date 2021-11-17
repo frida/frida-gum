@@ -543,7 +543,9 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
       gum_x86_writer_put_jcc_short_label (ctx->code_writer, ctx->insn->id,
           target, GUM_NO_HINT);
     }
-    else if (ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ)
+    else if (ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ ||
+        !gum_x86_writer_put_jcc_near (ctx->code_writer, ctx->insn->id, target,
+          GUM_NO_HINT))
     {
       gsize unique_id = GPOINTER_TO_SIZE (ctx->code_writer->code) << 1;
       gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
@@ -557,11 +559,6 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
       gum_x86_writer_put_jmp_address (ctx->code_writer, GUM_ADDRESS (target));
 
       gum_x86_writer_put_label (ctx->code_writer, is_false);
-    }
-    else
-    {
-      gum_x86_writer_put_jcc_near (ctx->code_writer, ctx->insn->id, target,
-          GUM_NO_HINT);
     }
   }
   else
