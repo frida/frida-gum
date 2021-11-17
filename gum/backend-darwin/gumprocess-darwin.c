@@ -6,8 +6,8 @@
  */
 
 #include "gumprocess-priv.h"
-#include "gumprocess-darwin-priv.h"
 
+#include "gumprocess-darwin-priv.h"
 #include "gum-init.h"
 #include "gumdarwin.h"
 #include "gumdarwinmodule.h"
