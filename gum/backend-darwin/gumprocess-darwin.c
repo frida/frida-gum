@@ -7,11 +7,11 @@
 
 #include "gumprocess-priv.h"
 
-#include "gumprocess-darwin-priv.h"
 #include "gum-init.h"
 #include "gumdarwin.h"
 #include "gumdarwinmodule.h"
 #include "gumleb.h"
+#include "gumprocess-darwin-priv.h"
 
 #include <dlfcn.h>
 #include <errno.h>
