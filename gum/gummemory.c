@@ -401,11 +401,8 @@ gum_match_pattern_new_from_string (const gchar * pattern_str)
   if (g_str_has_prefix (pattern_str, "/") &&
       g_str_has_suffix (pattern_str, "/"))
   {
-    gchar * regex_str;
-
-    regex_str = g_strndup (pattern_str + 1, strlen (pattern_str) - 2);
+    gchar * regex_str = g_strndup (pattern_str + 1, strlen (pattern_str) - 2);
     result = gum_match_pattern_new_from_regex (regex_str);
-
     g_free (regex_str);
   }
   else
