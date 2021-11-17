@@ -947,7 +947,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   callbacks = args->elements[3];
   if (!JS_IsObject (callbacks))
     goto invalid_callbacks_object;
-
   sc.on_match = JS_GetPropertyStr (ctx, callbacks, "onMatch");
   if (!JS_IsFunction (ctx, sc.on_match))
     goto missing_callback_value;
