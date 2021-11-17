@@ -147,8 +147,8 @@ static gboolean gum_memory_scan_context_emit_match (GumAddress address,
     gsize size, GumMemoryScanContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
 static gboolean gum_memory_scan_args_parse (JSContext * ctx,
-    GumQuickCore * core, const GumQuickArgs * args, gpointer * address,
-    gsize * size, GumMatchPattern ** pattern);
+    const GumQuickArgs * args, gpointer * address, gsize * size,
+    GumMatchPattern ** pattern);
 static gboolean gum_append_match (GumAddress address, gsize size,
     GumMemoryScanSyncContext * sc);
 
@@ -951,9 +951,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   sc.on_match = JS_GetPropertyStr (ctx, callbacks, "onMatch");
   if (!JS_IsFunction (ctx, sc.on_match))
     goto missing_callback_value;
-
   sc.on_complete = JS_GetPropertyStr (ctx, callbacks, "onComplete");
   sc.on_error = JS_GetPropertyStr (ctx, callbacks, "onError");
+  if (JS_IsUndefined (sc.on_error))
+    sc.on_error = JS_NULL;
 
   sc.range.base_address = GUM_ADDRESS (address);
   sc.range.size = size;
@@ -975,12 +976,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
 invalid_callbacks_object:
   {
-    return _gum_quick_throw_literal (ctx,
+    _gum_quick_throw_literal (ctx,
         "expected an object containing callbacks");
+    goto propagate_exception;
   }
 missing_callback_value:
   {
-    return _gum_quick_throw_literal (ctx, "expected a callback value");
+    _gum_quick_throw_literal (ctx, "expected a callback value");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    gum_match_pattern_unref (sc.pattern);
+
+    return JS_EXCEPTION;
   }
 }
 
@@ -1127,7 +1136,7 @@ gum_memory_scan_args_parse (JSContext * ctx,
                             gsize * size,
                             GumMatchPattern ** pattern)
 {
-  const GumQuickCore * core = args->core;
+  GumQuickCore * core = args->core;
   JSValue pattern_val;
 
   if (!_gum_quick_native_pointer_get (ctx, args->elements[0], core, address))
@@ -1141,37 +1150,36 @@ gum_memory_scan_args_parse (JSContext * ctx,
   if (JS_IsString (pattern_val))
   {
     const gchar * match_str;
-
     if (!_gum_quick_string_get (ctx, args->elements[2], &match_str))
       return FALSE;
-
     *pattern = gum_match_pattern_new_from_string (match_str);
-
     JS_FreeCString (ctx, match_str);
+    if (*pattern == NULL)
+      goto invalid_value;
   }
   else if (JS_IsObject (pattern_val))
   {
     *pattern = JS_GetOpaque (pattern_val, core->match_pattern_class);
+    if (*pattern == NULL)
+      goto invalid_type;
+    *pattern = gum_match_pattern_ref (*pattern);
   }
   else
   {
     goto invalid_type;
   }
 
-  if (*pattern == NULL)
-    goto invalid_value;
-
   return TRUE;
 
+invalid_value:
+  {
+    _gum_quick_throw_literal (ctx, "invalid match pattern");
+    return FALSE;
+  }
 invalid_type:
   {
     _gum_quick_throw_literal (ctx,
         "expected either a pattern string or a MatchPattern object");
-    return FALSE;
-  }
-invalid_value:
-  {
-    _gum_quick_throw_literal (ctx, "invalid match pattern");
     return FALSE;
   }
 }
