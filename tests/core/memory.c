@@ -400,7 +400,9 @@ TESTCASE (scan_range_finds_three_regex_matches)
   ctx.expected_size = 9;
 
   gum_memory_scan (&range, pattern, match_found_cb, &ctx);
+
   g_assert_cmpuint (ctx.number_of_calls, ==, 3);
+
   gum_match_pattern_unref (pattern);
 }
 
