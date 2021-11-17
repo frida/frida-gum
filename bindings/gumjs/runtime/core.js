@@ -219,11 +219,11 @@ Object.defineProperties(Memory, {
 
       Memory._scan(address, size, pattern, {
         onMatch: callbacks.onMatch,
-        onComplete: () => {
+        onComplete() {
           onSuccess();
           callbacks.onComplete?.();
         },
-        onError: (reason) => {
+        onError(reason) {
           onFailure(new Error(reason));
           callbacks.onError?.(reason);
         }
