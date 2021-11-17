@@ -1041,6 +1041,9 @@ _gum_v8_core_finalize (GumV8Core * self)
   delete self->source_map;
   self->source_map = nullptr;
 
+  delete self->match_pattern;
+  self->match_pattern = nullptr;
+
   delete self->cpu_context;
   self->cpu_context = nullptr;
 
