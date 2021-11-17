@@ -1163,7 +1163,7 @@ gum_parse_memory_scan_args (GumV8Core * core,
   }
   else
   {
-    auto match_pattern = Local<FunctionTemplate>::New (isolate,
+    auto match_pattern = Local<FunctionTemplate>::New (core->isolate,
         *core->match_pattern);
     if (!match_pattern->HasInstance (pattern_val))
     {
