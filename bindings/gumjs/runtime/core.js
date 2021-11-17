@@ -211,46 +211,25 @@ Object.defineProperties(Memory, {
   scan: {
     enumerable: true,
     value: function (address, size, pattern, callbacks) {
-      if (arguments.length < 4)
-        throw new Error('missing argument');
-
-      if (!(address instanceof NativePointer))
-        throw new Error('expected a pointer');
-
-      const isInt = Number.isInteger(size) || (size instanceof Int64) ||
-          (size instanceof UInt64);
-      const isLessThanZero = (typeof(size.toNumber) === 'function') ?
-          size.toNumber() < 0 :
-          size < 0;
-
-      if (!isInt || isLessThanZero)
-        throw new Error('expected an unsigned integer');
-
-      if (typeof(pattern) === 'string')
-        /* XXX: test if it's a valid pattern */
-        new MatchPattern(pattern);
-      else if (!(pattern instanceof MatchPattern))
-        throw new Error('expected either a pattern string or a MatchPattern object');
-
-      if (typeof(callbacks) !== 'object')
-        throw new Error('expected an object containing callbacks');
-
-      if (!callbacks.hasOwnProperty('onMatch'))
-        throw new Error('expected a callback value');
-
-      return new Promise(function (resolve, reject) {
-        Memory._scan(address, size, pattern, {
-          onMatch: callbacks.onMatch,
-          onComplete: () => {
-            callbacks.onComplete?.();
-            resolve();
-          },
-          onError: (reason) => {
-            callbacks.onError?.(reason);
-            reject(new Error(reason));
-          }
-        });
+      let onSuccess, onFailure;
+      const request = new Promise((resolve, reject) => {
+        onSuccess = resolve;
+        onFailure = reject;
       });
+
+      Memory._scan(address, size, pattern, {
+        onMatch: callbacks.onMatch,
+        onComplete: () => {
+          onSuccess();
+          callbacks.onComplete?.();
+        },
+        onError: (reason) => {
+          onFailure(new Error(reason));
+          callbacks.onError?.(reason);
+        }
+      });
+
+      return request;
     }
   }
 });
