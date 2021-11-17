@@ -461,11 +461,6 @@ static const GumV8Property gumjs_callback_context_values[] =
   { NULL, NULL, NULL }
 };
 
-static const GumV8Property gumjs_match_pattern_values[] =
-{
-  { NULL, NULL, NULL }
-};
-
 static const GumV8Function gumjs_source_map_functions[] =
 {
   { "_resolve", gumjs_source_map_resolve },
@@ -743,8 +738,6 @@ _gum_v8_core_init (GumV8Core * self,
 
   auto match_pattern = _gum_v8_create_class ("MatchPattern",
       gumjs_match_pattern_construct, scope, module, isolate);
-  _gum_v8_class_add (match_pattern, gumjs_match_pattern_values, module,
-      isolate);
   self->match_pattern =
       new GumPersistent<FunctionTemplate>::type (isolate, match_pattern);
 
