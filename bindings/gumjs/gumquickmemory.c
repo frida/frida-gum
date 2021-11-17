@@ -1168,7 +1168,6 @@ gum_parse_memory_scan_args (JSContext * ctx,
     return FALSE;
 
   pattern_val = args->elements[2];
-
   if (JS_IsString (pattern_val))
   {
     const gchar * match_str;
