@@ -398,7 +398,7 @@ gum_memory_scan_regex (const GumMemoryRange * range,
 GumMatchPattern *
 gum_match_pattern_new_from_string (const gchar * pattern_str)
 {
-  GumMatchPattern * result = NULL;
+  GumMatchPattern * result;
 
   if (g_str_has_prefix (pattern_str, "/") &&
       g_str_has_suffix (pattern_str, "/"))
