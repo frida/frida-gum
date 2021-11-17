@@ -299,13 +299,13 @@ GUMJS_DECLARE_FUNCTION (gumjs_cpu_context_to_json)
 static JSValue gumjs_cpu_context_set_register (GumQuickCpuContext * self,
     JSContext * ctx, JSValueConst val, gpointer * reg);
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_match_pattern_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_match_pattern_finalize)
+
 static JSValue gumjs_source_map_new (const gchar * json, GumQuickCore * core);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_source_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_source_map_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_source_map_resolve)
-
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_match_pattern_construct)
-GUMJS_DECLARE_FINALIZER (gumjs_match_pattern_finalize)
 
 static JSValue gum_quick_core_schedule_callback (GumQuickCore * self,
     GumQuickArgs * args, gboolean repeat);
@@ -839,6 +839,12 @@ static const JSCFunctionListEntry gumjs_cpu_context_entries[] =
   JS_CFUNC_DEF ("toJSON", 0, gumjs_cpu_context_to_json),
 };
 
+static const JSClassDef gumjs_match_pattern_def =
+{
+  .class_name = "MatchPattern",
+  .finalizer = gumjs_match_pattern_finalize,
+};
+
 static const JSClassDef gumjs_source_map_def =
 {
   .class_name = "SourceMap",
@@ -848,12 +854,6 @@ static const JSClassDef gumjs_source_map_def =
 static const JSCFunctionListEntry gumjs_source_map_entries[] =
 {
   JS_CFUNC_DEF ("_resolve", 0, gumjs_source_map_resolve),
-};
-
-static const JSClassDef gumjs_match_pattern_def =
-{
-  .class_name = "MatchPattern",
-  .finalizer = gumjs_match_pattern_finalize,
 };
 
 void
@@ -1033,6 +1033,14 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_cpu_context_entries,
       G_N_ELEMENTS (gumjs_cpu_context_entries));
 
+  _gum_quick_create_class (ctx, &gumjs_match_pattern_def, self,
+      &self->match_pattern_class, &proto);
+  ctor = JS_NewCFunction2 (ctx, gumjs_match_pattern_construct,
+      gumjs_match_pattern_def.class_name, 0, JS_CFUNC_constructor, 0);
+  JS_SetConstructor (ctx, ctor, proto);
+  JS_DefinePropertyValueStr (ctx, ns, gumjs_match_pattern_def.class_name, ctor,
+      JS_PROP_C_W_E);
+
   _gum_quick_create_class (ctx, &gumjs_source_map_def, self,
       &self->source_map_class, &proto);
   ctor = JS_NewCFunction2 (ctx, gumjs_source_map_construct,
@@ -1042,14 +1050,6 @@ _gum_quick_core_init (GumQuickCore * self,
   JS_SetPropertyFunctionList (ctx, proto, gumjs_source_map_entries,
       G_N_ELEMENTS (gumjs_source_map_entries));
   JS_DefinePropertyValueStr (ctx, ns, gumjs_source_map_def.class_name, ctor,
-      JS_PROP_C_W_E);
-
-  _gum_quick_create_class (ctx, &gumjs_match_pattern_def, self,
-      &self->match_pattern_class, &proto);
-  ctor = JS_NewCFunction2 (ctx, gumjs_match_pattern_construct,
-      gumjs_match_pattern_def.class_name, 0, JS_CFUNC_constructor, 0);
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_DefinePropertyValueStr (ctx, ns, gumjs_match_pattern_def.class_name, ctor,
       JS_PROP_C_W_E);
 
   JS_FreeValue (ctx, global_obj);
@@ -3941,6 +3941,57 @@ gumjs_cpu_context_set_register (GumQuickCpuContext * self,
       : JS_EXCEPTION;
 }
 
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
+{
+  JSValue wrapper;
+  const gchar * pattern_str;
+  JSValue proto;
+  GumMatchPattern * pattern;
+
+  wrapper = JS_NULL;
+
+  if (!_gum_quick_args_parse (args, "s", &pattern_str))
+    goto propogate_exception;
+
+  proto = JS_GetProperty (ctx, new_target,
+      GUM_QUICK_CORE_ATOM (core, prototype));
+  wrapper = JS_NewObjectProtoClass (ctx, proto, core->match_pattern_class);
+  JS_FreeValue (ctx, proto);
+  if (JS_IsException (wrapper))
+    goto propogate_exception;
+
+  pattern = gum_match_pattern_new_from_string (pattern_str);
+  if (pattern == NULL)
+    goto invalid_match_pattern;
+
+  JS_SetOpaque (wrapper, pattern);
+
+  return wrapper;
+
+invalid_match_pattern:
+  {
+    _gum_quick_throw_literal (ctx, "invalid match pattern");
+    goto propogate_exception;
+  }
+propogate_exception:
+  {
+    JS_FreeValue (ctx, wrapper);
+
+    return JS_EXCEPTION;
+  }
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_match_pattern_finalize)
+{
+  GumMatchPattern * p;
+
+  p = JS_GetOpaque (val, core->match_pattern_class);
+  if (p == NULL)
+    return;
+
+  gum_match_pattern_free (p);
+}
+
 static gboolean
 gum_quick_source_map_get (JSContext * ctx,
                           JSValueConst val,
@@ -4056,57 +4107,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_source_map_resolve)
   {
     return JS_NULL;
   }
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
-{
-  JSValue wrapper;
-  const gchar * pattern_str;
-  JSValue proto;
-  GumMatchPattern * pattern;
-
-  wrapper = JS_NULL;
-
-  if (!_gum_quick_args_parse (args, "s", &pattern_str))
-    goto propogate_exception;
-
-  proto = JS_GetProperty (ctx, new_target,
-      GUM_QUICK_CORE_ATOM (core, prototype));
-  wrapper = JS_NewObjectProtoClass (ctx, proto, core->match_pattern_class);
-  JS_FreeValue (ctx, proto);
-  if (JS_IsException (wrapper))
-    goto propogate_exception;
-
-  pattern = gum_match_pattern_new_from_string (pattern_str);
-  if (pattern == NULL)
-    goto invalid_match_pattern;
-
-  JS_SetOpaque (wrapper, pattern);
-
-  return wrapper;
-
-invalid_match_pattern:
-  {
-    _gum_quick_throw_literal (ctx, "invalid match pattern");
-    goto propogate_exception;
-  }
-propogate_exception:
-  {
-    JS_FreeValue (ctx, wrapper);
-
-    return JS_EXCEPTION;
-  }
-}
-
-GUMJS_DEFINE_FINALIZER (gumjs_match_pattern_finalize)
-{
-  GumMatchPattern * p;
-
-  p = JS_GetOpaque (val, core->match_pattern_class);
-  if (p == NULL)
-    return;
-
-  gum_match_pattern_free (p);
 }
 
 static JSValue

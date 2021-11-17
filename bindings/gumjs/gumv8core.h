@@ -86,9 +86,9 @@ struct GumV8Core
   GHashTable * native_resources;
   GHashTable * kernel_resources;
 
-  GHashTable * source_maps;
-
   GHashTable * match_patterns;
+
+  GHashTable * source_maps;
 
   GumPersistent<v8::FunctionTemplate>::type * int64;
   GumPersistent<v8::Object>::type * int64_value;
@@ -116,9 +116,9 @@ struct GumV8Core
   GumPersistent<v8::FunctionTemplate>::type * cpu_context;
   GumPersistent<v8::Object>::type * cpu_context_value;
 
-  GumPersistent<v8::FunctionTemplate>::type * source_map;
-
   GumPersistent<v8::FunctionTemplate>::type * match_pattern;
+
+  GumPersistent<v8::FunctionTemplate>::type * source_map;
 };
 
 struct GumV8NativeResource
