@@ -84,9 +84,9 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   gboolean has_ffi_frames = FALSE;
   guint skip_count = 0;
   HANDLE current_process, current_thread;
+  GumInvocationStack * invocation_stack;
   guint depth, i;
   BOOL success;
-  GumInvocationStack * invocation_stack;
 
   self = GUM_DBGHELP_BACKTRACER (backtracer);
   dbghelp = self->dbghelp;
@@ -101,7 +101,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
 #if GLIB_SIZEOF_VOID_P == 4
-    context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
+    context.Eip = cpu_context->eip;
 
     context.Edi = cpu_context->edi;
     context.Esi = cpu_context->esi;
@@ -116,7 +116,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrFrame.Offset = cpu_context->ebp;
     frame.AddrStack.Offset = cpu_context->esp;
 #else
-    context.Rip = *((gsize *) GSIZE_TO_POINTER (cpu_context->rsp));
+    context.Rip = cpu_context->rip;
 
     context.R15 = cpu_context->r15;
     context.R14 = cpu_context->r14;
@@ -165,6 +165,8 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   current_process = GetCurrentProcess ();
   current_thread = GetCurrentThread ();
 
+  invocation_stack = gum_interceptor_get_current_stack ();
+
   dbghelp->Lock ();
 
   depth = MIN (limit, GUM_MAX_BACKTRACE_DEPTH);
@@ -197,8 +199,23 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     {
       if (i >= skip_count)
       {
+        gpointer pc, translated_pc;
+
         g_assert (return_addresses->len <
             G_N_ELEMENTS (return_addresses->items));
+
+        pc = GSIZE_TO_POINTER (frame.AddrPC.Offset);
+        translated_pc = gum_invocation_stack_translate (invocation_stack, pc);
+        if (translated_pc != pc)
+        {
+#if GLIB_SIZEOF_VOID_P == 4
+          context.Eip = GPOINTER_TO_SIZE (translated_pc);
+#else
+          context.Rip = GPOINTER_TO_SIZE (translated_pc);
+#endif
+          frame.AddrPC.Offset = GPOINTER_TO_SIZE (translated_pc);
+        }
+
         return_addresses->items[return_addresses->len++] =
             GSIZE_TO_POINTER (frame.AddrPC.Offset);
       }
@@ -207,10 +224,12 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
   dbghelp->Unlock ();
 
-  invocation_stack = gum_interceptor_get_current_stack ();
-  for (i = 0; i != return_addresses->len; i++)
+  if (return_addresses->len >= 2)
   {
-    return_addresses->items[i] = gum_invocation_stack_translate (
-        invocation_stack, return_addresses->items[i]);
+    for (i = 1; i != return_addresses->len; i++)
+      return_addresses->items[i - 1] = return_addresses->items[i];
   }
+
+  if (return_addresses->len >= 1)
+    return_addresses->len--;
 }
