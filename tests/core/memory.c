@@ -175,7 +175,7 @@ TESTCASE (write_to_invalid_address_should_fail)
         gum_match_pattern_get_tokens (p), n))->bytes, guint8, b))
 #define GUM_PATTERN_NTH_TOKEN_NTH_MASK(p, n, b) \
     (g_array_index (((GumMatchToken *) g_ptr_array_index ( \
-        gum_match_pattern_get_tokens(p), n))->masks, guint8, b))
+        gum_match_pattern_get_tokens (p), n))->masks, guint8, b))
 
 TESTCASE (match_pattern_from_string_does_proper_validation)
 {
