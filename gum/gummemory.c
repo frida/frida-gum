@@ -53,6 +53,12 @@ struct _GumMatchPattern
   GRegex * regex;
 };
 
+static void gum_memory_scan_raw (const GumMemoryRange * range,
+    const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
+    gpointer user_data);
+static void gum_memory_scan_regex (const GumMemoryRange * range,
+    const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
+    gpointer user_data);
 static GumMatchPattern * gum_match_pattern_new_from_hexstring (
     const gchar * match_combined_str);
 static GumMatchPattern * gum_match_pattern_new_from_regex (
@@ -294,79 +300,99 @@ gum_memory_scan (const GumMemoryRange * range,
                  GumMemoryScanMatchFunc func,
                  gpointer user_data)
 {
-  if (pattern->regex != NULL) {
-    GMatchInfo * info;
+  if (pattern->regex == NULL)
+    gum_memory_scan_raw (range, pattern, func, user_data);
+  else
+    gum_memory_scan_regex (range, pattern, func, user_data);
+}
 
-    g_regex_match (pattern->regex, (const gchar *) range->base_address, 0,
-        &info);
+static void
+gum_memory_scan_raw (const GumMemoryRange * range,
+                     const GumMatchPattern * pattern,
+                     GumMemoryScanMatchFunc func,
+                     gpointer user_data)
+{
+  GumMatchToken * needle;
+  guint8 * needle_data, * mask_data = NULL;
+  guint needle_len, pattern_size;
+  guint8 * cur, * end_address;
 
-    while (g_match_info_matches (info)) {
-      gint start_pos;
-      gint end_pos;
+  needle = gum_match_pattern_get_longest_token (pattern, GUM_MATCH_EXACT);
+  if (needle == NULL)
+  {
+    needle = gum_match_pattern_get_longest_token (pattern, GUM_MATCH_MASK);
+    mask_data = (guint8 *) needle->masks->data;
+  }
 
-      if (!g_match_info_fetch_pos (info, 0, &start_pos, &end_pos) ||
-          end_pos > range->size ||
-          !func (GUM_ADDRESS (range->base_address + start_pos),
-              end_pos - start_pos, user_data))
-        break;
+  pattern_size = gum_match_pattern_get_size (pattern);
+  needle_data = (guint8 *) needle->bytes->data;
+  needle_len = needle->bytes->len;
 
-      g_match_info_next (info, NULL);
+  cur = GSIZE_TO_POINTER (range->base_address);
+  end_address = cur + range->size - (pattern_size - needle->offset) + 1;
+
+  for (; cur < end_address; cur++)
+  {
+    guint8 * start;
+
+    if (mask_data == NULL)
+    {
+      if (cur[0] != needle_data[0] ||
+          memcmp (cur, needle_data, needle_len) != 0)
+      {
+        continue;
+      }
+    }
+    else
+    {
+      if ((cur[0] & mask_data[0]) != (needle_data[0] & mask_data[0]) ||
+          gum_memcmp_mask ((guint8 *) cur, (guint8 *) needle_data,
+              (guint8 *) mask_data, needle_len) != 0)
+      {
+        continue;
+      }
     }
 
-    g_match_info_free (info);
-  } else {
-    GumMatchToken * needle;
-    guint8 * needle_data, * mask_data = NULL;
-    guint needle_len, pattern_size;
-    guint8 * cur, * end_address;
+    start = cur - needle->offset;
 
-    needle = gum_match_pattern_get_longest_token (pattern, GUM_MATCH_EXACT);
-    if (needle == NULL)
+    if (gum_match_pattern_try_match_on (pattern, start))
     {
-      needle = gum_match_pattern_get_longest_token (pattern, GUM_MATCH_MASK);
-      mask_data = (guint8 *) needle->masks->data;
-    }
+      if (!func (GUM_ADDRESS (start), pattern_size, user_data))
+        return;
 
-    pattern_size = gum_match_pattern_get_size (pattern);
-    needle_data = (guint8 *) needle->bytes->data;
-    needle_len = needle->bytes->len;
-
-    cur = GSIZE_TO_POINTER (range->base_address);
-    end_address = cur + range->size - (pattern_size - needle->offset) + 1;
-
-    for (; cur < end_address; cur++)
-    {
-      guint8 * start;
-
-      if (mask_data == NULL)
-      {
-        if (cur[0] != needle_data[0] ||
-            memcmp (cur, needle_data, needle_len) != 0)
-        {
-          continue;
-        }
-      }
-      else
-      {
-        if ((cur[0] & mask_data[0]) != (needle_data[0] & mask_data[0]) ||
-            gum_memcmp_mask ((guint8 *) cur, (guint8 *) needle_data,
-                (guint8 *) mask_data, needle_len) != 0)
-        {
-          continue;
-        }
-      }
-
-      start = cur - needle->offset;
-
-      if (gum_match_pattern_try_match_on (pattern, start))
-      {
-        if (!func (GUM_ADDRESS (start), pattern_size, user_data))
-          return;
-
-        cur = start + pattern_size - 1;
-      }
+      cur = start + pattern_size - 1;
     }
   }
+}
+
+static void
+gum_memory_scan_regex (const GumMemoryRange * range,
+                       const GumMatchPattern * pattern,
+                       GumMemoryScanMatchFunc func,
+                       gpointer user_data)
+{
+  GMatchInfo * info;
+
+  g_regex_match (pattern->regex, (const gchar *) range->base_address, 0,
+      &info);
+
+  while (g_match_info_matches (info))
+  {
+    gint start_pos;
+    gint end_pos;
+
+    if (!g_match_info_fetch_pos (info, 0, &start_pos, &end_pos) ||
+        end_pos > range->size ||
+        !func (GUM_ADDRESS (range->base_address + start_pos),
+            end_pos - start_pos, user_data))
+    {
+      break;
+    }
+
+    g_match_info_next (info, NULL);
+  }
+
+  g_match_info_free (info);
 }
 
 GumMatchPattern *
@@ -392,28 +418,7 @@ gum_match_pattern_new_from_string (const gchar * pattern_str)
   return result;
 }
 
-GumMatchPattern *
-gum_match_pattern_new_from_regex (const gchar * regex_str)
-{
-  GumMatchPattern * pattern;
-  GRegex * regex;
-
-  pattern = NULL;
-
-  regex = g_regex_new (regex_str, G_REGEX_OPTIMIZE,
-      G_REGEX_MATCH_NOTEMPTY, NULL);
-
-  if (regex == NULL)
-    goto beach;
-
-  pattern = gum_match_pattern_new ();
-  pattern->regex = regex;
-
-beach:
-  return pattern;
-}
-
-GumMatchPattern *
+static GumMatchPattern *
 gum_match_pattern_new_from_hexstring (const gchar * match_combined_str)
 {
   GumMatchPattern * pattern = NULL;
@@ -518,6 +523,27 @@ parse_error:
 
     return NULL;
   }
+}
+
+static GumMatchPattern *
+gum_match_pattern_new_from_regex (const gchar * regex_str)
+{
+  GumMatchPattern * pattern;
+  GRegex * regex;
+
+  pattern = NULL;
+
+  regex = g_regex_new (regex_str, G_REGEX_OPTIMIZE,
+      G_REGEX_MATCH_NOTEMPTY, NULL);
+
+  if (regex == NULL)
+    goto beach;
+
+  pattern = gum_match_pattern_new ();
+  pattern->regex = regex;
+
+beach:
+  return pattern;
 }
 
 static GumMatchPattern *
