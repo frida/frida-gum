@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -86,6 +87,8 @@ struct GumV8Core
   GHashTable * native_resources;
   GHashTable * kernel_resources;
 
+  GHashTable * match_patterns;
+
   GHashTable * source_maps;
 
   GumPersistent<v8::FunctionTemplate>::type * int64;
@@ -113,6 +116,8 @@ struct GumV8Core
 
   GumPersistent<v8::FunctionTemplate>::type * cpu_context;
   GumPersistent<v8::Object>::type * cpu_context_value;
+
+  GumPersistent<v8::FunctionTemplate>::type * match_pattern;
 
   GumPersistent<v8::FunctionTemplate>::type * source_map;
 };

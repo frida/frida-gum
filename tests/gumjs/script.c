@@ -3,6 +3,7 @@
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -148,10 +149,13 @@ TESTLIST_BEGIN (script)
     TESTENTRY (invalid_read_results_in_exception)
     TESTENTRY (invalid_write_results_in_exception)
     TESTENTRY (invalid_read_write_execute_results_in_exception)
-    TESTENTRY (memory_can_be_scanned)
+    TESTENTRY (memory_can_be_scanned_with_pattern_string)
+    TESTENTRY (memory_can_be_scanned_with_match_pattern_object)
     TESTENTRY (memory_can_be_scanned_synchronously)
+    TESTENTRY (memory_can_be_scanned_asynchronously)
     TESTENTRY (memory_scan_should_be_interruptible)
     TESTENTRY (memory_scan_handles_unreadable_memory)
+    TESTENTRY (memory_scan_handles_bad_arguments)
     TESTENTRY (memory_access_can_be_monitored)
     TESTENTRY (memory_access_can_be_monitored_one_range)
   TESTGROUP_END ()
@@ -356,6 +360,10 @@ TESTLIST_BEGIN (script)
     TESTENTRY (inline_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("MatchPattern")
+    TESTENTRY (match_pattern_can_be_constructed_from_string)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Stalker")
@@ -2840,6 +2848,18 @@ TESTCASE (external_sqlite_database_can_be_opened_with_flags)
   EXPECT_SEND_MESSAGE_WITH ("\"invalid flags\"");
   EXPECT_SEND_MESSAGE_WITH ("\"can write\"");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (match_pattern_can_be_constructed_from_string)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const p = new MatchPattern('13 37 ?? ff');"
+      "send(JSON.stringify(p));"
+  );
+  EXPECT_SEND_MESSAGE_WITH ("\"{}\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("new MatchPattern('Some bad pattern');");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid match pattern");
 }
 
 TESTCASE (socket_connection_can_be_established)
@@ -6133,9 +6153,10 @@ compare_measurements (gconstpointer element_a,
   return 0;
 }
 
-TESTCASE (memory_can_be_scanned)
+TESTCASE (memory_can_be_scanned_with_pattern_string)
 {
-  guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+  guint8 haystack1[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+  gchar haystack2[] = "Hello world, hello world, I said.";
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
@@ -6146,7 +6167,7 @@ TESTCASE (memory_can_be_scanned)
         "onComplete() {"
         "  send('onComplete');"
         "}"
-      "});", haystack, haystack);
+      "});", haystack1, haystack1);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
@@ -6160,9 +6181,75 @@ TESTCASE (memory_can_be_scanned)
         "onComplete() {"
         "  send('onComplete');"
         "}"
-      "});", haystack, haystack);
+      "});", haystack1, haystack1);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const regex = /[Hh]ello\\sworld/.toString();"
+      "Memory.scan(" GUM_PTR_CONST ", 33, regex, {"
+        "onMatch(address, size) {"
+        "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
+             ").toInt32() + ' size=' + size);"
+        "},"
+        "onComplete() {"
+        "  send('onComplete');"
+        "}"
+      "});", haystack2, haystack2);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=0 size=11\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=13 size=11\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+TESTCASE (memory_can_be_scanned_with_match_pattern_object)
+{
+  guint8 haystack1[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+  gchar haystack2[] = "Hello world, hello world, I said.";
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const pattern = new MatchPattern('13 37');"
+      "Memory.scan(" GUM_PTR_CONST ", 7, pattern, {"
+        "onMatch(address, size) {"
+        "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
+             ").toInt32() + ' size=' + size);"
+        "},"
+        "onComplete() {"
+        "  send('onComplete');"
+        "}"
+      "});", haystack1, haystack1);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const pattern = new MatchPattern('13 37');"
+      "Memory.scan(" GUM_PTR_CONST ", uint64(7), pattern, {"
+        "onMatch(address, size) {"
+        "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
+             ").toInt32() + ' size=' + size);"
+        "},"
+        "onComplete() {"
+        "  send('onComplete');"
+        "}"
+      "});", haystack1, haystack1);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const pattern = new MatchPattern(/[Hh]ello\\sworld/.toString());"
+      "Memory.scan(" GUM_PTR_CONST ", 33, pattern, {"
+        "onMatch(address, size) {"
+        "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
+             ").toInt32() + ' size=' + size);"
+        "},"
+        "onComplete() {"
+        "  send('onComplete');"
+        "}"
+      "});", haystack2, haystack2);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=0 size=11\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=13 size=11\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
@@ -6192,6 +6279,38 @@ TESTCASE (memory_can_be_scanned_synchronously)
   EXPECT_SEND_MESSAGE_WITH ("\"match offset=2 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"match offset=5 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"done\"");
+}
+
+TESTCASE (memory_can_be_scanned_asynchronously)
+{
+  guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
+      "  onMatch(address, size) {"
+      "    send('onMatch offset=' + address.sub(" GUM_PTR_CONST ").toInt32()"
+      "      + ' size=' + size);"
+      "  }"
+      "})"
+      ".catch(e => console.error(e.message))"
+      ".then(() => send('DONE'));", haystack, haystack);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"DONE\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "async function run() {"
+      "  try {"
+      "    await Memory.scan(ptr(0xdead), 7, '13 37', {"
+      "      onMatch(address, size) {}"
+      "    });"
+      "  } catch (e) {"
+      "    send(e.message);"
+      "  }"
+      "}"
+      "run();"
+  );
+  EXPECT_SEND_MESSAGE_WITH ("\"access violation accessing 0xdead\"");
 }
 
 TESTCASE (memory_scan_should_be_interruptible)
@@ -6239,6 +6358,43 @@ TESTCASE (memory_scan_handles_unreadable_memory)
         "send(e.message);"
       "}");
   EXPECT_SEND_MESSAGE_WITH ("\"access violation accessing 0x530\"");
+}
+
+TESTCASE (memory_scan_handles_bad_arguments)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(0x1337, 7, '13 37', {"
+      "  onMatch(address, size) {}, onComplete() {}"
+      "});");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: expected a pointer");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(ptr(0x1337), -7, '13 37', {"
+      "  onMatch(address, size) {}, onComplete() {}"
+      "});");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: expected an unsigned integer");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(ptr(0x1337), 7, 0xbadcafe, {"
+      "  onMatch(address, size) {},"
+      "  onComplete() {}"
+      "});");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: expected either a pattern string or a MatchPattern object");
+
+  COMPILE_AND_LOAD_SCRIPT (
+    "Memory.scan(ptr(0x1337), 7, 'bad pattern', {"
+    "  onMatch(addres, size) {}"
+    "});"
+  );
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid match pattern");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(ptr(0x1337), 7, '13 37', { onComplete() {} });"
+  );
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: expected a callback value");
 }
 
 TESTCASE (memory_access_can_be_monitored)

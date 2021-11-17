@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -45,6 +46,23 @@
 # pragma warning (pop)
 #endif
 
+struct _GumMatchPattern
+{
+  gint ref_count;
+  GPtrArray * tokens;
+  guint size;
+  GRegex * regex;
+};
+
+static void gum_memory_scan_raw (const GumMemoryRange * range,
+    const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
+    gpointer user_data);
+static void gum_memory_scan_regex (const GumMemoryRange * range,
+    const GRegex * regex, GumMemoryScanMatchFunc func, gpointer user_data);
+static GumMatchPattern * gum_match_pattern_new_from_hexstring (
+    const gchar * match_combined_str);
+static GumMatchPattern * gum_match_pattern_new_from_regex (
+    const gchar * regex_str);
 static GumMatchPattern * gum_match_pattern_new (void);
 static void gum_match_pattern_update_computed_size (GumMatchPattern * self);
 static GumMatchToken * gum_match_pattern_get_longest_token (
@@ -282,9 +300,21 @@ gum_memory_scan (const GumMemoryRange * range,
                  GumMemoryScanMatchFunc func,
                  gpointer user_data)
 {
+  if (pattern->regex == NULL)
+    gum_memory_scan_raw (range, pattern, func, user_data);
+  else
+    gum_memory_scan_regex (range, pattern->regex, func, user_data);
+}
+
+static void
+gum_memory_scan_raw (const GumMemoryRange * range,
+                     const GumMatchPattern * pattern,
+                     GumMemoryScanMatchFunc func,
+                     gpointer user_data)
+{
   GumMatchToken * needle;
   guint8 * needle_data, * mask_data = NULL;
-  guint needle_len;
+  guint needle_len, pattern_size;
   guint8 * cur, * end_address;
 
   needle = gum_match_pattern_get_longest_token (pattern, GUM_MATCH_EXACT);
@@ -296,9 +326,10 @@ gum_memory_scan (const GumMemoryRange * range,
 
   needle_data = (guint8 *) needle->bytes->data;
   needle_len = needle->bytes->len;
+  pattern_size = gum_match_pattern_get_size (pattern);
 
   cur = GSIZE_TO_POINTER (range->base_address);
-  end_address = cur + range->size - (pattern->size - needle->offset) + 1;
+  end_address = cur + range->size - (pattern_size - needle->offset) + 1;
 
   for (; cur < end_address; cur++)
   {
@@ -326,16 +357,66 @@ gum_memory_scan (const GumMemoryRange * range,
 
     if (gum_match_pattern_try_match_on (pattern, start))
     {
-      if (!func (GUM_ADDRESS (start), pattern->size, user_data))
+      if (!func (GUM_ADDRESS (start), pattern_size, user_data))
         return;
 
-      cur = start + pattern->size - 1;
+      cur = start + pattern_size - 1;
     }
   }
 }
 
+static void
+gum_memory_scan_regex (const GumMemoryRange * range,
+                       const GRegex * regex,
+                       GumMemoryScanMatchFunc func,
+                       gpointer user_data)
+{
+  GMatchInfo * info;
+
+  g_regex_match_full (regex, (const gchar *) range->base_address, range->size,
+      0, 0, &info, NULL);
+
+  while (g_match_info_matches (info))
+  {
+    gint start_pos;
+    gint end_pos;
+
+    if (!g_match_info_fetch_pos (info, 0, &start_pos, &end_pos) ||
+        end_pos > range->size ||
+        !func (GUM_ADDRESS (range->base_address + start_pos),
+            end_pos - start_pos, user_data))
+    {
+      break;
+    }
+
+    g_match_info_next (info, NULL);
+  }
+
+  g_match_info_free (info);
+}
+
 GumMatchPattern *
-gum_match_pattern_new_from_string (const gchar * match_combined_str)
+gum_match_pattern_new_from_string (const gchar * pattern_str)
+{
+  GumMatchPattern * result;
+
+  if (g_str_has_prefix (pattern_str, "/") &&
+      g_str_has_suffix (pattern_str, "/"))
+  {
+    gchar * regex_str = g_strndup (pattern_str + 1, strlen (pattern_str) - 2);
+    result = gum_match_pattern_new_from_regex (regex_str);
+    g_free (regex_str);
+  }
+  else
+  {
+    result = gum_match_pattern_new_from_hexstring (pattern_str);
+  }
+
+  return result;
+}
+
+static GumMatchPattern *
+gum_match_pattern_new_from_hexstring (const gchar * match_combined_str)
 {
   GumMatchPattern * pattern = NULL;
   gchar ** parts;
@@ -435,10 +516,27 @@ parse_error:
   {
     g_strfreev (parts);
     if (pattern != NULL)
-      gum_match_pattern_free (pattern);
+      gum_match_pattern_unref (pattern);
 
     return NULL;
   }
+}
+
+static GumMatchPattern *
+gum_match_pattern_new_from_regex (const gchar * regex_str)
+{
+  GumMatchPattern * pattern;
+  GRegex * regex;
+
+  regex = g_regex_new (regex_str, G_REGEX_OPTIMIZE, G_REGEX_MATCH_NOTEMPTY,
+      NULL);
+  if (regex == NULL)
+    return NULL;
+
+  pattern = gum_match_pattern_new ();
+  pattern->regex = regex;
+
+  return pattern;
 }
 
 static GumMatchPattern *
@@ -447,19 +545,47 @@ gum_match_pattern_new (void)
   GumMatchPattern * pattern;
 
   pattern = g_slice_new (GumMatchPattern);
+  pattern->ref_count = 1;
   pattern->tokens =
       g_ptr_array_new_with_free_func ((GDestroyNotify) gum_match_token_free);
   pattern->size = 0;
+  pattern->regex = NULL;
+
+  return pattern;
+}
+
+GumMatchPattern *
+gum_match_pattern_ref (GumMatchPattern * pattern)
+{
+  g_atomic_int_inc (&pattern->ref_count);
 
   return pattern;
 }
 
 void
-gum_match_pattern_free (GumMatchPattern * pattern)
+gum_match_pattern_unref (GumMatchPattern * pattern)
 {
-  g_ptr_array_free (pattern->tokens, TRUE);
+  if (g_atomic_int_dec_and_test (&pattern->ref_count))
+  {
+    if (pattern->regex != NULL)
+      g_regex_unref (pattern->regex);
 
-  g_slice_free (GumMatchPattern, pattern);
+    g_ptr_array_free (pattern->tokens, TRUE);
+
+    g_slice_free (GumMatchPattern, pattern);
+  }
+}
+
+guint
+gum_match_pattern_get_size (const GumMatchPattern * pattern)
+{
+  return pattern->size;
+}
+
+GPtrArray *
+gum_match_pattern_get_tokens (const GumMatchPattern * pattern)
+{
+  return pattern->tokens;
 }
 
 static void

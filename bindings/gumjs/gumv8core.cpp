@@ -4,6 +4,7 @@
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -133,6 +134,12 @@ struct GumV8CallbackContext
   GumPersistent<Object>::type * cpu_context;
   GumAddress return_address;
   GumAddress raw_return_address;
+};
+
+struct GumV8MatchPattern
+{
+  GumPersistent<Object>::type * wrapper;
+  GumMatchPattern * handle;
 };
 
 struct GumV8SourceMap
@@ -294,6 +301,11 @@ GUMJS_DECLARE_GETTER (gumjs_callback_context_get_cpu_context)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_register)
 GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_register)
+
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_match_pattern_construct)
+static GumV8MatchPattern * gum_v8_match_pattern_new (Local<Object> wrapper,
+    GumMatchPattern * pattern, GumV8Core * core);
+static void gum_v8_match_pattern_free (GumV8MatchPattern * self);
 
 static MaybeLocal<Object> gumjs_source_map_new (const gchar * json,
     GumV8Core * core);
@@ -724,6 +736,11 @@ _gum_v8_core_init (GumV8Core * self,
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR (k1);
 #endif
 
+  auto match_pattern = _gum_v8_create_class ("MatchPattern",
+      gumjs_match_pattern_construct, scope, module, isolate);
+  self->match_pattern =
+      new GumPersistent<FunctionTemplate>::type (isolate, match_pattern);
+
   auto source_map = _gum_v8_create_class ("SourceMap",
       gumjs_source_map_construct, scope, module, isolate);
   _gum_v8_class_add (source_map, gumjs_source_map_functions, module, isolate);
@@ -788,6 +805,9 @@ _gum_v8_core_realize (GumV8Core * self)
       (GDestroyNotify) _gum_v8_native_resource_free);
   self->kernel_resources = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) _gum_v8_kernel_resource_free);
+
+  self->match_patterns = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_match_pattern_free);
 
   self->source_maps = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_source_map_free);
@@ -952,6 +972,9 @@ _gum_v8_core_dispose (GumV8Core * self)
   g_hash_table_unref (self->source_maps);
   self->source_maps = NULL;
 
+  g_hash_table_unref (self->match_patterns);
+  self->match_patterns = NULL;
+
   g_hash_table_unref (self->kernel_resources);
   self->kernel_resources = NULL;
   g_hash_table_unref (self->native_resources);
@@ -1017,6 +1040,9 @@ _gum_v8_core_finalize (GumV8Core * self)
 
   delete self->source_map;
   self->source_map = nullptr;
+
+  delete self->match_pattern;
+  self->match_pattern = nullptr;
 
   delete self->cpu_context;
   self->cpu_context = nullptr;
@@ -3272,6 +3298,58 @@ gumjs_cpu_context_set_register (Local<Name> property,
     return;
 
   cpu_context[offset] = ptr;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
+{
+  if (!info.IsConstructCall())
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "use `new MatchPattern()` to create a new instance");
+    return;
+  }
+
+  gchar * pattern_str;
+  if (!_gum_v8_args_parse (args, "s", &pattern_str))
+    return;
+
+  auto pattern = gum_match_pattern_new_from_string (pattern_str);
+
+  g_free (pattern_str);
+
+  if (pattern == NULL)
+  {
+    _gum_v8_throw_literal (isolate, "invalid match pattern");
+    return;
+  }
+
+  wrapper->SetInternalField (0, External::New (isolate, pattern));
+  gum_v8_match_pattern_new (wrapper, pattern, module);
+}
+
+static GumV8MatchPattern *
+gum_v8_match_pattern_new (Local<Object> wrapper,
+                          GumMatchPattern * handle,
+                          GumV8Core * core)
+{
+  auto pattern = g_slice_new (GumV8MatchPattern);
+
+  pattern->wrapper = new GumPersistent<Object>::type (core->isolate, wrapper);
+  pattern->handle = handle;
+
+  g_hash_table_add (core->match_patterns, pattern);
+
+  return pattern;
+}
+
+static void
+gum_v8_match_pattern_free (GumV8MatchPattern * self)
+{
+  delete self->wrapper;
+
+  gum_match_pattern_unref (self->handle);
+
+  g_slice_free (GumV8MatchPattern, self);
 }
 
 static MaybeLocal<Object>

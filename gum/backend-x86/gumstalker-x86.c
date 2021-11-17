@@ -5785,7 +5785,7 @@ gum_find_thread_exit_implementation (void)
 
   gum_memory_scan (&range, pattern, gum_store_thread_exit_match, &result);
 
-  gum_match_pattern_free (pattern);
+  gum_match_pattern_unref (pattern);
 
   /* Non-public symbols are all <redacted> on iOS. */
 #ifndef HAVE_IOS

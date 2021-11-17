@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -113,6 +114,7 @@ struct _GumQuickCore
   JSClassID native_callback_class;
   JSClassID callback_context_class;
   JSClassID cpu_context_class;
+  JSClassID match_pattern_class;
   JSClassID source_map_class;
   JSValue source_map_ctor;
 

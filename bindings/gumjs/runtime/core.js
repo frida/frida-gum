@@ -208,6 +208,30 @@ Object.defineProperties(Memory, {
       Memory._patchCode(address, size, apply);
     }
   },
+  scan: {
+    enumerable: true,
+    value: function (address, size, pattern, callbacks) {
+      let onSuccess, onFailure;
+      const request = new Promise((resolve, reject) => {
+        onSuccess = resolve;
+        onFailure = reject;
+      });
+
+      Memory._scan(address, size, pattern, {
+        onMatch: callbacks.onMatch,
+        onComplete() {
+          onSuccess();
+          callbacks.onComplete?.();
+        },
+        onError(reason) {
+          onFailure(new Error(reason));
+          callbacks.onError?.(reason);
+        }
+      });
+
+      return request;
+    }
+  }
 });
 
 makeEnumerateApi(Module, 'enumerateImports', 1);
