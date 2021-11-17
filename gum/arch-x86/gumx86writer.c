@@ -2684,6 +2684,18 @@ gum_x86_writer_put_popfx (GumX86Writer * self)
   gum_x86_writer_put_u8 (self, 0x9d);
 }
 
+void
+gum_x86_writer_put_sahf (GumX86Writer * self)
+{
+  gum_x86_writer_put_u8 (self, 0x9e);
+}
+
+void
+gum_x86_writer_put_lahf (GumX86Writer * self)
+{
+  gum_x86_writer_put_u8 (self, 0x9f);
+}
+
 gboolean
 gum_x86_writer_put_test_reg_reg (GumX86Writer * self,
                                  GumCpuReg reg_a,

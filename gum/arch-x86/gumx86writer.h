@@ -311,6 +311,8 @@ GUM_API void gum_x86_writer_put_pushax (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_popax (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_pushfx (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_popfx (GumX86Writer * self);
+GUM_API void gum_x86_writer_put_sahf (GumX86Writer * self);
+GUM_API void gum_x86_writer_put_lahf (GumX86Writer * self);
 
 GUM_API gboolean gum_x86_writer_put_test_reg_reg (GumX86Writer * self,
     GumCpuReg reg_a, GumCpuReg reg_b);
