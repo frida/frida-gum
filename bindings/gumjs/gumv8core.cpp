@@ -4,6 +4,7 @@
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
