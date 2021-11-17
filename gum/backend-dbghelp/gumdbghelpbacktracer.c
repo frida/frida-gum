@@ -84,9 +84,9 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   gboolean has_ffi_frames = FALSE;
   guint skip_count = 0;
   HANDLE current_process, current_thread;
+  GumInvocationStack * invocation_stack;
   guint depth, i;
   BOOL success;
-  GumInvocationStack * invocation_stack;
 
   self = GUM_DBGHELP_BACKTRACER (backtracer);
   dbghelp = self->dbghelp;
@@ -165,7 +165,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   current_process = GetCurrentProcess ();
   current_thread = GetCurrentThread ();
 
-  invocation_stack = gum_interceptor_get_current_stack();
+  invocation_stack = gum_interceptor_get_current_stack ();
 
   dbghelp->Lock ();
 
@@ -227,12 +227,9 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   if (return_addresses->len >= 2)
   {
     for (i = 1; i != return_addresses->len; i++)
-    {
-      return_addresses->items[i - 1] = gum_invocation_stack_translate(
-          invocation_stack, return_addresses->items[i]);
-    }
+      return_addresses->items[i - 1] = return_addresses->items[i];
   }
 
-  if (return_addresses->len)
-      return_addresses->len--;
+  if (return_addresses->len >= 1)
+    return_addresses->len--;
 }
