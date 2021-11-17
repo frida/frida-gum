@@ -11,6 +11,7 @@
 #include "gumdarwin.h"
 #include "gumdarwinmodule.h"
 #include "gumleb.h"
+#include "gumprocess-darwin-priv.h"
 
 #include <dlfcn.h>
 #include <errno.h>
@@ -27,10 +28,6 @@
 
 #define GUM_PSR_THUMB 0x20
 #define MAX_MACH_HEADER_SIZE (64 * 1024)
-#define DYLD_INFO_COUNT 5
-#define DYLD_INFO_LEGACY_COUNT 1
-#define DYLD_INFO_32_COUNT 3
-#define DYLD_INFO_64_COUNT 5
 #define DYLD_IMAGE_INFO_32_SIZE 12
 #define DYLD_IMAGE_INFO_64_SIZE 24
 #define GUM_THREAD_POLL_STEP 1000
@@ -70,10 +67,6 @@ typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
 typedef struct _GumCanonicalizeNameContext GumCanonicalizeNameContext;
 
-typedef union _DyldInfo DyldInfo;
-typedef struct _DyldInfoLegacy DyldInfoLegacy;
-typedef struct _DyldInfo32 DyldInfo32;
-typedef struct _DyldInfo64 DyldInfo64;
 typedef struct _DyldAllImageInfos32 DyldAllImageInfos32;
 typedef struct _DyldAllImageInfos64 DyldAllImageInfos64;
 typedef struct _DyldImageInfo32 DyldImageInfo32;
@@ -134,32 +127,6 @@ struct _GumCanonicalizeNameContext
 {
   const gchar * module_name;
   gchar * module_path;
-};
-
-struct _DyldInfoLegacy
-{
-  guint32 all_image_info_addr;
-};
-
-struct _DyldInfo32
-{
-  guint32 all_image_info_addr;
-  guint32 all_image_info_size;
-  gint32 all_image_info_format;
-};
-
-struct _DyldInfo64
-{
-  guint64 all_image_info_addr;
-  guint64 all_image_info_size;
-  gint32 all_image_info_format;
-};
-
-union _DyldInfo
-{
-  DyldInfoLegacy info_legacy;
-  DyldInfo32 info_32;
-  DyldInfo64 info_64;
 };
 
 struct _DyldAllImageInfos32

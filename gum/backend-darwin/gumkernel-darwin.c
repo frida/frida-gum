@@ -9,6 +9,7 @@
 #include "gum-init.h"
 #include "gumdarwin.h"
 #include "gummemory-priv.h"
+#include "gumprocess-darwin-priv.h"
 
 #include <mach/mach.h>
 #include <mach-o/loader.h>
@@ -110,6 +111,7 @@ static float gum_kernel_get_version (void);
 
 #ifdef HAVE_ARM64
 
+static GumAddress gum_kernel_get_base_from_all_image_info (void);
 static GumAddress gum_kernel_bruteforce_base (GumAddress unslid_base);
 static gboolean gum_kernel_is_header (GumAddress address);
 static gboolean gum_kernel_has_kld (GumAddress address);
@@ -698,13 +700,22 @@ gum_kernel_do_find_base_address (void)
   float version;
   GumAddress base = 0;
 
-  version = gum_kernel_get_version ();
-
 #ifdef HAVE_ARM64
-  if (version >= 16.0) /* iOS 10.0+ */
-    base = gum_kernel_bruteforce_base (G_GUINT64_CONSTANT (0xfffffff007004000));
-  else if (version >= 15.0) /* iOS 9.0+ */
-    base = gum_kernel_bruteforce_base (G_GUINT64_CONSTANT (0xffffff8004004000));
+  base = gum_kernel_get_base_from_all_image_info ();
+  if (base == 0)
+  {
+    version = gum_kernel_get_version ();
+    if (version >= 16.0) /* iOS 10.0+ */
+    {
+      base = gum_kernel_bruteforce_base (
+          G_GUINT64_CONSTANT (0xfffffff007004000));
+    }
+    else if (version >= 15.0) /* iOS 9.0+ */
+    {
+      base = gum_kernel_bruteforce_base (
+          G_GUINT64_CONSTANT (0xffffff8004004000));
+    }
+  }
 #endif
 
   return g_slice_dup (GumAddress, &base);
@@ -728,6 +739,32 @@ gum_kernel_get_version (void)
 }
 
 #ifdef HAVE_ARM64
+
+static GumAddress
+gum_kernel_get_base_from_all_image_info (void)
+{
+  mach_port_t task;
+  kern_return_t kr;
+  DyldInfo info_raw;
+  mach_msg_type_number_t info_count = DYLD_INFO_COUNT;
+
+  task = gum_kernel_get_task ();
+  if (task == MACH_PORT_NULL)
+    return 0;
+
+  kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info_raw, &info_count);
+  if (kr != KERN_SUCCESS)
+    return 0;
+
+  if (info_raw.info_64.all_image_info_addr == 0 &&
+      info_raw.info_64.all_image_info_size == 0)
+  {
+    return 0;
+  }
+
+  return info_raw.info_64.all_image_info_size +
+      G_GUINT64_CONSTANT (0xfffffff007004000);
+}
 
 static gboolean
 gum_kernel_is_debug (void)
