@@ -239,17 +239,17 @@ Object.defineProperties(Memory, {
         throw new Error('expected a callback value');
 
       return new Promise(function (resolve, reject) {
-          Memory._scan(address, size, pattern, {
-            onMatch: callbacks.onMatch,
-            onComplete: () => {
-              callbacks.onComplete?.();
-              resolve();
-            },
-            onError: (reason) => {
-              callbacks.onError?.(reason);
-              reject(new Error(reason));
-            }
-          });
+        Memory._scan(address, size, pattern, {
+          onMatch: callbacks.onMatch,
+          onComplete: () => {
+            callbacks.onComplete?.();
+            resolve();
+          },
+          onError: (reason) => {
+            callbacks.onError?.(reason);
+            reject(new Error(reason));
+          }
+        });
       });
     }
   }
