@@ -6136,6 +6136,7 @@ compare_measurements (gconstpointer element_a,
 TESTCASE (memory_can_be_scanned_with_pattern_string)
 {
   guint8 haystack1[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+  gchar haystack2[] = "Hello world, hello world, I said.";
 
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
@@ -6165,8 +6166,6 @@ TESTCASE (memory_can_be_scanned_with_pattern_string)
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 
-  gchar haystack2[] = "Hello world, hello world, I said.";
-
   COMPILE_AND_LOAD_SCRIPT (
       "const regex = /[Hh]ello\\sworld/.toString();"
       "Memory.scan(" GUM_PTR_CONST ", 33, regex, {"
@@ -6186,6 +6185,7 @@ TESTCASE (memory_can_be_scanned_with_pattern_string)
 TESTCASE (memory_can_be_scanned_with_match_pattern_object)
 {
   guint8 haystack1[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+  gchar haystack2[] = "Hello world, hello world, I said.";
 
   COMPILE_AND_LOAD_SCRIPT (
       "const pattern = new MatchPattern('13 37');"
@@ -6216,8 +6216,6 @@ TESTCASE (memory_can_be_scanned_with_match_pattern_object)
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-
-  gchar haystack2[] = "Hello world, hello world, I said.";
 
   COMPILE_AND_LOAD_SCRIPT (
       "const pattern = new MatchPattern(/[Hh]ello\\sworld/.toString());"
@@ -6268,12 +6266,12 @@ TESTCASE (memory_can_be_scanned_asynchronously)
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Promise.resolve(Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
+      "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
       "  onMatch(address, size) {"
       "    send('onMatch offset=' + address.sub(" GUM_PTR_CONST ").toInt32()"
       "      + ' size=' + size);"
       "  }"
-      "}))"
+      "})"
       ".catch(e => console.error(e.message))"
       ".then(() => send('DONE'));", haystack, haystack);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
