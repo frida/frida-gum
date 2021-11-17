@@ -567,8 +567,8 @@ gum_match_pattern_unref (GumMatchPattern * pattern)
   {
     if (pattern->regex != NULL)
       g_regex_unref (pattern->regex);
-    else
-      g_ptr_array_free (pattern->tokens, TRUE);
+
+    g_ptr_array_free (pattern->tokens, TRUE);
 
     g_slice_free (GumMatchPattern, pattern);
   }
