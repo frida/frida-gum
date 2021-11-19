@@ -746,7 +746,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
 
   pattern = NULL;
 
-  if (!_gum_v8_args_parse (args, "QZMF{onMatch,onError?,onComplete?}", &address,
+  if (!_gum_v8_args_parse (args, "QZMF{onMatch,onError?,onComplete}", &address,
       &size, &pattern, &on_match, &on_error, &on_complete))
   {
     if (pattern != NULL)
@@ -764,8 +764,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
   if (!on_error.IsEmpty ())
     ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
-  if (!on_complete.IsEmpty ())
-    ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
+  ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
   ctx->core = core;
 
   _gum_v8_core_pin (core);
