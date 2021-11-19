@@ -66,7 +66,7 @@ the_monitor_weak_notify (gpointer data,
 
 static void
 gum_objc_dispose_class_pair_monitor_on_enter (GumInvocationListener * listener,
-                                               GumInvocationContext * context)
+                                              GumInvocationContext * context)
 {
   GumObjcDisposeClassPairMonitor * self =
       GUM_OBJC_DISPOSE_CLASS_PAIR_MONITOR (listener);
@@ -76,7 +76,7 @@ gum_objc_dispose_class_pair_monitor_on_enter (GumInvocationListener * listener,
 
 static void
 gum_objc_dispose_class_pair_monitor_on_leave (GumInvocationListener * listener,
-                                               GumInvocationContext * context)
+                                              GumInvocationContext * context)
 {
   GumObjcDisposeClassPairMonitor * self =
       GUM_OBJC_DISPOSE_CLASS_PAIR_MONITOR (listener);
@@ -86,7 +86,7 @@ gum_objc_dispose_class_pair_monitor_on_leave (GumInvocationListener * listener,
 
 static void
 gum_objc_dispose_class_pair_monitor_iface_init (gpointer g_iface,
-                                                 gpointer iface_data)
+                                                gpointer iface_data)
 {
   GumInvocationListenerInterface * iface = g_iface;
 
