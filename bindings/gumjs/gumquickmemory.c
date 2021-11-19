@@ -148,9 +148,6 @@ static gboolean gum_memory_scan_context_emit_match (GumAddress address,
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
 static gboolean gum_append_match (GumAddress address, gsize size,
     GumMemoryScanSyncContext * sc);
-static gboolean gum_parse_memory_scan_args (JSContext * ctx,
-    const GumQuickArgs * args, gpointer * address, gsize * size,
-    GumMatchPattern ** pattern);
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
@@ -936,24 +933,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   gpointer address;
   gsize size;
   GumMemoryScanContext sc;
-  JSValue callbacks;
 
-  if (args->count < 4)
-    return _gum_quick_throw_literal (ctx, "missing argument");
+  sc.pattern = NULL;
 
-  if (!gum_parse_memory_scan_args (ctx, args, &address, &size, &sc.pattern))
-    return JS_EXCEPTION;
-
-  callbacks = args->elements[3];
-  if (!JS_IsObject (callbacks))
-    goto invalid_callbacks_object;
-  sc.on_match = JS_GetPropertyStr (ctx, callbacks, "onMatch");
-  if (!JS_IsFunction (ctx, sc.on_match))
-    goto missing_callback_value;
-  sc.on_complete = JS_GetPropertyStr (ctx, callbacks, "onComplete");
-  sc.on_error = JS_GetPropertyStr (ctx, callbacks, "onError");
-  if (JS_IsUndefined (sc.on_error))
-    sc.on_error = JS_NULL;
+  if (!_gum_quick_args_parse (args, "pZMF{onMatch,onError?,onComplete?}",
+      &address, &size, &sc.pattern, &sc.on_match, &sc.on_error,
+      &sc.on_complete))
+    goto propagate_exception;
 
   sc.range.base_address = GUM_ADDRESS (address);
   sc.range.size = size;
@@ -973,20 +959,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
   return JS_UNDEFINED;
 
-invalid_callbacks_object:
-  {
-    _gum_quick_throw_literal (ctx,
-        "expected an object containing callbacks");
-    goto propagate_exception;
-  }
-missing_callback_value:
-  {
-    _gum_quick_throw_literal (ctx, "expected a callback value");
-    goto propagate_exception;
-  }
 propagate_exception:
   {
-    gum_match_pattern_unref (sc.pattern);
+    if (sc.pattern != NULL)
+      gum_match_pattern_unref (sc.pattern);
 
     return JS_EXCEPTION;
   }
@@ -1094,10 +1070,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
   GumMemoryRange range;
   GumExceptorScope scope;
 
-  if (args->count < 3)
-    return _gum_quick_throw_literal (ctx, "missing argument");
-
-  if (!gum_parse_memory_scan_args (ctx, args, &address, &size, &pattern))
+  if (!_gum_quick_args_parse (args, "pZM", &address, &size, &pattern))
     return JS_EXCEPTION;
 
   range.base_address = GUM_ADDRESS (address);
@@ -1149,60 +1122,6 @@ gum_append_match (GumAddress address,
   sc->index++;
 
   return TRUE;
-}
-
-static gboolean
-gum_parse_memory_scan_args (JSContext * ctx,
-                            const GumQuickArgs * args,
-                            gpointer * address,
-                            gsize * size,
-                            GumMatchPattern ** pattern)
-{
-  GumQuickCore * core = args->core;
-  JSValue pattern_val;
-
-  if (!_gum_quick_native_pointer_get (ctx, args->elements[0], core, address))
-    return FALSE;
-
-  if (!_gum_quick_size_get (ctx, args->elements[1], core, size))
-    return FALSE;
-
-  pattern_val = args->elements[2];
-  if (JS_IsString (pattern_val))
-  {
-    const gchar * match_str;
-    if (!_gum_quick_string_get (ctx, args->elements[2], &match_str))
-      return FALSE;
-    *pattern = gum_match_pattern_new_from_string (match_str);
-    JS_FreeCString (ctx, match_str);
-    if (*pattern == NULL)
-      goto invalid_value;
-  }
-  else if (JS_IsObject (pattern_val))
-  {
-    *pattern = JS_GetOpaque (pattern_val, core->match_pattern_class);
-    if (*pattern == NULL)
-      goto invalid_type;
-    *pattern = gum_match_pattern_ref (*pattern);
-  }
-  else
-  {
-    goto invalid_type;
-  }
-
-  return TRUE;
-
-invalid_value:
-  {
-    _gum_quick_throw_literal (ctx, "invalid match pattern");
-    return FALSE;
-  }
-invalid_type:
-  {
-    _gum_quick_throw_literal (ctx,
-        "expected either a pattern string or a MatchPattern object");
-    return FALSE;
-  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
