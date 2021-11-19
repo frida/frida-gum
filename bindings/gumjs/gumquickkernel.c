@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2018-2019 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
