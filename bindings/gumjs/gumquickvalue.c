@@ -537,6 +537,42 @@ _gum_quick_args_parse (GumQuickArgs * self,
 
         break;
       }
+      case 'M':
+      {
+        GumMatchPattern * pattern;
+
+        if (JS_IsString (arg))
+        {
+          const char * str;
+
+          str = JS_ToCString (ctx, arg);
+          if (str == NULL)
+            goto propagate_exception;
+
+          pattern = gum_match_pattern_new_from_string (str);
+          JS_FreeCString (ctx, str);
+
+          if (pattern == NULL)
+            goto invalid_pattern;
+
+        }
+        else if (JS_IsObject (arg))
+        {
+          pattern = JS_GetOpaque (arg, core->match_pattern_class);
+          if (pattern == NULL)
+            goto expected_pattern;
+        }
+        else
+        {
+          goto expected_pattern;
+        }
+
+        gum_match_pattern_ref (pattern);
+
+        *va_arg (ap, GumMatchPattern **) = pattern;
+
+        break;
+      }
       default:
         g_assert_not_reached ();
     }
@@ -581,6 +617,16 @@ expected_callback_value:
 expected_function:
   {
     error_message = "expected a function";
+    goto propagate_exception;
+  }
+invalid_pattern:
+  {
+    error_message = "invalid match pattern";
+    goto propagate_exception;
+  }
+expected_pattern:
+  {
+    error_message = "expected either a pattern string or a MatchPattern object";
     goto propagate_exception;
   }
 propagate_exception:

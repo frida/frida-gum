@@ -583,6 +583,44 @@ _gum_v8_args_parse (const GumV8Args * args,
 
         break;
       }
+      case 'M':
+      {
+        GumMatchPattern * pattern;
+
+        if (arg->IsString ())
+        {
+          String::Utf8Value arg_utf8 (isolate, arg);
+
+          pattern = gum_match_pattern_new_from_string (*arg_utf8);
+
+          if (pattern == NULL)
+          {
+            _gum_v8_throw_ascii_literal (isolate,
+                "invalid match pattern");
+            return FALSE;
+          }
+        }
+        else
+        {
+          auto match_pattern = Local<FunctionTemplate>::New (core->isolate,
+              *core->match_pattern);
+
+          if (!match_pattern->HasInstance (arg))
+          {
+            _gum_v8_throw_ascii_literal (isolate,
+                "expected either a pattern string or a MatchPattern object");
+            return FALSE;
+          }
+
+          pattern = (GumMatchPattern *) arg.As<Object> ()
+              ->GetInternalField (0).As<External> ()->Value ();
+        }
+
+        gum_match_pattern_ref (pattern);
+        *va_arg (ap, GumMatchPattern **) = pattern;
+
+        break;
+      }
       default:
         g_assert_not_reached ();
     }
