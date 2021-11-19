@@ -41,6 +41,7 @@ struct GumKernelScanContext
   GumMemoryRange range;
   GumMatchPattern * pattern;
   GumPersistent<Function>::type * on_match;
+  GumPersistent<Function>::type * on_error;
   GumPersistent<Function>::type * on_complete;
 
   GumV8Core * core;
@@ -739,31 +740,31 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
 {
   GumAddress address;
   gsize size;
-  gchar * match_str;
-  Local<Function> on_match, on_complete;
-  if (!_gum_v8_args_parse (args, "QZsF{onMatch,onComplete}", &address, &size,
-      &match_str, &on_match, &on_complete))
+  GumMatchPattern * pattern;
+  Local<Function> on_match, on_error, on_complete;
+
+  pattern = NULL;
+
+  if (!_gum_v8_args_parse (args, "QZMF{onMatch,onError?,onComplete?}", &address,
+      &size, &pattern, &on_match, &on_error, &on_complete))
+  {
+    if (pattern != NULL)
+      gum_match_pattern_unref (pattern);
     return;
+  }
 
   GumMemoryRange range;
   range.base_address = address;
   range.size = size;
 
-  auto pattern = gum_match_pattern_new_from_string (match_str);
-
-  g_free (match_str);
-
-  if (pattern == NULL)
-  {
-    _gum_v8_throw_ascii_literal (isolate, "invalid match pattern");
-    return;
-  }
-
   auto ctx = g_slice_new0 (GumKernelScanContext);
   ctx->range = range;
   ctx->pattern = pattern;
   ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
-  ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
+  if (!on_error.IsEmpty ())
+    ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
+  if (!on_complete.IsEmpty ())
+    ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
   ctx->core = core;
 
   _gum_v8_core_pin (core);
@@ -782,6 +783,7 @@ gum_kernel_scan_context_free (GumKernelScanContext * self)
     ScriptScope script_scope (core->script);
 
     delete self->on_match;
+    delete self->on_error;
     delete self->on_complete;
 
     _gum_v8_core_unpin (core);
@@ -801,10 +803,14 @@ gum_kernel_scan_context_run (GumKernelScanContext * self)
       (GumMemoryScanMatchFunc) gum_kernel_scan_context_emit_match, self);
 
   ScriptScope script_scope (core->script);
-  auto on_complete (Local<Function>::New (isolate, *self->on_complete));
-  auto recv = Undefined (isolate);
-  auto result = on_complete->Call (context, recv, 0, nullptr);
-  _gum_v8_ignore_result (result);
+
+  if (!self->on_complete->IsEmpty ())
+  {
+    auto on_complete (Local<Function>::New (isolate, *self->on_complete));
+    auto recv = Undefined (isolate);
+    auto result = on_complete->Call (context, recv, 0, nullptr);
+    _gum_v8_ignore_result (result);
+  }
 }
 
 static gboolean
@@ -835,37 +841,24 @@ gum_kernel_scan_context_emit_match (GumAddress address,
   return proceed;
 }
 
-/*
- * Prototype:
- * Kernel.scanSync(address, size, match_str)
- *
- * Docs:
- * Scans a kernel memory region for a specific string
- *
- * Example:
- * TBW
- */
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan_sync)
 {
   GumAddress address;
   gsize size;
-  gchar * match_str;
-  if (!_gum_v8_args_parse (args, "QZs", &address, &size, &match_str))
+  GumMatchPattern * pattern;
+
+  pattern = NULL;
+
+  if (!_gum_v8_args_parse (args, "QZM", &address, &size, &pattern))
+  {
+    if (pattern != NULL)
+      gum_match_pattern_unref (pattern);
     return;
+  }
 
   GumMemoryRange range;
   range.base_address = address;
   range.size = size;
-
-  auto pattern = gum_match_pattern_new_from_string (match_str);
-
-  g_free (match_str);
-
-  if (pattern == NULL)
-  {
-    _gum_v8_throw_ascii_literal (isolate, "invalid match pattern");
-    return;
-  }
 
   GumKernelScanSyncContext ctx;
   ctx.matches = Array::New (isolate);
