@@ -21,7 +21,7 @@ G_DEFINE_TYPE_EXTENDED (GumObjcDisposeClassPairMonitor,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_objc_dispose_class_pair_monitor_iface_init))
 
-static GMutex _gum_obj_dispose_class_pair_monitor_lock;
+static GMutex _gum_objc_dispose_class_pair_monitor_lock;
 static GumObjcDisposeClassPairMonitor * _the_monitor = NULL;
 
 GumObjcDisposeClassPairMonitor *
@@ -29,7 +29,7 @@ gum_objc_dispose_class_pair_monitor_obtain (void)
 {
   GumObjcDisposeClassPairMonitor * monitor;
 
-  g_mutex_lock (&_gum_obj_dispose_class_pair_monitor_lock);
+  g_mutex_lock (&_gum_objc_dispose_class_pair_monitor_lock);
 
   if (_the_monitor != NULL)
   {
@@ -46,7 +46,7 @@ gum_objc_dispose_class_pair_monitor_obtain (void)
     monitor = _the_monitor;
   }
 
-  g_mutex_unlock (&_gum_obj_dispose_class_pair_monitor_lock);
+  g_mutex_unlock (&_gum_objc_dispose_class_pair_monitor_lock);
 
   return monitor;
 }
@@ -55,13 +55,13 @@ static void
 the_monitor_weak_notify (gpointer data,
                          GObject * where_the_object_was)
 {
-  g_mutex_lock (&_gum_obj_dispose_class_pair_monitor_lock);
+  g_mutex_lock (&_gum_objc_dispose_class_pair_monitor_lock);
 
   g_assert (_the_monitor == (GumObjcDisposeClassPairMonitor *)
       where_the_object_was);
   _the_monitor = NULL;
 
-  g_mutex_unlock (&_gum_obj_dispose_class_pair_monitor_lock);
+  g_mutex_unlock (&_gum_objc_dispose_class_pair_monitor_lock);
 }
 
 static void
