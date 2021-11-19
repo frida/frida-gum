@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,6 +18,8 @@ TESTLIST_BEGIN (kscript)
   TESTENTRY (module_ranges_can_be_enumerated_legacy_style)
   TESTENTRY (byte_array_can_be_read)
   TESTENTRY (byte_array_can_be_written)
+  TESTENTRY (memory_can_be_asynchronously_scanned)
+  TESTENTRY (memory_can_be_synchronously_scanned)
 TESTLIST_END ()
 
 TESTCASE (api_availability_can_be_queried)
@@ -146,3 +149,39 @@ TESTCASE (byte_array_can_be_written)
   EXPECT_NO_MESSAGES ();
 }
 
+TESTCASE (memory_can_be_asynchronously_scanned)
+{
+  COMPILE_AND_LOAD_SCRIPT(
+      "var buffer = Kernel.alloc(12);"
+      /* ASCII for 'hello world' */
+      "Kernel.writeByteArray(buffer, [0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77,"
+        "0x6f, 0x72, 0x6c, 0x64]);"
+      "Kernel"
+      "  .scan(buffer, 11, '/world/', {"
+      "    onMatch(address, size) {"
+      "      send(address == buffer + 6);"
+      "      send(size);"
+      "    },"
+      "    onError(reason) {"
+      "      console.error(reason);"
+      "    }"
+      "  })"
+      "  .then(() => send('DONE'));");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("5");
+  EXPECT_SEND_MESSAGE_WITH ("\"DONE\"");
+}
+
+TESTCASE (memory_can_be_synchronously_scanned)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var buffer = Kernel.alloc(12);"
+      "Kernel.writeByteArray(buffer, [0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77,"
+        "0x6f, 0x72, 0x6c, 0x64]);"
+      "var match = Kernel.scanSync(buffer, 11, '/hello/')[0];"
+      /* XXX: for some reason (match.address == compare) evaluates to false */
+      "send(new UInt64(match.address).compare(buffer));"
+      "send(match.size);");
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("5");
+}
