@@ -165,7 +165,7 @@ static const GumV8Function gumjs_kernel_functions[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
 
-  { "scan", gumjs_kernel_scan },
+  { "_scan", gumjs_kernel_scan },
   { "scanSync", gumjs_kernel_scan_sync },
 
   { NULL, NULL }

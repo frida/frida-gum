@@ -176,7 +176,7 @@ static const JSCFunctionListEntry gumjs_kernel_entries[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
 
-  JS_CFUNC_DEF ("scan", 0, gumjs_kernel_scan),
+  JS_CFUNC_DEF ("_scan", 0, gumjs_kernel_scan),
   JS_CFUNC_DEF ("scanSync", 0, gumjs_kernel_scan_sync),
 };
 
