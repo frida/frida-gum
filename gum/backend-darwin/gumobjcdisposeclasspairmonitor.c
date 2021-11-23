@@ -10,6 +10,7 @@
 
 static void gum_objc_dispose_class_pair_monitor_iface_init (gpointer g_iface,
     gpointer iface_data);
+static void gum_objc_dispose_class_pair_monitor_dispose (GObject * object);
 static void gum_objc_dispose_class_pair_monitor_finalize (GObject * object);
 static void the_monitor_weak_notify (gpointer data,
     GObject * where_the_object_was);
@@ -100,6 +101,7 @@ gum_objc_dispose_class_pair_monitor_class_init (
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
+  object_class->dispose = gum_objc_dispose_class_pair_monitor_dispose;
   object_class->finalize = gum_objc_dispose_class_pair_monitor_finalize;
 }
 
@@ -121,7 +123,7 @@ gum_objc_dispose_class_pair_monitor_init (
 }
 
 static void
-gum_objc_dispose_class_pair_monitor_finalize (GObject * object)
+gum_objc_dispose_class_pair_monitor_dispose (GObject * object)
 {
   GumObjcDisposeClassPairMonitor * self =
       GUM_OBJC_DISPOSE_CLASS_PAIR_MONITOR (object);
@@ -130,7 +132,21 @@ gum_objc_dispose_class_pair_monitor_finalize (GObject * object)
   gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
   g_rec_mutex_unlock (&self->mutex);
 
+  g_clear_object (&self->interceptor);
+
+  G_OBJECT_CLASS (
+      gum_objc_dispose_class_pair_monitor_parent_class)->dispose (object);
+}
+
+static void
+gum_objc_dispose_class_pair_monitor_finalize (GObject * object)
+{
+  GumObjcDisposeClassPairMonitor * self =
+      GUM_OBJC_DISPOSE_CLASS_PAIR_MONITOR (object);
+
   g_rec_mutex_clear (&self->mutex);
-  g_object_unref (self->interceptor);
+
+  G_OBJECT_CLASS (
+      gum_objc_dispose_class_pair_monitor_parent_class)->finalize (object);
 }
 

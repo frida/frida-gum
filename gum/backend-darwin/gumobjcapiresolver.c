@@ -62,6 +62,7 @@ struct _GumObjcClassMetadata
 
 static void gum_objc_api_resolver_iface_init (gpointer g_iface,
     gpointer iface_data);
+static void gum_objc_api_resolver_dispose (GObject * object);
 static void gum_objc_api_resolver_finalize (GObject * object);
 static void gum_objc_api_resolver_ensure_class_by_handle (
     GumObjcApiResolver * self);
@@ -104,6 +105,7 @@ gum_objc_api_resolver_class_init (GumObjcApiResolverClass * klass)
   gum_libc_free = (GumLibcFreeFunc) gum_module_find_export_by_name (
       "/usr/lib/system/libsystem_malloc.dylib", "free");
 
+  object_class->dispose = gum_objc_api_resolver_dispose;
   object_class->finalize = gum_objc_api_resolver_finalize;
 }
 
@@ -156,11 +158,19 @@ beach:
 }
 
 static void
-gum_objc_api_resolver_finalize (GObject * object)
+gum_objc_api_resolver_dispose (GObject * object)
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (object);
 
-  g_object_unref (self->monitor);
+  g_clear_object (&self->monitor);
+
+  G_OBJECT_CLASS (gum_objc_api_resolver_parent_class)->dispose (object);
+}
+
+static void
+gum_objc_api_resolver_finalize (GObject * object)
+{
+  GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (object);
 
   g_clear_pointer (&self->class_by_handle, g_hash_table_unref);
 
@@ -211,6 +221,9 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
   gboolean carry_on;
   GHashTable * visited_classes;
   GumObjcClassMetadata * klass;
+
+  if (self->monitor == NULL)
+    return;
 
   g_regex_match (self->query_pattern, query, 0, &query_info);
   if (!g_match_info_matches (query_info))
@@ -370,6 +383,9 @@ gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
   gchar * result = NULL;
   gint class_count, class_index;
   Class * classes;
+
+  if (self->monitor == NULL)
+    return NULL;
 
   g_rec_mutex_lock (&self->monitor->mutex);
 
