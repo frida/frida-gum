@@ -390,7 +390,7 @@ gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
   g_rec_mutex_lock (&self->monitor->mutex);
 
   class_count = self->objc_getClassList (NULL, 0);
-  classes = g_malloc (class_count * sizeof (Class));
+  classes = g_new (Class, class_count);
   self->objc_getClassList (classes, class_count);
 
   for (class_index = 0;
