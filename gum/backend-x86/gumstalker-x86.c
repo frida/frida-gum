@@ -3346,7 +3346,7 @@ gum_exec_ctx_get_branch_target_address (GumExecCtx * ctx,
     gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RAX);
 #else
     gum_write_segment_prefix (target->pfx_seg, cw);
-    gum_x86_writer_put_u8 (cw, 0x3e);
+    gum_x86_writer_put_u8 (cw, 0xa1);
     gum_x86_writer_put_bytes (cw, (guint8 *) &target->absolute_address,
         sizeof (target->absolute_address));
 #endif
