@@ -7,12 +7,11 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "guminterceptor.h"
-
 #include "gumobjcapiresolver.h"
+
+#include "guminterceptor.h"
 #include "gumobjcapiresolver-priv.h"
 #include "gumobjcdisposeclasspairmonitor.h"
-
 #include "gumprocess.h"
 
 #include <dlfcn.h>

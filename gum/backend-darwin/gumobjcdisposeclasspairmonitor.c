@@ -113,7 +113,6 @@ gum_objc_dispose_class_pair_monitor_init (
 
   objc_disposeClassPair = GSIZE_TO_POINTER (gum_module_find_export_by_name (
       "/usr/lib/libobjc.A.dylib", "objc_disposeClassPair"));
-
   g_assert (objc_disposeClassPair != NULL);
 
   self->interceptor = gum_interceptor_obtain ();

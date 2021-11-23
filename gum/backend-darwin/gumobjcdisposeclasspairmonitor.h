@@ -25,7 +25,7 @@ struct _GumObjcDisposeClassPairMonitor
   GumInterceptor * interceptor;
 };
 
-GumObjcDisposeClassPairMonitor *
+G_GNUC_INTERNAL GumObjcDisposeClassPairMonitor *
     gum_objc_dispose_class_pair_monitor_obtain (void);
 
 G_END_DECLS
