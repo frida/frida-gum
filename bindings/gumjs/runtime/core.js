@@ -187,29 +187,27 @@ Object.defineProperties(Kernel, {
   scan: {
     enumerable: true,
     value: function (address, size, pattern, callbacks) {
-      return new Promise((resolve, reject) => {
-        let onSuccess;
-        let onFailure;
+      let onSuccess;
+      let onFailure;
 
-        const request = new Promise((resolve, reject) => {
-          onSuccess = resolve;
-          onFailure = reject;
-        });
-
-        Kernel._scan(address, size, pattern, {
-          onMatch: callbacks.onMatch,
-          onError(reason) {
-            onFailure(new Error(reason));
-            callbacks.onError?.();
-          },
-          onComplete() {
-            onSuccess();
-            callbacks.onComplete?.();
-          }
-        });
-
-        return request;
+      const request = new Promise((resolve, reject) => {
+        onSuccess = resolve;
+        onFailure = reject;
       });
+
+      Kernel._scan(address, size, pattern, {
+        onMatch: callbacks.onMatch,
+        onError(reason) {
+          onFailure(new Error(reason));
+          callbacks.onError?.();
+        },
+        onComplete() {
+          onSuccess();
+          callbacks.onComplete?.();
+        }
+      });
+
+      return request;
     }
   }
 });
