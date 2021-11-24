@@ -556,7 +556,6 @@ _gum_quick_args_parse (GumQuickArgs * self,
 
           if (pattern == NULL)
             goto invalid_pattern;
-
         }
         else if (JS_IsObject (arg))
         {
