@@ -615,9 +615,10 @@ _gum_v8_args_parse (const GumV8Args * args,
 
           pattern = (GumMatchPattern *) arg.As<Object> ()
               ->GetInternalField (0).As<External> ()->Value ();
+
+          gum_match_pattern_ref (pattern);
         }
 
-        gum_match_pattern_ref (pattern);
         *va_arg (ap, GumMatchPattern **) = pattern;
 
         break;

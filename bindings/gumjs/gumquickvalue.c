@@ -562,13 +562,13 @@ _gum_quick_args_parse (GumQuickArgs * self,
           pattern = JS_GetOpaque (arg, core->match_pattern_class);
           if (pattern == NULL)
             goto expected_pattern;
+
+          gum_match_pattern_ref (pattern);
         }
         else
         {
           goto expected_pattern;
         }
-
-        gum_match_pattern_ref (pattern);
 
         *va_arg (ap, GumMatchPattern **) = pattern;
 
