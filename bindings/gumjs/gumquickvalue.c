@@ -551,6 +551,7 @@ _gum_quick_args_parse (GumQuickArgs * self,
             goto propagate_exception;
 
           pattern = gum_match_pattern_new_from_string (str);
+
           JS_FreeCString (ctx, str);
 
           if (pattern == NULL)
