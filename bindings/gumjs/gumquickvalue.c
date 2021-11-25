@@ -92,18 +92,15 @@ _gum_quick_args_destroy (GumQuickArgs * args)
     g_array_free (values, TRUE);
   }
 
-  GSList * match_patterns = args->match_patterns;
-  if (match_patterns != NULL)
+  GSList * match_patterns = g_steal_pointer (&args->match_patterns);
+  if (!args->parse_success)
   {
-    if (!args->parse_success)
-    {
-      g_slist_free_full (match_patterns,
-          (GDestroyNotify) gum_match_pattern_unref);
-    }
-    else
-    {
-      g_slist_free (match_patterns);
-    }
+    g_slist_free_full (match_patterns,
+        (GDestroyNotify) gum_match_pattern_unref);
+  }
+  else
+  {
+    g_slist_free (match_patterns);
   }
 }
 
