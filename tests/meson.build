@@ -45,6 +45,14 @@ if have_gumjs
 endif
 
 force_cpp_linking = have_gumpp or have_v8
+
+# We have tests for Stalker C++ exception handling
+if host_os_family == 'linux'
+  if host_arch == 'x86' or host_arch == 'x86_64'
+    force_cpp_linking = true
+  endif
+endif
+
 if force_cpp_linking
   if host_os_family == 'darwin'
     # Work around Meson bug: https://github.com/mesonbuild/meson/issues/1766

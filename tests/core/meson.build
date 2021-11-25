@@ -68,9 +68,26 @@ if host_arch == 'arm64'
   endif
 endif
 
+gum_tests_core_link = []
+
+if host_os_family == 'linux'
+  if host_arch == 'x86' or host_arch == 'x86_64'
+
+    gum_tests_core_exceptions = static_library('gum-tests-core-exceptions',
+        ['arch-x86/stalker-x86-exceptions.cpp'],
+        include_directories: test_incdirs,
+        dependencies: [gum_dep],
+        override_options: ['cpp_eh=default'],
+    )
+    gum_tests_core_link += gum_tests_core_exceptions
+
+  endif
+endif
+
 gum_tests_core = static_library('gum-tests-core', core_sources,
   include_directories: test_incdirs,
   dependencies: [gum_dep],
+  link_with: gum_tests_core_link,
 )
 
 if host_os_family == 'darwin'

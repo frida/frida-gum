@@ -28,6 +28,11 @@
 # include <tchar.h>
 #endif
 
+#ifdef HAVE_LINUX
+# include "guminterceptor.h"
+# include <unwind.h>
+#endif
+
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
 #define GUM_CODE_SLAB_SIZE_DYNAMIC  (4 * 1024 * 1024)
 #define GUM_SLOW_SLAB_SIZE_INITIAL  (128 * 1024)
@@ -187,6 +192,10 @@ struct _GumStalker
   gpointer ki_user_callback_dispatcher_impl;
   GArray * wow_transition_impls;
 # endif
+#endif
+
+#ifdef HAVE_LINUX
+  GHashTable * excluded_call_lookup;
 #endif
 };
 
@@ -495,6 +504,12 @@ enum _GumVirtualizationRequirements
   GUM_REQUIRE_SINGLE_STEP     = 1 << 1
 };
 
+#ifdef HAVE_LINUX
+typedef struct _Unwind_Exception _Unwind_Exception;
+typedef struct _Unwind_Context _Unwind_Context;
+struct dwarf_eh_bases;
+#endif
+
 static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
 static void gum_stalker_get_property (GObject * object, guint property_id,
@@ -761,6 +776,21 @@ G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
 static gpointer _gum_thread_exit_impl;
 
+#ifdef HAVE_LINUX
+extern _Unwind_Reason_Code __gxx_personality_v0 (int version,
+    _Unwind_Action actions, uint64_t exceptionClass,
+    _Unwind_Exception* unwind_exception, _Unwind_Context* context);
+
+extern const void *_Unwind_Find_FDE(const void *pc, struct dwarf_eh_bases *);
+
+static const void * stalker_exception_find_fde (const void *pc,
+    struct dwarf_eh_bases * bases);
+
+static _Unwind_Reason_Code stalker_exception_personality (int version,
+  _Unwind_Action actions, uint64_t exceptionClass,
+  _Unwind_Exception* unwind_exception, _Unwind_Context* context);
+#endif
+
 gboolean
 gum_stalker_is_supported (void)
 {
@@ -905,6 +935,97 @@ gum_stalker_init (GumStalker * self)
   }
 # endif
 #endif
+
+#ifdef HAVE_LINUX
+  self->excluded_call_lookup = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+
+  GumInterceptor * interceptor = gum_interceptor_obtain ();
+  GumAttachReturn attached;
+
+  attached = gum_interceptor_replace (interceptor, __gxx_personality_v0,
+    stalker_exception_personality, self);
+  if (attached != GUM_ATTACH_OK)
+  {
+    g_error ("Failed to attach to __gxx_personality_v0: %d", attached);
+  }
+
+  attached = gum_interceptor_replace (interceptor, _Unwind_Find_FDE,
+    stalker_exception_find_fde, self);
+  if (attached != GUM_ATTACH_OK)
+  {
+    g_error ("Failed to attach to _Unwind_Find_FDE: %d", attached);
+  }
+
+#endif
+}
+
+static const void *
+stalker_exception_find_fde (const void *pc,
+                            struct dwarf_eh_bases * bases)
+{
+  GumInvocationContext * ic;
+  GumStalker * stalker;
+  gpointer real_address;
+  const void * result = NULL;
+
+  ic = gum_interceptor_get_current_invocation ();
+  stalker = gum_invocation_context_get_replacement_data (ic);
+
+  real_address = g_hash_table_lookup (stalker->excluded_call_lookup, pc + 1);
+
+  if (real_address == NULL)
+    result = _Unwind_Find_FDE(pc, bases);
+  else
+    result = _Unwind_Find_FDE(real_address - 1, bases);
+
+  return result;
+}
+
+static _Unwind_Reason_Code
+stalker_exception_personality (int version,
+                               _Unwind_Action actions,
+                               uint64_t exceptionClass,
+                               _Unwind_Exception* unwind_exception,
+                               _Unwind_Context* context)
+{
+  GumInvocationContext * ic;
+  GumStalker * stalker;
+  gpointer throw_ip;
+  gpointer real_throw_ip;
+  _Unwind_Reason_Code reason;
+  gpointer real_resume_ip;
+  GumExecCtx * ctx;
+  gpointer resume_ip;
+
+  ic = gum_interceptor_get_current_invocation ();
+  stalker = gum_invocation_context_get_replacement_data (ic);
+
+  throw_ip = GSIZE_TO_POINTER (_Unwind_GetIP (context));
+  real_throw_ip = g_hash_table_lookup (stalker->excluded_call_lookup,
+      throw_ip);
+
+  if (real_throw_ip == NULL)
+  {
+    return __gxx_personality_v0 (version, actions, exceptionClass,
+        unwind_exception, context);
+  }
+
+  _Unwind_SetIP (context, GPOINTER_TO_SIZE (real_throw_ip));
+
+  reason = __gxx_personality_v0 (version, actions, exceptionClass,
+    unwind_exception, context);
+
+  if (reason == _URC_INSTALL_CONTEXT)
+  {
+    real_resume_ip = GSIZE_TO_POINTER (_Unwind_GetIP (context));
+    ctx = gum_stalker_get_exec_ctx (stalker);
+    resume_ip = gum_exec_ctx_switch_block (ctx, real_resume_ip, NULL);
+
+    _Unwind_SetIP (context, GPOINTER_TO_SIZE (resume_ip));
+    ctx->pending_calls--;
+  }
+
+  return reason;
 }
 
 static void
@@ -929,6 +1050,10 @@ gum_stalker_finalize (GObject * object)
 {
   GumStalker * self = GUM_STALKER (object);
 
+#ifdef HAVE_LINUX
+  GumInterceptor * interceptor = gum_interceptor_obtain ();
+#endif
+
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 4
   g_array_unref (self->wow_transition_impls);
 #endif
@@ -941,6 +1066,13 @@ gum_stalker_finalize (GObject * object)
   g_assert (self->contexts == NULL);
   gum_tls_key_free (self->exec_ctx);
   g_mutex_clear (&self->mutex);
+
+#ifdef HAVE_LINUX
+  gum_interceptor_revert (interceptor, __gxx_personality_v0);
+  gum_interceptor_revert (interceptor, _Unwind_Find_FDE);
+
+  g_hash_table_unref (self->excluded_call_lookup);
+#endif
 
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
 }
@@ -4205,6 +4337,9 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     if (target_is_excluded)
     {
       GumBranchTarget next_instruction = { 0, };
+      gpointer start_of_call;
+      guint  call_length;
+      gpointer end_of_call;
 
       gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc, gc->code_writer);
       gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
@@ -4216,7 +4351,23 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       gum_x86_writer_put_inc_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
       gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
+      start_of_call = cw->code;
+
       gum_x86_relocator_write_one_no_label (gc->relocator);
+
+      call_length = gum_x86_reader_insn_length (start_of_call);
+
+      /*
+       * We can't just write the instruction and then use cw->code to get the
+       * end of the call instruction since the relocator may need to embed the
+       * target address in the code stream. In which case it is written
+       * immediately after the instruction.
+       */
+      end_of_call = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (start_of_call)
+          + call_length);
+
+      g_hash_table_insert (ctx->stalker->excluded_call_lookup, end_of_call,
+        GSIZE_TO_POINTER (insn->ci->address + insn->ci->size));
 
       gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc,
           gc->code_writer);
