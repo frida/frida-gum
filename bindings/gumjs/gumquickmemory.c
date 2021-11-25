@@ -934,8 +934,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   gsize size;
   GumMemoryScanContext sc;
 
-  sc.pattern = NULL;
-
   if (!_gum_quick_args_parse (args, "pZMF{onMatch,onError?,onComplete}",
       &address, &size, &sc.pattern, &sc.on_match, &sc.on_error,
       &sc.on_complete))
@@ -961,9 +959,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 
 propagate_exception:
   {
-    if (sc.pattern != NULL)
-      gum_match_pattern_unref (sc.pattern);
-
     return JS_EXCEPTION;
   }
 }

@@ -838,16 +838,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   GumAddress address;
   gsize size;
 
-  sc.pattern = NULL;
-
   if (!_gum_quick_args_parse (args, "QZMF{onMatch,onError?,onComplete}",
       &address, &size, &sc.pattern, &sc.on_match, &sc.on_error,
       &sc.on_complete))
-  {
-    if (sc.pattern != NULL)
-      gum_match_pattern_unref (sc.pattern);
     return JS_EXCEPTION;
-  }
 
   sc.range.base_address = address;
   sc.range.size = size;

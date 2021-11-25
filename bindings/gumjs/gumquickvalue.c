@@ -19,6 +19,8 @@ static void gum_quick_args_free_cstring_later (GumQuickArgs * self,
     const char * s);
 static void gum_quick_args_free_array_later (GumQuickArgs * self, GArray * a);
 static void gum_quick_args_free_bytes_later (GumQuickArgs * self, GBytes * b);
+static void gum_quick_args_free_match_pattern_later (GumQuickArgs * self,
+    GumMatchPattern * p);
 
 static JSClassID gum_get_class_id_for_class_def (const JSClassDef * def);
 static void gum_deinit_class_ids (void);
@@ -48,6 +50,9 @@ _gum_quick_args_init (GumQuickArgs * args,
   args->cstrings = NULL;
   args->arrays = NULL;
   args->bytes = NULL;
+  args->match_patterns = NULL;
+
+  args->parse_success = false;
 }
 
 void
@@ -85,6 +90,20 @@ _gum_quick_args_destroy (GumQuickArgs * args)
     }
 
     g_array_free (values, TRUE);
+  }
+
+  GSList * match_patterns = args->match_patterns;
+  if (match_patterns != NULL)
+  {
+    if (!args->parse_success)
+    {
+      g_slist_free_full (match_patterns,
+          (GDestroyNotify) gum_match_pattern_unref);
+    }
+    else
+    {
+      g_slist_free (match_patterns);
+    }
   }
 }
 
@@ -572,6 +591,8 @@ _gum_quick_args_parse (GumQuickArgs * self,
 
         *va_arg (ap, GumMatchPattern **) = pattern;
 
+        gum_quick_args_free_match_pattern_later (self, pattern);
+
         break;
       }
       default:
@@ -582,6 +603,8 @@ _gum_quick_args_parse (GumQuickArgs * self,
   }
 
   va_end (ap);
+
+  self->parse_success = true;
 
   return TRUE;
 
@@ -690,6 +713,16 @@ gum_quick_args_free_bytes_later (GumQuickArgs * self,
     return;
 
   self->bytes = g_slist_prepend (self->bytes, b);
+}
+
+static void
+gum_quick_args_free_match_pattern_later (GumQuickArgs * self,
+                                         GumMatchPattern * p)
+{
+  if (p == NULL)
+    return;
+
+  self->match_patterns = g_slist_prepend (self->match_patterns, p);
 }
 
 gboolean
