@@ -915,15 +915,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   GumMatchPattern * pattern;
   Local<Function> on_match, on_error, on_complete;
 
-  pattern = NULL;
-
   if (!_gum_v8_args_parse (args, "pZMF{onMatch,onError?,onComplete}", &address,
       &size, &pattern, &on_match, &on_error, &on_complete))
-  {
-    if (pattern != NULL)
-      gum_match_pattern_unref (pattern);
     return;
-  }
 
   GumMemoryRange range;
   range.base_address = GUM_ADDRESS (address);

@@ -20,7 +20,8 @@ struct GumV8ArgsParseScope
     : committed (FALSE),
       strings (NULL),
       arrays (NULL),
-      bytes (NULL)
+      bytes (NULL),
+      match_patterns (NULL)
   {
   }
 
@@ -31,11 +32,13 @@ struct GumV8ArgsParseScope
       g_slist_foreach (strings, (GFunc) g_free, NULL);
       g_slist_foreach (arrays, (GFunc) g_array_unref, NULL);
       g_slist_foreach (bytes, (GFunc) g_bytes_unref, NULL);
+      g_slist_foreach (match_patterns, (GFunc) gum_match_pattern_unref, NULL);
     }
 
     g_slist_free (strings);
     g_slist_free (arrays);
     g_slist_free (bytes);
+    g_slist_free (match_patterns);
   }
 
   void
@@ -64,10 +67,17 @@ struct GumV8ArgsParseScope
     bytes = g_slist_prepend (bytes, b);
   }
 
+  void
+  add (GumMatchPattern * p)
+  {
+    match_patterns = g_slist_prepend (match_patterns, p);
+  }
+
   gboolean committed;
   GSList * strings;
   GSList * arrays;
   GSList * bytes;
+  GSList * match_patterns;
 };
 
 struct GumCpuContextWrapper
@@ -618,6 +628,8 @@ _gum_v8_args_parse (const GumV8Args * args,
 
           gum_match_pattern_ref (pattern);
         }
+
+        scope.add(pattern);
 
         *va_arg (ap, GumMatchPattern **) = pattern;
 
