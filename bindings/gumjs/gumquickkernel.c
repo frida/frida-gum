@@ -944,14 +944,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan_sync)
   GumMemoryRange range;
   GumMemoryScanSyncContext sc;
 
-  pattern = NULL;
-
   if (!_gum_quick_args_parse (args, "QZM", &address, &size, &pattern))
-  {
-    if (pattern != NULL)
-      gum_match_pattern_unref (pattern);
     return JS_EXCEPTION;
-  }
 
   range.base_address = address;
   range.size = size;

@@ -1074,6 +1074,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 
   range.base_address = GUM_ADDRESS (address);
   range.size = size;
+
   result = JS_NewArray (ctx);
 
   if (gum_exceptor_try (core->exceptor, &scope))
