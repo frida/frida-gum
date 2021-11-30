@@ -151,15 +151,15 @@ TESTCASE (byte_array_can_be_written)
 
 TESTCASE (memory_can_be_asynchronously_scanned)
 {
-  COMPILE_AND_LOAD_SCRIPT(
-      "var buffer = Kernel.alloc(12);"
+  COMPILE_AND_LOAD_SCRIPT (
+      "const buffer = Kernel.alloc(12);"
       /* ASCII for 'hello world' */
       "Kernel.writeByteArray(buffer, [0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77,"
         "0x6f, 0x72, 0x6c, 0x64]);"
       "Kernel"
       "  .scan(buffer, 11, '/world/', {"
       "    onMatch(address, size) {"
-      "      send(address == buffer + 6);"
+      "      send(address.equals(buffer.add(6)));"
       "      send(size);"
       "    },"
       "    onError(reason) {"
@@ -175,13 +175,12 @@ TESTCASE (memory_can_be_asynchronously_scanned)
 TESTCASE (memory_can_be_synchronously_scanned)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var buffer = Kernel.alloc(12);"
+      "const buffer = Kernel.alloc(12);"
       "Kernel.writeByteArray(buffer, [0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77,"
         "0x6f, 0x72, 0x6c, 0x64]);"
-      "var match = Kernel.scanSync(buffer, 11, '/hello/')[0];"
-      /* XXX: for some reason (match.address == compare) evaluates to false */
-      "send(new UInt64(match.address).compare(buffer));"
+      "const match = Kernel.scanSync(buffer, 11, '/hello/')[0];"
+      "send(match.address.equals(buffer));"
       "send(match.size);");
-  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("5");
 }
