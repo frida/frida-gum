@@ -153,4 +153,3 @@ gum_objc_dispose_class_pair_monitor_on_leave (GumInvocationListener * listener,
 
   g_rec_mutex_unlock (&self->mutex);
 }
-
