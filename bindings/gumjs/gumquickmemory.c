@@ -934,7 +934,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   gsize size;
   GumMemoryScanContext sc;
 
-  if (!_gum_quick_args_parse (args, "pZMF{onMatch,onError?,onComplete}",
+  if (!_gum_quick_args_parse (args, "pZMF{onMatch,onError,onComplete}",
       &address, &size, &sc.pattern, &sc.on_match, &sc.on_error,
       &sc.on_complete))
     return JS_EXCEPTION;

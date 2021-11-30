@@ -743,8 +743,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   gsize size;
   GumMatchPattern * pattern;
   Local<Function> on_match, on_error, on_complete;
-
-  if (!_gum_v8_args_parse (args, "QZMF{onMatch,onError?,onComplete}", &address,
+  if (!_gum_v8_args_parse (args, "QZMF{onMatch,onError,onComplete}", &address,
       &size, &pattern, &on_match, &on_error, &on_complete))
     return;
 
@@ -756,8 +755,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   ctx->range = range;
   ctx->pattern = pattern;
   ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
-  if (!on_error.IsEmpty ())
-    ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
+  ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
   ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
   ctx->core = core;
 
@@ -771,8 +769,6 @@ gum_kernel_scan_context_free (GumKernelScanContext * self)
 {
   auto core = self->core;
 
-  gum_match_pattern_unref (self->pattern);
-
   {
     ScriptScope script_scope (core->script);
 
@@ -782,6 +778,8 @@ gum_kernel_scan_context_free (GumKernelScanContext * self)
 
     _gum_v8_core_unpin (core);
   }
+
+  gum_match_pattern_unref (self->pattern);
 
   g_slice_free (GumKernelScanContext, self);
 }
@@ -840,15 +838,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan_sync)
   GumAddress address;
   gsize size;
   GumMatchPattern * pattern;
-
-  pattern = NULL;
-
   if (!_gum_v8_args_parse (args, "QZM", &address, &size, &pattern))
-  {
-    if (pattern != NULL)
-      gum_match_pattern_unref (pattern);
     return;
-  }
 
   GumMemoryRange range;
   range.base_address = address;

@@ -838,7 +838,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   GumAddress address;
   gsize size;
 
-  if (!_gum_quick_args_parse (args, "QZMF{onMatch,onError?,onComplete}",
+  if (!_gum_quick_args_parse (args, "QZMF{onMatch,onError,onComplete}",
       &address, &size, &sc.pattern, &sc.on_match, &sc.on_error,
       &sc.on_complete))
     return JS_EXCEPTION;
