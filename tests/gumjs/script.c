@@ -6513,7 +6513,7 @@ TESTCASE (memory_can_be_allocated_with_byte_granularity)
       "send(p.readPointer().toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
-  COMPILE_AND_LOAD_SCRIPT(
+  COMPILE_AND_LOAD_SCRIPT (
       "const p = Memory.alloc(5);"
       "send('p', p.readByteArray(5));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
@@ -6530,7 +6530,7 @@ TESTCASE (memory_can_be_allocated_with_page_granularity)
   g_assert_cmpuint (p, !=, 0);
   g_assert_cmpuint (p & (gum_query_page_size () - 1), ==, 0);
 
-  COMPILE_AND_LOAD_SCRIPT(
+  COMPILE_AND_LOAD_SCRIPT (
       "const p = Memory.alloc(5);"
       "send('p', p.readByteArray(5));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
