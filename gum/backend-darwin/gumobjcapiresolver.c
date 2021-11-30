@@ -30,7 +30,6 @@ struct _GumObjcApiResolver
 
   gboolean available;
   GHashTable * class_by_handle;
-
   GumObjcDisposeClassPairMonitor * monitor;
 
   gint (* objc_getClassList) (Class * buffer, gint class_count);
@@ -146,11 +145,8 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
   GUM_TRY_ASSIGN_OBJC_FUNC (method_getImplementation);
   GUM_TRY_ASSIGN_OBJC_FUNC (sel_getName);
 
-  self->monitor = gum_objc_dispose_class_pair_monitor_obtain ();
-
   self->available = TRUE;
-
-  self->class_by_handle = NULL;
+  self->monitor = gum_objc_dispose_class_pair_monitor_obtain ();
 
 beach:
   if (objc != NULL)
