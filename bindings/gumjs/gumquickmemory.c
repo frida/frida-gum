@@ -937,7 +937,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   if (!_gum_quick_args_parse (args, "pZMF{onMatch,onError?,onComplete}",
       &address, &size, &sc.pattern, &sc.on_match, &sc.on_error,
       &sc.on_complete))
-    goto propagate_exception;
+    return JS_EXCEPTION;
 
   sc.range.base_address = GUM_ADDRESS (address);
   sc.range.size = size;
@@ -960,11 +960,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
       (GDestroyNotify) gum_memory_scan_context_free);
 
   return JS_UNDEFINED;
-
-propagate_exception:
-  {
-    return JS_EXCEPTION;
-  }
 }
 
 static void
