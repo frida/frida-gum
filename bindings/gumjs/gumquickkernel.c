@@ -846,6 +846,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   sc.range.base_address = address;
   sc.range.size = size;
   gum_match_pattern_ref (sc.pattern);
+  sc.result = GUM_QUICK_MATCH_CONTINUE;
   sc.ctx = ctx;
   sc.core = core;
 
