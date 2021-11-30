@@ -183,6 +183,33 @@ makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
 makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
 
+Object.defineProperties(Kernel, {
+  scan: {
+    enumerable: true,
+    value: function (address, size, pattern, callbacks) {
+      let onSuccess, onFailure;
+      const request = new Promise((resolve, reject) => {
+        onSuccess = resolve;
+        onFailure = reject;
+      });
+
+      Kernel._scan(address, size, pattern, {
+        onMatch: callbacks.onMatch,
+        onError(reason) {
+          onFailure(new Error(reason));
+          callbacks.onError?.();
+        },
+        onComplete() {
+          onSuccess();
+          callbacks.onComplete?.();
+        }
+      });
+
+      return request;
+    }
+  }
+});
+
 Object.defineProperties(Memory, {
   alloc: {
     enumerable: true,
@@ -219,13 +246,13 @@ Object.defineProperties(Memory, {
 
       Memory._scan(address, size, pattern, {
         onMatch: callbacks.onMatch,
-        onComplete() {
-          onSuccess();
-          callbacks.onComplete?.();
-        },
         onError(reason) {
           onFailure(new Error(reason));
           callbacks.onError?.(reason);
+        },
+        onComplete() {
+          onSuccess();
+          callbacks.onComplete?.();
         }
       });
 

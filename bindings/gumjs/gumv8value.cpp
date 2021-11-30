@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2016-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,7 +20,8 @@ struct GumV8ArgsParseScope
     : committed (FALSE),
       strings (NULL),
       arrays (NULL),
-      bytes (NULL)
+      bytes (NULL),
+      match_patterns (NULL)
   {
   }
 
@@ -30,11 +32,13 @@ struct GumV8ArgsParseScope
       g_slist_foreach (strings, (GFunc) g_free, NULL);
       g_slist_foreach (arrays, (GFunc) g_array_unref, NULL);
       g_slist_foreach (bytes, (GFunc) g_bytes_unref, NULL);
+      g_slist_foreach (match_patterns, (GFunc) gum_match_pattern_unref, NULL);
     }
 
     g_slist_free (strings);
     g_slist_free (arrays);
     g_slist_free (bytes);
+    g_slist_free (match_patterns);
   }
 
   void
@@ -63,10 +67,17 @@ struct GumV8ArgsParseScope
     bytes = g_slist_prepend (bytes, b);
   }
 
+  void
+  add (GumMatchPattern * p)
+  {
+    match_patterns = g_slist_prepend (match_patterns, p);
+  }
+
   gboolean committed;
   GSList * strings;
   GSList * arrays;
   GSList * bytes;
+  GSList * match_patterns;
 };
 
 struct GumCpuContextWrapper
@@ -580,6 +591,44 @@ _gum_v8_args_parse (const GumV8Args * args,
         }
 
         *va_arg (ap, GumCpuContext **) = cpu_context;
+
+        break;
+      }
+      case 'M':
+      {
+        GumMatchPattern * pattern;
+
+        if (arg->IsString ())
+        {
+          String::Utf8Value arg_utf8 (isolate, arg);
+
+          pattern = gum_match_pattern_new_from_string (*arg_utf8);
+          if (pattern == NULL)
+          {
+            _gum_v8_throw_ascii_literal (isolate, "invalid match pattern");
+            return FALSE;
+          }
+        }
+        else
+        {
+          auto match_pattern = Local<FunctionTemplate>::New (core->isolate,
+              *core->match_pattern);
+          if (!match_pattern->HasInstance (arg))
+          {
+            _gum_v8_throw_ascii_literal (isolate,
+                "expected either a pattern string or a MatchPattern object");
+            return FALSE;
+          }
+
+          pattern = (GumMatchPattern *) arg.As<Object> ()
+              ->GetInternalField (0).As<External> ()->Value ();
+
+          gum_match_pattern_ref (pattern);
+        }
+
+        scope.add (pattern);
+
+        *va_arg (ap, GumMatchPattern **) = pattern;
 
         break;
       }

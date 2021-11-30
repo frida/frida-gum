@@ -26,6 +26,7 @@ struct _GumQuickArgs
   GSList * cstrings;
   GSList * arrays;
   GSList * bytes;
+  GSList * match_patterns;
 };
 
 enum _GumQuickMatchResult

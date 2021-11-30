@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2018-2019 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -175,7 +176,7 @@ static const JSCFunctionListEntry gumjs_kernel_entries[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
 
-  JS_CFUNC_DEF ("scan", 0, gumjs_kernel_scan),
+  JS_CFUNC_DEF ("_scan", 0, gumjs_kernel_scan),
   JS_CFUNC_DEF ("scanSync", 0, gumjs_kernel_scan_sync),
 };
 
@@ -836,24 +837,25 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   GumKernelScanContext sc;
   GumAddress address;
   gsize size;
-  const gchar * match_str;
 
-  if (!_gum_quick_args_parse (args, "QZsF{onMatch,onError?,onComplete}",
-      &address, &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete))
+  if (!_gum_quick_args_parse (args, "QZMF{onMatch,onError,onComplete}",
+      &address, &size, &sc.pattern, &sc.on_match, &sc.on_error,
+      &sc.on_complete))
     return JS_EXCEPTION;
+
   sc.range.base_address = address;
   sc.range.size = size;
-  sc.pattern = gum_match_pattern_new_from_string (match_str);
-  sc.result = GUM_QUICK_MATCH_CONTINUE;
-  sc.ctx = ctx;
-  sc.core = core;
 
-  if (sc.pattern == NULL)
-    return _gum_quick_throw_literal (ctx, "invalid match pattern");
+  gum_match_pattern_ref (sc.pattern);
 
   JS_DupValue (ctx, sc.on_match);
   JS_DupValue (ctx, sc.on_error);
   JS_DupValue (ctx, sc.on_complete);
+
+  sc.result = GUM_QUICK_MATCH_CONTINUE;
+
+  sc.ctx = ctx;
+  sc.core = core;
 
   _gum_quick_core_pin (core);
   _gum_quick_core_push_job (core,
@@ -938,32 +940,26 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan_sync)
   JSValue result;
   GumAddress address;
   gsize size;
-  const gchar * match_str;
-  GumMemoryRange range;
   GumMatchPattern * pattern;
+  GumMemoryRange range;
   GumMemoryScanSyncContext sc;
 
-  if (!_gum_quick_args_parse (args, "QZs", &address, &size, &match_str))
+  if (!_gum_quick_args_parse (args, "QZM", &address, &size, &pattern))
     return JS_EXCEPTION;
 
   range.base_address = address;
   range.size = size;
 
-  pattern = gum_match_pattern_new_from_string (match_str);
-  if (pattern == NULL)
-    return _gum_quick_throw_literal (ctx, "invalid match pattern");
-
   result = JS_NewArray (ctx);
 
   sc.matches = result;
   sc.index = 0;
+
   sc.ctx = ctx;
   sc.core = core;
 
   gum_kernel_scan (&range, pattern, (GumMemoryScanMatchFunc) gum_append_match,
       &sc);
-
-  gum_match_pattern_unref (pattern);
 
   return result;
 }

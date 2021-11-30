@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,6 +19,8 @@ static void gum_quick_args_free_cstring_later (GumQuickArgs * self,
     const char * s);
 static void gum_quick_args_free_array_later (GumQuickArgs * self, GArray * a);
 static void gum_quick_args_free_bytes_later (GumQuickArgs * self, GBytes * b);
+static void gum_quick_args_free_match_pattern_later (GumQuickArgs * self,
+    GumMatchPattern * p);
 
 static JSClassID gum_get_class_id_for_class_def (const JSClassDef * def);
 static void gum_deinit_class_ids (void);
@@ -47,6 +50,7 @@ _gum_quick_args_init (GumQuickArgs * args,
   args->cstrings = NULL;
   args->arrays = NULL;
   args->bytes = NULL;
+  args->match_patterns = NULL;
 }
 
 void
@@ -55,6 +59,9 @@ _gum_quick_args_destroy (GumQuickArgs * args)
   JSContext * ctx = args->ctx;
   GSList * cur, * next;
   GArray * values;
+
+  g_slist_free_full (g_steal_pointer (&args->match_patterns),
+      (GDestroyNotify) gum_match_pattern_unref);
 
   g_slist_free_full (g_steal_pointer (&args->bytes),
       (GDestroyNotify) g_bytes_unref);
@@ -537,6 +544,44 @@ _gum_quick_args_parse (GumQuickArgs * self,
 
         break;
       }
+      case 'M':
+      {
+        GumMatchPattern * pattern;
+
+        if (JS_IsString (arg))
+        {
+          const char * str;
+
+          str = JS_ToCString (ctx, arg);
+          if (str == NULL)
+            goto propagate_exception;
+
+          pattern = gum_match_pattern_new_from_string (str);
+
+          JS_FreeCString (ctx, str);
+
+          if (pattern == NULL)
+            goto invalid_pattern;
+        }
+        else if (JS_IsObject (arg))
+        {
+          pattern = JS_GetOpaque (arg, core->match_pattern_class);
+          if (pattern == NULL)
+            goto expected_pattern;
+
+          gum_match_pattern_ref (pattern);
+        }
+        else
+        {
+          goto expected_pattern;
+        }
+
+        *va_arg (ap, GumMatchPattern **) = pattern;
+
+        gum_quick_args_free_match_pattern_later (self, pattern);
+
+        break;
+      }
       default:
         g_assert_not_reached ();
     }
@@ -581,6 +626,16 @@ expected_callback_value:
 expected_function:
   {
     error_message = "expected a function";
+    goto propagate_exception;
+  }
+invalid_pattern:
+  {
+    error_message = "invalid match pattern";
+    goto propagate_exception;
+  }
+expected_pattern:
+  {
+    error_message = "expected either a pattern string or a MatchPattern object";
     goto propagate_exception;
   }
 propagate_exception:
@@ -643,6 +698,16 @@ gum_quick_args_free_bytes_later (GumQuickArgs * self,
     return;
 
   self->bytes = g_slist_prepend (self->bytes, b);
+}
+
+static void
+gum_quick_args_free_match_pattern_later (GumQuickArgs * self,
+                                         GumMatchPattern * p)
+{
+  if (p == NULL)
+    return;
+
+  self->match_patterns = g_slist_prepend (self->match_patterns, p);
 }
 
 gboolean
