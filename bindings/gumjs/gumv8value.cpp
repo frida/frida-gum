@@ -603,11 +603,9 @@ _gum_v8_args_parse (const GumV8Args * args,
           String::Utf8Value arg_utf8 (isolate, arg);
 
           pattern = gum_match_pattern_new_from_string (*arg_utf8);
-
           if (pattern == NULL)
           {
-            _gum_v8_throw_ascii_literal (isolate,
-                "invalid match pattern");
+            _gum_v8_throw_ascii_literal (isolate, "invalid match pattern");
             return FALSE;
           }
         }
@@ -615,7 +613,6 @@ _gum_v8_args_parse (const GumV8Args * args,
         {
           auto match_pattern = Local<FunctionTemplate>::New (core->isolate,
               *core->match_pattern);
-
           if (!match_pattern->HasInstance (arg))
           {
             _gum_v8_throw_ascii_literal (isolate,
@@ -629,7 +626,7 @@ _gum_v8_args_parse (const GumV8Args * args,
           gum_match_pattern_ref (pattern);
         }
 
-        scope.add(pattern);
+        scope.add (pattern);
 
         *va_arg (ap, GumMatchPattern **) = pattern;
 
