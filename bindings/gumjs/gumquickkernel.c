@@ -845,14 +845,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
 
   sc.range.base_address = address;
   sc.range.size = size;
+
   gum_match_pattern_ref (sc.pattern);
-  sc.result = GUM_QUICK_MATCH_CONTINUE;
-  sc.ctx = ctx;
-  sc.core = core;
 
   JS_DupValue (ctx, sc.on_match);
   JS_DupValue (ctx, sc.on_error);
   JS_DupValue (ctx, sc.on_complete);
+
+  sc.result = GUM_QUICK_MATCH_CONTINUE;
+
+  sc.ctx = ctx;
+  sc.core = core;
 
   _gum_quick_core_pin (core);
   _gum_quick_core_push_job (core,
