@@ -114,6 +114,8 @@ if host_os_family == 'darwin'
   gum_sources += [
     'backend-darwin/gumobjcapiresolver.c',
     'backend-darwin/gumobjcapiresolver.h',
+    'backend-darwin/gumobjcdisposeclasspairmonitor.c',
+    'backend-darwin/gumobjcdisposeclasspairmonitor.h',
     'backend-darwin/gumdarwinbacktracer.c',
     'backend-darwin/gumsymbolutil-darwin.c',
     'backend-darwin/gumdarwinsymbolicator.c',
