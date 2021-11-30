@@ -7499,14 +7499,14 @@ TESTCASE (cmodule_can_be_defined_with_toolchain)
   int (* answer_impl) (void);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('%s', null, { toolchain: 'any' });"
+      "const m = new CModule('%s', null, { toolchain: 'any' });"
       "send(m.answer);",
       code);
   answer_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
   g_assert_cmpint (answer_impl (), ==, 42);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var m = new CModule('%s', null, { toolchain: 'internal' });"
+      "const m = new CModule('%s', null, { toolchain: 'internal' });"
       "send(m.answer);",
       code);
   answer_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();
@@ -7517,7 +7517,7 @@ TESTCASE (cmodule_can_be_defined_with_toolchain)
 #endif
   {
     COMPILE_AND_LOAD_SCRIPT (
-        "var m = new CModule('%s', null, { toolchain: 'external' });"
+        "const m = new CModule('%s', null, { toolchain: 'external' });"
         "send(m.answer);",
         code);
     answer_impl = EXPECT_SEND_MESSAGE_WITH_POINTER ();

@@ -31,7 +31,7 @@ TESTCASE (api_availability_can_be_queried)
 TESTCASE (modules_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var modules = Kernel.enumerateModules();"
+      "const modules = Kernel.enumerateModules();"
       "send(modules.length > 0);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -58,7 +58,7 @@ TESTCASE (modules_can_be_enumerated_legacy_style)
 TESTCASE (memory_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Kernel.enumerateRanges('r--');"
+      "const ranges = Kernel.enumerateRanges('r--');"
       "send(ranges.length > 0);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -86,8 +86,8 @@ TESTCASE (memory_ranges_can_be_enumerated_legacy_style)
 TESTCASE (memory_ranges_can_be_enumerated_with_neighbors_coalesced)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var a = Kernel.enumerateRangesSync('r--');"
-      "var b = Kernel.enumerateRangesSync({"
+      "const a = Kernel.enumerateRangesSync('r--');"
+      "const b = Kernel.enumerateRangesSync({"
         "protection: 'r--',"
         "coalesce: true"
       "});"
@@ -98,7 +98,7 @@ TESTCASE (memory_ranges_can_be_enumerated_with_neighbors_coalesced)
 TESTCASE (module_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var ranges = Kernel.enumerateModuleRanges('Kernel', 'r--');"
+      "const ranges = Kernel.enumerateModuleRanges('Kernel', 'r--');"
       "send(ranges.length > 0);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -126,7 +126,7 @@ TESTCASE (module_ranges_can_be_enumerated_legacy_style)
 TESTCASE (byte_array_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var address = Kernel.enumerateRangesSync('r--')[0].base;"
+      "const address = Kernel.enumerateRangesSync('r--')[0].base;"
       "send(Kernel.readByteArray(address, 3).byteLength === 3);"
       "send('snake', Kernel.readByteArray(address, 0));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("true", NULL);
@@ -143,8 +143,8 @@ TESTCASE (byte_array_can_be_written)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var address = Kernel.enumerateRangesSync('rw-')[0].base;"
-      "var bytes = Kernel.readByteArray(address, 3);"
+      "const address = Kernel.enumerateRangesSync('rw-')[0].base;"
+      "const bytes = Kernel.readByteArray(address, 3);"
       "Kernel.writeByteArray(address, bytes);");
   EXPECT_NO_MESSAGES ();
 }
