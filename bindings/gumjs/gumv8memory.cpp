@@ -1014,6 +1014,7 @@ gum_memory_scan_context_emit_match (GumAddress address,
   auto context = isolate->GetCurrentContext ();
 
   gboolean proceed = TRUE;
+
   auto on_match = Local<Function>::New (isolate, *self->on_match);
   auto recv = Undefined (isolate);
   Local<Value> argv[] = {
