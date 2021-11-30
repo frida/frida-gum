@@ -914,7 +914,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   gsize size;
   GumMatchPattern * pattern;
   Local<Function> on_match, on_error, on_complete;
-
   if (!_gum_v8_args_parse (args, "pZMF{onMatch,onError,onComplete}", &address,
       &size, &pattern, &on_match, &on_error, &on_complete))
     return;
@@ -941,8 +940,6 @@ gum_memory_scan_context_free (GumMemoryScanContext * self)
 {
   auto core = self->core;
 
-  gum_match_pattern_unref (self->pattern);
-
   {
     ScriptScope script_scope (core->script);
 
@@ -952,6 +949,8 @@ gum_memory_scan_context_free (GumMemoryScanContext * self)
 
     _gum_v8_core_unpin (core);
   }
+
+  gum_match_pattern_unref (self->pattern);
 
   g_slice_free (GumMemoryScanContext, self);
 }
