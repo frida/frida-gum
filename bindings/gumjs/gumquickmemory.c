@@ -1083,6 +1083,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 
     sc.matches = result;
     sc.index = 0;
+
     sc.ctx = ctx;
     sc.core = core;
 

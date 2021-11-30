@@ -954,6 +954,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan_sync)
 
   sc.matches = result;
   sc.index = 0;
+
   sc.ctx = ctx;
   sc.core = core;
 
