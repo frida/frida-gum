@@ -70,11 +70,15 @@ gum_objc_dispose_class_pair_monitor_dispose (GObject * object)
   GumObjcDisposeClassPairMonitor * self =
       GUM_OBJC_DISPOSE_CLASS_PAIR_MONITOR (object);
 
-  g_rec_mutex_lock (&self->mutex);
-  gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
-  g_rec_mutex_unlock (&self->mutex);
+  if (self->interceptor != NULL)
+  {
+    g_rec_mutex_lock (&self->mutex);
+    gum_interceptor_detach (self->interceptor, GUM_INVOCATION_LISTENER (self));
+    g_rec_mutex_unlock (&self->mutex);
 
-  g_clear_object (&self->interceptor);
+    g_object_unref (self->interceptor);
+    self->interceptor = NULL;
+  }
 
   G_OBJECT_CLASS (
       gum_objc_dispose_class_pair_monitor_parent_class)->dispose (object);
