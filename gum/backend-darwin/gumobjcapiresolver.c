@@ -63,8 +63,6 @@ static void gum_objc_api_resolver_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_objc_api_resolver_dispose (GObject * object);
 static void gum_objc_api_resolver_finalize (GObject * object);
-static void gum_objc_api_resolver_ensure_class_by_handle (
-    GumObjcApiResolver * self);
 static void gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
     const gchar * query, GumFoundApiFunc func, gpointer user_data,
     GError ** error);
