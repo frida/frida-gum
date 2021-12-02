@@ -20,6 +20,7 @@ typedef guint GumITBranchType;
 struct _GumITBlock
 {
   gboolean active;
+  arm_cc cc;
 
   const cs_insn * insns[4];
   guint8 offset;

@@ -909,8 +909,13 @@ gum_thumb_relocator_rewrite_it_block_start (GumThumbRelocator * self,
 
   gum_thumb_relocator_parse_it_block (self, block, it_insn);
 
+  block->active = TRUE;
+  block->cc = cc;
   block->then_label = self->output->code + 1;
   block->end_label = NULL;
+
+  if (block->cc == ARM_CC_AL)
+    return TRUE;
 
   switch (self->it_branch_type)
   {
@@ -925,8 +930,6 @@ gum_thumb_relocator_rewrite_it_block_start (GumThumbRelocator * self,
       g_assert_not_reached ();
   }
 
-  block->active = TRUE;
-
   return TRUE;
 }
 
@@ -935,6 +938,9 @@ gum_thumb_relocator_rewrite_it_block_else (GumThumbRelocator * self,
                                            GumITBlock * block)
 {
   block->end_label = self->output->code + 1;
+
+  if (block->cc == ARM_CC_AL)
+    return;
 
   switch (self->it_branch_type)
   {
@@ -955,6 +961,9 @@ static void
 gum_thumb_relocator_rewrite_it_block_end (GumThumbRelocator * self,
                                           GumITBlock * block)
 {
+  if (block->cc == ARM_CC_AL)
+    return;
+
   gum_commit_it_branch (self->output, &block->then_label);
 
   gum_commit_it_branch (self->output, &block->end_label);
