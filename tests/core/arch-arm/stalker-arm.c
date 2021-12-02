@@ -69,6 +69,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (arm_add_pc)
 
   TESTENTRY (thumb_it_eq)
+  TESTENTRY (thumb_it_al)
   TESTENTRY (thumb_it_eq_branch)
   TESTENTRY (thumb_itt_eq_branch)
   TESTENTRY (thumb_ite_eq_branch)
@@ -1763,6 +1764,26 @@ TESTCODE (thumb_it_eq,
 TESTCASE (thumb_it_eq)
 {
   INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_eq, 1);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+}
+
+TESTCODE (thumb_it_al,
+  0x00, 0xb5, /* push {lr}       */
+  0x00, 0x1a, /* subs r0, r0, r0 */
+  0xe8, 0xbf, /* it al           */
+  0x01, 0x30, /* adds r0, #1     */
+
+  /* part_two:                   */
+  0xe8, 0xbf, /* it al           */
+  0x02, 0x30, /* adds r0, #2     */
+  0x04, 0x30, /* adds r0, #4     */
+  0x00, 0xbd, /* pop {pc}        */
+);
+
+TESTCASE (thumb_it_al)
+{
+  INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_al, 7);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
