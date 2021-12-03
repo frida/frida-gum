@@ -18,6 +18,9 @@
 #ifdef HAVE_WINDOWS
 # include "gumexceptor.h"
 #endif
+#ifdef HAVE_LINUX
+# include "gumelfmodule.h"
+#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -99,6 +102,10 @@ typedef DWORD64 GumNativeRegisterValue;
 # else
 typedef DWORD GumNativeRegisterValue;
 # endif
+#endif
+
+#ifdef HAVE_LINUX
+typedef struct _GumCheckElfSection GumCheckElfSection;
 #endif
 
 enum
@@ -495,6 +502,17 @@ enum _GumVirtualizationRequirements
   GUM_REQUIRE_SINGLE_STEP     = 1 << 1
 };
 
+#ifdef HAVE_LINUX
+
+struct _GumCheckElfSection
+{
+  gchar name[PATH_MAX];
+  GumBranchTarget * target;
+  gboolean found;
+};
+
+#endif
+
 static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
 static void gum_stalker_get_property (GObject * object, guint property_id,
@@ -651,6 +669,14 @@ static void gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
 
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
+static gboolean gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
+    GumGeneratorContext * gc, GumBranchTarget * target);
+#ifdef HAVE_LINUX
+static gboolean gum_exec_check_elf_section (
+    const GumElfSectionDetails * details, gpointer user_data);
+#endif
+static void gum_exec_block_handle_direct_jmp_to_plt_got (GumExecBlock * block,
+    GumGeneratorContext * gc, GumBranchTarget * target);
 static GumVirtualizationRequirements gum_exec_block_virtualize_ret_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
 static void gum_exec_block_write_adjust_depth (GumExecBlock * block,
@@ -4264,6 +4290,32 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     gum_exec_block_write_jmp_transfer_code (block, &target,
         GUM_ENTRYGATE (jmp_cond_jcxz), gc, insn->ci->id, GUM_ADDRESS (0));
   }
+  else if (gum_exec_block_is_direct_jmp_to_plt_got (block, gc, &target))
+  {
+    /*
+     * Functions in Linux typically call thunks in the `.plt.got` or `.plt.sec`
+     * to invoke functions located in other shared libraries. However, in the
+     * event of a tail-call, rather than using a CALL instruction, a JMP
+     * instruction will be used instead.
+     *
+     * We normally only handle CALLs to excluded ranges and therefore such
+     * tail-calls will result in execution being followed into the excluded
+     * range until a subsequent CALL instruction is encountered. Generally,
+     * however, we cannot differentiate these tail-calls from a JMP to an
+     * excluded range and therefore we must accept this additional overhead or
+     * risk losing control of the target execution.
+     *
+     * However, if the tail-call is to the `.plt.got` or `.plt.sec`, then we
+     * know that this is in fact a function call and can be treated as such. We
+     * pop the return value from the stack and stash it in the data slab, then
+     * emit a call into the target function from the instrumnented code so that
+     * control returns there after the excluded function and follow this with
+     * the standard jump handling code with the stashed value in the data slab
+     * as an indirect target.
+     */
+    gum_exec_block_handle_direct_jmp_to_plt_got (block, gc, &target);
+    return GUM_REQUIRE_NOTHING;
+  }
   else
   {
     gpointer is_true;
@@ -4325,6 +4377,131 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   }
 
   return GUM_REQUIRE_NOTHING;
+}
+
+static gboolean
+gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
+                                         GumGeneratorContext * gc,
+                                         GumBranchTarget * target)
+{
+  gboolean result = FALSE;
+
+#if defined (HAVE_LINUX)
+  GumExecCtx * ctx = block->ctx;
+  const cs_insn * insn = gc->instruction->ci;
+  GumModuleMap * map = NULL;
+  const GumModuleDetails * module;
+  GumElfModule * elf = NULL;
+  GumCheckElfSection plt_got = {
+    .name = ".plt.got",
+    .target = target,
+    .found = FALSE
+  };
+  GumCheckElfSection plt_sec = {
+    .name = ".plt.sec",
+    .target = target,
+    .found = FALSE
+  };
+
+  if (target->is_indirect)
+    goto beach;
+
+  if (target->base != X86_REG_INVALID)
+    goto beach;
+
+  if (ctx->activation_target != NULL)
+    goto beach;
+
+  if (!gum_stalker_is_excluding (ctx->stalker, target->absolute_address))
+    goto beach;
+
+  if (insn->id != X86_INS_JMP)
+    goto beach;
+
+  map = gum_module_map_new ();
+
+  module = gum_module_map_find (map, GUM_ADDRESS (target->absolute_address));
+  if (module == NULL)
+    goto beach;
+
+  elf = gum_elf_module_new_from_memory (module->path,
+      module->range->base_address);
+  g_assert (elf != NULL);
+
+  gum_elf_module_enumerate_sections (elf, gum_exec_check_elf_section, &plt_got);
+  gum_elf_module_enumerate_sections (elf, gum_exec_check_elf_section, &plt_sec);
+  if (!plt_got.found && !plt_sec.found)
+    goto beach;
+
+  result = TRUE;
+
+beach:
+  g_clear_object (&elf);
+  g_clear_object (&map);
+
+#endif
+
+  return result;
+}
+
+#ifdef HAVE_LINUX
+
+static gboolean
+gum_exec_check_elf_section (const GumElfSectionDetails * details,
+                            gpointer user_data)
+{
+  GumCheckElfSection * check = user_data;
+  GumAddress limit;
+
+  if (details->name == NULL)
+    return TRUE;
+
+  if (g_strcmp0 (details->name, check->name) != 0)
+    return TRUE;
+
+  if (check->target->absolute_address < GSIZE_TO_POINTER (details->address))
+    return FALSE;
+
+  limit = details->address + details->size;
+  if (check->target->absolute_address >= GSIZE_TO_POINTER (limit))
+    return FALSE;
+
+  check->found = TRUE;
+
+  return FALSE;
+}
+
+#endif
+
+static void
+gum_exec_block_handle_direct_jmp_to_plt_got (GumExecBlock * block,
+                                             GumGeneratorContext * gc,
+                                             GumBranchTarget * target)
+{
+  GumX86Writer * cw = gc->code_writer;
+  GumSlab * data_slab = &block->ctx->data_slab->slab;
+  gpointer * return_address;
+  GumBranchTarget continue_target = { 0, };
+
+  return_address = gum_slab_reserve (data_slab, sizeof (gpointer));
+
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_REG_XSP,
+      -(GUM_RED_ZONE_SIZE + (1 * sizeof (gpointer))), GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
+  gum_x86_writer_put_mov_near_ptr_reg (cw, GUM_ADDRESS (return_address),
+      GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XAX, GUM_REG_XSP,
+      -(GUM_RED_ZONE_SIZE + (1 * sizeof (gpointer))));
+
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP, GUM_REG_XSP,
+      sizeof (gpointer));
+
+  gum_x86_writer_put_call_address (cw, GUM_ADDRESS (target->absolute_address));
+
+  continue_target.is_indirect = TRUE;
+  continue_target.absolute_address = return_address;
+  gum_exec_block_write_jmp_transfer_code (block, &continue_target,
+      GUM_ENTRYGATE (excluded_call_imm), gc, X86_INS_JMP, GUM_ADDRESS (0));
 }
 
 static GumVirtualizationRequirements
