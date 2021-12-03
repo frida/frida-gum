@@ -14,12 +14,15 @@
 #include "gummemory.h"
 #include "gumx86relocator.h"
 #include "gumspinlock.h"
-#include "gumtls.h"
 #ifdef HAVE_WINDOWS
 # include "gumexceptor.h"
 #endif
 #ifdef HAVE_LINUX
 # include "gumelfmodule.h"
+#endif
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+# include "gum-init.h"
+# include "guminterceptor.h"
 #endif
 
 #include <stdlib.h>
@@ -29,6 +32,9 @@
 # include <windows.h>
 # include <psapi.h>
 # include <tchar.h>
+#endif
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+# include <unwind.h>
 #endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
@@ -108,6 +114,12 @@ typedef DWORD GumNativeRegisterValue;
 typedef struct _GumCheckElfSection GumCheckElfSection;
 #endif
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+typedef struct _Unwind_Exception _Unwind_Exception;
+typedef struct _Unwind_Context _Unwind_Context;
+struct dwarf_eh_bases;
+#endif
+
 enum
 {
   PROP_0,
@@ -177,7 +189,6 @@ struct _GumStalker
 
   GMutex mutex;
   GSList * contexts;
-  GumTlsKey exec_ctx;
 
   GArray * exclusions;
   gint trust_threshold;
@@ -301,6 +312,10 @@ struct _GumExecCtx
    * when GUM_CALL or GUM_RET events are enabled.
    */
   gint depth;
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  GumMetalHashTable * excluded_calls;
+#endif
 };
 
 enum _GumExecCtxState
@@ -513,6 +528,23 @@ struct _GumCheckElfSection
 
 #endif
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+
+extern _Unwind_Reason_Code __gxx_personality_v0 (int version,
+    _Unwind_Action actions, uint64_t exception_class,
+    _Unwind_Exception * unwind_exception, _Unwind_Context * context);
+extern const void * _Unwind_Find_FDE (const void * pc, struct dwarf_eh_bases *);
+
+static void gum_stalker_ensure_unwind_apis_instrumented (void);
+static void gum_stalker_deinit_unwind_apis_instrumentation (void);
+static _Unwind_Reason_Code gum_stalker_exception_personality (int version,
+    _Unwind_Action actions, uint64_t exception_class,
+    _Unwind_Exception * unwind_exception, _Unwind_Context * context);
+static const void * gum_stalker_exception_find_fde (const void * pc,
+    struct dwarf_eh_bases * bases);
+
+#endif
+
 static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
 static void gum_stalker_get_property (GObject * object, guint property_id,
@@ -543,7 +575,7 @@ static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumThreadId thread_id, GumStalkerTransformer * transformer,
     GumEventSink * sink);
 static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
-static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
+static GumExecCtx * gum_stalker_get_exec_ctx (void);
 static GumExecCtx * gum_stalker_find_exec_ctx_by_thread_id (GumStalker * self,
     GumThreadId thread_id);
 
@@ -785,7 +817,13 @@ static gboolean gum_store_thread_exit_match (GumAddress address, gsize size,
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
+static GPrivate gum_stalker_exec_ctx_private;
+
 static gpointer _gum_thread_exit_impl;
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+static GumInterceptor * gum_exec_ctx_interceptor = NULL;
+#endif
 
 gboolean
 gum_stalker_is_supported (void)
@@ -870,7 +908,6 @@ gum_stalker_init (GumStalker * self)
 
   g_mutex_init (&self->mutex);
   self->contexts = NULL;
-  self->exec_ctx = gum_tls_key_new ();
 
 #ifdef HAVE_WINDOWS
   self->exceptor = gum_exceptor_obtain ();
@@ -931,19 +968,187 @@ gum_stalker_init (GumStalker * self)
   }
 # endif
 #endif
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  gum_stalker_ensure_unwind_apis_instrumented ();
+#endif
 }
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+
+static void
+gum_stalker_ensure_unwind_apis_instrumented (void)
+{
+  static gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    GumAttachReturn attach_ret;
+
+    gum_exec_ctx_interceptor = gum_interceptor_obtain ();
+
+    attach_ret = gum_interceptor_replace (gum_exec_ctx_interceptor,
+        __gxx_personality_v0, gum_stalker_exception_personality, NULL);
+    if (attach_ret != GUM_ATTACH_OK &&
+        attach_ret != GUM_ATTACH_ALREADY_ATTACHED)
+    {
+      g_error ("Failed to attach to __gxx_personality_v0: %d", attach_ret);
+    }
+
+    attach_ret = gum_interceptor_replace (gum_exec_ctx_interceptor,
+        _Unwind_Find_FDE, gum_stalker_exception_find_fde, NULL);
+    if (attach_ret != GUM_ATTACH_OK &&
+        attach_ret != GUM_ATTACH_ALREADY_ATTACHED)
+    {
+      g_error ("Failed to attach to _Unwind_Find_FDE: %d", attach_ret);
+    }
+
+    _gum_register_early_destructor (
+        gum_stalker_deinit_unwind_apis_instrumentation);
+
+    g_once_init_leave (&gonce_value, 1);
+  }
+}
+
+static void
+gum_stalker_deinit_unwind_apis_instrumentation (void)
+{
+  gum_interceptor_revert (gum_exec_ctx_interceptor, __gxx_personality_v0);
+  gum_interceptor_revert (gum_exec_ctx_interceptor, _Unwind_Find_FDE);
+  g_clear_object (&gum_exec_ctx_interceptor);
+}
+
+static _Unwind_Reason_Code
+gum_stalker_exception_personality (int version,
+                                   _Unwind_Action actions,
+                                   uint64_t exception_class,
+                                   _Unwind_Exception * unwind_exception,
+                                   _Unwind_Context * context)
+{
+  _Unwind_Reason_Code reason;
+  GumExecCtx * ctx;
+  gpointer throw_ip;
+  gpointer real_throw_ip;
+
+  /*
+   * This function is responsible for the dispatching of exceptions. It is
+   * actually called twice, first during the search phase and then subsequently
+   * for the cleanup phase. This personality function is provided with a context
+   * containing the PC of the exception. In this case, the PC is the address of
+   * the instruction immediately after the exception is thrown (collected by
+   * libunwind from the callstack). If this is a code address rather than a real
+   * address, we will perform some address translation, otherwise we will let
+   * the function proceed as normal.
+   *
+   * We must set the PC to the real address, before we call the original
+   * personality function. But we must also modify the PC in the event that the
+   * personality function installs a new context. This happens, for example,
+   * when the exception dispatcher needs to modify the PC to execute any
+   * relevant catch blocks. In this case, we must obtain the instrumented block
+   * for the real address we are going to vector to and restore the PC to the
+   * instrumented version of the block. Otherwise, we will find that the
+   * exception is correctly handled, but afterwards execution continues from the
+   * real address and hence the thread is no longer under the control of
+   * Stalker.
+   */
+
+  ctx = gum_stalker_get_exec_ctx ();
+  if (ctx == NULL)
+  {
+    return __gxx_personality_v0 (version, actions, exception_class,
+        unwind_exception, context);
+  }
+
+  throw_ip = GSIZE_TO_POINTER (_Unwind_GetIP (context));
+
+  real_throw_ip = gum_metal_hash_table_lookup (ctx->excluded_calls, throw_ip);
+  if (real_throw_ip == NULL)
+  {
+    return __gxx_personality_v0 (version, actions, exception_class,
+        unwind_exception, context);
+  }
+
+  _Unwind_SetIP (context, GPOINTER_TO_SIZE (real_throw_ip));
+
+  reason = __gxx_personality_v0 (version, actions, exception_class,
+      unwind_exception, context);
+  if (reason == _URC_INSTALL_CONTEXT)
+  {
+    gpointer real_resume_ip, resume_ip;
+
+    real_resume_ip = GSIZE_TO_POINTER (_Unwind_GetIP (context));
+
+    resume_ip = gum_exec_ctx_switch_block (ctx, real_resume_ip, NULL);
+    _Unwind_SetIP (context, GPOINTER_TO_SIZE (resume_ip));
+
+    ctx->pending_calls--;
+  }
+
+  return reason;
+}
+
+static const void *
+gum_stalker_exception_find_fde (const void * pc,
+                                struct dwarf_eh_bases * bases)
+{
+  const void * result;
+  GumExecCtx * ctx;
+  gpointer real_address;
+
+  /*
+   * This function is responsible for finding the Frame Descriptor Entry
+   * associated with a given exception. To do this, it is provided with the PC
+   * of the entry to find.
+   *
+   * The PC provided is the address of the last byte of the instruction which
+   * called __cxa_throw. Since we store the address of the next instruction in
+   * our hashtable, (this is used by the personality function) we need to add 1
+   * to the value provided before we perform the lookup and subsequently
+   * subtract one from the value retrieved.
+   *
+   * If an exception is thrown whilst there is a code (rather than real) address
+   * in our stack (to allow us to execute excluded ranges), then the translation
+   * from code address to real address should have been inserted into the
+   * hashtable when the instrumented code was written. The _Unwind_Find_FDE
+   * function will be called with a code address (rather than the real address)
+   * which would usually fail, when this happends we need to translate the
+   * address before the call. If we have no associated entry in our lookup, then
+   * we can let the call proceed as normal.
+   */
+
+  ctx = gum_stalker_get_exec_ctx ();
+  if (ctx == NULL)
+    return _Unwind_Find_FDE (pc, bases);
+
+  real_address = gum_metal_hash_table_lookup (ctx->excluded_calls, pc + 1);
+
+  if (real_address == NULL)
+    result = _Unwind_Find_FDE (pc, bases);
+  else
+    result = _Unwind_Find_FDE (real_address - 1, bases);
+
+  return result;
+}
+
+#endif
 
 static void
 gum_stalker_dispose (GObject * object)
 {
 #ifdef HAVE_WINDOWS
-  GumStalker * self = GUM_STALKER (object);
-
-  if (self->exceptor != NULL)
   {
-    gum_exceptor_remove (self->exceptor, gum_stalker_on_exception, self);
-    g_object_unref (self->exceptor);
-    self->exceptor = NULL;
+    GumStalker * self;
+    GumExceptor * exceptor;
+
+    self = GUM_STALKER (object);
+
+    exceptor = g_steal_pointer (&self->exceptor);
+    if (exceptor != NULL)
+    {
+      gum_exceptor_remove (exceptor, gum_stalker_on_exception, self);
+
+      g_object_unref (exceptor);
+    }
   }
 #endif
 
@@ -965,7 +1170,6 @@ gum_stalker_finalize (GObject * object)
   g_array_free (self->exclusions, TRUE);
 
   g_assert (self->contexts == NULL);
-  gum_tls_key_free (self->exec_ctx);
   g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
@@ -1191,7 +1395,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
   ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
       transformer, sink);
-  gum_tls_key_set_value (self->exec_ctx, ctx);
+  g_private_set (&gum_stalker_exec_ctx_private, ctx);
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr,
       &code_address);
@@ -1213,7 +1417,7 @@ gum_stalker_unfollow_me (GumStalker * self)
 {
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   if (ctx == NULL)
     return;
 
@@ -1230,7 +1434,7 @@ gum_stalker_unfollow_me (GumStalker * self)
 gboolean
 gum_stalker_is_following_me (GumStalker * self)
 {
-  return gum_stalker_get_exec_ctx (self) != NULL;
+  return gum_stalker_get_exec_ctx () != NULL;
 }
 
 void
@@ -1331,8 +1535,8 @@ gum_stalker_infect (GumThreadId thread_id,
   ctx->infect_body = GUM_ADDRESS (gum_x86_writer_cur (cw));
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, cw);
   gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
-      GUM_ADDRESS (gum_tls_key_set_value), 2,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
+      GUM_ADDRESS (g_private_set), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (&gum_stalker_exec_ctx_private),
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, cw);
 
@@ -1477,7 +1681,7 @@ _gum_stalker_do_activate (GumStalker * self,
   guint8 * ret_addr = *ret_addr_ptr;
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   if (ctx == NULL)
     return;
 
@@ -1504,7 +1708,7 @@ _gum_stalker_do_deactivate (GumStalker * self,
 {
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   if (ctx == NULL)
     return;
 
@@ -1525,7 +1729,7 @@ gum_stalker_maybe_deactivate (GumStalker * self,
 {
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   activation->ctx = ctx;
 
   if (ctx != NULL && ctx->pending_calls == 0)
@@ -1556,7 +1760,7 @@ gum_stalker_set_observer (GumStalker * self,
 {
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   g_assert (ctx != NULL);
 
   if (observer != NULL)
@@ -1575,7 +1779,7 @@ gum_stalker_prefetch (GumStalker * self,
   GumExecBlock * block;
   gpointer code_address;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   g_assert (ctx != NULL);
 
   block = gum_exec_ctx_obtain_block_for (ctx, (gpointer) address,
@@ -1592,7 +1796,7 @@ gum_stalker_prefetch_backpatch (GumStalker * self,
   gpointer code_address_to, code_address_from;
   gpointer from_insn = backpatch->from_insn;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   g_assert (ctx != NULL);
 
   block_to = gum_exec_ctx_obtain_block_for (ctx, backpatch->to,
@@ -1925,9 +2129,9 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
 }
 
 static GumExecCtx *
-gum_stalker_get_exec_ctx (GumStalker * self)
+gum_stalker_get_exec_ctx (void)
 {
-  return gum_tls_key_get_value (self->exec_ctx);
+  return g_private_get (&gum_stalker_exec_ctx_private);
 }
 
 static GumExecCtx *
@@ -2056,6 +2260,10 @@ gum_exec_ctx_new (GumStalker * stalker,
 
   ctx->depth = 0;
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  ctx->excluded_calls = gum_metal_hash_table_new (NULL, NULL);
+#endif
+
   return ctx;
 }
 
@@ -2132,6 +2340,10 @@ gum_exec_ctx_dispose (GumExecCtx * ctx)
   {
     gum_exec_block_clear (block);
   }
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  gum_metal_hash_table_unref (ctx->excluded_calls);
+#endif
 }
 
 static GumCodeSlab *
@@ -2208,7 +2420,7 @@ gum_exec_ctx_unfollow (GumExecCtx * ctx,
 
   ctx->resume_at = resume_at;
 
-  gum_tls_key_set_value (ctx->stalker->exec_ctx, NULL);
+  g_private_set (&gum_stalker_exec_ctx_private, NULL);
 
   ctx->destroy_pending_since = g_get_monotonic_time ();
   g_atomic_int_set (&ctx->state, GUM_EXEC_CTX_DESTROY_PENDING);
@@ -4231,6 +4443,11 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     if (target_is_excluded)
     {
       GumBranchTarget next_instruction = { 0, };
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+      gpointer start_of_call;
+      guint call_length;
+      gpointer end_of_call;
+#endif
 
       gum_exec_block_open_prolog (block, GUM_PROLOG_IC, gc, gc->code_writer);
       gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
@@ -4242,7 +4459,31 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       gum_x86_writer_put_inc_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
       gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+      start_of_call = cw->code;
+#endif
+
       gum_x86_relocator_write_one_no_label (gc->relocator);
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+      call_length = gum_x86_reader_insn_length (start_of_call);
+
+      /*
+       * We can't just write the instruction and then use cw->code to get the
+       * end of the call instruction since the relocator may need to embed the
+       * target address in the code stream. In which case it is written
+       * immediately after the instruction.
+       */
+      end_of_call =
+          GSIZE_TO_POINTER (GPOINTER_TO_SIZE (start_of_call) + call_length);
+
+      /*
+       * We insert into our hashtable the real address of the next instruction
+       * using the code address of the next instrumented instruction as a key.
+       */
+      gum_metal_hash_table_insert (ctx->excluded_calls, end_of_call,
+          GSIZE_TO_POINTER (insn->ci->address + insn->ci->size));
+#endif
 
       gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc,
           gc->code_writer);
