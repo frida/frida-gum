@@ -267,7 +267,6 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   gconstpointer end_of_load_commands;
   gsize gap_space_used;
   gconstpointer rest_of_gap;
-  gsize linkedit_addendum_size;
   FILE * file = NULL;
 
   module = gum_darwin_module_new_from_file (self->path, GUM_CPU_ARM64,
@@ -353,10 +352,6 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
           layout.rewritten_binds_capacity - merged_binds->len);
     }
   }
-
-  linkedit_addendum_size = layout.linkedit_offset_out +
-      layout.linkedit_size_out - output->len;
-  g_assert (linkedit_addendum_size == 0);
 
   gum_darwin_grafter_emit_segments (output->data, &layout, code_offsets,
       imports);
