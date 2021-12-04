@@ -373,8 +373,8 @@ gum_memory_scan_regex (const GumMemoryRange * range,
 {
   GMatchInfo * info;
 
-  g_regex_match_full (regex, (const gchar *) range->base_address, range->size,
-      0, 0, &info, NULL);
+  g_regex_match_full (regex, GSIZE_TO_POINTER (range->base_address),
+      range->size, 0, 0, &info, NULL);
 
   while (g_match_info_matches (info))
   {
