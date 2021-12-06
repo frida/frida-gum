@@ -1934,9 +1934,35 @@ gum_resolve_module_name (const gchar * name,
   map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
   if (map != NULL)
   {
-    ctx.name = g_file_read_link (map->l_name, NULL);
-    if (ctx.name == NULL)
+    gchar * next;
+
+    if (g_path_is_absolute (map->l_name))
+    {
       ctx.name = g_strdup (map->l_name);
+    }
+    else
+    {
+      gchar * cwd;
+
+      cwd = g_get_current_dir ();
+      ctx.name = g_canonicalize_filename (map->l_name, cwd);
+      g_free (cwd);
+    }
+
+    while ((next = g_file_read_link (ctx.name, NULL)) != NULL)
+    {
+      gchar * parent, * path;
+
+      parent = g_path_get_dirname (ctx.name);
+      path = g_canonicalize_filename (next, parent);
+      g_free (parent);
+
+      g_free (ctx.name);
+      ctx.name = path;
+
+      g_free (next);
+    }
+
     dlclose (map);
   }
   else
