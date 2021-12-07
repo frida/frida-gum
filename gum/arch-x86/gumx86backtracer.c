@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -85,6 +85,7 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
   GumX86Backtracer * self;
   GumInvocationStack * invocation_stack;
   gsize * start_address;
+  guint start_index;
   gsize first_address = 0;
   guint depth, i;
   gsize * p;
@@ -93,13 +94,22 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
   invocation_stack = gum_interceptor_get_current_stack ();
 
   if (cpu_context != NULL)
-    start_address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
+  {
+    start_address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context) +
+        sizeof (gpointer));
+    return_addresses->items[0] = *((GumReturnAddress *) GSIZE_TO_POINTER (
+        GUM_CPU_CONTEXT_XSP (cpu_context)));
+    start_index = 1;
+  }
   else
+  {
     start_address = (gsize *) &backtracer;
+    start_index = 0;
+  }
 
   depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
 
-  for (i = 0, p = start_address; p < start_address + 2048; p++)
+  for (i = start_index, p = start_address; p < start_address + 2048; p++)
   {
     gboolean valid = FALSE;
     gsize value;
