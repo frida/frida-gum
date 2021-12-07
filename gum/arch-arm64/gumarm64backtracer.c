@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -84,7 +84,7 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
   GumArm64Backtracer * self;
   GumInvocationStack * invocation_stack;
   gsize * start_address;
-  guint skips_pending, depth, i;
+  guint start_index, skips_pending, depth, i;
   gsize page_size;
   gsize * p;
 
@@ -94,11 +94,14 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
     start_address = GSIZE_TO_POINTER (cpu_context->sp);
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
+    start_index = 1;
     skips_pending = 0;
   }
   else
   {
     asm ("\tmov %0, sp" : "=r" (start_address));
+    start_index = 0;
     skips_pending = 1;
   }
 
@@ -106,7 +109,7 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
 
   depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
 
-  for (i = 0, p = start_address; p < start_address + 2048; p++)
+  for (i = start_index, p = start_address; p < start_address + 2048; p++)
   {
     gboolean valid = FALSE;
     gsize value;
