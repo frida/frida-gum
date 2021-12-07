@@ -86,7 +86,6 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
   GumInvocationStack * invocation_stack;
   gsize * start_address;
   guint start_index;
-  gsize first_address = 0;
   guint depth, i;
   gsize * p;
 
@@ -128,8 +127,7 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
     vr.base_address = value - 6;
     vr.size = 6;
 
-    if (value != first_address && value > 4096 + 6 &&
-        gum_memory_map_contains (self->code, &vr))
+    if (value > 4096 + 6 && gum_memory_map_contains (self->code, &vr))
     {
       gsize translated_value;
 
@@ -159,9 +157,6 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
       return_addresses->items[i++] = GSIZE_TO_POINTER (value);
       if (i == depth)
         break;
-
-      if (first_address == 0)
-        first_address = value;
     }
   }
 
