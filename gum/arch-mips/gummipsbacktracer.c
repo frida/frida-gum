@@ -92,7 +92,8 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
     start_address = GSIZE_TO_POINTER (cpu_context->sp);
-    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->ra);
+    return_addresses->items[0] = gum_invocation_stack_translate (
+        invocation_stack, GSIZE_TO_POINTER (cpu_context->ra));
     start_index = 1;
     skips_pending = 0;
   }
