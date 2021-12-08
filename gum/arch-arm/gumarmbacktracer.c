@@ -81,9 +81,10 @@ gum_arm_backtracer_generate (GumBacktracer * backtracer,
 {
   GumArmBacktracer * self;
   GumInvocationStack * invocation_stack;
-  gsize * start_address;
-  guint start_index, skips_pending, depth, i;
-  gsize * p;
+  const gsize * start_address, * end_address;
+  guint start_index, skips_pending, depth, n, i;
+  GumMemoryRange stack_ranges[2];
+  const gsize * p;
 
   self = GUM_ARM_BACKTRACER (backtracer);
   invocation_stack = gum_interceptor_get_current_stack ();
@@ -102,9 +103,23 @@ gum_arm_backtracer_generate (GumBacktracer * backtracer,
     skips_pending = 1;
   }
 
+  end_address = start_address + 2048;
+
+  n = gum_thread_try_get_ranges (stack_ranges, G_N_ELEMENTS (stack_ranges));
+  for (i = 0; i != n; i++)
+  {
+    const GumMemoryRange * r = &stack_ranges[i];
+
+    if (GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (start_address)))
+    {
+      end_address = GSIZE_TO_POINTER (r->base_address + r->size);
+      break;
+    }
+  }
+
   depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
 
-  for (i = start_index, p = start_address; p < start_address + 2048; p++)
+  for (i = start_index, p = start_address; p < end_address; p++)
   {
     gboolean valid = FALSE;
     gsize value;
