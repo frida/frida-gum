@@ -4761,12 +4761,6 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
   return GUM_REQUIRE_NOTHING;
 }
 
-/*
- * This function emits inline code which can be used to increment or decrement
- * the depth field of the provided GumExecBlock. All registers used are pushed
- * and popped from the stack, therefore any use assumes the caller has already
- * opened a prologue of some kind to avoid clobbering the red-zone.
- */
 static void
 gum_exec_block_write_adjust_depth (GumExecBlock * block,
                                    GumX86Writer * cw,
@@ -4777,11 +4771,15 @@ gum_exec_block_write_adjust_depth (GumExecBlock * block,
   if ((block->ctx->sink_mask & (GUM_CALL | GUM_RET)) == 0)
     return;
 
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP, GUM_REG_XSP,
+      -GUM_RED_ZONE_SIZE);
   gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EAX, depth_addr);
-  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_EAX, adj);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_EAX, GUM_REG_EAX, adj);
   gum_x86_writer_put_mov_near_ptr_reg (cw, depth_addr, GUM_REG_EAX);
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP, GUM_REG_XSP,
+      GUM_RED_ZONE_SIZE);
 }
 
 static GumVirtualizationRequirements
