@@ -979,9 +979,9 @@ gum_stalker_init (GumStalker * self)
 static void
 gum_stalker_ensure_unwind_apis_instrumented (void)
 {
-  static gsize gonce_value;
+  static gsize initialized = FALSE;
 
-  if (g_once_init_enter (&gonce_value))
+  if (g_once_init_enter (&initialized))
   {
     GumAttachReturn attach_ret;
 
@@ -1006,7 +1006,7 @@ gum_stalker_ensure_unwind_apis_instrumented (void)
     _gum_register_early_destructor (
         gum_stalker_deinit_unwind_apis_instrumentation);
 
-    g_once_init_leave (&gonce_value, 1);
+    g_once_init_leave (&initialized, TRUE);
   }
 }
 
