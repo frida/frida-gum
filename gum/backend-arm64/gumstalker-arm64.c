@@ -2487,7 +2487,6 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
                                   GumPrologType type,
                                   GumArm64Writer * cw)
 {
-  gint immediate_for_sp = 16 + GUM_RED_ZONE_SIZE;
   const guint32 mrs_x15_nzcv = 0xd53b420f;
 
   gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
@@ -2501,7 +2500,6 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q4, ARM64_REG_Q5);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q2, ARM64_REG_Q3);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_Q0, ARM64_REG_Q1);
-    immediate_for_sp += 4 * 32;
 
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X29, ARM64_REG_X30);
     /* X19 - X28 are callee-saved registers */
@@ -2515,7 +2513,6 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X4, ARM64_REG_X5);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X2, ARM64_REG_X3);
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
-    immediate_for_sp += 11 * 16;
   }
   else if (type == GUM_PROLOG_FULL)
   {
@@ -2563,8 +2560,6 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
         ARM64_REG_X2);
 
     gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
-
-    immediate_for_sp += sizeof (GumCpuContext) + 8;
   }
 
   gum_arm64_writer_put_instruction (cw, mrs_x15_nzcv);
@@ -2574,7 +2569,6 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
 
   /* padding + status */
   gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X14, ARM64_REG_X15);
-  immediate_for_sp += 1 * 16;
 
   gum_arm64_writer_put_br_reg_no_auth (cw, ARM64_REG_X19);
 }
