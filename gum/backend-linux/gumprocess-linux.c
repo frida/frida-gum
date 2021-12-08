@@ -21,6 +21,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <gio/gio.h>
+#ifdef HAVE_PTHREAD_ATTR_GETSTACK
+# include <pthread.h>
+#endif
 #ifdef HAVE_LINK_H
 # include <link.h>
 #endif
@@ -1329,8 +1332,35 @@ guint
 gum_thread_try_get_ranges (GumMemoryRange * ranges,
                            guint max_length)
 {
-  /* Not implemented */
+#ifdef HAVE_PTHREAD_ATTR_GETSTACK
+  guint n = 0;
+  pthread_attr_t attr;
+  gboolean allocated = FALSE;
+  void * stack_addr;
+  size_t stack_size;
+  GumMemoryRange * range;
+
+  if (pthread_getattr_np (pthread_self (), &attr) != 0)
+    goto beach;
+  allocated = TRUE;
+
+  if (pthread_attr_getstack (&attr, &stack_addr, &stack_size) != 0)
+    goto beach;
+
+  range = &ranges[0];
+  range->base_address = GUM_ADDRESS (stack_addr);
+  range->size = stack_size;
+
+  n = 1;
+
+beach:
+  if (allocated)
+    pthread_attr_destroy (&attr);
+
+  return n;
+#else
   return 0;
+#endif
 }
 
 gint

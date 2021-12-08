@@ -178,6 +178,7 @@ if get_option('b_sanitize') == 'address'
   cdata.set('HAVE_ASAN', 1)
 endif
 
+threads_dep = dependency('threads')
 glib_dep = dependency('glib-2.0', version: '>=2.56')
 gobject_dep = dependency('gobject-2.0')
 gio_dep = dependency('gio-2.0')
@@ -210,6 +211,13 @@ endif
 
 if cc.has_function('ffi_set_mem_callbacks', dependencies: [ffi_dep])
   cdata.set('HAVE_FRIDA_LIBFFI', 1)
+endif
+
+if cc.has_function('pthread_attr_getstack',
+    args: ['-D_GNU_SOURCE'],
+    dependencies: [threads_dep],
+    prefix: '#include <pthread.h>')
+  cdata.set('HAVE_PTHREAD_ATTR_GETSTACK', 1)
 endif
 
 if host_os == 'android'
