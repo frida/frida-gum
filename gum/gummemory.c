@@ -378,11 +378,10 @@ gum_memory_scan_regex (const GumMemoryRange * range,
 
   while (g_match_info_matches (info))
   {
-    gint start_pos;
-    gint end_pos;
+    gint start_pos, end_pos;
 
     if (!g_match_info_fetch_pos (info, 0, &start_pos, &end_pos) ||
-        end_pos > range->size ||
+        (gsize) end_pos > range->size ||
         !func (GUM_ADDRESS (range->base_address + start_pos),
             end_pos - start_pos, user_data))
     {
