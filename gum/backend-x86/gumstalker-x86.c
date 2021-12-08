@@ -5273,10 +5273,10 @@ gum_exec_block_write_inline_cache_code (GumExecBlock * block,
   }
 
   /*
-    * Write a token which we can replace with our matched ic entry code_start
-    * so we can use it as scratch space and retrieve and jump to it once we
-    * have restored the target application context.
-    */
+   * Write a token which we can replace with our matched ic entry code_start
+   * so we can use it as scratch space and retrieve and jump to it once we
+   * have restored the target application context.
+   */
   ic_match = gum_slab_reserve (data_slab, sizeof (scratch_val));
   *ic_match = GSIZE_TO_POINTER (scratch_val);
 
