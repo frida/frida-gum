@@ -11,8 +11,11 @@
 #include <gio/gio.h>
 #include <intrin.h>
 #include <psapi.h>
+#include <tchar.h>
 #include <tlhelp32.h>
 
+typedef void (WINAPI * GumGetCurrentThreadStackLimitsFunc) (
+    PULONG_PTR low_limit, PULONG_PTR high_limit);
 typedef struct _GumFindExportContext GumFindExportContext;
 
 struct _GumFindExportContext
@@ -409,8 +412,30 @@ guint
 gum_thread_try_get_ranges (GumMemoryRange * ranges,
                            guint max_length)
 {
-  /* Not implemented */
-  return 0;
+  static gsize initialized = FALSE;
+  static GumGetCurrentThreadStackLimitsFunc get_stack_limits = NULL;
+  ULONG_PTR low, high;
+  GumMemoryRange * range;
+
+  if (g_once_init_enter (&initialized))
+  {
+    get_stack_limits = (GumGetCurrentThreadStackLimitsFunc) GetProcAddress (
+        GetModuleHandle (_T ("kernel32.dll")),
+        "GetCurrentThreadStackLimits");
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  if (get_stack_limits == NULL)
+    return 0;
+
+  get_stack_limits (&low, &high);
+
+  range = &ranges[0];
+  range->base_address = low;
+  range->size = high - low;
+
+  return 1;
 }
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
