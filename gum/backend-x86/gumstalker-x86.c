@@ -6003,7 +6003,7 @@ gum_stalker_on_exception (GumExceptionDetails * details,
   {
     GumExecCtx * ctx;
 
-    ctx = gum_stalker_get_exec_ctx (self);
+    ctx = gum_stalker_get_exec_ctx ();
     if (ctx == NULL)
       return FALSE;
 
