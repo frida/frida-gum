@@ -107,10 +107,10 @@ static gboolean gum_kernel_kext_by_name (GumDarwinModule * module,
     GumKernelKextByNameContext * ctx);
 static GumDarwinModule * gum_kernel_get_module (void);
 static GumAddress * gum_kernel_do_find_base_address (void);
-static float gum_kernel_get_version (void);
 
 #ifdef HAVE_ARM64
 
+static float gum_kernel_get_version (void);
 static GumAddress gum_kernel_get_base_from_all_image_info (void);
 static GumAddress gum_kernel_bruteforce_base (GumAddress unslid_base);
 static gboolean gum_kernel_is_header (GumAddress address);
@@ -699,10 +699,11 @@ gum_kernel_set_base_address (GumAddress base)
 static GumAddress *
 gum_kernel_do_find_base_address (void)
 {
-  float version;
   GumAddress base = 0;
 
 #ifdef HAVE_ARM64
+  float version;
+
   base = gum_kernel_get_base_from_all_image_info ();
   if (base == 0)
   {
@@ -723,6 +724,8 @@ gum_kernel_do_find_base_address (void)
   return g_slice_dup (GumAddress, &base);
 }
 
+#ifdef HAVE_ARM64
+
 static float
 gum_kernel_get_version (void)
 {
@@ -739,8 +742,6 @@ gum_kernel_get_version (void)
 
   return version;
 }
-
-#ifdef HAVE_ARM64
 
 static GumAddress
 gum_kernel_get_base_from_all_image_info (void)
