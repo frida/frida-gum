@@ -610,9 +610,6 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
   size_t guard_size, stack_size;
   GumAddress stack_base;
 
-  if (max_length == 0)
-    return 0;
-
   range = &ranges[0];
 
   thread = pthread_self ();
