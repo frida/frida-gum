@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -17,7 +17,7 @@ TESTLIST_BEGIN (sampler)
   TESTENTRY (wallclock)
 TESTLIST_END ()
 
-static void spin_for_one_tenth_second (void);
+static guint spin_for_one_tenth_second (void);
 static gpointer malloc_count_helper_thread (gpointer data);
 static void nop_function_a (void);
 static void nop_function_b (void);
@@ -157,12 +157,12 @@ TESTCASE (wallclock)
   g_assert_cmpuint (sample_b, >, sample_a);
 }
 
-static void
+static guint
 spin_for_one_tenth_second (void)
 {
+  guint b = 0;
   GTimer * timer;
   guint i;
-  guint b = 0;
 
   timer = g_timer_new ();
 
@@ -174,6 +174,8 @@ spin_for_one_tenth_second (void)
   while (g_timer_elapsed (timer, NULL) < 0.1);
 
   g_timer_destroy (timer);
+
+  return b;
 }
 
 static gpointer
