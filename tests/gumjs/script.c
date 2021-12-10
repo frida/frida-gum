@@ -356,11 +356,13 @@ TESTLIST_BEGIN (script)
     TESTENTRY (file_can_be_written_to)
   TESTGROUP_END ()
 
+#ifdef HAVE_SQLITE
   TESTGROUP_BEGIN ("Database")
     TESTENTRY (inline_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
   TESTGROUP_END ()
+#endif
 
   TESTGROUP_BEGIN ("MatchPattern")
     TESTENTRY (match_pattern_can_be_constructed_from_string)
@@ -2659,6 +2661,8 @@ TESTCASE (file_can_be_written_to)
   EXPECT_NO_MESSAGES ();
 }
 
+#ifdef HAVE_SQLITE
+
 TESTCASE (inline_sqlite_database_can_be_queried)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -2849,6 +2853,8 @@ TESTCASE (external_sqlite_database_can_be_opened_with_flags)
   EXPECT_SEND_MESSAGE_WITH ("\"can write\"");
   EXPECT_NO_MESSAGES ();
 }
+
+#endif
 
 TESTCASE (match_pattern_can_be_constructed_from_string)
 {

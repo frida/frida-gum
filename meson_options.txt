@@ -22,6 +22,12 @@ option('v8',
   description: 'Build JavaScript bindings with V8 runtime included'
 )
 
+option('database',
+  type: 'feature',
+  value: 'enabled',
+  description: 'Build JavaScript bindings with Database API included'
+)
+
 option('tests',
   type: 'boolean',
   value: true,

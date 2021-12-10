@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,9 +8,11 @@
 
 #include "gumquickscriptbackend.h"
 #include "gumv8scriptbackend.h"
-#include "sqlite3.h"
 
 #include <gum/gum-init.h>
+#ifdef HAVE_SQLITE
+# include <sqlite3.h>
+#endif
 
 #define GUM_SQLITE_BLOCK_ALLOC_SIZE(s) (sizeof (GumSqliteBlock) + (s))
 #define GUM_SQLITE_BLOCK_TO_CLIENT(b) (((GumSqliteBlock *) (b)) + 1)
@@ -26,9 +28,10 @@ struct _GumSqliteBlock
 
 static void gum_script_backend_deinit_scheduler (void);
 
-static void gum_script_backend_init_sqlite (void);
-static void gum_script_backend_deinit_sqlite (void);
+static void gum_script_backend_init_dependencies (void);
+static void gum_script_backend_deinit_dependencies (void);
 
+#ifdef HAVE_SQLITE
 static int gum_sqlite_allocator_init (void * data);
 static void gum_sqlite_allocator_shutdown (void * data);
 static void * gum_sqlite_allocator_malloc (int size);
@@ -36,9 +39,10 @@ static void gum_sqlite_allocator_free (void * mem);
 static void * gum_sqlite_allocator_realloc (void * mem, int n_bytes);
 static int gum_sqlite_allocator_size (void * mem);
 static int gum_sqlite_allocator_roundup (int size);
+#endif
 
 G_DEFINE_INTERFACE_WITH_CODE (GumScriptBackend, gum_script_backend,
-    G_TYPE_OBJECT, gum_script_backend_init_sqlite ())
+    G_TYPE_OBJECT, gum_script_backend_init_dependencies ())
 
 static void
 gum_script_backend_default_init (GumScriptBackendInterface * iface)
@@ -287,8 +291,9 @@ gum_script_backend_deinit_scheduler (void)
 }
 
 static void
-gum_script_backend_init_sqlite (void)
+gum_script_backend_init_dependencies (void)
 {
+#ifdef HAVE_SQLITE
   sqlite3_mem_methods gum_mem_methods = {
     gum_sqlite_allocator_malloc,
     gum_sqlite_allocator_free,
@@ -304,14 +309,20 @@ gum_script_backend_init_sqlite (void)
   sqlite3_config (SQLITE_CONFIG_MULTITHREAD);
 
   sqlite3_initialize ();
-  _gum_register_early_destructor (gum_script_backend_deinit_sqlite);
+#endif
+
+  _gum_register_early_destructor (gum_script_backend_deinit_dependencies);
 }
 
 static void
-gum_script_backend_deinit_sqlite (void)
+gum_script_backend_deinit_dependencies (void)
 {
+#ifdef HAVE_SQLITE
   sqlite3_shutdown ();
+#endif
 }
+
+#ifdef HAVE_SQLITE
 
 static int
 gum_sqlite_allocator_init (void * data)
@@ -368,3 +379,5 @@ gum_sqlite_allocator_roundup (int size)
 {
   return size;
 }
+
+#endif

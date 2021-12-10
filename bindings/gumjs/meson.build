@@ -14,10 +14,13 @@ gumjs_sources = [
   'guminspectorserver.c',
   'gumscripttask.c',
   'gumsourcemap.c',
-  'gummemoryvfs.c',
   'gumffi.c',
   'gumcmodule.c',
 ]
+
+if sqlite_dep.found()
+  gumjs_sources += 'gummemoryvfs.c'
+endif
 
 if quickjs_dep.found()
   gumjs_sources += [
@@ -35,7 +38,6 @@ if quickjs_dep.found()
     'gumquickfile.c',
     'gumquickstream.c',
     'gumquicksocket.c',
-    'gumquickdatabase.c',
     'gumquickinterceptor.c',
     'gumquickstalker.c',
     'gumquickeventsink.c',
@@ -46,6 +48,9 @@ if quickjs_dep.found()
     'gumquickcodewriter.c',
     'gumquickcoderelocator.c',
   ]
+  if sqlite_dep.found()
+    gumjs_sources += 'gumquickdatabase.c'
+  endif
 
   quickcompile = executable('quickcompile', 'gumquickcompile.c',
     dependencies: [quickjs_dep_native],
@@ -73,7 +78,6 @@ if v8_dep.found()
     'gumv8file.cpp',
     'gumv8stream.cpp',
     'gumv8socket.cpp',
-    'gumv8database.cpp',
     'gumv8interceptor.cpp',
     'gumv8stalker.cpp',
     'gumv8eventsink.cpp',
@@ -84,6 +88,9 @@ if v8_dep.found()
     'gumv8codewriter.cpp',
     'gumv8coderelocator.cpp',
   ]
+  if sqlite_dep.found()
+    gumjs_sources += 'gumv8database.cpp'
+  endif
 endif
 
 gumjs_generated_origins = [

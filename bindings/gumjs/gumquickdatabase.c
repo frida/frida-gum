@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,6 @@
 #include "gumquickdatabase.h"
 
 #include "gumquickmacros.h"
-#include "sqlite3.h"
 
 typedef struct _GumDatabase GumDatabase;
 typedef guint GumStorage;

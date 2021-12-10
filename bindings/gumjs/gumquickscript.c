@@ -11,7 +11,6 @@
 #include "gumquickcoderelocator.h"
 #include "gumquickcodewriter.h"
 #include "gumquickcore.h"
-#include "gumquickdatabase.h"
 #include "gumquickfile.h"
 #include "gumquickinstruction.h"
 #include "gumquickinterceptor.h"
@@ -29,6 +28,9 @@
 #include "gumquicksymbol.h"
 #include "gumquickthread.h"
 #include "gumscripttask.h"
+#ifdef HAVE_SQLITE
+# include "gumquickdatabase.h"
+#endif
 
 typedef guint GumScriptState;
 typedef struct _GumUnloadNotifyCallback GumUnloadNotifyCallback;
@@ -61,7 +63,9 @@ struct _GumQuickScript
   GumQuickFile file;
   GumQuickStream stream;
   GumQuickSocket socket;
+#ifdef HAVE_SQLITE
   GumQuickDatabase database;
+#endif
   GumQuickInterceptor interceptor;
   GumQuickApiResolver api_resolver;
   GumQuickSymbol symbol;
@@ -384,7 +388,9 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_file_init (&self->file, global_obj, core);
   _gum_quick_stream_init (&self->stream, global_obj, core);
   _gum_quick_socket_init (&self->socket, global_obj, &self->stream, core);
+#ifdef HAVE_SQLITE
   _gum_quick_database_init (&self->database, global_obj, core);
+#endif
   _gum_quick_interceptor_init (&self->interceptor, global_obj, core);
   _gum_quick_api_resolver_init (&self->api_resolver, global_obj, core);
   _gum_quick_symbol_init (&self->symbol, global_obj, core);
@@ -437,7 +443,9 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_symbol_dispose (&self->symbol);
     _gum_quick_api_resolver_dispose (&self->api_resolver);
     _gum_quick_interceptor_dispose (&self->interceptor);
+#ifdef HAVE_SQLITE
     _gum_quick_database_dispose (&self->database);
+#endif
     _gum_quick_socket_dispose (&self->socket);
     _gum_quick_stream_dispose (&self->stream);
     _gum_quick_file_dispose (&self->file);
@@ -476,7 +484,9 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_symbol_finalize (&self->symbol);
   _gum_quick_api_resolver_finalize (&self->api_resolver);
   _gum_quick_interceptor_finalize (&self->interceptor);
+#ifdef HAVE_SQLITE
   _gum_quick_database_finalize (&self->database);
+#endif
   _gum_quick_socket_finalize (&self->socket);
   _gum_quick_stream_finalize (&self->stream);
   _gum_quick_file_finalize (&self->file);

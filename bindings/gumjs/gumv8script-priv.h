@@ -12,7 +12,6 @@
 #include "gumv8coderelocator.h"
 #include "gumv8codewriter.h"
 #include "gumv8core.h"
-#include "gumv8database.h"
 #include "gumv8file.h"
 #include "gumv8instruction.h"
 #include "gumv8interceptor.h"
@@ -29,6 +28,9 @@
 #include "gumv8stream.h"
 #include "gumv8symbol.h"
 #include "gumv8thread.h"
+#ifdef HAVE_SQLITE
+# include "gumv8database.h"
+#endif
 
 typedef guint GumScriptState;
 struct GumESProgram;
@@ -54,7 +56,9 @@ struct _GumV8Script
   GumV8File file;
   GumV8Stream stream;
   GumV8Socket socket;
+#ifdef HAVE_SQLITE
   GumV8Database database;
+#endif
   GumV8Interceptor interceptor;
   GumV8ApiResolver api_resolver;
   GumV8Symbol symbol;

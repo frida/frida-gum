@@ -337,7 +337,9 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_file_init (&self->file, &self->core, global_templ);
     _gum_v8_stream_init (&self->stream, &self->core, global_templ);
     _gum_v8_socket_init (&self->socket, &self->core, global_templ);
+#ifdef HAVE_SQLITE
     _gum_v8_database_init (&self->database, &self->core, global_templ);
+#endif
     _gum_v8_interceptor_init (&self->interceptor, &self->core,
         global_templ);
     _gum_v8_api_resolver_init (&self->api_resolver, &self->core, global_templ);
@@ -363,7 +365,9 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_file_realize (&self->file);
     _gum_v8_stream_realize (&self->stream);
     _gum_v8_socket_realize (&self->socket);
+#ifdef HAVE_SQLITE
     _gum_v8_database_realize (&self->database);
+#endif
     _gum_v8_interceptor_realize (&self->interceptor);
     _gum_v8_api_resolver_realize (&self->api_resolver);
     _gum_v8_symbol_realize (&self->symbol);
@@ -762,7 +766,9 @@ gum_v8_script_destroy_context (GumV8Script * self)
     _gum_v8_symbol_dispose (&self->symbol);
     _gum_v8_api_resolver_dispose (&self->api_resolver);
     _gum_v8_interceptor_dispose (&self->interceptor);
+#ifdef HAVE_SQLITE
     _gum_v8_database_dispose (&self->database);
+#endif
     _gum_v8_socket_dispose (&self->socket);
     _gum_v8_stream_dispose (&self->stream);
     _gum_v8_file_dispose (&self->file);
@@ -790,7 +796,9 @@ gum_v8_script_destroy_context (GumV8Script * self)
   _gum_v8_symbol_finalize (&self->symbol);
   _gum_v8_api_resolver_finalize (&self->api_resolver);
   _gum_v8_interceptor_finalize (&self->interceptor);
+#ifdef HAVE_SQLITE
   _gum_v8_database_finalize (&self->database);
+#endif
   _gum_v8_socket_finalize (&self->socket);
   _gum_v8_stream_finalize (&self->stream);
   _gum_v8_file_finalize (&self->file);

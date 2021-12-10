@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,9 +7,8 @@
 #ifndef __GUM_MEMORY_VFS_H__
 #define __GUM_MEMORY_VFS_H__
 
-#include "sqlite3.h"
-
 #include <glib.h>
+#include <sqlite3.h>
 
 G_BEGIN_DECLS
 

@@ -312,7 +312,8 @@ if have_gumjs
   )
   cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
-  sqlite_dep = dependency('sqlite3')
+  sqlite_dep = dependency('sqlite3', required: get_option('database'))
+  cdata.set('HAVE_SQLITE', sqlite_dep.found())
 
   libsoup_dep = dependency('libsoup-2.4')
 endif
