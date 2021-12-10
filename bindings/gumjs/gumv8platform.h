@@ -33,12 +33,18 @@ public:
   v8::Isolate * GetIsolate () const { return shared_isolate; }
   GumV8Bundle * GetRuntimeBundle () const { return runtime_bundle; }
   const gchar * GetRuntimeSourceMap () const;
+#ifdef HAVE_OBJC_BRIDGE
   GumV8Bundle * GetObjCBundle ();
   const gchar * GetObjCSourceMap () const;
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
   GumV8Bundle * GetSwiftBundle ();
   const gchar * GetSwiftSourceMap () const;
+#endif
+#ifdef HAVE_JAVA_BRIDGE
   GumV8Bundle * GetJavaBundle ();
   const gchar * GetJavaSourceMap () const;
+#endif
   GumScriptScheduler * GetScheduler () const { return scheduler; }
   std::shared_ptr<GumV8Operation> ScheduleOnJSThread (std::function<void ()> f);
   std::shared_ptr<GumV8Operation> ScheduleOnJSThread (gint priority,
@@ -87,9 +93,15 @@ private:
   GMutex mutex;
   v8::Isolate * shared_isolate;
   GumV8Bundle * runtime_bundle;
+#ifdef HAVE_OBJC_BRIDGE
   GumV8Bundle * objc_bundle;
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
   GumV8Bundle * swift_bundle;
+#endif
+#ifdef HAVE_JAVA_BRIDGE
   GumV8Bundle * java_bundle;
+#endif
   GumScriptScheduler * scheduler;
   std::unordered_set<std::shared_ptr<GumV8Operation>> js_ops;
   std::unordered_set<std::shared_ptr<GumV8Operation>> pool_ops;

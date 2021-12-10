@@ -1398,26 +1398,50 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
+  bool loaded = false;
+
+#ifdef HAVE_OBJC_BRIDGE
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
       core->script->backend);
 
   gum_v8_bundle_run (platform->GetObjCBundle ());
+
+  loaded = true;
+#endif
+
+  info.GetReturnValue ().Set (loaded);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
 {
+  bool loaded = false;
+
+#ifdef HAVE_SWIFT_BRIDGE
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
       core->script->backend);
 
   gum_v8_bundle_run (platform->GetSwiftBundle ());
+
+  loaded = true;
+#endif
+
+  info.GetReturnValue ().Set (loaded);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
+  bool loaded = false;
+
+#ifdef HAVE_JAVA_BRIDGE
   auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
       core->script->backend);
 
   gum_v8_bundle_run (platform->GetJavaBundle ());
+
+  loaded = true;
+#endif
+
+  info.GetReturnValue ().Set (loaded);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
@@ -1483,18 +1507,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
       {
         json = core->runtime_source_map;
       }
+#ifdef HAVE_OBJC_BRIDGE
       else if (strcmp (name, "/_objc.js") == 0)
       {
         json = platform->GetObjCSourceMap ();
       }
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
       else if (strcmp (name, "/_swift.js") == 0)
       {
         json = platform->GetSwiftSourceMap ();
       }
+#endif
+#ifdef HAVE_JAVA_BRIDGE
       else if (strcmp (name, "/_java.js") == 0)
       {
         json = platform->GetJavaSourceMap ();
       }
+#endif
     }
   }
 

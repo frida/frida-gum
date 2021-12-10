@@ -7,10 +7,16 @@
 #include "gumv8platform.h"
 
 #include "gumscriptbackend.h"
-#include "gumv8script-java.h"
-#include "gumv8script-objc.h"
 #include "gumv8script-runtime.h"
-#include "gumv8script-swift.h"
+#ifdef HAVE_OBJC_BRIDGE
+# include "gumv8script-objc.h"
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
+# include "gumv8script-swift.h"
+#endif
+#ifdef HAVE_JAVA_BRIDGE
+# include "gumv8script-java.h"
+#endif
 
 #include <algorithm>
 #include <gum/gumcloak.h>
@@ -431,9 +437,16 @@ private:
 };
 
 GumV8Platform::GumV8Platform ()
-  : objc_bundle (NULL),
+  :
+#ifdef HAVE_OBJC_BRIDGE
+    objc_bundle (NULL),
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
     swift_bundle (NULL),
+#endif
+#ifdef HAVE_JAVA_BRIDGE
     java_bundle (NULL),
+#endif
     scheduler (gum_script_backend_get_scheduler ()),
     page_allocator (new GumV8PageAllocator ()),
     array_buffer_allocator (new GumV8ArrayBufferAllocator ()),
@@ -488,9 +501,15 @@ GumV8Platform::Dispose ()
     Isolate::Scope isolate_scope (shared_isolate);
     HandleScope handle_scope (shared_isolate);
 
+#ifdef HAVE_OBJC_BRIDGE
     g_clear_pointer (&objc_bundle, gum_v8_bundle_free);
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
     g_clear_pointer (&swift_bundle, gum_v8_bundle_free);
+#endif
+#ifdef HAVE_JAVA_BRIDGE
     g_clear_pointer (&java_bundle, gum_v8_bundle_free);
+#endif
 
     g_clear_pointer (&runtime_bundle, gum_v8_bundle_free);
   }
@@ -555,6 +574,8 @@ GumV8Platform::GetRuntimeSourceMap () const
   return gumjs_frida_source_map;
 }
 
+#ifdef HAVE_OBJC_BRIDGE
+
 GumV8Bundle *
 GumV8Platform::GetObjCBundle ()
 {
@@ -568,6 +589,10 @@ GumV8Platform::GetObjCSourceMap () const
 {
   return gumjs_objc_source_map;
 }
+
+#endif
+
+#ifdef HAVE_SWIFT_BRIDGE
 
 GumV8Bundle *
 GumV8Platform::GetSwiftBundle ()
@@ -583,6 +608,10 @@ GumV8Platform::GetSwiftSourceMap () const
   return gumjs_swift_source_map;
 }
 
+#endif
+
+#ifdef HAVE_JAVA_BRIDGE
+
 GumV8Bundle *
 GumV8Platform::GetJavaBundle ()
 {
@@ -596,6 +625,8 @@ GumV8Platform::GetJavaSourceMap () const
 {
   return gumjs_java_source_map;
 }
+
+#endif
 
 std::shared_ptr<GumV8Operation>
 GumV8Platform::ScheduleOnJSThread (std::function<void ()> f)

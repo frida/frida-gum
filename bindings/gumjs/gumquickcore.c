@@ -12,12 +12,18 @@
 #include "gumffi.h"
 #include "gumquickinterceptor.h"
 #include "gumquickmacros.h"
-#include "gumquickscript-java.h"
-#include "gumquickscript-objc.h"
 #include "gumquickscript-priv.h"
-#include "gumquickscript-swift.h"
 #include "gumquickstalker.h"
 #include "gumsourcemap.h"
+#ifdef HAVE_OBJC_BRIDGE
+# include "gumquickscript-objc.h"
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
+# include "gumquickscript-swift.h"
+#endif
+#ifdef HAVE_JAVA_BRIDGE
+# include "gumquickscript-java.h"
+#endif
 
 #include <string.h>
 #ifdef _MSC_VER
@@ -1509,23 +1515,38 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
-  gum_quick_bundle_load (gumjs_objc_modules, ctx);
+  gboolean loaded = FALSE;
 
-  return JS_UNDEFINED;
+#ifdef HAVE_OBJC_BRIDGE
+  gum_quick_bundle_load (gumjs_objc_modules, ctx);
+  loaded = TRUE;
+#endif
+
+  return loaded;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
 {
-  gum_quick_bundle_load (gumjs_swift_modules, ctx);
+  gboolean loaded = FALSE;
 
-  return JS_UNDEFINED;
+#ifdef HAVE_SWIFT_BRIDGE
+  gum_quick_bundle_load (gumjs_swift_modules, ctx);
+  loaded = TRUE;
+#endif
+
+  return loaded;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
-  gum_quick_bundle_load (gumjs_java_modules, ctx);
+  gboolean loaded = FALSE;
 
-  return JS_UNDEFINED;
+#ifdef HAVE_JAVA_BRIDGE
+  gum_quick_bundle_load (gumjs_java_modules, ctx);
+  loaded = TRUE;
+#endif
+
+  return loaded;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
@@ -1565,18 +1586,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
     {
       json = core->runtime_source_map;
     }
+#ifdef HAVE_OBJC_BRIDGE
     else if (strcmp (name, "/_objc.js") == 0)
     {
       json = gumjs_objc_source_map;
     }
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
     else if (strcmp (name, "/_swift.js") == 0)
     {
       json = gumjs_swift_source_map;
     }
+#endif
+#ifdef HAVE_JAVA_BRIDGE
     else if (strcmp (name, "/_java.js") == 0)
     {
       json = gumjs_java_source_map;
     }
+#endif
   }
 
   if (json != NULL)

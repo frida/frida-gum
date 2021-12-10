@@ -105,6 +105,15 @@
 /* Define to 1 if gioopenssl is available. */
 #mesondefine HAVE_GIOOPENSSL
 
+/* Define to 1 if ObjC bridge is available. */
+#mesondefine HAVE_OBJC_BRIDGE
+
+/* Define to 1 if Swift bridge is available. */
+#mesondefine HAVE_SWIFT_BRIDGE
+
+/* Define to 1 if Java bridge is available. */
+#mesondefine HAVE_JAVA_BRIDGE
+
 #if defined (HAVE_QNX) && !defined (__cplusplus)
 # define NULL ((void *) 0)
 #endif
