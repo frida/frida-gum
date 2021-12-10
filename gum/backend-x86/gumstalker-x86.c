@@ -4670,7 +4670,7 @@ gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
   GumExecCtx * ctx = block->ctx;
   const cs_insn * insn = gc->instruction->ci;
   GArray * ranges;
-  GumMemoryRange *range;
+  guint i;
 
   if (target->is_indirect)
     return FALSE;
@@ -4689,8 +4689,11 @@ gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
 
   ranges = gum_exec_ctx_get_plt_got_ranges ();
 
-  for (guint i = 0; i < ranges->len; i++) {
-    range = &g_array_index(ranges, GumMemoryRange, i);
+  for (i = 0; i != ranges->len; i++)
+  {
+    GumMemoryRange * range;
+
+    range = &g_array_index (ranges, GumMemoryRange, i);
 
     if (GUM_MEMORY_RANGE_INCLUDES (range,
         GPOINTER_TO_SIZE (target->absolute_address)))
@@ -4699,6 +4702,7 @@ gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
     }
   }
 #endif
+
   return FALSE;
 }
 
@@ -4711,7 +4715,7 @@ gum_exec_ctx_get_plt_got_ranges (void)
 
   if (g_once_init_enter (&gonce_value))
   {
-    GArray * ranges = g_array_new(false, false, sizeof(GumMemoryRange));
+    GArray * ranges = g_array_new (FALSE, FALSE, sizeof(GumMemoryRange));
 
     gum_process_enumerate_modules (gum_exec_ctx_find_plt_got, ranges);
 
@@ -4771,7 +4775,7 @@ gum_exec_check_elf_section (const GumElfSectionDetails * details,
 
   range.base_address = details->address;
   range.size = details->size;
-  g_array_append_val(ranges, range);
+  g_array_append_val (ranges, range);
 
   return TRUE;
 }
