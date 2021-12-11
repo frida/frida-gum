@@ -984,7 +984,7 @@ gum_stalker_init (GumStalker * self)
    * calling into the dynamic loader or even just allocating data on the heap is
    * dangerous when actually stalking a target since we could cause the target
    * to re-enter a section of code which is not designed to be. We will
-   * therefore build up our picture of the memory map when stalker is first
+   * therefore build up our picture of the memory map when Stalker is first
    * instantiated to avoid this potential problem. Should the memory map change
    * afterwards (e.g. another library is loaded) then we will not notice and
    * tail calls into the .plt.got and .plt.sec will not be optimized. However,
@@ -4715,16 +4715,16 @@ gum_exec_ctx_get_plt_got_ranges (void)
 
   if (g_once_init_enter (&gonce_value))
   {
-    GArray * ranges = g_array_new (FALSE, FALSE, sizeof(GumMemoryRange));
+    GArray * ranges = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
 
     gum_process_enumerate_modules (gum_exec_ctx_find_plt_got, ranges);
 
     _gum_register_early_destructor (gum_exec_ctx_deinit_plt_got_ranges);
 
-    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (ranges) + 1);
+    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (ranges));
   }
 
-  return GSIZE_TO_POINTER (gonce_value - 1);
+  return GSIZE_TO_POINTER (gonce_value);
 }
 
 static void
@@ -4738,21 +4738,19 @@ gum_exec_ctx_find_plt_got (const GumModuleDetails * details,
                            gpointer user_data)
 {
   GArray * ranges = user_data;
-  GumElfModule * elf = NULL;
+  GumElfModule * elf;
 
   if (details->path == NULL)
     return TRUE;
 
   elf = gum_elf_module_new_from_memory (details->path,
       details->range->base_address, NULL);
-
   if (elf == NULL)
-    goto beach;
+    return TRUE;
 
   gum_elf_module_enumerate_sections (elf, gum_exec_check_elf_section, ranges);
 
-beach:
-  g_clear_object (&elf);
+  g_object_unref (elf);
 
   return TRUE;
 }
