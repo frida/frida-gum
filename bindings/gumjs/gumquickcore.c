@@ -1515,11 +1515,11 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 {
-  gboolean loaded = FALSE;
+  JSValue loaded = JS_FALSE;
 
 #ifdef HAVE_OBJC_BRIDGE
   gum_quick_bundle_load (gumjs_objc_modules, ctx);
-  loaded = TRUE;
+  loaded = JS_TRUE;
 #endif
 
   return loaded;
@@ -1527,11 +1527,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
 {
-  gboolean loaded = FALSE;
+  JSValue loaded = JS_FALSE;
 
 #ifdef HAVE_SWIFT_BRIDGE
   gum_quick_bundle_load (gumjs_swift_modules, ctx);
-  loaded = TRUE;
+  loaded = JS_TRUE;
 #endif
 
   return loaded;
@@ -1539,11 +1539,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
 
 GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 {
-  gboolean loaded = FALSE;
+  JSValue loaded = JS_FALSE;
 
 #ifdef HAVE_JAVA_BRIDGE
   gum_quick_bundle_load (gumjs_java_modules, ctx);
-  loaded = TRUE;
+  loaded = JS_TRUE;
 #endif
 
   return loaded;
