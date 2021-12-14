@@ -267,7 +267,7 @@ if unwind_dep.found()
   ]
 endif
 
-if have_libdwarf
+if libdwarf_dep.found()
   gum_sources += [
     'backend-libdwarf/gumsymbolutil-libdwarf.c',
   ]

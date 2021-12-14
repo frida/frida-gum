@@ -236,11 +236,24 @@ endif
 
 if host_os_family == 'linux' or host_os_family == 'qnx'
   elf_dep = dependency('libelf')
-  extra_deps += [elf_dep]
-  have_libdwarf = cc.has_header('libdwarf.h')
-  if not have_libdwarf
-    error('libdwarf is required')
+
+  libdwarf_dep = dependency('libdwarf', required: false)
+  if not libdwarf_dep.found()
+    found = false
+    foreach idir : ['/usr/include/libdwarf', '/usr/local/include/libdwarf']
+      inc_arg = '-I' + idir
+      if not found and cc.has_header('libdwarf.h', args: inc_arg)
+        libdwarf_dep = declare_dependency(compile_args: [inc_arg])
+        found = true
+      endif
+    endforeach
+    if not found
+      error('libdwarf is required')
+    endif
   endif
+
+  extra_deps += [elf_dep, libdwarf_dep]
+
   if host_os_family == 'linux'
     extra_libs_private += ['-ldwarf', '-ldl', '-lz']
     extra_gir_args_private += ['--extra-library=dwarf']
@@ -248,7 +261,7 @@ if host_os_family == 'linux' or host_os_family == 'qnx'
     extra_libs_private += ['-ldwarf', '-lz']
   endif
 else
-  have_libdwarf = false
+  libdwarf_dep = disabler()
 endif
 
 if host_os == 'android'
