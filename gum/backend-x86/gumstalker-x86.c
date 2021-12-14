@@ -532,7 +532,8 @@ struct _GumCheckElfSection
 
 extern _Unwind_Reason_Code __gxx_personality_v0 (int version,
     _Unwind_Action actions, uint64_t exception_class,
-    _Unwind_Exception * unwind_exception, _Unwind_Context * context);
+    _Unwind_Exception * unwind_exception, _Unwind_Context * context)
+    __attribute__ ((weak));
 extern const void * _Unwind_Find_FDE (const void * pc, struct dwarf_eh_bases *);
 
 static void gum_stalker_ensure_unwind_apis_instrumented (void);
@@ -980,6 +981,9 @@ static void
 gum_stalker_ensure_unwind_apis_instrumented (void)
 {
   static gsize initialized = FALSE;
+
+  if (__gxx_personality_v0 == NULL)
+    return;
 
   if (g_once_init_enter (&initialized))
   {
