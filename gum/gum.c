@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -47,8 +47,11 @@ struct _GumInternalThreadDetails
 
 static void gum_destructor_invoke (GumDestructorFunc destructor);
 
+#ifdef HAVE_FRIDA_LIBFFI
 static void gum_on_ffi_allocate (void * base_address, size_t size);
 static void gum_on_ffi_deallocate (void * base_address, size_t size);
+#endif
+#ifdef HAVE_FRIDA_GLIB
 static void gum_on_thread_init (void);
 static void gum_on_thread_realize (void);
 static void gum_on_thread_dispose (void);
@@ -57,6 +60,7 @@ static void gum_internal_thread_details_free (
     GumInternalThreadDetails * details);
 static void gum_on_fd_opened (gint fd, const gchar * description);
 static void gum_on_fd_closed (gint fd, const gchar * description);
+#endif
 
 static void gum_on_log_message (const gchar * log_domain,
     GLogLevelFlags log_level, const gchar * message, gpointer user_data);
@@ -113,8 +117,10 @@ static gboolean gum_initialized = FALSE;
 static GSList * gum_early_destructors = NULL;
 static GSList * gum_final_destructors = NULL;
 
+#ifdef HAVE_FRIDA_GLIB
 static GPrivate gum_internal_thread_details_key = G_PRIVATE_INIT (
     (GDestroyNotify) gum_internal_thread_details_free);
+#endif
 
 static GumInterceptor * gum_cached_interceptor = NULL;
 
@@ -341,6 +347,8 @@ gum_recover_from_fork_in_child (void)
   _gum_exceptor_backend_recover_from_fork_in_child ();
 }
 
+#ifdef HAVE_FRIDA_LIBFFI
+
 static void
 gum_on_ffi_allocate (void * base_address,
                      size_t size)
@@ -360,6 +368,10 @@ gum_on_ffi_deallocate (void * base_address,
   range.size = size;
   gum_cloak_remove_range (&range);
 }
+
+#endif
+
+#ifdef HAVE_FRIDA_GLIB
 
 static void
 gum_on_thread_init (void)
@@ -432,6 +444,8 @@ gum_on_fd_closed (gint fd,
 {
   gum_cloak_remove_file_descriptor (fd);
 }
+
+#endif
 
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
 
