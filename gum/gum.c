@@ -68,7 +68,8 @@ static void gum_on_log_message (const gchar * log_domain,
 #if defined (HAVE_LINUX) && defined (HAVE_GLIBC)
 # include <dlfcn.h>
 # define GUM_RTLD_DLOPEN 0x80000000
-extern void * __libc_dlopen_mode (char * name, int flags);
+extern void * __libc_dlopen_mode (char * name, int flags)
+    __attribute__ ((weak));
 static void gum_libdl_prevent_unload (void);
 #endif
 
@@ -452,6 +453,9 @@ gum_on_fd_closed (gint fd,
 static void
 gum_libdl_prevent_unload (void)
 {
+  if (__libc_dlopen_mode == NULL)
+    return;
+
   __libc_dlopen_mode ("libdl.so.2", RTLD_LAZY | GUM_RTLD_DLOPEN);
 }
 
