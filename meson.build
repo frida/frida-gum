@@ -220,6 +220,10 @@ if cc.has_function('pthread_attr_getstack',
   cdata.set('HAVE_PTHREAD_ATTR_GETSTACK', 1)
 endif
 
+if host_os == 'linux'
+  extra_libs_private += ['-ldl']
+endif
+
 if host_os == 'android'
   extra_libs_private += ['-llog']
 endif
