@@ -1,0 +1,14 @@
+[library]
+version = "15.1.14"
+browse_url = "https://github.com/frida/frida-gum/"
+repository_url = "https://github.com/frida/frida-gum.git"
+website_url = "https://frida.re/"
+authors = "Frida Development Team"
+logo_url = "https://frida.re/img/logotype.svg"
+license = "wxWindows"
+description = "Cross-platform instrumentation and introspection library written in C."
+devhelp = true
+search_index = true
+
+[source-location]
+base_url = "https://github.com/frida/frida-gum/blob/master/"
