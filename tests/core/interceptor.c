@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -610,11 +610,11 @@ TESTCASE (replace_one)
   free (ret);
 }
 
+#ifdef HAVE_FRIDA_GLIB
+
 static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
 static void replacement_free_doing_nothing (gpointer mem);
-
-#ifdef HAVE_FRIDA_GLIB
 
 TESTCASE (replace_two)
 {
@@ -646,8 +646,6 @@ TESTCASE (replace_two)
 
   free (ret);
 }
-
-#endif
 
 static gpointer
 replacement_malloc_calling_malloc_and_replaced_free (gsize size)
@@ -681,6 +679,7 @@ replacement_free_doing_nothing (gpointer mem)
   (*counter)++;
 }
 
+#endif
 #endif
 
 TESTCASE (replace_then_attach)

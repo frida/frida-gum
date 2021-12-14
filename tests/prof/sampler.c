@@ -18,7 +18,6 @@ TESTLIST_BEGIN (sampler)
 TESTLIST_END ()
 
 static guint spin_for_one_tenth_second (void);
-static gpointer malloc_count_helper_thread (gpointer data);
 static void nop_function_a (void);
 static void nop_function_b (void);
 
@@ -77,6 +76,8 @@ struct _MallocCountHelperContext
 
 #if defined (HAVE_FRIDA_GLIB) && !defined (HAVE_ASAN)
 
+static gpointer malloc_count_helper_thread (gpointer data);
+
 TESTCASE (malloc_count)
 {
   const GumHeapApiList * heap_apis;
@@ -124,6 +125,27 @@ TESTCASE (malloc_count)
   g_assert_cmpuint (helper.count, ==, 1);
   g_assert_cmpuint (gum_call_count_sampler_peek_total_count (
       GUM_CALL_COUNT_SAMPLER (fixture->sampler)), >=, 3 + 1);
+}
+
+static gpointer
+malloc_count_helper_thread (gpointer data)
+{
+  MallocCountHelperContext * helper = (MallocCountHelperContext *) data;
+  const GumHeapApi * api = helper->api;
+  GumSample sample_a, sample_b;
+  volatile gpointer p;
+
+  while (!helper->allowed_to_start)
+    g_thread_yield ();
+
+  sample_a = gum_sampler_sample (helper->sampler);
+  p = api->malloc (3);
+  api->free (p);
+  sample_b = gum_sampler_sample (helper->sampler);
+
+  helper->count = sample_b - sample_a;
+
+  return NULL;
 }
 
 #endif
@@ -176,27 +198,6 @@ spin_for_one_tenth_second (void)
   g_timer_destroy (timer);
 
   return b;
-}
-
-static gpointer
-malloc_count_helper_thread (gpointer data)
-{
-  MallocCountHelperContext * helper = (MallocCountHelperContext *) data;
-  const GumHeapApi * api = helper->api;
-  GumSample sample_a, sample_b;
-  volatile gpointer p;
-
-  while (!helper->allowed_to_start)
-    g_thread_yield ();
-
-  sample_a = gum_sampler_sample (helper->sampler);
-  p = api->malloc (3);
-  api->free (p);
-  sample_b = gum_sampler_sample (helper->sampler);
-
-  helper->count = sample_b - sample_a;
-
-  return NULL;
 }
 
 static gint dummy_variable_to_trick_optimizer = 0;
