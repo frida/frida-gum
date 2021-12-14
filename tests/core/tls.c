@@ -28,16 +28,17 @@ TESTLIST_END ()
 TESTCASE (get_should_work_like_the_system_implementation)
 {
   GumTlsKey key;
+  gsize val = 0x11223344;
 
   key = gum_tls_key_new ();
 
 #ifdef HAVE_WINDOWS
-  TlsSetValue (key, GSIZE_TO_POINTER (0x11223344));
+  TlsSetValue (key, &val);
 #else
-  pthread_setspecific (key, GSIZE_TO_POINTER (0x11223344));
+  pthread_setspecific (key, &val);
 #endif
   g_assert_cmphex (GPOINTER_TO_SIZE (gum_tls_key_get_value (key)),
-      ==, 0x11223344);
+      ==, GPOINTER_TO_SIZE (&val));
 
   gum_tls_key_free (key);
 }
@@ -45,15 +46,17 @@ TESTCASE (get_should_work_like_the_system_implementation)
 TESTCASE (set_should_work_like_the_system_implementation)
 {
   GumTlsKey key;
+  gsize val = 0x11223344;
 
   key = gum_tls_key_new ();
 
-  gum_tls_key_set_value (key, GSIZE_TO_POINTER (0x11223344));
+  gum_tls_key_set_value (key, &val);
 #ifdef HAVE_WINDOWS
-  g_assert_cmphex (GPOINTER_TO_SIZE (TlsGetValue (key)), ==, 0x11223344);
+  g_assert_cmphex (GPOINTER_TO_SIZE (TlsGetValue (key)),
+      ==, GPOINTER_TO_SIZE (&val));
 #else
   g_assert_cmphex (GPOINTER_TO_SIZE (pthread_getspecific (key)),
-      ==, 0x11223344);
+      ==, GPOINTER_TO_SIZE (&val));
 #endif
 
   gum_tls_key_free (key);
