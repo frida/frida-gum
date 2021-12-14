@@ -182,6 +182,8 @@ GUM_API void gum_stalker_set_observer (GumStalker * self,
     GumStalkerObserver * observer);
 
 /**
+ * gum_stalker_prefetch:
+ *
  * This API is intended for use during fuzzing scenarios such as AFL forkserver.
  * It allows for the child to feed back the addresses of instrumented blocks to
  * the parent so that the next time a child is forked from the parent, it will
