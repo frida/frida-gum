@@ -222,6 +222,7 @@ endif
 
 if host_os == 'linux'
   extra_libs_private += ['-ldl']
+  extra_gir_args_private += ['--extra-library=dl']
 endif
 
 if host_os == 'android'
