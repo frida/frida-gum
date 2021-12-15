@@ -106,6 +106,7 @@ if host_arch == 'arm64' and have_ptrauth
 endif
 
 cdata = configuration_data()
+cdata.set_quoted('GUM_VERSION', gum_version)
 
 cdata.set('HAVE_' + host_os_family.to_upper(), 1)
 if host_os != host_os_family
