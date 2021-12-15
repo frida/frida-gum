@@ -183,7 +183,7 @@ threads_dep = dependency('threads')
 glib_dep = dependency('glib-2.0', version: '>=2.56')
 gobject_dep = dependency('gobject-2.0')
 gio_dep = dependency('gio-2.0')
-capstone_dep = dependency('capstone')
+capstone_dep = dependency('capstone', version: '>=5.0.0', fallback: ['capstone', 'capstone_dep'])
 ffi_dep = dependency('libffi')
 lzma_dep = dependency('liblzma')
 
@@ -296,6 +296,7 @@ if have_gumjs
 
   quickjs_dep = dependency('quickjs',
     required: get_option('quickjs'),
+    fallback: ['quickjs', 'quickjs_dep'],
   )
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
   if quickjs_dep.found()
@@ -328,6 +329,7 @@ if have_gumjs
 
   libtcc_dep = dependency('libtcc',
     required: host_arch != 'mips',
+    fallback: ['tinycc', 'tcc_dep'],
   )
   cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
@@ -354,7 +356,7 @@ configure_file(input: 'config.h.in',
   configuration: cdata)
 
 add_project_arguments(
-  '-include', 'config.h',
+  '-include', meson.current_build_dir() / 'config.h',
   '-DG_LOG_DOMAIN="Frida"',
   '-DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56',
   '-DG_DISABLE_DEPRECATED',
