@@ -531,7 +531,7 @@ gum_module_entry_from_path_and_base (const gchar * path,
       dwarf_elf_init_b (module->elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
       gum_on_dwarf_error, NULL, &dbg, &error) != DW_DLV_OK)
   {
-    dwarf_dealloc_error (dbg, error);
+    dwarf_dealloc (dbg, error, DW_DLA_ERROR);
     error = NULL;
   }
 
