@@ -7,6 +7,7 @@
 #include "arm64writer-fixture.c"
 
 TESTLIST_BEGIN (arm64writer)
+  TESTENTRY (tbnz_reg_imm_imm)
   TESTENTRY (cbz_reg_label)
 
   TESTENTRY (b_imm)
@@ -25,9 +26,11 @@ TESTLIST_BEGIN (arm64writer)
   TESTENTRY (ldr_in_large_block)
 #endif
   TESTENTRY (ldr_integer_reg_reg_imm)
+  TESTENTRY (ldr_integer_reg_reg_imm_mode)
   TESTENTRY (ldr_fp_reg_reg_imm)
   TESTENTRY (ldrsw_reg_reg_imm)
   TESTENTRY (str_integer_reg_reg_imm)
+  TESTENTRY (str_integer_reg_reg_imm_mode)
   TESTENTRY (str_fp_reg_reg_imm)
   TESTENTRY (mov_reg_reg)
   TESTENTRY (uxtw_reg_reg)
@@ -35,10 +38,12 @@ TESTLIST_BEGIN (arm64writer)
   TESTENTRY (sub_reg_reg_imm)
   TESTENTRY (sub_reg_reg_reg)
   TESTENTRY (and_reg_reg_imm)
+  TESTENTRY (and_reg_reg_neg_imm)
   TESTENTRY (tst_reg_imm)
   TESTENTRY (cmp_reg_reg)
 
   TESTENTRY (call_reg)
+  TESTENTRY (tbnz)
 TESTLIST_END ()
 
 #ifdef HAVE_ARM64
@@ -84,6 +89,19 @@ TESTCASE (cbz_reg_label)
   assert_output_n_equals (7, 0xd42000c0); /* brk #6 */
   /* beach: */
   assert_output_n_equals (8, 0xd503201f); /* nop */
+}
+
+TESTCASE (tbnz_reg_imm_imm)
+{
+  GumAddress target = GUM_ADDRESS (fixture->aw.pc + 8);
+
+  gum_arm64_writer_put_tbnz_reg_imm_imm (&fixture->aw, ARM64_REG_X17, 0,
+      target);
+  assert_output_n_equals (0, 0x37000051);
+
+  gum_arm64_writer_put_tbnz_reg_imm_imm (&fixture->aw, ARM64_REG_X17, 33,
+      target);
+  assert_output_n_equals (1, 0xb7080031);
 }
 
 TESTCASE (b_imm)
@@ -263,6 +281,17 @@ TESTCASE (ldr_integer_reg_reg_imm)
   assert_output_n_equals (1, 0xb94010a3);
 }
 
+TESTCASE (ldr_integer_reg_reg_imm_mode)
+{
+  gum_arm64_writer_put_ldr_reg_reg_offset_mode (&fixture->aw, ARM64_REG_X3,
+      ARM64_REG_X5, 16, GUM_INDEX_POST_ADJUST);
+  assert_output_n_equals (0, 0xf84104a3);
+
+  gum_arm64_writer_put_ldr_reg_reg_offset_mode (&fixture->aw, ARM64_REG_W3,
+      ARM64_REG_X5, -16, GUM_INDEX_PRE_ADJUST);
+  assert_output_n_equals (1, 0xb85f0ca3);
+}
+
 TESTCASE (ldr_fp_reg_reg_imm)
 {
   gum_arm64_writer_put_ldr_reg_reg_offset (&fixture->aw, ARM64_REG_S3,
@@ -294,6 +323,17 @@ TESTCASE (str_integer_reg_reg_imm)
   gum_arm64_writer_put_str_reg_reg_offset (&fixture->aw, ARM64_REG_W3,
       ARM64_REG_X5, 16);
   assert_output_n_equals (1, 0xb90010a3);
+}
+
+TESTCASE (str_integer_reg_reg_imm_mode)
+{
+  gum_arm64_writer_put_str_reg_reg_offset_mode (&fixture->aw, ARM64_REG_X3,
+      ARM64_REG_X5, 16, GUM_INDEX_POST_ADJUST);
+  assert_output_n_equals (0, 0xf80104a3);
+
+  gum_arm64_writer_put_str_reg_reg_offset_mode (&fixture->aw, ARM64_REG_W3,
+      ARM64_REG_X5, -16, GUM_INDEX_PRE_ADJUST);
+  assert_output_n_equals (1, 0xb81f0ca3);
 }
 
 TESTCASE (str_fp_reg_reg_imm)
@@ -382,6 +422,13 @@ TESTCASE (and_reg_reg_imm)
   assert_output_n_equals (0, 0x924014a3);
 }
 
+TESTCASE (and_reg_reg_neg_imm)
+{
+  gum_arm64_writer_put_and_reg_reg_imm (&fixture->aw, ARM64_REG_X0,
+      ARM64_REG_X0, -0x10);
+  assert_output_n_equals (0, 0x927cec00);
+}
+
 TESTCASE (tst_reg_imm)
 {
   gum_arm64_writer_put_tst_reg_imm (&fixture->aw, ARM64_REG_X3, 16383);
@@ -395,4 +442,15 @@ TESTCASE (cmp_reg_reg)
 {
   gum_arm64_writer_put_cmp_reg_reg (&fixture->aw, ARM64_REG_X3, ARM64_REG_X5);
   assert_output_n_equals (0, 0xeb05007f);
+}
+
+TESTCASE (tbnz)
+{
+  GumAddress target = GUM_ADDRESS (fixture->aw.pc + 8);
+  gum_arm64_writer_put_tbnz_reg_imm_imm (&fixture->aw, ARM64_REG_X17, 0, target);
+  assert_output_n_equals (0, 0x37000051);
+
+  gum_arm64_writer_put_tbnz_reg_imm_imm (&fixture->aw, ARM64_REG_X17, 33,
+      target);
+  assert_output_n_equals (1, 0xb7080031);
 }
