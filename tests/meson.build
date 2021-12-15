@@ -87,7 +87,7 @@ endif
 
 runner = executable(runner_name, runner_sources + [test_data_stamp],
   link_with: link_targets,
-  dependencies: [gum_dep, gum_heap_dep, gum_prof_dep, tls_provider_dep] + extra_test_deps,
+  dependencies: [gum_dep, gum_heap_dep, gum_prof_dep, tls_provider_dep, threads_dep] + extra_test_deps,
   link_args: extra_link_args,
   link_depends: extra_link_depends,
 )
