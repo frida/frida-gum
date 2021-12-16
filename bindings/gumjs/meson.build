@@ -107,7 +107,7 @@ gumjs_generated_origins = [
 ]
 gumjs_generated_inputs = []
 foreach o : gumjs_generated_origins
-  gumjs_generated_inputs += join_paths(meson.source_root(), 'gum', o)
+  gumjs_generated_inputs += join_paths(meson.project_source_root(), 'gum', o)
 endforeach
 gumjs_generated_outputs = []
 runtimes = []
@@ -191,7 +191,7 @@ gumjs_generated_bindings = custom_target('gumjs-generated-bindings',
   output: gumjs_generated_outputs,
   command: [
     find_program('generate-bindings.py'),
-    join_paths(meson.source_root(), 'gum'),
+    join_paths(meson.project_source_root(), 'gum'),
     meson.current_build_dir(),
   ],
 )
@@ -204,7 +204,7 @@ gumjs_runtime = custom_target('gumjs-runtime',
     find_program('generate-runtime.py'),
     host_arch,
     meson.current_source_dir(),
-    meson.source_root() / 'gum',
+    meson.project_source_root() / 'gum',
     capstone_dep.get_variable('includedir') / 'capstone',
     libtcc_dep.found() ? libtcc_dep.get_variable('libdir') : '',
     quickcompile,
