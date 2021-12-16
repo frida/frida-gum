@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout frida-gum
+        uses: actions/checkout@v2
+      - name: Dependencies
+        run: >
+          sudo apt-get install -y \
+            build-essential \
+            clang-format-11 \
+            curl \
+            git \
+            gobject-introspection \
+            lib32stdc++-9-dev \
+            libc6-dev-i386 \
+            libdwarf-dev \
+            libelf-dev \
+            libgirepository1.0-dev \
+            libglib2.0-dev \
+            libjson-glib-dev \
+            libsoup2.4-dev \
+            libsqlite3-dev \
+            libunwind-dev \
+            ninja-build \
+            nodejs \
+            npm \
+            python3-dev \
+            python3-pip && \
+          pip3 install meson==0.60.2
+      - run: cd bindings/gumjs && npm i
+      - run: meson build
+      - run: ninja -C build clang-format-check
+      - run: ninja -C build
