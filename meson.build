@@ -185,7 +185,12 @@ gobject_dep = dependency('gobject-2.0')
 gio_dep = dependency('gio-2.0')
 capstone_dep = dependency('capstone', version: '>=5.0.0', fallback: ['capstone', 'capstone_dep'])
 ffi_dep = dependency('libffi')
-lzma_dep = dependency('liblzma')
+
+if get_option('tests')
+  lzma_dep = dependency('liblzma')
+else
+  lzma_dep = []
+endif
 
 extra_deps = []
 extra_requires_private = []
