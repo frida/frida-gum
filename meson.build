@@ -242,7 +242,7 @@ if unwind_dep.found()
   extra_deps += [unwind_dep]
   extra_requires_private += ['libunwind']
 elif host_os_family == 'linux' or host_os_family == 'qnx'
-  error('libunwind is required')
+  warning('libunwind not found, accurate backtracer will not be available')
 endif
 
 if host_os_family == 'linux' or host_os_family == 'qnx'
