@@ -251,13 +251,15 @@ if host_os_family == 'linux' or host_os_family == 'qnx'
   libdwarf_dep = dependency('libdwarf', required: false)
   if not libdwarf_dep.found()
     found = false
-    foreach idir : ['/usr/include/libdwarf', '/usr/local/include/libdwarf']
-      inc_arg = '-I' + idir
-      if not found and cc.has_header('libdwarf.h', args: inc_arg)
-        libdwarf_dep = declare_dependency(compile_args: [inc_arg])
-        found = true
-      endif
-    endforeach
+    if not meson.is_cross_build()
+      foreach idir : ['/usr/include/libdwarf', '/usr/local/include/libdwarf']
+        inc_arg = '-I' + idir
+        if not found and cc.has_header('libdwarf.h', args: inc_arg)
+          libdwarf_dep = declare_dependency(compile_args: [inc_arg])
+          found = true
+        endif
+      endforeach
+    endif
     if not found
       error('libdwarf is required')
     endif
