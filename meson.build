@@ -45,7 +45,8 @@ cc = meson.get_compiler('c')
 
 frida_component_cflags = []
 ndebug = get_option('b_ndebug')
-if ndebug == 'true' or (ndebug == 'if-release' and not get_option('debug'))
+optimize_for_prod = ndebug == 'true' or (ndebug == 'if-release' and not get_option('debug'))
+if optimize_for_prod
   frida_component_cflags += [
     '-DG_DISABLE_ASSERT',
     '-DG_DISABLE_CHECKS',
@@ -188,10 +189,14 @@ glib_options = [
   'xattr=false',
   'libmount=disabled',
   'tests=false',
-  'glib_debug=disabled',
-  'glib_assert=false',
-  'glib_checks=false',
 ]
+if optimize_for_prod
+  glib_options += [
+    'glib_debug=disabled',
+    'glib_assert=false',
+    'glib_checks=false',
+  ]
+endif
 glib_dep = dependency('glib-2.0', version: '>=2.56', default_options: glib_options)
 gobject_dep = dependency('gobject-2.0', default_options: glib_options)
 gio_dep = dependency('gio-2.0', default_options: glib_options)
