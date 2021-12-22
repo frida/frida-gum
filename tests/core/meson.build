@@ -82,7 +82,7 @@ endif
 
 gum_tests_core = static_library('gum-tests-core', core_sources,
   include_directories: test_incdirs,
-  dependencies: [gum_dep],
+  dependencies: [gum_dep, lzma_dep],
   link_with: core_link_with,
 )
 
