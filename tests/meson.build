@@ -44,7 +44,7 @@ if have_gumjs
   extra_test_deps += [gumjs_dep]
 endif
 
-force_cpp_linking = have_gumpp or have_v8
+force_cpp_linking = have_gumpp or v8_dep.found()
 
 # We have tests for Stalker C++ exception handling
 if host_os_family == 'linux' and host_arch in ['x86', 'x86_64']

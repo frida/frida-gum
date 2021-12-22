@@ -380,6 +380,8 @@ if have_gumjs
     'tests=false',
     'sysprof=disabled',
   ])
+else
+  v8_dep = disabler()
 endif
 
 configure_file(input: 'config.h.in',
