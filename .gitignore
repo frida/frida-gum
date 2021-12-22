@@ -2,3 +2,6 @@
 /bindings/gumjs/node_modules/
 /bindings/gumjs/package-lock.json
 /gum/backend-darwin/helpers/build/
+/subprojects/capstone/
+/subprojects/quickjs/
+/subprojects/tinycc/

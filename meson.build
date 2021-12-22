@@ -183,7 +183,7 @@ threads_dep = dependency('threads')
 glib_dep = dependency('glib-2.0', version: '>=2.56')
 gobject_dep = dependency('gobject-2.0')
 gio_dep = dependency('gio-2.0')
-capstone_dep = dependency('capstone', version: '>=5.0.0', fallback: ['capstone', 'capstone_dep'])
+capstone_dep = dependency('capstone', version: '>=5.0.0')
 ffi_dep = dependency('libffi')
 
 if get_option('tests')
@@ -301,10 +301,7 @@ gumjs_extra_requires = []
 if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
 
-  quickjs_dep = dependency('quickjs',
-    required: get_option('quickjs'),
-    fallback: ['quickjs', 'quickjs_dep'],
-  )
+  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), allow_fallback: true)
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
   if quickjs_dep.found()
     gumjs_extra_requires += 'quickjs'
@@ -334,10 +331,7 @@ if have_gumjs
 
   json_glib_dep = dependency('json-glib-1.0')
 
-  libtcc_dep = dependency('libtcc',
-    required: host_arch != 'mips',
-    fallback: ['tinycc', 'tcc_dep'],
-  )
+  libtcc_dep = dependency('libtcc', required: host_arch != 'mips')
   cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
   sqlite_dep = dependency('sqlite3', required: get_option('database'))

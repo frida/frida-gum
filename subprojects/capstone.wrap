@@ -1,0 +1,6 @@
+[wrap-git]
+url = https://github.com/frida/capstone.git
+revision = next
+
+[provide]
+dependency_names = capstone

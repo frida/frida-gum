@@ -1,9 +1,0 @@
-[submodule "subprojects/capstone"]
-	path = subprojects/capstone
-	url = https://github.com/frida/capstone
-[submodule "subprojects/quickjs"]
-	path = subprojects/quickjs
-	url = https://github.com/frida/quickjs
-[submodule "subprojects/tinycc"]
-	path = subprojects/tinycc
-	url = https://github.com/frida/tinycc
