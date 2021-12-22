@@ -12,4 +12,4 @@
 /subprojects/pcre.wrap
 /subprojects/quickjs/
 /subprojects/tinycc/
-/subprojects/zlib*
+/subprojects/zlib/
