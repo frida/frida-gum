@@ -289,6 +289,8 @@ if host_os_family == 'linux' or host_os_family == 'qnx'
         inc_arg = '-I' + idir
         if not found and cc.has_header('libdwarf.h', args: inc_arg)
           libdwarf_dep = declare_dependency(compile_args: [inc_arg])
+          extra_libs_private += '-ldwarf'
+          extra_gir_args_private += '--extra-library=dwarf'
           found = true
         endif
       endforeach
@@ -299,13 +301,6 @@ if host_os_family == 'linux' or host_os_family == 'qnx'
   endif
 
   extra_deps += [elf_dep, libdwarf_dep]
-
-  if host_os_family == 'linux'
-    extra_libs_private += ['-ldwarf', '-ldl', '-lz']
-    extra_gir_args_private += ['--extra-library=dwarf']
-  else
-    extra_libs_private += ['-ldwarf', '-lz']
-  endif
 else
   libdwarf_dep = disabler()
 endif
