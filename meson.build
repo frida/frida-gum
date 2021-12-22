@@ -179,6 +179,17 @@ if get_option('b_sanitize') == 'address'
   cdata.set('HAVE_ASAN', 1)
 endif
 
+if cc.compiles('''int
+                  acquire (int * lock)
+                  {
+                    return __sync_lock_test_and_set (lock, 1);
+                  }
+                  ''' + '\n',
+               args: ['-Werror'],
+               name: 'toolchain supports __sync_lock_test_and_set()')
+  cdata.set('HAVE_SYNC_LOCK', 1)
+endif
+
 threads_dep = dependency('threads')
 
 ffi_dep = dependency('libffi')

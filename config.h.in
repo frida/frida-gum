@@ -84,6 +84,9 @@
 /* Define to 1 if SQLite is available. */
 #mesondefine HAVE_SQLITE
 
+/* Define to 1 if toolchain supports __sync_lock_*(). */
+#mesondefine HAVE_SYNC_LOCK
+
 /* Define to 1 if TinyCC is available. */
 #mesondefine HAVE_TINYCC
 
