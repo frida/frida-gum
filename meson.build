@@ -179,11 +179,23 @@ if get_option('b_sanitize') == 'address'
 endif
 
 threads_dep = dependency('threads')
-glib_dep = dependency('glib-2.0', version: '>=2.56')
-gobject_dep = dependency('gobject-2.0')
-gio_dep = dependency('gio-2.0')
-capstone_dep = dependency('capstone', version: '>=5.0.0')
+
 ffi_dep = dependency('libffi')
+
+glib_options = [
+  'selinux=disabled',
+  'xattr=false',
+  'libmount=disabled',
+  'tests=false',
+  'glib_debug=disabled',
+  'glib_assert=false',
+  'glib_checks=false',
+]
+glib_dep = dependency('glib-2.0', version: '>=2.56', default_options: glib_options)
+gobject_dep = dependency('gobject-2.0', default_options: glib_options)
+gio_dep = dependency('gio-2.0', default_options: glib_options)
+
+capstone_dep = dependency('capstone', version: '>=5.0.0')
 
 if get_option('tests')
   lzma_dep = dependency('liblzma')
@@ -196,25 +208,29 @@ extra_requires_private = []
 extra_libs_private = []
 extra_gir_args_private = []
 
-glib_flavor_src = '''
+if glib_dep.type_name() == 'internal'
+  have_shared_glib = get_option('default_library') != 'static'
+else
+  glib_flavor_src = '''
 #include <glib.h>
 
 #ifdef GLIB_STATIC_COMPILATION
 # error GLib is static
 #endif
 '''
-have_shared_glib = cc.compiles(glib_flavor_src, name: 'compiling with shared GLib', dependencies: [glib_dep])
+  have_shared_glib = cc.compiles(glib_flavor_src, name: 'compiling with shared GLib', dependencies: [glib_dep])
+endif
 if have_shared_glib
   gir = find_program('g-ir-scanner')
 else
   gir = disabler()
 endif
 
-if cc.has_function('g_thread_set_callbacks', dependencies: [glib_dep])
+if glib_dep.type_name() == 'internal' or cc.has_function('g_thread_set_callbacks', dependencies: [glib_dep])
   cdata.set('HAVE_FRIDA_GLIB', 1)
 endif
 
-if cc.has_function('ffi_set_mem_callbacks', dependencies: [ffi_dep])
+if ffi_dep.type_name() == 'internal' or cc.has_function('ffi_set_mem_callbacks', dependencies: [ffi_dep])
   cdata.set('HAVE_FRIDA_LIBFFI', 1)
 endif
 
