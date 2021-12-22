@@ -365,7 +365,17 @@ if have_gumjs
     cdata.set('HAVE_JAVA_BRIDGE', 1)
   endif
 
-  libsoup_dep = dependency('libsoup-2.4')
+  libsoup_dep = dependency('libsoup-2.4', default_options: [
+    'gssapi=disabled',
+    'ntlm=disabled',
+    'brotli=disabled',
+    'tls_check=false',
+    'gnome=false',
+    'introspection=disabled',
+    'vapi=disabled',
+    'tests=false',
+    'sysprof=disabled',
+  ])
 endif
 
 configure_file(input: 'config.h.in',

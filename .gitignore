@@ -7,6 +7,8 @@
 /subprojects/glib/
 /subprojects/libdwarf/
 /subprojects/libffi/
+/subprojects/libpsl*
+/subprojects/libsoup/
 /subprojects/packagecache/
 /subprojects/pcre-*/
 /subprojects/pcre.wrap
