@@ -3,7 +3,9 @@
 /bindings/gumjs/package-lock.json
 /gum/backend-darwin/helpers/build/
 /subprojects/capstone/
+/subprojects/elfutils/
 /subprojects/glib/
+/subprojects/libdwarf/
 /subprojects/libffi/
 /subprojects/packagecache/
 /subprojects/pcre-*/

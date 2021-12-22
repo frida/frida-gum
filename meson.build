@@ -181,6 +181,7 @@ endif
 threads_dep = dependency('threads')
 
 ffi_dep = dependency('libffi')
+zlib_dep = dependency('zlib')
 
 glib_options = [
   'selinux=disabled',
@@ -276,7 +277,7 @@ if host_os_family == 'linux' or host_os_family == 'qnx'
       endforeach
     endif
     if not found
-      error('libdwarf is required')
+      libdwarf_dep = dependency('libdwarf', required: true)
     endif
   endif
 
