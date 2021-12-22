@@ -3,7 +3,6 @@ project('frida-gum', 'c', 'cpp',
   meson_version: '>=0.59.0',
   default_options: [
     'c_std=gnu99',
-    'cpp_std=c++14',
     'cpp_eh=none',
     'cpp_rtti=false',
   ],
