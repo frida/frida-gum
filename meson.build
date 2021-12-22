@@ -222,7 +222,7 @@ else
   have_shared_glib = cc.compiles(glib_flavor_src, name: 'compiling with shared GLib', dependencies: [glib_dep])
 endif
 if have_shared_glib
-  gir = find_program('g-ir-scanner')
+  gir = find_program('g-ir-scanner', required: false)
 else
   gir = disabler()
 endif
