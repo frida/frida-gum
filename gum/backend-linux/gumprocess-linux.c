@@ -2101,6 +2101,28 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
   ctx->rdx = gr[REG_RDX];
   ctx->rcx = gr[REG_RCX];
   ctx->rax = gr[REG_RAX];
+#elif defined (HAVE_ARM) && defined (HAVE_LEGACY_MCONTEXT)
+  const elf_greg_t * gr = uc->uc_mcontext.gregs;
+
+  ctx->cpsr = 0; /* FIXME: Anything we can do about this? */
+  ctx->pc = gr[R15];
+  ctx->sp = gr[R13];
+
+  ctx->r8 = gr[R8];
+  ctx->r9 = gr[R9];
+  ctx->r10 = gr[R10];
+  ctx->r11 = gr[R11];
+  ctx->r12 = gr[R12];
+
+  ctx->r[0] = gr[R0];
+  ctx->r[1] = gr[R1];
+  ctx->r[2] = gr[R2];
+  ctx->r[3] = gr[R3];
+  ctx->r[4] = gr[R4];
+  ctx->r[5] = gr[R5];
+  ctx->r[6] = gr[R6];
+  ctx->r[7] = gr[R7];
+  ctx->lr = gr[R14];
 #elif defined (HAVE_ARM)
   const mcontext_t * mc = &uc->uc_mcontext;
 
@@ -2225,6 +2247,28 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   gr[REG_RDX] = ctx->rdx;
   gr[REG_RCX] = ctx->rcx;
   gr[REG_RAX] = ctx->rax;
+#elif defined (HAVE_ARM) && defined (HAVE_LEGACY_MCONTEXT)
+  elf_greg_t * gr = uc->uc_mcontext.gregs;
+
+  /* FIXME: Anything we can do about cpsr? */
+  gr[R15] = ctx->pc;
+  gr[R13] = ctx->sp;
+
+  gr[R8] = ctx->r8;
+  gr[R9] = ctx->r9;
+  gr[R10] = ctx->r10;
+  gr[R11] = ctx->r11;
+  gr[R12] = ctx->r12;
+
+  gr[R0] = ctx->r[0];
+  gr[R1] = ctx->r[1];
+  gr[R2] = ctx->r[2];
+  gr[R3] = ctx->r[3];
+  gr[R4] = ctx->r[4];
+  gr[R5] = ctx->r[5];
+  gr[R6] = ctx->r[6];
+  gr[R7] = ctx->r[7];
+  gr[R14] = ctx->lr;
 #elif defined (HAVE_ARM)
   mcontext_t * mc = &uc->uc_mcontext;
 

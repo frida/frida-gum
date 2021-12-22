@@ -256,6 +256,10 @@ if cc.has_function('pthread_attr_getstack',
 endif
 
 if host_os == 'linux'
+  if host_arch == 'arm' and cc.has_member('mcontext_t', 'gregs', prefix: '#include <ucontext.h>')
+    cdata.set('HAVE_LEGACY_MCONTEXT', 1)
+  endif
+
   extra_libs_private += ['-ldl']
   extra_gir_args_private += ['--extra-library=dl']
 endif

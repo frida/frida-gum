@@ -36,6 +36,9 @@
 /* Define to 1 if OS is iOS. */
 #mesondefine HAVE_IOS
 
+/* Define to 1 if mcontext_t is legacy-style. */
+#mesondefine HAVE_LEGACY_MCONTEXT
+
 /* Define to 1 if libc has mallinfo struct. */
 #mesondefine HAVE_LIBC_MALLINFO
 
