@@ -2769,7 +2769,7 @@ gum_libc_clone (GumCloneFunc child_func,
         : "rcx", "r11", "cc", "memory"
     );
   }
-#elif defined (HAVE_ARM)
+#elif defined (HAVE_ARM) && defined (__ARM_EABI__)
   *(--child_sp) = child_func;
   *(--child_sp) = arg;
 
@@ -2803,6 +2803,41 @@ gum_libc_clone (GumCloneFunc child_func,
           "r" (r3),
           "r" (r4),
           "r" (r6),
+          [exit_syscall] "i" (__NR_exit)
+        : "cc", "memory"
+    );
+
+    result = r0;
+  }
+#elif defined (HAVE_ARM)
+  *(--child_sp) = child_func;
+  *(--child_sp) = arg;
+
+  {
+    register          gint r0 asm ("r0") = flags;
+    register    gpointer * r1 asm ("r1") = child_sp;
+    register       pid_t * r2 asm ("r2") = parent_tidptr;
+    register GumUserDesc * r3 asm ("r3") = tls;
+    register       pid_t * r4 asm ("r4") = child_tidptr;
+
+    asm volatile (
+        "swi %[clone_syscall]\n\t"
+        "cmp r0, #0\n\t"
+        "bne 1f\n\t"
+
+        /* child: */
+        "ldmia sp!, {r0, r1}\n\t"
+        "blx r1\n\t"
+        "swi %[exit_syscall]\n\t"
+
+        /* parent: */
+        "1:\n\t"
+        : "+r" (r0)
+        : "r" (r1),
+          "r" (r2),
+          "r" (r3),
+          "r" (r4),
+          [clone_syscall] "i" (__NR_clone),
           [exit_syscall] "i" (__NR_exit)
         : "cc", "memory"
     );
@@ -2984,7 +3019,7 @@ gum_libc_syscall_4 (gsize n,
         : "rcx", "r11", "cc", "memory"
     );
   }
-#elif defined (HAVE_ARM)
+#elif defined (HAVE_ARM) && defined (__ARM_EABI__)
   {
     register gssize r6 asm ("r6") = n;
     register  gsize r0 asm ("r0") = a;
@@ -3002,6 +3037,27 @@ gum_libc_syscall_4 (gsize n,
           "r" (r2),
           "r" (r3),
           "r" (r6)
+        : "memory"
+    );
+
+    result = r0;
+  }
+#elif defined (HAVE_ARM)
+  {
+    register gssize r0 asm ("r0") = n;
+    register  gsize r1 asm ("r1") = a;
+    register  gsize r2 asm ("r2") = b;
+    register  gsize r3 asm ("r3") = c;
+    register  gsize r4 asm ("r4") = d;
+
+    asm volatile (
+        "swi %[syscall]\n\t"
+        : "+r" (r0)
+        : "r" (r1),
+          "r" (r2),
+          "r" (r3),
+          "r" (r4),
+          [syscall] "i" (__NR_syscall)
         : "memory"
     );
 
