@@ -12,6 +12,7 @@
 /subprojects/packagecache/
 /subprojects/pcre-*/
 /subprojects/pcre.wrap
+/subprojects/proxy-libintl*
 /subprojects/quickjs/
 /subprojects/tinycc/
 /subprojects/xz/
