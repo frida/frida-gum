@@ -1,12 +1,12 @@
 option('gumpp',
   type: 'feature',
-  value: 'enabled',
+  value: 'disabled',
   description: 'Build C++ bindings'
 )
 
 option('gumjs',
   type: 'feature',
-  value: 'enabled',
+  value: 'disabled',
   description: 'Build JavaScript bindings'
 )
 
