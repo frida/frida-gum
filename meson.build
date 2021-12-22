@@ -196,7 +196,16 @@ glib_dep = dependency('glib-2.0', version: '>=2.56', default_options: glib_optio
 gobject_dep = dependency('gobject-2.0', default_options: glib_options)
 gio_dep = dependency('gio-2.0', default_options: glib_options)
 
-capstone_dep = dependency('capstone', version: '>=5.0.0')
+capstone_arch_mappings = {
+  'x86_64': 'x86',
+  's390x': 'sysz',
+}
+capstone_options = [
+  'archs=' + capstone_arch_mappings.get(host_arch, host_arch),
+  'x86_att_disable=true',
+  'cli=disabled',
+]
+capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
 
 if get_option('tests')
   lzma_dep = dependency('liblzma')
