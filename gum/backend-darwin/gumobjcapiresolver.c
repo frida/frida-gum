@@ -370,8 +370,8 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
 }
 
 gchar *
-gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
-                                              GumAddress address)
+_gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
+                                               GumAddress address)
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
   gchar * result = NULL;

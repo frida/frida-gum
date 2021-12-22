@@ -554,7 +554,7 @@ gum_darwin_symbolicator_synthesize_details_from_address (
   if (match == NULL)
     goto beach;
 
-  symbol_name = gum_objc_api_resolver_find_method_by_address (
+  symbol_name = _gum_objc_api_resolver_find_method_by_address (
       self->objc_resolver, match->address);
   if (symbol_name == NULL)
     goto beach;

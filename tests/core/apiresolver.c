@@ -181,8 +181,8 @@ TESTCASE (objc_method_can_be_resolved_from_class_method_address)
       resolve_method_impl, &address, &error);
   g_assert_no_error (error);
 
-  method =
-      gum_objc_api_resolver_find_method_by_address (fixture->resolver, address);
+  method = _gum_objc_api_resolver_find_method_by_address (fixture->resolver,
+      address);
   g_assert_nonnull (method);
   g_free (method);
 }
@@ -204,8 +204,8 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
       "-[NSArray initWithArray:]", resolve_method_impl, &address, &error);
   g_assert_no_error (error);
 
-  method =
-      gum_objc_api_resolver_find_method_by_address (fixture->resolver, address);
+  method = _gum_objc_api_resolver_find_method_by_address (fixture->resolver,
+      address);
   g_assert_nonnull (method);
   g_free (method);
 }
