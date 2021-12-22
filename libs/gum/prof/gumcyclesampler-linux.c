@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,6 +14,14 @@
 
 # define PERF_TYPE_HARDWARE       0
 # define PERF_COUNT_HW_CPU_CYCLES 0
+
+#ifndef __NR_perf_event_open
+# ifdef HAVE_ARM
+#  define __NR_perf_event_open (__NR_SYSCALL_BASE + 364)
+# else
+#  error Please implement for your architecture
+# endif
+#endif
 
 struct _GumCycleSampler
 {
