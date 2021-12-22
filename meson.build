@@ -345,7 +345,11 @@ if have_gumjs
   gio_os_package_dep = dependency(gio_os_package_name)
   gumjs_extra_requires += [gio_os_package_name]
 
-  json_glib_dep = dependency('json-glib-1.0')
+  json_glib_dep = dependency('json-glib-1.0', default_options: [
+    'introspection=disabled',
+    'gtk_doc=disabled',
+    'tests=false',
+  ])
 
   libtcc_dep = dependency('libtcc', required: host_arch != 'mips')
   cdata.set('HAVE_TINYCC', libtcc_dep.found())

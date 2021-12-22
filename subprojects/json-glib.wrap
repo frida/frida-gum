@@ -1,0 +1,6 @@
+[wrap-git]
+url = https://github.com/frida/json-glib.git
+revision = main
+
+[provide]
+dependency_names = json-glib-1.0

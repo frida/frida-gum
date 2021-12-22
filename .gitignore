@@ -5,6 +5,7 @@
 /subprojects/capstone/
 /subprojects/elfutils/
 /subprojects/glib/
+/subprojects/json-glib/
 /subprojects/libdwarf/
 /subprojects/libffi/
 /subprojects/libpsl*
