@@ -182,7 +182,6 @@ endif
 threads_dep = dependency('threads')
 
 ffi_dep = dependency('libffi')
-zlib_dep = dependency('zlib')
 
 glib_options = [
   'selinux=disabled',
