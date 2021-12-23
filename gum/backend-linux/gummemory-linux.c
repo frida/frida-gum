@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
@@ -114,7 +115,13 @@ gum_clear_cache (gpointer address,
 #if defined (HAVE_ANDROID) && defined (HAVE_ARM)
   cacheflush (GPOINTER_TO_SIZE (address), GPOINTER_TO_SIZE (address + size), 0);
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64) || defined (HAVE_MIPS)
+# if defined (HAVE_CLEAR_CACHE)
   __builtin___clear_cache (address, address + size);
+# elif defined (HAVE_ARM)
+  syscall (__ARM_NR_cacheflush, address, address + size, 0);
+# else
+#  error Please implement for your architecture
+# endif
 #endif
 
   VALGRIND_DISCARD_TRANSLATIONS (address, size);

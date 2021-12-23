@@ -190,6 +190,18 @@ if cc.compiles('''int
   cdata.set('HAVE_SYNC_LOCK', 1)
 endif
 
+if cc.compiles('''void
+                  invalidate (void * start,
+                              void * end)
+                  {
+                    __builtin___clear_cache (start, end);
+                  }
+                  ''' + '\n',
+               args: ['-Werror'],
+               name: 'toolchain supports __builtin___clear_cache()')
+  cdata.set('HAVE_CLEAR_CACHE', 1)
+endif
+
 threads_dep = dependency('threads')
 
 ffi_dep = dependency('libffi')

@@ -12,6 +12,9 @@
 /* Define to 1 if AddressSanitizer is enabled. */
 #mesondefine HAVE_ASAN
 
+/* Define to 1 if toolchain supports __builtin___clear_cache(). */
+#mesondefine HAVE_CLEAR_CACHE
+
 /* Define to 1 if OS is Darwin based. */
 #mesondefine HAVE_DARWIN
 
