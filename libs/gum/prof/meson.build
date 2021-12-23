@@ -65,3 +65,5 @@ pkg.generate(filebase: 'frida-gum-prof-' + api_version,
   subdirs: install_header_basedir,
   libraries: [gum_prof],
 )
+
+meson.override_dependency('frida-gum-prof-' + api_version, gum_prof_dep)

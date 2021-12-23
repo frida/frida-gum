@@ -336,3 +336,5 @@ pkg.generate(gum,
   subdirs: install_header_basedir,
   libraries_private: extra_libs_private,
 )
+
+meson.override_dependency('frida-gum-' + api_version, gum_dep)

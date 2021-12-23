@@ -44,3 +44,5 @@ pkg.generate(filebase: 'frida-gum-heap-' + api_version,
   subdirs: install_header_basedir,
   libraries: [gum_heap],
 )
+
+meson.override_dependency('frida-gum-heap-' + api_version, gum_heap_dep)
