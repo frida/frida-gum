@@ -645,6 +645,9 @@ static gboolean gum_is_kuser_helper (gconstpointer address);
 static gboolean gum_is_exclusive_load_insn (const cs_insn * insn);
 static gboolean gum_is_exclusive_store_insn (const cs_insn * insn);
 
+static guint gum_count_bits_set (guint16 value);
+static guint gum_count_trailing_zeros (guint16 value);
+
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
 gboolean
@@ -4287,9 +4290,9 @@ gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
 
     if (mask != 0)
     {
-      if (__builtin_popcount (mask) == 1)
+      if (gum_count_bits_set (mask) == 1)
       {
-        arm_reg target_register = ARM_REG_R0 + __builtin_ctz (mask);
+        arm_reg target_register = ARM_REG_R0 + gum_count_trailing_zeros (mask);
         gum_arm_writer_put_ldr_reg_reg_offset (gc->arm_writer, target_register,
             tv->reg, 0);
         displacement += 4;
@@ -4339,9 +4342,9 @@ gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
 
     if (mask != 0)
     {
-      if (__builtin_popcount (mask) == 1)
+      if (gum_count_bits_set (mask) == 1)
       {
-        arm_reg target_register = ARM_REG_R0 + __builtin_ctz (mask);
+        arm_reg target_register = ARM_REG_R0 + gum_count_trailing_zeros (mask);
         gum_thumb_writer_put_ldr_reg_reg_offset (gc->thumb_writer,
             target_register, tv->reg, 0);
         displacement += 4;
@@ -5752,4 +5755,44 @@ gum_is_exclusive_store_insn (const cs_insn * insn)
     default:
       return FALSE;
   }
+}
+
+static guint
+gum_count_bits_set (guint16 value)
+{
+#if defined (HAVE_POPCOUNT)
+  return __builtin_popcount (value);
+#else
+  guint num_ones = 0;
+  guint16 bits = value;
+  guint i;
+
+  for (i = 0; i != 16; i++)
+  {
+    if ((bits & 1) == 1)
+      num_ones++;
+    bits >>= 1;
+  }
+
+  return num_ones;
+#endif
+}
+
+static guint
+gum_count_trailing_zeros (guint16 value)
+{
+#if defined (HAVE_CLTZ)
+  return __builtin_ctz (value);
+#else
+  guint num_zeros = 0;
+  guint16 bits = value;
+
+  while ((bits & 1) == 0)
+  {
+    num_zeros++;
+    bits >>= 1;
+  }
+
+  return num_zeros;
+#endif
 }

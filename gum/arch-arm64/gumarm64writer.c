@@ -2015,7 +2015,7 @@ gum_count_leading_zeros (guint64 value)
 
     return 63 - index;
   }
-#elif defined (HAVE_CLTZLL)
+#elif defined (HAVE_CLTZ)
   return __builtin_clzll (value);
 #else
   guint num_zeros = 0;
@@ -2056,7 +2056,7 @@ gum_count_trailing_zeros (guint64 value)
 
     return index;
   }
-#elif defined (HAVE_CLTZLL)
+#elif defined (HAVE_CLTZ)
   return __builtin_ctzll (value);
 #else
   guint num_zeros = 0;

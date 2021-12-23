@@ -15,8 +15,8 @@
 /* Define to 1 if toolchain supports __builtin___clear_cache(). */
 #mesondefine HAVE_CLEAR_CACHE
 
-/* Define to 1 if toolchain supports __builtin_c[lt]zll(). */
-#mesondefine HAVE_CLTZLL
+/* Define to 1 if toolchain supports __builtin_c[lt]z*(). */
+#mesondefine HAVE_CLTZ
 
 /* Define to 1 if OS is Darwin based. */
 #mesondefine HAVE_DARWIN
@@ -71,6 +71,9 @@
 
 /* Define to 1 if target is MIPS based. */
 #mesondefine HAVE_MIPS
+
+/* Define to 1 if toolchain supports __builtin_popcount(). */
+#mesondefine HAVE_POPCOUNT
 
 /* Define to 1 if you have pthread_attr_getstack(). */
 #mesondefine HAVE_PTHREAD_ATTR_GETSTACK

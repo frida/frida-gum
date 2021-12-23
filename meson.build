@@ -202,16 +202,26 @@ if cc.compiles('''void
   cdata.set('HAVE_CLEAR_CACHE', 1)
 endif
 
-if cc.compiles('''#include <stdint.h>
-                  int
-                  count_zeros (uint64_t val)
+if cc.compiles('''int
+                  count_zeros (unsigned long long x)
                   {
-                    return __builtin_clzll (val) + __builtin_ctzll (val);
+                    return __builtin_clzll (x) + __builtin_ctzll (x);
                   }
                   ''' + '\n',
                args: ['-Werror'],
-               name: 'toolchain supports __builtin_c[lt]zll()')
-  cdata.set('HAVE_CLTZLL', 1)
+               name: 'toolchain supports __builtin_c[lt]z*()')
+  cdata.set('HAVE_CLTZ', 1)
+endif
+
+if cc.compiles('''int
+                  num_one_bits (unsigned int x)
+                  {
+                    return __builtin_popcount (x);
+                  }
+                  ''' + '\n',
+               args: ['-Werror'],
+               name: 'toolchain supports __builtin_popcount()')
+  cdata.set('HAVE_POPCOUNT', 1)
 endif
 
 threads_dep = dependency('threads')
