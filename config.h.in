@@ -15,6 +15,9 @@
 /* Define to 1 if toolchain supports __builtin___clear_cache(). */
 #mesondefine HAVE_CLEAR_CACHE
 
+/* Define to 1 if toolchain supports __builtin_c[lt]zll(). */
+#mesondefine HAVE_CLTZLL
+
 /* Define to 1 if OS is Darwin based. */
 #mesondefine HAVE_DARWIN
 

@@ -2015,8 +2015,19 @@ gum_count_leading_zeros (guint64 value)
 
     return 63 - index;
   }
-#else
+#elif defined (HAVE_CLTZLL)
   return __builtin_clzll (value);
+#else
+  guint num_zeros = 0;
+  guint64 bits = value;
+
+  while ((bits & (G_GUINT64_CONSTANT (1) << 63)) == 0)
+  {
+    num_zeros++;
+    bits <<= 1;
+  }
+
+  return num_zeros;
 #endif
 }
 
@@ -2045,8 +2056,19 @@ gum_count_trailing_zeros (guint64 value)
 
     return index;
   }
-#else
+#elif defined (HAVE_CLTZLL)
   return __builtin_ctzll (value);
+#else
+  guint num_zeros = 0;
+  guint64 bits = value;
+
+  while ((bits & G_GUINT64_CONSTANT (1)) == 0)
+  {
+    num_zeros++;
+    bits >>= 1;
+  }
+
+  return num_zeros;
 #endif
 }
 

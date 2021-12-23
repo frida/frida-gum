@@ -202,6 +202,18 @@ if cc.compiles('''void
   cdata.set('HAVE_CLEAR_CACHE', 1)
 endif
 
+if cc.compiles('''#include <stdint.h>
+                  int
+                  count_zeros (uint64_t val)
+                  {
+                    return __builtin_clzll (val) + __builtin_ctzll (val);
+                  }
+                  ''' + '\n',
+               args: ['-Werror'],
+               name: 'toolchain supports __builtin_c[lt]zll()')
+  cdata.set('HAVE_CLTZLL', 1)
+endif
+
 threads_dep = dependency('threads')
 
 ffi_dep = dependency('libffi')
