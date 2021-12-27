@@ -1,3 +1,9 @@
+option('diet',
+  type: 'boolean',
+  value: false,
+  description: 'Optimize for minimal footprint'
+)
+
 option('gumpp',
   type: 'feature',
   value: 'disabled',

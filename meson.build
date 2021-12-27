@@ -229,7 +229,7 @@ threads_dep = dependency('threads')
 ffi_dep = dependency('libffi')
 
 glib_options = [
-  'diet=true',
+  'diet=' + get_option('diet').to_string(),
   'selinux=disabled',
   'xattr=false',
   'libmount=disabled',
@@ -252,6 +252,7 @@ capstone_arch_mappings = {
 }
 capstone_options = [
   'archs=' + capstone_arch_mappings.get(host_arch, host_arch),
+  'diet=' + get_option('diet').to_string(),
   'x86_att_disable=true',
   'cli=disabled',
 ]
