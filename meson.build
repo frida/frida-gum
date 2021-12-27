@@ -229,6 +229,7 @@ threads_dep = dependency('threads')
 ffi_dep = dependency('libffi')
 
 glib_options = [
+  'diet=true',
   'selinux=disabled',
   'xattr=false',
   'libmount=disabled',
