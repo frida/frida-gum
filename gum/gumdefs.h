@@ -147,10 +147,11 @@ typedef enum {
 
 enum _GumCpuFeatures
 {
-  GUM_CPU_AVX2    = 1 << 0,
-  GUM_CPU_VFP2    = 1 << 1,
-  GUM_CPU_VFP3    = 1 << 2,
-  GUM_CPU_PTRAUTH = 1 << 3,
+  GUM_CPU_AVX2            = 1 << 0,
+  GUM_CPU_THUMB_INTERWORK = 1 << 1,
+  GUM_CPU_VFP2            = 1 << 2,
+  GUM_CPU_VFP3            = 1 << 3,
+  GUM_CPU_PTRAUTH         = 1 << 4,
 };
 
 enum _GumInstructionEncoding

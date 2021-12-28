@@ -728,6 +728,14 @@ gum_do_query_cpu_features (void)
 {
   GumCpuFeatures features = 0;
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+# if __ARM_ARCH > 4 || defined (__THUMB_INTERWORK__)
+  features |= GUM_CPU_THUMB_INTERWORK;
+# endif
+#else
+  features |= GUM_CPU_THUMB_INTERWORK;
+#endif
+
 #ifdef __ARM_VFPV2__
   features |= GUM_CPU_VFP2;
 #endif
