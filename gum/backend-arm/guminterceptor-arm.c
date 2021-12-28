@@ -96,6 +96,7 @@ _gum_interceptor_backend_create (GRecMutex * mutex,
   backend->allocator = allocator;
 
   gum_arm_writer_init (&backend->arm_writer, NULL);
+  backend->arm_writer.cpu_features = gum_query_cpu_features ();
   gum_arm_relocator_init (&backend->arm_relocator, NULL, &backend->arm_writer);
 
   gum_thumb_writer_init (&backend->thumb_writer, NULL);
