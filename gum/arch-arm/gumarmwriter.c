@@ -272,6 +272,16 @@ gum_arm_writer_put_call_address_with_arguments_array (GumArmWriter * self,
   gum_arm_writer_put_argument_list_teardown (self, n_args);
 }
 
+void
+gum_arm_writer_put_call_reg (GumArmWriter * self,
+                             arm_reg reg)
+{
+  if ((self->cpu_features & GUM_CPU_THUMB_INTERWORK) != 0)
+    gum_arm_writer_put_blx_reg (self, reg);
+  else
+    gum_arm_writer_put_bl_reg (self, reg);
+}
+
 static void
 gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
                                         guint n_args,
