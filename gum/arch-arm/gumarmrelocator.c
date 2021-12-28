@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -337,6 +337,7 @@ gum_arm_relocator_can_relocate (gpointer address,
 
   buf = g_alloca (3 * min_bytes);
   gum_arm_writer_init (&cw, buf);
+  cw.cpu_features = gum_query_cpu_features ();
 
   gum_arm_relocator_init (&rl, address, &cw);
 
@@ -370,6 +371,7 @@ gum_arm_relocator_relocate (gpointer from,
   guint reloc_bytes;
 
   gum_arm_writer_init (&cw, to);
+  cw.cpu_features = gum_query_cpu_features ();
 
   gum_arm_relocator_init (&rl, from, &cw);
 
