@@ -368,7 +368,9 @@ gum_arm_writer_put_call_address_body (GumArmWriter * self,
   }
   else
   {
-    const arm_reg target = ARM_REG_R0 + n_args;
+    const arm_reg target = (n_args < 4)
+        ? ARM_REG_R0 + n_args
+        : ARM_REG_R12;
     gum_arm_writer_put_ldr_reg_address (self, target, address);
     gum_arm_writer_put_call_reg (self, target);
   }
