@@ -4551,7 +4551,7 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
    * rather than the stack.
    */
   gum_arm_writer_put_push_registers (cw, 1, ARM_REG_LR);
-  gum_arm_writer_put_blx_reg (cw, ARM_REG_R12);
+  gum_arm_writer_put_call_reg (cw, ARM_REG_R12);
   gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_LR);
 
   gum_exec_block_arm_open_prolog (block, gc);
