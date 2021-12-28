@@ -739,14 +739,27 @@ gum_do_query_cpu_features (void)
 #if defined (HAVE_LINUX) && \
     !(defined (__ARM_VFPV2__) && defined (__ARM_VFPV3__))
   {
-    gchar * info, * start, * end, ** items, * item;
+    gchar * info = NULL;
+    gchar ** items = NULL;
+    gchar * start, * end, * item;
     guint i;
 
-    info = NULL;
-    g_file_get_contents ("/proc/cpuinfo", &info, NULL, NULL);
+    if (!g_file_get_contents ("/proc/cpuinfo", &info, NULL, NULL))
+      goto beach;
 
-    start = strchr (strstr (info, "\nFeatures") + 9, ':') + 2;
+    start = strstr (info, "\nFeatures");
+    if (start == NULL)
+      goto beach;
+    start += 9;
+
+    start = strchr (start, ':');
+    if (start == NULL)
+      goto beach;
+    start += 2;
+
     end = strchr (start, '\n');
+    if (end == NULL)
+      goto beach;
     *end = '\0';
 
     items = g_strsplit (start, " ", -1);
@@ -763,6 +776,7 @@ gum_do_query_cpu_features (void)
       }
     }
 
+beach:
     g_strfreev (items);
 
     g_free (info);
