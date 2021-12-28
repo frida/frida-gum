@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -83,6 +83,7 @@ gum_arm_writer_init (GumArmWriter * writer,
   writer->ref_count = 1;
 
   writer->target_os = gum_process_get_native_os ();
+  writer->cpu_features = GUM_CPU_THUMB_INTERWORK;
 
   writer->label_defs = NULL;
   writer->label_refs.data = NULL;

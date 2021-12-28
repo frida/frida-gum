@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +23,7 @@ struct _GumArmWriter
   volatile gint ref_count;
 
   GumOS target_os;
+  GumCpuFeatures cpu_features;
 
   guint32 * base;
   guint32 * code;
