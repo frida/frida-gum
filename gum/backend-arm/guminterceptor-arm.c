@@ -47,8 +47,10 @@ struct _GumInterceptorBackend
 
   GumCodeSlice * thunks;
 
-  gpointer enter_thunk;
-  gpointer leave_thunk;
+  gpointer enter_thunk_arm;
+  gpointer enter_thunk_thumb;
+  gpointer leave_thunk_arm;
+  gpointer leave_thunk_thumb;
 };
 
 struct _GumArmFunctionContextData
@@ -60,17 +62,29 @@ struct _GumArmFunctionContextData
 G_STATIC_ASSERT (sizeof (GumArmFunctionContextData)
     <= sizeof (GumFunctionContextBackendData));
 
+static gboolean gum_interceptor_backend_emit_arm_trampolines (
+    GumInterceptorBackend * self, GumFunctionContext * ctx,
+    gpointer function_address);
+static gboolean gum_interceptor_backend_emit_thumb_trampolines (
+    GumInterceptorBackend * self, GumFunctionContext * ctx,
+    gpointer function_address);
+
 static void gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
 static void gum_interceptor_backend_destroy_thunks (
     GumInterceptorBackend * self);
 
-static void gum_emit_enter_thunk (GumThumbWriter * tw);
-static void gum_emit_leave_thunk (GumThumbWriter * tw);
+static void gum_emit_arm_enter_thunk (GumArmWriter * aw);
+static void gum_emit_thumb_enter_thunk (GumThumbWriter * tw);
+static void gum_emit_arm_leave_thunk (GumArmWriter * aw);
+static void gum_emit_thumb_leave_thunk (GumThumbWriter * tw);
 
-static void gum_emit_push_cpu_context_high_part (GumThumbWriter * tw);
-static void gum_emit_prolog (GumThumbWriter * tw);
-static void gum_emit_epilog (GumThumbWriter * tw);
+static void gum_emit_arm_push_cpu_context_high_part (GumArmWriter * aw);
+static void gum_emit_thumb_push_cpu_context_high_part (GumThumbWriter * tw);
+static void gum_emit_arm_prolog (GumArmWriter * aw);
+static void gum_emit_thumb_prolog (GumThumbWriter * tw);
+static void gum_emit_arm_epilog (GumArmWriter * aw);
+static void gum_emit_thumb_epilog (GumThumbWriter * tw);
 
 GumInterceptorBackend *
 _gum_interceptor_backend_create (GRecMutex * mutex,
@@ -174,24 +188,129 @@ gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
 {
-  gpointer function_address;
-  gboolean is_thumb;
-  GumThumbWriter * tw = &self->thumb_writer;
-  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
-      &ctx->backend_data;
-  guint reloc_bytes;
+  gpointer func;
+  gboolean success;
 
-  function_address = _gum_interceptor_backend_get_function_address (ctx);
-  is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
+  func = _gum_interceptor_backend_get_function_address (ctx);
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
     return FALSE;
+
+  if (FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx))
+    success = gum_interceptor_backend_emit_thumb_trampolines (self, ctx, func);
+  else
+    success = gum_interceptor_backend_emit_arm_trampolines (self, ctx, func);
+  if (!success)
+    return FALSE;
+
+  gum_memcpy (ctx->overwritten_prologue, func, ctx->overwritten_prologue_len);
+
+  return TRUE;
+}
+
+static gboolean
+gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
+                                              GumFunctionContext * ctx,
+                                              gpointer function_address)
+{
+  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
+      &ctx->backend_data;
+  GumArmWriter * aw = &self->arm_writer;
+  GumArmRelocator * ar = &self->arm_relocator;
+  guint reloc_bytes;
+
+  gum_arm_writer_reset (aw, ctx->trampoline_slice->data);
+
+  ctx->on_enter_trampoline = gum_arm_writer_cur (aw);
+
+  if (data->redirect_code_size != data->full_redirect_size)
+  {
+    GumAddressSpec caller;
+    gpointer return_address;
+    gboolean dedicated;
+
+    caller.near_address = function_address + data->redirect_code_size + 4;
+    caller.max_distance = GUM_ARM_B_MAX_DISTANCE;
+
+    return_address = function_address + data->redirect_code_size;
+
+    dedicated = TRUE;
+
+    ctx->trampoline_deflector = gum_code_allocator_alloc_deflector (
+        self->allocator, &caller, return_address, ctx->on_enter_trampoline,
+        dedicated);
+    if (ctx->trampoline_deflector == NULL)
+    {
+      gum_code_slice_free (ctx->trampoline_slice);
+      ctx->trampoline_slice = NULL;
+      return FALSE;
+    }
+  }
+
+  gum_emit_arm_push_cpu_context_high_part (aw);
+  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R7, GUM_ADDRESS (ctx));
+  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
+      GUM_ADDRESS (self->enter_thunk_arm));
+
+  ctx->on_leave_trampoline = gum_arm_writer_cur (aw);
+
+  gum_emit_arm_push_cpu_context_high_part (aw);
+  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R7, GUM_ADDRESS (ctx));
+  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
+      GUM_ADDRESS (self->leave_thunk_arm));
+
+  gum_arm_writer_flush (aw);
+  g_assert (gum_arm_writer_offset (aw) <= ctx->trampoline_slice->size);
+
+  ctx->on_invoke_trampoline = gum_arm_writer_cur (aw);
+
+  gum_arm_writer_reset (aw, ctx->on_invoke_trampoline);
+  gum_arm_relocator_reset (ar, function_address, aw);
+
+  do
+  {
+    reloc_bytes = gum_arm_relocator_read_one (ar, NULL);
+    if (reloc_bytes == 0)
+      reloc_bytes = data->redirect_code_size;
+  }
+  while (reloc_bytes < data->redirect_code_size);
+
+  gum_arm_relocator_write_all (ar);
+
+  if (!gum_arm_relocator_eoi (ar))
+  {
+    gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
+        GUM_ADDRESS (function_address + reloc_bytes));
+  }
+
+  gum_arm_writer_flush (aw);
+  g_assert (gum_arm_writer_offset (tw) <= ctx->trampoline_slice->size);
+
+  ctx->overwritten_prologue_len = reloc_bytes;
+
+  return TRUE;
+}
+
+static gboolean
+gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
+                                                GumFunctionContext * ctx,
+                                                gpointer function_address)
+{
+  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
+      &ctx->backend_data;
+  GumThumbWriter * tw = &self->thumb_writer;
+  GumThumbRelocator * tr = &self->thumb_relocator;
+  GString * signature;
+  const cs_insn * insn, * trailing_bl;
+  guint reloc_bytes;
+  gboolean is_branch_back_needed;
+  gboolean is_eligible_for_lr_rewriting;
 
   gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
 
   ctx->on_enter_trampoline = gum_thumb_writer_cur (tw) + 1;
 
-  if (is_thumb && data->redirect_code_size != data->full_redirect_size)
+  if (data->redirect_code_size != data->full_redirect_size)
   {
     GumAddressSpec caller;
     gpointer return_address;
@@ -216,246 +335,177 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     }
   }
 
-  if (!is_thumb && data->redirect_code_size != data->full_redirect_size)
+  if (data->redirect_code_size != GUM_INTERCEPTOR_THUMB_LINK_REDIRECT_SIZE)
   {
-    GumAddressSpec caller;
-    gpointer return_address;
-    gboolean dedicated;
-
-    caller.near_address = function_address + data->redirect_code_size + 4;
-    caller.max_distance = GUM_ARM_B_MAX_DISTANCE;
-
-    return_address = function_address + data->redirect_code_size;
-
-    dedicated = TRUE;
-
-    ctx->trampoline_deflector = gum_code_allocator_alloc_deflector (
-        self->allocator, &caller, return_address, ctx->on_enter_trampoline,
-        dedicated);
-    if (ctx->trampoline_deflector == NULL)
-    {
-      gum_code_slice_free (ctx->trampoline_slice);
-      ctx->trampoline_slice = NULL;
-      return FALSE;
-    }
-  }
-
-  if (!is_thumb ||
-      data->redirect_code_size != GUM_INTERCEPTOR_THUMB_LINK_REDIRECT_SIZE)
-  {
-    gum_emit_push_cpu_context_high_part (tw);
+    gum_emit_thumb_push_cpu_context_high_part (tw);
   }
 
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R7, GUM_ADDRESS (ctx));
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
-      GUM_ADDRESS (self->enter_thunk));
+      GUM_ADDRESS (self->enter_thunk_thumb));
 
   ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
 
-  gum_emit_push_cpu_context_high_part (tw);
+  gum_emit_thumb_push_cpu_context_high_part (tw);
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R7, GUM_ADDRESS (ctx));
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
-      GUM_ADDRESS (self->leave_thunk));
+      GUM_ADDRESS (self->leave_thunk_thumb));
 
   gum_thumb_writer_flush (tw);
   g_assert (gum_thumb_writer_offset (tw) <= ctx->trampoline_slice->size);
 
-  if (is_thumb)
+  ctx->on_invoke_trampoline = gum_thumb_writer_cur (tw) + 1;
+
+  gum_thumb_relocator_reset (tr, function_address, tw);
+
+  signature = g_string_sized_new (16);
+
+  insn = NULL;
+  do
   {
-    GumThumbRelocator * tr = &self->thumb_relocator;
-    GString * signature;
-    const cs_insn * insn, * trailing_bl;
-    gboolean is_branch_back_needed;
-    gboolean is_eligible_for_lr_rewriting;
+    reloc_bytes = gum_thumb_relocator_read_one (tr, &insn);
 
-    ctx->on_invoke_trampoline = gum_thumb_writer_cur (tw) + 1;
-
-    gum_thumb_relocator_reset (tr, function_address, tw);
-
-    signature = g_string_sized_new (16);
-
-    insn = NULL;
-    do
+    if (reloc_bytes != 0)
     {
-      reloc_bytes = gum_thumb_relocator_read_one (tr, &insn);
-
-      if (reloc_bytes != 0)
-      {
-        if (signature->len != 0)
-          g_string_append_c (signature, ';');
-        g_string_append (signature, insn->mnemonic);
-      }
-      else
-      {
-        reloc_bytes = data->redirect_code_size;
-      }
-    }
-    while (reloc_bytes < data->redirect_code_size);
-
-    /*
-     * When we are hooking a function already hooked by another copy of
-     * Gum, we need to be very careful when relocating BL instructions.
-     * This is because the deflector trampoline looks at LR to determine
-     * which hook is invoking it. So when the last of the overwritten
-     * instructions is a BL, we might as well just transform it so it
-     * looks just as if it had executed at its original memory location.
-     */
-    trailing_bl = (insn != NULL && insn->id == ARM_INS_BL &&
-        insn->detail->arm.operands[0].type == ARM_OP_IMM) ? insn : NULL;
-
-    is_branch_back_needed = !gum_thumb_relocator_eoi (tr);
-
-    /*
-     * Try to deal with minimal thunks that determine their caller and pass
-     * it along to some inner function. This is important to support hooking
-     * dlopen() on Android, where the dynamic linker uses the caller address
-     * to decide on namespace and whether to allow the particular library to
-     * be used by a particular caller.
-     *
-     * Because we potentially replace LR in order to trap the return, we end
-     * up breaking dlopen() in such cases. We work around this by detecting
-     * LR being read, and replace that instruction with a load of the actual
-     * caller.
-     *
-     * This is however a bit risky done blindly, so we try to limit the
-     * scope to the bare minimum. A potentially better longer term solution
-     * is to analyze the function and patch each point of return, so we don't
-     * have to replace LR on entry. That is however a bit complex, so we
-     * opt for this simpler solution for now.
-     */
-    is_eligible_for_lr_rewriting = strcmp (signature->str, "mov;b") == 0 ||
-        strcmp (signature->str, "mov;bx") == 0 ||
-        g_str_has_prefix (signature->str, "push;mov;bl");
-
-    g_string_free (signature, TRUE);
-
-    if (is_eligible_for_lr_rewriting)
-    {
-      const cs_insn * insn;
-
-      while ((insn = gum_thumb_relocator_peek_next_write_insn (tr)) != NULL)
-      {
-        if (insn->id == ARM_INS_MOV &&
-            insn->detail->arm.operands[1].reg == ARM_REG_LR)
-        {
-          arm_reg dst_reg = insn->detail->arm.operands[0].reg;
-          const arm_reg clobbered_regs[] = {
-            ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
-            ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
-            ARM_REG_R9, ARM_REG_R12, ARM_REG_LR,
-          };
-          GArray * saved_regs;
-          guint i;
-          arm_reg nzcvq_reg;
-
-          saved_regs = g_array_sized_new (FALSE, FALSE, sizeof (arm_reg),
-              G_N_ELEMENTS (clobbered_regs));
-          for (i = 0; i != G_N_ELEMENTS (clobbered_regs); i++)
-          {
-            arm_reg reg = clobbered_regs[i];
-            if (reg != dst_reg)
-              g_array_append_val (saved_regs, reg);
-          }
-
-          nzcvq_reg = ARM_REG_R4;
-          if (nzcvq_reg == dst_reg)
-            nzcvq_reg = ARM_REG_R5;
-
-          gum_thumb_writer_put_push_regs_array (tw, saved_regs->len,
-              (const arm_reg *) saved_regs->data);
-          gum_thumb_writer_put_mrs_reg_reg (tw, nzcvq_reg,
-              ARM_SYSREG_APSR_NZCVQ);
-
-          gum_thumb_writer_put_call_address_with_arguments (tw,
-              GUM_ADDRESS (_gum_interceptor_translate_top_return_address), 1,
-              GUM_ARG_REGISTER, ARM_REG_LR);
-          gum_thumb_writer_put_mov_reg_reg (tw, dst_reg, ARM_REG_R0);
-
-          gum_thumb_writer_put_msr_reg_reg (tw, ARM_SYSREG_APSR_NZCVQ,
-              nzcvq_reg);
-          gum_thumb_writer_put_pop_regs_array (tw, saved_regs->len,
-              (const arm_reg *) saved_regs->data);
-
-          g_array_free (saved_regs, TRUE);
-
-          gum_thumb_relocator_skip_one (tr);
-        }
-        else
-        {
-          gum_thumb_relocator_write_one (tr);
-        }
-      }
-    }
-    else if (trailing_bl != NULL)
-    {
-      const cs_arm_op * target = &trailing_bl->detail->arm.operands[0];
-
-      while (gum_thumb_relocator_peek_next_write_insn (tr) != trailing_bl)
-        gum_thumb_relocator_write_one (tr);
-      gum_thumb_relocator_skip_one (tr);
-
-      gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_LR,
-          trailing_bl->address + trailing_bl->size + 1);
-      gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
-          target->imm | 1);
-
-      is_branch_back_needed = FALSE;
+      if (signature->len != 0)
+        g_string_append_c (signature, ';');
+      g_string_append (signature, insn->mnemonic);
     }
     else
     {
-      gum_thumb_relocator_write_all (tr);
+      reloc_bytes = data->redirect_code_size;
     }
+  }
+  while (reloc_bytes < data->redirect_code_size);
 
-    if (is_branch_back_needed)
+  /*
+   * When we are hooking a function already hooked by another copy of
+   * Gum, we need to be very careful when relocating BL instructions.
+   * This is because the deflector trampoline looks at LR to determine
+   * which hook is invoking it. So when the last of the overwritten
+   * instructions is a BL, we might as well just transform it so it
+   * looks just as if it had executed at its original memory location.
+   */
+  trailing_bl = (insn != NULL && insn->id == ARM_INS_BL &&
+      insn->detail->arm.operands[0].type == ARM_OP_IMM) ? insn : NULL;
+
+  is_branch_back_needed = !gum_thumb_relocator_eoi (tr);
+
+  /*
+   * Try to deal with minimal thunks that determine their caller and pass
+   * it along to some inner function. This is important to support hooking
+   * dlopen() on Android, where the dynamic linker uses the caller address
+   * to decide on namespace and whether to allow the particular library to
+   * be used by a particular caller.
+   *
+   * Because we potentially replace LR in order to trap the return, we end
+   * up breaking dlopen() in such cases. We work around this by detecting
+   * LR being read, and replace that instruction with a load of the actual
+   * caller.
+   *
+   * This is however a bit risky done blindly, so we try to limit the
+   * scope to the bare minimum. A potentially better longer term solution
+   * is to analyze the function and patch each point of return, so we don't
+   * have to replace LR on entry. That is however a bit complex, so we
+   * opt for this simpler solution for now.
+   */
+  is_eligible_for_lr_rewriting = strcmp (signature->str, "mov;b") == 0 ||
+      strcmp (signature->str, "mov;bx") == 0 ||
+      g_str_has_prefix (signature->str, "push;mov;bl");
+
+  g_string_free (signature, TRUE);
+
+  if (is_eligible_for_lr_rewriting)
+  {
+    const cs_insn * insn;
+
+    while ((insn = gum_thumb_relocator_peek_next_write_insn (tr)) != NULL)
     {
-      gum_thumb_writer_put_push_regs (tw, 2, ARM_REG_R0, ARM_REG_R1);
-      gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
-          GUM_ADDRESS (function_address + reloc_bytes + 1));
-      gum_thumb_writer_put_str_reg_reg_offset (tw, ARM_REG_R0,
-          ARM_REG_SP, 4);
-      gum_thumb_writer_put_pop_regs (tw, 2, ARM_REG_R0, ARM_REG_PC);
+      if (insn->id == ARM_INS_MOV &&
+          insn->detail->arm.operands[1].reg == ARM_REG_LR)
+      {
+        arm_reg dst_reg = insn->detail->arm.operands[0].reg;
+        const arm_reg clobbered_regs[] = {
+          ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
+          ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
+          ARM_REG_R9, ARM_REG_R12, ARM_REG_LR,
+        };
+        GArray * saved_regs;
+        guint i;
+        arm_reg nzcvq_reg;
+
+        saved_regs = g_array_sized_new (FALSE, FALSE, sizeof (arm_reg),
+            G_N_ELEMENTS (clobbered_regs));
+        for (i = 0; i != G_N_ELEMENTS (clobbered_regs); i++)
+        {
+          arm_reg reg = clobbered_regs[i];
+          if (reg != dst_reg)
+            g_array_append_val (saved_regs, reg);
+        }
+
+        nzcvq_reg = ARM_REG_R4;
+        if (nzcvq_reg == dst_reg)
+          nzcvq_reg = ARM_REG_R5;
+
+        gum_thumb_writer_put_push_regs_array (tw, saved_regs->len,
+            (const arm_reg *) saved_regs->data);
+        gum_thumb_writer_put_mrs_reg_reg (tw, nzcvq_reg,
+            ARM_SYSREG_APSR_NZCVQ);
+
+        gum_thumb_writer_put_call_address_with_arguments (tw,
+            GUM_ADDRESS (_gum_interceptor_translate_top_return_address), 1,
+            GUM_ARG_REGISTER, ARM_REG_LR);
+        gum_thumb_writer_put_mov_reg_reg (tw, dst_reg, ARM_REG_R0);
+
+        gum_thumb_writer_put_msr_reg_reg (tw, ARM_SYSREG_APSR_NZCVQ,
+            nzcvq_reg);
+        gum_thumb_writer_put_pop_regs_array (tw, saved_regs->len,
+            (const arm_reg *) saved_regs->data);
+
+        g_array_free (saved_regs, TRUE);
+
+        gum_thumb_relocator_skip_one (tr);
+      }
+      else
+      {
+        gum_thumb_relocator_write_one (tr);
+      }
     }
+  }
+  else if (trailing_bl != NULL)
+  {
+    const cs_arm_op * target = &trailing_bl->detail->arm.operands[0];
+
+    while (gum_thumb_relocator_peek_next_write_insn (tr) != trailing_bl)
+      gum_thumb_relocator_write_one (tr);
+    gum_thumb_relocator_skip_one (tr);
+
+    gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_LR,
+        trailing_bl->address + trailing_bl->size + 1);
+    gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
+        target->imm | 1);
+
+    is_branch_back_needed = FALSE;
   }
   else
   {
-    GumArmWriter * aw = &self->arm_writer;
-    GumArmRelocator * ar = &self->arm_relocator;
-    guint arm_code_size;
+    gum_thumb_relocator_write_all (tr);
+  }
 
-    if (GPOINTER_TO_SIZE (gum_thumb_writer_cur (tw)) % 4 != 0)
-      gum_thumb_writer_put_nop (tw);
-    ctx->on_invoke_trampoline = gum_thumb_writer_cur (tw);
-
-    gum_arm_writer_reset (aw, ctx->on_invoke_trampoline);
-    gum_arm_relocator_reset (ar, function_address, aw);
-
-    do
-    {
-      reloc_bytes = gum_arm_relocator_read_one (ar, NULL);
-      if (reloc_bytes == 0)
-        reloc_bytes = data->redirect_code_size;
-    }
-    while (reloc_bytes < data->redirect_code_size);
-
-    gum_arm_relocator_write_all (ar);
-
-    if (!gum_arm_relocator_eoi (ar))
-    {
-      gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
-          GUM_ADDRESS (function_address + reloc_bytes));
-    }
-
-    gum_arm_writer_flush (aw);
-    arm_code_size = gum_arm_writer_offset (aw);
-
-    gum_thumb_writer_skip (tw, arm_code_size);
+  if (is_branch_back_needed)
+  {
+    gum_thumb_writer_put_push_regs (tw, 2, ARM_REG_R0, ARM_REG_R1);
+    gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
+        GUM_ADDRESS (function_address + reloc_bytes + 1));
+    gum_thumb_writer_put_str_reg_reg_offset (tw, ARM_REG_R0,
+        ARM_REG_SP, 4);
+    gum_thumb_writer_put_pop_regs (tw, 2, ARM_REG_R0, ARM_REG_PC);
   }
 
   gum_thumb_writer_flush (tw);
   g_assert (gum_thumb_writer_offset (tw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
-  gum_memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
 
   return TRUE;
 }
@@ -493,7 +543,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     {
       if (data->redirect_code_size == GUM_INTERCEPTOR_THUMB_LINK_REDIRECT_SIZE)
       {
-        gum_emit_push_cpu_context_high_part (tw);
+        gum_emit_thumb_push_cpu_context_high_part (tw);
         gum_thumb_writer_put_bl_imm (tw,
             GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
       }
@@ -578,17 +628,29 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
 static void
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {
+  GumArmWriter * aw = &self->arm_writer;
   GumThumbWriter * tw = &self->thumb_writer;
 
   self->thunks = gum_code_allocator_alloc_slice (self->allocator);
 
-  gum_thumb_writer_reset (tw, self->thunks->data);
+  gum_arm_writer_reset (aw, self->thunks->data);
 
-  self->enter_thunk = gum_thumb_writer_cur (tw) + 1;
-  gum_emit_enter_thunk (tw);
+  self->enter_thunk_arm = gum_arm_writer_cur (aw) + 1;
+  gum_emit_arm_enter_thunk (aw);
 
-  self->leave_thunk = gum_thumb_writer_cur (tw) + 1;
-  gum_emit_leave_thunk (tw);
+  self->leave_thunk_arm = gum_arm_writer_cur (aw) + 1;
+  gum_emit_arm_leave_thunk (aw);
+
+  gum_arm_writer_flush (aw);
+  g_assert (gum_arm_writer_offset (aw) <= self->thunks->size);
+
+  gum_thumb_writer_reset (tw, gum_arm_writer_cur (aw));
+
+  self->enter_thunk_thumb = gum_thumb_writer_cur (tw) + 1;
+  gum_emit_thumb_enter_thunk (tw);
+
+  self->leave_thunk_thumb = gum_thumb_writer_cur (tw) + 1;
+  gum_emit_thumb_leave_thunk (tw);
 
   gum_thumb_writer_flush (tw);
   g_assert (gum_thumb_writer_offset (tw) <= self->thunks->size);
@@ -601,9 +663,31 @@ gum_interceptor_backend_destroy_thunks (GumInterceptorBackend * self)
 }
 
 static void
-gum_emit_enter_thunk (GumThumbWriter * tw)
+gum_emit_arm_enter_thunk (GumArmWriter * aw)
 {
-  gum_emit_prolog (tw);
+  gum_emit_arm_prolog (aw);
+
+  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R1, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT);
+  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R2, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R3, ARM_REG_SP,
+      GUM_FRAME_OFFSET_NEXT_HOP);
+
+  gum_arm_writer_put_call_address_with_arguments (aw,
+      GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
+      GUM_ARG_REGISTER, ARM_REG_R7,
+      GUM_ARG_REGISTER, ARM_REG_R1,
+      GUM_ARG_REGISTER, ARM_REG_R2,
+      GUM_ARG_REGISTER, ARM_REG_R3);
+
+  gum_emit_arm_epilog (aw);
+}
+
+static void
+gum_emit_thumb_enter_thunk (GumThumbWriter * tw)
+{
+  gum_emit_thumb_prolog (tw);
 
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -619,13 +703,32 @@ gum_emit_enter_thunk (GumThumbWriter * tw)
       GUM_ARG_REGISTER, ARM_REG_R2,
       GUM_ARG_REGISTER, ARM_REG_R3);
 
-  gum_emit_epilog (tw);
+  gum_emit_thumb_epilog (tw);
 }
 
 static void
-gum_emit_leave_thunk (GumThumbWriter * tw)
+gum_emit_arm_leave_thunk (GumArmWriter * aw)
 {
-  gum_emit_prolog (tw);
+  gum_emit_arm_prolog (aw);
+
+  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R1, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT);
+  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R2, ARM_REG_SP,
+      GUM_FRAME_OFFSET_NEXT_HOP);
+
+  gum_arm_writer_put_call_address_with_arguments (aw,
+      GUM_ADDRESS (_gum_function_context_end_invocation), 3,
+      GUM_ARG_REGISTER, ARM_REG_R7,
+      GUM_ARG_REGISTER, ARM_REG_R1,
+      GUM_ARG_REGISTER, ARM_REG_R2);
+
+  gum_emit_arm_epilog (aw);
+}
+
+static void
+gum_emit_thumb_leave_thunk (GumThumbWriter * tw)
+{
+  gum_emit_thumb_prolog (tw);
 
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -638,11 +741,20 @@ gum_emit_leave_thunk (GumThumbWriter * tw)
       GUM_ARG_REGISTER, ARM_REG_R1,
       GUM_ARG_REGISTER, ARM_REG_R2);
 
-  gum_emit_epilog (tw);
+  gum_emit_thumb_epilog (tw);
 }
 
 static void
-gum_emit_push_cpu_context_high_part (GumThumbWriter * tw)
+gum_emit_arm_push_cpu_context_high_part (GumArmWriter * aw)
+{
+  gum_arm_writer_put_push_registers (aw, 8 + 1,
+      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
+      ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
+      ARM_REG_LR);
+}
+
+static void
+gum_emit_thumb_push_cpu_context_high_part (GumThumbWriter * tw)
 {
   gum_thumb_writer_put_push_regs (tw, 8 + 1,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
@@ -651,7 +763,7 @@ gum_emit_push_cpu_context_high_part (GumThumbWriter * tw)
 }
 
 static void
-gum_emit_prolog (GumThumbWriter * tw)
+gum_emit_arm_prolog (GumArmWriter * aw)
 {
   /*
    * Set up our stack frame:
@@ -661,40 +773,76 @@ gum_emit_prolog (GumThumbWriter * tw)
    */
 
   /* build middle part of GumCpuContext */
-  gum_thumb_writer_put_push_regs (tw, 5,
+  gum_arm_writer_put_push_registers (aw, 5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
   /* build low part of GumCpuContext */
+  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R1, ARM_REG_SP,
+      (5 + 9) * 4);
+  gum_arm_writer_put_push_registers (aw, 2, ARM_REG_R0, ARM_REG_R1);
+
+  /* reserve space for next_hop and for cpsr in GumCpuContext */
+  gum_arm_writer_put_sub_reg_reg_imm (aw, ARM_REG_SP, ARM_REG_SP, 8);
+}
+
+static void
+gum_emit_thumb_prolog (GumThumbWriter * tw)
+{
+  gum_thumb_writer_put_push_regs (tw, 5,
+      ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
+
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
       (5 + 9) * 4);
   gum_thumb_writer_put_push_regs (tw, 2, ARM_REG_R0, ARM_REG_R1);
 
-  /* reserve space for next_hop and for cpsr in GumCpuContext */
-  gum_thumb_writer_put_sub_reg_imm (tw, ARM_REG_SP, 8);
+  gum_thumb_writer_put_sub_reg_reg_imm (tw, ARM_REG_SP, ARM_REG_SP, 8);
 }
 
 static void
-gum_emit_epilog (GumThumbWriter * tw)
+gum_emit_arm_epilog (GumArmWriter * aw)
 {
   /* restore LR */
+  gum_arm_writer_put_ldr_reg_reg_offset (aw, ARM_REG_R0, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_arm_writer_put_mov_reg_reg (aw, ARM_REG_LR, ARM_REG_R0);
+
+  /* replace LR with next_hop so we can pop it straight into PC */
+  gum_arm_writer_put_ldr_reg_reg_offset (aw, ARM_REG_R0, ARM_REG_SP,
+      GUM_FRAME_OFFSET_NEXT_HOP);
+  gum_arm_writer_put_str_reg_reg_offset (aw, ARM_REG_R0, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
+
+  /* clear next_hop and low part of GumCpuContext */
+  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_SP, ARM_REG_SP, 4 + 12);
+
+  /* restore middle part */
+  gum_arm_writer_put_pop_registers (aw, 5,
+      ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
+
+  /* restore r[0-8] and jump straight to LR */
+  gum_arm_writer_put_pop_registers (aw, 9,
+      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
+      ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
+      ARM_REG_PC);
+}
+
+static void
+gum_emit_thumb_epilog (GumThumbWriter * tw)
+{
   gum_thumb_writer_put_ldr_reg_reg_offset (tw, ARM_REG_R0, ARM_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
   gum_thumb_writer_put_mov_reg_reg (tw, ARM_REG_LR, ARM_REG_R0);
 
-  /* replace LR with next_hop so we can pop it straight into PC */
   gum_thumb_writer_put_ldr_reg_reg_offset (tw, ARM_REG_R0, ARM_REG_SP,
       GUM_FRAME_OFFSET_NEXT_HOP);
   gum_thumb_writer_put_str_reg_reg_offset (tw, ARM_REG_R0, ARM_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
 
-  /* clear next_hop and low part of GumCpuContext */
   gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP, 4 + 12);
 
-  /* restore middle part */
   gum_thumb_writer_put_pop_regs (tw, 5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
-  /* restore r[0-8] and jump straight to LR */
   gum_thumb_writer_put_pop_regs (tw, 9,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
       ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
