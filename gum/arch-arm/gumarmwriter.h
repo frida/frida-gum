@@ -81,6 +81,7 @@ GUM_API gboolean gum_arm_writer_put_blx_imm (GumArmWriter * self,
 GUM_API void gum_arm_writer_put_bl_label (GumArmWriter * self,
     gconstpointer label_id);
 GUM_API void gum_arm_writer_put_bx_reg (GumArmWriter * self, arm_reg reg);
+GUM_API void gum_arm_writer_put_bl_reg (GumArmWriter * self, arm_reg reg);
 GUM_API void gum_arm_writer_put_blx_reg (GumArmWriter * self, arm_reg reg);
 GUM_API void gum_arm_writer_put_ret (GumArmWriter * self);
 

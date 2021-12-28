@@ -486,6 +486,14 @@ gum_arm_writer_put_bx_reg (GumArmWriter * self,
 }
 
 void
+gum_arm_writer_put_bl_reg (GumArmWriter * self,
+                           arm_reg reg)
+{
+  gum_arm_writer_put_mov_reg_reg (self, ARM_REG_LR, ARM_REG_PC);
+  gum_arm_writer_put_mov_reg_reg (self, ARM_REG_PC, reg);
+}
+
+void
 gum_arm_writer_put_blx_reg (GumArmWriter * self,
                             arm_reg reg)
 {
