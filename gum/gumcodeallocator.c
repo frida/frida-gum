@@ -615,6 +615,7 @@ gum_insert_deflector (gpointer cave,
       GumArmWriter aw;
 
       gum_arm_writer_init (&aw, cave);
+      aw.cpu_features = gum_query_cpu_features ();
       aw.pc = ctx->pc;
       gum_arm_writer_put_ldr_reg_address (&aw, ARM_REG_PC,
           GUM_ADDRESS (ctx->dedicated_target));
