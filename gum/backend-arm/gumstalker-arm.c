@@ -1568,6 +1568,7 @@ gum_exec_ctx_new (GumStalker * stalker,
   ctx->thread_id = thread_id;
 
   gum_arm_writer_init (&ctx->arm_writer, NULL);
+  ctx->arm_writer.cpu_features = gum_query_cpu_features ();
   gum_arm_relocator_init (&ctx->arm_relocator, NULL, &ctx->arm_writer);
 
   gum_thumb_writer_init (&ctx->thumb_writer, NULL);
