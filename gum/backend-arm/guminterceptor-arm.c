@@ -285,7 +285,7 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
   }
 
   gum_arm_writer_flush (aw);
-  g_assert (gum_arm_writer_offset (tw) <= ctx->trampoline_slice->size);
+  g_assert (gum_arm_writer_offset (aw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
 
