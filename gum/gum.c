@@ -744,7 +744,7 @@ gum_do_query_cpu_features (void)
   features |= GUM_CPU_VFP3;
 #endif
 
-#if defined (HAVE_LINUX) && \
+#if defined (HAVE_LINUX) && defined (__ARM_EABI__) && \
     !(defined (__ARM_VFPV2__) && defined (__ARM_VFPV3__))
   {
     gchar * info = NULL;
