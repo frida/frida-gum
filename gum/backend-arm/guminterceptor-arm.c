@@ -636,10 +636,10 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 
   gum_arm_writer_reset (aw, self->thunks->data);
 
-  self->enter_thunk_arm = gum_arm_writer_cur (aw) + 1;
+  self->enter_thunk_arm = gum_arm_writer_cur (aw);
   gum_emit_arm_enter_thunk (aw);
 
-  self->leave_thunk_arm = gum_arm_writer_cur (aw) + 1;
+  self->leave_thunk_arm = gum_arm_writer_cur (aw);
   gum_emit_arm_leave_thunk (aw);
 
   gum_arm_writer_flush (aw);
