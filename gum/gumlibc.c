@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,24 +26,8 @@ gum_memcpy (gpointer dst,
 {
   gsize offset;
 
-  for (offset = 0; offset != n;)
-  {
-    gsize remaining = n - offset;
-    gpointer d = ((guint8 *) dst) + offset;
-    gconstpointer s = ((guint8 *) src) + offset;
-
-    /* The goal here is atomicity, not speed. */
-    if (remaining >= sizeof (gpointer) && (GPOINTER_TO_SIZE (d) & 3) == 0)
-    {
-      *((gpointer *) d) = *((gpointer *) s);
-      offset += sizeof (gpointer);
-    }
-    else
-    {
-      *((guint8 *) d) = *((guint8 *) s);
-      offset++;
-    }
-  }
+  for (offset = 0; offset != n; offset++)
+    ((guint8 *) dst)[offset] = ((guint8 *) src)[offset];
 
   return dst;
 }
