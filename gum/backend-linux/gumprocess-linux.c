@@ -234,8 +234,10 @@ static gboolean gum_emit_executable_module (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean gum_maybe_emit_interpreter (const GumModuleDetails * details,
     GumEmitExecutableModuleContext * ctx);
+#ifndef GUM_DIET
 static gboolean gum_emit_executable_module_by_name (
     const GumModuleDetails * details, gpointer user_data);
+#endif
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static gboolean gum_try_translate_vdso_name (gchar * name);
@@ -911,6 +913,8 @@ gum_emit_executable_module (const GumModuleDetails * details,
   return FALSE;
 }
 
+#ifndef GUM_DIET
+
 /*
  * Loading an executable by passing it as an argument to a loader is often used
  * to run 32-bit binaries on 64-bit kernels, e.g.
@@ -1005,6 +1009,17 @@ gum_emit_executable_module_by_name (const GumModuleDetails * details,
 
   return FALSE;
 }
+
+#else
+
+static gboolean
+gum_maybe_emit_interpreter (const GumModuleDetails * details,
+                            GumEmitExecutableModuleContext * ctx)
+{
+  return FALSE;
+}
+
+#endif
 
 void
 gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
