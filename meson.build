@@ -251,8 +251,8 @@ capstone_arch_mappings = {
   's390x': 'sysz',
 }
 capstone_options = [
+  'profile=' + (get_option('diet') ? 'tiny' : 'full'),
   'archs=' + capstone_arch_mappings.get(host_arch, host_arch),
-  'diet=' + get_option('diet').to_string(),
   'x86_att_disable=true',
   'cli=disabled',
 ]
