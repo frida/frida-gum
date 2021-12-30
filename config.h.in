@@ -129,6 +129,9 @@
 /* Define to 1 if Java bridge is available. */
 #mesondefine HAVE_JAVA_BRIDGE
 
+/* Define to 1 if optimizing for minimal footprint. */
+#mesondefine GUM_DIET
+
 /* Define to the Gum version. */
 #mesondefine GUM_VERSION
 

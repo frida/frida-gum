@@ -108,6 +108,10 @@ endif
 cdata = configuration_data()
 cdata.set_quoted('GUM_VERSION', gum_version)
 
+if get_option('diet')
+  cdata.set('GUM_DIET', 1)
+endif
+
 cdata.set('HAVE_' + host_os_family.to_upper(), 1)
 if host_os != host_os_family
   cdata.set('HAVE_' + host_os.to_upper(), 1)
