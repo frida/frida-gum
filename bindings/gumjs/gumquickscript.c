@@ -843,14 +843,7 @@ _gum_quick_panic (JSContext * ctx,
   stack = JS_ToCString (ctx, stack_val);
 
   if (stack[0] != '\0')
-    g_critical ("%s: %s [stack: %s]", prefix, message, stack);
+    gum_panic ("%s: %s [stack: %s]", prefix, message, stack);
   else
-    g_critical ("%s: %s", prefix, message);
-
-  JS_FreeCString (ctx, stack);
-  JS_FreeCString (ctx, message);
-  JS_FreeValue (ctx, stack_val);
-  JS_FreeValue (ctx, exception_val);
-
-  abort ();
+    gum_panic ("%s: %s", prefix, message);
 }

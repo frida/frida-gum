@@ -26,6 +26,7 @@
 #include <ffi.h>
 #include <glib-object.h>
 #include <gio/gio.h>
+#include <stdarg.h>
 #if defined (HAVE_ARM) && defined (HAVE_LINUX)
 # include <stdlib.h>
 # include <string.h>
@@ -635,6 +636,21 @@ gum_on_log_message (const gchar * log_domain,
   fprintf (file, "[%s %s] %s\n", log_domain, severity, message);
   fflush (file);
 #endif
+}
+
+void
+gum_panic (const gchar * format,
+           ...)
+{
+#ifndef GUM_DIET
+  va_list args;
+
+  va_start (args, format);
+  g_logv (G_LOG_DOMAIN, G_LOG_LEVEL_CRITICAL, format, args);
+  va_end (args);
+#endif
+
+  g_abort ();
 }
 
 static GumAddress *

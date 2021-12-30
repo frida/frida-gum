@@ -996,7 +996,7 @@ gum_stalker_ensure_unwind_apis_instrumented (void)
     if (attach_ret != GUM_ATTACH_OK &&
         attach_ret != GUM_ATTACH_ALREADY_ATTACHED)
     {
-      g_error ("Failed to attach to __gxx_personality_v0: %d", attach_ret);
+      gum_panic ("Failed to attach to __gxx_personality_v0: %d", attach_ret);
     }
 
     attach_ret = gum_interceptor_replace (gum_exec_ctx_interceptor,
@@ -1004,7 +1004,7 @@ gum_stalker_ensure_unwind_apis_instrumented (void)
     if (attach_ret != GUM_ATTACH_OK &&
         attach_ret != GUM_ATTACH_ALREADY_ATTACHED)
     {
-      g_error ("Failed to attach to _Unwind_Find_FDE: %d", attach_ret);
+      gum_panic ("Failed to attach to _Unwind_Find_FDE: %d", attach_ret);
     }
 
     _gum_register_early_destructor (
@@ -2889,11 +2889,11 @@ gum_exec_ctx_compile_block (GumExecCtx * ctx,
 
   all_labels_resolved = gum_x86_writer_flush (cw);
   if (!all_labels_resolved)
-    g_error ("Failed to resolve labels");
+    gum_panic ("Failed to resolve labels");
 
   all_slow_labels_resolved = gum_x86_writer_flush (cws);
   if (!all_slow_labels_resolved)
-    g_error ("Failed to resolve slow labels");
+    gum_panic ("Failed to resolve slow labels");
 
   *input_size = rl->input_cur - rl->input_start;
   *output_size = gum_x86_writer_offset (cw);

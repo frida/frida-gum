@@ -2082,7 +2082,7 @@ gum_exec_ctx_compile_block (GumExecCtx * ctx,
 
   all_labels_resolved = gum_arm64_writer_flush (cw);
   if (!all_labels_resolved)
-    g_error ("Failed to resolve labels");
+    gum_panic ("Failed to resolve labels");
 
   *input_size = rl->input_cur - rl->input_start;
   *output_size = gum_arm64_writer_offset (cw);

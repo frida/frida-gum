@@ -459,15 +459,9 @@ gum_resolve_symbol (const gchar * symbol_name,
 
   result = gum_try_resolve_symbol (symbol_name, module_candidates);
   if (result == NULL)
-    goto panic;
+    gum_panic ("Unable to locate %s(); please file a bug", symbol_name);
 
   return result;
-
-panic:
-  {
-    g_critical ("Unable to locate %s(); please file a bug", symbol_name);
-    g_abort ();
-  }
 }
 
 static gpointer

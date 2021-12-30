@@ -105,10 +105,7 @@ gum_process_query_libc_name (void)
   g_once (&once, (GThreadFunc) gum_try_init_libc_name, NULL);
 
   if (once.retval == NULL)
-  {
-    g_critical ("Unable to locate the libc; please file a bug");
-    g_abort ();
-  }
+    gum_panic ("Unable to locate the libc; please file a bug");
 
   return once.retval;
 }

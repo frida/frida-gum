@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -81,8 +81,6 @@ gum_v8_bundle_script_run (Persistent<UnboundScript> * script,
   {
     auto stack = trycatch.StackTrace (context).ToLocalChecked ();
     String::Utf8Value stack_str (isolate, stack);
-    g_critical ("%s", *stack_str);
-
-    abort ();
+    gum_panic ("%s", *stack_str);
   }
 }

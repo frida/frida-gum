@@ -2141,7 +2141,7 @@ gum_exec_ctx_compile_arm_block (GumExecCtx * ctx,
 
   all_labels_resolved = gum_arm_writer_flush (cw);
   if (!all_labels_resolved)
-    g_error ("Failed to resolve labels");
+    gum_panic ("Failed to resolve labels");
 
   *input_size = rl->input_cur - rl->input_start;
   *output_size = gum_arm_writer_offset (cw);
@@ -2213,7 +2213,7 @@ gum_exec_ctx_compile_thumb_block (GumExecCtx * ctx,
 
   all_labels_resolved = gum_thumb_writer_flush (cw);
   if (!all_labels_resolved)
-    g_error ("Failed to resolve labels");
+    gum_panic ("Failed to resolve labels");
 
   *input_size = rl->input_cur - rl->input_start;
   *output_size = gum_thumb_writer_offset (cw);
@@ -2464,7 +2464,7 @@ gum_stalker_iterator_arm_keep (GumStalkerIterator * self)
         break;
       case ARM_INS_SMC:
       case ARM_INS_HVC:
-        g_error ("not implemented");
+        gum_panic ("not implemented");
         break;
       default:
         g_assert_not_reached ();
@@ -2548,7 +2548,7 @@ gum_stalker_iterator_handle_thumb_branch_insn (GumStalkerIterator * self,
       break;
     case ARM_INS_SMC:
     case ARM_INS_HVC:
-      g_error ("Unsupported");
+      gum_panic ("Unsupported");
       break;
     case ARM_INS_IT:
       gum_stalker_iterator_handle_thumb_it_insn (self);
@@ -2985,13 +2985,13 @@ gum_stalker_get_writeback (const cs_insn * insn,
     return;
 
   if (insn->id != ARM_INS_LDR)
-    g_error ("Writeback for unexpected op-code: %d", insn->id);
+    gum_panic ("Writeback for unexpected op-code: %d", insn->id);
 
   if (op2->type != ARM_OP_MEM)
-    g_error ("Writeback for unexpected operand");
+    gum_panic ("Writeback for unexpected operand");
 
   if (op2->mem.index != ARM_REG_INVALID)
-    g_error ("Writeback for register operands not supported");
+    gum_panic ("Writeback for register operands not supported");
 
   writeback->target = op2->mem.base;
 
@@ -3612,7 +3612,7 @@ gum_exec_ctx_write_arm_mov_branch_target (GumExecCtx * ctx,
        */
       if (reg == ARM_REG_R12)
       {
-        g_error ("Cannot support ADD/SUB reg, reg, reg when target is "
+        gum_panic ("Cannot support ADD/SUB reg, reg, reg when target is "
             "ARM_REG_R12");
       }
 

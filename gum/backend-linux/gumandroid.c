@@ -611,10 +611,7 @@ gum_android_get_linker_module_details (void)
   g_once (&once, (GThreadFunc) gum_try_init_linker_details, NULL);
 
   if (once.retval == NULL)
-  {
-    g_critical ("Unable to locate the Android linker; please file a bug");
-    g_abort ();
-  }
+    gum_panic ("Unable to locate the Android linker; please file a bug");
 
   return once.retval;
 }
@@ -1104,10 +1101,7 @@ gum_linker_api_get (void)
   g_once (&once, (GThreadFunc) gum_linker_api_try_init, NULL);
 
   if (once.retval == NULL)
-  {
-    g_critical ("Unsupported Android linker; please file a bug");
-    g_abort ();
-  }
+    gum_panic ("Unsupported Android linker; please file a bug");
 
   return once.retval;
 }

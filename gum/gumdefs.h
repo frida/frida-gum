@@ -473,6 +473,9 @@ enum _GumRelocationScenario
     (((gint64) (i)) >= (gint64) G_MININT32 && \
      ((gint64) (i)) <= (gint64) G_MAXINT32)
 
+GUM_API G_NORETURN void gum_panic (const gchar * format, ...)
+    G_ANALYZER_NORETURN;
+
 GUM_API GumCpuFeatures gum_query_cpu_features (void);
 
 GUM_API gpointer gum_cpu_context_get_nth_argument (GumCpuContext * self,
