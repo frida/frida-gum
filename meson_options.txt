@@ -53,7 +53,7 @@ option('frida_java_bridge',
 )
 
 option('tests',
-  type: 'boolean',
-  value: true,
+  type: 'feature',
+  value: 'auto',
   description: 'Build tests'
 )

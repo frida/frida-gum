@@ -262,7 +262,14 @@ capstone_options = [
 ]
 capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
 
-if get_option('tests')
+tests_opt = get_option('tests')
+if tests_opt.auto()
+  build_tests = not meson.is_subproject() \
+      and (not meson.is_cross_build() or (meson.is_cross_build() and meson.has_exe_wrapper()))
+else
+  build_tests = not tests_opt.disabled()
+endif
+if build_tests
   lzma_dep = dependency('liblzma')
 else
   lzma_dep = []
@@ -499,6 +506,6 @@ subdir('bindings')
 subdir('vapi')
 subdir('tools')
 
-if get_option('tests')
+if build_tests
   subdir('tests')
 endif
