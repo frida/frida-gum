@@ -117,8 +117,19 @@ gum_clear_cache (gpointer address,
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64) || defined (HAVE_MIPS)
 # if defined (HAVE_CLEAR_CACHE)
   __builtin___clear_cache (address, address + size);
-# elif defined (HAVE_ARM)
-  syscall (__ARM_NR_cacheflush, address, address + size, 0);
+# elif defined (HAVE_ARM) && !defined (__ARM_EABI__)
+  register gpointer r0 asm ("r0") = address;
+  register gpointer r1 asm ("r1") = address + size;
+  register      int r2 asm ("r2") = 0;
+
+  asm volatile (
+      "swi %[syscall]\n\t"
+      : "+r" (r0)
+      : "r" (r1),
+        "r" (r2),
+        [syscall] "i" (__ARM_NR_cacheflush)
+      : "memory"
+  );
 # else
 #  error Please implement for your architecture
 # endif
