@@ -243,6 +243,7 @@ ffi_dep = dependency('libffi')
 
 glib_options = [
   'diet=' + diet.to_string(),
+  'printf=' + get_option('allocator'),
   'selinux=disabled',
   'xattr=false',
   'libmount=disabled',
