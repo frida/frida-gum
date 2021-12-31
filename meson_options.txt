@@ -6,11 +6,7 @@ option('diet',
 
 option('allocator',
   type: 'combo',
-  choices: [
-    'auto',
-    'internal',
-    'system',
-  ],
+  choices: ['auto', 'internal', 'system'],
   value: 'auto',
   description: 'Which memory allocator to use'
 )
