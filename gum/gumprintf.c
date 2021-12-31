@@ -206,6 +206,7 @@ do                                                                             \
 }                                                                              \
 while (/* CONSTCOND */ 0)
 
+#ifndef GUM_USE_SYSTEM_ALLOC
 static void fmtstr (gchar *, gsize *, gsize, const gchar *, gint, gint, gint);
 static void fmtint (gchar *, gsize *, gsize, intmax_t, gint, gint, gint, gint);
 static void fmtflt (gchar *, gsize *, gsize, LDOUBLE, gint, gint, gint, gint *);
@@ -216,6 +217,7 @@ static gint convert (uintmax_t, gchar *, gsize, gint, gint);
 static uintmax_t cast (LDOUBLE);
 static uintmax_t myround (LDOUBLE);
 static LDOUBLE mypow10 (gint);
+#endif
 
 gint
 gum_vsnprintf (gchar * str,
@@ -223,6 +225,7 @@ gum_vsnprintf (gchar * str,
                const gchar * format,
                va_list args)
 {
+#ifndef GUM_USE_SYSTEM_ALLOC
   LDOUBLE fvalue;
   intmax_t value;
   guchar cvalue;
@@ -655,6 +658,9 @@ out:
     return -1;
   }
   return (gint) len;
+#else
+  return g_vsnprintf (str, size, format, args);
+#endif
 }
 
 gint
@@ -705,6 +711,8 @@ gum_asprintf (gchar ** ret,
 
   return len;
 }
+
+#ifndef GUM_USE_SYSTEM_ALLOC
 
 static void
 fmtstr (gchar * str,
@@ -1288,3 +1296,5 @@ mypow10 (gint exponent)
 
   return result;
 }
+
+#endif
