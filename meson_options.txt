@@ -4,6 +4,17 @@ option('diet',
   description: 'Optimize for minimal footprint'
 )
 
+option('allocator',
+  type: 'combo',
+  choices: [
+    'auto',
+    'internal',
+    'system',
+  ],
+  value: 'auto',
+  description: 'Which memory allocator to use'
+)
+
 option('gumpp',
   type: 'feature',
   value: 'disabled',

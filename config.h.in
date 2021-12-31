@@ -132,6 +132,9 @@
 /* Define to 1 if optimizing for minimal footprint. */
 #mesondefine GUM_DIET
 
+/* Define to 1 if the system's memory allocator should be used. */
+#mesondefine GUM_USE_SYSTEM_ALLOC
+
 /* Define to the Gum version. */
 #mesondefine GUM_VERSION
 

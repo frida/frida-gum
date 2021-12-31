@@ -15,35 +15,38 @@
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef HAVE_ANDROID
 # include "backend-linux/gumandroid.h"
 #endif
-#ifdef HAVE_DARWIN
-# define DARWIN                   1
-#endif
-#define MSPACES                   1
-#define ONLY_MSPACES              1
-#define USE_LOCKS                 1
-#define FOOTERS                   0
-#define INSECURE                  1
-#define NO_MALLINFO               0
-#define REALLOC_ZERO_BYTES_FREES  1
-#ifdef HAVE_LIBC_MALLINFO
-# include <malloc.h>
-# define STRUCT_MALLINFO_DECLARED 1
-#endif
-#ifdef _MSC_VER
-# pragma warning (push)
-# pragma warning (disable: 4267 4702)
-#endif
-#ifdef _GNU_SOURCE
-# undef _GNU_SOURCE
-#endif
-#include "dlmalloc.c"
-#ifdef _MSC_VER
-# pragma warning (pop)
+#ifndef GUM_USE_SYSTEM_ALLOC
+# ifdef HAVE_DARWIN
+#  define DARWIN                   1
+# endif
+# define MSPACES                   1
+# define ONLY_MSPACES              1
+# define USE_LOCKS                 1
+# define FOOTERS                   0
+# define INSECURE                  1
+# define NO_MALLINFO               0
+# define REALLOC_ZERO_BYTES_FREES  1
+# ifdef HAVE_LIBC_MALLINFO
+#  include <malloc.h>
+#  define STRUCT_MALLINFO_DECLARED 1
+# endif
+# ifdef _MSC_VER
+#  pragma warning (push)
+#  pragma warning (disable: 4267 4702)
+# endif
+# ifdef _GNU_SOURCE
+#  undef _GNU_SOURCE
+# endif
+# include "dlmalloc.c"
+# ifdef _MSC_VER
+#  pragma warning (pop)
+# endif
 #endif
 
 struct _GumMatchPattern
@@ -82,8 +85,10 @@ static void gum_match_token_append_with_mask (GumMatchToken * self,
     guint8 byte, guint8 mask);
 
 static guint gum_heap_ref_count = 0;
+#ifndef GUM_USE_SYSTEM_ALLOC
 static mspace gum_mspace_main = NULL;
 static mspace gum_mspace_internal = NULL;
+#endif
 static guint gum_cached_page_size;
 
 #ifdef HAVE_ANDROID
@@ -106,8 +111,10 @@ gum_internal_heap_ref (void)
 
   _gum_cloak_init ();
 
+#ifndef GUM_USE_SYSTEM_ALLOC
   gum_mspace_main = create_mspace (0, TRUE);
   gum_mspace_internal = create_mspace (0, TRUE);
+#endif
 }
 
 void
@@ -117,6 +124,7 @@ gum_internal_heap_unref (void)
   if (--gum_heap_ref_count > 0)
     return;
 
+#ifndef GUM_USE_SYSTEM_ALLOC
   destroy_mspace (gum_mspace_internal);
   gum_mspace_internal = NULL;
 
@@ -124,6 +132,7 @@ gum_internal_heap_unref (void)
   gum_mspace_main = NULL;
 
   (void) DESTROY_LOCK (&malloc_global_mutex);
+#endif
 
   _gum_cloak_deinit ();
 
@@ -827,6 +836,8 @@ gum_mprotect (gpointer address,
     g_abort ();
 }
 
+#ifndef GUM_USE_SYSTEM_ALLOC
+
 guint
 gum_peek_private_memory_usage (void)
 {
@@ -924,6 +935,102 @@ gum_internal_free (gpointer mem)
 {
   mspace_free (gum_mspace_internal, mem);
 }
+
+#else
+
+guint
+gum_peek_private_memory_usage (void)
+{
+  return 0;
+}
+
+gpointer
+gum_malloc (gsize size)
+{
+  return malloc (size);
+}
+
+gpointer
+gum_malloc0 (gsize size)
+{
+  return calloc (1, size);
+}
+
+gsize
+gum_malloc_usable_size (gconstpointer mem)
+{
+  return 0;
+}
+
+gpointer
+gum_calloc (gsize count,
+            gsize size)
+{
+  return calloc (count, size);
+}
+
+gpointer
+gum_realloc (gpointer mem,
+             gsize size)
+{
+  return realloc (mem, size);
+}
+
+gpointer
+gum_memalign (gsize alignment,
+              gsize size)
+{
+  /* TODO: Implement this. */
+  g_assert_not_reached ();
+
+  return NULL;
+}
+
+gpointer
+gum_memdup (gconstpointer mem,
+            gsize byte_size)
+{
+  gpointer result;
+
+  result = malloc (byte_size);
+  memcpy (result, mem, byte_size);
+
+  return result;
+}
+
+void
+gum_free (gpointer mem)
+{
+  free (mem);
+}
+
+gpointer
+gum_internal_malloc (size_t size)
+{
+  return gum_malloc (size);
+}
+
+gpointer
+gum_internal_calloc (size_t count,
+                     size_t size)
+{
+  return gum_calloc (count, size);
+}
+
+gpointer
+gum_internal_realloc (gpointer mem,
+                      size_t size)
+{
+  return gum_realloc (mem, size);
+}
+
+void
+gum_internal_free (gpointer mem)
+{
+  gum_free (mem);
+}
+
+#endif
 
 gpointer
 gum_alloc_n_pages (guint n_pages,

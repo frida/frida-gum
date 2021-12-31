@@ -108,8 +108,17 @@ endif
 cdata = configuration_data()
 cdata.set_quoted('GUM_VERSION', gum_version)
 
-if get_option('diet')
+diet = get_option('diet')
+if diet
   cdata.set('GUM_DIET', 1)
+endif
+
+allocator = get_option('allocator')
+if allocator == 'auto'
+  allocator = diet ? 'system' : 'internal'
+endif
+if allocator == 'system'
+  cdata.set('GUM_USE_SYSTEM_ALLOC', 1)
 endif
 
 cdata.set('HAVE_' + host_os_family.to_upper(), 1)
@@ -233,7 +242,7 @@ threads_dep = dependency('threads')
 ffi_dep = dependency('libffi')
 
 glib_options = [
-  'diet=' + get_option('diet').to_string(),
+  'diet=' + diet.to_string(),
   'selinux=disabled',
   'xattr=false',
   'libmount=disabled',
@@ -255,7 +264,7 @@ capstone_arch_mappings = {
   's390x': 'sysz',
 }
 capstone_options = [
-  'profile=' + (get_option('diet') ? 'tiny' : 'full'),
+  'profile=' + (diet ? 'tiny' : 'full'),
   'archs=' + capstone_arch_mappings.get(host_arch, host_arch),
   'x86_att_disable=true',
   'cli=disabled',

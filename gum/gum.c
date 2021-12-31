@@ -234,7 +234,8 @@ gum_init_embedded (void)
     gum_on_fd_closed
   };
 #endif
-#if defined (HAVE_FRIDA_GLIB) && !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
+#if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_GLIB) && \
+    !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   GMemVTable mem_vtable = {
     gum_malloc,
     gum_realloc,
@@ -283,7 +284,7 @@ gum_init_embedded (void)
   }
   else
   {
-#ifdef HAVE_FRIDA_GLIB
+#if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_GLIB)
     g_mem_set_vtable (&mem_vtable);
 #endif
   }
