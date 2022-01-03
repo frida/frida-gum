@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -405,8 +405,8 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
 malformed_package:
   {
     op.error = g_error_new (
-        G_IO_ERROR,
-        G_IO_ERROR_INVALID_DATA,
+        GUM_ERROR,
+        GUM_ERROR_INVALID_DATA,
         "Malformed package");
 
     goto propagate_error;
@@ -425,8 +425,8 @@ malformed_code:
     JS_ToUint32 (ctx, &line, line_val);
 
     op.error = g_error_new (
-        G_IO_ERROR,
-        G_IO_ERROR_FAILED,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
         "Script(line %u): %s",
         line,
         message);
@@ -559,8 +559,8 @@ not_found:
     if (op->error == NULL)
     {
       op->error = g_error_new (
-          G_IO_ERROR,
-          G_IO_ERROR_FAILED,
+          GUM_ERROR,
+          GUM_ERROR_FAILED,
           "Could not load module '%s'",
           module_name);
     }
@@ -603,8 +603,8 @@ malformed_module:
     JS_ToUint32 (ctx, &line, line_val);
 
     op->error = g_error_new (
-        G_IO_ERROR,
-        G_IO_ERROR_FAILED,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
         "Could not parse '%s' line %u: %s",
         asset->name,
         line,
@@ -653,7 +653,7 @@ malformed_code:
     exception_val = JS_GetException (ctx);
     message_str = JS_ToCString (ctx, exception_val);
 
-    g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED, message_str);
+    g_set_error_literal (error, GUM_ERROR, GUM_ERROR_FAILED, message_str);
 
     JS_FreeCString (ctx, message_str);
     JS_FreeValue (ctx, exception_val);

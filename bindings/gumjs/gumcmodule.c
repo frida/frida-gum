@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -135,7 +135,7 @@ gum_cmodule_new (const gchar * source,
 #ifdef HAVE_TINYCC
       return gum_tcc_cmodule_new (source, options, error);
 #else
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
           "Internal toolchain is not available in this build configuration");
       return NULL;
 #endif
@@ -239,7 +239,7 @@ beach:
 
   if (error_messages != NULL)
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Linking failed: %s", error_messages->str);
     g_string_free (error_messages, TRUE);
   }
@@ -484,7 +484,7 @@ gum_tcc_cmodule_new (const gchar * source,
 
 propagate_error:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Compilation failed: %s", error_messages->str);
     g_string_free (error_messages, TRUE);
 
@@ -904,13 +904,13 @@ gum_gcc_cmodule_new (const gchar * source,
 
 binary_loading_unsupported:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
         "Binary loading is not yet supported on this platform");
     goto beach;
   }
 compilation_failed:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Compilation failed: %s", output);
     goto beach;
   }
@@ -1072,13 +1072,13 @@ gum_gcc_cmodule_call_ld (GumGccCModule * self,
 
 fopen_failed:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Failed to create %s", linker_script_path);
     goto beach;
   }
 ld_failed:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "ld failed: %s", output);
     goto beach;
   }
@@ -1118,7 +1118,7 @@ gum_gcc_cmodule_call_objcopy (GumGccCModule * self,
 
 objcopy_failed:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "objcopy failed: %s", output);
     goto beach;
   }
@@ -1419,7 +1419,7 @@ gum_darwin_cmodule_new (const gchar * source,
 
 compilation_failed:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Compilation failed: %s", output);
     goto beach;
   }
@@ -1524,7 +1524,7 @@ gum_darwin_cmodule_link_at (GumCModule * cm,
 
 propagate_error:
   {
-    if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+    if (g_error_matches (error, GUM_ERROR, GUM_ERROR_NOT_FOUND))
     {
       const gchar * name_start, * name_end;
       gchar * name, * message;

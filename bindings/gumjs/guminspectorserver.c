@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -238,8 +238,8 @@ gum_inspector_server_start (GumInspectorServer * self,
 listen_failed:
   {
     g_set_error (error,
-        G_IO_ERROR,
-        G_IO_ERROR_FAILED,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
         "%s",
         listen_error->message);
 

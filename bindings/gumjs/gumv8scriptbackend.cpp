@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -588,7 +588,7 @@ gum_create_script_from_bytes_task_run (GumScriptTask * task,
                                        GumCreateScriptFromBytesData * d,
                                        GCancellable * cancellable)
 {
-  auto error = g_error_new (G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+  auto error = g_error_new (GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
       "not yet supported by the V8 runtime");
   gum_script_task_return_error (task, error);
 }
@@ -688,7 +688,7 @@ gum_compile_script_task_run (GumScriptTask * task,
                              GumCompileScriptData * d,
                              GCancellable * cancellable)
 {
-  auto error = g_error_new (G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+  auto error = g_error_new (GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
       "not yet supported by the V8 runtime");
   gum_script_task_return_error (task, error);
 }

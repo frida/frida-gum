@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -492,7 +492,7 @@ gum_v8_script_compile (GumV8Script * self,
       {
         gchar * message =
             _gum_v8_error_get_message (isolate, trycatch.Exception ());
-        g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED, message);
+        g_set_error_literal (error, GUM_ERROR, GUM_ERROR_FAILED, message);
         g_free (message);
         goto propagate_error;
       }
@@ -528,7 +528,7 @@ gum_v8_script_compile (GumV8Script * self,
       Local<Message> message = trycatch.Message ();
       Local<Value> exception = trycatch.Exception ();
       String::Utf8Value exception_str (isolate, exception);
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
+      g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "Script(line %d): %s",
           message->GetLineNumber (context).FromMaybe (-1), *exception_str);
       goto propagate_error;
     }
@@ -539,8 +539,8 @@ gum_v8_script_compile (GumV8Script * self,
 malformed_package:
   {
     g_set_error (error,
-        G_IO_ERROR,
-        G_IO_ERROR_INVALID_DATA,
+        GUM_ERROR,
+        GUM_ERROR_INVALID_DATA,
         "Malformed package");
 
     goto propagate_error;
@@ -865,8 +865,8 @@ invalid_operation:
   {
     gum_script_task_return_error (task,
         g_error_new_literal (
-          G_IO_ERROR,
-          G_IO_ERROR_NOT_SUPPORTED,
+          GUM_ERROR,
+          GUM_ERROR_NOT_SUPPORTED,
           "Invalid operation"));
   }
 }
@@ -1024,8 +1024,8 @@ invalid_operation:
   {
     gum_script_task_return_error (task,
         g_error_new_literal (
-          G_IO_ERROR,
-          G_IO_ERROR_NOT_SUPPORTED,
+          GUM_ERROR,
+          GUM_ERROR_NOT_SUPPORTED,
           "Invalid operation"));
   }
 }

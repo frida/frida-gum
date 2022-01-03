@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -555,8 +555,8 @@ invalid_operation:
   {
     gum_script_task_return_error (task,
         g_error_new_literal (
-          G_IO_ERROR,
-          G_IO_ERROR_NOT_SUPPORTED,
+          GUM_ERROR,
+          GUM_ERROR_NOT_SUPPORTED,
           "Invalid operation"));
   }
 }
@@ -649,8 +649,8 @@ invalid_operation:
   {
     gum_script_task_return_error (task,
         g_error_new_literal (
-          G_IO_ERROR,
-          G_IO_ERROR_NOT_SUPPORTED,
+          GUM_ERROR,
+          GUM_ERROR_NOT_SUPPORTED,
           "Invalid operation"));
   }
 }
