@@ -105,8 +105,7 @@ static void
 gum_default_stalker_transformer_iface_init (gpointer g_iface,
                                             gpointer iface_data)
 {
-  GumStalkerTransformerInterface * iface =
-      (GumStalkerTransformerInterface *) g_iface;
+  GumStalkerTransformerInterface * iface = g_iface;
 
   iface->transform_block = gum_default_stalker_transformer_transform_block;
 }
@@ -141,8 +140,7 @@ static void
 gum_callback_stalker_transformer_iface_init (gpointer g_iface,
                                              gpointer iface_data)
 {
-  GumStalkerTransformerInterface * iface =
-      (GumStalkerTransformerInterface *) g_iface;
+  GumStalkerTransformerInterface * iface = g_iface;
 
   iface->transform_block = gum_callback_stalker_transformer_transform_block;
 }
