@@ -114,8 +114,6 @@ if host_os_family == 'darwin'
   gum_sources += [
     'backend-darwin/gumobjcapiresolver.c',
     'backend-darwin/gumobjcapiresolver.h',
-    'backend-darwin/gumobjcdisposeclasspairmonitor.c',
-    'backend-darwin/gumobjcdisposeclasspairmonitor.h',
     'backend-darwin/gumdarwinbacktracer.c',
     'backend-darwin/gumsymbolutil-darwin.c',
     'backend-darwin/gumdarwinsymbolicator.c',
@@ -129,6 +127,11 @@ if host_os_family == 'darwin'
     'backend-darwin/gumdarwinmapper.c',
     'backend-darwin/gumdarwinmoduleresolver.c',
   ]
+  if not diet
+    gum_sources += [
+      'backend-darwin/gumobjcdisposeclasspairmonitor.c',
+    ]
+  endif
 endif
 
 if host_os_family == 'linux'
@@ -291,11 +294,18 @@ gum_enums_dep = declare_dependency(sources: gum_enums)
 
 gum_enum_h = gum_enums[1]
 
+gum_public_deps = [glib_dep, capstone_dep, gum_enums_dep]
+gum_internal_deps = [glib_dep, ffi_dep, capstone_dep, threads_dep]
+if not diet
+  gum_public_deps += gobject_dep
+  gum_internal_deps += gobject_dep
+endif
+
 gum = library('frida-gum-' + api_version, gum_sources + gum_enums,
   c_args: frida_component_cflags,
   include_directories: gum_incdirs,
   link_args: extra_libs_private,
-  dependencies: [glib_dep, gobject_dep, ffi_dep, capstone_dep, threads_dep] + extra_deps,
+  dependencies: gum_internal_deps + extra_deps,
   install: true,
 )
 
@@ -321,8 +331,9 @@ endif
 
 gum_dep = declare_dependency(link_with: gum,
   include_directories: gum_incdirs,
+  compile_args: extra_cflags,
   link_args: extra_libs_private,
-  dependencies: [glib_dep, gobject_dep, capstone_dep, gum_enums_dep],
+  dependencies: gum_public_deps,
 )
 
 pkg = import('pkgconfig')
@@ -334,6 +345,7 @@ pkg.generate(gum,
   requires: ['glib-2.0', 'gobject-2.0', 'gio-2.0', 'capstone'],
   requires_private: extra_requires_private,
   subdirs: install_header_basedir,
+  extra_cflags: extra_cflags,
   libraries_private: extra_libs_private,
 )
 

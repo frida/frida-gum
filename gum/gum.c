@@ -180,7 +180,9 @@ gum_do_init (void)
 
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
+# ifndef GUM_DIET
   gobject_init ();
+# endif
 #endif
 
   cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
@@ -636,6 +638,33 @@ gum_on_log_message (const gchar * log_domain,
   fflush (file);
 #endif
 }
+
+#ifdef GUM_DIET
+
+gpointer
+gum_object_ref (gpointer object)
+{
+  GumObject * self = object;
+
+  g_atomic_int_inc (&self->ref_count);
+
+  return self;
+}
+
+void
+gum_object_unref (gpointer object)
+{
+  GumObject * self = object;
+
+  if (g_atomic_int_dec_and_test (&self->ref_count))
+  {
+    self->finalize (object);
+
+    g_free (self);
+  }
+}
+
+#endif
 
 void
 gum_panic (const gchar * format,

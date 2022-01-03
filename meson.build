@@ -287,8 +287,13 @@ endif
 
 extra_deps = []
 extra_requires_private = []
+extra_cflags = []
 extra_libs_private = []
 extra_gir_args_private = []
+
+if diet
+  extra_cflags += '-DGUM_DIET'
+endif
 
 if glib_dep.type_name() == 'internal'
   have_shared_glib = get_option('default_library') != 'static'
@@ -511,10 +516,14 @@ install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 
 subdir('gum')
-subdir('libs')
-subdir('bindings')
+if not diet
+  subdir('libs')
+  subdir('bindings')
+endif
 subdir('vapi')
-subdir('tools')
+if not diet
+  subdir('tools')
+endif
 
 if build_tests
   subdir('tests')

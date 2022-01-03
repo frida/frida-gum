@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -12,10 +12,12 @@
 
 #include <mach-o/dyld.h>
 
-#define GUM_TYPE_SYMBOL_CACHE_INVALIDATOR \
+#ifndef GUM_DIET
+# define GUM_TYPE_SYMBOL_CACHE_INVALIDATOR \
     (gum_symbol_cache_invalidator_get_type ())
 G_DECLARE_FINAL_TYPE (GumSymbolCacheInvalidator, gum_symbol_cache_invalidator,
     GUM, SYMBOL_CACHE_INVALIDATOR, GObject)
+#endif
 
 struct _GumSymbolCacheInvalidator
 {
@@ -30,6 +32,7 @@ static GArray * gum_pointer_array_new_empty (void);
 static GArray * gum_pointer_array_new_take_addresses (GumAddress * addresses,
     gsize len);
 
+#ifndef GUM_DIET
 static void gum_symbol_cache_invalidator_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_symbol_cache_invalidator_dispose (GObject * object);
@@ -37,9 +40,11 @@ static void gum_symbol_cache_invalidator_stop (
     GumSymbolCacheInvalidator * self);
 static void gum_symbol_cache_invalidator_on_dyld_debugger_notification (
     GumInvocationListener * self, GumInvocationContext * context);
+#endif
 
 G_LOCK_DEFINE_STATIC (symbolicator);
 static GumDarwinSymbolicator * symbolicator = NULL;
+#ifndef GUM_DIET
 static GumSymbolCacheInvalidator * invalidator = NULL;
 
 G_DEFINE_TYPE_EXTENDED (GumSymbolCacheInvalidator,
@@ -48,6 +53,7 @@ G_DEFINE_TYPE_EXTENDED (GumSymbolCacheInvalidator,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_symbol_cache_invalidator_iface_init))
+#endif
 
 static GumDarwinSymbolicator *
 gum_try_obtain_symbolicator (void)
@@ -62,12 +68,14 @@ gum_try_obtain_symbolicator (void)
         gum_darwin_symbolicator_new_with_task (mach_task_self (), NULL);
   }
 
+#ifndef GUM_DIET
   if (invalidator == NULL)
   {
     invalidator = g_object_new (GUM_TYPE_SYMBOL_CACHE_INVALIDATOR, NULL);
 
     _gum_register_early_destructor (do_deinit);
   }
+#endif
 
   if (symbolicator != NULL)
     result = g_object_ref (symbolicator);
@@ -84,8 +92,10 @@ do_deinit (void)
 
   g_clear_object (&symbolicator);
 
+#ifndef GUM_DIET
   gum_symbol_cache_invalidator_stop (invalidator);
   g_clear_object (&invalidator);
+#endif
 
   G_UNLOCK (symbolicator);
 }
@@ -210,6 +220,8 @@ gum_pointer_array_new_take_addresses (GumAddress * addresses,
   return result;
 }
 
+#ifndef GUM_DIET
+
 static void
 gum_symbol_cache_invalidator_class_init (GumSymbolCacheInvalidatorClass * klass)
 {
@@ -273,3 +285,5 @@ gum_symbol_cache_invalidator_on_dyld_debugger_notification (
 
   G_UNLOCK (symbolicator);
 }
+
+#endif

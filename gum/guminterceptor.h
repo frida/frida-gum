@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -14,9 +14,14 @@
 
 G_BEGIN_DECLS
 
-#define GUM_TYPE_INTERCEPTOR (gum_interceptor_get_type ())
+#ifndef GUM_DIET
+# define GUM_TYPE_INTERCEPTOR (gum_interceptor_get_type ())
 G_DECLARE_FINAL_TYPE (GumInterceptor, gum_interceptor, GUM, INTERCEPTOR,
     GObject)
+#else
+# define GUM_INTERCEPTOR(o) ((GumInterceptor *) (o))
+typedef struct _GumInterceptor GumInterceptor;
+#endif
 
 typedef GArray GumInvocationStack;
 typedef guint GumInvocationState;

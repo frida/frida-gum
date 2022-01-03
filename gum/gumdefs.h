@@ -32,6 +32,16 @@ typedef enum {
   GUM_ERROR_INVALID_DATA,
 } GumError;
 
+#ifdef GUM_DIET
+typedef struct _GumObject GumObject;
+
+struct _GumObject
+{
+  gint ref_count;
+  void (* finalize) (GumObject * object);
+};
+#endif
+
 typedef guint64 GumAddress;
 #define GUM_ADDRESS(a) ((GumAddress) (guintptr) (a))
 #define GUM_TYPE_ADDRESS (gum_address_get_type ())
@@ -485,6 +495,11 @@ enum _GumRelocationScenario
      ((gint64) (i)) <= (gint64) G_MAXINT32)
 
 GUM_API GQuark gum_error_quark (void);
+
+#ifdef GUM_DIET
+GUM_API gpointer gum_object_ref (gpointer object);
+GUM_API void gum_object_unref (gpointer object);
+#endif
 
 GUM_API G_NORETURN void gum_panic (const gchar * format, ...)
     G_ANALYZER_NORETURN;
