@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2019 Álvaro Felipe Melchor <alvaro.felipe91@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -9,7 +9,6 @@
 
 #include "gumexceptor.h"
 
-#include <gio/gio.h>
 #include <sys/mman.h>
 
 typedef struct _GumPageState GumPageState;
@@ -210,13 +209,13 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
 
 error_invalid_pages:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "One or more pages are unallocated");
     return FALSE;
   }
 error_inaccessible_pages:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "One or more pages are already fully inaccessible");
     return FALSE;
   }

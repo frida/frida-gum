@@ -45,6 +45,15 @@ namespace Gum {
 	public void query_page_allocation_range (void * mem, uint size, out Gum.MemoryRange range);
 	public void free_pages (void * mem);
 
+	public errordomain Error {
+		FAILED,
+		NOT_FOUND,
+		EXISTS,
+		INVALID_ARGUMENT,
+		NOT_SUPPORTED,
+		INVALID_DATA,
+	}
+
 	[CCode (cprefix = "GUM_CODE_SIGNING_")]
 	public enum CodeSigningPolicy {
 		OPTIONAL,
@@ -637,7 +646,7 @@ namespace Gum {
 		public void * location;
 	}
 
-	public class DarwinModule : GLib.Object, GLib.Initable {
+	public class DarwinModule : GLib.Object {
 		public Filetype filetype;
 		public string? name;
 		public string? uuid;
@@ -694,6 +703,8 @@ namespace Gum {
 		public DarwinModule.from_file (string path, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
 		public DarwinModule.from_blob (GLib.Bytes blob, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
 		public DarwinModule.from_memory (string? name, Gum.DarwinPort task, Gum.Address base_address, Gum.DarwinModule.Flags flags = NONE) throws GLib.Error;
+
+		public bool load () throws Gum.Error;
 
 		public bool resolve_export (string symbol, out Gum.DarwinExportDetails details);
 		public Gum.Address resolve_symbol_address (string symbol);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -18,7 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <gio/gio.h>
 #include <mach-o/dyld.h>
 #include <mach-o/nlist.h>
 #include <malloc/malloc.h>
@@ -670,7 +669,7 @@ gum_module_load (const gchar * module_name,
 
 not_found:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "%s", dlerror ());
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND, "%s", dlerror ());
     return FALSE;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,6 @@
 #ifndef __GUM_DARWIN_GRAFTER_H__
 #define __GUM_DARWIN_GRAFTER_H__
 
-#include <gio/gio.h>
 #include <gum/gumdefs.h>
 
 G_BEGIN_DECLS

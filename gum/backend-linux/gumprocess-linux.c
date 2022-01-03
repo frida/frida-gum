@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,7 +20,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <gio/gio.h>
 #ifdef HAVE_PTHREAD_ATTR_GETSTACK
 # include <pthread.h>
 #endif
@@ -1410,7 +1409,7 @@ gum_module_load (const gchar * module_name,
 
 not_found:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "%s", dlerror ());
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND, "%s", dlerror ());
     return FALSE;
   }
 }
@@ -1809,7 +1808,7 @@ gum_linux_cpu_type_from_file (const gchar * path,
       byte_order = G_DATA_STREAM_BYTE_ORDER_BIG_ENDIAN;
       break;
     default:
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
           "Unsupported ELF EI_DATA");
       goto beach;
   }
@@ -1845,7 +1844,7 @@ gum_linux_cpu_type_from_file (const gchar * path,
       result = GUM_CPU_MIPS;
       break;
     default:
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
           "Unsupported executable");
       break;
   }

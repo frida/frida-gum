@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C)      2021 Francesco Tamagni <mrmacete@protonmail.ch>
@@ -15,7 +15,6 @@
 #include "gumprocess.h"
 
 #include <dlfcn.h>
-#include <gio/gio.h>
 #include <objc/runtime.h>
 #include <stdlib.h>
 
@@ -271,7 +270,7 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
 invalid_query:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "invalid query; format is: "
         "-[NS*Number foo:bar:], +[Foo foo*] or *[Bar baz]");
   }

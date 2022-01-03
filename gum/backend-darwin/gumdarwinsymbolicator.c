@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -16,7 +16,6 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
-#include <gio/gio.h>
 
 #define kCSNull ((CSTypeRef) { NULL, NULL })
 #define kCSNow  G_GUINT64_CONSTANT (0x8000000000000000)
@@ -90,10 +89,6 @@ struct _GumSectionFromAddressOperation
   GumDarwinSectionDetails sect_details;
 };
 
-static void gum_darwin_symbolicator_initable_iface_init (gpointer g_iface,
-    gpointer iface_data);
-static gboolean gum_darwin_symbolicator_initable_init (GInitable * initable,
-    GCancellable * cancellable, GError ** error);
 static void gum_darwin_symbolicator_dispose (GObject * object);
 static void gum_darwin_symbolicator_finalize (GObject * object);
 static void gum_darwin_symbolicator_get_property (GObject * object,
@@ -117,12 +112,7 @@ static gboolean gum_cs_ensure_library_loaded (void);
 static gpointer gum_cs_load_library (gpointer data);
 static void gum_cs_unload_library (void);
 
-G_DEFINE_TYPE_EXTENDED (GumDarwinSymbolicator,
-                        gum_darwin_symbolicator,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
-                            gum_darwin_symbolicator_initable_iface_init))
+G_DEFINE_TYPE (GumDarwinSymbolicator, gum_darwin_symbolicator, G_TYPE_OBJECT)
 
 static void * gum_cs;
 
@@ -191,63 +181,8 @@ gum_darwin_symbolicator_class_init (GumDarwinSymbolicatorClass * klass)
 }
 
 static void
-gum_darwin_symbolicator_initable_iface_init (gpointer g_iface,
-                                             gpointer iface_data)
-{
-  GInitableIface * iface = g_iface;
-
-  iface->init = gum_darwin_symbolicator_initable_init;
-}
-
-static void
 gum_darwin_symbolicator_init (GumDarwinSymbolicator * self)
 {
-}
-
-static gboolean
-gum_darwin_symbolicator_initable_init (GInitable * initable,
-                                       GCancellable * cancellable,
-                                       GError ** error)
-{
-  GumDarwinSymbolicator * self = GUM_DARWIN_SYMBOLICATOR (initable);
-
-  if (!gum_cs_ensure_library_loaded ())
-    goto not_available;
-
-  if (self->path != NULL)
-  {
-    self->handle = CSSymbolicatorCreateWithPathAndArchitecture (self->path,
-        gum_cpu_type_to_darwin (self->cpu_type));
-    if (CSIsNull (self->handle))
-      goto invalid_path;
-  }
-  else
-  {
-    self->handle = CSSymbolicatorCreateWithTask (self->task);
-    if (CSIsNull (self->handle))
-      goto invalid_task;
-  }
-
-  return TRUE;
-
-not_available:
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-        "CoreSymbolication not available");
-    return FALSE;
-  }
-invalid_path:
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "File not found");
-    return FALSE;
-  }
-invalid_task:
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-        "Target process is gone");
-    return FALSE;
-  }
 }
 
 static void
@@ -331,18 +266,82 @@ gum_darwin_symbolicator_new_with_path (const gchar * path,
                                        GumCpuType cpu_type,
                                        GError ** error)
 {
-  return g_initable_new (GUM_DARWIN_TYPE_SYMBOLICATOR, NULL, error,
+  GumDarwinSymbolicator * symbolicator;
+
+  symbolicator = g_object_new (GUM_DARWIN_TYPE_SYMBOLICATOR,
       "path", path,
       NULL);
+  if (!gum_darwin_symbolicator_load (symbolicator, error))
+  {
+    g_object_unref (symbolicator);
+    symbolicator = NULL;
+  }
+
+  return symbolicator;
 }
 
 GumDarwinSymbolicator *
 gum_darwin_symbolicator_new_with_task (mach_port_t task,
                                        GError ** error)
 {
-  return g_initable_new (GUM_DARWIN_TYPE_SYMBOLICATOR, NULL, error,
+  GumDarwinSymbolicator * symbolicator;
+
+  symbolicator = g_object_new (GUM_DARWIN_TYPE_SYMBOLICATOR,
       "task", task,
       NULL);
+  if (!gum_darwin_symbolicator_load (symbolicator, error))
+  {
+    g_object_unref (symbolicator);
+    symbolicator = NULL;
+  }
+
+  return symbolicator;
+}
+
+gboolean
+gum_darwin_symbolicator_load (GumDarwinSymbolicator * self,
+                              GError ** error)
+{
+  if (!gum_cs_ensure_library_loaded ())
+    goto not_available;
+
+  if (!CSIsNull (self->handle))
+    return TRUE;
+
+  if (self->path != NULL)
+  {
+    self->handle = CSSymbolicatorCreateWithPathAndArchitecture (self->path,
+        gum_cpu_type_to_darwin (self->cpu_type));
+    if (CSIsNull (self->handle))
+      goto invalid_path;
+  }
+  else
+  {
+    self->handle = CSSymbolicatorCreateWithTask (self->task);
+    if (CSIsNull (self->handle))
+      goto invalid_task;
+  }
+
+  return TRUE;
+
+not_available:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+        "CoreSymbolication not available");
+    return FALSE;
+  }
+invalid_path:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "File not found");
+    return FALSE;
+  }
+invalid_task:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "Target process is gone");
+    return FALSE;
+  }
 }
 
 gboolean

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,6 +20,17 @@
 #endif
 
 G_BEGIN_DECLS
+
+#define GUM_ERROR gum_error_quark ()
+
+typedef enum {
+  GUM_ERROR_FAILED,
+  GUM_ERROR_NOT_FOUND,
+  GUM_ERROR_EXISTS,
+  GUM_ERROR_INVALID_ARGUMENT,
+  GUM_ERROR_NOT_SUPPORTED,
+  GUM_ERROR_INVALID_DATA,
+} GumError;
 
 typedef guint64 GumAddress;
 #define GUM_ADDRESS(a) ((GumAddress) (guintptr) (a))
@@ -472,6 +483,8 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_INT32_RANGE(i) \
     (((gint64) (i)) >= (gint64) G_MININT32 && \
      ((gint64) (i)) <= (gint64) G_MAXINT32)
+
+GUM_API GQuark gum_error_quark (void);
 
 GUM_API G_NORETURN void gum_panic (const gchar * format, ...)
     G_ANALYZER_NORETURN;

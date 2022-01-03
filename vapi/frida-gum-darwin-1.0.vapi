@@ -44,9 +44,11 @@ namespace Gum.Darwin {
 		uint64 size;
 	}
 
-	public class Symbolicator : GLib.Object, GLib.Initable {
+	public class Symbolicator : GLib.Object {
 		public Symbolicator.with_path (string path, Gum.CpuType cpu_type) throws GLib.Error;
 		public Symbolicator.with_task (Gum.DarwinPort task) throws GLib.Error;
+
+		public bool load () throws Gum.Error;
 
 		public bool details_from_address (Gum.Address address, out Gum.DebugSymbolDetails details);
 		public string? name_from_address (Gum.Address address);

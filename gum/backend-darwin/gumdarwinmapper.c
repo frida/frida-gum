@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,7 +12,6 @@
 
 #include <dlfcn.h>
 #include <string.h>
-#include <gio/gio.h>
 #ifdef HAVE_I386
 # include <gum/arch-x86/gumx86writer.h>
 #else
@@ -113,11 +112,7 @@ struct _GumMapContext
   GError ** error;
 };
 
-static void gum_darwin_mapper_initable_iface_init (gpointer g_iface,
-    gpointer iface_data);
 static void gum_darwin_mapper_constructed (GObject * object);
-static gboolean gum_darwin_mapper_initable_init (GInitable * initable,
-    GCancellable * cancellable, GError ** error);
 static void gum_darwin_mapper_finalize (GObject * object);
 static void gum_darwin_mapper_get_property (GObject * object, guint property_id,
     GValue * value, GParamSpec * pspec);
@@ -127,8 +122,6 @@ static void gum_darwin_mapper_set_property (GObject * object, guint property_id,
 static GumDarwinMapper * gum_darwin_mapper_new_from_file_with_parent (
     GumDarwinMapper * parent, const gchar * path,
     GumDarwinModuleResolver * resolver, GError ** error);
-static gboolean gum_darwin_mapper_init_dependencies (GumDarwinMapper * self,
-    GError ** error);
 static gsize gum_darwin_mapper_get_footprint_budget (GumDarwinMapper * self);
 static void gum_darwin_mapper_discard_footprint_budget (GumDarwinMapper * self);
 static void gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self);
@@ -178,12 +171,7 @@ static gboolean gum_darwin_mapper_bind_items (GumDarwinMapper * self,
 
 static void gum_darwin_mapping_free (GumDarwinMapping * self);
 
-G_DEFINE_TYPE_EXTENDED (GumDarwinMapper,
-                        gum_darwin_mapper,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
-                            gum_darwin_mapper_initable_iface_init))
+G_DEFINE_TYPE (GumDarwinMapper, gum_darwin_mapper, G_TYPE_OBJECT)
 
 /* Compiled from helpers/fixupchainprocessor.c */
 const guint32 gum_fixup_chain_processor_code[] = {
@@ -257,15 +245,6 @@ gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
 }
 
 static void
-gum_darwin_mapper_initable_iface_init (gpointer g_iface,
-                                       gpointer iface_data)
-{
-  GInitableIface * iface = g_iface;
-
-  iface->init = gum_darwin_mapper_initable_init;
-}
-
-static void
 gum_darwin_mapper_init (GumDarwinMapper * self)
 {
   self->mapped = FALSE;
@@ -288,19 +267,6 @@ gum_darwin_mapper_constructed (GObject * object)
 
     gum_darwin_mapper_add_pending_mapping (parent, self->name, self);
   }
-}
-
-static gboolean
-gum_darwin_mapper_initable_init (GInitable * initable,
-                                 GCancellable * cancellable,
-                                 GError ** error)
-{
-  GumDarwinMapper * self = GUM_DARWIN_MAPPER (initable);
-
-  if (!gum_darwin_mapper_init_dependencies (self, error))
-    return FALSE;
-
-  return TRUE;
 }
 
 static void
@@ -409,11 +375,16 @@ gum_darwin_mapper_new_take_blob (const gchar * name,
   if (module->name == NULL)
     g_object_set (module, "name", name, NULL);
 
-  mapper = g_initable_new (GUM_DARWIN_TYPE_MAPPER, NULL, error,
+  mapper = g_object_new (GUM_DARWIN_TYPE_MAPPER,
       "name", name,
       "module", module,
       "resolver", resolver,
       NULL);
+  if (!gum_darwin_mapper_load (mapper, error))
+  {
+    g_object_unref (mapper);
+    mapper = NULL;
+  }
 
   g_object_unref (module);
   g_bytes_unref (blob);
@@ -446,14 +417,17 @@ gum_darwin_mapper_new_from_file_with_parent (GumDarwinMapper * parent,
   if (module->name == NULL)
     g_object_set (module, "name", path, NULL);
 
-  mapper = g_initable_new (GUM_DARWIN_TYPE_MAPPER, NULL, error,
+  mapper = g_object_new (GUM_DARWIN_TYPE_MAPPER,
       "name", path,
       "module", module,
       "resolver", resolver,
       "parent", parent,
       NULL);
-  if (mapper == NULL)
-    goto beach;
+  if (!gum_darwin_mapper_load (mapper, error))
+  {
+    g_object_unref (mapper);
+    mapper = NULL;
+  }
 
 beach:
   g_clear_object (&module);
@@ -461,13 +435,16 @@ beach:
   return mapper;
 }
 
-static gboolean
-gum_darwin_mapper_init_dependencies (GumDarwinMapper * self,
-                                     GError ** error)
+gboolean
+gum_darwin_mapper_load (GumDarwinMapper * self,
+                        GError ** error)
 {
   GumDarwinModule * module = self->module;
   GPtrArray * dependencies;
   guint i;
+
+  if (self->dependencies != NULL)
+    return TRUE;
 
   self->dependencies = g_ptr_array_sized_new (5);
 
@@ -777,7 +754,7 @@ beach:
 
 mach_failure:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
         "Unexpected error while mapping dylib (%s returned '%s')",
         failed_operation, mach_error_string (kr));
     return FALSE;
@@ -1757,7 +1734,7 @@ gum_darwin_mapper_get_dependency_by_ordinal (GumDarwinMapper * self,
 
 invalid_ordinal:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_DATA,
         "Malformed dependency ordinal");
     return NULL;
   }
@@ -2003,7 +1980,7 @@ gum_darwin_mapper_rebase (const GumDarwinRebaseDetails * details,
 invalid_data:
   {
     ctx->success = FALSE;
-    g_set_error (ctx->error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+    g_set_error (ctx->error, GUM_ERROR, GUM_ERROR_INVALID_DATA,
         "Malformed rebase entry");
     return FALSE;
   }
@@ -2036,7 +2013,7 @@ gum_darwin_mapper_bind (const GumDarwinBindDetails * details,
 invalid_data:
   {
     ctx->success = FALSE;
-    g_set_error (ctx->error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+    g_set_error (ctx->error, GUM_ERROR, GUM_ERROR_INVALID_DATA,
         "Malformed bind entry");
     return FALSE;
   }
@@ -2115,7 +2092,7 @@ gum_darwin_mapper_bind_pointer (GumDarwinMapper * self,
 
 invalid_data:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_DATA,
         "Malformed bind entry");
     return FALSE;
   }
@@ -2127,14 +2104,14 @@ symbol_not_found:
   {
     if (dependency != NULL)
     {
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
           "Unable to bind, “%s” not found in “%s”",
           gum_symbol_name_from_darwin (bind->symbol_name),
           dependency->module->name);
     }
     else
     {
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
           "Unable to bind, “%s” cannot be resolved through flat lookup",
           gum_symbol_name_from_darwin (bind->symbol_name));
     }
@@ -2257,7 +2234,7 @@ gum_darwin_mapper_bind_items (GumDarwinMapper * self,
 
 invalid_data:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_DATA,
         "Malformed bind items");
     return FALSE;
   }

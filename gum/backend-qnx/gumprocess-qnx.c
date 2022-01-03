@@ -11,7 +11,6 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <gio/gio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -445,7 +444,7 @@ gum_module_load (const gchar * module_name,
 
 not_found:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "%s", dlerror ());
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND, "%s", dlerror ());
     return FALSE;
   }
 }
@@ -809,7 +808,7 @@ gum_linux_cpu_type_from_file (const gchar * path,
       result = GUM_CPU_ARM64;
       break;
     default:
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
           "Unsupported executable");
       break;
   }

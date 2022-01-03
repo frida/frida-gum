@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,7 +8,6 @@
 
 #include "gumwindows.h"
 
-#include <gio/gio.h>
 #include <intrin.h>
 #include <psapi.h>
 #include <tchar.h>
@@ -506,7 +505,7 @@ gum_module_load (const gchar * module_name,
 
 not_found:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
         "LoadLibrary failed: 0x%08lx", GetLastError ());
     return FALSE;
   }

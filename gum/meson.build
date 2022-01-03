@@ -295,7 +295,7 @@ gum = library('frida-gum-' + api_version, gum_sources + gum_enums,
   c_args: frida_component_cflags,
   include_directories: gum_incdirs,
   link_args: extra_libs_private,
-  dependencies: [glib_dep, gobject_dep, gio_dep, ffi_dep, capstone_dep, threads_dep] + extra_deps,
+  dependencies: [glib_dep, gobject_dep, ffi_dep, capstone_dep, threads_dep] + extra_deps,
   install: true,
 )
 
@@ -322,7 +322,7 @@ endif
 gum_dep = declare_dependency(link_with: gum,
   include_directories: gum_incdirs,
   link_args: extra_libs_private,
-  dependencies: [glib_dep, gobject_dep, gio_dep, capstone_dep, gum_enums_dep],
+  dependencies: [glib_dep, gobject_dep, capstone_dep, gum_enums_dep],
 )
 
 pkg = import('pkgconfig')

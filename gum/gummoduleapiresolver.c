@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -11,7 +11,6 @@
 #include "gumprocess.h"
 
 #include <string.h>
-#include <gio/gio.h>
 
 typedef struct _GumModuleMetadata GumModuleMetadata;
 typedef struct _GumFunctionMetadata GumFunctionMetadata;
@@ -312,7 +311,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
 invalid_query:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "invalid query; format is: "
         "exports:*!open*, exports:libc.so!* or imports:notepad.exe!*");
   }

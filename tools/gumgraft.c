@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -107,7 +107,7 @@ main (int argc,
   gum_darwin_grafter_graft (grafter, &error);
   if (error != NULL)
   {
-    if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS))
+    if (g_error_matches (error, GUM_ERROR, GUM_ERROR_EXISTS))
     {
       g_print ("%s: Already grafted. Assuming it contains the desired "
           "instrumentation.\n", input_path);

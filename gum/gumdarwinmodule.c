@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,8 +12,6 @@
 #endif
 #include "gumleb.h"
 #include "gumkernel.h"
-
-#include <gio/gio.h>
 
 #define GUM_MAX_MACHO_METADATA_SIZE   (64 * 1024)
 
@@ -234,11 +232,7 @@ struct _GumChainedPtrArm64eAuthBind
 # pragma warning (pop)
 #endif
 
-static void gum_darwin_module_initable_iface_init (gpointer g_iface,
-    gpointer iface_data);
 static void gum_darwin_module_constructed (GObject * object);
-static gboolean gum_darwin_module_initable_init (GInitable * initable,
-    GCancellable * cancellable, GError ** error);
 static void gum_darwin_module_finalize (GObject * object);
 static void gum_darwin_module_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
@@ -304,12 +298,7 @@ static GumPtrauthSupport gum_ptrauth_support_from_darwin (
     GumDarwinCpuType cpu_type, GumDarwinCpuSubtype cpu_subtype);
 static guint gum_pointer_size_from_cpu_type (GumDarwinCpuType cpu_type);
 
-G_DEFINE_TYPE_EXTENDED (GumDarwinModule,
-                        gum_darwin_module,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
-                            gum_darwin_module_initable_iface_init))
+G_DEFINE_TYPE (GumDarwinModule, gum_darwin_module, G_TYPE_OBJECT)
 
 static void
 gum_darwin_module_class_init (GumDarwinModuleClass * klass)
@@ -356,15 +345,6 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
 }
 
 static void
-gum_darwin_module_initable_iface_init (gpointer g_iface,
-                                       gpointer iface_data)
-{
-  GInitableIface * iface = g_iface;
-
-  iface->init = gum_darwin_module_initable_init;
-}
-
-static void
 gum_darwin_module_init (GumDarwinModule * self)
 {
   self->segments = g_array_new (FALSE, FALSE, sizeof (GumDarwinSegment));
@@ -385,47 +365,6 @@ gum_darwin_module_constructed (GObject * object)
     self->is_kernel = self->task == gum_kernel_get_task ();
   }
 #endif
-}
-
-static gboolean
-gum_darwin_module_initable_init (GInitable * initable,
-                                 GCancellable * cancellable,
-                                 GError ** error)
-{
-  GumDarwinModule * self = GUM_DARWIN_MODULE (initable);
-
-  if (self->source_path != NULL)
-  {
-    if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self))
-    {
-      if (!gum_darwin_module_load_image_header_from_filesystem (self,
-          self->source_path, error))
-      {
-        return FALSE;
-      }
-    }
-    else
-    {
-      if (!gum_darwin_module_load_image_from_filesystem (self,
-          self->source_path, error))
-      {
-        return FALSE;
-      }
-    }
-  }
-  else if (self->source_blob != NULL)
-  {
-    if (!gum_darwin_module_load_image_from_blob (self, self->source_blob,
-        error))
-    {
-      return FALSE;
-    }
-  }
-
-  if (self->name == NULL)
-    return gum_darwin_module_ensure_image_loaded (self, error);
-
-  return TRUE;
 }
 
 static void
@@ -549,12 +488,21 @@ gum_darwin_module_new_from_file (const gchar * path,
                                  GumDarwinModuleFlags flags,
                                  GError ** error)
 {
-  return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
+  GumDarwinModule * module;
+
+  module = g_object_new (GUM_TYPE_DARWIN_MODULE,
       "cpu-type", cpu_type,
       "ptrauth-support", ptrauth_support,
       "source-path", path,
       "flags", flags,
       NULL);
+  if (!gum_darwin_module_load (module, error))
+  {
+    g_object_unref (module);
+    module = NULL;
+  }
+
+  return module;
 }
 
 GumDarwinModule *
@@ -564,12 +512,21 @@ gum_darwin_module_new_from_blob (GBytes * blob,
                                  GumDarwinModuleFlags flags,
                                  GError ** error)
 {
-  return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
+  GumDarwinModule * module;
+
+  module = g_object_new (GUM_TYPE_DARWIN_MODULE,
       "cpu-type", cpu_type,
       "ptrauth-support", ptrauth_support,
       "source-blob", blob,
       "flags", flags,
       NULL);
+  if (!gum_darwin_module_load (module, error))
+  {
+    g_object_unref (module);
+    module = NULL;
+  }
+
+  return module;
 }
 
 GumDarwinModule *
@@ -579,12 +536,62 @@ gum_darwin_module_new_from_memory (const gchar * name,
                                    GumDarwinModuleFlags flags,
                                    GError ** error)
 {
-  return g_initable_new (GUM_TYPE_DARWIN_MODULE, NULL, error,
+  GumDarwinModule * module;
+
+  module = g_object_new (GUM_TYPE_DARWIN_MODULE,
       "name", name,
       "task", task,
       "base-address", base_address,
       "flags", flags,
       NULL);
+  if (!gum_darwin_module_load (module, error))
+  {
+    g_object_unref (module);
+    module = NULL;
+  }
+
+  return module;
+}
+
+gboolean
+gum_darwin_module_load (GumDarwinModule * self,
+                        GError ** error)
+{
+  if (self->image != NULL)
+    return TRUE;
+
+  if (self->source_path != NULL)
+  {
+    if (GUM_DARWIN_MODULE_HAS_HEADER_ONLY (self))
+    {
+      if (!gum_darwin_module_load_image_header_from_filesystem (self,
+          self->source_path, error))
+      {
+        return FALSE;
+      }
+    }
+    else
+    {
+      if (!gum_darwin_module_load_image_from_filesystem (self,
+          self->source_path, error))
+      {
+        return FALSE;
+      }
+    }
+  }
+  else if (self->source_blob != NULL)
+  {
+    if (!gum_darwin_module_load_image_from_blob (self, self->source_blob,
+        error))
+    {
+      return FALSE;
+    }
+  }
+
+  if (self->name == NULL)
+    return gum_darwin_module_ensure_image_loaded (self, error);
+
+  return TRUE;
 }
 
 static guint8 *
@@ -2138,13 +2145,13 @@ gum_darwin_module_get_header_offset_size (GumDarwinModule * self,
 
 invalid_blob:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Invalid Mach-O image");
     return FALSE;
   }
 incompatible_image:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Incompatible Mach-O image");
     return FALSE;
   }
@@ -2284,7 +2291,7 @@ invalid_blob:
   {
     gum_darwin_module_image_free (image);
 
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Invalid Mach-O image");
     return FALSE;
   }
@@ -2292,7 +2299,7 @@ incompatible_image:
   {
     gum_darwin_module_image_free (image);
 
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Incompatible Mach-O image");
     return FALSE;
   }
@@ -2325,7 +2332,7 @@ gum_darwin_module_load_image_from_memory (GumDarwinModule * self,
 
 invalid_task:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Process is dead");
     return FALSE;
   }
@@ -2621,7 +2628,7 @@ beach:
     self->image = NULL;
     gum_darwin_module_image_free (image);
 
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Invalid Mach-O image");
   }
 

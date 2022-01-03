@@ -378,6 +378,9 @@ GUM_API GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
     GumDarwinPort task, GumAddress base_address, GumDarwinModuleFlags flags,
     GError ** error);
 
+GUM_API gboolean gum_darwin_module_load (GumDarwinModule * self,
+    GError ** error);
+
 GUM_API gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
     const gchar * symbol, GumDarwinExportDetails * details);
 GUM_API GumAddress gum_darwin_module_resolve_symbol_address (

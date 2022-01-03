@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -37,6 +37,9 @@ struct _GumDarwinModuleResolver
 
 GUM_API GumDarwinModuleResolver * gum_darwin_module_resolver_new (
     mach_port_t task, GError ** error);
+
+GUM_API gboolean gum_darwin_module_resolver_load (
+    GumDarwinModuleResolver * self, GError ** error);
 
 GUM_API void gum_darwin_module_resolver_set_dynamic_lookup_handler (
     GumDarwinModuleResolver * self, GumDarwinModuleResolverLookupFunc func,

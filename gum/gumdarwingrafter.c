@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -368,7 +368,7 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
 
 already_grafted:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_EXISTS, "Already grafted");
+    g_set_error (error, GUM_ERROR, GUM_ERROR_EXISTS, "Already grafted");
     goto beach;
   }
 nothing_to_instrument:
@@ -378,7 +378,7 @@ nothing_to_instrument:
   }
 io_error:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
         "%s", strerror (errno));
   }
 beach:
@@ -543,7 +543,7 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
 
 invalid_data:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Invalid Mach-O image");
     goto beach;
   }

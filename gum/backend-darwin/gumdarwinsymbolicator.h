@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,6 +21,9 @@ GUM_API GumDarwinSymbolicator * gum_darwin_symbolicator_new_with_path (
     const gchar * path, GumCpuType cpu_type, GError ** error);
 GUM_API GumDarwinSymbolicator * gum_darwin_symbolicator_new_with_task (
     mach_port_t task, GError ** error);
+
+GUM_API gboolean gum_darwin_symbolicator_load (GumDarwinSymbolicator * self,
+    GError ** error);
 
 GUM_API gboolean gum_darwin_symbolicator_details_from_address (
     GumDarwinSymbolicator * self, GumAddress address,

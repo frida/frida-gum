@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,7 +25,6 @@
 
 #include <ffi.h>
 #include <glib-object.h>
-#include <gio/gio.h>
 #include <stdarg.h>
 #if defined (HAVE_ARM) && defined (HAVE_LINUX)
 # include <stdlib.h>
@@ -126,6 +125,8 @@ static GPrivate gum_internal_thread_details_key = G_PRIVATE_INIT (
 
 static GumInterceptor * gum_cached_interceptor = NULL;
 
+G_DEFINE_QUARK (gum-error-quark, gum_error)
+
 G_DEFINE_BOXED_TYPE (GumAddress, gum_address, gum_address_copy,
     gum_address_free)
 
@@ -180,7 +181,6 @@ gum_do_init (void)
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
   gobject_init ();
-  gio_init ();
 #endif
 
   cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
@@ -313,7 +313,6 @@ gum_deinit_embedded (void)
 
   gum_shutdown ();
 #ifdef HAVE_FRIDA_GLIB
-  gio_shutdown ();
   glib_shutdown ();
 #endif
 
@@ -321,7 +320,6 @@ gum_deinit_embedded (void)
 
   gum_deinit ();
 #ifdef HAVE_FRIDA_GLIB
-  gio_deinit ();
   glib_deinit ();
 #endif
 #ifdef HAVE_FRIDA_LIBFFI

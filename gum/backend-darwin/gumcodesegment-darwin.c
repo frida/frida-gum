@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,7 +15,6 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <gio/gio.h>
 #include <mach-o/loader.h>
 #include <math.h>
 #include <string.h>
@@ -365,7 +364,7 @@ gum_code_segment_mark (gpointer code,
 
     if (kr != KERN_SUCCESS)
     {
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+      g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
           "Unable to mark code (substrated returned %d)", kr);
       return FALSE;
     }
@@ -378,7 +377,7 @@ fallback:
   {
     if (!gum_try_mprotect (code, size, GUM_PAGE_RX))
     {
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+      g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
           "Invalid address");
       return FALSE;
     }

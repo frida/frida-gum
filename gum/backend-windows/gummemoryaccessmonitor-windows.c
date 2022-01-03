@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Eloi Vanderbeken <eloi.vanderbeken@synacktiv.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,7 +10,6 @@
 #include "gumexceptor.h"
 #include "gumwindows.h"
 
-#include <gio/gio.h>
 #ifndef WIN32_LEAN_AND_MEAN
 # define WIN32_LEAN_AND_MEAN
 #endif
@@ -207,13 +206,13 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
 
 error_invalid_pages:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "One or more pages are unallocated");
     return FALSE;
   }
 error_guarded_pages:
   {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "One or more pages already have the guard bit set");
     return FALSE;
   }
