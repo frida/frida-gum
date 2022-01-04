@@ -108,6 +108,10 @@ endif
 cdata = configuration_data()
 cdata.set_quoted('GUM_VERSION', gum_version)
 
+if get_option('default_library') == 'static'
+  cdata.set('GUM_STATIC', 1)
+endif
+
 diet = get_option('diet')
 if diet
   cdata.set('GUM_DIET', 1)
@@ -290,6 +294,10 @@ extra_requires_private = []
 extra_cflags = []
 extra_libs_private = []
 extra_gir_args_private = []
+
+if get_option('default_library') == 'static'
+  extra_cflags += '-DGUM_STATIC'
+endif
 
 if diet
   extra_cflags += '-DGUM_DIET'

@@ -129,8 +129,14 @@
 /* Define to 1 if Java bridge is available. */
 #mesondefine HAVE_JAVA_BRIDGE
 
+/* Define to 1 if OS is Windows based. */
+#mesondefine HAVE_WINDOWS
+
 /* Define to 1 if optimizing for minimal footprint. */
 #mesondefine GUM_DIET
+
+/* Define to 1 if building a static library. */
+#mesondefine GUM_STATIC
 
 /* Define to 1 if the system's memory allocator should be used. */
 #mesondefine GUM_USE_SYSTEM_ALLOC
