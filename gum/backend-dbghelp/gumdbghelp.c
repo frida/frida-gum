@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -24,9 +24,9 @@ static void gum_dbghelp_impl_lock (void);
 static void gum_dbghelp_impl_unlock (void);
 
 #define INIT_IMPL_FUNC(func) \
-    *((gpointer *) (&impl->##func)) = \
+    *((gpointer *) (&impl->func)) = \
         GSIZE_TO_POINTER (GetProcAddress (mod, G_STRINGIFY (func))); \
-    g_assert (impl->##func != NULL)
+    g_assert (impl->func != NULL)
 
 GumDbghelpImpl *
 gum_dbghelp_impl_try_obtain (void)

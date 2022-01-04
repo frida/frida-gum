@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -17,12 +17,8 @@
 
 typedef struct _GumSymbolInfo GumSymbolInfo;
 
-#ifdef _MSC_VER
-# pragma pack(push)
-# pragma pack(1)
-#else
-# error Fix this for other compilers
-#endif
+#pragma pack(push)
+#pragma pack(1)
 
 struct _GumSymbolInfo
 {
@@ -30,9 +26,7 @@ struct _GumSymbolInfo
   gchar sym_name_buf[GUM_MAX_SYMBOL_NAME + 1];
 };
 
-#ifdef _MSC_VER
-# pragma pack(pop)
-#endif
+#pragma pack(pop)
 
 static BOOL CALLBACK enum_functions_callback (SYMBOL_INFO * sym_info,
     gulong symbol_size, gpointer user_context);
