@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumstalker.h"
 
@@ -5797,3 +5799,5 @@ gum_count_trailing_zeros (guint16 value)
   return num_zeros;
 #endif
 }
+
+#endif

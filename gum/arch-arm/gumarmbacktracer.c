@@ -1,9 +1,11 @@
 /*
- * Copyright (C) 2013-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2013-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumarmbacktracer.h"
 
@@ -209,3 +211,5 @@ gum_arm_backtracer_generate (GumBacktracer * backtracer,
 
   return_addresses->len = i;
 }
+
+#endif
