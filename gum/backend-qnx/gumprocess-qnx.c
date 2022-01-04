@@ -765,33 +765,30 @@ gum_linux_cpu_type_from_file (const gchar * path,
                               GError ** error)
 {
   GumCpuType result = -1;
-  GFile * file;
-  GFileInputStream * base_stream;
-  GDataInputStream * stream = NULL;
-  GError * read_error;
+  FILE * file;
+  guint8 ei_data;
   guint16 e_machine;
 
-  file = g_file_new_for_path (path);
-
-  base_stream = g_file_read (file, NULL, error);
-  if (base_stream == NULL)
+  file = fopen (path, "rb");
+  if (file == NULL)
     goto beach;
 
-  if (!g_seekable_seek (G_SEEKABLE (base_stream), 0x12, G_SEEK_SET, NULL,
-      error))
+  if (fseek (file, EI_DATA, SEEK_SET) != 0)
+    goto beach;
+  if (fread (&ei_data, sizeof (ei_data), 1, file) != 1)
     goto beach;
 
-  stream = g_data_input_stream_new (G_INPUT_STREAM (base_stream));
-  g_data_input_stream_set_byte_order (stream,
-      G_DATA_STREAM_BYTE_ORDER_LITTLE_ENDIAN);
-
-  read_error = NULL;
-  e_machine = g_data_input_stream_read_uint16 (stream, NULL, &read_error);
-  if (read_error != NULL)
-  {
-    g_propagate_error (error, read_error);
+  if (fseek (file, 0x12, SEEK_SET) != 0)
     goto beach;
-  }
+  if (fread (&e_machine, sizeof (e_machine), 1, file) != 1)
+    goto beach;
+
+  if (ei_data == ELFDATA2LSB)
+    e_machine = GUINT16_FROM_LE (e_machine);
+  else if (ei_data == ELFDATA2MSB)
+    e_machine = GUINT16_FROM_BE (e_machine);
+  else
+    goto unsupported_ei_data;
 
   switch (e_machine)
   {
@@ -807,22 +804,34 @@ gum_linux_cpu_type_from_file (const gchar * path,
     case 0x00b7:
       result = GUM_CPU_ARM64;
       break;
-    default:
-      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
-          "Unsupported executable");
+    case 0x0008:
+      result = GUM_CPU_MIPS;
       break;
+    default:
+      goto unsupported_executable;
   }
 
+  goto beach;
+
+unsupported_ei_data:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+        "Unsupported ELF EI_DATA");
+    goto beach;
+  }
+unsupported_executable:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+        "Unsupported executable");
+    goto beach;
+  }
 beach:
-  if (stream != NULL)
-    g_object_unref (stream);
+  {
+    if (file != NULL)
+      fclose (file);
 
-  if (base_stream != NULL)
-    g_object_unref (base_stream);
-
-  g_object_unref (file);
-
-  return result;
+    return result;
+  }
 }
 
 GumCpuType

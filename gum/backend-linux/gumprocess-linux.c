@@ -1772,59 +1772,30 @@ gum_linux_cpu_type_from_file (const gchar * path,
                               GError ** error)
 {
   GumCpuType result = -1;
-  GFile * file;
-  GFileInputStream * base_stream;
-  GDataInputStream * stream = NULL;
-  GError * read_error = NULL;
-  guchar ei_data;
-  GDataStreamByteOrder byte_order;
+  FILE * file;
+  guint8 ei_data;
   guint16 e_machine;
 
-  file = g_file_new_for_path (path);
-
-  base_stream = g_file_read (file, NULL, error);
-  if (base_stream == NULL)
+  file = fopen (path, "rb");
+  if (file == NULL)
     goto beach;
 
-  if (!g_seekable_seek (G_SEEKABLE (base_stream), EI_DATA, G_SEEK_SET, NULL,
-      error))
+  if (fseek (file, EI_DATA, SEEK_SET) != 0)
+    goto beach;
+  if (fread (&ei_data, sizeof (ei_data), 1, file) != 1)
     goto beach;
 
-  stream = g_data_input_stream_new (G_INPUT_STREAM (base_stream));
-
-  ei_data = g_data_input_stream_read_byte (stream, NULL, &read_error);
-  if (read_error != NULL)
-  {
-    g_propagate_error (error, read_error);
+  if (fseek (file, 0x12, SEEK_SET) != 0)
     goto beach;
-  }
-
-  switch (ei_data)
-  {
-    case ELFDATA2LSB:
-      byte_order = G_DATA_STREAM_BYTE_ORDER_LITTLE_ENDIAN;
-      break;
-    case ELFDATA2MSB:
-      byte_order = G_DATA_STREAM_BYTE_ORDER_BIG_ENDIAN;
-      break;
-    default:
-      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
-          "Unsupported ELF EI_DATA");
-      goto beach;
-  }
-
-  if (!g_seekable_seek (G_SEEKABLE (base_stream), 0x12, G_SEEK_SET, NULL,
-      error))
+  if (fread (&e_machine, sizeof (e_machine), 1, file) != 1)
     goto beach;
 
-  g_data_input_stream_set_byte_order (stream, byte_order);
-
-  e_machine = g_data_input_stream_read_uint16 (stream, NULL, &read_error);
-  if (read_error != NULL)
-  {
-    g_propagate_error (error, read_error);
-    goto beach;
-  }
+  if (ei_data == ELFDATA2LSB)
+    e_machine = GUINT16_FROM_LE (e_machine);
+  else if (ei_data == ELFDATA2MSB)
+    e_machine = GUINT16_FROM_BE (e_machine);
+  else
+    goto unsupported_ei_data;
 
   switch (e_machine)
   {
@@ -1844,21 +1815,30 @@ gum_linux_cpu_type_from_file (const gchar * path,
       result = GUM_CPU_MIPS;
       break;
     default:
-      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
-          "Unsupported executable");
-      break;
+      goto unsupported_executable;
   }
 
+  goto beach;
+
+unsupported_ei_data:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+        "Unsupported ELF EI_DATA");
+    goto beach;
+  }
+unsupported_executable:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+        "Unsupported executable");
+    goto beach;
+  }
 beach:
-  if (stream != NULL)
-    g_object_unref (stream);
+  {
+    if (file != NULL)
+      fclose (file);
 
-  if (base_stream != NULL)
-    g_object_unref (base_stream);
-
-  g_object_unref (file);
-
-  return result;
+    return result;
+  }
 }
 
 GumCpuType
