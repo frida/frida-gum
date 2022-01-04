@@ -336,6 +336,10 @@ if cc.has_function('pthread_attr_getstack',
   cdata.set('HAVE_PTHREAD_ATTR_GETSTACK', 1)
 endif
 
+if host_os_family == 'windows'
+  extra_deps += cc.find_library('psapi')
+endif
+
 if host_os == 'linux'
   if host_arch == 'arm' and cc.has_member('mcontext_t', 'gregs', prefix: '#include <ucontext.h>')
     cdata.set('HAVE_LEGACY_MCONTEXT', 1)
