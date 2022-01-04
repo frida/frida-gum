@@ -488,6 +488,14 @@ add_project_arguments(
   '-DG_DISABLE_DEPRECATED',
   language: languages)
 
+if host_os_family == 'windows'
+  add_project_arguments(
+    '-DWINVER=0x0501',
+    '-D_WIN32_WINNT=0x0501',
+    '-DPSAPI_VERSION=1',
+    language: languages)
+endif
+
 if host_os_family == 'linux'
   add_project_arguments('-D_GNU_SOURCE=1', language: languages)
 endif
