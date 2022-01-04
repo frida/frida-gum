@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumexceptorbackend.h"
 
@@ -738,5 +740,7 @@ gum_infer_arm64_memory_operation (cs_insn * insn)
       return GUM_MEMOP_READ;
   }
 }
+
+#endif
 
 #endif

@@ -7,6 +7,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#ifndef GUM_DIET
+
 #include "gumobjcapiresolver.h"
 
 #include "guminterceptor.h"
@@ -585,3 +587,4 @@ gum_objc_class_metadata_is_disposed (GumObjcClassMetadata * self)
   return resolver->objc_lookUpClass (self->name) != self->handle;
 }
 
+#endif

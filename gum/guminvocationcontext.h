@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,7 +9,6 @@
 
 #include "gumprocess.h"
 
-#include <glib-object.h>
 #include <gum/gumdefs.h>
 
 #define GUM_IC_GET_THREAD_DATA(context, data_type) \
@@ -50,7 +49,7 @@ struct _GumInvocationBackend
 
 struct _GumInvocationContext
 {
-  GCallback function;
+  gpointer function;
   GumCpuContext * cpu_context;
   gint system_error;
 

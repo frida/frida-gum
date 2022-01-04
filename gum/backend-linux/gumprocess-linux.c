@@ -1488,10 +1488,10 @@ gum_module_enumerate_imports (const gchar * module_name,
   gum_elf_module_enumerate_imports (module, gum_emit_import, &ctx);
 
   if (ctx.module_map != NULL)
-    g_object_unref (ctx.module_map);
+    gum_object_unref (ctx.module_map);
   g_hash_table_unref (ctx.dependency_exports);
 
-  g_object_unref (module);
+  gum_object_unref (module);
 }
 
 static gboolean
@@ -1546,7 +1546,7 @@ gum_collect_dependency_exports (const GumElfDependencyDetails * details,
   ctx->current_dependency = module;
   gum_elf_module_enumerate_exports (module, gum_collect_dependency_export, ctx);
   ctx->current_dependency = NULL;
-  g_object_unref (module);
+  gum_object_unref (module);
 
   return TRUE;
 }
@@ -1596,7 +1596,7 @@ gum_module_enumerate_exports (const gchar * module_name,
   if (module == NULL)
     return;
   gum_elf_module_enumerate_exports (module, func, user_data);
-  g_object_unref (module);
+  gum_object_unref (module);
 }
 
 void
@@ -1625,7 +1625,7 @@ gum_module_enumerate_symbols (const gchar * module_name,
 
   g_array_free (ctx.sections, TRUE);
 
-  g_object_unref (module);
+  gum_object_unref (module);
 }
 
 static gboolean

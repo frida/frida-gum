@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,7 +8,6 @@
 #ifndef __GUM_MEMORY_H__
 #define __GUM_MEMORY_H__
 
-#include <glib-object.h>
 #include <gum/gumdefs.h>
 
 #define GUM_TYPE_MEMORY_RANGE (gum_memory_range_get_type ())
@@ -158,7 +157,9 @@ GUM_API gboolean gum_memory_decommit (gpointer address, gsize size);
 GUM_API gboolean gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,
     gconstpointer address);
 
+#ifndef GUM_DIET
 GUM_API GType gum_memory_range_get_type (void) G_GNUC_CONST;
+#endif
 GUM_API GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
 GUM_API void gum_memory_range_free (GumMemoryRange * range);
 

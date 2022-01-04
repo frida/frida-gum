@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2010 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -9,7 +9,6 @@
 #define __GUM_STALKER_H__
 
 #include <capstone.h>
-#include <glib-object.h>
 #include <gum/arch-x86/gumx86writer.h>
 #include <gum/arch-arm/gumarmwriter.h>
 #include <gum/arch-arm/gumthumbwriter.h>
@@ -22,26 +21,26 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_STALKER (gum_stalker_get_type ())
-G_DECLARE_FINAL_TYPE (GumStalker, gum_stalker, GUM, STALKER, GObject)
+GUM_DECLARE_FINAL_TYPE (GumStalker, gum_stalker, GUM, STALKER, GObject)
 
 #define GUM_TYPE_STALKER_TRANSFORMER (gum_stalker_transformer_get_type ())
-G_DECLARE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer, GUM,
+GUM_DECLARE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer, GUM,
     STALKER_TRANSFORMER, GObject)
 
 #define GUM_TYPE_DEFAULT_STALKER_TRANSFORMER \
     (gum_default_stalker_transformer_get_type ())
-G_DECLARE_FINAL_TYPE (GumDefaultStalkerTransformer,
+GUM_DECLARE_FINAL_TYPE (GumDefaultStalkerTransformer,
     gum_default_stalker_transformer, GUM, DEFAULT_STALKER_TRANSFORMER,
     GObject)
 
 #define GUM_TYPE_CALLBACK_STALKER_TRANSFORMER \
     (gum_callback_stalker_transformer_get_type ())
-G_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
+GUM_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
     gum_callback_stalker_transformer, GUM, CALLBACK_STALKER_TRANSFORMER,
     GObject)
 
 #define GUM_TYPE_STALKER_OBSERVER (gum_stalker_observer_get_type ())
-G_DECLARE_INTERFACE (GumStalkerObserver, gum_stalker_observer, GUM,
+GUM_DECLARE_INTERFACE (GumStalkerObserver, gum_stalker_observer, GUM,
     STALKER_OBSERVER, GObject)
 
 typedef struct _GumStalkerIterator GumStalkerIterator;
@@ -63,6 +62,8 @@ typedef guint GumProbeId;
 typedef struct _GumCallDetails GumCallDetails;
 typedef void (* GumCallProbeCallback) (GumCallDetails * details,
     gpointer user_data);
+
+#ifndef GUM_DIET
 
 struct _GumStalkerTransformerInterface
 {
@@ -126,6 +127,8 @@ struct _GumStalkerObserverInterface
 
   GumStalkerSwitchCallbackFunc switch_callback;
 };
+
+#endif
 
 union _GumStalkerWriter
 {

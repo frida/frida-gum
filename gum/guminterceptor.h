@@ -8,20 +8,14 @@
 #ifndef __GUM_INTERCEPTOR_H__
 #define __GUM_INTERCEPTOR_H__
 
-#include <glib-object.h>
 #include <gum/gumdefs.h>
 #include <gum/guminvocationlistener.h>
 
 G_BEGIN_DECLS
 
-#ifndef GUM_DIET
-# define GUM_TYPE_INTERCEPTOR (gum_interceptor_get_type ())
-G_DECLARE_FINAL_TYPE (GumInterceptor, gum_interceptor, GUM, INTERCEPTOR,
+#define GUM_TYPE_INTERCEPTOR (gum_interceptor_get_type ())
+GUM_DECLARE_FINAL_TYPE (GumInterceptor, gum_interceptor, GUM, INTERCEPTOR,
     GObject)
-#else
-# define GUM_INTERCEPTOR(o) ((GumInterceptor *) (o))
-typedef struct _GumInterceptor GumInterceptor;
-#endif
 
 typedef GArray GumInvocationStack;
 typedef guint GumInvocationState;

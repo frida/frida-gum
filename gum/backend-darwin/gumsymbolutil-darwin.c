@@ -15,9 +15,8 @@
 #ifndef GUM_DIET
 # define GUM_TYPE_SYMBOL_CACHE_INVALIDATOR \
     (gum_symbol_cache_invalidator_get_type ())
-G_DECLARE_FINAL_TYPE (GumSymbolCacheInvalidator, gum_symbol_cache_invalidator,
+GUM_DECLARE_FINAL_TYPE (GumSymbolCacheInvalidator, gum_symbol_cache_invalidator,
     GUM, SYMBOL_CACHE_INVALIDATOR, GObject)
-#endif
 
 struct _GumSymbolCacheInvalidator
 {
@@ -27,6 +26,7 @@ struct _GumSymbolCacheInvalidator
 };
 
 static void do_deinit (void);
+#endif
 
 static GArray * gum_pointer_array_new_empty (void);
 static GArray * gum_pointer_array_new_take_addresses (GumAddress * addresses,
@@ -40,11 +40,9 @@ static void gum_symbol_cache_invalidator_stop (
     GumSymbolCacheInvalidator * self);
 static void gum_symbol_cache_invalidator_on_dyld_debugger_notification (
     GumInvocationListener * self, GumInvocationContext * context);
-#endif
 
 G_LOCK_DEFINE_STATIC (symbolicator);
 static GumDarwinSymbolicator * symbolicator = NULL;
-#ifndef GUM_DIET
 static GumSymbolCacheInvalidator * invalidator = NULL;
 
 G_DEFINE_TYPE_EXTENDED (GumSymbolCacheInvalidator,
@@ -60,6 +58,7 @@ gum_try_obtain_symbolicator (void)
 {
   GumDarwinSymbolicator * result = NULL;
 
+#ifndef GUM_DIET
   G_LOCK (symbolicator);
 
   if (symbolicator == NULL)
@@ -68,22 +67,23 @@ gum_try_obtain_symbolicator (void)
         gum_darwin_symbolicator_new_with_task (mach_task_self (), NULL);
   }
 
-#ifndef GUM_DIET
   if (invalidator == NULL)
   {
     invalidator = g_object_new (GUM_TYPE_SYMBOL_CACHE_INVALIDATOR, NULL);
 
     _gum_register_early_destructor (do_deinit);
   }
-#endif
 
   if (symbolicator != NULL)
     result = g_object_ref (symbolicator);
 
   G_UNLOCK (symbolicator);
+#endif
 
   return result;
 }
+
+#ifndef GUM_DIET
 
 static void
 do_deinit (void)
@@ -92,13 +92,13 @@ do_deinit (void)
 
   g_clear_object (&symbolicator);
 
-#ifndef GUM_DIET
   gum_symbol_cache_invalidator_stop (invalidator);
   g_clear_object (&invalidator);
-#endif
 
   G_UNLOCK (symbolicator);
 }
+
+#endif
 
 gboolean
 gum_symbol_details_from_address (gpointer address,
@@ -113,7 +113,7 @@ gum_symbol_details_from_address (gpointer address,
   success = gum_darwin_symbolicator_details_from_address (symbolicator,
       GUM_ADDRESS (address), details);
 
-  g_object_unref (symbolicator);
+  gum_object_unref (symbolicator);
 
   return success;
 }
@@ -130,7 +130,7 @@ gum_symbol_name_from_address (gpointer address)
   name = gum_darwin_symbolicator_name_from_address (symbolicator,
       GUM_ADDRESS (address));
 
-  g_object_unref (symbolicator);
+  gum_object_unref (symbolicator);
 
   return name;
 }
@@ -147,7 +147,7 @@ gum_find_function (const gchar * name)
   address = GSIZE_TO_POINTER (
       gum_darwin_symbolicator_find_function (symbolicator, name));
 
-  g_object_unref (symbolicator);
+  gum_object_unref (symbolicator);
 
   return address;
 }
@@ -165,7 +165,7 @@ gum_find_functions_named (const gchar * name)
   addresses =
       gum_darwin_symbolicator_find_functions_named (symbolicator, name, &len);
 
-  g_object_unref (symbolicator);
+  gum_object_unref (symbolicator);
 
   return gum_pointer_array_new_take_addresses (addresses, len);
 }
@@ -183,7 +183,7 @@ gum_find_functions_matching (const gchar * str)
   addresses =
       gum_darwin_symbolicator_find_functions_matching (symbolicator, str, &len);
 
-  g_object_unref (symbolicator);
+  gum_object_unref (symbolicator);
 
   return gum_pointer_array_new_take_addresses (addresses, len);
 }

@@ -831,6 +831,7 @@ gum_module_find_export_by_name (const gchar * module_name,
     if (name == NULL)
       return 0;
 
+#ifndef GUM_DIET
     if (g_str_has_prefix (name, "/usr/lib/dyld"))
     {
       GumDarwinModuleResolver * resolver;
@@ -856,6 +857,7 @@ gum_module_find_export_by_name (const gchar * module_name,
 
       return result;
     }
+#endif
 
     module = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
 
@@ -1873,8 +1875,8 @@ gum_darwin_enumerate_imports (mach_port_t task,
         gum_resolve_export, &ctx);
   }
 
-  g_clear_object (&ctx.module_map);
-  g_object_unref (ctx.resolver);
+  gum_clear_object (&ctx.module_map);
+  gum_object_unref (ctx.resolver);
 }
 
 static gboolean
@@ -1990,7 +1992,7 @@ gum_darwin_enumerate_exports (mach_port_t task,
     }
   }
 
-  g_object_unref (ctx.resolver);
+  gum_object_unref (ctx.resolver);
 }
 
 static gboolean
@@ -2044,7 +2046,7 @@ gum_darwin_enumerate_symbols (mach_port_t task,
     g_array_free (ctx.sections, TRUE);
   }
 
-  g_object_unref (resolver);
+  gum_object_unref (resolver);
 }
 
 static gboolean

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -202,7 +202,9 @@ GUM_API GumAddress gum_module_find_symbol_by_name (const gchar * module_name,
 GUM_API const gchar * gum_code_signing_policy_to_string (
     GumCodeSigningPolicy policy);
 
+#ifndef GUM_DIET
 GUM_API GType gum_module_details_get_type (void) G_GNUC_CONST;
+#endif
 GUM_API GumModuleDetails * gum_module_details_copy (
     const GumModuleDetails * module);
 GUM_API void gum_module_details_free (GumModuleDetails * module);

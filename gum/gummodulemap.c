@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gummodulemap.h"
 
@@ -194,3 +196,5 @@ gum_module_details_compare_to_key (const GumAddress * key_ptr,
 
   return 0;
 }
+
+#endif

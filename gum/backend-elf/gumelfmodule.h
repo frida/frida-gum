@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,7 +13,7 @@
 G_BEGIN_DECLS
 
 #define GUM_ELF_TYPE_MODULE (gum_elf_module_get_type ())
-G_DECLARE_FINAL_TYPE (GumElfModule, gum_elf_module, GUM_ELF, MODULE, GObject)
+GUM_DECLARE_FINAL_TYPE (GumElfModule, gum_elf_module, GUM_ELF, MODULE, GObject)
 
 typedef struct _GumElfDependencyDetails GumElfDependencyDetails;
 typedef struct _GumElfSymbolDetails GumElfSymbolDetails;
@@ -40,7 +40,11 @@ typedef guchar GumElfSymbolBind;
 
 struct _GumElfModule
 {
+#ifndef GUM_DIET
   GObject parent;
+#else
+  GumObject parent;
+#endif
 
   gboolean valid;
   gchar * name;

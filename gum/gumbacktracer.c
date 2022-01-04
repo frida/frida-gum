@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -26,12 +26,16 @@
 # include "arch-mips/gummipsbacktracer.h"
 #endif
 
+#ifndef GUM_DIET
+
 G_DEFINE_INTERFACE (GumBacktracer, gum_backtracer, G_TYPE_OBJECT)
 
 static void
 gum_backtracer_default_init (GumBacktracerInterface * iface)
 {
 }
+
+#endif
 
 GumBacktracer *
 gum_backtracer_make_accurate (void)
@@ -83,10 +87,12 @@ gum_backtracer_generate_with_limit (GumBacktracer * self,
                                     GumReturnAddressArray * return_addresses,
                                     guint limit)
 {
+#ifndef GUM_DIET
   GumBacktracerInterface * iface = GUM_BACKTRACER_GET_IFACE (self);
 
   g_assert (iface->generate != NULL);
 
   iface->generate (self, cpu_context, return_addresses,
       limit);
+#endif
 }

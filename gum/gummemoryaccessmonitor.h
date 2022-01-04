@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,13 +7,12 @@
 #ifndef __GUM_MEMORY_ACCESS_MONITOR_H__
 #define __GUM_MEMORY_ACCESS_MONITOR_H__
 
-#include <glib-object.h>
 #include <gum/gummemory.h>
 
 G_BEGIN_DECLS
 
 #define GUM_TYPE_MEMORY_ACCESS_MONITOR (gum_memory_access_monitor_get_type ())
-G_DECLARE_FINAL_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor, GUM,
+GUM_DECLARE_FINAL_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor, GUM,
     MEMORY_ACCESS_MONITOR, GObject)
 
 typedef struct _GumMemoryAccessDetails GumMemoryAccessDetails;

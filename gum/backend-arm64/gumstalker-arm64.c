@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2019 John Coates <john@johncoates.dev>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumstalker.h"
 
@@ -4739,3 +4741,5 @@ gum_is_bl_imm (guint32 insn)
 {
   return (insn & ~GUM_INT26_MASK) == 0x94000000;
 }
+
+#endif

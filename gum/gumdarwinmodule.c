@@ -4,6 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#ifndef GUM_DIET
+
 #include "gumdarwinmodule.h"
 
 #include "gumdarwinmodule-priv.h"
@@ -3069,3 +3071,5 @@ gum_pointer_size_from_cpu_type (GumDarwinCpuType cpu_type)
       return 0;
   }
 }
+
+#endif

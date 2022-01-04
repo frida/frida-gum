@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C)      2021 Paul Schmidt <p.schmidt@tu-bs.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumelfmodule.h"
 
@@ -1017,3 +1019,5 @@ beach:
   return FALSE;
 #endif
 }
+
+#endif

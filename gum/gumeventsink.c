@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumeventsink.h"
 
@@ -209,3 +211,5 @@ gum_callback_event_sink_process (GumEventSink * sink,
 
   self->callback (event, cpu_context, self->data);
 }
+
+#endif

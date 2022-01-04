@@ -5,6 +5,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#ifndef GUM_DIET
+
 #include "gummoduleapiresolver.h"
 
 #include "gummodulemap.h"
@@ -420,3 +422,5 @@ gum_function_metadata_free (GumFunctionMetadata * function)
 
   g_slice_free (GumFunctionMetadata, function);
 }
+
+#endif

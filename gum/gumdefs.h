@@ -7,6 +7,7 @@
 #ifndef __GUMDEFS_H__
 #define __GUMDEFS_H__
 
+#include <glib.h>
 #include <gum/gumenumtypes.h>
 
 #if !defined (GUM_STATIC) && defined (G_OS_WIN32)
@@ -31,16 +32,6 @@ typedef enum {
   GUM_ERROR_NOT_SUPPORTED,
   GUM_ERROR_INVALID_DATA,
 } GumError;
-
-#ifdef GUM_DIET
-typedef struct _GumObject GumObject;
-
-struct _GumObject
-{
-  gint ref_count;
-  void (* finalize) (GumObject * object);
-};
-#endif
 
 typedef guint64 GumAddress;
 #define GUM_ADDRESS(a) ((GumAddress) (guintptr) (a))
@@ -494,12 +485,61 @@ enum _GumRelocationScenario
     (((gint64) (i)) >= (gint64) G_MININT32 && \
      ((gint64) (i)) <= (gint64) G_MAXINT32)
 
-GUM_API GQuark gum_error_quark (void);
+#ifndef GUM_DIET
 
-#ifdef GUM_DIET
+# define GUM_DECLARE_FINAL_TYPE(ModuleObjName, module_obj_name, MODULE, \
+      OBJ_NAME, ParentName) \
+    G_DECLARE_FINAL_TYPE (ModuleObjName, module_obj_name, MODULE, OBJ_NAME, \
+      ParentName)
+# define GUM_DECLARE_INTERFACE(ModuleObjName, module_obj_name, MODULE, \
+      OBJ_NAME, PrerequisiteName) \
+    G_DECLARE_INTERFACE (ModuleObjName, module_obj_name, MODULE, OBJ_NAME, \
+      PrerequisiteName)
+# define GUM_DEFINE_BOXED_TYPE(TypeName, type_name, copy_func, free_func) \
+    G_DEFINE_BOXED_TYPE (TypeName, type_name, copy_func, free_func)
+# define gum_object_ref(object) g_object_ref (object)
+# define gum_object_unref(object) g_object_unref (object)
+# define gum_clear_object(object_ptr) \
+    g_clear_pointer ((object_ptr), g_object_unref)
+
+#else
+
+# define GUM_DECLARE_FINAL_TYPE(ModuleObjName, module_obj_name, MODULE, \
+      OBJ_NAME, ParentName) \
+    typedef struct _##ModuleObjName ModuleObjName; \
+    \
+    G_GNUC_UNUSED static inline ModuleObjName * MODULE##_##OBJ_NAME ( \
+      gpointer obj) \
+    { \
+      return obj; \
+    }
+# define GUM_DECLARE_INTERFACE(ModuleObjName, module_obj_name, MODULE, \
+      OBJ_NAME, PrerequisiteName) \
+    typedef struct _##ModuleObjName ModuleObjName; \
+    \
+    G_GNUC_UNUSED static inline ModuleObjName * MODULE##_##OBJ_NAME ( \
+      gpointer obj) \
+    { \
+      return obj; \
+    }
+# define GUM_DEFINE_BOXED_TYPE(TypeName, type_name, copy_func, free_func)
+# define gum_clear_object(object_ptr) \
+    g_clear_pointer ((object_ptr), gum_object_unref)
+
+typedef struct _GumObject GumObject;
+
+struct _GumObject
+{
+  gint ref_count;
+  void (* finalize) (GumObject * object);
+};
+
 GUM_API gpointer gum_object_ref (gpointer object);
 GUM_API void gum_object_unref (gpointer object);
+
 #endif
+
+GUM_API GQuark gum_error_quark (void);
 
 GUM_API G_NORETURN void gum_panic (const gchar * format, ...)
     G_ANALYZER_NORETURN;
@@ -514,7 +554,9 @@ GUM_API gpointer gum_cpu_context_get_return_value (GumCpuContext * self);
 GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
     gpointer value);
 
+#ifndef GUM_DIET
 GUM_API GType gum_address_get_type (void) G_GNUC_CONST;
+#endif
 
 G_END_DECLS
 

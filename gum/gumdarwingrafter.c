@@ -17,6 +17,8 @@
 
 #define GUM_BIND_STATE_RESET_SIZE 2
 
+#ifndef GUM_DIET
+
 typedef struct _GumGraftedLayout GumGraftedLayout;
 typedef struct _GumGraftedHookTrampoline GumGraftedHookTrampoline;
 typedef struct _GumGraftedImportTrampoline GumGraftedImportTrampoline;
@@ -1336,6 +1338,8 @@ gum_replay_bind_state_transitions (const guint8 * start,
     }
   }
 }
+
+#endif
 
 void
 _gum_grafted_hook_activate (GumGraftedHook * self)

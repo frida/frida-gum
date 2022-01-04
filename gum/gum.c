@@ -24,7 +24,6 @@
 #endif
 
 #include <ffi.h>
-#include <glib-object.h>
 #include <stdarg.h>
 #if defined (HAVE_ARM) && defined (HAVE_LINUX)
 # include <stdlib.h>
@@ -109,8 +108,10 @@ struct _GumCFApi
 
 static void gum_do_init (void);
 
+#ifndef GUM_DIET
 static GumAddress * gum_address_copy (const GumAddress * address);
 static void gum_address_free (GumAddress * address);
+#endif
 
 static GumCpuFeatures gum_do_query_cpu_features (void);
 
@@ -127,7 +128,7 @@ static GumInterceptor * gum_cached_interceptor = NULL;
 
 G_DEFINE_QUARK (gum-error-quark, gum_error)
 
-G_DEFINE_BOXED_TYPE (GumAddress, gum_address, gum_address_copy,
+GUM_DEFINE_BOXED_TYPE (GumAddress, gum_address, gum_address_copy,
     gum_address_free)
 
 void
@@ -318,7 +319,7 @@ gum_deinit_embedded (void)
   glib_shutdown ();
 #endif
 
-  g_clear_object (&gum_cached_interceptor);
+  gum_clear_object (&gum_cached_interceptor);
 
   gum_deinit ();
 #ifdef HAVE_FRIDA_GLIB
@@ -681,6 +682,8 @@ gum_panic (const gchar * format,
   g_abort ();
 }
 
+#ifndef GUM_DIET
+
 static GumAddress *
 gum_address_copy (const GumAddress * address)
 {
@@ -692,6 +695,8 @@ gum_address_free (GumAddress * address)
 {
   g_slice_free (GumAddress, address);
 }
+
+#endif
 
 GumCpuFeatures
 gum_query_cpu_features (void)

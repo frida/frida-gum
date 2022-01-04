@@ -1,9 +1,11 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumexceptor.h"
 
@@ -472,3 +474,5 @@ gum_exceptor_scope_perform_longjmp (GumExceptorScope * self)
 #endif
   GUM_NATIVE_LONGJMP (self->env, 1);
 }
+
+#endif

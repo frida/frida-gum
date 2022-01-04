@@ -1,9 +1,16 @@
 /*** BEGIN file-header ***/
+#ifndef GUM_DIET
+
 #include "gumenumtypes.h"
 
 #include <gum/gum.h>
 
 /*** END file-header ***/
+
+/*** BEGIN file-tail ***/
+
+#endif
+/*** END file-tail ***/
 
 /*** BEGIN file-production ***/
 

@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2013-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2013-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gummemorymap.h"
 
@@ -149,3 +151,4 @@ gum_memory_map_add_range (const GumRangeDetails * details,
   return TRUE;
 }
 
+#endif

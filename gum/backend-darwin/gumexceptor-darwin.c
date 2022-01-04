@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2016-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumexceptorbackend.h"
 
@@ -1260,3 +1262,5 @@ gum_exception_port_set_mod_refs (GumExceptionPortSet * self,
     mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, delta);
   }
 }
+
+#endif

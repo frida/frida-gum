@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumstalker.h"
 
@@ -262,3 +264,5 @@ gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
 
   iface->switch_callback (observer, start_address, from_insn, target);
 }
+
+#endif

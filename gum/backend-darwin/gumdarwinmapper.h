@@ -10,12 +10,10 @@
 #include "gumdarwin.h"
 #include "gumdarwinmoduleresolver.h"
 
-#include <glib-object.h>
-
 G_BEGIN_DECLS
 
 #define GUM_DARWIN_TYPE_MAPPER (gum_darwin_mapper_get_type ())
-G_DECLARE_FINAL_TYPE (GumDarwinMapper, gum_darwin_mapper, GUM_DARWIN, MAPPER,
+GUM_DECLARE_FINAL_TYPE (GumDarwinMapper, gum_darwin_mapper, GUM_DARWIN, MAPPER,
     GObject)
 
 typedef void (* GumDarwinMapperConstructor) (void);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,8 +9,6 @@
 
 #include "gumexceptor.h"
 
-#include <glib-object.h>
-
 G_BEGIN_DECLS
 
 G_GNUC_INTERNAL void _gum_exceptor_backend_prepare_to_fork (void);
@@ -18,7 +16,7 @@ G_GNUC_INTERNAL void _gum_exceptor_backend_recover_from_fork_in_parent (void);
 G_GNUC_INTERNAL void _gum_exceptor_backend_recover_from_fork_in_child (void);
 
 #define GUM_TYPE_EXCEPTOR_BACKEND (gum_exceptor_backend_get_type ())
-G_DECLARE_FINAL_TYPE (GumExceptorBackend, gum_exceptor_backend, GUM,
+GUM_DECLARE_FINAL_TYPE (GumExceptorBackend, gum_exceptor_backend, GUM,
     EXCEPTOR_BACKEND, GObject)
 
 G_GNUC_INTERNAL GumExceptorBackend * gum_exceptor_backend_new (

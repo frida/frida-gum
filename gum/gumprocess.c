@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -39,7 +39,7 @@ static gboolean gum_store_address_if_name_matches (
 
 static GumCodeSigningPolicy gum_code_signing_policy = GUM_CODE_SIGNING_OPTIONAL;
 
-G_DEFINE_BOXED_TYPE (GumModuleDetails, gum_module_details,
+GUM_DEFINE_BOXED_TYPE (GumModuleDetails, gum_module_details,
     gum_module_details_copy, gum_module_details_free)
 
 GumOS

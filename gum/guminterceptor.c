@@ -1871,8 +1871,7 @@ gum_invocation_stack_push (GumInvocationStack * stack,
   entry->caller_ret_addr = caller_ret_addr;
 
   ctx = &entry->invocation_context;
-  ctx->function = GUM_POINTER_TO_FUNCPTR (GCallback,
-      gum_sign_code_pointer (function_ctx->function_address));
+  ctx->function = gum_sign_code_pointer (function_ctx->function_address);
 
   ctx->backend = NULL;
 

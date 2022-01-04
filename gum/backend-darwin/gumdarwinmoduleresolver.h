@@ -13,7 +13,7 @@
 G_BEGIN_DECLS
 
 #define GUM_DARWIN_TYPE_MODULE_RESOLVER (gum_darwin_module_resolver_get_type ())
-G_DECLARE_FINAL_TYPE (GumDarwinModuleResolver, gum_darwin_module_resolver,
+GUM_DECLARE_FINAL_TYPE (GumDarwinModuleResolver, gum_darwin_module_resolver,
     GUM_DARWIN, MODULE_RESOLVER, GObject)
 
 typedef GumAddress (* GumDarwinModuleResolverLookupFunc) (const gchar * symbol,
@@ -21,7 +21,11 @@ typedef GumAddress (* GumDarwinModuleResolverLookupFunc) (const gchar * symbol,
 
 struct _GumDarwinModuleResolver
 {
+#ifndef GUM_DIET
   GObject parent;
+#else
+  GumObject parent;
+#endif
 
   mach_port_t task;
   GumCpuType cpu_type;

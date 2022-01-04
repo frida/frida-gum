@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,13 +7,12 @@
 #ifndef __GUM_MODULE_MAP_H__
 #define __GUM_MODULE_MAP_H__
 
-#include <glib-object.h>
 #include <gum/gumprocess.h>
 
 G_BEGIN_DECLS
 
 #define GUM_TYPE_MODULE_MAP (gum_module_map_get_type ())
-G_DECLARE_FINAL_TYPE (GumModuleMap, gum_module_map, GUM, MODULE_MAP, GObject)
+GUM_DECLARE_FINAL_TYPE (GumModuleMap, gum_module_map, GUM, MODULE_MAP, GObject)
 
 typedef gboolean (* GumModuleMapFilterFunc) (const GumModuleDetails * details,
     gpointer user_data);

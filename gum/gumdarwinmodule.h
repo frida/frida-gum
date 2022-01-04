@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,7 +14,7 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_DARWIN_MODULE (gum_darwin_module_get_type ())
-G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM, DARWIN_MODULE,
+GUM_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM, DARWIN_MODULE,
     GObject)
 
 #define GUM_DARWIN_PORT_NULL 0
@@ -85,7 +85,11 @@ typedef enum {
 
 struct _GumDarwinModule
 {
+#ifndef GUM_DIET
   GObject parent;
+#else
+  GumObject parent;
+#endif
 
   GumDarwinModuleFiletype filetype;
   gchar * name;

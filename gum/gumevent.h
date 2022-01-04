@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,6 @@
 #ifndef __GUM_EVENT_H__
 #define __GUM_EVENT_H__
 
-#include <glib-object.h>
 #include <gum/gumdefs.h>
 
 G_BEGIN_DECLS

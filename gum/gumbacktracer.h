@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,14 +8,15 @@
 #ifndef __GUM_BACKTRACER_H__
 #define __GUM_BACKTRACER_H__
 
-#include <glib-object.h>
 #include <gum/gumdefs.h>
 #include <gum/gumreturnaddress.h>
 
 G_BEGIN_DECLS
 
 #define GUM_TYPE_BACKTRACER (gum_backtracer_get_type ())
-G_DECLARE_INTERFACE (GumBacktracer, gum_backtracer, GUM, BACKTRACER, GObject)
+GUM_DECLARE_INTERFACE (GumBacktracer, gum_backtracer, GUM, BACKTRACER, GObject)
+
+#ifndef GUM_DIET
 
 struct _GumBacktracerInterface
 {
@@ -24,6 +25,8 @@ struct _GumBacktracerInterface
   void (* generate) (GumBacktracer * self, const GumCpuContext * cpu_context,
       GumReturnAddressArray * return_addresses, guint limit);
 };
+
+#endif
 
 GUM_API GumBacktracer * gum_backtracer_make_accurate (void);
 GUM_API GumBacktracer * gum_backtracer_make_fuzzy (void);

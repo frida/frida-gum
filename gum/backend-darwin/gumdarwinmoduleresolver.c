@@ -4,6 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#ifndef GUM_DIET
+
 #include "gumdarwinmoduleresolver.h"
 
 #include "gumdarwin.h"
@@ -409,3 +411,5 @@ gum_store_module (const GumModuleDetails * details,
 
   return TRUE;
 }
+
+#endif

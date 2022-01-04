@@ -4,6 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#ifndef GUM_DIET
+
 #include "gumdarwinmapper.h"
 
 #include "gumdarwin.h"
@@ -2246,3 +2248,5 @@ gum_darwin_mapping_free (GumDarwinMapping * self)
   g_object_unref (self->module);
   g_slice_free (GumDarwinMapping, self);
 }
+
+#endif

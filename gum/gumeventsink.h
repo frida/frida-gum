@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,25 +7,26 @@
 #ifndef __GUM_EVENT_SINK_H__
 #define __GUM_EVENT_SINK_H__
 
-#include <glib-object.h>
 #include <gum/gumdefs.h>
 #include <gum/gumevent.h>
 
 G_BEGIN_DECLS
 
 #define GUM_TYPE_EVENT_SINK (gum_event_sink_get_type ())
-G_DECLARE_INTERFACE (GumEventSink, gum_event_sink, GUM, EVENT_SINK, GObject)
+GUM_DECLARE_INTERFACE (GumEventSink, gum_event_sink, GUM, EVENT_SINK, GObject)
 
 #define GUM_TYPE_DEFAULT_EVENT_SINK (gum_default_event_sink_get_type ())
-G_DECLARE_FINAL_TYPE (GumDefaultEventSink, gum_default_event_sink, GUM,
+GUM_DECLARE_FINAL_TYPE (GumDefaultEventSink, gum_default_event_sink, GUM,
     DEFAULT_EVENT_SINK, GObject)
 
 #define GUM_TYPE_CALLBACK_EVENT_SINK (gum_callback_event_sink_get_type ())
-G_DECLARE_FINAL_TYPE (GumCallbackEventSink, gum_callback_event_sink, GUM,
+GUM_DECLARE_FINAL_TYPE (GumCallbackEventSink, gum_callback_event_sink, GUM,
     CALLBACK_EVENT_SINK, GObject)
 
 typedef void (* GumEventSinkCallback) (const GumEvent * event,
     GumCpuContext * cpu_context, gpointer user_data);
+
+#ifndef GUM_DIET
 
 struct _GumEventSinkInterface
 {
@@ -38,6 +39,8 @@ struct _GumEventSinkInterface
   void (* flush) (GumEventSink * self);
   void (* stop) (GumEventSink * self);
 };
+
+#endif
 
 GUM_API GumEventType gum_event_sink_query_mask (GumEventSink * self);
 GUM_API void gum_event_sink_start (GumEventSink * self);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,7 +8,6 @@
 #ifndef __GUM_EXCEPTOR_H__
 #define __GUM_EXCEPTOR_H__
 
-#include <glib-object.h>
 #include <gum/gummemory.h>
 #include <gum/gumprocess.h>
 #include <setjmp.h>
@@ -16,7 +15,7 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
-G_DECLARE_FINAL_TYPE (GumExceptor, gum_exceptor, GUM, EXCEPTOR, GObject)
+GUM_DECLARE_FINAL_TYPE (GumExceptor, gum_exceptor, GUM, EXCEPTOR, GObject)
 
 #if defined (G_OS_WIN32) || defined (__APPLE__)
 # define GUM_NATIVE_SETJMP(env) setjmp (env)
