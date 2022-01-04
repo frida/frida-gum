@@ -295,10 +295,13 @@ gum_enums_dep = declare_dependency(sources: gum_enums)
 gum_enum_h = gum_enums[1]
 
 gum_public_deps = [glib_dep, capstone_dep, gum_enums_dep]
-gum_internal_deps = [glib_dep, ffi_dep, capstone_dep, threads_dep]
+gum_internal_deps = [glib_dep, capstone_dep, threads_dep]
 if not diet
   gum_public_deps += gobject_dep
   gum_internal_deps += gobject_dep
+endif
+if ffi_dep.found()
+  gum_internal_deps += ffi_dep
 endif
 
 gum = library('frida-gum-' + api_version, gum_sources + gum_enums,

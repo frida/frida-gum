@@ -117,6 +117,14 @@ if diet
   cdata.set('GUM_DIET', 1)
 endif
 
+gumpp_opt = get_option('gumpp')
+gumjs_opt = get_option('gumjs')
+if diet and (gumpp_opt.enabled() or gumjs_opt.enabled())
+  error('Bindings do not support diet mode (for now)')
+endif
+have_gumpp = not gumpp_opt.disabled()
+have_gumjs = not gumjs_opt.disabled()
+
 allocator = get_option('allocator')
 if allocator == 'auto'
   allocator = diet ? 'system' : 'internal'
@@ -243,8 +251,6 @@ endif
 
 threads_dep = dependency('threads')
 
-ffi_dep = dependency('libffi')
-
 glib_options = [
   'diet=' + diet.to_string(),
   'printf=' + get_option('allocator'),
@@ -261,8 +267,11 @@ if optimize_for_prod
   ]
 endif
 glib_dep = dependency('glib-2.0', version: '>=2.56', default_options: glib_options)
-gobject_dep = dependency('gobject-2.0', default_options: glib_options)
-gio_dep = dependency('gio-2.0', default_options: glib_options)
+if not diet
+  gobject_dep = dependency('gobject-2.0', default_options: glib_options)
+else
+  gobject_dep = disabler()
+endif
 
 capstone_arch_mappings = {
   'x86_64': 'x86',
@@ -275,6 +284,12 @@ capstone_options = [
   'cli=disabled',
 ]
 capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
+
+if allocator == 'internal' or have_gumjs
+  ffi_dep = dependency('libffi')
+else
+  ffi_dep = disabler()
+endif
 
 tests_opt = get_option('tests')
 if tests_opt.auto()
@@ -325,7 +340,7 @@ if glib_dep.type_name() == 'internal' or cc.has_function('g_thread_set_callbacks
   cdata.set('HAVE_FRIDA_GLIB', 1)
 endif
 
-if ffi_dep.type_name() == 'internal' or cc.has_function('ffi_set_mem_callbacks', dependencies: [ffi_dep])
+if ffi_dep.found() and (ffi_dep.type_name() == 'internal' or cc.has_function('ffi_set_mem_callbacks', dependencies: [ffi_dep]))
   cdata.set('HAVE_FRIDA_LIBFFI', 1)
 endif
 
@@ -404,12 +419,10 @@ if tls_provider_dep.found()
   cdata.set('HAVE_GIOOPENSSL', 1)
 endif
 
-have_gumpp = not get_option('gumpp').disabled()
 if have_gumpp
   cdata.set('HAVE_GUMPP', 1)
 endif
 
-have_gumjs = not get_option('gumjs').disabled()
 gumjs_extra_requires = []
 if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
@@ -433,6 +446,8 @@ if have_gumjs
   if not (quickjs_dep.found() or v8_dep.found())
     error('Cannot build JavaScript bindings without any runtimes enabled')
   endif
+
+  gio_dep = dependency('gio-2.0', default_options: glib_options)
 
   if host_os_family == 'windows'
     gio_os_package_name = 'gio-windows-2.0'

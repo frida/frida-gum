@@ -23,14 +23,14 @@
 # include "backend-darwin/gumdarwin.h"
 #endif
 
-#include <ffi.h>
 #include <stdarg.h>
-#if defined (HAVE_ARM) && defined (HAVE_LINUX)
-# include <stdlib.h>
-# include <string.h>
-#endif
+#include <stdlib.h>
+#include <string.h>
 #ifdef HAVE_WINDOWS
 # include <windows.h>
+#endif
+#if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_LIBFFI)
+# include <ffi.h>
 #endif
 
 #define DEBUG_HEAP_LEAKS 0
@@ -46,7 +46,7 @@ struct _GumInternalThreadDetails
 
 static void gum_destructor_invoke (GumDestructorFunc destructor);
 
-#ifdef HAVE_FRIDA_LIBFFI
+#if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_LIBFFI)
 static void gum_on_ffi_allocate (void * base_address, size_t size);
 static void gum_on_ffi_deallocate (void * base_address, size_t size);
 #endif
@@ -216,7 +216,7 @@ gum_destructor_invoke (GumDestructorFunc destructor)
 void
 gum_init_embedded (void)
 {
-#ifdef HAVE_FRIDA_LIBFFI
+#if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_LIBFFI)
   ffi_mem_callbacks ffi_callbacks = {
     (void * (*) (size_t)) gum_malloc,
     (void * (*) (size_t, size_t)) gum_calloc,
@@ -273,7 +273,7 @@ gum_init_embedded (void)
 #endif
 
   gum_internal_heap_ref ();
-#ifdef HAVE_FRIDA_LIBFFI
+#if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_LIBFFI)
   ffi_set_mem_callbacks (&ffi_callbacks);
 #endif
 #ifdef HAVE_FRIDA_GLIB
@@ -325,7 +325,7 @@ gum_deinit_embedded (void)
 #ifdef HAVE_FRIDA_GLIB
   glib_deinit ();
 #endif
-#ifdef HAVE_FRIDA_LIBFFI
+#if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_LIBFFI)
   ffi_deinit ();
 #endif
   gum_internal_heap_unref ();
@@ -351,7 +351,7 @@ gum_recover_from_fork_in_child (void)
   _gum_exceptor_backend_recover_from_fork_in_child ();
 }
 
-#ifdef HAVE_FRIDA_LIBFFI
+#if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_LIBFFI)
 
 static void
 gum_on_ffi_allocate (void * base_address,
