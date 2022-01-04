@@ -1,9 +1,11 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
+
+#ifndef GUM_DIET
 
 #include "gumdbghelpbacktracer.h"
 
@@ -233,3 +235,5 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   if (return_addresses->len >= 1)
     return_addresses->len--;
 }
+
+#endif

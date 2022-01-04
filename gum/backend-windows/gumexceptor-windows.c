@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,6 +11,8 @@
 
 #include <capstone.h>
 #include <tchar.h>
+
+#ifndef GUM_DIET
 
 typedef BOOL (WINAPI * GumWindowsExceptionHandler) (
     EXCEPTION_RECORD * exception_record, CONTEXT * context);
@@ -40,6 +42,8 @@ G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
 
+#endif
+
 void
 _gum_exceptor_backend_prepare_to_fork (void)
 {
@@ -54,6 +58,8 @@ void
 _gum_exceptor_backend_recover_from_fork_in_child (void)
 {
 }
+
+#ifndef GUM_DIET
 
 static void
 gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
@@ -278,3 +284,5 @@ gum_exceptor_backend_dispatch (EXCEPTION_RECORD * exception_record,
 
   return system_handler (exception_record, context);
 }
+
+#endif
