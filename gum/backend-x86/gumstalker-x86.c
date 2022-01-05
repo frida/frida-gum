@@ -920,8 +920,8 @@ gum_stalker_init (GumStalker * self)
   {
     HMODULE ntmod, usermod;
     MODULEINFO mi;
-    BOOL success;
-    gboolean found_user32_code;
+    BOOL success G_GNUC_UNUSED;
+    gboolean found_user32_code G_GNUC_UNUSED;
     guint8 * p;
     GArray * impls;
 

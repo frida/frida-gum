@@ -94,8 +94,8 @@ static HMODULE
 load_dbghelp (void)
 {
   HMODULE mod;
-  BOOL success;
-  DWORD length;
+  BOOL success G_GNUC_UNUSED;
+  DWORD length G_GNUC_UNUSED;
   WCHAR path[MAX_PATH + 1] = { 0, };
   WCHAR * filename;
 

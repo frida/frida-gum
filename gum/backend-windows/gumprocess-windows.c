@@ -678,7 +678,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
   do
   {
     MEMORY_BASIC_INFORMATION mbi;
-    SIZE_T ret;
+    SIZE_T ret G_GNUC_UNUSED;
 
     ret = VirtualQuery (cur_base_address, &mbi, sizeof (mbi));
     g_assert (ret != 0);
