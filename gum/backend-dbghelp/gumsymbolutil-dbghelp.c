@@ -58,7 +58,7 @@ gum_symbol_details_from_address (gpointer address,
   dbghelp->Lock ();
 
   has_sym_info = dbghelp->SymFromAddr (GetCurrentProcess (),
-      (DWORD64) address, &displacement_qw, &si.sym_info);
+      GPOINTER_TO_SIZE (address), &displacement_qw, &si.sym_info);
   if (has_sym_info)
   {
     HMODULE mod = GSIZE_TO_POINTER (si.sym_info.ModBase);
@@ -70,7 +70,7 @@ gum_symbol_details_from_address (gpointer address,
   }
 
   has_file_info = dbghelp->SymGetLineFromAddr64 (GetCurrentProcess (),
-      (DWORD64) address, &displacement_dw, &li);
+      GPOINTER_TO_SIZE (address), &displacement_dw, &li);
   if (has_file_info)
   {
     strcpy_s (details->file_name, sizeof (details->file_name), li.FileName);
