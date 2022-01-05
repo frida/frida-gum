@@ -101,7 +101,14 @@ gum_process_modify_thread (GumThreadId thread_id,
 {
   gboolean success = FALSE;
   HANDLE thread;
-  __declspec (align (64)) CONTEXT context = { 0, };
+#ifdef _MSC_VER
+  __declspec (align (64))
+#endif
+      CONTEXT context
+#ifndef _MSC_VER
+        __attribute__ ((aligned (64)))
+#endif
+        = { 0, };
   GumCpuContext cpu_context;
 
   thread = OpenThread (THREAD_GET_CONTEXT | THREAD_SET_CONTEXT |
@@ -181,7 +188,14 @@ gum_windows_get_thread_details (DWORD thread_id,
                                 GumThreadDetails * details)
 {
   gboolean success = FALSE;
-  __declspec (align (64)) CONTEXT context = { 0, };
+#ifdef _MSC_VER
+  __declspec (align (64))
+#endif
+      CONTEXT context
+#ifndef _MSC_VER
+        __attribute__ ((aligned (64)))
+#endif
+        = { 0, };
 
   details->id = thread_id;
 

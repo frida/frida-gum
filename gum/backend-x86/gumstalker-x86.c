@@ -1575,7 +1575,14 @@ gum_stalker_infect (GumThreadId thread_id,
           thread_id);
       if (thread != NULL)
       {
-        __declspec (align (64)) CONTEXT tc = { 0, };
+#ifdef _MSC_VER
+        __declspec (align (64))
+#endif
+            CONTEXT tc
+#ifndef _MSC_VER
+              __attribute__ ((aligned (64)))
+#endif
+              = { 0, };
 
         tc.ContextFlags = CONTEXT_DEBUG_REGISTERS;
         if (GetThreadContext (thread, &tc))
@@ -1625,7 +1632,14 @@ gum_stalker_disinfect (GumThreadId thread_id,
         thread_id);
     if (thread != NULL)
     {
-      __declspec (align (64)) CONTEXT tc = { 0, };
+#ifdef _MSC_VER
+      __declspec (align (64))
+#endif
+          CONTEXT tc
+#ifndef _MSC_VER
+            __attribute__ ((aligned (64)))
+#endif
+            = { 0, };
 
       tc.ContextFlags = CONTEXT_DEBUG_REGISTERS;
       if (GetThreadContext (thread, &tc))
