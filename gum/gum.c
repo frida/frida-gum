@@ -171,6 +171,7 @@ gum_deinit (void)
 static void
 gum_do_init (void)
 {
+#ifndef GUM_USE_SYSTEM_ALLOC
   cs_opt_mem gum_cs_mem_callbacks = {
     gum_internal_malloc,
     gum_internal_calloc,
@@ -178,6 +179,7 @@ gum_do_init (void)
     gum_internal_free,
     (cs_vsnprintf_t) gum_vsnprintf
   };
+#endif
 
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
@@ -186,7 +188,9 @@ gum_do_init (void)
 # endif
 #endif
 
+#ifndef GUM_USE_SYSTEM_ALLOC
   cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
+#endif
 
   _gum_tls_init ();
   _gum_interceptor_init ();
