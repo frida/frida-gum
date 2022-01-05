@@ -541,7 +541,7 @@ GUM_API void gum_object_unref (gpointer object);
 
 GUM_API GQuark gum_error_quark (void);
 
-GUM_API G_NORETURN void gum_panic (const gchar * format, ...)
+GUM_API G_NORETURN; void gum_panic (const gchar * format, ...)
     G_ANALYZER_NORETURN;
 
 GUM_API GumCpuFeatures gum_query_cpu_features (void);
