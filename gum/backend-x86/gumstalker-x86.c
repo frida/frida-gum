@@ -6121,11 +6121,18 @@ gum_find_system_call_above_us (GumStalker * stalker,
   guint8 call_ebp_8_code[] = { 0xff, 0x55, 0x08 };
   guint8 * minimum_address, * maximum_address;
 
+#ifdef _MSC_VER
   __asm
   {
     mov eax, fs:[4];
     mov [top_esp], eax;
   }
+#else
+  asm volatile (
+      "movl %%fs:4, %k0"
+      : "=q" (top_esp)
+  );
+#endif
 
   if ((guint) ABS (top_esp - start_esp) > stalker->page_size)
   {
