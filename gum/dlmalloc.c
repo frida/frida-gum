@@ -779,37 +779,9 @@ struct mallinfo {
 #endif /* HAVE_USR_INCLUDE_MALLOC_H */
 #endif /* NO_MALLINFO */
 
-/*
-  Try to persuade compilers to inline. The most critical functions for
-  inlining are defined as macros, so these aren't used for them.
-*/
-
-#ifndef FORCEINLINE
-  #if defined(__GNUC__)
-#define FORCEINLINE __inline __attribute__ ((always_inline))
-  #elif defined(_MSC_VER)
-    #define FORCEINLINE __forceinline
-  #endif
-#endif
-#ifndef NOINLINE
-  #if defined(__GNUC__)
-    #define NOINLINE __attribute__ ((noinline))
-  #elif defined(_MSC_VER)
-    #define NOINLINE __declspec(noinline)
-  #else
-    #define NOINLINE
-  #endif
-#endif
-
 #ifdef __cplusplus
 extern "C" {
-#ifndef FORCEINLINE
- #define FORCEINLINE inline
-#endif
 #endif /* __cplusplus */
-#ifndef FORCEINLINE
- #define FORCEINLINE
-#endif
 
 #if !ONLY_MSPACES
 
@@ -1647,7 +1619,7 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 
 #define MMAP_FLAGS           (MAP_PRIVATE|MAP_ANONYMOUS)
 
-static FORCEINLINE void* unixmmap(size_t size) {
+static void* unixmmap(size_t size) {
   void* result;
   GumMemoryRange range;
 
@@ -1662,7 +1634,7 @@ static FORCEINLINE void* unixmmap(size_t size) {
   return result;
 }
 
-static FORCEINLINE int unixmunmap(void* ptr, size_t size) {
+static int unixmunmap(void* ptr, size_t size) {
   int result;
   GumMemoryRange range;
 
@@ -1699,7 +1671,7 @@ static int dev_zero_fd = -1; /* Cached file descriptor for /dev/zero. */
 #else /* WIN32 */
 
 /* Win32 MMAP via VirtualAlloc */
-static FORCEINLINE void* win32mmap(size_t size) {
+static void* win32mmap(size_t size) {
   void* ptr;
   GumMemoryRange range;
 
@@ -1715,7 +1687,7 @@ static FORCEINLINE void* win32mmap(size_t size) {
 }
 
 /* For direct MMAP, use MEM_TOP_DOWN to minimize interference */
-static FORCEINLINE void* win32direct_mmap(size_t size) {
+static void* win32direct_mmap(size_t size) {
   void* ptr;
   GumMemoryRange range;
 
@@ -1732,7 +1704,7 @@ static FORCEINLINE void* win32direct_mmap(size_t size) {
 }
 
 /* This function supports releasing coalesed segments */
-static FORCEINLINE int win32munmap(void* ptr, size_t size) {
+static int win32munmap(void* ptr, size_t size) {
   MEMORY_BASIC_INFORMATION minfo;
   char* cptr = (char*)ptr;
   GumMemoryRange range = { GUM_ADDRESS(ptr), size };
@@ -1763,7 +1735,7 @@ static FORCEINLINE int win32munmap(void* ptr, size_t size) {
 #if HAVE_MREMAP
 #ifndef WIN32
 
-static FORCEINLINE void* dlmremap(void* old_address, size_t old_size, size_t new_size, int flags) {
+static void* dlmremap(void* old_address, size_t old_size, size_t new_size, int flags) {
   void* result;
   GumMemoryRange range;
 
@@ -1910,7 +1882,7 @@ static FORCEINLINE void* dlmremap(void* old_address, size_t old_size, size_t new
 
 #elif (defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)))
 /* Custom spin locks for older gcc on x86 */
-static FORCEINLINE int x86_cas_lock(int *sl) {
+static int x86_cas_lock(int *sl) {
   int ret;
   int val = 1;
   int cmp = 0;
@@ -1921,7 +1893,7 @@ static FORCEINLINE int x86_cas_lock(int *sl) {
   return ret;
 }
 
-static FORCEINLINE void x86_clear_lock(int* sl) {
+static void x86_clear_lock(int* sl) {
   assert(*sl != 0);
   int prev = 0;
   int ret;
@@ -1999,14 +1971,14 @@ struct malloc_recursive_lock {
 #define MLOCK_T  struct malloc_recursive_lock
 static MLOCK_T malloc_global_mutex = { 0, 0, (THREAD_ID_T)0};
 
-static FORCEINLINE void recursive_release_lock(MLOCK_T *lk) {
+static void recursive_release_lock(MLOCK_T *lk) {
   assert(lk->sl != 0);
   if (--lk->c == 0) {
     CLEAR_LOCK(&lk->sl);
   }
 }
 
-static FORCEINLINE int recursive_acquire_lock(MLOCK_T *lk) {
+static int recursive_acquire_lock(MLOCK_T *lk) {
   THREAD_ID_T mythreadid = CURRENT_THREAD;
   int spins = 0;
   for (;;) {
@@ -2027,7 +1999,7 @@ static FORCEINLINE int recursive_acquire_lock(MLOCK_T *lk) {
   }
 }
 
-static FORCEINLINE int recursive_try_lock(MLOCK_T *lk) {
+static int recursive_try_lock(MLOCK_T *lk) {
   THREAD_ID_T mythreadid = CURRENT_THREAD;
   if (*((volatile int *)(&lk->sl)) == 0) {
     if (!CAS_LOCK(&lk->sl)) {
