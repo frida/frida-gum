@@ -258,6 +258,7 @@ glib_options = [
   'xattr=false',
   'libmount=disabled',
   'tests=false',
+  'nls=disabled',
 ]
 if optimize_for_prod
   glib_options += [
