@@ -105,15 +105,24 @@ if host_arch == 'arm64' and have_ptrauth
   host_abi = 'arm64e'
 endif
 
+extra_deps = []
+extra_requires_private = []
+extra_cflags = []
+extra_libs_private = []
+extra_gir_args_private = []
+
 cdata = configuration_data()
 cdata.set_quoted('GUM_VERSION', gum_version)
 
-if get_option('default_library') == 'static'
+static = get_option('default_library') == 'static'
+if static
+  extra_cflags += '-DGUM_STATIC'
   cdata.set('GUM_STATIC', 1)
 endif
 
 diet = get_option('diet')
 if diet
+  extra_cflags += '-DGUM_DIET'
   cdata.set('GUM_DIET', 1)
 endif
 
@@ -305,22 +314,8 @@ else
   lzma_dep = []
 endif
 
-extra_deps = []
-extra_requires_private = []
-extra_cflags = []
-extra_libs_private = []
-extra_gir_args_private = []
-
-if get_option('default_library') == 'static'
-  extra_cflags += '-DGUM_STATIC'
-endif
-
-if diet
-  extra_cflags += '-DGUM_DIET'
-endif
-
 if glib_dep.type_name() == 'internal'
-  have_shared_glib = get_option('default_library') != 'static'
+  have_shared_glib = not static
 else
   glib_flavor_src = '''
 #include <glib.h>
