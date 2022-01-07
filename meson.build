@@ -364,17 +364,18 @@ if host_os == 'android'
   extra_libs_private += ['-llog']
 endif
 
-unwind_dep = dependency('libunwind', required: false)
-unwind_requires = []
-if unwind_dep.found()
+if host_os_family in ['linux', 'qnx']
+  unwind_dep = dependency('libunwind', default_options: [
+    'coredump=disabled',
+    'ptrace=disabled',
+    'setjmp=disabled',
+    'msabi_support=false',
+    'minidebuginfo=enabled',
+    'zlibdebuginfo=enabled',
+  ])
   cdata.set('HAVE_LIBUNWIND', 1)
-  extra_deps += [unwind_dep]
   extra_requires_private += ['libunwind']
-elif host_os_family == 'linux' or host_os_family == 'qnx'
-  warning('libunwind not found, accurate backtracer will not be available')
-endif
 
-if host_os_family == 'linux' or host_os_family == 'qnx'
   elf_dep = dependency('libelf')
 
   libdwarf_dep = dependency('libdwarf', required: false)
@@ -396,7 +397,7 @@ if host_os_family == 'linux' or host_os_family == 'qnx'
     endif
   endif
 
-  extra_deps += [elf_dep, libdwarf_dep]
+  extra_deps += [unwind_dep, elf_dep, libdwarf_dep]
 else
   libdwarf_dep = disabler()
 endif

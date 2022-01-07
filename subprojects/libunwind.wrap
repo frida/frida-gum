@@ -1,0 +1,6 @@
+[wrap-git]
+url = https://github.com/frida/libunwind.git
+revision = main
+
+[provide]
+dependency_names = libunwind
