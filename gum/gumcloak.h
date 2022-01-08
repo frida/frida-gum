@@ -12,6 +12,8 @@
 
 G_BEGIN_DECLS
 
+typedef struct _GumCloak GumCloak;
+
 typedef gboolean (* GumCloakFoundThreadFunc) (GumThreadId id,
     gpointer user_data);
 typedef gboolean (* GumCloakFoundRangeFunc) (const GumMemoryRange * range,
