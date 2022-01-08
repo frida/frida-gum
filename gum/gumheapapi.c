@@ -10,6 +10,10 @@
 
 #include <string.h>
 
+/**
+ * GumHeapApiList: (skip)
+ */
+
 static gboolean gum_collect_heap_api_if_crt_module (
     const GumModuleDetails * details, gpointer user_data);
 
