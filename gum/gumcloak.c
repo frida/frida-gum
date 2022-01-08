@@ -1,7 +1,47 @@
 /*
- * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
+ */
+
+/**
+ * GumCloak:
+ *
+ * Keeps you from seeing yourself during process introspection.
+ *
+ * Introspection APIs such as [func@Gum.process_enumerate_threads] ensure that
+ * cloaked resources are skipped, and things appear as if you were not inside
+ * the process being instrumented.
+ *
+ * If you use [func@Gum.init_embedded] to initialize Gum, any resources created
+ * by libffi and GLib will be cloaked automatically. (Assuming that Gum was
+ * built with Frida's versions of these two libraries.)
+ *
+ * This means you typically only need to manage cloaked resources if you use a
+ * non-GLib API to create a given resource.
+ *
+ * Gum's memory allocation APIs, such as [func@Gum.malloc], are automatically
+ * cloaked regardless of how Gum was initialized. These use an internal heap
+ * implementation that is cloak-aware. The same implementation is also used by
+ * GLib when Gum is initialized as described above.
+ *
+ * ## Using `GumCloak`
+ *
+ * ```c
+ * // If the current thread wasn't created by GLib, do the following two steps:
+ *
+ * // (1): Ignore the thread ID
+ * gum_cloak_add_thread (gum_process_get_current_thread_id ());
+ *
+ * // (2): Ignore the thread's memory ranges (stack space)
+ * GumMemoryRange ranges[2];
+ * guint n = gum_thread_try_get_ranges (&ranges, G_N_ELEMENTS (ranges));
+ * for (guint i = 0; i != n; i++)
+ *   gum_cloak_add_range (&ranges[i]);
+ *
+ * // If you create a file-descriptor with a non-GLib API, also do:
+ * gum_cloak_add_file_descriptor (logfile_fd);
+ * ```
  */
 
 #include "gumcloak.h"
@@ -14,6 +54,11 @@
 #include <string.h>
 
 typedef struct _GumCloakedRange GumCloakedRange;
+
+struct _GumCloak
+{
+  guint8 dummy;
+};
 
 struct _GumCloakedRange
 {
@@ -51,6 +96,13 @@ _gum_cloak_deinit (void)
   gum_metal_array_free (&cloaked_threads);
 }
 
+/**
+ * gum_cloak_add_thread:
+ * @id: the thread ID to cloak
+ *
+ * Updates the registry of cloaked resources so the given thread `id` becomes
+ * invisible to cloak-aware APIs, such as [func@Gum.process_enumerate_threads].
+ */
 void
 gum_cloak_add_thread (GumThreadId id)
 {
@@ -79,6 +131,13 @@ gum_cloak_add_thread (GumThreadId id)
   gum_spinlock_release (&cloak_lock);
 }
 
+/**
+ * gum_cloak_remove_thread:
+ * @id: the thread ID to uncloak
+ *
+ * Updates the registry of cloaked resources so the given thread `id` becomes
+ * visible to cloak-aware APIs, such as [func@Gum.process_enumerate_threads].
+ */
 void
 gum_cloak_remove_thread (GumThreadId id)
 {
@@ -93,6 +152,24 @@ gum_cloak_remove_thread (GumThreadId id)
   gum_spinlock_release (&cloak_lock);
 }
 
+/**
+ * gum_cloak_has_thread:
+ * @id: the thread ID to check
+ *
+ * Checks whether the given thread `id` is currently being cloaked.
+ *
+ * Used internally by e.g. [func@Gum.process_enumerate_threads] to determine
+ * whether a thread should be visible.
+ *
+ * May also be used by you to check if a thread is among your own, e.g.:
+ *
+ * ```c
+ * if (gum_cloak_has_thread (gum_process_get_current_thread_id ()))
+ *   return;
+ * ```
+ *
+ * Returns: true if cloaked; false otherwise
+ */
 gboolean
 gum_cloak_has_thread (GumThreadId id)
 {
@@ -107,6 +184,17 @@ gum_cloak_has_thread (GumThreadId id)
   return result;
 }
 
+/**
+ * gum_cloak_enumerate_threads:
+ * @func: (not nullable) (scope call): function called with each thread ID
+ * @user_data: (nullable): data to pass to `func`
+ *
+ * Enumerates all currently cloaked thread IDs, calling `func` with each.
+ *
+ * The passed in function must take special care to avoid using APIs that result
+ * in cloak APIs getting called. Exactly what this means is described in further
+ * detail in the toplevel [struct@Gum.Cloak] documentation.
+ */
 void
 gum_cloak_enumerate_threads (GumCloakFoundThreadFunc func,
                              gpointer user_data)
@@ -159,6 +247,13 @@ gum_thread_id_compare (gconstpointer element_a,
   return 1;
 }
 
+/**
+ * gum_cloak_add_range:
+ * @range: the range to cloak
+ *
+ * Updates the registry of cloaked resources so the given memory `range` becomes
+ * invisible to cloak-aware APIs, such as [func@Gum.process_enumerate_ranges].
+ */
 void
 gum_cloak_add_range (const GumMemoryRange * range)
 {
@@ -169,6 +264,13 @@ gum_cloak_add_range (const GumMemoryRange * range)
   gum_spinlock_release (&cloak_lock);
 }
 
+/**
+ * gum_cloak_remove_range:
+ * @range: the range to uncloak
+ *
+ * Updates the registry of cloaked resources so the given memory `range` becomes
+ * visible to cloak-aware APIs, such as [func@Gum.process_enumerate_ranges].
+ */
 void
 gum_cloak_remove_range (const GumMemoryRange * range)
 {
@@ -288,6 +390,15 @@ gum_cloak_remove_range_unlocked (const GumMemoryRange * range)
   while (found_match);
 }
 
+/**
+ * gum_cloak_clip_range:
+ * @range: the range to determine the visible parts of
+ *
+ * Determines how much of the given memory `range` is currently visible.
+ * May return an empty array if the entire range is cloaked.
+ *
+ * Returns: (transfer full) (element-type Gum.MemoryRange): visible parts
+ */
 GArray *
 gum_cloak_clip_range (const GumMemoryRange * range)
 {
@@ -410,6 +521,17 @@ gum_cloak_clip_range (const GumMemoryRange * range)
   return chunks;
 }
 
+/**
+ * gum_cloak_enumerate_ranges:
+ * @func: (not nullable) (scope call): function called with each memory range
+ * @user_data: (nullable): data to pass to `func`
+ *
+ * Enumerates all currently cloaked memory ranges, calling `func` with each.
+ *
+ * The passed in function must take special care to avoid using APIs that result
+ * in cloak APIs getting called. Exactly what this means is described in further
+ * detail in the toplevel [struct@Gum.Cloak] documentation.
+ */
 void
 gum_cloak_enumerate_ranges (GumCloakFoundRangeFunc func,
                             gpointer user_data)
@@ -439,6 +561,13 @@ gum_cloak_enumerate_ranges (GumCloakFoundRangeFunc func,
   }
 }
 
+/**
+ * gum_cloak_add_file_descriptor:
+ * @fd: the file descriptor to cloak
+ *
+ * Updates the registry of cloaked resources so the given `fd` becomes invisible
+ * to cloak-aware APIs.
+ */
 void
 gum_cloak_add_file_descriptor (gint fd)
 {
@@ -467,6 +596,13 @@ gum_cloak_add_file_descriptor (gint fd)
   gum_spinlock_release (&cloak_lock);
 }
 
+/**
+ * gum_cloak_remove_file_descriptor:
+ * @fd: the file descriptor to uncloak
+ *
+ * Updates the registry of cloaked resources so the given `fd` becomes visible
+ * to cloak-aware APIs.
+ */
 void
 gum_cloak_remove_file_descriptor (gint fd)
 {
@@ -481,6 +617,14 @@ gum_cloak_remove_file_descriptor (gint fd)
   gum_spinlock_release (&cloak_lock);
 }
 
+/**
+ * gum_cloak_has_file_descriptor:
+ * @fd: the file descriptor to check
+ *
+ * Checks whether the given `fd` is currently being cloaked.
+ *
+ * Returns: true if cloaked; false otherwise
+ */
 gboolean
 gum_cloak_has_file_descriptor (gint fd)
 {
@@ -495,6 +639,17 @@ gum_cloak_has_file_descriptor (gint fd)
   return result;
 }
 
+/**
+ * gum_cloak_enumerate_file_descriptors:
+ * @func: (not nullable) (scope call): function called with each file descriptor
+ * @user_data: (nullable): data to pass to `func`
+ *
+ * Enumerates all currently cloaked file descriptors, calling `func` with each.
+ *
+ * The passed in function must take special care to avoid using APIs that result
+ * in cloak APIs getting called. Exactly what this means is described in further
+ * detail in the toplevel [struct@Gum.Cloak] documentation.
+ */
 void
 gum_cloak_enumerate_file_descriptors (GumCloakFoundFDFunc func,
                                       gpointer user_data)
