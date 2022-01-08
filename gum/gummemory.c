@@ -213,6 +213,22 @@ gum_query_rwx_support (void)
 #endif
 }
 
+/**
+ * gum_memory_patch_code:
+ * @address: address to modify from
+ * @size: number of bytes to modify
+ * @apply: (scope call): function to apply the modifications
+ *
+ * Safely modifies @size bytes at @address. The supplied function @apply gets
+ * called with a writable pointer where you must write the desired
+ * modifications before returning. Do not make any assumptions about this being
+ * the same location as @address, as some systems require modifications to be
+ * written to a temporary location before being mapped into memory on top of the
+ * original memory page (e.g. on iOS, where directly modifying in-memory code
+ * may result in the process losing its CS_VALID status).
+ *
+ * Returns: whether the modifications were successfully applied
+ */
 gboolean
 gum_memory_patch_code (gpointer address,
                        gsize size,
@@ -303,6 +319,15 @@ gum_memory_mark_code (gpointer address,
   return success;
 }
 
+/**
+ * gum_memory_scan:
+ * @range: the #GumMemoryRange to scan
+ * @pattern: the #GumMatchPattern to look for occurrences of
+ * @func: (scope call): function to process each match
+ * @user_data: data to pass to @func
+ *
+ * Scans @range for occurrences of @pattern, calling @func with each match.
+ */
 void
 gum_memory_scan (const GumMemoryRange * range,
                  const GumMatchPattern * pattern,
@@ -590,6 +615,9 @@ gum_match_pattern_get_size (const GumMatchPattern * pattern)
   return pattern->size;
 }
 
+/**
+ * gum_match_pattern_get_tokens: (skip)
+ */
 GPtrArray *
 gum_match_pattern_get_tokens (const GumMatchPattern * pattern)
 {
