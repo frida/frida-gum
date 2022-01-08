@@ -302,6 +302,9 @@ static guint gum_pointer_size_from_cpu_type (GumDarwinCpuType cpu_type);
 
 G_DEFINE_TYPE (GumDarwinModule, gum_darwin_module, G_TYPE_OBJECT)
 
+G_DEFINE_BOXED_TYPE (GumDarwinModuleImage, gum_darwin_module_image,
+                     gum_darwin_module_image_dup, gum_darwin_module_image_free)
+
 static void
 gum_darwin_module_class_init (GumDarwinModuleClass * klass)
 {

@@ -17,6 +17,8 @@ G_BEGIN_DECLS
 GUM_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM, DARWIN_MODULE,
     GObject)
 
+#define GUM_TYPE_DARWIN_MODULE_IMAGE (gum_darwin_module_image_get_type ())
+
 #define GUM_DARWIN_PORT_NULL 0
 #define GUM_DARWIN_EXPORT_KIND_MASK 3
 
@@ -431,6 +433,7 @@ GUM_API gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
 GUM_API void gum_darwin_threaded_item_parse (guint64 value,
     GumDarwinThreadedItem * result);
 
+GUM_API GType gum_darwin_module_image_get_type (void) G_GNUC_CONST;
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_new (void);
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_dup (
     const GumDarwinModuleImage * other);
