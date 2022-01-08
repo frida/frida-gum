@@ -74,6 +74,28 @@ gum_process_set_code_signing_policy (GumCodeSigningPolicy policy)
   gum_code_signing_policy = policy;
 }
 
+/**
+ * gum_process_modify_thread:
+ * @thread_id: ID of thread to modify
+ * @func: (scope call): function to apply the modifications
+ * @user_data: data to pass to @func
+ *
+ * Modifies a given thread by first pausing it, reading its state, and then
+ * passing that to @func, followed by writing back the new state and then
+ * resuming the thread. May also be used to inspect the current state without
+ * modifying it.
+ *
+ * Returns: whether the modifications were successfully applied
+ */
+
+/**
+ * gum_process_enumerate_threads:
+ * @func: (scope call): function called with #GumThreadDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates all threads, calling @func with #GumThreadDetails about each
+ * thread found.
+ */
 void
 gum_process_enumerate_threads (GumFoundThreadFunc func,
                                gpointer user_data)
@@ -97,6 +119,24 @@ gum_emit_thread_if_not_cloaked (const GumThreadDetails * details,
   return ctx->func (details, ctx->user_data);
 }
 
+/**
+ * gum_process_enumerate_modules:
+ * @func: (scope call): function called with #GumModuleDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates modules loaded right now, calling @func with #GumModuleDetails
+ * about each module found.
+ */
+
+/**
+ * gum_process_enumerate_ranges:
+ * @prot: bitfield specifying the minimum protection
+ * @func: (scope call): function called with #GumRangeDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates memory ranges satisfying @prot, calling @func with
+ * #GumRangeDetails about each such range found.
+ */
 void
 gum_process_enumerate_ranges (GumPageProtection prot,
                               GumFoundRangeFunc func,
@@ -140,6 +180,56 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
   return ctx->func (details, ctx->user_data);
 }
+
+/**
+ * gum_process_enumerate_malloc_ranges:
+ * @func: (scope call): function called with #GumMallocRangeDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates individual memory allocations known to the system heap, calling
+ * @func with #GumMallocRangeDetails about each range found.
+ */
+
+/**
+ * gum_module_enumerate_imports:
+ * @module_name: name of module
+ * @func: (scope call): function called with #GumImportDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates imports of the specified module, calling @func with
+ * #GumImportDetails about each import found.
+ */
+
+/**
+ * gum_module_enumerate_exports:
+ * @module_name: name of module
+ * @func: (scope call): function called with #GumExportDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates exports of the specified module, calling @func with
+ * #GumExportDetails about each export found.
+ */
+
+/**
+ * gum_module_enumerate_symbols:
+ * @module_name: name of module
+ * @func: (scope call): function called with #GumSymbolDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates symbols of the specified module, calling @func with
+ * #GumSymbolDetails about each symbol found.
+ */
+
+/**
+ * gum_module_enumerate_ranges:
+ * @module_name: name of module
+ * @prot: bitfield specifying the minimum protection
+ * @func: (scope call): function called with #GumRangeDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates memory ranges of the specified module that satisfy @prot,
+ * calling @func with #GumRangeDetails about each such range found.
+ */
 
 GumAddress
 gum_module_find_symbol_by_name (const gchar * module_name,
