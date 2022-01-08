@@ -324,7 +324,7 @@ endif
 if build_tests
   lzma_dep = dependency('liblzma')
 else
-  lzma_dep = []
+  lzma_dep = disabler()
 endif
 
 if glib_dep.type_name() == 'internal'
