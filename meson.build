@@ -366,6 +366,7 @@ endif
 
 if host_os_family in ['linux', 'qnx']
   unwind_dep = dependency('libunwind', default_options: [
+    'generic_library=disabled',
     'coredump_library=disabled',
     'ptrace_library=disabled',
     'setjmp_library=disabled',
