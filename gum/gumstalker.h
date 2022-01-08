@@ -320,6 +320,12 @@ GUM_API void gum_stalker_transformer_transform_block (
     GumStalkerTransformer * self, GumStalkerIterator * iterator,
     GumStalkerOutput * output);
 
+GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
+    const cs_insn ** insn);
+GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
+GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
+    GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
+
 #define GUM_DECLARE_OBSERVER_INCREMENT(name) \
     GUM_API void gum_stalker_observer_increment_##name ( \
         GumStalkerObserver * observer);
@@ -361,12 +367,6 @@ GUM_DECLARE_OBSERVER_INCREMENT (sysenter_slow_path)
 
 GUM_API void gum_stalker_observer_notify_backpatch (
     GumStalkerObserver * observer, const GumBackpatch * backpatch, gsize size);
-
-GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
-    const cs_insn ** insn);
-GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
-GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
-    GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
 
 GUM_API void gum_stalker_observer_switch_callback (
     GumStalkerObserver * observer, gpointer start_address,
