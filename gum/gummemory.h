@@ -10,6 +10,7 @@
 
 #include <gum/gumdefs.h>
 
+#define GUM_TYPE_MATCH_PATTERN (gum_match_pattern_get_type ())
 #define GUM_TYPE_MEMORY_RANGE (gum_memory_range_get_type ())
 #define GUM_MEMORY_RANGE_INCLUDES(r, a) ((a) >= (r)->base_address && \
     (a) < ((r)->base_address + (r)->size))
@@ -101,6 +102,7 @@ GUM_API void gum_memory_scan (const GumMemoryRange * range,
     const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
     gpointer user_data);
 
+GUM_API GType gum_match_pattern_get_type (void) G_GNUC_CONST;
 GUM_API GumMatchPattern * gum_match_pattern_new_from_string (
     const gchar * pattern_str);
 GUM_API GumMatchPattern * gum_match_pattern_ref (GumMatchPattern * pattern);
