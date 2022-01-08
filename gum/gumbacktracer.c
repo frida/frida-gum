@@ -5,6 +5,28 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+/**
+ * GumBacktracer:
+ *
+ * Generates a backtrace by walking a thread's stack.
+ *
+ * ## Using `GumBacktracer`
+ *
+ * ```c
+ * g_autoptr(GumBacktracer) backtracer = gum_backtracer_make_accurate ();
+ *                                               // or: make_fuzzy
+ *
+ * GumCpuContext *cpu_context = NULL; // walk from here
+ * GumReturnAddressArray retaddrs;
+ * gum_backtracer_generate (backtracer, cpu_context, &retaddrs);
+ *
+ * for (guint i = 0; i != retaddrs.len; i++)
+ *   {
+ *     g_print ("retaddrs[%u] = %p\n", i, retaddrs->items[i]);
+ *   }
+ * ```
+ */
+
 #include "gumbacktracer.h"
 
 #ifdef HAVE_WINDOWS
@@ -37,6 +59,16 @@ gum_backtracer_default_init (GumBacktracerInterface * iface)
 
 #endif
 
+/**
+ * gum_backtracer_make_accurate:
+ *
+ * Creates a new accurate backtracer, optimized for debugger-friendly binaries
+ * or presence of debug information. Resulting backtraces will never contain
+ * bogus entries but may be cut short when encountering code built without
+ * frame pointers *and* lack of debug information.
+ *
+ * Returns: (nullable) (transfer full): the newly created backtracer instance
+ */
 GumBacktracer *
 gum_backtracer_make_accurate (void)
 {
@@ -56,6 +88,17 @@ gum_backtracer_make_accurate (void)
 #endif
 }
 
+/**
+ * gum_backtracer_make_fuzzy:
+ *
+ * Creates a new fuzzy backtracer, optimized for debugger-unfriendly binaries
+ * that lack debug information. Performs forensics on the stack in order to
+ * guess the return addresses. Resulting backtraces will often contain bogus
+ * entries, but will never be cut short upon encountering code built without
+ * frame pointers *and* lack of debug information.
+ *
+ * Returns: (nullable) (transfer full): the newly created backtracer instance
+ */
 GumBacktracer *
 gum_backtracer_make_fuzzy (void)
 {
@@ -72,6 +115,15 @@ gum_backtracer_make_fuzzy (void)
 #endif
 }
 
+/**
+ * gum_backtracer_generate:
+ * @self: a backtracer
+ * @cpu_context: (nullable): the location to start walking from
+ * @return_addresses: (out caller-allocates): the resulting backtrace
+ *
+ * Walks a thread's stack and stores each return address in `return_addresses`.
+ * Omit `cpu_context` to start walking from where this function is called from.
+ */
 void
 gum_backtracer_generate (GumBacktracer * self,
                          const GumCpuContext * cpu_context,
@@ -81,6 +133,17 @@ gum_backtracer_generate (GumBacktracer * self,
       GUM_MAX_BACKTRACE_DEPTH);
 }
 
+/**
+ * gum_backtracer_generate_with_limit:
+ * @self: a backtracer
+ * @cpu_context: (nullable): the location to start walking from
+ * @return_addresses: (out caller-allocates): the resulting backtrace
+ * @limit: the limit on how far to walk
+ *
+ * Walks a thread's stack and stores each return address in `return_addresses`,
+ * stopping after `limit` entries. Omit `cpu_context` to start walking from
+ * where this function is called from.
+ */
 void
 gum_backtracer_generate_with_limit (GumBacktracer * self,
                                     const GumCpuContext * cpu_context,
