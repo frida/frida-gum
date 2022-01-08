@@ -13,7 +13,7 @@ G_BEGIN_DECLS
 
 #define GUM_TYPE_MIPS_BACKTRACER (gum_mips_backtracer_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumMipsBacktracer, gum_mips_backtracer, GUM,
-    MIPS_BACKTRACER, GObject)
+                        MIPS_BACKTRACER, GObject)
 
 GUM_API GumBacktracer * gum_mips_backtracer_new (void);
 

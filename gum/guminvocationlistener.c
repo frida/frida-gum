@@ -38,7 +38,7 @@ struct _GumProbeListener
 };
 
 G_DEFINE_INTERFACE (GumInvocationListener, gum_invocation_listener,
-    G_TYPE_OBJECT)
+                    G_TYPE_OBJECT)
 
 static void gum_call_listener_iface_init (gpointer g_iface,
     gpointer iface_data);

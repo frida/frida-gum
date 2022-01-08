@@ -13,7 +13,7 @@ G_BEGIN_DECLS
 
 #define GUM_TYPE_API_RESOLVER (gum_api_resolver_get_type ())
 GUM_DECLARE_INTERFACE (GumApiResolver, gum_api_resolver, GUM, API_RESOLVER,
-    GObject)
+                       GObject)
 
 typedef struct _GumApiDetails GumApiDetails;
 

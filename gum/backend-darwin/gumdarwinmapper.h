@@ -14,7 +14,7 @@ G_BEGIN_DECLS
 
 #define GUM_DARWIN_TYPE_MAPPER (gum_darwin_mapper_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumDarwinMapper, gum_darwin_mapper, GUM_DARWIN, MAPPER,
-    GObject)
+                        GObject)
 
 typedef void (* GumDarwinMapperConstructor) (void);
 typedef void (* GumDarwinMapperDestructor) (void);

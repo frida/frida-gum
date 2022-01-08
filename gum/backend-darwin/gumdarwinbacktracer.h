@@ -13,7 +13,7 @@ G_BEGIN_DECLS
 
 #define GUM_TYPE_DARWIN_BACKTRACER (gum_darwin_backtracer_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumDarwinBacktracer, gum_darwin_backtracer, GUM,
-    DARWIN_BACKTRACER, GObject)
+                        DARWIN_BACKTRACER, GObject)
 
 GUM_API GumBacktracer * gum_darwin_backtracer_new (void);
 

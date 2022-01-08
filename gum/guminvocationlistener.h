@@ -14,7 +14,7 @@ G_BEGIN_DECLS
 
 #define GUM_TYPE_INVOCATION_LISTENER (gum_invocation_listener_get_type ())
 GUM_DECLARE_INTERFACE (GumInvocationListener, gum_invocation_listener, GUM,
-    INVOCATION_LISTENER, GObject)
+                       INVOCATION_LISTENER, GObject)
 
 typedef void (* GumInvocationCallback) (GumInvocationContext * context,
     gpointer user_data);

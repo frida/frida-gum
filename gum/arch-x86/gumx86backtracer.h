@@ -13,7 +13,7 @@ G_BEGIN_DECLS
 
 #define GUM_TYPE_X86_BACKTRACER (gum_x86_backtracer_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumX86Backtracer, gum_x86_backtracer, GUM,
-    X86_BACKTRACER, GObject)
+                        X86_BACKTRACER, GObject)
 
 GUM_API GumBacktracer * gum_x86_backtracer_new (void);
 

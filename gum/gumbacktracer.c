@@ -155,7 +155,6 @@ gum_backtracer_generate_with_limit (GumBacktracer * self,
 
   g_assert (iface->generate != NULL);
 
-  iface->generate (self, cpu_context, return_addresses,
-      limit);
+  iface->generate (self, cpu_context, return_addresses, limit);
 #endif
 }

@@ -39,7 +39,7 @@ static void gum_stalker_observer_default_init (
     GumStalkerObserverInterface * iface);
 
 G_DEFINE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer,
-    G_TYPE_OBJECT)
+                    G_TYPE_OBJECT)
 
 G_DEFINE_TYPE_EXTENDED (GumDefaultStalkerTransformer,
                         gum_default_stalker_transformer,

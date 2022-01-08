@@ -25,23 +25,25 @@ GUM_DECLARE_FINAL_TYPE (GumStalker, gum_stalker, GUM, STALKER, GObject)
 
 #define GUM_TYPE_STALKER_TRANSFORMER (gum_stalker_transformer_get_type ())
 GUM_DECLARE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer, GUM,
-    STALKER_TRANSFORMER, GObject)
+                       STALKER_TRANSFORMER, GObject)
 
 #define GUM_TYPE_DEFAULT_STALKER_TRANSFORMER \
     (gum_default_stalker_transformer_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumDefaultStalkerTransformer,
-    gum_default_stalker_transformer, GUM, DEFAULT_STALKER_TRANSFORMER,
-    GObject)
+                        gum_default_stalker_transformer,
+                        GUM, DEFAULT_STALKER_TRANSFORMER,
+                        GObject)
 
 #define GUM_TYPE_CALLBACK_STALKER_TRANSFORMER \
     (gum_callback_stalker_transformer_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumCallbackStalkerTransformer,
-    gum_callback_stalker_transformer, GUM, CALLBACK_STALKER_TRANSFORMER,
-    GObject)
+                        gum_callback_stalker_transformer,
+                        GUM, CALLBACK_STALKER_TRANSFORMER,
+                        GObject)
 
 #define GUM_TYPE_STALKER_OBSERVER (gum_stalker_observer_get_type ())
 GUM_DECLARE_INTERFACE (GumStalkerObserver, gum_stalker_observer, GUM,
-    STALKER_OBSERVER, GObject)
+                       STALKER_OBSERVER, GObject)
 
 typedef struct _GumStalkerIterator GumStalkerIterator;
 typedef struct _GumStalkerOutput GumStalkerOutput;

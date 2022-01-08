@@ -17,11 +17,11 @@ GUM_DECLARE_INTERFACE (GumEventSink, gum_event_sink, GUM, EVENT_SINK, GObject)
 
 #define GUM_TYPE_DEFAULT_EVENT_SINK (gum_default_event_sink_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumDefaultEventSink, gum_default_event_sink, GUM,
-    DEFAULT_EVENT_SINK, GObject)
+                        DEFAULT_EVENT_SINK, GObject)
 
 #define GUM_TYPE_CALLBACK_EVENT_SINK (gum_callback_event_sink_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumCallbackEventSink, gum_callback_event_sink, GUM,
-    CALLBACK_EVENT_SINK, GObject)
+                        CALLBACK_EVENT_SINK, GObject)
 
 typedef void (* GumEventSinkCallback) (const GumEvent * event,
     GumCpuContext * cpu_context, gpointer user_data);
