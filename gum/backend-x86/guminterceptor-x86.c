@@ -169,7 +169,7 @@ void
 _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
                                              GumFunctionContext * ctx)
 {
-  gum_code_slice_free (ctx->trampoline_slice);
+  gum_code_slice_unref (ctx->trampoline_slice);
   ctx->trampoline_slice = NULL;
 }
 
@@ -242,9 +242,9 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 static void
 gum_interceptor_backend_destroy_thunks (GumInterceptorBackend * self)
 {
-  gum_code_slice_free (self->leave_thunk);
+  gum_code_slice_unref (self->leave_thunk);
 
-  gum_code_slice_free (self->enter_thunk);
+  gum_code_slice_unref (self->enter_thunk);
 }
 
 static void

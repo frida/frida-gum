@@ -123,6 +123,11 @@ static gpointer gum_code_deflector_dispatcher_lookup (
 static gboolean gum_probe_module_for_code_cave (
     const GumModuleDetails * details, gpointer user_data);
 
+G_DEFINE_BOXED_TYPE (GumCodeSlice, gum_code_slice, gum_code_slice_ref,
+                     gum_code_slice_unref)
+G_DEFINE_BOXED_TYPE (GumCodeDeflector, gum_code_deflector,
+                     gum_code_deflector_ref, gum_code_deflector_unref)
+
 void
 gum_code_allocator_init (GumCodeAllocator * allocator,
                          gsize slice_size)
@@ -305,6 +310,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
     slice = &element->slice;
     slice->data = (guint8 *) data + (slice_index * self->slice_size);
     slice->size = self->slice_size;
+    slice->ref_count = 1;
 
     link = &element->parent;
     link->data = pages;
@@ -355,13 +361,24 @@ gum_code_pages_unref (GumCodePages * self)
   }
 }
 
+GumCodeSlice *
+gum_code_slice_ref (GumCodeSlice * slice)
+{
+  g_atomic_int_inc (&slice->ref_count);
+
+  return slice;
+}
+
 void
-gum_code_slice_free (GumCodeSlice * slice)
+gum_code_slice_unref (GumCodeSlice * slice)
 {
   GumCodeSliceElement * element;
   GumCodePages * pages;
 
   if (slice == NULL)
+    return;
+
+  if (!g_atomic_int_dec_and_test (&slice->ref_count))
     return;
 
   element = GUM_CODE_SLICE_ELEMENT_FROM_SLICE (slice);
@@ -460,6 +477,7 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
   deflector->return_address = return_address;
   deflector->target = target;
   deflector->trampoline = dispatcher->trampoline;
+  deflector->ref_count = 1;
 
   impl->allocator = self;
 
@@ -468,14 +486,25 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
   return deflector;
 }
 
+GumCodeDeflector *
+gum_code_deflector_ref (GumCodeDeflector * deflector)
+{
+  g_atomic_int_inc (&deflector->ref_count);
+
+  return deflector;
+}
+
 void
-gum_code_deflector_free (GumCodeDeflector * deflector)
+gum_code_deflector_unref (GumCodeDeflector * deflector)
 {
   GumCodeDeflectorImpl * impl = (GumCodeDeflectorImpl *) deflector;
   GumCodeAllocator * allocator;
   GSList * cur;
 
   if (deflector == NULL)
+    return;
+
+  if (!g_atomic_int_dec_and_test (&deflector->ref_count))
     return;
 
   allocator = impl->allocator;
@@ -591,7 +620,7 @@ gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
 
   g_free (dispatcher->original_data);
 
-  g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
+  g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_unref, NULL);
   g_slist_free (dispatcher->callers);
 
   g_slice_free (GumCodeDeflectorDispatcher, dispatcher);

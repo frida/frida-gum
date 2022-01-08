@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,11 @@
 #define __GUM_CODE_ALLOCATOR_H__
 
 #include "gummemory.h"
+
+#define GUM_TYPE_CODE_SLICE (gum_code_slice_get_type ())
+#define GUM_TYPE_CODE_DEFLECTOR (gum_code_deflector_get_type ())
+
+G_BEGIN_DECLS
 
 typedef struct _GumCodeAllocator GumCodeAllocator;
 typedef struct _GumCodeSlice GumCodeSlice;
@@ -30,7 +35,10 @@ struct _GumCodeAllocator
 struct _GumCodeSlice
 {
   gpointer data;
-  gsize size;
+  guint size;
+
+  /*< private >*/
+  gint ref_count;
 };
 
 struct _GumCodeDeflector
@@ -38,20 +46,31 @@ struct _GumCodeDeflector
   gpointer return_address;
   gpointer target;
   gpointer trampoline;
+
+  /*< private >*/
+  gint ref_count;
 };
 
-void gum_code_allocator_init (GumCodeAllocator * allocator, gsize slice_size);
-void gum_code_allocator_free (GumCodeAllocator * allocator);
+GUM_API void gum_code_allocator_init (GumCodeAllocator * allocator,
+    gsize slice_size);
+GUM_API void gum_code_allocator_free (GumCodeAllocator * allocator);
 
-GumCodeSlice * gum_code_allocator_alloc_slice (GumCodeAllocator * self);
-GumCodeSlice * gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
-    const GumAddressSpec * spec, gsize alignment);
-void gum_code_allocator_commit (GumCodeAllocator * self);
-void gum_code_slice_free (GumCodeSlice * slice);
+GUM_API GumCodeSlice * gum_code_allocator_alloc_slice (GumCodeAllocator * self);
+GUM_API GumCodeSlice * gum_code_allocator_try_alloc_slice_near (
+    GumCodeAllocator * self, const GumAddressSpec * spec, gsize alignment);
+GUM_API void gum_code_allocator_commit (GumCodeAllocator * self);
+GUM_API GType gum_code_slice_get_type (void) G_GNUC_CONST;
+GUM_API GumCodeSlice * gum_code_slice_ref (GumCodeSlice * slice);
+GUM_API void gum_code_slice_unref (GumCodeSlice * slice);
 
-GumCodeDeflector * gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
-    const GumAddressSpec * caller, gpointer return_address, gpointer target,
-    gboolean dedicated);
-void gum_code_deflector_free (GumCodeDeflector * deflector);
+GUM_API GumCodeDeflector * gum_code_allocator_alloc_deflector (
+    GumCodeAllocator * self, const GumAddressSpec * caller,
+    gpointer return_address, gpointer target, gboolean dedicated);
+GUM_API GType gum_code_deflector_get_type (void) G_GNUC_CONST;
+GUM_API GumCodeDeflector * gum_code_deflector_ref (
+    GumCodeDeflector * deflector);
+GUM_API void gum_code_deflector_unref (GumCodeDeflector * deflector);
+
+G_END_DECLS
 
 #endif
