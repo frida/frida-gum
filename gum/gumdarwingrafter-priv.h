@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -24,7 +24,10 @@ typedef struct _GumGraftedHeader GumGraftedHeader;
 typedef struct _GumGraftedHook GumGraftedHook;
 typedef struct _GumGraftedImport GumGraftedImport;
 
-#pragma pack (push, 1)
+/* FIXME: Make this portable. */
+#ifdef HAVE_PACK_PRAGMA
+# pragma pack (push, 1)
+#endif
 
 struct _GumGraftedHeader
 {
@@ -52,7 +55,9 @@ struct _GumGraftedImport
   guint64 user_data;
 };
 
-#pragma pack (pop)
+#ifdef HAVE_PACK_PRAGMA
+# pragma pack (pop)
+#endif
 
 G_GNUC_INTERNAL void _gum_grafted_hook_activate (GumGraftedHook * self);
 G_GNUC_INTERNAL void _gum_grafted_hook_deactivate (GumGraftedHook * self);

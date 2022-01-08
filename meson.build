@@ -213,6 +213,19 @@ if get_option('b_sanitize') == 'address'
   cdata.set('HAVE_ASAN', 1)
 endif
 
+if cc.compiles('''#pragma pack (push, 1)
+                  struct _Foo
+                  {
+                    short a;
+                    int b;
+                  };
+                  #pragma pack (pop)
+                  ''' + '\n',
+               args: ['-Werror'],
+               name: 'toolchain supports the pack pragma')
+  cdata.set('HAVE_PACK_PRAGMA', 1)
+endif
+
 if cc.compiles('''int
                   acquire (int * lock)
                   {

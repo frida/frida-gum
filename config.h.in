@@ -72,6 +72,9 @@
 /* Define to 1 if target is MIPS based. */
 #mesondefine HAVE_MIPS
 
+/* Define to 1 if toolchain supports the pack pragma. */
+#mesondefine HAVE_PACK_PRAGMA
+
 /* Define to 1 if toolchain supports __builtin_popcount(). */
 #mesondefine HAVE_POPCOUNT
 
