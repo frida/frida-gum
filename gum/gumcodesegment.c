@@ -6,6 +6,10 @@
 
 #include "gumcodesegment.h"
 
+/**
+ * GumCodeSegment: (skip)
+ */
+
 #ifndef HAVE_DARWIN
 
 gboolean
