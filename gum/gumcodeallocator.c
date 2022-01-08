@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -196,17 +196,15 @@ gum_code_allocator_commit (GumCodeAllocator * self)
 {
   gboolean rwx_supported;
   GSList * cur;
-  GumCodePages * pages;
   GHashTableIter iter;
+  gpointer key;
 
   rwx_supported = gum_query_is_rwx_supported ();
 
   for (cur = self->uncommitted_pages; cur != NULL; cur = cur->next)
   {
-    GumCodeSegment * segment;
-
-    pages = cur->data;
-    segment = pages->segment;
+    GumCodePages * pages = cur->data;
+    GumCodeSegment * segment = pages->segment;
 
     if (segment != NULL)
     {
@@ -224,8 +222,10 @@ gum_code_allocator_commit (GumCodeAllocator * self)
   self->uncommitted_pages = NULL;
 
   g_hash_table_iter_init (&iter, self->dirty_pages);
-  while (g_hash_table_iter_next (&iter, (gpointer *) &pages, NULL))
+  while (g_hash_table_iter_next (&iter, &key, NULL))
   {
+    GumCodePages * pages = key;
+
     gum_clear_cache (pages->data, pages->size);
   }
   g_hash_table_remove_all (self->dirty_pages);
