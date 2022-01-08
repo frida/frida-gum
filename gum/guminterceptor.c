@@ -463,8 +463,7 @@ gum_interceptor_detach (GumInterceptor * self,
                         GumInvocationListener * listener)
 {
   GHashTableIter iter;
-  GumFunctionContext * function_ctx;
-  InterceptorThreadContext * thread_ctx;
+  gpointer key, value;
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK (self);
@@ -472,8 +471,10 @@ gum_interceptor_detach (GumInterceptor * self,
   self->current_transaction.is_dirty = TRUE;
 
   g_hash_table_iter_init (&iter, self->function_by_address);
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &function_ctx))
+  while (g_hash_table_iter_next (&iter, NULL, &value))
   {
+    GumFunctionContext * function_ctx = value;
+
     if (gum_function_context_has_listener (function_ctx, listener))
     {
       gum_function_context_remove_listener (function_ctx, listener);
@@ -496,8 +497,12 @@ gum_interceptor_detach (GumInterceptor * self,
 
   gum_spinlock_acquire (&gum_interceptor_thread_context_lock);
   g_hash_table_iter_init (&iter, gum_interceptor_thread_contexts);
-  while (g_hash_table_iter_next (&iter, (gpointer *) &thread_ctx, NULL))
+  while (g_hash_table_iter_next (&iter, &key, NULL))
+  {
+    InterceptorThreadContext * thread_ctx = key;
+
     interceptor_thread_context_forget_listener_data (thread_ctx, listener);
+  }
   gum_spinlock_release (&gum_interceptor_thread_context_lock);
 
   gum_interceptor_transaction_end (&self->current_transaction);
