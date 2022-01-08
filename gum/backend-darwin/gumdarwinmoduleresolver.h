@@ -14,7 +14,7 @@ G_BEGIN_DECLS
 
 #define GUM_DARWIN_TYPE_MODULE_RESOLVER (gum_darwin_module_resolver_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumDarwinModuleResolver, gum_darwin_module_resolver,
-    GUM_DARWIN, MODULE_RESOLVER, GObject)
+                        GUM_DARWIN, MODULE_RESOLVER, GObject)
 
 typedef GumAddress (* GumDarwinModuleResolverLookupFunc) (const gchar * symbol,
     gpointer user_data);

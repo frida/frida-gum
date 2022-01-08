@@ -15,7 +15,7 @@ G_BEGIN_DECLS
 
 #define GUM_TYPE_INTERCEPTOR (gum_interceptor_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumInterceptor, gum_interceptor, GUM, INTERCEPTOR,
-    GObject)
+                        GObject)
 
 typedef GArray GumInvocationStack;
 typedef guint GumInvocationState;

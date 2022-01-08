@@ -15,8 +15,10 @@
 #ifndef GUM_DIET
 # define GUM_TYPE_SYMBOL_CACHE_INVALIDATOR \
     (gum_symbol_cache_invalidator_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumSymbolCacheInvalidator, gum_symbol_cache_invalidator,
-    GUM, SYMBOL_CACHE_INVALIDATOR, GObject)
+GUM_DECLARE_FINAL_TYPE (GumSymbolCacheInvalidator,
+                        gum_symbol_cache_invalidator,
+                        GUM, SYMBOL_CACHE_INVALIDATOR,
+                        GObject)
 
 struct _GumSymbolCacheInvalidator
 {

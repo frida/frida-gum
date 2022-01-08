@@ -40,7 +40,7 @@ static gboolean gum_store_address_if_name_matches (
 static GumCodeSigningPolicy gum_code_signing_policy = GUM_CODE_SIGNING_OPTIONAL;
 
 GUM_DEFINE_BOXED_TYPE (GumModuleDetails, gum_module_details,
-    gum_module_details_copy, gum_module_details_free)
+                       gum_module_details_copy, gum_module_details_free)
 
 GumOS
 gum_process_get_native_os (void)
