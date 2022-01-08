@@ -59,14 +59,18 @@ GUM_API GumCodeSlice * gum_code_allocator_alloc_slice (GumCodeAllocator * self);
 GUM_API GumCodeSlice * gum_code_allocator_try_alloc_slice_near (
     GumCodeAllocator * self, const GumAddressSpec * spec, gsize alignment);
 GUM_API void gum_code_allocator_commit (GumCodeAllocator * self);
+#ifndef GUM_DIET
 GUM_API GType gum_code_slice_get_type (void) G_GNUC_CONST;
+#endif
 GUM_API GumCodeSlice * gum_code_slice_ref (GumCodeSlice * slice);
 GUM_API void gum_code_slice_unref (GumCodeSlice * slice);
 
 GUM_API GumCodeDeflector * gum_code_allocator_alloc_deflector (
     GumCodeAllocator * self, const GumAddressSpec * caller,
     gpointer return_address, gpointer target, gboolean dedicated);
+#ifndef GUM_DIET
 GUM_API GType gum_code_deflector_get_type (void) G_GNUC_CONST;
+#endif
 GUM_API GumCodeDeflector * gum_code_deflector_ref (
     GumCodeDeflector * deflector);
 GUM_API void gum_code_deflector_unref (GumCodeDeflector * deflector);
