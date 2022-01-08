@@ -106,12 +106,30 @@ gum_event_sink_stop (GumEventSink * self)
     iface->stop (self);
 }
 
+/**
+ * gum_event_sink_make_default:
+ *
+ * Creates a default #GumEventSink that throws away any events directed at it.
+ *
+ * Returns: (transfer full): a newly created #GumEventSink
+ */
 GumEventSink *
 gum_event_sink_make_default (void)
 {
   return g_object_new (GUM_TYPE_DEFAULT_EVENT_SINK, NULL);
 }
 
+/**
+ * gum_event_sink_make_from_callback:
+ * @mask: bitfield specifying event types that are of interest
+ * @callback: (not nullable): function called with each event
+ * @data: data to pass to @callback
+ * @data_destroy: (destroy data): function to destroy @data
+ *
+ * Creates a #GumEventSink that delivers events to @callback.
+ *
+ * Returns: (transfer full): a newly created #GumEventSink
+ */
 GumEventSink *
 gum_event_sink_make_from_callback (GumEventType mask,
                                    GumEventSinkCallback callback,
