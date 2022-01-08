@@ -413,6 +413,7 @@ if host_os_family in ['linux', 'qnx']
 
   extra_deps += [unwind_dep, elf_dep, libdwarf_dep]
 else
+  unwind_dep = disabler()
   libdwarf_dep = disabler()
 endif
 
