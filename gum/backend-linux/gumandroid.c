@@ -1178,7 +1178,7 @@ gum_linker_api_try_init (void)
 
   gum_dl_api.trusted_caller = dlsym (RTLD_DEFAULT, "open");
 
-  g_object_unref (linker);
+  gum_object_unref (linker);
 
   return (pending == 0) ? &gum_dl_api : NULL;
 }

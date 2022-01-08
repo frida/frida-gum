@@ -318,7 +318,7 @@ gum_try_init_libc_name (void)
       return NULL;
   }
 
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (g_path_is_absolute (info.dli_fname))
   {
     gum_libc_name = g_strdup (info.dli_fname);
@@ -745,7 +745,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   static gsize iterate_phdr_value = 0;
   GumDlIteratePhdrImpl iterate_phdr;
 
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
   {
     gum_android_enumerate_modules (func, user_data);
@@ -1394,7 +1394,7 @@ gum_module_load (const gchar * module_name,
 {
   GumGenericDlopenImpl dlopen_impl = dlopen;
 
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_module_get_handle (module_name) != NULL)
     return TRUE;
 
@@ -1417,7 +1417,7 @@ not_found:
 static void *
 gum_module_get_handle (const gchar * module_name)
 {
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
     return gum_android_get_module_handle (module_name);
 #endif
@@ -1431,7 +1431,7 @@ gum_module_get_symbol (void * module,
 {
   GumGenericDlsymImpl dlsym_impl = dlsym;
 
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
     gum_android_find_unrestricted_dlsym (&dlsym_impl);
 #endif
@@ -1444,7 +1444,7 @@ gum_module_ensure_initialized (const gchar * module_name)
 {
   void * module;
 
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
     return gum_android_ensure_module_initialized (module_name);
 #endif
@@ -1742,7 +1742,7 @@ gum_module_find_export_by_name (const gchar * module_name,
   GumAddress result;
   void * module;
 
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE &&
       gum_android_try_resolve_magic_export (module_name, symbol_name, &result))
     return result;
