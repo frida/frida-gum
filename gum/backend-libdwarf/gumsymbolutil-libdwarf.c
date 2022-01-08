@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -364,7 +364,7 @@ gum_find_nearest_symbol_by_address (gpointer address,
   GHashTable * table;
   GumElfSymbolDetails * details;
   GHashTableIter iter;
-  GumElfSymbolDetails * current_symbol = NULL;
+  gpointer value;
 
   table = gum_get_address_symbols ();
 
@@ -377,8 +377,10 @@ gum_find_nearest_symbol_by_address (gpointer address,
   }
 
   g_hash_table_iter_init (&iter, table);
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &current_symbol))
+  while (g_hash_table_iter_next (&iter, NULL, &value))
   {
+    GumElfSymbolDetails * current_symbol = value;
+
     if (current_symbol->address > GUM_ADDRESS (address))
       continue;
 
@@ -423,8 +425,7 @@ gum_find_functions_matching (const gchar * str)
   GHashTable * seen;
   GPatternSpec * pspec;
   GHashTableIter iter;
-  const gchar * name;
-  GArray * addresses;
+  gpointer key, value;
 
   matches = g_array_new (FALSE, FALSE, sizeof (gpointer));
   seen = g_hash_table_new (NULL, NULL);
@@ -433,9 +434,11 @@ gum_find_functions_matching (const gchar * str)
   G_LOCK (gum_symbol_util);
 
   g_hash_table_iter_init (&iter, gum_get_function_addresses ());
-  while (g_hash_table_iter_next (&iter, (gpointer *) &name,
-      (gpointer *) &addresses))
+  while (g_hash_table_iter_next (&iter, &key, &value))
   {
+    const gchar * name = key;
+    GArray * addresses = value;
+
     if (g_pattern_match_string (pspec, name))
     {
       guint i;
