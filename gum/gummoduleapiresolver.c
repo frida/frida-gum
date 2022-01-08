@@ -5,6 +5,14 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+/**
+ * GumModuleApiResolver:
+ *
+ * Resolves APIs by searching exports and imports of currently loaded modules.
+ *
+ * See [iface@Gum.ApiResolver] for more information.
+ */
+
 #ifndef GUM_DIET
 
 #include "gummoduleapiresolver.h"
@@ -131,6 +139,14 @@ gum_module_api_resolver_finalize (GObject * object)
   G_OBJECT_CLASS (gum_module_api_resolver_parent_class)->finalize (object);
 }
 
+/**
+ * gum_module_api_resolver_new:
+ *
+ * Creates a new resolver that searches exports and imports of currently loaded
+ * modules.
+ *
+ * Returns: (transfer full): the newly created resolver instance
+ */
 GumApiResolver *
 gum_module_api_resolver_new (void)
 {
