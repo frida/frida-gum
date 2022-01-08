@@ -39,6 +39,9 @@
 #define HASH_IS_TOMBSTONE(h_) ((h_) == TOMBSTONE_HASH_VALUE)
 #define HASH_IS_REAL(h_) ((h_) >= 2)
 
+/**
+ * GumMetalHashTable: (skip)
+ */
 struct _GumMetalHashTable
 {
   gint             size;
