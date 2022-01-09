@@ -134,6 +134,14 @@ endif
 have_gumpp = not gumpp_opt.disabled()
 have_gumjs = not gumjs_opt.disabled()
 
+tests_opt = get_option('tests')
+if tests_opt.auto()
+  build_tests = not meson.is_subproject() \
+      and (not meson.is_cross_build() or (meson.is_cross_build() and meson.has_exe_wrapper()))
+else
+  build_tests = not tests_opt.disabled()
+endif
+
 allocator = get_option('allocator')
 if allocator == 'auto'
   allocator = diet ? 'system' : 'internal'
@@ -295,6 +303,14 @@ if not diet
 else
   gobject_dep = disabler()
 endif
+gio_os_package_name = (host_os_family == 'windows') ? 'gio-windows-2.0' : 'gio-unix-2.0'
+if have_gumjs
+  gio_dep = dependency('gio-2.0', default_options: glib_options)
+  gio_os_package_dep = dependency(gio_os_package_name)
+else
+  gio_dep = disabler()
+  gio_os_package_dep = disabler()
+endif
 
 capstone_arch_mappings = {
   'x86_64': 'x86',
@@ -314,13 +330,6 @@ else
   ffi_dep = disabler()
 endif
 
-tests_opt = get_option('tests')
-if tests_opt.auto()
-  build_tests = not meson.is_subproject() \
-      and (not meson.is_cross_build() or (meson.is_cross_build() and meson.has_exe_wrapper()))
-else
-  build_tests = not tests_opt.disabled()
-endif
 if build_tests
   lzma_dep = dependency('liblzma')
 else
@@ -459,14 +468,6 @@ if have_gumjs
     error('Cannot build JavaScript bindings without any runtimes enabled')
   endif
 
-  gio_dep = dependency('gio-2.0', default_options: glib_options)
-
-  if host_os_family == 'windows'
-    gio_os_package_name = 'gio-windows-2.0'
-  else
-    gio_os_package_name = 'gio-unix-2.0'
-  endif
-  gio_os_package_dep = dependency(gio_os_package_name)
   gumjs_extra_requires += [gio_os_package_name]
 
   json_glib_dep = dependency('json-glib-1.0', default_options: [
