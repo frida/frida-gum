@@ -8,7 +8,7 @@
 
 #include "testutil.h"
 
-#if defined (HAVE_GUMJS)
+#ifdef HAVE_GUMJS
 # include "gumscriptbackend.h"
 #endif
 #ifdef HAVE_I386
@@ -18,7 +18,9 @@
 
 #include <capstone.h>
 #include <glib.h>
-#include <gio/gio.h>
+#ifdef HAVE_GUMJS
+# include <gio/gio.h>
+#endif
 #ifdef HAVE_GIOOPENSSL
 # include <gioopenssl.h>
 #endif
@@ -111,7 +113,9 @@ main (gint argc, gchar * argv[])
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
+# ifdef HAVE_GUMJS
   gio_init ();
+# endif
 #endif
 #ifdef HAVE_GIOOPENSSL
   g_io_module_openssl_register ();
@@ -310,7 +314,9 @@ main (gint argc, gchar * argv[])
   }
 
   gum_shutdown ();
+# ifdef HAVE_GUMJS
   gio_shutdown ();
+# endif
   glib_shutdown ();
 
   _test_util_deinit ();
@@ -320,7 +326,9 @@ main (gint argc, gchar * argv[])
 # endif
 
   gum_deinit ();
+# ifdef HAVE_GUMJS
   gio_deinit ();
+# endif
   glib_deinit ();
   gum_internal_heap_unref ();
 
