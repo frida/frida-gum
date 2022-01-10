@@ -133,6 +133,7 @@ enum _GumOS
   GUM_OS_LINUX,
   GUM_OS_IOS,
   GUM_OS_ANDROID,
+  GUM_OS_FREEBSD,
   GUM_OS_QNX
 };
 

@@ -21,6 +21,9 @@
 /* Define to 1 if OS is Darwin based. */
 #mesondefine HAVE_DARWIN
 
+/* Define to 1 if OS is FreeBSD based. */
+#mesondefine HAVE_FREEBSD
+
 /* Define to 1 if using Frida's GLib. */
 #mesondefine HAVE_FRIDA_GLIB
 

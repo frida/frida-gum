@@ -15,6 +15,9 @@
 #ifdef HAVE_LINUX
 # include "backend-linux/gumlinux.h"
 #endif
+#ifdef HAVE_FREEBSD
+# include "backend-freebsd/gumfreebsd.h"
+#endif
 #ifdef HAVE_QNX
 # include "backend-qnx/gumqnx.h"
 #endif
@@ -25,6 +28,12 @@
 #ifdef HAVE_QNX
 # include <sys/debug.h>
 # include <unix.h>
+#endif
+
+#ifdef HAVE_FREEBSD
+typedef sig_t GumSignalHandler;
+#else
+typedef sighandler_t GumSignalHandler;
 #endif
 
 struct _GumExceptorBackend
@@ -85,7 +94,8 @@ G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
 
-static sighandler_t (* gum_original_signal) (int signum, sighandler_t handler);
+static GumSignalHandler (* gum_original_signal) (int signum,
+    GumSignalHandler handler);
 static int (* gum_original_sigaction) (int signum, const struct sigaction * act,
     struct sigaction * oldact);
 
@@ -522,6 +532,26 @@ gum_unparse_context (const GumCpuContext * ctx,
   ucontext_t * uc = context;
 
   gum_linux_unparse_ucontext (ctx, uc);
+}
+
+#elif defined (HAVE_FREEBSD)
+
+static void
+gum_parse_context (gconstpointer context,
+                   GumCpuContext * ctx)
+{
+  const ucontext_t * uc = context;
+
+  gum_freebsd_parse_ucontext (uc, ctx);
+}
+
+static void
+gum_unparse_context (const GumCpuContext * ctx,
+                     gpointer context)
+{
+  ucontext_t * uc = context;
+
+  gum_freebsd_unparse_ucontext (ctx, uc);
 }
 
 #elif defined (HAVE_QNX)

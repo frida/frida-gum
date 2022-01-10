@@ -10,6 +10,18 @@
 #include "gumunwbacktracer.h"
 
 #include "guminterceptor.h"
+#ifdef HAVE_LINUX
+# include "backend-linux/gumlinux.h"
+# define gum_os_unparse_ucontext gum_linux_unparse_ucontext
+#endif
+#ifdef HAVE_FREEBSD
+# include "backend-freebsd/gumfreebsd.h"
+# define gum_os_unparse_ucontext gum_freebsd_unparse_ucontext
+#endif
+#ifdef HAVE_QNX
+# include "backend-qnx/gumqnx.h"
+# define gum_os_unparse_ucontext gum_qnx_unparse_ucontext
+#endif
 
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
@@ -130,62 +142,18 @@ static void
 gum_cpu_context_to_unw (const GumCpuContext * ctx,
                         unw_context_t * uc)
 {
-#if defined (UNW_TARGET_X86)
-# if defined (HAVE_QNX)
-  X86_CPU_REGISTERS * regs = &uc->uc_mcontext.cpu;
-# else
-  greg_t * gr = uc->uc_mcontext.gregs;
-# endif
-
+#if defined (UNW_TARGET_X86) || defined (UNW_TARGET_X86_64) || \
+    defined (UNW_TARGET_AARCH64)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wunused-value"
   unw_getcontext (uc);
+# pragma GCC diagnostic pop
 
-# if defined (HAVE_QNX)
-  regs->eip = ctx->eip;
+  gum_os_unparse_ucontext (ctx, uc);
 
-  regs->edi = ctx->edi;
-  regs->esi = ctx->esi;
-  regs->ebp = ctx->ebp;
-  regs->esp = ctx->esp;
-  regs->ebx = ctx->ebx;
-  regs->edx = ctx->edx;
-  regs->ecx = ctx->ecx;
-  regs->eax = ctx->eax;
-# else
-  gr[REG_EIP] = ctx->eip;
-
-  gr[REG_EDI] = ctx->edi;
-  gr[REG_ESI] = ctx->esi;
-  gr[REG_EBP] = ctx->ebp;
-  gr[REG_ESP] = ctx->esp;
-  gr[REG_EBX] = ctx->ebx;
-  gr[REG_EDX] = ctx->edx;
-  gr[REG_ECX] = ctx->ecx;
-  gr[REG_EAX] = ctx->eax;
+# if defined (UNW_TARGET_AARCH64)
+  uc->uc_mcontext.pc -= 4;
 # endif
-#elif defined (UNW_TARGET_X86_64)
-  greg_t * gr = uc->uc_mcontext.gregs;
-
-  unw_getcontext (uc);
-
-  gr[REG_RIP] = ctx->rip;
-
-  gr[REG_R15] = ctx->r15;
-  gr[REG_R14] = ctx->r14;
-  gr[REG_R13] = ctx->r13;
-  gr[REG_R12] = ctx->r12;
-  gr[REG_R11] = ctx->r11;
-  gr[REG_R10] = ctx->r10;
-  gr[REG_R9] = ctx->r9;
-  gr[REG_R8] = ctx->r8;
-
-  gr[REG_RDI] = ctx->rdi;
-  gr[REG_RSI] = ctx->rsi;
-  gr[REG_RBP] = ctx->rbp;
-  gr[REG_RSP] = ctx->rsp;
-  gr[REG_RBX] = ctx->rbx;
-  gr[REG_RDX] = ctx->rdx;
-  gr[REG_RCX] = ctx->rcx;
-  gr[REG_RAX] = ctx->rax;
 #elif defined (UNW_TARGET_ARM)
   uc->regs[UNW_ARM_R15] = ctx->pc;
   uc->regs[UNW_ARM_R13] = ctx->sp;
@@ -198,20 +166,6 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
   }
 
   uc->regs[UNW_ARM_R14] = ctx->lr;
-#elif defined (UNW_TARGET_AARCH64)
-  struct unw_sigcontext * mc = &uc->uc_mcontext;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-value"
-  unw_getcontext (uc);
-#pragma GCC diagnostic pop
-
-  mc->pc = ctx->pc - 4;
-  mc->sp = ctx->sp;
-
-  memcpy (mc->regs, ctx->x, sizeof (ctx->x));
-  mc->regs[29] = ctx->fp;
-  mc->regs[30] = ctx->lr;
 #elif defined (UNW_TARGET_MIPS)
   greg_t * gr = uc->uc_mcontext.gregs;
 

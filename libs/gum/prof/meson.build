@@ -38,6 +38,10 @@ if host_os_family == 'linux'
   endif
 endif
 
+if host_os_family == 'freebsd'
+  gum_prof_sources += ['gumbusycyclesampler-freebsd.c']
+endif
+
 if host_os_family == 'qnx'
   gum_prof_sources += [
     'gumbusycyclesampler-qnx.c',

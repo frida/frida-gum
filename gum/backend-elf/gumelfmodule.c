@@ -901,9 +901,9 @@ gum_elf_module_detect_dynamic_address_state (GumElfModule * self)
   if (self->source == GUM_ELF_SOURCE_VDSO)
     return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) || defined (HAVE_FREEBSD)
   return GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
-#elif HAVE_MIPS
+#elif defined (HAVE_MIPS)
   /*
    * This value was set for MIPS based upon experimentation. However,
    * this may be influenced by platform configuration or other factors.

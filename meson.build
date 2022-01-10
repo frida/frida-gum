@@ -386,7 +386,7 @@ if host_os == 'android'
   extra_libs_private += ['-llog']
 endif
 
-if host_os_family in ['linux', 'qnx']
+if host_os_family in ['linux', 'freebsd', 'qnx']
   libunwind_dep = dependency('libunwind', default_options: [
     'generic_library=disabled',
     'coredump_library=disabled',

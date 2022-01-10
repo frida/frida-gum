@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -45,6 +45,8 @@
 # define GUM_TEST_SHLIB_OS "ios"
 #elif defined (HAVE_ANDROID)
 # define GUM_TEST_SHLIB_OS "android"
+#elif defined (HAVE_FREEBSD)
+# define GUM_TEST_SHLIB_OS "freebsd"
 #elif defined (HAVE_QNX)
 # define GUM_TEST_SHLIB_OS "qnx"
 #else

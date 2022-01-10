@@ -155,6 +155,19 @@ if host_os_family == 'linux'
   endif
 endif
 
+if host_os_family == 'freebsd'
+  gum_backend_headers += [
+    'backend-freebsd/gumfreebsd.h',
+  ]
+  gum_sources += [
+    'backend-freebsd/gummemory-freebsd.c',
+    'backend-posix/gummemory-posix.c',
+    'backend-freebsd/gumprocess-freebsd.c',
+    'backend-posix/gumtls-posix.c',
+    'backend-posix/gumexceptor-posix.c',
+  ]
+endif
+
 if host_os_family == 'qnx'
   gum_backend_headers += [
     'backend-qnx/gumqnx.h',
@@ -168,7 +181,7 @@ if host_os_family == 'qnx'
   ]
 endif
 
-if host_os_family == 'linux' or host_os_family == 'qnx'
+if host_os_family in ['linux', 'freebsd', 'qnx']
   gum_backend_headers += [
     'backend-elf/gumelfmodule.h',
   ]

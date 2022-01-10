@@ -55,6 +55,8 @@ gum_process_get_native_os (void)
   return GUM_OS_IOS;
 #elif defined (HAVE_ANDROID)
   return GUM_OS_ANDROID;
+#elif defined (HAVE_FREEBSD)
+  return GUM_OS_FREEBSD;
 #elif defined (HAVE_QNX)
   return GUM_OS_QNX;
 #else

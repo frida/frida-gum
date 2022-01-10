@@ -33,6 +33,11 @@
 # ifdef HAVE_LINUX
 #  include <dlfcn.h>
 # endif
+# ifdef HAVE_FREEBSD
+#  include <dlfcn.h>
+#  include <sys/sysctl.h>
+#  include <sys/types.h>
+# endif
 # ifdef HAVE_QNX
 #  include <devctl.h>
 #  include <errno.h>
@@ -344,6 +349,22 @@ test_util_get_data_dir (void)
   g_free (path);
 
   return result;
+#elif defined (HAVE_FREEBSD)
+  int mib[4];
+  char path[PATH_MAX];
+  size_t size;
+
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC;
+  mib[2] = KERN_PROC_PATHNAME;
+  mib[3] = -1;
+
+  size = sizeof (path);
+
+  g_assert_cmpint (sysctl (mib, G_N_ELEMENTS (mib), path, &size, NULL, 0),
+      ==, 0);
+
+  return find_data_dir_from_executable_path (path);
 #elif defined (HAVE_QNX)
   gint fd;
 
