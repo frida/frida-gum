@@ -152,13 +152,16 @@ gum_elf_module_constructed (GObject * object)
     self->name = g_path_get_basename (self->path);
   }
 
+#ifdef HAVE_LINUX
   if (strcmp (self->path, "linux-vdso.so.1") == 0)
   {
     self->file_data = GSIZE_TO_POINTER (self->base_address);
     self->file_size = gum_query_page_size ();
     self->source = GUM_ELF_SOURCE_VDSO;
   }
-  else if (gum_maybe_extract_from_apk (self->path, &self->file_data,
+  else
+#endif
+  if (gum_maybe_extract_from_apk (self->path, &self->file_data,
       &self->file_size))
   {
     self->source = GUM_ELF_SOURCE_BLOB;
