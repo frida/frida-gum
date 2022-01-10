@@ -1715,7 +1715,7 @@ gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
 
   if (details->file == NULL)
     return TRUE;
-  else if (strcmp (details->file->path, ctx->module_name) != 0)
+  if (strcmp (details->file->path, ctx->module_name) != 0)
     return TRUE;
 
   return ctx->func (details, ctx->user_data);
