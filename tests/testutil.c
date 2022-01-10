@@ -379,12 +379,6 @@ find_data_dir_from_executable_path (const gchar * path)
   gchar * result, * dir;
 
   dir = g_path_get_dirname (path);
-  if (g_str_has_suffix (dir, "/.libs"))
-  {
-    gchar * tmp = g_path_get_dirname (dir);
-    g_free (dir);
-    dir = tmp;
-  }
   result = g_build_filename (dir, "data", NULL);
   g_free (dir);
 
