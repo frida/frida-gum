@@ -261,7 +261,7 @@ if host_arch == 'mips'
   ]
 endif
 
-if unwind_dep.found()
+if libunwind_dep.found()
   gum_backend_headers += [
     'backend-libunwind/gumunwbacktracer.h',
   ]

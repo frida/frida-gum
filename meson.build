@@ -387,7 +387,7 @@ if host_os == 'android'
 endif
 
 if host_os_family in ['linux', 'qnx']
-  unwind_dep = dependency('libunwind', default_options: [
+  libunwind_dep = dependency('libunwind', default_options: [
     'generic_library=disabled',
     'coredump_library=disabled',
     'ptrace_library=disabled',
@@ -399,7 +399,7 @@ if host_os_family in ['linux', 'qnx']
   cdata.set('HAVE_LIBUNWIND', 1)
   extra_requires_private += ['libunwind']
 
-  elf_dep = dependency('libelf')
+  libelf_dep = dependency('libelf')
 
   libdwarf_dep = dependency('libdwarf', required: false)
   if not libdwarf_dep.found()
@@ -420,9 +420,9 @@ if host_os_family in ['linux', 'qnx']
     endif
   endif
 
-  extra_deps += [unwind_dep, elf_dep, libdwarf_dep]
+  extra_deps += [libunwind_dep, libelf_dep, libdwarf_dep]
 else
-  unwind_dep = disabler()
+  libunwind_dep = disabler()
   libdwarf_dep = disabler()
 endif
 
