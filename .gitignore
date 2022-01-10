@@ -12,8 +12,8 @@
 /subprojects/libsoup/
 /subprojects/libunwind/
 /subprojects/packagecache/
-/subprojects/pcre-*/
 /subprojects/pcre.wrap
+/subprojects/pcre/
 /subprojects/proxy-libintl*
 /subprojects/quickjs/
 /subprojects/tinycc/
