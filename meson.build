@@ -399,7 +399,15 @@ if host_os_family in ['linux', 'qnx']
   cdata.set('HAVE_LIBUNWIND', 1)
   extra_requires_private += ['libunwind']
 
-  libelf_dep = dependency('libelf')
+  libelf_dep = dependency('libelf', required: false)
+  if not libelf_dep.found()
+    if not meson.is_cross_build() and cc.has_header('libelf.h')
+      extra_libs_private += '-lelf'
+      extra_gir_args_private += '--extra-library=elf'
+    else
+      libelf_dep = dependency('libelf', required: true)
+    endif
+  endif
 
   libdwarf_dep = dependency('libdwarf', required: false)
   if not libdwarf_dep.found()
