@@ -296,10 +296,11 @@ main (gint argc, gchar * argv[])
 #pragma warning (pop)
 #endif
 
+  num_tests = get_number_of_tests_in_suite (g_test_get_root ());
+
   timer = g_timer_new ();
   result = g_test_run ();
   t = g_timer_elapsed (timer, NULL);
-  num_tests = get_number_of_tests_in_suite (g_test_get_root ());
   g_timer_destroy (timer);
 
   g_print ("\nRan %d tests in %.2f seconds\n", num_tests, t);
