@@ -20,13 +20,18 @@ GUM_DECLARE_FINAL_TYPE (GumExceptor, gum_exceptor, GUM, EXCEPTOR, GObject)
 #if defined (G_OS_WIN32) || defined (__APPLE__)
 # define GUM_NATIVE_SETJMP(env) setjmp (env)
 # define GUM_NATIVE_LONGJMP longjmp
+# ifndef GUM_GIR_COMPILATION
   typedef jmp_buf GumExceptorNativeJmpBuf;
+# endif
 #else
 # define GUM_NATIVE_SETJMP(env) sigsetjmp (env, TRUE)
 # define GUM_NATIVE_LONGJMP siglongjmp
-# if !defined (GUM_GIR_COMPILATION)
+# ifndef GUM_GIR_COMPILATION
   typedef sigjmp_buf GumExceptorNativeJmpBuf;
 # endif
+#endif
+#ifdef GUM_GIR_COMPILATION
+typedef int GumExceptorNativeJmpBuf;
 #endif
 
 typedef struct _GumExceptionDetails GumExceptionDetails;
@@ -73,7 +78,7 @@ struct _GumExceptorScope
   /*< private */
   gboolean exception_occurred;
   gpointer padding[2];
-  jmp_buf env;
+  GumExceptorNativeJmpBuf env;
 #ifdef __ANDROID__
   sigset_t mask;
 #endif
