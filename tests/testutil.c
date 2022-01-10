@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -320,7 +320,10 @@ test_util_diff_xml (const gchar * expected_xml,
 gchar *
 test_util_get_data_dir (void)
 {
-#if defined (HAVE_DARWIN)
+#if defined (HAVE_WINDOWS)
+  g_assert_not_reached (); /* FIXME: once this is needed on Windows */
+  return NULL;
+#elif defined (HAVE_DARWIN)
   guint image_count, image_idx;
 
   image_count = _dyld_image_count ();
@@ -341,12 +344,8 @@ test_util_get_data_dir (void)
   g_free (path);
 
   return result;
-#elif defined (HAVE_WINDOWS)
-  g_assert_not_reached (); /* FIXME: once this is needed on Windows */
-  return NULL;
 #elif defined (HAVE_QNX)
   gint fd;
-  gchar * result;
 
   fd = open ("/proc/self/as", O_RDONLY);
   if (fd == -1)
@@ -366,9 +365,7 @@ test_util_get_data_dir (void)
 
   close (fd);
 
-  result = find_data_dir_from_executable_path (name.info.path);
-
-  return result;
+  return find_data_dir_from_executable_path (name.info.path);
 #else
 # error Implement support for your OS here
 #endif
