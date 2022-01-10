@@ -131,6 +131,8 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
       g_param_spec_uint64 ("base-address", "BaseAddress", "Base address", 0,
       G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS));
+
+  elf_version (EV_CURRENT);
 }
 
 static void
