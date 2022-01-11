@@ -401,9 +401,8 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
 
   libelf_dep = dependency('libelf', required: false)
   if not libelf_dep.found()
-    if not meson.is_cross_build() and cc.has_header('libelf.h')
-      extra_libs_private += '-lelf'
-      extra_gir_args_private += '--extra-library=elf'
+    if cc.has_header('libelf.h')
+      libelf_dep = cc.find_library('elf')
     else
       libelf_dep = dependency('libelf', required: true)
     endif
