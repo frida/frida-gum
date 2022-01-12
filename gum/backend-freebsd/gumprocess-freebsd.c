@@ -267,6 +267,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   GumModuleDetails details;
   GumMemoryRange range;
   gboolean is_program_itself, carry_on;
+  Elf_Half i;
 
   name = g_path_get_basename (info->dlpi_name);
 
@@ -285,7 +286,14 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   {
     range.base_address = info->dlpi_addr;
   }
-  range.size = 0; /* FIXME */
+
+  range.size = 0;
+  for (i = 0; i != info->dlpi_phnum; i++)
+  {
+    const Elf_Phdr * h = &info->dlpi_phdr[i];
+    if (h->p_type == PT_LOAD)
+      range.size += h->p_memsz;
+  }
 
   carry_on = ctx->func (&details, ctx->user_data);
 
