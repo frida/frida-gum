@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -38,6 +38,8 @@
 # define GUM_SCRIPT_PLATFORM "darwin"
 #elif defined (HAVE_WINDOWS)
 # define GUM_SCRIPT_PLATFORM "windows"
+#elif defined (HAVE_FREEBSD)
+# define GUM_SCRIPT_PLATFORM "freebsd"
 #elif defined (HAVE_QNX)
 # define GUM_SCRIPT_PLATFORM "qnx"
 #endif
