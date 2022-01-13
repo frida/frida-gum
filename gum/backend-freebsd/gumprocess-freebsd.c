@@ -197,7 +197,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
                                 gpointer user_data)
 {
   int mib[4];
-  struct kinfo_proc * buffer = NULL;
+  struct kinfo_proc * threads = NULL;
   size_t size;
   guint n, i;
 
@@ -216,10 +216,10 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
     gboolean still_too_small;
 
     size += size / 10;
-    buffer = g_realloc (buffer, size);
+    threads = g_realloc (threads, size);
 
     previous_size = size;
-    if (sysctl (mib, G_N_ELEMENTS (mib), buffer, &size, NULL, 0) == 0)
+    if (sysctl (mib, G_N_ELEMENTS (mib), threads, &size, NULL, 0) == 0)
       break;
 
     still_too_small = errno == ENOMEM && size == previous_size;
@@ -230,7 +230,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   n = size / sizeof (struct kinfo_proc);
   for (i = 0; i != n; i++)
   {
-    struct kinfo_proc * p = &buffer[i];
+    struct kinfo_proc * p = &threads[i];
     GumThreadDetails details;
 
     details.id = p->ki_tid;
@@ -242,7 +242,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   }
 
 beach:
-  g_free (buffer);
+  g_free (threads);
 }
 
 void
@@ -317,8 +317,8 @@ gum_freebsd_enumerate_ranges (pid_t pid,
                               gpointer user_data)
 {
   int mib[4];
-  gpointer buffer = NULL;
-  gpointer map_cursor, map_end;
+  gpointer entries = NULL;
+  gpointer cursor, end;
   size_t size;
 
   mib[0] = CTL_KERN;
@@ -336,10 +336,10 @@ gum_freebsd_enumerate_ranges (pid_t pid,
     gboolean still_too_small;
 
     size = size * 4 / 3;
-    buffer = g_realloc (buffer, size);
+    entries = g_realloc (entries, size);
 
     previous_size = size;
-    if (sysctl (mib, G_N_ELEMENTS (mib), buffer, &size, NULL, 0) == 0)
+    if (sysctl (mib, G_N_ELEMENTS (mib), entries, &size, NULL, 0) == 0)
       break;
 
     still_too_small = errno == ENOMEM && size == previous_size;
@@ -347,12 +347,12 @@ gum_freebsd_enumerate_ranges (pid_t pid,
       goto beach;
   }
 
-  map_cursor = buffer;
-  map_end = buffer + size;
+  cursor = entries;
+  end = entries + size;
 
-  while (map_cursor != map_end)
+  while (cursor != end)
   {
-    struct kinfo_vmentry * e = map_cursor;
+    struct kinfo_vmentry * e = cursor;
     GumRangeDetails details;
     GumMemoryRange range;
     GumFileMapping file;
@@ -384,11 +384,11 @@ gum_freebsd_enumerate_ranges (pid_t pid,
         goto beach;
     }
 
-    map_cursor += e->kve_structsize;
+    cursor += e->kve_structsize;
   }
 
 beach:
-  g_free (buffer);
+  g_free (entries);
 }
 
 void
