@@ -14,6 +14,10 @@ if host_os_family == 'freebsd'
   vapis += ['frida-gum-freebsd-@0@.vapi'.format(api_version)]
 endif
 
+if host_executable_format == 'elf'
+  vapis += ['frida-gum-elf-@0@.vapi'.format(api_version)]
+endif
+
 if have_gumjs
   vapis += ['frida-gumjs-@0@.vapi'.format(api_version)]
 endif
