@@ -215,7 +215,6 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
     size_t previous_size;
     gboolean still_too_small;
 
-    size += size / 10;
     threads = g_realloc (threads, size);
 
     previous_size = size;
@@ -225,6 +224,8 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
     still_too_small = errno == ENOMEM && size == previous_size;
     if (!still_too_small)
       goto beach;
+
+    size += size / 10;
   }
 
   n = size / sizeof (struct kinfo_proc);
@@ -335,7 +336,6 @@ gum_freebsd_enumerate_ranges (pid_t pid,
     size_t previous_size;
     gboolean still_too_small;
 
-    size = size * 4 / 3;
     entries = g_realloc (entries, size);
 
     previous_size = size;
@@ -345,6 +345,8 @@ gum_freebsd_enumerate_ranges (pid_t pid,
     still_too_small = errno == ENOMEM && size == previous_size;
     if (!still_too_small)
       goto beach;
+
+    size = size * 4 / 3;
   }
 
   cursor = entries;
