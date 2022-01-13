@@ -228,14 +228,10 @@ namespace Gum {
 		public unowned string query_libc_name ();
 		public bool is_debugger_attached ();
 		public Gum.ThreadId get_current_thread_id ();
-		public bool modify_thread (Gum.ThreadId thread_id, Gum.Process.ModifyThreadFunc func);
-		public void enumerate_threads (Gum.Process.FoundThreadFunc func);
-		public void enumerate_modules (Gum.Process.FoundModuleFunc func);
+		public bool modify_thread (Gum.ThreadId thread_id, Gum.ModifyThreadFunc func);
+		public void enumerate_threads (Gum.FoundThreadFunc func);
+		public void enumerate_modules (Gum.FoundModuleFunc func);
 		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
-
-		public delegate void ModifyThreadFunc (Gum.ThreadId thread_id, CpuContext * cpu_context);
-		public delegate bool FoundThreadFunc (Gum.ThreadDetails details);
-		public delegate bool FoundModuleFunc (Gum.ModuleDetails details);
 	}
 
 	namespace Thread {
@@ -244,16 +240,12 @@ namespace Gum {
 
 	namespace Module {
 		public bool ensure_initialized (string module_name);
-		public void enumerate_imports (string module_name, Gum.Module.FoundImportFunc func);
-		public void enumerate_exports (string module_name, Gum.Module.FoundExportFunc func);
-		public void enumerate_symbols (string module_name, Gum.Module.FoundSymbolFunc func);
+		public void enumerate_imports (string module_name, Gum.FoundImportFunc func);
+		public void enumerate_exports (string module_name, Gum.FoundExportFunc func);
+		public void enumerate_symbols (string module_name, Gum.FoundSymbolFunc func);
 		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 		public void * find_base_address (string module_name);
 		public void * find_export_by_name (string? module_name, string symbol_name);
-
-		public delegate bool FoundImportFunc (Gum.ImportDetails details);
-		public delegate bool FoundExportFunc (Gum.ExportDetails details);
-		public delegate bool FoundSymbolFunc (Gum.SymbolDetails details);
 	}
 
 	namespace Memory {
@@ -409,7 +401,13 @@ namespace Gum {
 		public uint32 k1;
 	}
 
+	public delegate void ModifyThreadFunc (Gum.ThreadId thread_id, CpuContext * cpu_context);
+	public delegate bool FoundThreadFunc (Gum.ThreadDetails details);
+	public delegate bool FoundModuleFunc (Gum.ModuleDetails details);
 	public delegate bool FoundRangeFunc (Gum.RangeDetails details);
+	public delegate bool FoundImportFunc (Gum.ImportDetails details);
+	public delegate bool FoundExportFunc (Gum.ExportDetails details);
+	public delegate bool FoundSymbolFunc (Gum.SymbolDetails details);
 
 	public struct ThreadId : size_t {
 	}
@@ -708,7 +706,7 @@ namespace Gum {
 
 		public bool resolve_export (string symbol, out Gum.DarwinExportDetails details);
 		public Gum.Address resolve_symbol_address (string symbol);
-		public void enumerate_imports (Gum.Module.FoundImportFunc func);
+		public void enumerate_imports (Gum.FoundImportFunc func);
 		public void enumerate_exports (Gum.FoundDarwinExportFunc func);
 		public void enumerate_symbols (Gum.FoundDarwinSymbolFunc func);
 		public void enumerate_sections (Gum.FoundDarwinSectionFunc func);
@@ -720,7 +718,7 @@ namespace Gum {
 		public void enumerate_init_pointers (Gum.FoundDarwinInitPointersFunc func);
 		public void enumerate_init_offsets (Gum.FoundDarwinInitOffsetsFunc func);
 		public void enumerate_term_pointers (Gum.FoundDarwinTermPointersFunc func);
-		public void enumerate_dependencies (Gum.FoundDarwinDependenciesFunc func);
+		public void enumerate_dependencies (Gum.FoundDarwinDependencyFunc func);
 		public unowned string? get_dependency_by_ordinal (int ordinal);
 	}
 
@@ -733,7 +731,7 @@ namespace Gum {
 	public delegate bool FoundDarwinInitPointersFunc (Gum.DarwinInitPointersDetails details);
 	public delegate bool FoundDarwinInitOffsetsFunc (Gum.DarwinInitOffsetsDetails details);
 	public delegate bool FoundDarwinTermPointersFunc (Gum.DarwinTermPointersDetails details);
-	public delegate bool FoundDarwinDependenciesFunc (string path);
+	public delegate bool FoundDarwinDependencyFunc (string path);
 
 	[Compact]
 	public class DarwinModuleImage {
