@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -133,7 +133,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 
 fopen_failed:
   {
-    _gum_quick_throw (ctx, "failed to open file (%s)", strerror (errno));
+    _gum_quick_throw (ctx, "failed to open file (%s)", g_strerror (errno));
     goto propagate_exception;
   }
 propagate_exception:

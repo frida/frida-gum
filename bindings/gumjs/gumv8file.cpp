@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2013-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -98,7 +98,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 
   if (handle == NULL)
   {
-    _gum_v8_throw (isolate, "failed to open file (%s)", strerror (errno));
+    _gum_v8_throw (isolate, "failed to open file (%s)", g_strerror (errno));
     return;
   }
 

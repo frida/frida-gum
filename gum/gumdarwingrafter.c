@@ -381,7 +381,7 @@ nothing_to_instrument:
 io_error:
   {
     g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
-        "%s", strerror (errno));
+        "%s", g_strerror (errno));
   }
 beach:
   {
