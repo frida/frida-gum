@@ -246,6 +246,38 @@ beach:
   g_free (threads);
 }
 
+gchar *
+gum_freebsd_query_program_path (pid_t pid,
+                                GError ** error)
+{
+  gchar * path;
+  size_t size;
+  int mib[4];
+
+  size = PATH_MAX;
+  path = g_malloc (size);
+
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC;
+  mib[2] = KERN_PROC_PATHNAME;
+  mib[3] = pid;
+
+  if (sysctl (mib, G_N_ELEMENTS (mib), path, &size, NULL, 0) != 0)
+    goto failure;
+
+  if (size == 0)
+    path[0] = '\0';
+
+  return path;
+
+failure:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
+    g_free (path);
+    return NULL;
+  }
+}
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
