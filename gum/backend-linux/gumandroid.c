@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -839,7 +839,7 @@ gum_android_open_linker_module (void)
   linker = gum_android_get_linker_module_details ();
 
   return gum_elf_module_new_from_memory (linker->path,
-      linker->range->base_address);
+      linker->range->base_address, NULL);
 }
 
 void *
@@ -1119,7 +1119,7 @@ gum_linker_api_try_init (void)
 
   pending = 6;
   gum_elf_module_enumerate_symbols (linker,
-      (GumElfFoundSymbolFunc) gum_store_linker_symbol_if_needed, &pending);
+      (GumFoundElfSymbolFunc) gum_store_linker_symbol_if_needed, &pending);
 
   got_dlopen_api245 =
       (gum_dl_api.do_dlopen != NULL) && (gum_dl_api.do_dlsym != NULL);
@@ -1253,7 +1253,7 @@ gum_try_find_dlopen_api245_forensically (GumElfModule * linker,
   ctx.dlsym = NULL;
 
   gum_elf_module_enumerate_sections (linker,
-      (GumElfFoundSectionFunc) gum_store_dlopen_api_if_found_in_section,
+      (GumFoundElfSectionFunc) gum_store_dlopen_api_if_found_in_section,
       &ctx);
 
   if (ctx.dlopen == NULL || ctx.dlsym == NULL)
@@ -1280,7 +1280,7 @@ gum_try_find_dlopen_api26p_forensically (GumElfModule * linker,
   ctx.dlsym = NULL;
 
   gum_elf_module_enumerate_sections (linker,
-      (GumElfFoundSectionFunc) gum_store_dlopen_api_if_found_in_section,
+      (GumFoundElfSectionFunc) gum_store_dlopen_api_if_found_in_section,
       &ctx);
 
   if (ctx.dlopen == NULL || ctx.dlsym == NULL)
@@ -1318,7 +1318,7 @@ gum_try_find_dl_mutex_forensically (GumElfModule * linker,
   ctx.dl_mutex = NULL;
 
   gum_elf_module_enumerate_sections (linker,
-      (GumElfFoundSectionFunc) gum_store_dl_mutex_pointer_if_found_in_section,
+      (GumFoundElfSectionFunc) gum_store_dl_mutex_pointer_if_found_in_section,
       &ctx);
 
   *dl_mutex = ctx.dl_mutex;
@@ -1364,7 +1364,7 @@ gum_try_find_libdl_info_forensically (GumElfModule * linker,
   *libdl_info = NULL;
 
   gum_elf_module_enumerate_sections (linker,
-      (GumElfFoundSectionFunc) gum_store_libdl_info_pointer_if_found_in_section,
+      (GumFoundElfSectionFunc) gum_store_libdl_info_pointer_if_found_in_section,
       libdl_info);
 
   return *libdl_info != NULL;

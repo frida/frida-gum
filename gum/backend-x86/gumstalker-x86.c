@@ -4686,7 +4686,7 @@ gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
     goto beach;
 
   elf = gum_elf_module_new_from_memory (module->path,
-      module->range->base_address);
+      module->range->base_address, NULL);
   g_assert (elf != NULL);
 
   gum_elf_module_enumerate_sections (elf, gum_exec_check_elf_section, &plt_got);

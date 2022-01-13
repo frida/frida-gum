@@ -611,7 +611,8 @@ gum_collect_dependency_export (const GumExportDetails * details,
 
   g_hash_table_insert (ctx->dependency_exports,
       g_strdup (details->name),
-      gum_dependency_export_new (module->path, details->address));
+      gum_dependency_export_new (gum_elf_module_get_path (module),
+          details->address));
 
   return TRUE;
 }
@@ -898,7 +899,7 @@ gum_open_elf_module (const gchar * name)
   if (path == NULL)
     return NULL;
 
-  module = gum_elf_module_new_from_memory (path, base_address);
+  module = gum_elf_module_new_from_memory (path, base_address, NULL);
 
   g_free (path);
 

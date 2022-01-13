@@ -105,6 +105,16 @@ if host_arch == 'arm64' and have_ptrauth
   host_abi = 'arm64e'
 endif
 
+if host_os_family == 'windows'
+  host_executable_format = 'pe'
+elif host_os_family == 'darwin'
+  host_executable_format = 'macho'
+elif host_os_family in ['linux', 'freebsd', 'qnx']
+  host_executable_format = 'elf'
+else
+  error('Unsupported OS family:', host_os_family)
+endif
+
 extra_deps = []
 extra_requires_private = []
 extra_cflags = []
@@ -167,6 +177,10 @@ foreach d : cpu_defines
     cdata.set(d.get(1), 1)
   endif
 endforeach
+
+if host_executable_format == 'elf'
+  cdata.set('HAVE_ELF', 1)
+endif
 
 if have_ptrauth
   cdata.set('HAVE_PTRAUTH', 1)

@@ -181,8 +181,8 @@ if host_os_family == 'qnx'
   ]
 endif
 
-if host_os_family in ['linux', 'freebsd', 'qnx']
-  gum_backend_headers += [
+if host_executable_format == 'elf'
+  gum_headers += [
     'backend-elf/gumelfmodule.h',
   ]
   gum_sources += [

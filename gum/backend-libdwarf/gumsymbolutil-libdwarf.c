@@ -100,8 +100,6 @@ static GumModuleEntry * gum_module_entry_from_address (gpointer address,
     GumNearestSymbolDetails * nearest);
 static GumModuleEntry * gum_module_entry_from_path_and_base (const gchar * path,
     GumAddress base_address);
-static Dwarf_Addr gum_module_entry_virtual_address_to_file (
-    GumModuleEntry * self, gpointer address);
 
 static GHashTable * gum_get_function_addresses (void);
 static GHashTable * gum_get_address_symbols (void);
@@ -176,7 +174,8 @@ gum_symbol_details_from_address (gpointer address,
   if (entry->dbg == NULL)
     goto no_debug_info;
 
-  file_address = gum_module_entry_virtual_address_to_file (entry, address);
+  file_address = gum_elf_module_translate_to_offline (entry->module,
+      GUM_ADDRESS (address));
 
   cu_die = gum_find_cu_die_by_virtual_address (entry->dbg, file_address);
   if (cu_die == NULL)
@@ -192,7 +191,7 @@ gum_symbol_details_from_address (gpointer address,
 
   details->address = GUM_ADDRESS (address);
 
-  g_strlcpy (details->module_name, entry->module->name,
+  g_strlcpy (details->module_name, gum_elf_module_get_name (entry->module),
       sizeof (details->module_name));
   g_strlcpy (details->symbol_name, symbol.name, sizeof (details->symbol_name));
 
@@ -224,7 +223,7 @@ no_debug_info:
 
     details->address = GUM_ADDRESS (address);
 
-    g_strlcpy (details->module_name, entry->module->name,
+    g_strlcpy (details->module_name, gum_elf_module_get_name (entry->module),
         sizeof (details->module_name));
 
     if (nearest.name == NULL)
@@ -247,7 +246,8 @@ no_debug_info:
     }
     else
     {
-      offset = details->address - entry->module->base_address;
+      offset = details->address -
+          gum_elf_module_get_base_address (entry->module);
 
       g_snprintf (details->symbol_name, sizeof (details->symbol_name),
           "0x%" G_GSIZE_MODIFIER "x", offset);
@@ -281,7 +281,8 @@ gum_symbol_name_from_address (gpointer address)
   if (entry->dbg == NULL)
     goto no_debug_info;
 
-  file_address = gum_module_entry_virtual_address_to_file (entry, address);
+  file_address = gum_elf_module_translate_to_offline (entry->module,
+      GUM_ADDRESS (address));
 
   cu_die = gum_find_cu_die_by_virtual_address (entry->dbg, file_address);
   if (cu_die == NULL)
@@ -324,7 +325,8 @@ no_debug_info:
     }
     else
     {
-      offset = GPOINTER_TO_SIZE (address) - entry->module->base_address;
+      offset = GPOINTER_TO_SIZE (address) -
+          gum_elf_module_get_base_address (entry->module);
 
       symbol.name = g_strdup_printf ("0x%" G_GSIZE_MODIFIER "x", offset);
     }
@@ -528,11 +530,12 @@ gum_module_entry_from_path_and_base (const gchar * path,
   if (entry != NULL)
     goto have_entry;
 
-  module = gum_elf_module_new_from_memory (path, base_address);
+  module = gum_elf_module_new_from_memory (path, base_address, NULL);
 
   if (module == NULL ||
-      dwarf_elf_init_b (module->elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
-      gum_on_dwarf_error, NULL, &dbg, &error) != DW_DLV_OK)
+      dwarf_elf_init_b (gum_elf_module_get_elf (module), DW_DLC_READ,
+          DW_GROUPNUMBER_ANY, gum_on_dwarf_error, NULL, &dbg, &error)
+      != DW_DLV_OK)
   {
     dwarf_dealloc (dbg, error, DW_DLA_ERROR);
     error = NULL;
@@ -547,14 +550,6 @@ gum_module_entry_from_path_and_base (const gchar * path,
 
 have_entry:
   return (entry->module != NULL) ? entry : NULL;
-}
-
-static Dwarf_Addr
-gum_module_entry_virtual_address_to_file (GumModuleEntry * self,
-                                          gpointer address)
-{
-  return self->module->preferred_address +
-      (GUM_ADDRESS (address) - self->module->base_address);
 }
 
 static void

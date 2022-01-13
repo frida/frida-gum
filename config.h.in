@@ -21,6 +21,9 @@
 /* Define to 1 if OS is Darwin based. */
 #mesondefine HAVE_DARWIN
 
+/* Define to 1 if the system uses the ELF format for executables. */
+#mesondefine HAVE_ELF
+
 /* Define to 1 if OS is FreeBSD based. */
 #mesondefine HAVE_FREEBSD
 

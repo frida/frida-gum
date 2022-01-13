@@ -948,7 +948,7 @@ gum_maybe_emit_interpreter (const GumModuleDetails * details,
     return FALSE;
 
   module = gum_elf_module_new_from_memory (ctx->executable_path,
-      details->range->base_address);
+      details->range->base_address, NULL);
   if (module == NULL)
     return FALSE;
   has_interp = gum_elf_module_has_interp (module);
@@ -2048,7 +2048,7 @@ gum_open_elf_module (const gchar * name)
   if (path == NULL)
     return NULL;
 
-  module = gum_elf_module_new_from_memory (path, base_address);
+  module = gum_elf_module_new_from_memory (path, base_address, NULL);
 
   g_free (path);
 
