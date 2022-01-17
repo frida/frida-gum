@@ -17,6 +17,7 @@
 #include <strings.h>
 #include <unistd.h>
 #include <sys/sysctl.h>
+#include <sys/thr.h>
 #include <sys/types.h>
 #include <sys/user.h>
 
@@ -181,7 +182,7 @@ gum_process_get_current_thread_id (void)
 gboolean
 gum_process_has_thread (GumThreadId thread_id)
 {
-  return FALSE;
+  return thr_kill (thread_id, 0) == 0;
 }
 
 gboolean
