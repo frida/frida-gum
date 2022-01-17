@@ -41,7 +41,8 @@ enum
   PROP_MODE,
   PROP_NAME,
   PROP_PATH,
-  PROP_BASE_ADDRESS
+  PROP_BASE_ADDRESS,
+  PROP_PREFERRED_ADDRESS,
 };
 
 struct _GumElfModule
@@ -185,6 +186,10 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
       "Base virtual address, or zero when operating offline", 0,
       G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_PREFERRED_ADDRESS,
+      g_param_spec_uint64 ("preferred-address", "Preferred Address",
+      "Preferred virtual address", 0, G_MAXUINT64, 0, G_PARAM_READABLE |
+      G_PARAM_STATIC_STRINGS));
 
   elf_version (EV_CURRENT);
 }
@@ -240,6 +245,9 @@ gum_elf_module_get_property (GObject * object,
       break;
     case PROP_BASE_ADDRESS:
       g_value_set_uint64 (value, self->base_address);
+      break;
+    case PROP_PREFERRED_ADDRESS:
+      g_value_set_uint64 (value, self->preferred_address);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
