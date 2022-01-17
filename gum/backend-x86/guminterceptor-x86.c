@@ -188,8 +188,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   g_assert (gum_x86_writer_offset (cw) <= GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
 
   padding = ctx->overwritten_prologue_len - gum_x86_writer_offset (cw);
-  for (; padding != 0; padding--)
-    gum_x86_writer_put_nop (cw);
+  gum_x86_writer_put_nop_padding (cw, padding);
   gum_x86_writer_flush (cw);
 }
 
