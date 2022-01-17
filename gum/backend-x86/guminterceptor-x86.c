@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -15,7 +15,8 @@
 
 #include <string.h>
 
-#define GUM_INTERCEPTOR_REDIRECT_CODE_SIZE  5
+#define GUM_INTERCEPTOR_FULL_REDIRECT_SIZE  16
+#define GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE  5
 #define GUM_X86_JMP_MAX_DISTANCE            (G_MAXINT32 - 16384)
 
 #define GUM_FRAME_OFFSET_CPU_CONTEXT 0
@@ -25,6 +26,8 @@
     (GUM_FRAME_OFFSET_CPU_FLAGS + sizeof (gpointer))
 #define GUM_FRAME_OFFSET_TOP \
     (GUM_FRAME_OFFSET_NEXT_HOP + sizeof (gpointer))
+
+typedef struct _GumX86FunctionContextData GumX86FunctionContextData;
 
 struct _GumInterceptorBackend
 {
@@ -36,6 +39,14 @@ struct _GumInterceptorBackend
   GumCodeSlice * enter_thunk;
   GumCodeSlice * leave_thunk;
 };
+
+struct _GumX86FunctionContextData
+{
+  guint redirect_code_size;
+};
+
+G_STATIC_ASSERT (sizeof (GumX86FunctionContextData)
+    <= sizeof (GumFunctionContextBackendData));
 
 static void gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
@@ -88,10 +99,12 @@ static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
 {
+  GumX86FunctionContextData * data = (GumX86FunctionContextData *)
+      &ctx->backend_data;
 #if GLIB_SIZEOF_VOID_P == 4
-  ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+  data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
 
-  return TRUE;
+  ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
 #else
   GumAddressSpec spec;
   gsize default_alignment = 0;
@@ -100,10 +113,33 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   spec.max_distance = GUM_X86_JMP_MAX_DISTANCE;
   ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
       self->allocator, &spec, default_alignment);
+  if (ctx->trampoline_slice != NULL)
+  {
+    data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
+  }
+  else
+  {
+    data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
 
-  return ctx->trampoline_slice != NULL;
+    ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+  }
 #endif
+
+  if (!gum_x86_relocator_can_relocate (ctx->function_address,
+        data->redirect_code_size, NULL))
+    goto not_enough_space;
+
+  return TRUE;
+
+not_enough_space:
+  {
+    gum_code_slice_unref (ctx->trampoline_slice);
+    ctx->trampoline_slice = NULL;
+    return FALSE;
+  }
 }
+
+#include <unistd.h>
 
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
@@ -111,12 +147,10 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 {
   GumX86Writer * cw = &self->writer;
   GumX86Relocator * rl = &self->relocator;
+  GumX86FunctionContextData * data = (GumX86FunctionContextData *)
+      &ctx->backend_data;
   GumAddress function_ctx_ptr;
   guint reloc_bytes;
-
-  if (!gum_x86_relocator_can_relocate (ctx->function_address,
-      GUM_INTERCEPTOR_REDIRECT_CODE_SIZE, NULL))
-    return FALSE;
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
     return FALSE;
@@ -147,7 +181,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     reloc_bytes = gum_x86_relocator_read_one (rl, NULL);
     g_assert (reloc_bytes != 0);
   }
-  while (reloc_bytes < GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
+  while (reloc_bytes < data->redirect_code_size);
   gum_x86_relocator_write_all (rl);
 
   if (!gum_x86_relocator_eoi (rl))
@@ -179,13 +213,15 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
                                               gpointer prologue)
 {
   GumX86Writer * cw = &self->writer;
+  GumX86FunctionContextData * data = (GumX86FunctionContextData *)
+      &ctx->backend_data;
   guint padding;
 
   gum_x86_writer_reset (cw, prologue);
   cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
   gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->on_enter_trampoline));
   gum_x86_writer_flush (cw);
-  g_assert (gum_x86_writer_offset (cw) <= GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
+  g_assert (gum_x86_writer_offset (cw) <= data->redirect_code_size);
 
   padding = ctx->overwritten_prologue_len - gum_x86_writer_offset (cw);
   gum_x86_writer_put_nop_padding (cw, padding);
