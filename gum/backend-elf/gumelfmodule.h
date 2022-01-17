@@ -260,6 +260,7 @@ GUM_API const gchar * gum_elf_module_get_name (GumElfModule * self);
 GUM_API const gchar * gum_elf_module_get_path (GumElfModule * self);
 GUM_API GumAddress gum_elf_module_get_base_address (GumElfModule * self);
 GUM_API GumAddress gum_elf_module_get_preferred_address (GumElfModule * self);
+GUM_API GumAddress gum_elf_module_get_entrypoint (GumElfModule * self);
 GUM_API gpointer gum_elf_module_get_elf (GumElfModule * self);
 GUM_API gboolean gum_elf_module_has_interp (GumElfModule * self);
 

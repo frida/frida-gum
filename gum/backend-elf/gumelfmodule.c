@@ -43,6 +43,7 @@ enum
   PROP_PATH,
   PROP_BASE_ADDRESS,
   PROP_PREFERRED_ADDRESS,
+  PROP_ENTRYPOINT,
 };
 
 struct _GumElfModule
@@ -190,6 +191,10 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
       g_param_spec_uint64 ("preferred-address", "Preferred Address",
       "Preferred virtual address", 0, G_MAXUINT64, 0, G_PARAM_READABLE |
       G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_ENTRYPOINT,
+      g_param_spec_uint64 ("entrypoint", "Entrypoint",
+      "Entrypoint virtual address", 0, G_MAXUINT64, 0, G_PARAM_READABLE |
+      G_PARAM_STATIC_STRINGS));
 
   elf_version (EV_CURRENT);
 }
@@ -248,6 +253,9 @@ gum_elf_module_get_property (GObject * object,
       break;
     case PROP_PREFERRED_ADDRESS:
       g_value_set_uint64 (value, self->preferred_address);
+      break;
+    case PROP_ENTRYPOINT:
+      g_value_set_uint64 (value, gum_elf_module_get_entrypoint (self));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -461,6 +469,17 @@ GumAddress
 gum_elf_module_get_preferred_address (GumElfModule * self)
 {
   return self->preferred_address;
+}
+
+GumAddress
+gum_elf_module_get_entrypoint (GumElfModule * self)
+{
+  GumAddress entrypoint = self->ehdr->e_entry;
+
+  if (self->ehdr->e_type == ET_DYN)
+    entrypoint += self->base_address;
+
+  return gum_elf_module_translate_to_online (self, entrypoint);
 }
 
 gpointer

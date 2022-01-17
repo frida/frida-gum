@@ -10,6 +10,7 @@ namespace Gum {
 		public string path { get; }
 		public Gum.Address base_address { get; }
 		public Gum.Address preferred_address { get; }
+		public Gum.Address entrypoint { get; }
 		public void * elf { get; }
 		public bool has_interp { get; }
 
