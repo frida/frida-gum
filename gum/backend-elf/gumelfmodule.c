@@ -181,7 +181,8 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
       g_param_spec_string ("path", "Path", "Path", NULL,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_BASE_ADDRESS,
-      g_param_spec_uint64 ("base-address", "BaseAddress", "Base address", 0,
+      g_param_spec_uint64 ("base-address", "Base Address",
+      "Base virtual address, or zero when operating offline", 0,
       G_MAXUINT64, 0, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS));
 
