@@ -6,6 +6,13 @@ namespace Gum {
 
 		public bool load () throws Gum.Error;
 
+		public string name { get; }
+		public string path { get; }
+		public Gum.Address base_address { get; }
+		public Gum.Address preferred_address { get; }
+		public void * elf { get; }
+		public bool has_interp { get; }
+
 		public void enumerate_dependencies (Gum.FoundElfDependencyFunc func);
 		public void enumerate_imports (Gum.FoundImportFunc func);
 		public void enumerate_exports (Gum.FoundExportFunc func);
