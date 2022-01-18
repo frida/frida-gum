@@ -1560,7 +1560,8 @@ gum_collect_dependency_export (const GumExportDetails * details,
 
   g_hash_table_insert (ctx->dependency_exports,
       g_strdup (details->name),
-      gum_dependency_export_new (module->path, details->address));
+      gum_dependency_export_new (gum_elf_module_get_path (module),
+          details->address));
 
   return TRUE;
 }
