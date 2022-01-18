@@ -160,13 +160,20 @@ gum_load_symbols (const gchar * path)
 
   path_utf16 = (WCHAR *) g_utf8_to_utf16 (path, -1, NULL, NULL, NULL);
 
-  base = GPOINTER_TO_SIZE (GetModuleHandleW (path_utf16));
+  HMODULE mod = GetModuleHandleW(path_utf16);
+  base = GPOINTER_TO_SIZE (mod);
   if (base == 0)
     goto beach;
 
+  MODULEINFO modInfo = {0};
+  DWORD mod_size = 0;
+  if (GetModuleInformation(GetCurrentProcess(), mod, &modInfo, sizeof(MODULEINFO))) {
+      mod_size = modInfo.SizeOfImage;
+  }
+
   dbghelp->Lock ();
   base = dbghelp->SymLoadModuleExW (GetCurrentProcess (), NULL, path_utf16,
-      NULL, base, 0, NULL, 0);
+      NULL, base, mod_size, NULL, 0);
   success = base != 0 || GetLastError () == ERROR_SUCCESS;
   dbghelp->Unlock ();
 
