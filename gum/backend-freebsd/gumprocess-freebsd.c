@@ -14,12 +14,28 @@
 #include <errno.h>
 #include <link.h>
 #include <pthread_np.h>
+#include <stdlib.h>
 #include <strings.h>
+#include <ucontext.h>
 #include <unistd.h>
+#include <sys/ptrace.h>
 #include <sys/sysctl.h>
 #include <sys/thr.h>
 #include <sys/types.h>
 #include <sys/user.h>
+#include <sys/wait.h>
+
+#define GUM_TEMP_FAILURE_RETRY(expression) \
+    ({ \
+      gssize __result; \
+      \
+      do __result = (gssize) (expression); \
+      while (__result == -EINTR); \
+      \
+      __result; \
+    })
+
+typedef struct _GumModifyThreadContext GumModifyThreadContext;
 
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
@@ -27,6 +43,14 @@ typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumEnumerateModuleSymbolContext GumEnumerateModuleSymbolContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
+
+struct _GumModifyThreadContext
+{
+  gint fd[2];
+  pid_t pid;
+  lwpid_t target_thread;
+  lwpid_t interruptible_thread;
+};
 
 struct _GumEnumerateModulesContext
 {
@@ -75,6 +99,11 @@ struct _GumResolveModuleNameContext
 static const gchar * gum_try_init_libc_name (void);
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
     Dl_info * info);
+
+static void gum_do_modify_thread (GumModifyThreadContext * ctx);
+static gboolean gum_read_chunk (gint fd, gpointer buffer, gsize length);
+static gboolean gum_write_chunk (gint fd, gconstpointer buffer, gsize length);
+static gboolean gum_wait_for_child_signal (pid_t pid, gint expected_signal);
 
 static int gum_emit_module_from_phdr (struct dl_phdr_info * info, size_t size,
     void * user_data);
@@ -190,7 +219,198 @@ gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)
 {
-  return FALSE;
+  gboolean success = FALSE;
+
+  if (thread_id == gum_process_get_current_thread_id ())
+  {
+    ucontext_t uc;
+    volatile gboolean modified = FALSE;
+
+    getcontext (&uc);
+    if (!modified)
+    {
+      GumCpuContext cpu_context;
+
+      gum_freebsd_parse_ucontext (&uc, &cpu_context);
+      func (thread_id, &cpu_context, user_data);
+      gum_freebsd_unparse_ucontext (&cpu_context, &uc);
+
+      modified = TRUE;
+      setcontext (&uc);
+    }
+
+    success = TRUE;
+  }
+  else
+  {
+    GumModifyThreadContext ctx;
+    gint child, fd;
+    GumCpuContext cpu_context;
+    guint i;
+    guint8 close_ack;
+    ssize_t n;
+    int status;
+
+    if (socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd) != 0)
+      return FALSE;
+    ctx.pid = getpid ();
+    ctx.target_thread = thread_id;
+    ctx.interruptible_thread = pthread_getthreadid_np ();
+
+    child = fork ();
+    if (child == -1)
+      goto beach;
+    if (child == 0)
+    {
+      gum_do_modify_thread (&ctx);
+      _Exit (0);
+    }
+
+    fd = ctx.fd[0];
+    close (ctx.fd[1]);
+    ctx.fd[1] = -1;
+
+    if (!gum_read_chunk (fd, &cpu_context, sizeof (GumCpuContext)))
+      goto beach;
+
+    func (thread_id, &cpu_context, user_data);
+
+    if (!gum_write_chunk (fd, &cpu_context, sizeof (GumCpuContext)))
+      goto beach;
+
+    n = GUM_TEMP_FAILURE_RETRY (read (fd, &close_ack, sizeof (close_ack)));
+    if (n != 0)
+      goto beach;
+
+    waitpid (child, &status, 0);
+
+    success = TRUE;
+
+beach:
+    for (i = 0; i != G_N_ELEMENTS (ctx.fd); i++)
+    {
+      gint sockfd = ctx.fd[i];
+      if (sockfd != -1)
+        close (sockfd);
+    }
+  }
+
+  return success;
+}
+
+static void
+gum_do_modify_thread (GumModifyThreadContext * ctx)
+{
+  const gint fd = ctx->fd[1];
+  gboolean attached;
+  struct reg regs;
+  GumCpuContext cpu_context;
+
+  attached = FALSE;
+
+  close (ctx->fd[0]);
+  ctx->fd[0] = -1;
+
+  if (ptrace (PT_ATTACH, ctx->pid, NULL, 0) != 0)
+    goto beach;
+  attached = TRUE;
+  if (!gum_wait_for_child_signal (ctx->pid, SIGSTOP))
+    goto beach;
+
+  if (ptrace (PT_GETREGS, ctx->target_thread, (caddr_t) &regs, 0) != 0)
+    goto beach;
+  if (ptrace (PT_SUSPEND, ctx->target_thread, NULL, 0) != 0)
+    goto beach;
+  if (ptrace (PT_CONTINUE, ctx->pid, GSIZE_TO_POINTER (1), 0) != 0)
+    goto beach;
+
+  gum_freebsd_parse_regs (&regs, &cpu_context);
+  if (!gum_write_chunk (fd, &cpu_context, sizeof (GumCpuContext)))
+    goto beach;
+
+  if (!gum_read_chunk (fd, &cpu_context, sizeof (GumCpuContext)))
+    goto beach;
+  gum_freebsd_unparse_regs (&cpu_context, &regs);
+
+  if (thr_kill2 (ctx->pid, ctx->interruptible_thread, SIGSTOP) != 0)
+    goto beach;
+  if (!gum_wait_for_child_signal (ctx->pid, SIGSTOP))
+    goto beach;
+  if (ptrace (PT_SETREGS, ctx->target_thread, (caddr_t) &regs, 0) != 0)
+    goto beach;
+
+  goto beach;
+
+beach:
+  {
+    if (attached)
+      ptrace (PT_DETACH, ctx->pid, NULL, 0);
+
+    close (fd);
+
+    return;
+  }
+}
+
+static gboolean
+gum_read_chunk (gint fd,
+                gpointer buffer,
+                gsize length)
+{
+  gpointer cursor = buffer;
+  gsize remaining = length;
+
+  while (remaining != 0)
+  {
+    ssize_t n;
+
+    n = GUM_TEMP_FAILURE_RETRY (read (fd, cursor, remaining));
+    if (n <= 0)
+      return FALSE;
+
+    cursor += n;
+    remaining -= n;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_write_chunk (gint fd,
+                 gconstpointer buffer,
+                 gsize length)
+{
+  gconstpointer cursor = buffer;
+  gsize remaining = length;
+
+  while (remaining != 0)
+  {
+    ssize_t n;
+
+    n = GUM_TEMP_FAILURE_RETRY (write (fd, cursor, remaining));
+    if (n <= 0)
+      return FALSE;
+
+    cursor += n;
+    remaining -= n;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_wait_for_child_signal (pid_t pid,
+                           gint expected_signal)
+{
+  int status;
+
+  if (waitpid (pid, &status, 0) == -1)
+    return FALSE;
+
+  if (!WIFSTOPPED (status))
+    return FALSE;
+
+  return WSTOPSIG (status) == expected_signal;
 }
 
 void
