@@ -1004,3 +1004,61 @@ gum_freebsd_unparse_ucontext (const GumCpuContext * ctx,
 # error FIXME
 #endif
 }
+
+void
+gum_freebsd_parse_regs (const struct reg * regs,
+                        GumCpuContext * ctx)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  ctx->rip = regs->r_rip;
+
+  ctx->r15 = regs->r_r15;
+  ctx->r14 = regs->r_r14;
+  ctx->r13 = regs->r_r13;
+  ctx->r12 = regs->r_r12;
+  ctx->r11 = regs->r_r11;
+  ctx->r10 = regs->r_r10;
+  ctx->r9 = regs->r_r9;
+  ctx->r8 = regs->r_r8;
+
+  ctx->rdi = regs->r_rdi;
+  ctx->rsi = regs->r_rsi;
+  ctx->rbp = regs->r_rbp;
+  ctx->rsp = regs->r_rsp;
+  ctx->rbx = regs->r_rbx;
+  ctx->rdx = regs->r_rdx;
+  ctx->rcx = regs->r_rcx;
+  ctx->rax = regs->r_rax;
+#else
+# error FIXME
+#endif
+}
+
+void
+gum_freebsd_unparse_regs (const GumCpuContext * ctx,
+                          struct reg * regs)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  regs->r_rip = ctx->rip;
+
+  regs->r_r15 = ctx->r15;
+  regs->r_r14 = ctx->r14;
+  regs->r_r13 = ctx->r13;
+  regs->r_r12 = ctx->r12;
+  regs->r_r11 = ctx->r11;
+  regs->r_r10 = ctx->r10;
+  regs->r_r9 = ctx->r9;
+  regs->r_r8 = ctx->r8;
+
+  regs->r_rdi = ctx->rdi;
+  regs->r_rsi = ctx->rsi;
+  regs->r_rbp = ctx->rbp;
+  regs->r_rsp = ctx->rsp;
+  regs->r_rbx = ctx->rbx;
+  regs->r_rdx = ctx->rdx;
+  regs->r_rcx = ctx->rcx;
+  regs->r_rax = ctx->rax;
+#else
+# error FIXME
+#endif
+}

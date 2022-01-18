@@ -10,6 +10,7 @@
 #include "gumprocess.h"
 
 #include <ucontext.h>
+#include <machine/reg.h>
 
 G_BEGIN_DECLS
 
@@ -21,6 +22,10 @@ GUM_API void gum_freebsd_parse_ucontext (const ucontext_t * uc,
     GumCpuContext * ctx);
 GUM_API void gum_freebsd_unparse_ucontext (const GumCpuContext * ctx,
     ucontext_t * uc);
+GUM_API void gum_freebsd_parse_regs (const struct reg * regs,
+    GumCpuContext * ctx);
+GUM_API void gum_freebsd_unparse_regs (const GumCpuContext * ctx,
+    struct reg * regs);
 
 G_END_DECLS
 
