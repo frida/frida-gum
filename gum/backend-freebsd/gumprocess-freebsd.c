@@ -105,6 +105,9 @@ static gboolean gum_read_chunk (gint fd, gpointer buffer, gsize length);
 static gboolean gum_write_chunk (gint fd, gconstpointer buffer, gsize length);
 static gboolean gum_wait_for_child_signal (pid_t pid, gint expected_signal);
 
+static void gum_store_cpu_context (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
+
 static int gum_emit_module_from_phdr (struct dl_phdr_info * info, size_t size,
     void * user_data);
 
@@ -457,7 +460,11 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
 
     details.id = p->ki_tid;
     details.state = gum_thread_state_from_proc (p);
-    bzero (&details.cpu_context, sizeof (details.cpu_context)); /* FIXME */
+    if (!gum_process_modify_thread (details.id, gum_store_cpu_context,
+          &details.cpu_context))
+    {
+      bzero (&details.cpu_context, sizeof (details.cpu_context));
+    }
 
     if (!func (&details, user_data))
       break;
@@ -465,6 +472,14 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
 
 beach:
   g_free (threads);
+}
+
+static void
+gum_store_cpu_context (GumThreadId thread_id,
+                       GumCpuContext * cpu_context,
+                       gpointer user_data)
+{
+  memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
 
 gchar *
