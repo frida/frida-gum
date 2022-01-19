@@ -14,14 +14,14 @@ namespace Gum.Darwin {
 
 	public Gum.Address find_entrypoint (Gum.DarwinPort task);
 
-	public void enumerate_threads (Gum.DarwinPort task, Gum.Process.FoundThreadFunc func);
-	public void enumerate_modules (Gum.DarwinPort task, Gum.Process.FoundModuleFunc func);
-	public void enumerate_modules_forensically (Gum.DarwinPort task, Gum.Process.FoundModuleFunc func);
+	public void enumerate_threads (Gum.DarwinPort task, Gum.FoundThreadFunc func);
+	public void enumerate_modules (Gum.DarwinPort task, Gum.FoundModuleFunc func);
+	public void enumerate_modules_forensically (Gum.DarwinPort task, Gum.FoundModuleFunc func);
 	public void enumerate_ranges (Gum.DarwinPort task, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 
-	public void enumerate_imports (Gum.DarwinPort task, string module_name, Gum.Module.FoundImportFunc func);
-	public void enumerate_exports (Gum.DarwinPort task, string module_name, Gum.Module.FoundExportFunc func);
-	public void enumerate_symbols (Gum.DarwinPort task, string module_name, Gum.Module.FoundSymbolFunc func);
+	public void enumerate_imports (Gum.DarwinPort task, string module_name, Gum.FoundImportFunc func);
+	public void enumerate_exports (Gum.DarwinPort task, string module_name, Gum.FoundExportFunc func);
+	public void enumerate_symbols (Gum.DarwinPort task, string module_name, Gum.FoundSymbolFunc func);
 
 	public struct AllImageInfos {
 		int format;
