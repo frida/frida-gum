@@ -199,6 +199,8 @@ typedef enum {
   GUM_ELF_DYNAMIC_HIPROC = 0x7fffffff,
 } GumElfDynamicTag;
 
+#define GUM_ELF_SECTION_HEADER_INDEX_NONE 0
+
 typedef struct _GumElfDependencyDetails GumElfDependencyDetails;
 typedef struct _GumElfSymbolDetails GumElfSymbolDetails;
 typedef struct _GumElfDynamicEntryDetails GumElfDynamicEntryDetails;
