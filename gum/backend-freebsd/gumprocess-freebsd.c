@@ -1204,6 +1204,18 @@ gum_freebsd_parse_ucontext (const ucontext_t * uc,
   ctx->rdx = mc->mc_rdx;
   ctx->rcx = mc->mc_rcx;
   ctx->rax = mc->mc_rax;
+#elif defined (HAVE_ARM64)
+  const struct gpregs * gp = &uc->uc_mcontext.mc_gpregs;
+  gsize i;
+
+  ctx->pc = gp->gp_elr;
+  ctx->sp = gp->gp_sp;
+
+  for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
+    ctx->x[i] = gp->gp_x[i];
+  ctx->fp = gp->gp_x[29];
+  ctx->lr = gp->gp_lr;
+  memcpy (ctx->q, uc->uc_mcontext.mc_fpregs.fp_q, sizeof (ctx->q));
 #else
 # error FIXME
 #endif
@@ -1235,6 +1247,18 @@ gum_freebsd_unparse_ucontext (const GumCpuContext * ctx,
   mc->mc_rdx = ctx->rdx;
   mc->mc_rcx = ctx->rcx;
   mc->mc_rax = ctx->rax;
+#elif defined (HAVE_ARM64)
+  struct gpregs * gp = &uc->uc_mcontext.mc_gpregs;
+  gsize i;
+
+  gp->gp_elr = ctx->pc;
+  gp->gp_sp = ctx->sp;
+
+  for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
+    gp->gp_x[i] = ctx->x[i];
+  gp->gp_x[29] = ctx->fp;
+  gp->gp_lr = ctx->lr;
+  memcpy (uc->uc_mcontext.mc_fpregs.fp_q, ctx->q, sizeof (ctx->q));
 #else
 # error FIXME
 #endif
@@ -1264,6 +1288,16 @@ gum_freebsd_parse_regs (const struct reg * regs,
   ctx->rdx = regs->r_rdx;
   ctx->rcx = regs->r_rcx;
   ctx->rax = regs->r_rax;
+#elif defined (HAVE_ARM64)
+  gsize i;
+
+  ctx->pc = regs->elr;
+  ctx->sp = regs->sp;
+
+  for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
+    ctx->x[i] = regs->x[i];
+  ctx->fp = regs->x[29];
+  ctx->lr = regs->lr;
 #else
 # error FIXME
 #endif
@@ -1293,6 +1327,16 @@ gum_freebsd_unparse_regs (const GumCpuContext * ctx,
   regs->r_rdx = ctx->rdx;
   regs->r_rcx = ctx->rcx;
   regs->r_rax = ctx->rax;
+#elif defined (HAVE_ARM64)
+  gsize i;
+
+  regs->elr = ctx->pc;
+  regs->sp = ctx->sp;
+
+  for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
+    regs->x[i] = ctx->x[i];
+  regs->x[29] = ctx->fp;
+  regs->lr = ctx->lr;
 #else
 # error FIXME
 #endif

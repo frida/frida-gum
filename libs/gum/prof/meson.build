@@ -40,6 +40,9 @@ endif
 
 if host_os_family == 'freebsd'
   gum_prof_sources += ['gumbusycyclesampler-freebsd.c']
+  if not host_cpu_is_intel
+    gum_prof_sources += ['gumcyclesampler-freebsd.c']
+  endif
 endif
 
 if host_os_family == 'qnx'
