@@ -488,6 +488,12 @@ gum_elf_module_get_elf (GumElfModule * self)
   return self->elf;
 }
 
+gconstpointer
+gum_elf_module_get_file_data (GumElfModule * self)
+{
+  return self->file_data;
+}
+
 gboolean
 gum_elf_module_has_interp (GumElfModule * self)
 {
