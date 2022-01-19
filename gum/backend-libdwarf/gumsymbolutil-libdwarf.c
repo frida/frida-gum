@@ -634,7 +634,8 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
   gboolean already_collected;
   GumElfSymbolDetails * address_symbol;
 
-  if (details->section_header_index == SHN_UNDEF || details->type != STT_FUNC)
+  if (details->section_header_index == GUM_ELF_SECTION_HEADER_INDEX_NONE ||
+      details->type != GUM_ELF_SYMBOL_FUNC)
     return TRUE;
 
   name = details->name;
