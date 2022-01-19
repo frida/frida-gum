@@ -1338,7 +1338,8 @@ gum_store_dl_mutex_pointer_if_found_in_section (
   if (strcmp (details->name, ".data") != 0)
     return TRUE;
 
-  range.base_address = GUM_ADDRESS (ctx->linker->file_data) + details->offset;
+  range.base_address = GUM_ADDRESS (
+      gum_elf_module_get_file_data (ctx->linker)) + details->offset;
   range.size = details->size;
 
   pattern = gum_match_pattern_new_from_string ("00 40 00 00");
