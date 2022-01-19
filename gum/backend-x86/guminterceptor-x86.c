@@ -213,7 +213,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
                                               gpointer prologue)
 {
   GumX86Writer * cw = &self->writer;
-  GumX86FunctionContextData * data = (GumX86FunctionContextData *)
+  GumX86FunctionContextData * data G_GNUC_UNUSED = (GumX86FunctionContextData *)
       &ctx->backend_data;
   guint padding;
 
