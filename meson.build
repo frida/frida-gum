@@ -146,8 +146,7 @@ have_gumjs = not gumjs_opt.disabled()
 
 tests_opt = get_option('tests')
 if tests_opt.auto()
-  build_tests = not meson.is_subproject() \
-      and (not meson.is_cross_build() or (meson.is_cross_build() and meson.has_exe_wrapper()))
+  build_tests = not meson.is_subproject() and meson.can_run_host_binaries()
 else
   build_tests = not tests_opt.disabled()
 endif
