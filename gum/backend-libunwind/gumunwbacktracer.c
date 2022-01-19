@@ -149,7 +149,7 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
   unw_getcontext (uc);
 # pragma GCC diagnostic pop
 
-  gum_os_unparse_ucontext (ctx, uc);
+  gum_os_unparse_ucontext (ctx, (ucontext_t *) uc);
 
 # if defined (UNW_TARGET_AARCH64)
   uc->uc_mcontext.pc -= 4;
