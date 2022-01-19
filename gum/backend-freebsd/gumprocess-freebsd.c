@@ -184,7 +184,7 @@ gum_process_is_debugger_attached (void)
   int mib[4];
   struct kinfo_proc info;
   size_t size;
-  int result;
+  int result G_GNUC_UNUSED;
 
   mib[0] = CTL_KERN;
   mib[1] = KERN_PROC;
