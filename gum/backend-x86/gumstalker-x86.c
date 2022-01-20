@@ -976,7 +976,7 @@ gum_stalker_init (GumStalker * self)
 # endif
 #endif
 
-#if defined (HAVE_LINUX)
+#ifdef HAVE_LINUX
   /*
    * We need to build an array of ranges in which the .plt.got and .plt.sec
    * sections of the loaded modules reside to allow us to treat tail calls into
@@ -4666,7 +4666,7 @@ gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
                                          GumGeneratorContext * gc,
                                          GumBranchTarget * target)
 {
-#if defined (HAVE_LINUX)
+#ifdef HAVE_LINUX
   GumExecCtx * ctx = block->ctx;
   const cs_insn * insn = gc->instruction->ci;
   GArray * ranges;
@@ -4691,9 +4691,7 @@ gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
 
   for (i = 0; i != ranges->len; i++)
   {
-    GumMemoryRange * range;
-
-    range = &g_array_index (ranges, GumMemoryRange, i);
+    GumMemoryRange * range = &g_array_index (ranges, GumMemoryRange, i);
 
     if (GUM_MEMORY_RANGE_INCLUDES (range,
         GPOINTER_TO_SIZE (target->absolute_address)))
@@ -4765,8 +4763,8 @@ gum_exec_check_elf_section (const GumElfSectionDetails * details,
   if (details->name == NULL)
     return TRUE;
 
-  if (g_strcmp0 (details->name, ".plt.got") != 0 &&
-      g_strcmp0 (details->name, ".plt.sec") != 0)
+  if (strcmp (details->name, ".plt.got") != 0 &&
+      strcmp (details->name, ".plt.sec") != 0)
   {
     return TRUE;
   }
