@@ -36,6 +36,7 @@ TESTLIST_BEGIN (arm64writer)
   TESTENTRY (sub_reg_reg_imm)
   TESTENTRY (sub_reg_reg_reg)
   TESTENTRY (and_reg_reg_imm)
+  TESTENTRY (and_reg_reg_neg_imm)
   TESTENTRY (tst_reg_imm)
   TESTENTRY (cmp_reg_reg)
 
@@ -394,6 +395,13 @@ TESTCASE (and_reg_reg_imm)
   gum_arm64_writer_put_and_reg_reg_imm (&fixture->aw, ARM64_REG_X3,
       ARM64_REG_X5, 63);
   assert_output_n_equals (0, 0x924014a3);
+}
+
+TESTCASE (and_reg_reg_neg_imm)
+{
+  gum_arm64_writer_put_and_reg_reg_imm (&fixture->aw, ARM64_REG_X0,
+      ARM64_REG_X0, -0x10);
+  assert_output_n_equals (0, 0x927cec00);
 }
 
 TESTCASE (tst_reg_imm)
