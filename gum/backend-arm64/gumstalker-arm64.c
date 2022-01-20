@@ -40,14 +40,10 @@
 
 #define GUM_IC_MAGIC_EMPTY                 0xbaadd00ddeadface
 
-#define GUM_NUM_IC_ENTRIES                 4
-
 #define GUM_INSTRUCTION_OFFSET_NONE (-1)
 
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
-
-#define G_MAXINT28 (GUM_INT28_MASK + 1)
 
 typedef struct _GumInfectContext GumInfectContext;
 typedef struct _GumDisinfectContext GumDisinfectContext;
