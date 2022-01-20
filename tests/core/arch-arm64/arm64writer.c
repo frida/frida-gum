@@ -8,6 +8,7 @@
 
 TESTLIST_BEGIN (arm64writer)
   TESTENTRY (cbz_reg_label)
+  TESTENTRY (tbnz_reg_imm_imm)
 
   TESTENTRY (b_imm)
   TESTENTRY (b_label)
@@ -84,6 +85,19 @@ TESTCASE (cbz_reg_label)
   assert_output_n_equals (7, 0xd42000c0); /* brk #6 */
   /* beach: */
   assert_output_n_equals (8, 0xd503201f); /* nop */
+}
+
+TESTCASE (tbnz_reg_imm_imm)
+{
+  GumAddress target = GUM_ADDRESS (fixture->aw.pc + 8);
+
+  gum_arm64_writer_put_tbnz_reg_imm_imm (&fixture->aw, ARM64_REG_X17, 0,
+      target);
+  assert_output_n_equals (0, 0x37000051);
+
+  gum_arm64_writer_put_tbnz_reg_imm_imm (&fixture->aw, ARM64_REG_X17, 33,
+      target);
+  assert_output_n_equals (1, 0xb7080031);
 }
 
 TESTCASE (b_imm)

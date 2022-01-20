@@ -803,7 +803,7 @@ gum_arm64_writer_put_tbx_op_reg_imm_imm (GumArm64Writer * self,
   }
 
   gum_arm64_writer_put_instruction (self,
-      ri.sf |
+      ((bit >> 5) << 31) |
       0x36000000 |
       (guint32) op << 24 |
       ((bit & GUM_INT5_MASK) << 19) |
