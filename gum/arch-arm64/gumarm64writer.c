@@ -1713,50 +1713,60 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
   for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
     GumArm64LiteralRef * r;
-    gpointer cur_slot;
+    gint64 * slot;
     gint64 distance;
     guint32 insn;
 
     r = gum_metal_array_element_at (&self->literal_refs, ref_index);
 
-    if (r->width == GUM_LITERAL_64BIT)
+    if (r->width != GUM_LITERAL_64BIT)
+      continue;
+
+    for (slot = first_slot; slot != last_slot; slot++)
     {
-      gint64 * slot;
-
-      for (slot = first_slot; slot != last_slot; slot++)
-      {
-        if (GINT64_FROM_LE (*slot) == r->val)
-          break;
-      }
-
-      if (slot == last_slot)
-      {
-        *slot = GINT64_TO_LE (r->val);
-        last_slot = slot + 1;
-      }
-
-      cur_slot = slot;
-    }
-    else
-    {
-      gint32 * slot;
-
-      for (slot = first_slot; slot != last_slot; slot++)
-      {
-        if (GINT32_FROM_LE (*slot) == r->val)
-          break;
-      }
-
-      if (slot == last_slot)
-      {
-        *slot = GINT32_TO_LE (r->val);
-        last_slot = slot + 1;
-      }
-
-      cur_slot = slot;
+      if (GINT64_FROM_LE (*slot) == r->val)
+        break;
     }
 
-    distance = (gint64) GPOINTER_TO_SIZE (cur_slot) -
+    if (slot == last_slot)
+    {
+      *slot = GINT64_TO_LE (r->val);
+      last_slot = slot + 1;
+    }
+
+    distance = (gint64) GPOINTER_TO_SIZE (slot) -
+        (gint64) GPOINTER_TO_SIZE (r->insn);
+
+    insn = GUINT32_FROM_LE (*r->insn);
+    insn |= ((distance / 4) & GUM_INT19_MASK) << 5;
+    *r->insn = GUINT32_TO_LE (insn);
+  }
+
+  for (ref_index = 0; ref_index != num_refs; ref_index++)
+  {
+    GumArm64LiteralRef * r;
+    gint32 * slot;
+    gint64 distance;
+    guint32 insn;
+
+    r = gum_metal_array_element_at (&self->literal_refs, ref_index);
+
+    if (r->width != GUM_LITERAL_32BIT)
+      continue;
+
+    for (slot = first_slot; slot != last_slot; slot++)
+    {
+      if (GINT32_FROM_LE (*slot) == r->val)
+        break;
+    }
+
+    if (slot == last_slot)
+    {
+      *slot = GINT32_TO_LE (r->val);
+      last_slot = slot + 1;
+    }
+
+    distance = (gint64) GPOINTER_TO_SIZE (slot) -
         (gint64) GPOINTER_TO_SIZE (r->insn);
 
     insn = GUINT32_FROM_LE (*r->insn);
