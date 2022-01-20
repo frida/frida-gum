@@ -1084,7 +1084,6 @@ gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
                                          arm64_reg src_reg,
                                          gsize src_offset)
 {
-
   GumArm64RegInfo rd, rs;
   guint32 size, v, opc;
 
