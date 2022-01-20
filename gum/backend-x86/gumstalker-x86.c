@@ -20,10 +20,10 @@
 # include "gumexceptor.h"
 #endif
 #ifdef HAVE_LINUX
+# include "gum-init.h"
 # include "gumelfmodule.h"
 #endif
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
-# include "gum-init.h"
 # include "guminterceptor.h"
 #endif
 
