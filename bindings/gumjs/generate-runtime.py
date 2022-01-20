@@ -22,6 +22,97 @@ EXACT_DEPS = {
 }
 
 
+def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir):
+    frida_compile_binary = output_dir / "node_modules" / ".bin" / ("frida-compile" + script_suffix())
+    if not frida_compile_binary.exists():
+        (output_dir / "package.json").unlink(missing_ok=True)
+        (output_dir / "package-lock.json").unlink(missing_ok=True)
+
+        node_modules = output_dir / "node_modules"
+        if node_modules.exists():
+            shutil.rmtree(node_modules)
+
+        npm = os.environ.get("NPM", "npm")
+        try:
+            subprocess.run([npm, "init", "-y"],
+                           capture_output=True,
+                           cwd=output_dir,
+                           check=True)
+            subprocess.run([npm, "install"] + [f"{name}@{version_spec}" for name, version_spec in RELAXED_DEPS.items()],
+                           capture_output=True,
+                           cwd=output_dir,
+                           check=True)
+            subprocess.run([npm, "install", "-E"] + [f"{name}@{version_spec}" for name, version_spec in EXACT_DEPS.items()],
+                           capture_output=True,
+                           cwd=output_dir,
+                           check=True)
+        except Exception as e:
+            message = "\n".join([
+                "",
+                "***",
+                "Failed to bootstrap frida-compile:",
+                "\t" + str(e),
+                "It appears Node.js is not installed.",
+                "We need it for processing JavaScript code at build-time.",
+                "Check PATH or set NPM to the absolute path of your npm binary.",
+                "***\n",
+            ])
+            raise EnvironmentError(message)
+
+
+    frida_compile = os.path.relpath(frida_compile_binary, output_dir)
+
+    runtime_reldir = Path("runtime")
+    runtime_srcdir = input_dir / runtime_reldir
+    runtime_intdir = output_dir / runtime_reldir
+    if runtime_intdir.exists():
+        shutil.rmtree(runtime_intdir)
+    shutil.copytree(runtime_srcdir, runtime_intdir)
+
+
+    quick_tmp_dir = Path("runtime-build-quick")
+    runtime = quick_tmp_dir / "frida.js"
+    objc = quick_tmp_dir / "objc.js"
+    swift = quick_tmp_dir / "swift.js"
+    java = quick_tmp_dir / "java.js"
+
+    quick_options = [
+        "-c", # Compress for smaller code and better performance.
+    ]
+    subprocess.run([frida_compile, runtime_reldir / "entrypoint-quickjs.js", "-o", runtime] + quick_options, cwd=output_dir, check=True)
+    subprocess.run([frida_compile, runtime_reldir / "objc.js", "-o", objc] + quick_options, cwd=output_dir, check=True)
+    subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + quick_options, cwd=output_dir, check=True)
+    subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + quick_options, cwd=output_dir, check=True)
+
+    generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", [runtime], quickcompile)
+    generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", [objc], quickcompile)
+    generate_runtime_quick("swift", output_dir, "gumquickscript-swift.h", [swift], quickcompile)
+    generate_runtime_quick("java", output_dir, "gumquickscript-java.h", [java], quickcompile)
+
+
+    v8_tmp_dir = Path("runtime-build-v8")
+    runtime = v8_tmp_dir / "frida.js"
+    objc = v8_tmp_dir / "objc.js"
+    swift = v8_tmp_dir / "swift.js"
+    java = v8_tmp_dir / "java.js"
+
+    v8_options = [
+        "-c", # Compress for smaller code and better performance.
+    ]
+    subprocess.run([frida_compile, runtime_reldir / "entrypoint-v8.js", "-o", runtime] + v8_options, cwd=output_dir, check=True)
+    subprocess.run([frida_compile, runtime_reldir / "objc.js", "-o", objc] + v8_options, cwd=output_dir, check=True)
+    subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + v8_options, cwd=output_dir, check=True)
+    subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + v8_options, cwd=output_dir, check=True)
+
+    generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
+    generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
+    generate_runtime_v8("swift", output_dir, "gumv8script-swift.h", [swift])
+    generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
+
+
+    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_incdir, libtcc_dir)
+
+
 def generate_runtime_quick(runtime_name, output_dir, output, inputs, quickcompile):
     with (output_dir / output).open('w', encoding='utf-8') as output_file:
         output_file.write("#include \"gumquickbundle.h\"\n")
@@ -318,88 +409,8 @@ if __name__ == '__main__':
     arch = sys.argv[1]
     input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir = [Path(d).resolve() for d in sys.argv[2:]]
 
-    frida_compile_binary = output_dir / "node_modules" / ".bin" / ("frida-compile" + script_suffix())
-    if not frida_compile_binary.exists():
-        (output_dir / "package.json").unlink(missing_ok=True)
-        (output_dir / "package-lock.json").unlink(missing_ok=True)
-
-        node_modules = output_dir / "node_modules"
-        if node_modules.exists():
-            shutil.rmtree(node_modules)
-
-        npm = os.environ.get("NPM", "npm")
-        try:
-            subprocess.run([npm, "init", "-y"],
-                           capture_output=True,
-                           cwd=output_dir,
-                           check=True)
-            subprocess.run([npm, "install"] + [f"{name}@{version_spec}" for name, version_spec in RELAXED_DEPS.items()],
-                           capture_output=True,
-                           cwd=output_dir,
-                           check=True)
-            subprocess.run([npm, "install", "-E"] + [f"{name}@{version_spec}" for name, version_spec in EXACT_DEPS.items()],
-                           capture_output=True,
-                           cwd=output_dir,
-                           check=True)
-        except Exception as e:
-            print("\n***", file=sys.stderr)
-            print("Failed to bootstrap frida-compile:", file=sys.stderr)
-            print("\t" + str(e), file=sys.stderr)
-            print("It appears Node.js is not installed.", file=sys.stderr)
-            print("We need it for processing JavaScript code at build-time.", file=sys.stderr)
-            print("Check PATH or set NPM to the absolute path of your npm binary.", file=sys.stderr)
-            print("***\n", file=sys.stderr)
-            sys.exit(1)
-
-
-    frida_compile = os.path.relpath(frida_compile_binary, output_dir)
-
-    runtime_reldir = Path("runtime")
-    runtime_srcdir = input_dir / runtime_reldir
-    runtime_intdir = output_dir / runtime_reldir
-    if runtime_intdir.exists():
-        shutil.rmtree(runtime_intdir)
-    shutil.copytree(runtime_srcdir, runtime_intdir)
-
-
-    quick_tmp_dir = Path("runtime-build-quick")
-    runtime = quick_tmp_dir / "frida.js"
-    objc = quick_tmp_dir / "objc.js"
-    swift = quick_tmp_dir / "swift.js"
-    java = quick_tmp_dir / "java.js"
-
-    quick_options = [
-        "-c", # Compress for smaller code and better performance.
-    ]
-    subprocess.run([frida_compile, runtime_reldir / "entrypoint-quickjs.js", "-o", runtime] + quick_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "objc.js", "-o", objc] + quick_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + quick_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + quick_options, cwd=output_dir, check=True)
-
-    generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", [runtime], quickcompile)
-    generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", [objc], quickcompile)
-    generate_runtime_quick("swift", output_dir, "gumquickscript-swift.h", [swift], quickcompile)
-    generate_runtime_quick("java", output_dir, "gumquickscript-java.h", [java], quickcompile)
-
-
-    v8_tmp_dir = Path("runtime-build-v8")
-    runtime = v8_tmp_dir / "frida.js"
-    objc = v8_tmp_dir / "objc.js"
-    swift = v8_tmp_dir / "swift.js"
-    java = v8_tmp_dir / "java.js"
-
-    v8_options = [
-        "-c", # Compress for smaller code and better performance.
-    ]
-    subprocess.run([frida_compile, runtime_reldir / "entrypoint-v8.js", "-o", runtime] + v8_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "objc.js", "-o", objc] + v8_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + v8_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + v8_options, cwd=output_dir, check=True)
-
-    generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
-    generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
-    generate_runtime_v8("swift", output_dir, "gumv8script-swift.h", [swift])
-    generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
-
-
-    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_incdir, libtcc_dir)
+    try:
+        generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir)
+    except Exception as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
