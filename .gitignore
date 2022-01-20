@@ -1,4 +1,5 @@
 *.user
+/build/
 /gum/backend-darwin/helpers/build/
 /subprojects/capstone/
 /subprojects/elfutils/
