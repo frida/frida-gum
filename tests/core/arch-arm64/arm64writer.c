@@ -26,9 +26,11 @@ TESTLIST_BEGIN (arm64writer)
   TESTENTRY (ldr_in_large_block)
 #endif
   TESTENTRY (ldr_integer_reg_reg_imm)
+  TESTENTRY (ldr_integer_reg_reg_imm_mode)
   TESTENTRY (ldr_fp_reg_reg_imm)
   TESTENTRY (ldrsw_reg_reg_imm)
   TESTENTRY (str_integer_reg_reg_imm)
+  TESTENTRY (str_integer_reg_reg_imm_mode)
   TESTENTRY (str_fp_reg_reg_imm)
   TESTENTRY (mov_reg_reg)
   TESTENTRY (uxtw_reg_reg)
@@ -278,6 +280,17 @@ TESTCASE (ldr_integer_reg_reg_imm)
   assert_output_n_equals (1, 0xb94010a3);
 }
 
+TESTCASE (ldr_integer_reg_reg_imm_mode)
+{
+  gum_arm64_writer_put_ldr_reg_reg_offset_mode (&fixture->aw, ARM64_REG_X3,
+      ARM64_REG_X5, 16, GUM_INDEX_POST_ADJUST);
+  assert_output_n_equals (0, 0xf84104a3);
+
+  gum_arm64_writer_put_ldr_reg_reg_offset_mode (&fixture->aw, ARM64_REG_W3,
+      ARM64_REG_X5, -16, GUM_INDEX_PRE_ADJUST);
+  assert_output_n_equals (1, 0xb85f0ca3);
+}
+
 TESTCASE (ldr_fp_reg_reg_imm)
 {
   gum_arm64_writer_put_ldr_reg_reg_offset (&fixture->aw, ARM64_REG_S3,
@@ -309,6 +322,17 @@ TESTCASE (str_integer_reg_reg_imm)
   gum_arm64_writer_put_str_reg_reg_offset (&fixture->aw, ARM64_REG_W3,
       ARM64_REG_X5, 16);
   assert_output_n_equals (1, 0xb90010a3);
+}
+
+TESTCASE (str_integer_reg_reg_imm_mode)
+{
+  gum_arm64_writer_put_str_reg_reg_offset_mode (&fixture->aw, ARM64_REG_X3,
+      ARM64_REG_X5, 16, GUM_INDEX_POST_ADJUST);
+  assert_output_n_equals (0, 0xf80104a3);
+
+  gum_arm64_writer_put_str_reg_reg_offset_mode (&fixture->aw, ARM64_REG_W3,
+      ARM64_REG_X5, -16, GUM_INDEX_PRE_ADJUST);
+  assert_output_n_equals (1, 0xb81f0ca3);
 }
 
 TESTCASE (str_fp_reg_reg_imm)

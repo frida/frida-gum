@@ -1122,6 +1122,54 @@ gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
 }
 
 gboolean
+gum_arm64_writer_put_ldr_reg_reg_offset_mode (GumArm64Writer * self,
+                                              arm64_reg dst_reg,
+                                              arm64_reg src_reg,
+                                              gssize src_offset,
+                                              GumArm64IndexMode mode)
+{
+  GumArm64RegInfo rd, rs;
+  guint32 opc, size, v;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+  gum_arm64_writer_describe_reg (self, src_reg, &rs);
+
+  opc = 1;
+  if (rd.is_integer)
+  {
+    size = (rd.width == 64) ? 3 : 2;
+    v = 0;
+  }
+  else
+  {
+    if (rd.width == 128)
+    {
+      size = 0;
+      opc |= 2;
+    }
+    else
+    {
+      size = (rd.width == 64) ? 3 : 2;
+    }
+    v = 1;
+  }
+
+  if (rs.width != 64)
+    return FALSE;
+
+  if (src_offset < -256 || src_offset > 255)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, 0x38000000 |
+      (size << 30) | (v << 26) | (opc << 22) |
+      (((guint32) src_offset) & 0x1ff) << 12 |
+      mode << 10 |
+      (rs.index << 5) | rd.index);
+
+  return TRUE;
+}
+
+gboolean
 gum_arm64_writer_put_ldrsw_reg_reg_offset (GumArm64Writer * self,
                                            arm64_reg dst_reg,
                                            arm64_reg src_reg,
@@ -1225,6 +1273,54 @@ gum_arm64_writer_put_str_reg_reg_offset (GumArm64Writer * self,
   gum_arm64_writer_put_instruction (self, 0x39000000 |
       (size << 30) | (v << 26) | (opc << 22) |
       ((guint32) dst_offset / (rs.width / 8)) << 10 |
+      (rd.index << 5) | rs.index);
+
+  return TRUE;
+}
+
+gboolean
+gum_arm64_writer_put_str_reg_reg_offset_mode (GumArm64Writer * self,
+                                              arm64_reg src_reg,
+                                              arm64_reg dst_reg,
+                                              gssize dst_offset,
+                                              GumArm64IndexMode mode)
+{
+  GumArm64RegInfo rs, rd;
+  guint32 opc, size, v;
+
+  gum_arm64_writer_describe_reg (self, src_reg, &rs);
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+
+  opc = 0;
+  if (rs.is_integer)
+  {
+    size = (rs.width == 64) ? 3 : 2;
+    v = 0;
+  }
+  else
+  {
+    if (rs.width == 128)
+    {
+      size = 0;
+      opc |= 2;
+    }
+    else
+    {
+      size = (rs.width == 64) ? 3 : 2;
+    }
+    v = 1;
+  }
+
+  if (rd.width != 64)
+    return FALSE;
+
+  if (dst_offset < -256 || dst_offset > 255)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, 0x38000000 |
+      (size << 30) | (v << 26) | (opc << 22) |
+      (((guint32) dst_offset) & 0x1ff) << 12 |
+      mode << 10 |
       (rd.index << 5) | rs.index);
 
   return TRUE;
