@@ -975,27 +975,6 @@ gum_stalker_init (GumStalker * self)
   }
 # endif
 #endif
-
-#ifdef HAVE_LINUX
-  /*
-   * We need to build an array of ranges in which the .plt.got and .plt.sec
-   * sections of the loaded modules reside to allow us to treat tail calls into
-   * them as excluded calls (even though they use a JMP instruction). However,
-   * calling into the dynamic loader or even just allocating data on the heap is
-   * dangerous when actually stalking a target since we could cause the target
-   * to re-enter a section of code which is not designed to be. We will
-   * therefore build up our picture of the memory map when Stalker is first
-   * instantiated to avoid this potential problem. Should the memory map change
-   * afterwards (e.g. another library is loaded) then we will not notice and
-   * tail calls into the .plt.got and .plt.sec will not be optimized. However,
-   * the application should continue to function as expected.
-   */
-  gum_exec_ctx_get_plt_got_ranges ();
-#endif
-
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
-  gum_stalker_ensure_unwind_apis_instrumented ();
-#endif
 }
 
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
@@ -2301,8 +2280,27 @@ gum_exec_ctx_new (GumStalker * stalker,
 
   ctx->depth = 0;
 
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
+  /*
+   * We need to build an array of ranges in which the .plt.got and .plt.sec
+   * sections of the loaded modules reside to allow us to treat tail calls into
+   * them as excluded calls (even though they use a JMP instruction). However,
+   * calling into the dynamic loader or even just allocating data on the heap is
+   * dangerous when actually stalking a target since we could cause the target
+   * to re-enter a section of code which is not designed to be. We will
+   * therefore build up our picture of the memory map when Stalker is first
+   * instantiated to avoid this potential problem. Should the memory map change
+   * afterwards (e.g. another library is loaded) then we will not notice and
+   * tail calls into the .plt.got and .plt.sec will not be optimized. However,
+   * the application should continue to function as expected.
+   */
+  gum_exec_ctx_get_plt_got_ranges ();
+
+# ifndef HAVE_ANDROID
+  gum_stalker_ensure_unwind_apis_instrumented ();
+
   ctx->excluded_calls = gum_metal_hash_table_new (NULL, NULL);
+# endif
 #endif
 
   return ctx;
