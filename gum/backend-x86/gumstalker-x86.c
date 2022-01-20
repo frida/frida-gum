@@ -20,10 +20,10 @@
 # include "gumexceptor.h"
 #endif
 #ifdef HAVE_LINUX
+# include "gum-init.h"
 # include "gumelfmodule.h"
 #endif
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
-# include "gum-init.h"
 # include "guminterceptor.h"
 #endif
 
@@ -707,6 +707,10 @@ static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
 static gboolean gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
     GumGeneratorContext * gc, GumBranchTarget * target);
 #ifdef HAVE_LINUX
+static GArray * gum_exec_ctx_get_plt_got_ranges (void);
+static void gum_exec_ctx_deinit_plt_got_ranges (void);
+static gboolean gum_exec_ctx_find_plt_got (const GumModuleDetails * details,
+    gpointer user_data);
 static gboolean gum_exec_check_elf_section (
     const GumElfSectionDetails * details, gpointer user_data);
 #endif
@@ -970,6 +974,23 @@ gum_stalker_init (GumStalker * self)
     gum_collect_export (impls, _T ("win32u.dll"), "Wow64Transition");
   }
 # endif
+#endif
+
+#ifdef HAVE_LINUX
+  /*
+   * We need to build an array of ranges in which the .plt.got and .plt.sec
+   * sections of the loaded modules reside to allow us to treat tail calls into
+   * them as excluded calls (even though they use a JMP instruction). However,
+   * calling into the dynamic loader or even just allocating data on the heap is
+   * dangerous when actually stalking a target since we could cause the target
+   * to re-enter a section of code which is not designed to be. We will
+   * therefore build up our picture of the memory map when Stalker is first
+   * instantiated to avoid this potential problem. Should the memory map change
+   * afterwards (e.g. another library is loaded) then we will not notice and
+   * tail calls into the .plt.got and .plt.sec will not be optimized. However,
+   * the application should continue to function as expected.
+   */
+  gum_exec_ctx_get_plt_got_ranges ();
 #endif
 
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
@@ -4645,91 +4666,114 @@ gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
                                          GumGeneratorContext * gc,
                                          GumBranchTarget * target)
 {
-  gboolean result = FALSE;
-
-#if defined (HAVE_LINUX)
+#ifdef HAVE_LINUX
   GumExecCtx * ctx = block->ctx;
   const cs_insn * insn = gc->instruction->ci;
-  GumModuleMap * map = NULL;
-  const GumModuleDetails * module;
-  GumElfModule * elf = NULL;
-  GumCheckElfSection plt_got = {
-    .name = ".plt.got",
-    .target = target,
-    .found = FALSE
-  };
-  GumCheckElfSection plt_sec = {
-    .name = ".plt.sec",
-    .target = target,
-    .found = FALSE
-  };
+  GArray * ranges;
+  guint i;
 
   if (target->is_indirect)
-    goto beach;
+    return FALSE;
 
   if (target->base != X86_REG_INVALID)
-    goto beach;
+    return FALSE;
 
   if (ctx->activation_target != NULL)
-    goto beach;
+    return FALSE;
 
   if (!gum_stalker_is_excluding (ctx->stalker, target->absolute_address))
-    goto beach;
+    return FALSE;
 
   if (insn->id != X86_INS_JMP)
-    goto beach;
+    return FALSE;
 
-  map = gum_module_map_new ();
+  ranges = gum_exec_ctx_get_plt_got_ranges ();
 
-  module = gum_module_map_find (map, GUM_ADDRESS (target->absolute_address));
-  if (module == NULL)
-    goto beach;
+  for (i = 0; i != ranges->len; i++)
+  {
+    GumMemoryRange * range = &g_array_index (ranges, GumMemoryRange, i);
 
-  elf = gum_elf_module_new_from_memory (module->path,
-      module->range->base_address, NULL);
-  g_assert (elf != NULL);
-
-  gum_elf_module_enumerate_sections (elf, gum_exec_check_elf_section, &plt_got);
-  gum_elf_module_enumerate_sections (elf, gum_exec_check_elf_section, &plt_sec);
-  if (!plt_got.found && !plt_sec.found)
-    goto beach;
-
-  result = TRUE;
-
-beach:
-  g_clear_object (&elf);
-  g_clear_object (&map);
-
+    if (GUM_MEMORY_RANGE_INCLUDES (range,
+        GPOINTER_TO_SIZE (target->absolute_address)))
+    {
+      return TRUE;
+    }
+  }
 #endif
 
-  return result;
+  return FALSE;
 }
 
 #ifdef HAVE_LINUX
+
+static GArray *
+gum_exec_ctx_get_plt_got_ranges (void)
+{
+  static gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    GArray * ranges = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
+
+    gum_process_enumerate_modules (gum_exec_ctx_find_plt_got, ranges);
+
+    _gum_register_early_destructor (gum_exec_ctx_deinit_plt_got_ranges);
+
+    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (ranges));
+  }
+
+  return GSIZE_TO_POINTER (gonce_value);
+}
+
+static void
+gum_exec_ctx_deinit_plt_got_ranges (void)
+{
+  g_array_free (gum_exec_ctx_get_plt_got_ranges (), TRUE);
+}
+
+static gboolean
+gum_exec_ctx_find_plt_got (const GumModuleDetails * details,
+                           gpointer user_data)
+{
+  GArray * ranges = user_data;
+  GumElfModule * elf;
+
+  if (details->path == NULL)
+    return TRUE;
+
+  elf = gum_elf_module_new_from_memory (details->path,
+      details->range->base_address, NULL);
+  if (elf == NULL)
+    return TRUE;
+
+  gum_elf_module_enumerate_sections (elf, gum_exec_check_elf_section, ranges);
+
+  g_object_unref (elf);
+
+  return TRUE;
+}
 
 static gboolean
 gum_exec_check_elf_section (const GumElfSectionDetails * details,
                             gpointer user_data)
 {
-  GumCheckElfSection * check = user_data;
-  GumAddress limit;
+  GArray * ranges = user_data;
+  GumMemoryRange range;
 
   if (details->name == NULL)
     return TRUE;
 
-  if (g_strcmp0 (details->name, check->name) != 0)
+  if (strcmp (details->name, ".plt.got") != 0 &&
+      strcmp (details->name, ".plt.sec") != 0)
+  {
     return TRUE;
+  }
 
-  if (check->target->absolute_address < GSIZE_TO_POINTER (details->address))
-    return FALSE;
+  range.base_address = details->address;
+  range.size = details->size;
+  g_array_append_val (ranges, range);
 
-  limit = details->address + details->size;
-  if (check->target->absolute_address >= GSIZE_TO_POINTER (limit))
-    return FALSE;
-
-  check->found = TRUE;
-
-  return FALSE;
+  return TRUE;
 }
 
 #endif
