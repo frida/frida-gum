@@ -237,7 +237,7 @@ struct _GumExecCtx
   GumExecBlock * block_list;
 
   /*
-   * Stalker for AARCH64 no longer makes use of a shadow stack for handling
+   * Stalker for AArch64 no longer makes use of a shadow stack for handling
    * CALL/RET instructions, so we instead keep a count of the depth of the stack
    * here when GUM_CALL or GUM_RET events are enabled.
    */
@@ -254,7 +254,7 @@ enum _GumExecCtxState
 struct _GumExecBlock
 {
   /*
-   * GumExecBlock's are held in a single linked list to allow them to be
+   * GumExecBlock instances are held in a singly linked list to allow them to be
    * disposed. This is necessary since other data may also be stored in the data
    * slab (e.g. inline caches) and hence we cannot simply rely on them being
    * contiguous.
@@ -397,21 +397,22 @@ enum _GumBackpatchType
   GUM_BACKPATCH_JMP,
   GUM_BACKPATCH_INLINE_CACHE,
   /*
-   * On AARCH64, immediate branches have limited range, and therefore indirect
+   * On AArch64, immediate branches have limited range, and therefore indirect
    * branches are common. We therefore need to check dynamically whether these
    * are to excluded ranges to avoid stalking large amounts of code
    * unnecessarily.
    *
-   * However, calling gum_stalker_is_excluding repeatedly whenever an indirect
+   * However, calling gum_stalker_is_excluding() repeatedly whenever an indirect
    * call is encountered would be expensive since it would be necessary to open
    * and close a prolog to preserve the register state. We therefore backpatch
    * any excluded calls into the same inline cache used for translating real
    * addresses into their instrumented blocks. We do this by setting the real
    * and instrumented addresses the same.
    *
-   * However, since all instructions in AARCH64 are 32-bits in length and 32-bit
+   * However, since all instructions in AArch64 are 32-bits in length and 32-bit
    * aligned, we use the low bit of the instrumented address as a marker that
-   * the call is to an excluded range and we can therefore handle it accordinly.
+   * the call is to an excluded range, and we can therefore handle it
+   * accordingly.
    *
    * Note, however, that unlike when we do something similar to handle returns
    * into the slab, we are dealing with real rather than instrumented addresses
@@ -497,6 +498,7 @@ static GumExecCtx * gum_stalker_find_exec_ctx_by_thread_id (GumStalker * self,
 
 static gsize gum_stalker_snapshot_space_needed_for (GumStalker * self,
     gsize real_size);
+static gsize gum_stalker_get_ic_entry_size (GumStalker * self);
 
 static void gum_stalker_thaw (GumStalker * self, gpointer code, gsize size);
 static void gum_stalker_freeze (GumStalker * self, gpointer code, gsize size);
@@ -543,7 +545,6 @@ static void gum_exec_ctx_maybe_emit_compile_event (GumExecCtx * ctx,
 
 static gboolean gum_stalker_iterator_is_out_of_space (
     GumStalkerIterator * self);
-static gsize gum_stalker_get_ic_entry_size (GumStalker * self);
 
 static void gum_stalker_invoke_callout (GumCalloutEntry * entry,
     GumCpuContext * cpu_context);
@@ -1735,6 +1736,12 @@ gum_stalker_snapshot_space_needed_for (GumStalker * self,
   return (self->trust_threshold != 0) ? real_size : 0;
 }
 
+static gsize
+gum_stalker_get_ic_entry_size (GumStalker * self)
+{
+  return self->ic_entries * sizeof (GumIcEntry);
+}
+
 static void
 gum_stalker_thaw (GumStalker * self,
                   gpointer code,
@@ -2132,13 +2139,13 @@ gum_exec_ctx_switch_block (GumExecCtx * ctx,
    * provide a consistent result when called multiple times with the same
    * inputs.
    *
-   * Stalker for AARCH64, however, prefixes all blocks with:
+   * Stalker for AArch64, however, prefixes all blocks with:
    *
    *  ldp x16, x17, [sp], #0x90
    *
    * This is necessary since if we must reach the block with an indirect branch
    * (e.g. is it too far away for an immediate branch) then we must clobber a
-   * register since AARCH64 only has limited range for direct calls. If however,
+   * register since AArch64 only has limited range for direct calls. If however,
    * the block can be reached with an immediate branch, then this first
    * instruction is skipped by the backpatcher.
    *
@@ -2585,12 +2592,6 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
   return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size;
 }
 
-static gsize
-gum_stalker_get_ic_entry_size (GumStalker * self)
-{
-  return self->ic_entries * sizeof (GumIcEntry);
-}
-
 void
 gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
@@ -2792,7 +2793,7 @@ gum_stalker_invoke_callout (GumCalloutEntry * entry,
  * a prolog or epilog, we must also provide a paramter indicating whether it is
  * being written to the code (fast) or slow slabs. This is necessary since we
  * have a separate copy of these inline helpers in each slab to mitigate the
- * issue of AARCH64 not being able to make immediate branches larger than a
+ * issue of AArch64 not being able to make immediate branches larger than a
  * 28-bit signed offset. Note that we cannot provide the GeneratorContext here
  * since not all places where such a prolog or epilog is written is provided
  * with one.
@@ -2888,7 +2889,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
 
   /*
    * Our prolog and epilog code makes extensive use of the stack to store and
-   * restore registers. However, on AARCH64, the stack pointer must be aligned
+   * restore registers. However, on AArch64, the stack pointer must be aligned
    * to a 16-byte boundary when it is used to access memory. One anti-frida
    * technique observed in the wild has been to deliberately misalign the stack
    * pointer to violate this assumption and cause stalker to attempt to access
@@ -3882,7 +3883,7 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
 }
 
 /*
- * In AARCH64, we are limited to 28-bit signed offsets for immediate branches.
+ * In AArch64, we are limited to 28-bit signed offsets for immediate branches.
  * If we need to branch a larger distance, then we must clobber a register to
  * hold the destination address. If this is the case, we first push those
  * registers beyond the red-zone and then perform the branch.
@@ -5090,7 +5091,7 @@ gum_exec_block_write_exec_generated_code (GumArm64Writer * cw,
    * and x17 on the stack. Otherwise, our branch target is not an instrumented
    * block and we must therefore pop these values from the stack before we carry
    * out the branch. In this case, we don't care about the fact we clobber x16
-   * below as the AARCH64 documentation denotes x16 and x17 as IP0 and IP1 and
+   * below as the AArch64 documentation denotes x16 and x17 as IP0 and IP1 and
    * states:
    *
    * "Registers r16 (IP0) and r17 (IP1) may be used by a linker as a scratch
