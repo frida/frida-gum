@@ -584,6 +584,7 @@ static GumExecCtx * gum_stalker_find_exec_ctx_by_thread_id (GumStalker * self,
 
 static gsize gum_stalker_snapshot_space_needed_for (GumStalker * self,
     gsize real_size);
+static gsize gum_stalker_get_ic_entry_size (GumStalker * stalker);
 
 static void gum_stalker_thaw (GumStalker * self, gpointer code, gsize size);
 static void gum_stalker_freeze (GumStalker * self, gpointer code, gsize size);
@@ -626,7 +627,6 @@ static void gum_exec_ctx_maybe_emit_compile_event (GumExecCtx * ctx,
 
 static gboolean gum_stalker_iterator_is_out_of_space (
     GumStalkerIterator * self);
-static gsize gum_stalker_get_ic_entry_size (GumStalker * stalker);
 
 static void gum_stalker_invoke_callout (GumCalloutEntry * entry,
     GumCpuContext * cpu_context);
@@ -2186,6 +2186,12 @@ gum_stalker_snapshot_space_needed_for (GumStalker * self,
   return (self->trust_threshold != 0) ? real_size : 0;
 }
 
+static gsize
+gum_stalker_get_ic_entry_size (GumStalker * self)
+{
+  return self->ic_entries * (2 * sizeof (gpointer));
+}
+
 static void
 gum_stalker_thaw (GumStalker * self,
                   gpointer code,
@@ -3024,12 +3030,6 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
 
   return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size +
       gum_stalker_get_ic_entry_size (self->exec_context->stalker);
-}
-
-static gsize
-gum_stalker_get_ic_entry_size (GumStalker * self)
-{
-  return self->ic_entries * (2 * sizeof (gpointer));
 }
 
 void
