@@ -741,9 +741,9 @@ gum_stalker_class_init (GumStalkerClass * klass)
   object_class->set_property = gum_stalker_set_property;
 
   g_object_class_install_property (object_class, PROP_IC_ENTRIES,
-    g_param_spec_uint ("ic-entries", "IC Entries", "Inline Cache Entries",
-    2, 32, 2,
-    G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+      g_param_spec_uint ("ic-entries", "IC Entries", "Inline Cache Entries",
+      2, 32, 2, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS));
 
   gum_unfollow_me_address = gum_strip_code_pointer (gum_stalker_unfollow_me);
   gum_deactivate_address = gum_strip_code_pointer (gum_stalker_deactivate);
@@ -800,7 +800,6 @@ gum_stalker_init (GumStalker * self)
 
   self->page_size = page_size;
   self->cpu_features = gum_query_cpu_features ();
-
   self->is_rwx_supported = gum_query_rwx_support () != GUM_RWX_NONE;
 
   g_mutex_init (&self->mutex);
