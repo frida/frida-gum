@@ -2484,7 +2484,8 @@ gum_exec_ctx_contains (GumExecCtx * ctx,
   GumSlab * code_slab = &ctx->code_slab->slab;
   GumSlab * slow_slab = &ctx->slow_slab->slab;
 
-  do {
+  do
+  {
     if ((const guint8 *) address >= code_slab->data &&
         (const guint8 *) address < (guint8 *) gum_slab_cursor (code_slab))
     {
@@ -2492,9 +2493,11 @@ gum_exec_ctx_contains (GumExecCtx * ctx,
     }
 
     code_slab = code_slab->next;
-  } while (code_slab != NULL);
+  }
+  while (code_slab != NULL);
 
-  do {
+  do
+  {
     if ((const guint8 *) address >= slow_slab->data &&
         (const guint8 *) address < (guint8 *) gum_slab_cursor (slow_slab))
     {
@@ -2502,7 +2505,8 @@ gum_exec_ctx_contains (GumExecCtx * ctx,
     }
 
     slow_slab = slow_slab->next;
-  } while (slow_slab != NULL);
+  }
+  while (slow_slab != NULL);
 
   return FALSE;
 }
@@ -2637,10 +2641,10 @@ gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
     return;
 
   /*
-   * In the event of a block continuation (e.g. we reached had to split the
-   * generated code for a single basic block into two separate instrumented
-   * blocks (e.g. because of size), then we may have no from_insn here. Just
-   * pass the NULL to the callback and let the user decide what to do.
+   * In the event of a block continuation (e.g. we had to split the generated
+   * code for a single basic block into two separate instrumented blocks (e.g.
+   * because of size), then we may have no from_insn here. Just pass NULL to the
+   * callback and let the user decide what to do.
    */
   if (from_insn != NULL)
   {
@@ -2843,7 +2847,6 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
         &storage_block->real_size, &storage_block->code_size,
         &storage_block->slow_size);
     gum_exec_block_commit (storage_block);
-
     block->storage_block = storage_block;
 
     gum_stalker_thaw (stalker, internal_code, block->capacity);
@@ -4331,9 +4334,8 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
   gboolean just_unfollowed;
   GumExecCtx * ctx;
   gpointer target;
-  GumStalker * stalker;
   GumIcEntry * ic_entries;
-  guint i;
+  guint num_ic_entries, i;
 
   just_unfollowed = block == NULL;
   if (just_unfollowed)
@@ -4347,10 +4349,10 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
   gum_exec_ctx_query_block_switch_callback (ctx, block->real_start, from_insn,
       &target);
 
-  stalker = ctx->stalker;
   ic_entries = from->ic_entries;
+  num_ic_entries = ctx->stalker->ic_entries;
 
-  for (i = 0; i != stalker->ic_entries; i++)
+  for (i = 0; i != num_ic_entries; i++)
   {
     if (ic_entries[i].real_start == block->real_start)
       return;
@@ -4364,7 +4366,7 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
    * entry in the list is effectively removed.
    */
   memmove (&ic_entries[1], &ic_entries[0],
-      (stalker->ic_entries - 1) * sizeof (GumIcEntry));
+      (num_ic_entries - 1) * sizeof (GumIcEntry));
 
   ic_entries[0].real_start = block->real_start;
   ic_entries[0].code_start = target;
@@ -5318,8 +5320,8 @@ gum_exec_block_write_inline_cache_code (GumExecBlock * block,
   GumSlab * data_slab = &block->ctx->data_slab->slab;
   GumStalker * stalker = block->ctx->stalker;
   guint i;
-  gsize empty_val = GUM_IC_MAGIC_EMPTY;
-  gsize scratch_val = GUM_IC_MAGIC_SCRATCH;
+  const gsize empty_val = GUM_IC_MAGIC_EMPTY;
+  const gsize scratch_val = GUM_IC_MAGIC_SCRATCH;
   gpointer * ic_match;
   gconstpointer match = cw->code + 1;
 
