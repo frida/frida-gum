@@ -1746,6 +1746,9 @@ gum_stalker_thaw (GumStalker * self,
                   gpointer code,
                   gsize size)
 {
+  if (size == 0)
+    return;
+
   if (!self->is_rwx_supported)
     gum_mprotect (code, size, GUM_PAGE_RW);
 }
@@ -1755,6 +1758,21 @@ gum_stalker_freeze (GumStalker * self,
                     gpointer code,
                     gsize size)
 {
+  if (size == 0)
+  {
+    if (!self->is_rwx_supported)
+    {
+      guint page_offset = GPOINTER_TO_SIZE (code) & (self->page_size - 1);
+      if (page_offset != 0)
+      {
+        gum_memory_mark_code ((guint8 *) code - page_offset,
+            self->page_size - page_offset);
+      }
+    }
+
+    return;
+  }
+
   if (!self->is_rwx_supported)
     gum_memory_mark_code (code, size);
 
