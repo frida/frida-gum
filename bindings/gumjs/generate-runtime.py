@@ -23,7 +23,7 @@ EXACT_DEPS = {
 
 
 def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir):
-    frida_compile_binary = output_dir / "node_modules" / ".bin" / ("frida-compile" + script_suffix())
+    frida_compile_binary = output_dir / "node_modules" / ".bin" / make_script_filename("frida-compile")
     if not frida_compile_binary.exists():
         (output_dir / "package.json").unlink(missing_ok=True)
         (output_dir / "package-lock.json").unlink(missing_ok=True)
@@ -32,7 +32,7 @@ def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quic
         if node_modules.exists():
             shutil.rmtree(node_modules)
 
-        npm = os.environ.get("NPM", "npm")
+        npm = os.environ.get("NPM", make_script_filename("npm"))
         try:
             subprocess.run([npm, "init", "-y"],
                            capture_output=True,
@@ -400,9 +400,10 @@ def identifier(filename):
     return result
 
 
-def script_suffix():
+def make_script_filename(name):
     build_os = platform.system().lower()
-    return ".cmd" if build_os == 'windows' else ""
+    extension = ".cmd" if build_os == 'windows' else ""
+    return name + extension
 
 
 if __name__ == '__main__':
