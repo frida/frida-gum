@@ -139,8 +139,6 @@ not_enough_space:
   }
 }
 
-#include <unistd.h>
-
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
