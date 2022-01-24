@@ -4748,12 +4748,15 @@ TESTCASE (rpc_can_be_performed)
       "rpc.exports.badger = () => {"
           "const buf = Memory.allocUtf8String(\"Yo\");"
           "return buf.readByteArray(2);"
+      "};"
+      "rpc.exports.returnNull = () => {"
+          "return null;"
       "};");
   EXPECT_NO_MESSAGES ();
 
   POST_MESSAGE ("[\"frida:rpc\",1,\"list\"]");
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",1,\"ok\","
-      "[\"foo\",\"bar\",\"badger\"]]");
+      "[\"foo\",\"bar\",\"badger\",\"returnNull\"]]");
 
   POST_MESSAGE ("[\"frida:rpc\",2,\"call\",\"foo\",[1,2]]");
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",2,\"ok\",3]");
@@ -4774,6 +4777,9 @@ TESTCASE (rpc_can_be_performed)
   POST_MESSAGE ("[\"frida:rpc\",7,\"call\",\"badger\",[]]");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",7,\"ok\",{}]",
       "59 6f");
+
+  POST_MESSAGE ("[\"frida:rpc\",8,\"call\",\"returnNull\",[]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",8,\"ok\",null]");
 }
 
 TESTCASE (message_can_be_sent)
