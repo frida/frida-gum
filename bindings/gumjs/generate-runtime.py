@@ -23,8 +23,8 @@ EXACT_DEPS = {
 
 
 def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir):
-    frida_compile_binary = output_dir / "node_modules" / ".bin" / make_script_filename("frida-compile")
-    if not frida_compile_binary.exists():
+    frida_compile = output_dir / "node_modules" / ".bin" / make_script_filename("frida-compile")
+    if not frida_compile.exists():
         (output_dir / "package.json").unlink(missing_ok=True)
         (output_dir / "package-lock.json").unlink(missing_ok=True)
 
@@ -59,8 +59,6 @@ def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quic
             ])
             raise EnvironmentError(message)
 
-
-    frida_compile = os.path.relpath(frida_compile_binary, output_dir)
 
     runtime_reldir = Path("runtime")
     runtime_srcdir = input_dir / runtime_reldir
