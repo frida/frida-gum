@@ -30,10 +30,10 @@ if host_os_family == 'darwin'
 endif
 
 link_targets = [
-    gum_tests_core,
-    gum_tests_heap,
-    gum_tests_prof,
-    gum_tests_gumjs,
+  gum_tests_core,
+  gum_tests_heap,
+  gum_tests_prof,
+  gum_tests_gumjs,
 ]
 
 extra_test_deps = [lzma_dep]
