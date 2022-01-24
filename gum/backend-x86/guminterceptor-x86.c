@@ -211,15 +211,14 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
                                               gpointer prologue)
 {
   GumX86Writer * cw = &self->writer;
-  GumX86FunctionContextData * data G_GNUC_UNUSED = (GumX86FunctionContextData *)
-      &ctx->backend_data;
   guint padding;
 
   gum_x86_writer_reset (cw, prologue);
   cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
   gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->on_enter_trampoline));
   gum_x86_writer_flush (cw);
-  g_assert (gum_x86_writer_offset (cw) <= data->redirect_code_size);
+  g_assert (gum_x86_writer_offset (cw) <=
+      ((GumX86FunctionContextData *) &ctx->backend_data)->redirect_code_size);
 
   padding = ctx->overwritten_prologue_len - gum_x86_writer_offset (cw);
   gum_x86_writer_put_nop_padding (cw, padding);
