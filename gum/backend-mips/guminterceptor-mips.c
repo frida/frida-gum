@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -36,6 +36,9 @@
 #define GUM_FRAME_OFFSET_CPU_CONTEXT 0
 #define GUM_FRAME_OFFSET_NEXT_HOP \
     (GUM_FRAME_OFFSET_CPU_CONTEXT + sizeof(GumCpuContext))
+
+#define GUM_FCDATA(context) \
+    ((GumMipsFunctionContextData *) (context)->backend_data.storage)
 
 typedef struct _GumMipsFunctionContextData GumMipsFunctionContextData;
 
@@ -110,8 +113,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
                                             gboolean * need_deflector)
 {
-  GumMipsFunctionContextData * data = (GumMipsFunctionContextData *)
-      &ctx->backend_data;
+  GumMipsFunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address = ctx->function_address;
   guint redirect_limit;
 
@@ -164,8 +166,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumMipsWriter * cw = &self->writer;
   GumMipsRelocator * rl = &self->relocator;
   gpointer function_address = ctx->function_address;
-  GumMipsFunctionContextData * data = (GumMipsFunctionContextData *)
-      &ctx->backend_data;
+  GumMipsFunctionContextData * data = GUM_FCDATA (ctx);
   gboolean need_deflector;
   guint reloc_bytes;
 
@@ -266,8 +267,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
                                               gpointer prologue)
 {
   GumMipsWriter * cw = &self->writer;
-  GumMipsFunctionContextData * data = (GumMipsFunctionContextData *)
-      &ctx->backend_data;
+  GumMipsFunctionContextData * data = GUM_FCDATA (ctx);
   GumAddress on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
 
   gum_mips_writer_reset (cw, prologue);

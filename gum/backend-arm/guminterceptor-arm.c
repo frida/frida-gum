@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,6 +32,9 @@
     (GUM_FRAME_OFFSET_NEXT_HOP + sizeof (gpointer))
 #define GUM_FRAME_OFFSET_TOP \
     (GUM_FRAME_OFFSET_CPU_CONTEXT + sizeof (GumCpuContext))
+
+#define GUM_FCDATA(context) \
+    ((GumArmFunctionContextData *) (context)->backend_data.storage)
 
 typedef struct _GumArmFunctionContextData GumArmFunctionContextData;
 
@@ -133,8 +136,7 @@ static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
 {
-  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
-      &ctx->backend_data;
+  GumArmFunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address;
   gboolean is_thumb;
   guint redirect_limit;
@@ -214,8 +216,7 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
                                               GumFunctionContext * ctx,
                                               gpointer function_address)
 {
-  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
-      &ctx->backend_data;
+  GumArmFunctionContextData * data = GUM_FCDATA (ctx);
   GumArmWriter * aw = &self->arm_writer;
   GumArmRelocator * ar = &self->arm_relocator;
   guint reloc_bytes;
@@ -297,8 +298,7 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx,
                                                 gpointer function_address)
 {
-  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
-      &ctx->backend_data;
+  GumArmFunctionContextData * data = GUM_FCDATA (ctx);
   GumThumbWriter * tw = &self->thumb_writer;
   GumThumbRelocator * tr = &self->thumb_relocator;
   GString * signature;
@@ -527,8 +527,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
                                               gpointer prologue)
 {
   GumAddress function_address;
-  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
-      &ctx->backend_data;
+  GumArmFunctionContextData * data = GUM_FCDATA (ctx);
 
   function_address = GUM_ADDRESS (
       _gum_interceptor_backend_get_function_address (ctx));

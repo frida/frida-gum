@@ -27,6 +27,9 @@
 #define GUM_FRAME_OFFSET_TOP \
     (GUM_FRAME_OFFSET_NEXT_HOP + sizeof (gpointer))
 
+#define GUM_FCDATA(context) \
+    ((GumX86FunctionContextData *) (context)->backend_data.storage)
+
 typedef struct _GumX86FunctionContextData GumX86FunctionContextData;
 
 struct _GumInterceptorBackend
@@ -99,8 +102,7 @@ static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
 {
-  GumX86FunctionContextData * data = (GumX86FunctionContextData *)
-      &ctx->backend_data;
+  GumX86FunctionContextData * data = GUM_FCDATA (ctx);
 #if GLIB_SIZEOF_VOID_P == 4
   data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
 
@@ -145,8 +147,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 {
   GumX86Writer * cw = &self->writer;
   GumX86Relocator * rl = &self->relocator;
-  GumX86FunctionContextData * data = (GumX86FunctionContextData *)
-      &ctx->backend_data;
+  GumX86FunctionContextData * data = GUM_FCDATA (ctx);
   GumAddress function_ctx_ptr;
   guint reloc_bytes;
 
@@ -217,8 +218,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
   gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->on_enter_trampoline));
   gum_x86_writer_flush (cw);
-  g_assert (gum_x86_writer_offset (cw) <=
-      ((GumX86FunctionContextData *) &ctx->backend_data)->redirect_code_size);
+  g_assert (gum_x86_writer_offset (cw) <= GUM_FCDATA (ctx)->redirect_code_size);
 
   padding = ctx->overwritten_prologue_len - gum_x86_writer_offset (cw);
   gum_x86_writer_put_nop_padding (cw, padding);

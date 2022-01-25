@@ -16,11 +16,12 @@
 
 typedef struct _GumInterceptorBackend GumInterceptorBackend;
 typedef struct _GumFunctionContext GumFunctionContext;
-typedef struct _GumFunctionContextBackendData GumFunctionContextBackendData;
+typedef union _GumFunctionContextBackendData GumFunctionContextBackendData;
 
-struct _GumFunctionContextBackendData
+union _GumFunctionContextBackendData
 {
-  gpointer data[2];
+  gchar storage[2 * GLIB_SIZEOF_VOID_P];
+  gpointer p[2];
 };
 
 struct _GumFunctionContext

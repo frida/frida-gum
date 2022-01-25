@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,6 +29,9 @@
 #define GUM_FRAME_OFFSET_CPU_CONTEXT 8
 #define GUM_FRAME_OFFSET_NEXT_HOP \
     (GUM_FRAME_OFFSET_CPU_CONTEXT + (33 * 8) + (8 * 16))
+
+#define GUM_FCDATA(context) \
+    ((GumArm64FunctionContextData *) (context)->backend_data.storage)
 
 typedef struct _GumArm64FunctionContextData GumArm64FunctionContextData;
 
@@ -579,8 +582,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
                                             gboolean * need_deflector)
 {
-  GumArm64FunctionContextData * data = (GumArm64FunctionContextData *)
-      &ctx->backend_data;
+  GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address = ctx->function_address;
   guint redirect_limit;
 
@@ -650,8 +652,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumArm64Writer * aw = &self->writer;
   GumArm64Relocator * ar = &self->relocator;
   gpointer function_address = ctx->function_address;
-  GumArm64FunctionContextData * data = (GumArm64FunctionContextData *)
-      &ctx->backend_data;
+  GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
   gboolean need_deflector;
   GString * signature;
   gboolean is_eligible_for_lr_rewriting;
@@ -852,8 +853,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
                                               gpointer prologue)
 {
   GumArm64Writer * aw = &self->writer;
-  GumArm64FunctionContextData * data = (GumArm64FunctionContextData *)
-      &ctx->backend_data;
+  GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
   GumAddress on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
 
 #ifdef HAVE_DARWIN
