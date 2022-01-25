@@ -180,7 +180,8 @@ struct _GumEnumerateModuleRangesContext
 
 struct _GumResolveModuleNameContext
 {
-  gchar * name;
+  const gchar * name;
+  GumAddress known_address;
   gchar * path;
   GumAddress base;
 };
@@ -261,7 +262,7 @@ static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
 
 static gchar * gum_resolve_module_name (const gchar * name, GumAddress * base);
-static gboolean gum_store_module_path_and_base_if_name_matches (
+static gboolean gum_store_module_path_and_base_if_match (
     const GumModuleDetails * details, gpointer user_data);
 
 static GumElfModule * gum_open_elf_module (const gchar * name);
@@ -1952,53 +1953,22 @@ gum_resolve_module_name (const gchar * name,
   if (name[0] == '/' && base == NULL)
     return g_strdup (name);
 
+  ctx.name = name;
+  ctx.known_address = 0;
 #if defined (HAVE_GLIBC)
-  struct link_map * map;
-
-  map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
-  if (map != NULL)
   {
-    gchar * next;
-
-    if (g_path_is_absolute (map->l_name))
+    struct link_map * map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
+    if (map != NULL)
     {
-      ctx.name = g_strdup (map->l_name);
+      ctx.known_address = GUM_ADDRESS (map->l_ld);
+      dlclose (map);
     }
-    else
-    {
-      gchar * cwd;
-
-      cwd = g_get_current_dir ();
-      ctx.name = g_canonicalize_filename (map->l_name, cwd);
-      g_free (cwd);
-    }
-
-    while ((next = g_file_read_link (ctx.name, NULL)) != NULL)
-    {
-      gchar * parent, * path;
-
-      parent = g_path_get_dirname (ctx.name);
-      path = g_canonicalize_filename (next, parent);
-      g_free (parent);
-
-      g_free (ctx.name);
-      ctx.name = path;
-
-      g_free (next);
-    }
-
-    dlclose (map);
   }
-  else
 #endif
-    ctx.name = g_strdup (name);
   ctx.path = NULL;
   ctx.base = 0;
 
-  gum_process_enumerate_modules (gum_store_module_path_and_base_if_name_matches,
-      &ctx);
-
-  g_free (ctx.name);
+  gum_process_enumerate_modules (gum_store_module_path_and_base_if_match, &ctx);
 
   if (base != NULL)
     *base = ctx.base;
@@ -2007,20 +1977,23 @@ gum_resolve_module_name (const gchar * name,
 }
 
 static gboolean
-gum_store_module_path_and_base_if_name_matches (
+gum_store_module_path_and_base_if_match (
     const GumModuleDetails * details,
     gpointer user_data)
 {
   GumResolveModuleNameContext * ctx = user_data;
+  gboolean is_match;
 
-  if (gum_linux_module_path_matches (details->path, ctx->name))
-  {
-    ctx->path = g_strdup (details->path);
-    ctx->base = details->range->base_address;
-    return FALSE;
-  }
+  if (ctx->known_address != 0)
+    is_match = GUM_MEMORY_RANGE_INCLUDES (details->range, ctx->known_address);
+  else
+    is_match = gum_linux_module_path_matches (details->path, ctx->name);
+  if (!is_match)
+    return TRUE;
 
-  return TRUE;
+  ctx->path = g_strdup (details->path);
+  ctx->base = details->range->base_address;
+  return FALSE;
 }
 
 gboolean
