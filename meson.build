@@ -132,6 +132,9 @@ endif
 
 diet = get_option('diet')
 if diet
+  if not optimize_for_prod
+    error('Diet mode requires -Db_ndebug=true')
+  endif
   extra_cflags += '-DGUM_DIET'
   cdata.set('GUM_DIET', 1)
 endif
