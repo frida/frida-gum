@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
@@ -9207,6 +9207,10 @@ target_function_string (const gchar * arg)
 
   for (i = 0; i != 10; i++)
     gum_script_dummy_global_to_trick_optimizer += i * arg[0];
+
+  /* Prevent optimizer from assuming what the return value is. */
+  if (gum_script_dummy_global_to_trick_optimizer == 0)
+    return NULL;
 
   return arg;
 }
