@@ -72,11 +72,7 @@ gum_exceptor_init (GumExceptor * self)
 
   gum_exceptor_add (self, gum_exceptor_handle_scope_exception, self);
 
-  if (gum_exceptor_is_available)
-  {
-    self->backend = gum_exceptor_backend_new (
-        (GumExceptionHandler) gum_exceptor_handle_exception, self);
-  }
+  gum_exceptor_reset (self);
 }
 
 static void
@@ -145,6 +141,18 @@ the_exceptor_weak_notify (gpointer data,
   the_exceptor = NULL;
 
   G_UNLOCK (the_exceptor);
+}
+
+void
+gum_exceptor_reset (GumExceptor * self)
+{
+  g_clear_object (&self->backend);
+
+  if (gum_exceptor_is_available)
+  {
+    self->backend = gum_exceptor_backend_new (
+        (GumExceptionHandler) gum_exceptor_handle_exception, self);
+  }
 }
 
 void

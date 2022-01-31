@@ -90,6 +90,8 @@ GUM_API void gum_exceptor_disable (void);
 
 GUM_API GumExceptor * gum_exceptor_obtain (void);
 
+GUM_API void gum_exceptor_reset (GumExceptor * self);
+
 GUM_API void gum_exceptor_add (GumExceptor * self, GumExceptionHandler func,
     gpointer user_data);
 GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
