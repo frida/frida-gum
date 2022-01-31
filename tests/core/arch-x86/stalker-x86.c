@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -3230,6 +3230,12 @@ TESTCASE (no_exceptions)
 {
   guint32 val = 0;
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   fixture->sink->mask = GUM_EXEC;
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
@@ -3252,6 +3258,12 @@ TESTCASE (no_exceptions)
 TESTCASE (try_and_catch)
 {
   guint32 val = 0;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
       callback_at_end, &val, NULL);
@@ -3280,6 +3292,12 @@ TESTCASE (try_and_catch_excluded)
     .size = 1
   };
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   gum_stalker_exclude (fixture->stalker, &range);
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
@@ -3304,6 +3322,12 @@ TESTCASE (try_and_catch_excluded)
 TESTCASE (try_and_dont_catch)
 {
   guint32 val = 0;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
       callback_at_end, &val, NULL);
@@ -3335,6 +3359,12 @@ TESTCASE (try_and_dont_catch_excluded)
     .base_address = GPOINTER_TO_SIZE (__cxa_throw),
     .size = 1
   };
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
 
   gum_stalker_exclude (fixture->stalker, &range);
 
