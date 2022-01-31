@@ -3534,11 +3534,9 @@ TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
       "    call: true,"
       "  },"
       "  onCallSummary(summary) {"
-      "    for (const target of [targetFuncInt, targetFuncNestedA]) {"
-      "      const key = target.strip().toString();"
-      "      send(key in summary);"
-      "      send(summary[key]);"
-      "    }"
+      "    const key = targetFuncNestedA.strip().toString();"
+      "    send(key in summary);"
+      "    send(summary[key]);"
       "  }"
       "});"
 
@@ -3561,8 +3559,6 @@ TESTCASE (execution_can_be_traced_after_native_function_call_from_hook)
   sdc_await_run_confirmation (&channel);
 
   POST_MESSAGE ("{\"type\":\"stop\"}");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("1");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_NO_MESSAGES ();
