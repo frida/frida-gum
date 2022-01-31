@@ -637,11 +637,14 @@ gum_try_read_and_write_at (guint8 * a,
 {
   struct sigaction action;
   guint8 dummy_value_to_trick_optimizer = 0;
+  GumExceptor * exceptor;
 
   if (exception_raised_on_read != NULL)
     *exception_raised_on_read = FALSE;
   if (exception_raised_on_write != NULL)
     *exception_raised_on_write = FALSE;
+
+  exceptor = gum_exceptor_obtain ();
 
   action.sa_sigaction = gum_test_on_signal;
   sigemptyset (&action.sa_mask);
@@ -664,6 +667,16 @@ gum_try_read_and_write_at (guint8 * a,
   {
     if (exception_raised_on_read != NULL)
       *exception_raised_on_read = TRUE;
+
+#ifdef HAVE_DARWIN
+    /*
+     * The Darwin Exceptor backend will currently disengage on an unhandled
+     * exception. This is because guarded Mach ports may make it impossible
+     * to forward to the previous handler. We may potentially improve on
+     * this by detecting that the process has guarded ports.
+     */
+    gum_exceptor_reset (exceptor);
+#endif
   }
 
 #ifdef HAVE_ANDROID
@@ -678,6 +691,10 @@ gum_try_read_and_write_at (guint8 * a,
   {
     if (exception_raised_on_write != NULL)
       *exception_raised_on_write = TRUE;
+
+#ifdef HAVE_DARWIN
+    gum_exceptor_reset (exceptor);
+#endif
   }
 
 #ifdef HAVE_ANDROID
@@ -688,6 +705,8 @@ gum_try_read_and_write_at (guint8 * a,
   memset (&gum_test_old_sigsegv, 0, sizeof (gum_test_old_sigsegv));
   sigaction (SIGBUS, &gum_test_old_sigbus, NULL);
   memset (&gum_test_old_sigbus, 0, sizeof (gum_test_old_sigbus));
+
+  g_object_unref (exceptor);
 
   return dummy_value_to_trick_optimizer;
 }
