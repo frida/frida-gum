@@ -595,10 +595,13 @@ catch_mach_exception_raise_state_identity (
 
     /*
      * We cannot forward to the previous handler due to task and thread ports
-     * being guarded. So instead we revert to the previous handler, pretend we
-     * handled the exception, and assume that an identical exception will be
-     * generated right after. That time around the original handler will receive
-     * the exception and be able to handle it.
+     * potentially being guarded. So instead we revert to the previous handler,
+     * pretend we handled the exception, and assume that an identical exception
+     * will be generated right after. That time around the original handler will
+     * receive the exception and be able to handle it.
+     *
+     * We may potentially improve on this by detecting whether the process has
+     * guarded ports, and only revert here if it does.
      */
     if (self->state == GUM_EXCEPTOR_ATTACHED)
       gum_exceptor_backend_pause (self);
