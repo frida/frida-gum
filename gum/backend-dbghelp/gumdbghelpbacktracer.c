@@ -103,7 +103,10 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
   {
 #if GLIB_SIZEOF_VOID_P == 4
-    context.Eip = cpu_context->eip;
+    if (cpu_context->eip != 0)
+      context.Eip = cpu_context->eip;
+    else
+      context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
 
     context.Edi = cpu_context->edi;
     context.Esi = cpu_context->esi;
@@ -118,7 +121,10 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrFrame.Offset = cpu_context->ebp;
     frame.AddrStack.Offset = cpu_context->esp;
 #else
-    context.Rip = cpu_context->rip;
+    if (cpu_context->rip != 0)
+      context.Rip = cpu_context->rip;
+    else
+      context.Rip = *((gsize *) GSIZE_TO_POINTER (cpu_context->rsp));
 
     context.R15 = cpu_context->r15;
     context.R14 = cpu_context->r14;
