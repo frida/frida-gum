@@ -424,7 +424,7 @@ TESTCASE (and_reg_reg_imm)
 TESTCASE (and_reg_reg_neg_imm)
 {
   gum_arm64_writer_put_and_reg_reg_imm (&fixture->aw, ARM64_REG_X0,
-      ARM64_REG_X0, -0x10);
+      ARM64_REG_X0, (guint64) -0x10);
   assert_output_n_equals (0, 0x927cec00);
 }
 
