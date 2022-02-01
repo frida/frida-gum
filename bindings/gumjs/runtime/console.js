@@ -32,7 +32,7 @@ class Console {
     if (this.#counters.has(label)) {
       this.#counters.delete(label);
     } else {
-      this.warn(`Counter "${label}" doesn't exist.`);
+      this.warn(`Count for '${label}' does not exist`);
     }
   }
 }
