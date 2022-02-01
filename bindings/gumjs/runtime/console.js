@@ -4,6 +4,12 @@ const engine = global;
 const slice = Array.prototype.slice;
 
 class Console {
+  #counters;
+
+  constructor() {
+    this.#counters = new Map();
+  }
+
   log() {
     sendLogMessage('info', slice.call(arguments));
   }
@@ -14,6 +20,20 @@ class Console {
 
   error() {
     sendLogMessage('error', slice.call(arguments));
+  }
+
+  count(label = 'default') {
+    const newValue = (this.#counters.get(label) ?? 0) + 1;
+    this.#counters.set(label, newValue);
+    this.log(`${label}: ${newValue}`);
+  }
+
+  countReset(label = 'default') {
+    if (this.#counters.has(label)) {
+      this.#counters.delete(label);
+    } else {
+      this.warn(`Count for '${label}' does not exist`);
+    }
   }
 }
 
