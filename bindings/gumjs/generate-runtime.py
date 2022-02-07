@@ -199,7 +199,7 @@ def generate_runtime_v8(runtime_name, output_dir, output, inputs):
 
 
 cmodule_function_pattern = re.compile(
-        r"^(void|size_t|int|unsigned int|bool|const char \*|gpointer|gsize|gssize|gint[0-9]*|guint[0-9]*|gfloat|gdouble|gboolean|(?:const )?\w+ \*|cs_err) ([a-z][a-z0-9_]+)\s?\(",
+        r"^(void|size_t|int|unsigned int|bool|const char \*|gpointer|gsize|gssize|gint[0-9]*|guint[0-9]*|gfloat|gdouble|gboolean||(?:const )?\w+ \*|Gum\w+|cs_err) ([a-z][a-z0-9_]+)\s?\(",
     re.MULTILINE)
 cmodule_variable_pattern = re.compile(r"^(extern .+? )(\w+);", re.MULTILINE)
 capstone_include_pattern = re.compile(r'^#include "(\w+)\.h"$', re.MULTILINE)
