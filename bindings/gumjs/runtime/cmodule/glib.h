@@ -105,6 +105,7 @@ typedef gint (* GCompareDataFunc) (gconstpointer a, gconstpointer b,
     gpointer user_data);
 
 gchar * g_strdup (const gchar * str);
+gchar * g_strndup (const gchar * str, gsize n);
 gchar * g_strdup_printf (const gchar * format, ...);
 gchar * g_strdup_vprintf (const gchar * format, va_list args);
 gboolean g_str_has_prefix (const gchar * str, const gchar * prefix);
