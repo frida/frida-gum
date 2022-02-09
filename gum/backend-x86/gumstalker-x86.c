@@ -35,8 +35,11 @@
 # include <psapi.h>
 # include <tchar.h>
 #endif
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
-# include <unwind.h>
+#ifdef HAVE_LINUX
+# include <sys/syscall.h>
+# ifndef HAVE_ANDROID
+#  include <unwind.h>
+# endif
 #endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
@@ -46,7 +49,11 @@
 #define GUM_DATA_SLAB_SIZE_INITIAL  (GUM_CODE_SLAB_SIZE_INITIAL / 5)
 #define GUM_DATA_SLAB_SIZE_DYNAMIC  (GUM_CODE_SLAB_SIZE_DYNAMIC / 5)
 #define GUM_SCRATCH_SLAB_SIZE       16384
-#define GUM_EXEC_BLOCK_MIN_CAPACITY 1024
+/*
+ * If we encounter the `clone` syscall, then we have to burn a page to prevent
+ * issues with both threads running in the same page.
+ */
+#define GUM_EXEC_BLOCK_MIN_CAPACITY (1024 + 8192)
 #define GUM_DATA_BLOCK_MIN_CAPACITY (sizeof (GumExecBlock) + 1024)
 
 #if GLIB_SIZEOF_VOID_P == 4
@@ -722,6 +729,16 @@ static void gum_exec_block_write_adjust_depth (GumExecBlock * block,
     GumX86Writer * cw, gssize adj);
 static GumVirtualizationRequirements gum_exec_block_virtualize_sysenter_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
+static GumVirtualizationRequirements gum_exec_block_virtualize_syscall_insn (
+    GumExecBlock * block, GumGeneratorContext * gc);
+static GumVirtualizationRequirements gum_exec_block_virtualize_int_insn (
+    GumExecBlock * block, GumGeneratorContext * gc);
+#ifdef HAVE_LINUX
+static GumVirtualizationRequirements gum_exec_block_virtualize_linux_syscall (
+    GumExecBlock * block, GumGeneratorContext * gc);
+static void gum_exec_block_put_aligned_syscall (GumExecBlock * block,
+    GumGeneratorContext * gc, const cs_insn * insn);
+#endif
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
 static GumVirtualizationRequirements
     gum_exec_block_virtualize_wow64_transition (GumExecBlock * block,
@@ -3075,6 +3092,12 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     case X86_INS_SYSENTER:
       requirements = gum_exec_block_virtualize_sysenter_insn (block, gc);
       break;
+    case X86_INS_SYSCALL:
+      requirements = gum_exec_block_virtualize_syscall_insn (block, gc);
+      break;
+    case X86_INS_INT:
+      requirements = gum_exec_block_virtualize_int_insn (block, gc);
+      break;
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
       requirements = gum_exec_block_virtualize_branch_insn (block, gc);
@@ -4923,6 +4946,179 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   return GUM_REQUIRE_RELOCATION;
 #endif
 }
+
+static GumVirtualizationRequirements
+gum_exec_block_virtualize_syscall_insn (GumExecBlock * block,
+                                        GumGeneratorContext * gc)
+{
+#if GLIB_SIZEOF_VOID_P == 8 && defined (HAVE_LINUX)
+  return gum_exec_block_virtualize_linux_syscall (block, gc);
+#else
+  return GUM_REQUIRE_RELOCATION;
+#endif
+}
+
+static GumVirtualizationRequirements
+gum_exec_block_virtualize_int_insn (GumExecBlock * block,
+                                    GumGeneratorContext * gc)
+{
+#if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_LINUX)
+  const cs_insn * insn = gc->instruction->ci;
+  cs_x86 * x86 = &insn->detail->x86;
+  cs_x86_op * op = &x86->operands[0];
+
+  g_assert (x86->op_count == 1);
+  g_assert (op->type == X86_OP_IMM);
+
+  if (op->imm != 0x80)
+    return GUM_REQUIRE_RELOCATION;
+
+  return gum_exec_block_virtualize_linux_syscall (block, gc);
+#else
+  return GUM_REQUIRE_RELOCATION;
+#endif
+}
+
+#ifdef HAVE_LINUX
+
+/*
+ * SYSCALL on x64 and INT 0x80 on x86 are synonymous and both result in a
+ * mode switch, we can handle them both similarly.
+ */
+static GumVirtualizationRequirements
+gum_exec_block_virtualize_linux_syscall (GumExecBlock * block,
+                                         GumGeneratorContext * gc)
+{
+  GumX86Writer * cw = gc->code_writer;
+  const cs_insn * insn = gc->instruction->ci;
+  gconstpointer perform_regular_syscall = cw->code + 1;
+  gconstpointer perform_next_instruction = cw->code + 2;
+
+  gum_x86_relocator_skip_one (gc->relocator);
+
+  if (gc->opened_prolog != GUM_PROLOG_NONE)
+    gum_exec_block_close_prolog (block, gc, cw);
+
+  /* Save state */
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, -GUM_RED_ZONE_SIZE);
+  gum_x86_writer_put_pushfx (cw);
+
+  /* See if the syscall is clone */
+  gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_XAX, __NR_clone);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, perform_regular_syscall,
+      GUM_UNLIKELY);
+
+  /* Restore state */
+  gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, GUM_RED_ZONE_SIZE);
+
+  /*
+   * If our syscall is a clone, then we must place the syscall instruction
+   * itself on a page of its own to prevent the parent thread from changing the
+   * protection of the page as it writes more code to the slab.
+   */
+  gum_exec_block_put_aligned_syscall (block, gc, insn);
+  gum_x86_writer_put_jmp_near_label (cw, perform_next_instruction);
+
+  gum_x86_writer_put_label (cw, perform_regular_syscall);
+
+  /* Restore state */
+  gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, GUM_RED_ZONE_SIZE);
+
+  /* Original syscall instruction */
+  gum_x86_writer_put_bytes (cw, insn->bytes, insn->size);
+
+  gum_x86_writer_put_label (cw, perform_next_instruction);
+
+  return GUM_REQUIRE_NOTHING;
+}
+
+static void
+gum_exec_block_put_aligned_syscall (GumExecBlock * block,
+                                    GumGeneratorContext * gc,
+                                    const cs_insn * insn)
+{
+  GumX86Writer * cw = gc->code_writer;
+  gsize page_size, page_mask;
+  guint page_offset_start, pad_start, i;
+  guint page_offset_end, pad_end;
+  gconstpointer start = cw->code + 1;
+  gconstpointer parent = cw->code + 2;
+  gconstpointer end = cw->code + 3;
+
+  /*
+   * If we have reached this point, then we know that the syscall being
+   * performed was a clone. This means that both the calling thread and the
+   * newly spawned thread will begin execution from the point immediately after
+   * the syscall instruction. However, this causes a potential race condition,
+   * if the calling thread attempts to either compile a new block, or backpatch
+   * an existing one in the same page. During patching the block may be thawed
+   * leading to the target thread (which may be stalled at the mercy of the
+   * scheduler) attempting to execute a non-executable page.
+   */
+
+  page_size = gum_query_page_size ();
+  page_mask = page_size - 1;
+
+  /* Insert padding until we reach a page boundary */
+  gum_x86_writer_put_jmp_near_label (cw, start);
+
+  page_offset_start = GPOINTER_TO_SIZE (cw->code) & page_mask;
+  pad_start = page_size - page_offset_start;
+
+  for (i = 0; i != pad_start; i++)
+    gum_x86_writer_put_breakpoint (cw);
+
+  gum_x86_writer_put_label (cw, start);
+
+  /* Put the original syscall instruction */
+  gum_x86_writer_put_bytes (cw, insn->bytes, insn->size);
+
+  /* Save state */
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, -GUM_RED_ZONE_SIZE);
+  gum_x86_writer_put_pushfx (cw);
+
+  /* Compare the return value from the syscall to see if we are the parent */
+  gum_x86_writer_put_test_reg_reg (cw, GUM_REG_XAX, GUM_REG_XAX);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, parent, GUM_NO_HINT);
+
+  /* Restore state */
+  gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, GUM_RED_ZONE_SIZE);
+
+  /*
+   * Direct the child back to the real address, otherwise it will continue
+   * running inside Stalker using the same GumExecCtx as the parent. This will
+   * result in re-entrancy issues (since by design each thread must have its
+   * own GumExecCtx) and in turn horrible corruption.
+   */
+  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (gc->instruction->end));
+
+  gum_x86_writer_put_label (cw, parent);
+
+  /* Restore state */
+  gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, GUM_RED_ZONE_SIZE);
+
+  gum_x86_writer_put_jmp_near_label (cw, end);
+
+  page_offset_end = GPOINTER_TO_SIZE (cw->code) & page_mask;
+  pad_end = page_size - page_offset_end;
+
+  for (i = 0; i != pad_end; i++)
+    gum_x86_writer_put_breakpoint (cw);
+
+  gum_x86_writer_put_label (cw, end);
+}
+
+#endif
 
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
 
