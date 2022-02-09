@@ -79,6 +79,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (heap_api)
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
+#ifdef HAVE_LINUX
+  TESTENTRY (create_thread)
+#endif
   TESTENTRY (unfollow_should_handle_terminated_thread)
   TESTENTRY (self_modifying_code_should_be_detected_with_threshold_minus_one)
   TESTENTRY (self_modifying_code_should_not_be_detected_with_threshold_zero)
@@ -146,6 +149,9 @@ struct _PrefetchBackpatchContext
 #endif
 
 static gpointer run_stalked_briefly (gpointer data);
+#ifdef HAVE_LINUX
+static gpointer run_spawned_thread (gpointer data);
+#endif
 static gpointer run_stalked_into_termination (gpointer data);
 static void patch_code (gpointer code, gconstpointer new_code, gsize size);
 static void do_patch_instruction (gpointer mem, gpointer user_data);
@@ -320,6 +326,34 @@ run_stalked_briefly (gpointer data)
 
   return NULL;
 }
+
+#ifdef HAVE_LINUX
+
+TESTCASE (create_thread)
+{
+  GThread * thread;
+  gpointer result;
+
+  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+
+  gum_stalker_follow_me (fixture->stalker, fixture->transformer,
+      GUM_EVENT_SINK (fixture->sink));
+
+  thread = g_thread_new ("stalker-test-target", run_spawned_thread, NULL);
+
+  result = g_thread_join (thread);
+  g_assert (result == GSIZE_TO_POINTER (0xdeadface));
+
+  gum_stalker_unfollow_me (fixture->stalker);
+}
+
+static gpointer
+run_spawned_thread (gpointer data)
+{
+  return GSIZE_TO_POINTER (0xdeadface);
+}
+
+#endif
 
 TESTCASE (unfollow_should_handle_terminated_thread)
 {
