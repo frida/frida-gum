@@ -322,8 +322,13 @@ struct _GumExecCtx
    */
   gint depth;
 
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
+  gpointer last_int80;
+  gpointer last_syscall;
+  GumAddress syscall_end;
+# ifndef HAVE_ANDROID
   GumMetalHashTable * excluded_calls;
+# endif
 #endif
 };
 
@@ -736,8 +741,12 @@ static GumVirtualizationRequirements gum_exec_block_virtualize_int_insn (
 #ifdef HAVE_LINUX
 static GumVirtualizationRequirements gum_exec_block_virtualize_linux_syscall (
     GumExecBlock * block, GumGeneratorContext * gc);
-static void gum_exec_block_put_aligned_syscall (GumExecBlock * block,
-    GumGeneratorContext * gc, const cs_insn * insn);
+static void gum_exec_ctx_write_int80_helper (GumExecCtx * ctx,
+    GumX86Writer * cw);
+static void gum_exec_ctx_write_syscall_helper (GumExecCtx * ctx,
+    GumX86Writer * cw);
+static void gum_exec_ctx_write_aligned_syscall (GumExecCtx * ctx,
+    GumX86Writer * cw, const guint8 * syscall_insn, gsize syscall_size);
 #endif
 #if GLIB_SIZEOF_VOID_P == 4 && defined (HAVE_WINDOWS)
 static GumVirtualizationRequirements
@@ -845,8 +854,13 @@ static GPrivate gum_stalker_exec_ctx_private;
 
 static gpointer _gum_thread_exit_impl;
 
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
+static const guint8 int80[] = { 0xcd, 0x80 };
+static const guint8 syscall[] = { 0x0f, 0x05 };
+
+# ifndef HAVE_ANDROID
 static GumInterceptor * gum_exec_ctx_interceptor = NULL;
+# endif
 #endif
 
 gboolean
@@ -3350,6 +3364,14 @@ gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx)
 
   gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_invalidator,
       gum_exec_ctx_write_invalidator);
+
+#ifdef HAVE_LINUX
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_int80,
+      gum_exec_ctx_write_int80_helper);
+
+  gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_syscall,
+      gum_exec_ctx_write_syscall_helper);
+#endif
 }
 
 static void
@@ -5009,17 +5031,45 @@ gum_exec_block_virtualize_linux_syscall (GumExecBlock * block,
   gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, perform_regular_syscall,
       GUM_UNLIKELY);
 
-  /* Restore state */
-  gum_x86_writer_put_popfx (cw);
-  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
-      GUM_REG_XSP, GUM_RED_ZONE_SIZE);
+  /*
+   * Store the return address. Note that we cannot use the stack to store this
+   * since the spawned child will be given its own copy of the stack. We cannot
+   * reasonably expect any value stored to be copied into the child stack unless
+   * we store it in a place which the target is expected to be using. We can't
+   * do this without interfering with the program state.
+   */
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XBX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+      GUM_ADDRESS (&block->ctx->syscall_end));
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
+      GUM_ADDRESS (gc->instruction->end));
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_REG_XAX, GUM_REG_XBX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XBX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
 
   /*
    * If our syscall is a clone, then we must place the syscall instruction
    * itself on a page of its own to prevent the parent thread from changing the
    * protection of the page as it writes more code to the slab.
    */
-  gum_exec_block_put_aligned_syscall (block, gc, insn);
+  g_assert (insn->size == 2);
+
+  if (memcmp (insn->bytes, int80, sizeof (int80)) == 0)
+  {
+    gum_x86_writer_put_call_address (cw,
+        GUM_ADDRESS (block->ctx->last_int80));
+  }
+  else if (memcmp (insn->bytes, syscall, sizeof (syscall)) == 0)
+  {
+    gum_x86_writer_put_call_address (cw,
+        GUM_ADDRESS (block->ctx->last_syscall));
+  }
+  else
+  {
+    g_assert_not_reached ();
+  }
+
   gum_x86_writer_put_jmp_near_label (cw, perform_next_instruction);
 
   gum_x86_writer_put_label (cw, perform_regular_syscall);
@@ -5038,11 +5088,25 @@ gum_exec_block_virtualize_linux_syscall (GumExecBlock * block,
 }
 
 static void
-gum_exec_block_put_aligned_syscall (GumExecBlock * block,
-                                    GumGeneratorContext * gc,
-                                    const cs_insn * insn)
+gum_exec_ctx_write_int80_helper (GumExecCtx * ctx,
+                                 GumX86Writer * cw)
 {
-  GumX86Writer * cw = gc->code_writer;
+  gum_exec_ctx_write_aligned_syscall (ctx, cw, int80, sizeof (int80));
+}
+
+static void
+gum_exec_ctx_write_syscall_helper (GumExecCtx * ctx,
+                                   GumX86Writer * cw)
+{
+  gum_exec_ctx_write_aligned_syscall (ctx, cw, syscall, sizeof (syscall));
+}
+
+static void
+gum_exec_ctx_write_aligned_syscall (GumExecCtx * ctx,
+                                    GumX86Writer * cw,
+                                    const guint8 * syscall_insn,
+                                    gsize syscall_size)
+{
   gsize page_size, page_mask;
   guint page_offset_start, pad_start, i;
   guint page_offset_end, pad_end;
@@ -5075,8 +5139,17 @@ gum_exec_block_put_aligned_syscall (GumExecBlock * block,
 
   gum_x86_writer_put_label (cw, start);
 
+  /* Pop the return address */
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, GLIB_SIZEOF_VOID_P);
+
+  /* Restore state */
+  gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+      GUM_REG_XSP, GUM_RED_ZONE_SIZE);
+
   /* Put the original syscall instruction */
-  gum_x86_writer_put_bytes (cw, insn->bytes, insn->size);
+  gum_x86_writer_put_bytes (cw, syscall_insn, syscall_size);
 
   /* Save state */
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
@@ -5098,7 +5171,7 @@ gum_exec_block_put_aligned_syscall (GumExecBlock * block,
    * result in re-entrancy issues (since by design each thread must have its
    * own GumExecCtx) and in turn horrible corruption.
    */
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (gc->instruction->end));
+  gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&ctx->syscall_end));
 
   gum_x86_writer_put_label (cw, parent);
 
@@ -5116,6 +5189,8 @@ gum_exec_block_put_aligned_syscall (GumExecBlock * block,
     gum_x86_writer_put_breakpoint (cw);
 
   gum_x86_writer_put_label (cw, end);
+  gum_x86_writer_put_jmp_reg_offset_ptr (cw, GUM_REG_XSP,
+      -(GUM_RED_ZONE_SIZE + (2 * GLIB_SIZEOF_VOID_P)));
 }
 
 #endif
