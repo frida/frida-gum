@@ -4597,7 +4597,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
-      start_of_call = cw->code;
+      start_of_call = GSIZE_TO_POINTER (cw->pc);
 #endif
 
       gum_x86_relocator_write_one_no_label (gc->relocator);
@@ -4606,7 +4606,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       call_length = gum_x86_reader_insn_length (start_of_call);
 
       /*
-       * We can't just write the instruction and then use cw->code to get the
+       * We can't just write the instruction and then use cw->pc to get the
        * end of the call instruction since the relocator may need to embed the
        * target address in the code stream. In which case it is written
        * immediately after the instruction.
@@ -4710,7 +4710,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
-      jcc_address = GUM_ADDRESS (cw->code);
+      jcc_address = cw->pc;
       gum_x86_writer_put_jcc_near_label (cw, insn->ci->id, is_true,
           GUM_NO_HINT);
     }
