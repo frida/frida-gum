@@ -1886,6 +1886,23 @@ gum_stalker_prefetch_backpatch (GumStalker * self,
   }
 }
 
+void
+gum_stalker_recompile (GumStalker * self,
+                       gconstpointer address)
+{
+  GumExecCtx * ctx;
+  GumExecBlock * block;
+
+  ctx = gum_stalker_get_exec_ctx ();
+  g_assert (ctx != NULL);
+
+  block = gum_metal_hash_table_lookup (ctx->mappings, address);
+  if (block == NULL)
+    return;
+
+  gum_exec_ctx_recompile_block (ctx, block);
+}
+
 gpointer
 gum_stalker_backpatch_get_from (const GumBackpatch * backpatch)
 {
