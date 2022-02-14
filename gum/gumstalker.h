@@ -193,6 +193,11 @@ GUM_API void gum_stalker_prefetch (GumStalker * self, gconstpointer address,
 GUM_API void gum_stalker_prefetch_backpatch (GumStalker * self,
     const GumBackpatch * notification);
 
+GUM_API gpointer gum_stalker_backpatch_get_from (
+    const GumBackpatch * backpatch);
+GUM_API gpointer gum_stalker_backpatch_get_to (
+    const GumBackpatch * backpatch);
+
 GUM_API void gum_stalker_invalidate (GumStalker * self, gconstpointer address);
 GUM_API void gum_stalker_invalidate_for_thread (GumStalker * self,
     GumThreadId thread_id, gconstpointer address);

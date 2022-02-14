@@ -136,6 +136,18 @@ gum_stalker_prefetch_backpatch (GumStalker * self,
 {
 }
 
+gpointer
+gum_stalker_backpatch_get_from (const GumBackpatch * backpatch)
+{
+  return NULL;
+}
+
+gpointer
+gum_stalker_backpatch_get_to (const GumBackpatch * backpatch)
+{
+  return NULL;
+}
+
 void
 gum_stalker_invalidate (GumStalker * self,
                         gconstpointer address)
