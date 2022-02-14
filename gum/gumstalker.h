@@ -193,6 +193,7 @@ GUM_API void gum_stalker_prefetch (GumStalker * self, gconstpointer address,
     gint recycle_count);
 GUM_API void gum_stalker_prefetch_backpatch (GumStalker * self,
     const GumBackpatch * notification);
+GUM_API void gum_stalker_recompile (GumStalker * self, gconstpointer address);
 
 GUM_API gpointer gum_stalker_backpatch_get_from (
     const GumBackpatch * backpatch);
