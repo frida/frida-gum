@@ -85,11 +85,10 @@ typedef struct _GumCallProbe GumCallProbe;
 typedef struct _GumExecCtx GumExecCtx;
 typedef guint GumExecCtxMode;
 typedef void (* GumExecHelperWriteFunc) (GumExecCtx * ctx, GumX86Writer * cw);
-typedef gpointer (* GumExecCtxReplaceCurrentBlockFunc) (
-    GumExecCtx * ctx, gpointer start_address, gpointer from_insn);
-
 typedef struct _GumExecBlock GumExecBlock;
 typedef guint GumExecBlockFlags;
+typedef gpointer (* GumExecCtxReplaceCurrentBlockFunc) (GumExecBlock * block,
+    gpointer start_address, gpointer from_insn);
 
 typedef struct _GumCodeSlab GumCodeSlab;
 typedef struct _GumSlowSlab GumSlowSlab;
@@ -621,9 +620,10 @@ static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
 static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
 static gboolean gum_exec_ctx_contains (GumExecCtx * ctx, gconstpointer address);
 static gpointer gum_exec_ctx_switch_block (GumExecCtx * ctx,
-    gpointer start_address, gpointer from_insn);
+    GumExecBlock * block, gpointer start_address, gpointer from_insn);
 static void gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
-    gpointer start_address, gpointer from_insn, gpointer * target);
+    GumExecBlock * block, gpointer start_address, gpointer from_insn,
+    gpointer * target);
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
@@ -1115,7 +1115,7 @@ gum_stalker_exception_personality (int version,
 
     real_resume_ip = GSIZE_TO_POINTER (_Unwind_GetIP (context));
 
-    resume_ip = gum_exec_ctx_switch_block (ctx, real_resume_ip, NULL);
+    resume_ip = gum_exec_ctx_switch_block (ctx, NULL, real_resume_ip, NULL);
     _Unwind_SetIP (context, GPOINTER_TO_SIZE (resume_ip));
 
     ctx->pending_calls--;
@@ -2591,14 +2591,16 @@ gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
 #define GUM_DEFINE_ENTRYGATE(name) \
     static gpointer \
     GUM_ENTRYGATE (name) ( \
-        GumExecCtx * ctx, \
+        GumExecBlock * block, \
         gpointer start_address, \
         gpointer from_insn) \
     { \
+      GumExecCtx * ctx = block->ctx; \
+      \
       if (ctx->observer != NULL) \
         gum_stalker_observer_increment_##name (ctx->observer); \
       \
-      return gum_exec_ctx_switch_block (ctx, start_address, from_insn); \
+      return gum_exec_ctx_switch_block (ctx, block, start_address, from_insn); \
     }
 
 GUM_DEFINE_ENTRYGATE (call_imm)
@@ -2624,6 +2626,7 @@ GUM_DEFINE_ENTRYGATE (sysenter_slow_path)
 
 static gpointer
 gum_exec_ctx_switch_block (GumExecCtx * ctx,
+                           GumExecBlock * block,
                            gpointer start_address,
                            gpointer from_insn)
 {
@@ -2682,19 +2685,21 @@ gum_exec_ctx_switch_block (GumExecCtx * ctx,
    * provide a consistent result when called multiple times with the same
    * inputs.
    */
-  gum_exec_ctx_query_block_switch_callback (ctx, start_address, from_insn,
-      &ctx->resume_at);
+  gum_exec_ctx_query_block_switch_callback (ctx, block, start_address,
+      from_insn, &ctx->resume_at);
 
   return ctx->resume_at;
 }
 
 static void
 gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
+                                          GumExecBlock * block,
                                           gpointer start_address,
                                           gpointer from_insn,
                                           gpointer * target)
 {
   cs_insn * insn = NULL;
+  gpointer from = NULL;
 
   if (ctx->observer == NULL)
     return;
@@ -2708,8 +2713,11 @@ gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
   if (from_insn != NULL)
     insn = gum_x86_reader_disassemble_instruction_at (from_insn);
 
-  gum_stalker_observer_switch_callback (ctx->observer, start_address, insn,
-      target);
+  if (block != NULL)
+    from = block->real_start;
+
+  gum_stalker_observer_switch_callback (ctx->observer, from, start_address,
+      insn, target);
 
   if (insn != NULL)
     cs_free (insn, 1);
@@ -4082,8 +4090,8 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
     return;
 
   target = block->code_start;
-  gum_exec_ctx_query_block_switch_callback (ctx, block->real_start, from_insn,
-      &target);
+  gum_exec_ctx_query_block_switch_callback (ctx, block, block->real_start,
+      from_insn, &target);
 
   gum_spinlock_acquire (&ctx->code_lock);
 
@@ -4305,8 +4313,8 @@ gum_exec_block_backpatch_conditional_jmp (GumExecBlock * block,
 
   gum_x86_writer_reset (cw, code_start);
 
-  gum_exec_ctx_query_block_switch_callback (ctx, block->real_start, from_insn,
-      &target_taken);
+  gum_exec_ctx_query_block_switch_callback (ctx, from, block->real_start,
+      from_insn, &target_taken);
 
   g_assert (opened_prolog == GUM_PROLOG_NONE);
 
@@ -4317,7 +4325,7 @@ gum_exec_block_backpatch_conditional_jmp (GumExecBlock * block,
   {
     gpointer target_not_taken = next_block->code_start;
 
-    gum_exec_ctx_query_block_switch_callback (ctx, next_block->real_start,
+    gum_exec_ctx_query_block_switch_callback (ctx, from, next_block->real_start,
         from_insn, &target_not_taken);
 
     if (gum_exec_block_is_adjacent (target_not_taken, from))
@@ -4362,8 +4370,8 @@ gum_exec_block_backpatch_unconditional_jmp (GumExecBlock * block,
 
   gum_x86_writer_reset (cw, code_start);
 
-  gum_exec_ctx_query_block_switch_callback (ctx, block->real_start, from_insn,
-      &target);
+  gum_exec_ctx_query_block_switch_callback (ctx, from, block->real_start,
+      from_insn, &target);
 
   if (opened_prolog != GUM_PROLOG_NONE)
   {
@@ -4417,8 +4425,8 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
     return;
 
   target = block->code_start;
-  gum_exec_ctx_query_block_switch_callback (ctx, block->real_start, from_insn,
-      &target);
+  gum_exec_ctx_query_block_switch_callback (ctx, from, block->real_start,
+      from_insn, &target);
 
   ic_entries = from->ic_entries;
   num_ic_entries = ctx->stalker->ic_entries;
@@ -5334,7 +5342,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 
   gum_x86_writer_put_call_address_with_aligned_arguments (cws, GUM_CALL_CAPI,
       GUM_ADDRESS (entry_func), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
       GUM_ARG_REGISTER, GUM_REG_XAX,
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start));
 
@@ -5436,7 +5444,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_exec_ctx_get_branch_target_address (block->ctx, target, gc, cws);
   gum_x86_writer_put_call_address_with_aligned_arguments (cws, GUM_CALL_CAPI,
       GUM_ADDRESS (func), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
       GUM_ARG_REGISTER, GUM_REG_XAX,
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start));
 
@@ -5585,7 +5593,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
 
   gum_x86_writer_put_call_address_with_aligned_arguments (cws, GUM_CALL_CAPI,
       GUM_ADDRESS (GUM_ENTRYGATE (ret_slow_path)), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
       GUM_ARG_REGISTER, GUM_THUNK_REG_ARG1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start));
 
@@ -5772,7 +5780,7 @@ gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
       GUM_ADDRESS (saved_ret_addr));
   gum_x86_writer_put_call_address_with_aligned_arguments (cws, GUM_CALL_CAPI,
       GUM_ADDRESS (GUM_ENTRYGATE (sysenter_slow_path)), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
       GUM_ARG_REGISTER, GUM_THUNK_REG_ARG1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start));
 
@@ -6408,7 +6416,8 @@ gum_stalker_on_exception (GumExceptionDetails * details,
         tc->Dr2 = ctx->previous_dr2;
         tc->Dr7 = ctx->previous_dr7;
 
-        gum_exec_ctx_switch_block (ctx, GSIZE_TO_POINTER (cpu_context->eip),
+        gum_exec_ctx_switch_block (ctx, NULL,
+            GSIZE_TO_POINTER (cpu_context->eip),
             GSIZE_TO_POINTER (cpu_context->eip));
         cpu_context->eip = (DWORD) ctx->resume_at;
 
