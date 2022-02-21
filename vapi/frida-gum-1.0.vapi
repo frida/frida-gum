@@ -228,6 +228,7 @@ namespace Gum {
 		public unowned string query_libc_name ();
 		public bool is_debugger_attached ();
 		public Gum.ThreadId get_current_thread_id ();
+		public bool has_thread (Gum.ThreadId thread_id);
 		public bool modify_thread (Gum.ThreadId thread_id, Gum.ModifyThreadFunc func);
 		public void enumerate_threads (Gum.FoundThreadFunc func);
 		public void enumerate_modules (Gum.FoundModuleFunc func);
