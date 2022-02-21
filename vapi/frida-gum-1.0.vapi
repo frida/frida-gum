@@ -227,6 +227,7 @@ namespace Gum {
 		public void set_code_signing_policy (Gum.CodeSigningPolicy policy);
 		public unowned string query_libc_name ();
 		public bool is_debugger_attached ();
+		public Gum.ProcessId get_id ();
 		public Gum.ThreadId get_current_thread_id ();
 		public bool has_thread (Gum.ThreadId thread_id);
 		public bool modify_thread (Gum.ThreadId thread_id, Gum.ModifyThreadFunc func);
@@ -409,6 +410,9 @@ namespace Gum {
 	public delegate bool FoundImportFunc (Gum.ImportDetails details);
 	public delegate bool FoundExportFunc (Gum.ExportDetails details);
 	public delegate bool FoundSymbolFunc (Gum.SymbolDetails details);
+
+	public struct ProcessId : uint {
+	}
 
 	public struct ThreadId : size_t {
 	}
