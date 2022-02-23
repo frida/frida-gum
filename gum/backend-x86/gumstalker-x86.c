@@ -992,25 +992,17 @@ gum_stalker_ensure_unwind_apis_instrumented (void)
 
   if (g_once_init_enter (&initialized))
   {
-    GumAttachReturn attach_ret;
+    GumReplaceReturn res G_GNUC_UNUSED;
 
     gum_exec_ctx_interceptor = gum_interceptor_obtain ();
 
-    attach_ret = gum_interceptor_replace (gum_exec_ctx_interceptor,
+    res = gum_interceptor_replace (gum_exec_ctx_interceptor,
         __gxx_personality_v0, gum_stalker_exception_personality, NULL);
-    if (attach_ret != GUM_ATTACH_OK &&
-        attach_ret != GUM_ATTACH_ALREADY_ATTACHED)
-    {
-      gum_panic ("Failed to attach to __gxx_personality_v0: %d", attach_ret);
-    }
+    g_assert (res == GUM_REPLACE_OK);
 
-    attach_ret = gum_interceptor_replace (gum_exec_ctx_interceptor,
+    res = gum_interceptor_replace (gum_exec_ctx_interceptor,
         _Unwind_Find_FDE, gum_stalker_exception_find_fde, NULL);
-    if (attach_ret != GUM_ATTACH_OK &&
-        attach_ret != GUM_ATTACH_ALREADY_ATTACHED)
-    {
-      gum_panic ("Failed to attach to _Unwind_Find_FDE: %d", attach_ret);
-    }
+    g_assert (res == GUM_REPLACE_OK);
 
     _gum_register_early_destructor (
         gum_stalker_deinit_unwind_apis_instrumentation);
