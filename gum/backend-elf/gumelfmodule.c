@@ -137,6 +137,8 @@ static gboolean gum_emit_elf_export (const GumElfSymbolDetails * details,
     gpointer user_data);
 static gboolean gum_store_symtab_params (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
+static gboolean gum_adjust_symtab_params (const GumElfSectionDetails * details,
+    gpointer user_data);
 static void gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
     GumElfSectionHeaderType section, GumFoundElfSymbolFunc func,
     gpointer user_data);
@@ -668,6 +670,8 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
   if (ctx.pending != 0)
     return;
 
+  gum_elf_module_enumerate_sections (self, gum_adjust_symtab_params, &ctx);
+
   for (entry_index = 1; entry_index != ctx.entry_count; entry_index++)
   {
     gpointer entry = ctx.entries + (entry_index * ctx.entry_size);
@@ -796,6 +800,21 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
   }
 
   return ctx->pending != 0;
+}
+
+static gboolean
+gum_adjust_symtab_params (const GumElfSectionDetails * details,
+                          gpointer user_data)
+{
+  GumElfStoreSymtabParamsContext * ctx = user_data;
+
+  if (details->address == GUM_ADDRESS (ctx->entries))
+  {
+    ctx->entry_count = details->size / ctx->entry_size;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 void
