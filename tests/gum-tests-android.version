@@ -1,4 +1,4 @@
-GUM_TESTS {
+{
   global:
     ClaimSignalChain;
     UnclaimSignalChain;
