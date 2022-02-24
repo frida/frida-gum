@@ -472,8 +472,12 @@ TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   as.near_address = &variable_on_stack;
   as.max_distance = G_MAXINT32;
 
-  page = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
-  g_assert_nonnull (page);
+  page = gum_try_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
+  if (page == NULL)
+  {
+    g_print ("<skipping, not supported on this system> ");
+    return;
+  }
 
   page_size = gum_query_page_size ();
 
