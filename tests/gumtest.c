@@ -38,6 +38,10 @@
 # include <dlfcn.h>
 #endif
 
+#ifdef HAVE_IOS
+# include <unistd.h>
+#endif
+
 static guint get_number_of_tests_in_suite (GTestSuite * suite);
 
 gint
@@ -151,18 +155,18 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_IOS
   if (g_file_test ("/usr/lib/libjailbreak.dylib", G_FILE_TEST_EXISTS))
   {
-    GModule * module;
+    void * module;
     void (* entitle_now) (pid_t pid);
 
-    module = g_module_open ("/usr/lib/libjailbreak.dylib", G_MODULE_BIND_LAZY);
+    module = dlopen ("/usr/lib/libjailbreak.dylib", RTLD_LAZY | RTLD_GLOBAL);
+    g_assert_nonnull (module);
 
-    entitle_now = NULL;
-    g_module_symbol (module, "jb_oneshot_entitle_now",
-        (gpointer *) &entitle_now);
+    entitle_now = dlsym (module, "jb_oneshot_entitle_now");
+    g_assert_nonnull (entitle_now);
 
     entitle_now (getpid ());
 
-    g_module_close (module);
+    dlclose (module);
   }
 #endif
 
