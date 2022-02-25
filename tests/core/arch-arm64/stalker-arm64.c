@@ -664,6 +664,12 @@ TESTCASE (invalidation_for_specific_thread_should_be_supported)
 {
   InvalidationTarget a, b;
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   start_invalidation_target (&a, fixture);
   start_invalidation_target (&b, fixture);
 
