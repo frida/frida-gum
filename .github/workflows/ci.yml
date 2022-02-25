@@ -15,7 +15,7 @@ jobs:
       - name: Checkout frida-gum
         uses: actions/checkout@v2
       - name: Dependencies
-        run: >
+        run: |
           sudo apt-get install -y \
             build-essential \
             curl \
@@ -38,4 +38,4 @@ jobs:
             python3-pip && \
           pip3 install meson==0.61.2
       - run: meson setup -Dgumpp=enabled -Dgumjs=enabled build
-      - run: ninja -C build
+      - run: meson compile -C build
