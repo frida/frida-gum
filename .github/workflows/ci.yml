@@ -95,3 +95,57 @@ jobs:
             cd opt/frida
             tar xf /var/root/runner.tar.gz
             ./gum-tests
+
+  android-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout frida-gum
+        uses: actions/checkout@v2
+      - name: Dependencies
+        run: |
+          pip install meson==0.61.2 ninja
+          sudo apt-get install gperf
+      - name: Configure
+        run: |
+          (
+            bindir=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+            echo "[binaries]"
+            echo "c = '$bindir/aarch64-linux-android21-clang'"
+            echo "cpp = '$bindir/aarch64-linux-android21-clang++'"
+            echo "strip = '$bindir/llvm-strip'"
+            echo ""
+            echo "[built-in options]"
+            echo "c_args = ['-DANDROID', '-ffunction-sections', '-fdata-sections']"
+            echo "c_link_args = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
+            echo "cpp_link_args = ['-static-libstdc++']"
+            echo ""
+            echo "[host_machine]"
+            echo "system = 'linux'"
+            echo "cpu_family = 'aarch64'"
+            echo "cpu = 'aarch64'"
+            echo "endian = 'little'"
+            echo ""
+            echo "[properties]"
+            echo "needs_exe_wrapper = true"
+          ) > /tmp/cross.txt
+          meson setup --default-library static -Dtests=enabled --cross-file /tmp/cross.txt build
+      - name: Build
+        run: meson compile -C build
+      - name: Package
+        run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
+      - name: Test
+        uses: frida/corellium-action@v1
+        with:
+          endpoint: ${{ secrets.CORELLIUM_ENDPOINT }}
+          username: ${{ secrets.CORELLIUM_USERNAME }}
+          password: ${{ secrets.CORELLIUM_PASSWORD }}
+          project: Frida
+          instance: android-8.1.0-arm64
+          upload_source: /tmp/runner.tar.gz
+          upload_target: /data/local/tmp/runner.tar.gz
+          upload_mode: '0644'
+          run: |
+            set -ex
+            cd /data/local/tmp
+            tar xf runner.tar.gz
+            LD_LIBRARY_PATH="/apex/com.android.art/lib64:/apex/com.android.runtime/lib64" ./gum-tests
