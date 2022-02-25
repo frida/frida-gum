@@ -39,3 +39,59 @@ jobs:
           pip3 install meson==0.61.2
       - run: meson setup -Dgumpp=enabled -Dgumjs=enabled build
       - run: meson compile -C build
+
+  ios-arm64:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout frida-gum
+        uses: actions/checkout@v2
+      - name: Dependencies
+        run: pip3 install meson==0.61.2 ninja
+      - name: Configure
+        run: |
+          (
+            echo "[constants]"
+            echo "common_flags = ['-target', 'arm64-apple-ios8.0', '-isysroot', '$(xcrun --sdk iphoneos --show-sdk-path)']"
+            echo ""
+            echo "[binaries]"
+            echo "c = ['$(xcrun --sdk iphoneos -f clang)'] + common_flags"
+            echo "cpp = ['$(xcrun --sdk iphoneos -f clang++)'] + common_flags"
+            echo "objc = ['$(xcrun --sdk iphoneos -f clang)', '-x', 'objective-c'] + common_flags"
+            echo "objcpp = ['$(xcrun --sdk iphoneos -f clang++)', '-x', 'objective-c++'] + common_flags"
+            echo "strip = '$(xcrun --sdk iphoneos -f strip)'"
+            echo ""
+            echo "[built-in options]"
+            echo "c_link_args = ['-Wl,-dead_strip']"
+            echo ""
+            echo "[host_machine]"
+            echo "system = 'darwin'"
+            echo "cpu_family = 'aarch64'"
+            echo "cpu = 'aarch64'"
+            echo "endian = 'little'"
+            echo ""
+            echo "[properties]"
+            echo "needs_exe_wrapper = true"
+          ) > /tmp/cross.txt
+          meson setup --default-library static -Dtests=enabled --cross-file /tmp/cross.txt build
+      - name: Build
+        run: meson compile -C build
+      - name: Package
+        run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
+      - name: Test
+        uses: frida/corellium-action@v1
+        with:
+          endpoint: ${{ secrets.CORELLIUM_ENDPOINT }}
+          username: ${{ secrets.CORELLIUM_USERNAME }}
+          password: ${{ secrets.CORELLIUM_PASSWORD }}
+          project: Frida
+          instance: ios-14.8-arm64
+          upload_source: /tmp/runner.tar.gz
+          upload_target: /var/root/runner.tar.gz
+          upload_mode: '0644'
+          run: |
+            set -ex
+            cd /usr/local
+            mkdir -p opt/frida
+            cd opt/frida
+            tar xf /var/root/runner.tar.gz
+            ./gum-tests
