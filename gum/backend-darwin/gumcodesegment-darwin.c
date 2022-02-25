@@ -277,6 +277,9 @@ gum_code_segment_is_realize_supported (void)
     gpointer scratch_page;
     GumCodeSegment * segment;
 
+    if (g_file_test ("/usr/libexec/corelliumd", G_FILE_TEST_EXISTS))
+      goto not_necessary;
+
     segment = gum_code_segment_new (1, NULL);
     scratch_page = gum_code_segment_get_address (segment);
     supported = gum_code_segment_try_realize (segment);
@@ -284,6 +287,7 @@ gum_code_segment_is_realize_supported (void)
       supported = gum_code_segment_try_map (segment, 0, 1, scratch_page);
     gum_code_segment_free (segment);
 
+not_necessary:
     g_once_init_leave (&realize_supported, supported + 1);
   }
 
