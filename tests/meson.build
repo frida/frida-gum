@@ -90,6 +90,7 @@ runner = executable(runner_name, runner_sources + [test_data_stamp],
   dependencies: [gum_dep, gum_heap_dep, gum_prof_dep, tls_provider_dep, threads_dep] + extra_test_deps,
   link_args: extra_link_args,
   link_depends: extra_link_depends,
+  export_dynamic: true,
 )
 
 if host_os_family == 'darwin'
