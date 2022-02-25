@@ -9,7 +9,7 @@ on:
     - main
 
 jobs:
-  build:
+  gir:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout frida-gum
