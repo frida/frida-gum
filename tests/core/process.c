@@ -741,11 +741,6 @@ TESTCASE (module_symbols)
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
   gum_module_enumerate_symbols (GUM_TESTS_MODULE_NAME, symbol_found_cb, &ctx);
-  if (ctx.number_of_calls == 0)
-  {
-    g_print ("<skipping, gum-tests binary is stripped> ");
-    return;
-  }
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
