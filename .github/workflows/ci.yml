@@ -36,6 +36,6 @@ jobs:
             npm \
             python3-dev \
             python3-pip && \
-          pip3 install meson==0.60.2
+          pip3 install meson==0.61.2
       - run: meson setup -Dgumpp=enabled -Dgumjs=enabled build
       - run: ninja -C build
