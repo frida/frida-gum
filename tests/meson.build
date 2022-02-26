@@ -60,6 +60,11 @@ if force_cpp_linking
   endif
 endif
 
+if host_os_family == 'windows'
+  extra_link_depends += configure_file(input: dbghelp_dll, output: 'dbghelp.dll', copy: true)
+  extra_link_depends += configure_file(input: symsrv_dll, output: 'symsrv.dll', copy: true)
+endif
+
 if host_os_family == 'darwin'
   symlist = 'gum-tests.symbols'
   extra_link_args += ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)]
