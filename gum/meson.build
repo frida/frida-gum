@@ -203,10 +203,20 @@ if host_arch == 'x86' or host_arch == 'x86_64'
     'arch-x86/gumx86backtracer.c',
     'backend-x86/gumcpucontext-x86.c',
     'backend-x86/guminterceptor-x86.c',
-    'backend-x86/gumspinlock-x86.c',
     'backend-x86/gumstalker-x86.c',
-    'backend-x86/gumstalker-x86-glue.S',
   ]
+  if cc.get_argument_syntax() == 'msvc'
+    if host_arch == 'x86'
+      gum_sources += 'backend-x86/gumspinlock-ia32-msc.c'
+    elif host_arch == 'x86_64'
+      gum_sources += 'backend-x86/gumspinlock-amd64-msc.c'
+    endif
+  else
+    gum_sources += [
+      'backend-x86/gumspinlock-x86.c',
+      'backend-x86/gumstalker-x86-glue.S',
+    ]
+  endif
 endif
 
 gum_arm_headers = [

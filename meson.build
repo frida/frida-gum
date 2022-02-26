@@ -537,7 +537,7 @@ configure_file(input: 'config.h.in',
   configuration: cdata)
 
 add_project_arguments(
-  '-include', meson.current_build_dir() / 'config.h',
+  (cc.get_argument_syntax() == 'msvc') ? '/FI' : '-include', meson.current_build_dir() / 'config.h',
   '-DG_LOG_DOMAIN="Frida"',
   '-DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56',
   '-DG_DISABLE_DEPRECATED',
@@ -586,6 +586,7 @@ endif
 install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 
+subdir('ext')
 subdir('gum')
 if not diet
   subdir('libs')
