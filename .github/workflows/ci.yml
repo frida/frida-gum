@@ -40,6 +40,20 @@ jobs:
       - run: meson setup -Dgumpp=enabled -Dgumjs=enabled build
       - run: meson compile -C build
 
+  linux-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout frida-gum
+        uses: actions/checkout@v2
+      - name: Dependencies
+        run: pip install meson==0.61.2 ninja
+      - name: Configure
+        run: meson setup --default-library static -Dtests=enabled build
+      - name: Build
+        run: meson compile -C build
+      - name: Test
+        run: ./build/tests/gum-tests
+
   ios-arm64:
     runs-on: macos-latest
     steps:
