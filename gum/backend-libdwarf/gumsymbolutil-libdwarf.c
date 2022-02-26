@@ -761,9 +761,39 @@ gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
 {
   Dwarf_Debug dbg = details->dbg;
   Dwarf_Die die = details->cu_die;
+  Dwarf_Addr low_pc, high_pc;
+  Dwarf_Attribute high_pc_attr;
   Dwarf_Off ranges_offset;
   Dwarf_Ranges * ranges;
   Dwarf_Signed range_count, range_index;
+
+  if (gum_read_attribute_address (dbg, die, DW_AT_low_pc, &low_pc) &&
+      dwarf_attr (die, DW_AT_high_pc, &high_pc_attr, NULL) == DW_DLV_OK)
+  {
+    Dwarf_Half form;
+
+    dwarf_whatform (high_pc_attr, &form, NULL);
+    if (form == DW_FORM_addr)
+    {
+      dwarf_formaddr (high_pc_attr, &high_pc, NULL);
+    }
+    else
+    {
+      Dwarf_Unsigned offset;
+
+      dwarf_formudata (high_pc_attr, &offset, NULL);
+
+      high_pc = low_pc + offset;
+    }
+
+    if (op->needle >= low_pc && op->needle < high_pc)
+    {
+      op->found = TRUE;
+      dwarf_dieoffset (die, &op->cu_die_offset, NULL);
+    }
+
+    return !op->found;
+  }
 
   if (!gum_read_attribute_offset (dbg, die, DW_AT_ranges, &ranges_offset))
     goto skip;
