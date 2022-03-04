@@ -25,23 +25,23 @@ if host_cpu_is_intel and host_os_family != 'qnx'
 endif
 
 if host_os_family == 'darwin'
-  gum_prof_sources += ['gumbusycyclesampler-darwin.c']
+  gum_prof_sources += 'gumbusycyclesampler-darwin.c'
   if not host_cpu_is_intel
-    gum_prof_sources += ['gumcyclesampler-darwin.c']
+    gum_prof_sources += 'gumcyclesampler-darwin.c'
   endif
 endif
 
 if host_os_family == 'linux'
-  gum_prof_sources += ['gumbusycyclesampler-linux.c']
+  gum_prof_sources += 'gumbusycyclesampler-linux.c'
   if not host_cpu_is_intel
-    gum_prof_sources += ['gumcyclesampler-linux.c']
+    gum_prof_sources += 'gumcyclesampler-linux.c'
   endif
 endif
 
 if host_os_family == 'freebsd'
-  gum_prof_sources += ['gumbusycyclesampler-freebsd.c']
+  gum_prof_sources += 'gumbusycyclesampler-freebsd.c'
   if not host_cpu_is_intel
-    gum_prof_sources += ['gumcyclesampler-freebsd.c']
+    gum_prof_sources += 'gumcyclesampler-freebsd.c'
   endif
 endif
 
