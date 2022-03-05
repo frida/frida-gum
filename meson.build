@@ -471,7 +471,12 @@ gumjs_extra_requires = []
 if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
 
-  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), allow_fallback: true)
+  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), allow_fallback: true, default_options: [
+    'libc=false',
+    'bignum=true',
+    'atomics=disabled',
+    'stack_check=disabled',
+  ])
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
   if quickjs_dep.found()
     gumjs_extra_requires += 'quickjs'
