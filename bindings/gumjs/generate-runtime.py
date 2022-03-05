@@ -25,8 +25,10 @@ EXACT_DEPS = {
 def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir):
     frida_compile = output_dir / "node_modules" / ".bin" / make_script_filename("frida-compile")
     if not frida_compile.exists():
-        (output_dir / "package.json").unlink(missing_ok=True)
-        (output_dir / "package-lock.json").unlink(missing_ok=True)
+        pkg_files = [output_dir / "package.json", output_dir / "package-lock.json"]
+        for f in pkg_files:
+            if f.exists():
+                f.unlink()
 
         node_modules = output_dir / "node_modules"
         if node_modules.exists():
