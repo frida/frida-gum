@@ -78,20 +78,19 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 {
   GumDbghelpBacktracer * self;
   GumDbghelpImpl * dbghelp;
+  GumInvocationStack * invocation_stack;
   __declspec (align (64)) CONTEXT context = { 0, };
 #if GLIB_SIZEOF_VOID_P == 4
   __declspec (align (64)) CONTEXT context_next = { 0, };
 #endif
   STACKFRAME64 frame = { 0, };
-  gboolean has_ffi_frames = FALSE;
-  guint skip_count = 0;
+  gboolean has_ffi_frames;
+  gint start_index, n_skip, depth, i;
   HANDLE current_process, current_thread;
-  GumInvocationStack * invocation_stack;
-  guint depth, i;
-  BOOL success;
 
   self = GUM_DBGHELP_BACKTRACER (backtracer);
   dbghelp = self->dbghelp;
+  invocation_stack = gum_interceptor_get_current_stack ();
 
   /* Get the raw addresses */
   RtlCaptureContext (&context);
@@ -151,7 +150,23 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
     has_ffi_frames = GUM_CPU_CONTEXT_XIP (cpu_context) == 0;
     if (has_ffi_frames)
-      skip_count += 2;
+    {
+      start_index = 0;
+      n_skip = 2;
+    }
+    else
+    {
+#if GLIB_SIZEOF_VOID_P == 4
+      return_addresses->items[0] = gum_invocation_stack_translate (
+          invocation_stack, *((GumReturnAddress *) GSIZE_TO_POINTER (
+              GUM_CPU_CONTEXT_XSP (cpu_context))));
+      start_index = 1;
+      n_skip = 0;
+#else
+      start_index = 0;
+      n_skip = 1;
+#endif
+    }
   }
   else
   {
@@ -165,31 +180,32 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrStack.Offset = context.Rsp;
 #endif
 
-    skip_count++; /* leave out this function */
+    start_index = 0;
+    n_skip = 1; /* Leave out this function. */
+    has_ffi_frames = FALSE;
   }
-
-  return_addresses->len = 0;
 
   current_process = GetCurrentProcess ();
   current_thread = GetCurrentThread ();
 
-  invocation_stack = gum_interceptor_get_current_stack ();
+  depth = MIN (limit, G_N_ELEMENTS (return_addresses->items));
 
   dbghelp->Lock ();
 
-  depth = MIN (limit, GUM_MAX_BACKTRACE_DEPTH);
-
-  for (i = 0; i < depth + skip_count; i++)
+  for (i = start_index; i < depth; i++)
   {
+    BOOL success;
+    gpointer pc, translated_pc;
+
 #if GLIB_SIZEOF_VOID_P == 4
-    if (has_ffi_frames)
+    if (has_ffi_frames && n_skip == 0)
     {
-      if (i == 2)
+      if (i == 0)
       {
         context_next = context;
         context.Ebp = context.Esp + GUM_FFI_STACK_SKIP - 4;
       }
-      else if (i == 3)
+      else if (i == 1)
       {
         context = context_next;
       }
@@ -201,45 +217,35 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
         dbghelp->SymFunctionTableAccess64, dbghelp->SymGetModuleBase64, NULL);
     if (!success)
       break;
-    else if (frame.AddrPC.Offset == frame.AddrReturn.Offset)
+    if (frame.AddrPC.Offset == frame.AddrReturn.Offset)
       continue;
-    else if (frame.AddrPC.Offset != 0)
+    if (frame.AddrPC.Offset == 0)
+      continue;
+
+    pc = GSIZE_TO_POINTER (frame.AddrPC.Offset);
+    translated_pc = gum_invocation_stack_translate (invocation_stack, pc);
+
+    return_addresses->items[i] = translated_pc;
+
+    if (translated_pc != pc)
     {
-      if (i >= skip_count)
-      {
-        gpointer pc, translated_pc;
-
-        g_assert (return_addresses->len <
-            G_N_ELEMENTS (return_addresses->items));
-
-        pc = GSIZE_TO_POINTER (frame.AddrPC.Offset);
-        translated_pc = gum_invocation_stack_translate (invocation_stack, pc);
-        if (translated_pc != pc)
-        {
 #if GLIB_SIZEOF_VOID_P == 4
-          context.Eip = GPOINTER_TO_SIZE (translated_pc);
+      context.Eip = GPOINTER_TO_SIZE (translated_pc);
 #else
-          context.Rip = GPOINTER_TO_SIZE (translated_pc);
+      context.Rip = GPOINTER_TO_SIZE (translated_pc);
 #endif
-          frame.AddrPC.Offset = GPOINTER_TO_SIZE (translated_pc);
-        }
+      frame.AddrPC.Offset = GPOINTER_TO_SIZE (translated_pc);
+    }
 
-        return_addresses->items[return_addresses->len++] =
-            GSIZE_TO_POINTER (frame.AddrPC.Offset);
-      }
+    if (n_skip > 0)
+    {
+      n_skip--;
+      i--;
     }
   }
+  return_addresses->len = i;
 
   dbghelp->Unlock ();
-
-  if (return_addresses->len >= 2)
-  {
-    for (i = 1; i != return_addresses->len; i++)
-      return_addresses->items[i - 1] = return_addresses->items[i];
-  }
-
-  if (return_addresses->len >= 1)
-    return_addresses->len--;
 }
 
 #endif
