@@ -22,7 +22,7 @@ EXACT_DEPS = {
 }
 
 
-def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir):
+def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir):
     frida_compile = output_dir / "node_modules" / ".bin" / make_script_filename("frida-compile")
     if not frida_compile.exists():
         pkg_files = [output_dir / "package.json", output_dir / "package-lock.json"]
@@ -110,7 +110,7 @@ def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quic
     generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
 
 
-    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_incdir, libtcc_dir)
+    generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir)
 
 
 def generate_runtime_quick(runtime_name, output_dir, output, inputs, quickcompile):
@@ -211,7 +211,7 @@ c_comment_pattern = re.compile(r"\/\*(\*(?!\/)|[^*])*\*\/")
 cpp_comment_pattern = re.compile(r"\s+?\/\/.+")
 
 
-def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capstone_incdir, libtcc_dir):
+def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir):
     writer_arch = "x86" if arch.startswith("x86") or arch == "x64" else arch
     capstone_arch = writer_arch
 
@@ -249,7 +249,7 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
     inputs = [
         (input_dir / "runtime" / "cmodule", None, is_header, identity_transform, 'GUM_CHEADER_FRIDA'),
         (input_dir / "runtime" / "cmodule-tcc", None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
-        (libtcc_dir / "tcc" / "include", None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
+        (libtcc_incdir, None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
         (gum_dir / ("arch-" + writer_arch), gum_dir.parent, gum_header_matches_writer, optimize_gum_header, 'GUM_CHEADER_FRIDA'),
         (capstone_incdir, None, capstone_header_matches_arch, optimize_capstone_header, 'GUM_CHEADER_FRIDA'),
     ]
@@ -408,10 +408,10 @@ def make_script_filename(name):
 
 if __name__ == '__main__':
     arch = sys.argv[1]
-    input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir = [Path(d).resolve() for d in sys.argv[2:]]
+    input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir = [Path(d).resolve() for d in sys.argv[2:]]
 
     try:
-        generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_dir, quickcompile, output_dir)
+        generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir)
     except Exception as e:
         print(e, file=sys.stderr)
         sys.exit(1)

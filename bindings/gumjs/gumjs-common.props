@@ -204,7 +204,7 @@ REM. &gt; $(IntDir)gumjs\bindings.stamp
       <Outputs>$(IntDir)gumjs\runtime.stamp;$(IntDir)gumjs\gumquickscript-runtime.h;$(IntDir)gumjs\gumquickscript-objc.h;$(IntDir)gumjs\gumquickscript-swift.h;$(IntDir)gumjs\gumquickscript-java.h;$(IntDir)gumjs\gumv8script-runtime.h;$(IntDir)gumjs\gumv8script-objc.h;$(IntDir)gumjs\gumv8script-swift.h;$(IntDir)gumjs\gumv8script-java.h;$(IntDir)gumjs\gumcmodule-runtime.h</Outputs>
       <Message>Generating runtime</Message>
       <Command>mkdir $(IntDir)gumjs 2&gt;NUL
-generate-runtime.py $(PlatformShortName) $(ProjectDir) ..\..\gum $(SolutionDir)build\sdk-windows\$(Platform)-$(Configuration)\include\capstone $(SolutionDir)build\sdk-windows\$(Platform)-$(Configuration)\lib $(SolutionDir)build\tmp-windows\Win32-$(Configuration)\gumquickcompile\gumquickcompile.exe $(IntDir)gumjs || exit 1
+generate-runtime.py $(PlatformShortName) $(ProjectDir) ..\..\gum $(SolutionDir)build\sdk-windows\$(Platform)-$(Configuration)\include\capstone $(SolutionDir)build\sdk-windows\$(Platform)-$(Configuration)\lib\tcc\include $(SolutionDir)build\tmp-windows\Win32-$(Configuration)\gumquickcompile\gumquickcompile.exe $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
