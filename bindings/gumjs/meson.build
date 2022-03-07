@@ -231,7 +231,11 @@ deps = [
 
 gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   c_args: frida_component_cflags,
-  override_options: ['cpp_std=c++14'],
+  override_options: [
+    'cpp_std=c++14',
+    'cpp_eh=none',
+    'cpp_rtti=false',
+  ],
   include_directories: [bindings_inc],
   dependencies: deps,
   install: true,
