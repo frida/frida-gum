@@ -198,6 +198,16 @@ gumjs_generated_bindings = custom_target('gumjs-generated-bindings',
 )
 gumjs_sources += [gumjs_generated_bindings]
 
+if libtcc_dep.found()
+  if libtcc_dep.type_name() == 'internal'
+    libtcc_incdir = meson.project_source_root() / 'subprojects' / 'tinycc' / 'include'
+  else
+    libtcc_incdir = libtcc_dep.get_variable('libdir') / 'tcc' / 'include'
+  endif
+else
+  libtcc_incdir = ''
+endif
+
 gumjs_runtime = custom_target('gumjs-runtime',
   input: gumjs_runtime_sources,
   output: gumjs_runtime_outputs,
@@ -207,7 +217,7 @@ gumjs_runtime = custom_target('gumjs-runtime',
     meson.current_source_dir(),
     meson.project_source_root() / 'gum',
     capstone_dep.get_variable('includedir') / 'capstone',
-    libtcc_dep.found() ? libtcc_dep.get_variable('libdir') : '',
+    libtcc_incdir,
     quickcompile,
     meson.current_build_dir(),
   ],
