@@ -78,7 +78,7 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
   pthread_t thread;
   gpointer stack_top, stack_bottom;
   gpointer * cur;
-  guint start_index, n_skip, depth, i;
+  gint start_index, n_skip, depth, i;
   gboolean has_ffi_frames;
 #ifdef HAVE_ARM
   gpointer * ffi_next = NULL;
