@@ -32,8 +32,13 @@ jobs:
       - run: meson setup -Dgumpp=enabled -Dgumjs=enabled build
       - run: meson compile -C build
 
-  windows-x86_64:
+  windows:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        arch:
+          - amd64
+          - amd64_x86
     steps:
       - name: Checkout frida-gum
         uses: actions/checkout@v2
@@ -41,12 +46,16 @@ jobs:
         run: pip install meson==0.61.2 ninja
       - name: Environment
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
       - name: Configure
-        run: meson setup --default-library static build
+        run: meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled build
       - name: Build
         run: meson compile -C build
       - name: Test
-        run: .\build\tests\gum-tests.exe
+        run: |
+          Copy-Item build\bindings\gumpp\frida-gumpp-1.0.dll -Destination build\tests\
+          .\build\tests\gum-tests.exe
 
   macos-x86_64:
     runs-on: macos-latest
