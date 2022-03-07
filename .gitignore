@@ -13,6 +13,8 @@
 /subprojects/libpsl/
 /subprojects/libsoup/
 /subprojects/libunwind/
+/subprojects/libxml2.wrap
+/subprojects/libxml2/
 /subprojects/packagecache/
 /subprojects/pcre.wrap
 /subprojects/pcre/
