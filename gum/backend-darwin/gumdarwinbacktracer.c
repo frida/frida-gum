@@ -146,8 +146,7 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
       GUM_FP_IS_ALIGNED (cur);
       i++)
   {
-    gpointer item;
-    gpointer * next;
+    gpointer item, * next;
 
     item = *(cur + GUM_FP_LINK_OFFSET);
     if (item == NULL)
