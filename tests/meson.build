@@ -16,6 +16,11 @@ test_incdirs = [
 subdir('core')
 subdir('heap')
 subdir('prof')
+if have_gumpp
+  subdir('gumpp')
+else
+  gum_tests_gumpp = []
+endif
 if have_gumjs
   subdir('gumjs')
 else
@@ -33,6 +38,7 @@ link_targets = [
   gum_tests_core,
   gum_tests_heap,
   gum_tests_prof,
+  gum_tests_gumpp,
   gum_tests_gumjs,
 ]
 

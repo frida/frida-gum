@@ -42,6 +42,10 @@ gumpp = shared_library('frida-gumpp-' + api_version, gumpp_sources,
   install: true,
 )
 
+gumpp_dep = declare_dependency(link_with: gumpp,
+  include_directories: include_directories('.'),
+)
+
 pkg = import('pkgconfig')
 pkg.generate(filebase: 'frida-gumpp-' + api_version,
   name: 'Gum++',
