@@ -65,7 +65,7 @@ jobs:
       - name: Dependencies
         run: pip3 install meson==0.61.2 ninja
       - name: Configure
-        run: meson setup --default-library static build
+        run: meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled build
       - name: Build
         run: meson compile -C build
       - name: Test
@@ -79,7 +79,7 @@ jobs:
       - name: Dependencies
         run: pip install meson==0.61.2 ninja
       - name: Configure
-        run: meson setup --default-library static build
+        run: meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled build
       - name: Build
         run: meson compile -C build
       - name: Test
@@ -117,7 +117,7 @@ jobs:
             echo "[properties]"
             echo "needs_exe_wrapper = true"
           ) > /tmp/cross.txt
-          meson setup --default-library static -Dtests=enabled --cross-file /tmp/cross.txt build
+          meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled -Dtests=enabled --cross-file /tmp/cross.txt build
       - name: Build
         run: meson compile -C build
       - name: Package
@@ -172,7 +172,7 @@ jobs:
             echo "[properties]"
             echo "needs_exe_wrapper = true"
           ) > /tmp/cross.txt
-          meson setup --default-library static -Dtests=enabled --cross-file /tmp/cross.txt build
+          meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled -Dtests=enabled --cross-file /tmp/cross.txt build
       - name: Build
         run: meson compile -C build
       - name: Package
