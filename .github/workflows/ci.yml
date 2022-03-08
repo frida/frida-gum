@@ -29,8 +29,13 @@ jobs:
             libunwind-dev \
             ninja-build
           pip install meson==0.61.2
-      - run: meson setup -Dgumpp=enabled -Dgumjs=enabled build
-      - run: meson compile -C build
+      - name: Build
+        run: |
+          meson setup \
+            -Dgumpp=enabled \
+            -Dgumjs=enabled \
+            build
+          meson compile -C build
 
   windows:
     runs-on: windows-latest
@@ -48,10 +53,14 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.arch }}
-      - name: Configure
-        run: meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled build
       - name: Build
-        run: meson compile -C build
+        run: |
+          meson setup `
+            --default-library static `
+            -Dgumpp=enabled `
+            -Dgumjs=enabled `
+            build
+          meson compile -C build
       - name: Test
         run: |
           Copy-Item build\bindings\gumpp\frida-gumpp-1.0.dll -Destination build\tests\
@@ -64,10 +73,14 @@ jobs:
         uses: actions/checkout@v2
       - name: Dependencies
         run: pip3 install meson==0.61.2 ninja
-      - name: Configure
-        run: meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled build
       - name: Build
-        run: meson compile -C build
+        run: |
+          meson setup \
+            --default-library static \
+            -Dgumpp=enabled \
+            -Dgumjs=enabled \
+            build
+          meson compile -C build
       - name: Test
         run: ./build/tests/gum-tests
 
@@ -78,10 +91,14 @@ jobs:
         uses: actions/checkout@v2
       - name: Dependencies
         run: pip install meson==0.61.2 ninja
-      - name: Configure
-        run: meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled build
       - name: Build
-        run: meson compile -C build
+        run: |
+          meson setup \
+            --default-library static \
+            -Dgumpp=enabled \
+            -Dgumjs=enabled \
+            build
+          meson compile -C build
       - name: Test
         run: ./build/tests/gum-tests
 
