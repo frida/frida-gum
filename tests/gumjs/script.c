@@ -1833,10 +1833,6 @@ TESTCASE (native_callback_should_get_accurate_backtraces)
 TESTCASE (native_callback_should_get_accurate_backtraces)
 {
   COMPILE_AND_LOAD_SCRIPT (
-# ifdef HAVE_ARM
-    "Module.load('/System/Library/Frameworks/Foundation.framework/Foundation');"
-# endif
-
     "const {"
     "  __NSCFBoolean,"
     "  NSAutoreleasePool,"
@@ -1924,10 +1920,6 @@ TESTCASE (native_callback_should_get_accurate_backtraces)
 TESTCASE (native_callback_should_get_accurate_backtraces_2)
 {
   COMPILE_AND_LOAD_SCRIPT (
-# ifdef HAVE_ARM
-    "Module.load('/System/Library/Frameworks/Foundation.framework/Foundation');"
-# endif
-
     "const {"
     "  NSAutoreleasePool,"
     "  NSDataDetector,"
