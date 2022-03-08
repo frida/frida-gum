@@ -206,6 +206,7 @@ gum_cmodule_link (GumCModule * self,
     goto beach;
 
   page_size = gum_query_page_size ();
+  size = GUM_ALIGN_SIZE (size, page_size);
 
   base = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
 
@@ -215,7 +216,7 @@ gum_cmodule_link (GumCModule * self,
     GumCModuleInitFunc init;
 
     r->base_address = GUM_ADDRESS (base);
-    r->size = GUM_ALIGN_SIZE (size, page_size);
+    r->size = size;
 
     gum_cloak_add_range (r);
 
