@@ -123,6 +123,7 @@ jobs:
       - name: Package
         run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
       - name: Test
+        if: github.repository_owner == 'frida'
         uses: frida/corellium-action@v2
         with:
           endpoint: ${{ secrets.CORELLIUM_ENDPOINT }}
@@ -177,6 +178,7 @@ jobs:
       - name: Package
         run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
       - name: Test
+        if: github.repository_owner == 'frida'
         uses: frida/corellium-action@v2
         with:
           endpoint: ${{ secrets.CORELLIUM_ENDPOINT }}
