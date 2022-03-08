@@ -94,8 +94,8 @@ main (gint argc, gchar * argv[])
 #endif
 
 #ifdef HAVE_DARWIN
-  /* Simulate an application where CoreFoundation is available */
-  dlopen ("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+  /* Simulate an application where Foundation is available */
+  dlopen ("/System/Library/Frameworks/Foundation.framework/Foundation",
       RTLD_LAZY | RTLD_GLOBAL);
 #endif
 
