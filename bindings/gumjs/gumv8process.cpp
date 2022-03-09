@@ -44,6 +44,22 @@
 # define GUM_SCRIPT_PLATFORM "qnx"
 #endif
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+# define GUM_SCRIPT_OS "linux"
+#elif defined (HAVE_ANDROID)
+# define GUM_SCRIPT_OS "android"
+#elif defined (HAVE_MACOS)
+# define GUM_SCRIPT_OS "macos"
+#elif defined (HAVE_IOS)
+# define GUM_SCRIPT_OS "ios"
+#elif defined (HAVE_WINDOWS)
+# define GUM_SCRIPT_OS "windows"
+#elif defined (HAVE_FREEBSD)
+# define GUM_SCRIPT_OS "freebsd"
+#elif defined (HAVE_QNX)
+# define GUM_SCRIPT_OS "qnx"
+#endif
+
 using namespace v8;
 
 struct GumV8ExceptionHandler
@@ -129,6 +145,8 @@ _gum_v8_process_init (GumV8Process * self,
       String::NewFromUtf8Literal (isolate, GUM_SCRIPT_ARCH), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "platform"),
       String::NewFromUtf8Literal (isolate, GUM_SCRIPT_PLATFORM), ReadOnly);
+  process->Set (_gum_v8_string_new_ascii (isolate, "operatingSystem"),
+      String::NewFromUtf8Literal (isolate, GUM_SCRIPT_OS), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "pageSize"),
       Number::New (isolate, gum_query_page_size ()), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "pointerSize"),

@@ -38,6 +38,22 @@
 # define GUM_SCRIPT_PLATFORM "qnx"
 #endif
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+# define GUM_SCRIPT_OS "linux"
+#elif defined (HAVE_ANDROID)
+# define GUM_SCRIPT_OS "android"
+#elif defined (HAVE_MACOS)
+# define GUM_SCRIPT_OS "macos"
+#elif defined (HAVE_IOS)
+# define GUM_SCRIPT_OS "ios"
+#elif defined (HAVE_WINDOWS)
+# define GUM_SCRIPT_OS "windows"
+#elif defined (HAVE_FREEBSD)
+# define GUM_SCRIPT_OS "freebsd"
+#elif defined (HAVE_QNX)
+# define GUM_SCRIPT_OS "qnx"
+#endif
+
 typedef struct _GumQuickMatchContext GumQuickMatchContext;
 typedef struct _GumQuickFindModuleByNameContext GumQuickFindModuleByNameContext;
 typedef struct _GumQuickFindRangeByAddressContext
@@ -113,6 +129,7 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
 {
   JS_PROP_STRING_DEF ("arch", GUM_SCRIPT_ARCH, JS_PROP_C_W_E),
   JS_PROP_STRING_DEF ("platform", GUM_SCRIPT_PLATFORM, JS_PROP_C_W_E),
+  JS_PROP_STRING_DEF ("operatingSystem", GUM_SCRIPT_OS, JS_PROP_C_W_E),
   JS_PROP_INT32_DEF ("pointerSize", GLIB_SIZEOF_VOID_P, JS_PROP_C_W_E),
   JS_CFUNC_DEF ("getCurrentDir", 0, gumjs_process_get_current_dir),
   JS_CFUNC_DEF ("getHomeDir", 0, gumjs_process_get_home_dir),
