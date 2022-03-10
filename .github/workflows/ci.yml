@@ -186,14 +186,9 @@ jobs:
       - name: Package
         run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
       - name: Test
-        if: github.repository_owner == 'frida'
-        uses: frida/corellium-action@v2
+        uses: frida/corellium-action@v3
         with:
-          endpoint: ${{ secrets.CORELLIUM_ENDPOINT }}
-          username: ${{ secrets.CORELLIUM_USERNAME }}
-          password: ${{ secrets.CORELLIUM_PASSWORD }}
-          project: Frida
-          instance: ios-14.8-arm64
+          device: ios-14.8-arm64
           upload: /tmp/runner.tar.gz
           run: |
             set -ex
@@ -281,14 +276,9 @@ jobs:
       - name: Package
         run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
       - name: Test
-        if: github.repository_owner == 'frida'
-        uses: frida/corellium-action@v2
+        uses: frida/corellium-action@v3
         with:
-          endpoint: ${{ secrets.CORELLIUM_ENDPOINT }}
-          username: ${{ secrets.CORELLIUM_USERNAME }}
-          password: ${{ secrets.CORELLIUM_PASSWORD }}
-          project: Frida
-          instance: android-8.1.0-arm64
+          device: android-8.1.0-arm64
           upload: /tmp/runner.tar.gz
           run: |
             set -ex
