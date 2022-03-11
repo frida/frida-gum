@@ -192,14 +192,15 @@ jobs:
       - name: Test
         uses: frida/corellium-action@v3
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          gateway: corellium.frida.re
           device: ios-14.8-arm64
           upload: /tmp/runner.tar.gz
           run: |
-            set -ex
             cd /usr/local
             mkdir -p opt/frida
             cd opt/frida
-            tar xf "$ASSET_PATH"
+            tar xf $ASSET_PATH
             ./gum-tests
 
   android-arm64:
@@ -282,10 +283,11 @@ jobs:
       - name: Test
         uses: frida/corellium-action@v3
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          gateway: corellium.frida.re
           device: android-8.1.0-arm64
           upload: /tmp/runner.tar.gz
           run: |
-            set -ex
             cd /data/local/tmp
-            tar xf "$ASSET_PATH"
-            LD_LIBRARY_PATH="/apex/com.android.art/lib64:/apex/com.android.runtime/lib64" ./gum-tests
+            tar xf $ASSET_PATH
+            LD_LIBRARY_PATH=/apex/com.android.art/lib64:/apex/com.android.runtime/lib64 ./gum-tests
