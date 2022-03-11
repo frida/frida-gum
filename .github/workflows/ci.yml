@@ -10,6 +10,7 @@ on:
 
 jobs:
   gir:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout frida-gum
@@ -38,6 +39,7 @@ jobs:
           meson compile -C build
 
   windows:
+    if: ${{ false }}
     runs-on: windows-latest
     strategy:
       matrix:
@@ -67,6 +69,7 @@ jobs:
           .\build\tests\gum-tests.exe
 
   macos-x86_64:
+    if: ${{ false }}
     runs-on: macos-latest
     steps:
       - name: Checkout frida-gum
@@ -85,6 +88,7 @@ jobs:
         run: ./build/tests/gum-tests
 
   linux-x86_64:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout frida-gum
@@ -178,8 +182,8 @@ jobs:
             --native-file /tmp/native.txt \
             --cross-file /tmp/cross.txt \
             --default-library static \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
+            -Dgumpp=disabled \
+            -Dgumjs=disabled \
             -Dtests=enabled \
             build
           meson compile -C build
@@ -268,8 +272,8 @@ jobs:
             --native-file /tmp/native.txt \
             --cross-file /tmp/cross.txt \
             --default-library static \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
+            -Dgumpp=disabled \
+            -Dgumjs=disabled \
             -Dtests=enabled \
             build
           meson compile -C build
