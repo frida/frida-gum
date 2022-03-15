@@ -10,11 +10,13 @@
 #include "gum-init.h"
 #include "gumandroid.h"
 #include "gumlinux.h"
+#include "gumlinux-priv.h"
 #include "gummodulemap.h"
 #include "valgrind.h"
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +45,10 @@
 # include <sys/user.h>
 #endif
 
-#define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
+#ifndef O_CLOEXEC
+# define O_CLOEXEC 0x80000
+#endif
+
 #define GUM_PSR_THUMB 0x20
 
 #if defined (HAVE_I386)
@@ -266,6 +271,9 @@ static gboolean gum_store_module_path_and_base_if_match (
     const GumModuleDetails * details, gpointer user_data);
 
 static GumElfModule * gum_open_elf_module (const gchar * name);
+
+static void gum_proc_maps_iter_init_for_path (GumProcMapsIter * iter,
+    const gchar * path);
 
 static gboolean gum_thread_read_state (GumThreadId tid, GumThreadState * state);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
@@ -1025,16 +1033,13 @@ void
 gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
                                              gpointer user_data)
 {
-  FILE * fp;
-  const guint line_size = GUM_MAPS_LINE_SIZE;
-  gchar * line, * path, * next_path;
+  GumProcMapsIter iter;
+  gchar * path, * next_path;
+  const gchar * line;
   gboolean carry_on = TRUE;
   gboolean got_line = FALSE;
 
-  fp = fopen ("/proc/self/maps", "r");
-  g_assert (fp != NULL);
-
-  line = g_malloc (line_size);
+  gum_proc_maps_iter_init_for_self (&iter);
 
   path = g_malloc (PATH_MAX);
   next_path = g_malloc (PATH_MAX);
@@ -1052,7 +1057,7 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
 
     if (!got_line)
     {
-      if (fgets (line, line_size, fp) == NULL)
+      if (!gum_proc_maps_iter_next (&iter, &line))
         break;
     }
     else
@@ -1094,7 +1099,7 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     details.range = &range;
     details.path = path;
 
-    while (fgets (line, line_size, fp) != NULL)
+    while (gum_proc_maps_iter_next (&iter, &line))
     {
       n = sscanf (line,
           "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %[^\n]",
@@ -1130,28 +1135,23 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
   g_free (path);
   g_free (next_path);
 
-  g_free (line);
-
-  fclose (fp);
+  gum_proc_maps_iter_destroy (&iter);
 }
 
 GHashTable *
 gum_linux_collect_named_ranges (void)
 {
   GHashTable * result;
-  FILE * fp;
-  const guint line_size = GUM_MAPS_LINE_SIZE;
-  gchar * line, * name, * next_name;
+  GumProcMapsIter iter;
+  gchar * name, * next_name;
+  const gchar * line;
   gboolean carry_on = TRUE;
   gboolean got_line = FALSE;
 
   result = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_linux_named_range_free);
 
-  fp = fopen ("/proc/self/maps", "r");
-  g_assert (fp != NULL);
-
-  line = g_malloc (line_size);
+  gum_proc_maps_iter_init_for_self (&iter);
 
   name = g_malloc (PATH_MAX);
   next_name = g_malloc (PATH_MAX);
@@ -1165,7 +1165,7 @@ gum_linux_collect_named_ranges (void)
 
     if (!got_line)
     {
-      if (fgets (line, line_size, fp) == NULL)
+      if (!gum_proc_maps_iter_next (&iter, &line))
         break;
     }
     else
@@ -1188,7 +1188,7 @@ gum_linux_collect_named_ranges (void)
 
     size = end - start;
 
-    while (fgets (line, line_size, fp) != NULL)
+    while (gum_proc_maps_iter_next (&iter, &line))
     {
       n = sscanf (line,
           "%*x-%" G_GINT64_MODIFIER "x %*c%*c%*c%*c %*x %*s %*d %[^\n]",
@@ -1228,9 +1228,7 @@ gum_linux_collect_named_ranges (void)
   g_free (name);
   g_free (next_name);
 
-  g_free (line);
-
-  fclose (fp);
+  gum_proc_maps_iter_destroy (&iter);
 
   return result;
 }
@@ -1269,22 +1267,13 @@ gum_linux_enumerate_ranges (pid_t pid,
                             GumFoundRangeFunc func,
                             gpointer user_data)
 {
-  gchar * maps_path;
-  FILE * fp;
-  const guint line_size = GUM_MAPS_LINE_SIZE;
-  gchar * line;
+  GumProcMapsIter iter;
   gboolean carry_on = TRUE;
+  const gchar * line;
 
-  maps_path = g_strdup_printf ("/proc/%d/maps", pid);
+  gum_proc_maps_iter_init_for_pid (&iter, pid);
 
-  fp = fopen (maps_path, "r");
-  g_assert (fp != NULL);
-
-  g_free (maps_path);
-
-  line = g_malloc (line_size);
-
-  while (carry_on && fgets (line, line_size, fp) != NULL)
+  while (carry_on && gum_proc_maps_iter_next (&iter, &line))
   {
     GumRangeDetails details;
     GumMemoryRange range;
@@ -1312,7 +1301,6 @@ gum_linux_enumerate_ranges (pid_t pid,
       file.path = strchr (line + length, '/');
       if (file.path != NULL)
       {
-        *strchr (file.path, '\n') = '\0';
         details.file = &file;
         file.size = 0; /* TODO */
 
@@ -1330,9 +1318,7 @@ gum_linux_enumerate_ranges (pid_t pid,
     }
   }
 
-  g_free (line);
-
-  fclose (fp);
+  gum_proc_maps_iter_destroy (&iter);
 }
 
 void
@@ -2027,6 +2013,103 @@ gum_open_elf_module (const gchar * name)
   g_free (path);
 
   return module;
+}
+
+void
+gum_proc_maps_iter_init_for_self (GumProcMapsIter * iter)
+{
+  gum_proc_maps_iter_init_for_path (iter, "/proc/self/maps");
+}
+
+void
+gum_proc_maps_iter_init_for_pid (GumProcMapsIter * iter,
+                                 pid_t pid)
+{
+  gchar path[31 + 1];
+
+  sprintf (path, "/proc/%u/maps", (guint) pid);
+
+  gum_proc_maps_iter_init_for_path (iter, path);
+}
+
+static void
+gum_proc_maps_iter_init_for_path (GumProcMapsIter * iter,
+                                  const gchar * path)
+{
+  iter->fd = open (path, O_RDONLY | O_CLOEXEC);
+  iter->read_cursor = iter->buffer;
+  iter->write_cursor = iter->buffer;
+}
+
+void
+gum_proc_maps_iter_destroy (GumProcMapsIter * iter)
+{
+  if (iter->fd != -1)
+    close (iter->fd);
+}
+
+gboolean
+gum_proc_maps_iter_next (GumProcMapsIter * iter,
+                         const gchar ** line)
+{
+  gchar * next_newline;
+  guint available;
+  gboolean need_refill;
+
+  if (iter->fd == -1)
+    return FALSE;
+
+  next_newline = NULL;
+
+  available = iter->write_cursor - iter->read_cursor;
+  if (available == 0)
+  {
+    need_refill = TRUE;
+  }
+  else
+  {
+    next_newline = strchr (iter->read_cursor, '\n');
+    if (next_newline != NULL)
+    {
+      need_refill = FALSE;
+    }
+    else
+    {
+      need_refill = TRUE;
+    }
+  }
+
+  if (need_refill)
+  {
+    guint offset;
+    gssize res;
+
+    offset = iter->read_cursor - iter->buffer;
+    if (offset > 0)
+    {
+      memmove (iter->buffer, iter->read_cursor, available);
+      iter->read_cursor -= offset;
+      iter->write_cursor -= offset;
+    }
+
+    res = GUM_TEMP_FAILURE_RETRY (gum_libc_read (iter->fd,
+        iter->write_cursor,
+        iter->buffer + sizeof (iter->buffer) - 1 - iter->write_cursor));
+    if (res <= 0)
+      return FALSE;
+
+    iter->write_cursor += res;
+    iter->write_cursor[0] = '\0';
+
+    next_newline = strchr (iter->read_cursor, '\n');
+  }
+
+  *line = iter->read_cursor;
+  *next_newline = '\0';
+
+  iter->read_cursor = next_newline + 1;
+
+  return TRUE;
 }
 
 void
