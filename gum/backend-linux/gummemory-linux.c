@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gummemory.h"
 
+#include "gumlinux-priv.h"
 #include "gummemory-priv.h"
 #include "valgrind.h"
 
@@ -145,8 +146,8 @@ gum_memory_get_protection (gconstpointer address,
                            GumPageProtection * prot)
 {
   gboolean success;
-  FILE * fp;
-  gchar line[1024 + 1];
+  GumProcMapsIter iter;
+  const gchar * line;
 
   if (size == NULL || prot == NULL)
   {
@@ -200,10 +201,9 @@ gum_memory_get_protection (gconstpointer address,
   *size = 0;
   *prot = GUM_PAGE_NO_ACCESS;
 
-  fp = fopen ("/proc/self/maps", "r");
-  g_assert (fp != NULL);
+  gum_proc_maps_iter_init_for_self (&iter);
 
-  while (fgets (line, sizeof (line), fp) != NULL)
+  while (gum_proc_maps_iter_next (&iter, &line))
   {
     gpointer start, end;
     gchar protection[4 + 1];
@@ -226,7 +226,7 @@ gum_memory_get_protection (gconstpointer address,
     }
   }
 
-  fclose (fp);
+  gum_proc_maps_iter_destroy (&iter);
 
   return success;
 }
