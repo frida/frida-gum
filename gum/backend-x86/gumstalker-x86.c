@@ -38,6 +38,9 @@
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
 # include <unwind.h>
 #endif
+#ifdef HAVE_ANDROID
+# include <dlfcn.h>
+#endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
 #define GUM_CODE_SLAB_SIZE_DYNAMIC  (4 * 1024 * 1024)
@@ -6246,7 +6249,7 @@ gum_find_system_call_above_us (GumStalker * stalker,
 static gpointer
 gum_find_thread_exit_implementation (void)
 {
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN)
   GumAddress result = 0;
   const gchar * pthread_path = "/usr/lib/system/libsystem_pthread.dylib";
   GumMemoryRange range;
@@ -6299,6 +6302,8 @@ gum_find_thread_exit_implementation (void)
 #endif
 
   return GSIZE_TO_POINTER (result);
+#elif defined (HAVE_ANDROID)
+  return dlsym (RTLD_DEFAULT, "pthread_exit");
 #else
   return NULL;
 #endif

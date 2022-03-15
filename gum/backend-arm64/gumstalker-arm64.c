@@ -23,6 +23,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#ifdef HAVE_ANDROID
+# include <dlfcn.h>
+#endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
 #define GUM_CODE_SLAB_SIZE_DYNAMIC  (4 * 1024 * 1024)
@@ -5548,7 +5551,7 @@ gum_slab_try_reserve (GumSlab * self,
 static gpointer
 gum_find_thread_exit_implementation (void)
 {
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN)
   guint32 * cursor;
 
   cursor = GSIZE_TO_POINTER (gum_strip_code_address (
@@ -5577,6 +5580,8 @@ gum_find_thread_exit_implementation (void)
     cursor++;
   }
   while (TRUE);
+#elif defined (HAVE_ANDROID)
+  return dlsym (RTLD_DEFAULT, "pthread_exit");
 #else
   return NULL;
 #endif
