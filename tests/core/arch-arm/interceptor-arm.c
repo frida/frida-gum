@@ -90,12 +90,19 @@ static void gum_emit_lr_func (gpointer mem, gpointer user_data);
 
 TESTCASE (attach_to_thumb_thunk_reading_lr)
 {
-  const gsize code_size_in_pages = 1;
-  gsize code_size;
+  GumAddressSpec spec;
+  gsize page_size, code_size;
   GumEmitLrThunkContext ctx;
 
-  code_size = code_size_in_pages * gum_query_page_size ();
-  ctx.code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  spec.near_address = GSIZE_TO_POINTER (
+      gum_module_find_base_address (GUM_TESTS_MODULE_NAME));
+  spec.max_distance = GUM_THUMB_B_MAX_DISTANCE - 4096;
+
+  page_size = gum_query_page_size ();
+  code_size = page_size;
+
+  ctx.code = gum_memory_allocate_near (&spec, code_size, page_size,
+      GUM_PAGE_RW);
   ctx.run = NULL;
   ctx.thunk = NULL;
   ctx.expected_lr = 0;
@@ -109,7 +116,7 @@ TESTCASE (attach_to_thumb_thunk_reading_lr)
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
   interceptor_fixture_detach (fixture, 0);
-  gum_free_pages (ctx.code);
+  gum_memory_free (ctx.code, code_size);
 }
 
 static void
@@ -144,12 +151,19 @@ gum_emit_lr_thunk (gpointer mem,
 
 TESTCASE (attach_to_thumb_function_reading_lr)
 {
-  const gsize code_size_in_pages = 1;
-  gsize code_size;
+  GumAddressSpec spec;
+  gsize page_size, code_size;
   GumEmitLrFuncContext ctx;
 
-  code_size = code_size_in_pages * gum_query_page_size ();
-  ctx.code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  spec.near_address = GSIZE_TO_POINTER (
+      gum_module_find_base_address (GUM_TESTS_MODULE_NAME));
+  spec.max_distance = GUM_THUMB_B_MAX_DISTANCE - 4096;
+
+  page_size = gum_query_page_size ();
+  code_size = page_size;
+
+  ctx.code = gum_memory_allocate_near (&spec, code_size, page_size,
+      GUM_PAGE_RW);
   ctx.run = NULL;
   ctx.func = NULL;
   ctx.caller_lr = 0;
@@ -163,7 +177,7 @@ TESTCASE (attach_to_thumb_function_reading_lr)
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
   interceptor_fixture_detach (fixture, 0);
-  gum_free_pages (ctx.code);
+  gum_memory_free (ctx.code, code_size);
 }
 
 static void
