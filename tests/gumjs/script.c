@@ -3588,6 +3588,14 @@ TESTCASE (basic_block_can_be_invalidated_for_current_thread)
   GThread * thread;
   GumThreadId thread_id;
 
+#if defined (HAVE_ANDROID) && defined (HAVE_ARM)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   sdc_init (&channel);
 
   thread = g_thread_new ("stalker-test-target",
@@ -3678,6 +3686,14 @@ TESTCASE (basic_block_can_be_invalidated_for_specific_thread)
   StalkerDummyChannel channel;
   GThread * thread;
   GumThreadId thread_id;
+
+#if defined (HAVE_ANDROID) && defined (HAVE_ARM)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
 
   sdc_init (&channel);
 
