@@ -22,6 +22,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#ifdef HAVE_ANDROID
+# include <dlfcn.h>
+#endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
 #define GUM_CODE_SLAB_SIZE_DYNAMIC  (4 * 1024 * 1024)
@@ -641,6 +644,8 @@ static gpointer gum_slab_align_cursor (GumSlab * self, guint alignment);
 static gpointer gum_slab_reserve (GumSlab * self, gsize size);
 static gpointer gum_slab_try_reserve (GumSlab * self, gsize size);
 
+static gpointer gum_find_thread_exit_implementation (void);
+
 static gpointer gum_strip_thumb_bit (gpointer address);
 static gboolean gum_is_thumb (gconstpointer address);
 static gboolean gum_is_kuser_helper (gconstpointer address);
@@ -651,6 +656,8 @@ static guint gum_count_bits_set (guint16 value);
 static guint gum_count_trailing_zeros (guint16 value);
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
+
+static gpointer gum_thread_exit_address;
 
 gboolean
 gum_stalker_is_supported (void)
@@ -664,6 +671,8 @@ gum_stalker_class_init (GumStalkerClass * klass)
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
   object_class->finalize = gum_stalker_finalize;
+
+  gum_thread_exit_address = gum_find_thread_exit_implementation ();
 }
 
 static void
@@ -1830,7 +1839,7 @@ gum_exec_ctx_switch_block (GumExecCtx * ctx,
     ctx->current_block = NULL;
     ctx->resume_at = start_address;
   }
-  else if (start_address == NULL)
+  else if (start_address == NULL || start_address == gum_thread_exit_address)
   {
     gum_exec_ctx_unfollow (ctx, start_address);
   }
@@ -5689,6 +5698,16 @@ gum_slab_try_reserve (GumSlab * self,
   self->offset += size;
 
   return cursor;
+}
+
+static gpointer
+gum_find_thread_exit_implementation (void)
+{
+#ifdef HAVE_ANDROID
+  return dlsym (RTLD_DEFAULT, "pthread_exit");
+#else
+  return NULL;
+#endif
 }
 
 static gpointer
