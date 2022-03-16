@@ -3349,6 +3349,14 @@ TESTCASE (heap_api)
 {
   gpointer p;
 
+#if defined (HAVE_ANDROID) && defined (HAVE_ARM)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
