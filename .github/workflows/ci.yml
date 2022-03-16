@@ -126,6 +126,7 @@ jobs:
           (
             echo "[constants]"
             echo "common_flags = ['-target', 'x86_64-apple-macos10.9', '-isysroot', '$(xcrun --sdk macosx --show-sdk-path)']"
+            echo "linker_flags = ['-Wl,-dead_strip']"
             echo ""
             echo "[binaries]"
             echo "c = ['$(xcrun --sdk macosx -f clang)'] + common_flags"
@@ -136,7 +137,8 @@ jobs:
             echo "pkgconfig = '/tmp/native-pkg-config'"
             echo ""
             echo "[built-in options]"
-            echo "c_link_args = ['-Wl,-dead_strip']"
+            echo "c_link_args = linker_flags"
+            echo "cpp_link_args = linker_flags"
             echo ""
             echo "[host_machine]"
             echo "system = 'darwin'"
@@ -150,6 +152,7 @@ jobs:
           (
             echo "[constants]"
             echo "common_flags = ['-target', 'arm64-apple-ios8.0', '-isysroot', '$(xcrun --sdk iphoneos --show-sdk-path)']"
+            echo "linker_flags = ['-Wl,-dead_strip']"
             echo ""
             echo "[binaries]"
             echo "c = ['$(xcrun --sdk iphoneos -f clang)'] + common_flags"
@@ -160,7 +163,8 @@ jobs:
             echo "pkgconfig = '/tmp/cross-pkg-config'"
             echo ""
             echo "[built-in options]"
-            echo "c_link_args = ['-Wl,-dead_strip']"
+            echo "c_link_args = linker_flags"
+            echo "cpp_link_args = linker_flags"
             echo ""
             echo "[host_machine]"
             echo "system = 'darwin'"
@@ -221,6 +225,10 @@ jobs:
             chmod +x /tmp/$machine-pkg-config
           done
           (
+            echo "[constants]"
+            echo "c_like_flags = ['-ffunction-sections', '-fdata-sections']"
+            echo "linker_flags = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
+            echo ""
             echo "[binaries]"
             echo "c = 'gcc'"
             echo "cpp = 'g++'"
@@ -228,8 +236,10 @@ jobs:
             echo "pkgconfig = '/tmp/native-pkg-config'"
             echo ""
             echo "[built-in options]"
-            echo "c_args = ['-ffunction-sections', '-fdata-sections']"
-            echo "c_link_args = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
+            echo "c_args = c_like_flags"
+            echo "cpp_args = c_like_flags"
+            echo "c_link_args = linker_flags"
+            echo "cpp_link_args = linker_flags"
             echo ""
             echo "[host_machine]"
             echo "system = 'linux'"
@@ -242,6 +252,10 @@ jobs:
           ) > /tmp/native.txt
           (
             bindir=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+            echo "[constants]"
+            echo "c_like_flags = ['-DANDROID', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfpv3-d16', '-mthumb', '-ffunction-sections', '-fdata-sections']"
+            echo "linker_flags = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
+            echo ""
             echo "[binaries]"
             echo "c = '$bindir/armv7a-linux-androideabi19-clang'"
             echo "cpp = '$bindir/armv7a-linux-androideabi19-clang++'"
@@ -249,9 +263,10 @@ jobs:
             echo "pkgconfig = '/tmp/cross-pkg-config'"
             echo ""
             echo "[built-in options]"
-            echo "c_args = ['-DANDROID', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfpv3-d16', '-mthumb', '-ffunction-sections', '-fdata-sections']"
-            echo "c_link_args = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
-            echo "cpp_link_args = ['-static-libstdc++']"
+            echo "c_args = c_like_flags"
+            echo "cpp_args = c_like_flags"
+            echo "c_link_args = linker_flags"
+            echo "cpp_link_args = linker_flags + ['-static-libstdc++']"
             echo ""
             echo "[host_machine]"
             echo "system = 'linux'"
@@ -310,6 +325,10 @@ jobs:
             chmod +x /tmp/$machine-pkg-config
           done
           (
+            echo "[constants]"
+            echo "c_like_flags = ['-ffunction-sections', '-fdata-sections']"
+            echo "linker_flags = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
+            echo ""
             echo "[binaries]"
             echo "c = 'gcc'"
             echo "cpp = 'g++'"
@@ -317,8 +336,10 @@ jobs:
             echo "pkgconfig = '/tmp/native-pkg-config'"
             echo ""
             echo "[built-in options]"
-            echo "c_args = ['-ffunction-sections', '-fdata-sections']"
-            echo "c_link_args = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
+            echo "c_args = c_like_flags"
+            echo "cpp_args = c_like_flags"
+            echo "c_link_args = linker_flags"
+            echo "cpp_link_args = linker_flags"
             echo ""
             echo "[host_machine]"
             echo "system = 'linux'"
@@ -331,6 +352,10 @@ jobs:
           ) > /tmp/native.txt
           (
             bindir=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+            echo "[constants]"
+            echo "c_like_flags = ['-DANDROID', '-ffunction-sections', '-fdata-sections']"
+            echo "linker_flags = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
+            echo ""
             echo "[binaries]"
             echo "c = '$bindir/aarch64-linux-android21-clang'"
             echo "cpp = '$bindir/aarch64-linux-android21-clang++'"
@@ -338,9 +363,10 @@ jobs:
             echo "pkgconfig = '/tmp/cross-pkg-config'"
             echo ""
             echo "[built-in options]"
-            echo "c_args = ['-DANDROID', '-ffunction-sections', '-fdata-sections']"
-            echo "c_link_args = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,-z,now']"
-            echo "cpp_link_args = ['-static-libstdc++']"
+            echo "c_args = c_like_flags"
+            echo "cpp_args = c_like_flags"
+            echo "c_link_args = linker_flags"
+            echo "cpp_link_args = linker_flags + ['-static-libstdc++']"
             echo ""
             echo "[host_machine]"
             echo "system = 'linux'"
