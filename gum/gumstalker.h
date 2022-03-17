@@ -158,6 +158,8 @@ struct _GumCallDetails
 
 GUM_API gboolean gum_stalker_is_supported (void);
 
+GUM_API void gum_stalker_activate_experimental_unwind_support (void);
+
 GUM_API GumStalker * gum_stalker_new (void);
 
 GUM_API void gum_stalker_exclude (GumStalker * self,

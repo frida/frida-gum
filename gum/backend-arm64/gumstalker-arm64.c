@@ -733,6 +733,11 @@ gum_stalker_is_supported (void)
   return TRUE;
 }
 
+void
+gum_stalker_activate_experimental_unwind_support (void)
+{
+}
+
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {

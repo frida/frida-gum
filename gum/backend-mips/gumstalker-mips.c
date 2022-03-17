@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,6 +17,11 @@ gboolean
 gum_stalker_is_supported (void)
 {
   return FALSE;
+}
+
+void
+gum_stalker_activate_experimental_unwind_support (void)
+{
 }
 
 static void
