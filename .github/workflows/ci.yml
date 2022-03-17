@@ -41,9 +41,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        arch:
-          - amd64
-          - amd64_x86
+        arch: [amd64_x86, amd64]
     steps:
       - name: Checkout frida-gum
         uses: actions/checkout@v2
