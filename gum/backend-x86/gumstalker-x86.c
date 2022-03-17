@@ -841,6 +841,14 @@ gum_stalker_is_supported (void)
   return TRUE;
 }
 
+void
+gum_stalker_activate_experimental_unwind_support (void)
+{
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  gum_stalker_ensure_unwind_apis_instrumented ();
+#endif
+}
+
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {
@@ -2316,8 +2324,6 @@ gum_exec_ctx_new (GumStalker * stalker,
   gum_exec_ctx_get_plt_got_ranges ();
 
 # ifndef HAVE_ANDROID
-  gum_stalker_ensure_unwind_apis_instrumented ();
-
   ctx->excluded_calls = gum_metal_hash_table_new (NULL, NULL);
 # endif
 #endif

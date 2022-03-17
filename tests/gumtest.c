@@ -216,6 +216,8 @@ main (gint argc, gchar * argv[])
 
   if (gum_stalker_is_supported ())
   {
+    gum_stalker_activate_experimental_unwind_support ();
+
 #if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
     TESTLIST_REGISTER (stalker);
 #endif
