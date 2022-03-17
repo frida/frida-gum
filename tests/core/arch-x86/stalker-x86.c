@@ -106,7 +106,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (ic_var)
 #endif
 
-#ifdef HAVE_LINUX
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
   TESTGROUP_BEGIN ("ExceptionHandling")
     TESTENTRY (no_exceptions)
     TESTENTRY (try_and_catch)
@@ -214,10 +214,12 @@ static GHashTable * prefetch_compiled = NULL;
 static GHashTable * prefetch_executed = NULL;
 static PrefetchBackpatchContext bp_ctx;
 
+#ifndef HAVE_ANDROID
 static void callback_at_end (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void callout_at_end (GumCpuContext * cpu_context, gpointer user_data);
 static void test_check_followed (void);
+#endif
 
 extern void __cxa_throw (void * thrown_exception, void * type,
     void (* destructor) (void *));
@@ -3224,7 +3226,7 @@ TESTCASE (ic_var)
 
 #endif
 
-#ifdef HAVE_LINUX
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
 
 TESTCASE (no_exceptions)
 {
