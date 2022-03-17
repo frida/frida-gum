@@ -139,6 +139,61 @@ jobs:
             tar xf $ASSET_PATH
             ./gum-tests
 
+  android-intel:
+    runs-on: macos-10.15
+    strategy:
+      matrix:
+        arch: [x86, x86_64]
+    steps:
+      - name: Checkout frida-gum
+        uses: actions/checkout@v2
+      - name: Dependencies
+        run: |
+          pip3 install meson==0.61.2
+          .github/env/bootstrap.sh macos-x86_64 android-${{ matrix.arch }}
+      - name: Build
+        run: |
+          export PATH="/tmp/toolchain/bin:$PATH"
+          meson setup \
+            --native-file /tmp/native.txt \
+            --cross-file /tmp/cross.txt \
+            --default-library static \
+            -Dgumpp=enabled \
+            -Dgumjs=enabled \
+            -Dtests=enabled \
+            build
+          meson compile -C build
+      - name: AVD cache
+        uses: actions/cache@v2
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.arch }}
+      - name: Create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          arch: ${{ matrix.arch }}
+          api-level: 27
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+      - name: Test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          arch: ${{ matrix.arch }}
+          api-level: 27
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            gtar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
+            adb push /tmp/runner.tar.gz /data/local/tmp/
+            adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; ./gum-tests'"
+
   android-arm:
     runs-on: ubuntu-latest
     steps:
