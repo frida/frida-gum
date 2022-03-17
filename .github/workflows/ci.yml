@@ -227,7 +227,7 @@ jobs:
           run: |
             cd /data/local/tmp
             tar xf $ASSET_PATH
-            LD_LIBRARY_PATH=/apex/com.android.art/lib:/apex/com.android.runtime/lib ./gum-tests
+            ./gum-tests
 
   android-arm64:
     runs-on: ubuntu-latest
@@ -262,4 +262,4 @@ jobs:
           run: |
             cd /data/local/tmp
             tar xf $ASSET_PATH
-            LD_LIBRARY_PATH=/apex/com.android.art/lib64:/apex/com.android.runtime/lib64 ./gum-tests
+            ./gum-tests
