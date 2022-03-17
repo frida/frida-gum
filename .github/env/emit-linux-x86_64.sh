@@ -11,6 +11,9 @@ linker_flags = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,
 [binaries]
 c = 'gcc'
 cpp = 'g++'
+ar = 'ar'
+nm = 'nm'
+readelf = 'readelf'
 strip = 'strip'
 pkgconfig = '$pkgconfig'
 

@@ -13,6 +13,9 @@ linker_flags = ['-Wl,--gc-sections', '-Wl,-z,noexecstack', '-Wl,-z,relro', '-Wl,
 [binaries]
 c = '$bindir/aarch64-linux-android21-clang'
 cpp = '$bindir/aarch64-linux-android21-clang++'
+ar = '$bindir/llvm-ar'
+nm = '$bindir/llvm-nm'
+readelf = '$bindir/llvm-readelf'
 strip = '$bindir/llvm-strip'
 pkgconfig = '$pkgconfig'
 

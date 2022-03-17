@@ -15,6 +15,8 @@ c = ['$(xcrun --sdk $sdk -f clang)'] + common_flags
 cpp = ['$(xcrun --sdk $sdk -f clang++)'] + common_flags
 objc = ['$(xcrun --sdk $sdk -f clang)'] + common_flags
 objcpp = ['$(xcrun --sdk $sdk -f clang++)'] + common_flags
+ar = '$(xcrun --sdk $sdk -f ar)'
+nm = '$(xcrun --sdk $sdk -f nm)'
 strip = '$(xcrun --sdk $sdk -f strip)'
 pkgconfig = '$pkgconfig'
 
