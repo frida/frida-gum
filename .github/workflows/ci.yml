@@ -194,48 +194,16 @@ jobs:
 
   android-arm:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm, arm64]
     steps:
       - name: Checkout frida-gum
         uses: actions/checkout@v2
       - name: Dependencies
         run: |
           pip3 install meson==0.61.2
-          .github/env/bootstrap.sh linux-x86_64 android-arm
-      - name: Build
-        run: |
-          export PATH="/tmp/toolchain/bin:$PATH"
-          meson setup \
-            --native-file /tmp/native.txt \
-            --cross-file /tmp/cross.txt \
-            --default-library static \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            -Dtests=enabled \
-            build
-          meson compile -C build
-      - name: Package
-        run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
-      - name: Test
-        uses: frida/corellium-action@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          gateway: corellium.frida.re
-          device: android-8.1.0-arm64
-          upload: /tmp/runner.tar.gz
-          run: |
-            cd /data/local/tmp
-            tar xf $ASSET_PATH
-            ./gum-tests
-
-  android-arm64:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout frida-gum
-        uses: actions/checkout@v2
-      - name: Dependencies
-        run: |
-          pip3 install meson==0.61.2
-          .github/env/bootstrap.sh linux-x86_64 android-arm64
+          .github/env/bootstrap.sh linux-x86_64 android-${{ matrix.arch }}
       - name: Build
         run: |
           export PATH="/tmp/toolchain/bin:$PATH"
