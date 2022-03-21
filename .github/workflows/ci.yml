@@ -10,6 +10,7 @@ on:
 
 jobs:
   gir:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout frida-gum
@@ -38,6 +39,7 @@ jobs:
           meson compile -C build
 
   windows:
+    if: ${{ false }}
     runs-on: windows-latest
     strategy:
       matrix:
@@ -65,6 +67,7 @@ jobs:
           .\build\tests\gum-tests.exe
 
   macos-x86_64:
+    if: ${{ false }}
     runs-on: macos-latest
     steps:
       - name: Checkout frida-gum
@@ -83,6 +86,7 @@ jobs:
         run: ./build/tests/gum-tests
 
   linux-x86_64:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout frida-gum
@@ -101,6 +105,7 @@ jobs:
         run: ./build/tests/gum-tests
 
   ios-arm64:
+    if: ${{ false }}
     runs-on: macos-latest
     steps:
       - name: Checkout frida-gum
@@ -138,6 +143,7 @@ jobs:
             ./gum-tests
 
   android-intel:
+    if: ${{ false }}
     runs-on: macos-10.15
     strategy:
       matrix:
@@ -193,6 +199,7 @@ jobs:
             adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; ./gum-tests'"
 
   android-arm:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     strategy:
       matrix:

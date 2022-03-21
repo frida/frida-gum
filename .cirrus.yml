@@ -1,5 +1,6 @@
 task:
   name: freebsd-x86_64
+  trigger_type: manual
   freebsd_instance:
     image_family: freebsd-13-0
   install_script: pkg install -y git meson ninja npm
