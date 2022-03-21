@@ -3,6 +3,9 @@
 build_os_arch=$1
 host_os_arch=$2
 
+build_arch=$(echo $build_os_arch | cut -d"-" -f2)
+host_arch=$(echo $host_os_arch | cut -d"-" -f2)
+
 envdir=`dirname $0`
 outdir=/tmp
 
@@ -23,5 +26,14 @@ for machine in native cross; do
   chmod +x $outdir/$machine-pkg-config
 done
 
-$envdir/emit-$build_os_arch.sh $outdir/native-pkg-config false > $outdir/native.txt
-$envdir/emit-$host_os_arch.sh  $outdir/cross-pkg-config  true  > $outdir/cross.txt
+case ${build_arch}__${host_arch} in
+  x86_64__x86)
+    needs_exe_wrapper=false
+    ;;
+  *)
+    needs_exe_wrapper=true
+    ;;
+esac
+
+$envdir/emit-$build_os_arch.sh $outdir/native-pkg-config false              > $outdir/native.txt
+$envdir/emit-$host_os_arch.sh  $outdir/cross-pkg-config  $needs_exe_wrapper > $outdir/cross.txt

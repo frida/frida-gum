@@ -82,6 +82,31 @@ jobs:
       - name: Test
         run: ./build/tests/gum-tests
 
+  linux-x86:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout frida-gum
+        uses: actions/checkout@v2
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install gcc-multilib lib32stdc++-9-dev
+          pip3 install meson==0.61.2
+          .github/env/bootstrap.sh linux-x86_64 linux-x86
+      - name: Build
+        run: |
+          export PATH="/tmp/toolchain/bin:$PATH"
+          meson setup \
+            --native-file /tmp/native.txt \
+            --cross-file /tmp/cross.txt \
+            --default-library static \
+            -Dgumpp=enabled \
+            -Dgumjs=enabled \
+            build
+          meson compile -C build
+      - name: Test
+        run: ./build/tests/gum-tests
+
   linux-x86_64:
     runs-on: ubuntu-latest
     steps:
