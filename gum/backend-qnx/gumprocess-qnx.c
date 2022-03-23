@@ -383,7 +383,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   g_assert (res == 0);
 
   if (num_mapinfos == 0)
-    return;
+    goto beach;
 
   mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
 
@@ -430,7 +430,11 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     }
   }
 
+  dlclose (handle);
+
   g_free (mapinfos);
+
+beach:
   close (fd);
 }
 
