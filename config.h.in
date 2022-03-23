@@ -156,7 +156,3 @@
 #if !defined (FRIDA_VERSION)
 # define FRIDA_VERSION GUM_VERSION
 #endif
-
-#if defined (HAVE_QNX) && !defined (__cplusplus)
-# define NULL ((void *) 0)
-#endif
