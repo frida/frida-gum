@@ -322,9 +322,10 @@ gum_qnx_enumerate_ranges (pid_t pid,
     }
   }
 
-  close (fd);
-  g_free (mapinfos);
   g_free (debuginfo);
+  g_free (mapinfos);
+
+  close (fd);
 }
 
 void
@@ -416,7 +417,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
       }
     }
 
-    if (details.path)
+    if (details.path != NULL)
     {
       gchar * name;
 
