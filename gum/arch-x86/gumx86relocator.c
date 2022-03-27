@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -610,8 +610,10 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 
   if (offset >= G_MININT32 && offset <= G_MAXINT32)
   {
+    const gint32 raw_offset = GINT32_TO_LE ((gint32) offset);
     gum_memcpy (code, ctx->start, ctx->len);
-    *((gint32 *) &code[x86->encoding.disp_offset]) = (gint32) offset;
+    gum_memcpy (code + x86->encoding.disp_offset, &raw_offset,
+        sizeof (raw_offset));
     gum_x86_writer_put_bytes (cw, code, ctx->len);
     return TRUE;
   }
