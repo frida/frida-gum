@@ -21,7 +21,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/syscall.h>
+#ifdef HAVE_LINUX
+# include <sys/syscall.h>
+#endif
 #ifdef HAVE_ANDROID
 # include <dlfcn.h>
 #endif
