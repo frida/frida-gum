@@ -121,6 +121,9 @@ extra_gir_args_private = []
 
 cdata = configuration_data()
 cdata.set_quoted('GUM_VERSION', gum_version)
+if cc.get_define('FRIDA_VERSION') == ''
+  cdata.set_quoted('FRIDA_VERSION', gum_version)
+endif
 
 static = get_option('default_library') == 'static'
 if static
@@ -535,7 +538,7 @@ else
   v8_dep = disabler()
 endif
 
-configure_file(input: 'config.h.in',
+configure_file(
   output: 'config.h',
   configuration: cdata)
 
