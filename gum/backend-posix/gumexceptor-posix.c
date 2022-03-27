@@ -20,6 +20,29 @@
 #endif
 #ifdef HAVE_QNX
 # include "backend-qnx/gumqnx.h"
+/* Work around conflict between QNX headers and Capstone. */
+# undef ARM_REG_R0
+# undef ARM_REG_R1
+# undef ARM_REG_R2
+# undef ARM_REG_R3
+# undef ARM_REG_R4
+# undef ARM_REG_R5
+# undef ARM_REG_R6
+# undef ARM_REG_R7
+# undef ARM_REG_R8
+# undef ARM_REG_R9
+# undef ARM_REG_R10
+# undef ARM_REG_R11
+# undef ARM_REG_R12
+# undef ARM_REG_R13
+# undef ARM_REG_R14
+# undef ARM_REG_R15
+# undef ARM_REG_SPSR
+# undef ARM_REG_FP
+# undef ARM_REG_IP
+# undef ARM_REG_SP
+# undef ARM_REG_LR
+# undef ARM_REG_PC
 #endif
 
 #include <capstone.h>
