@@ -2013,10 +2013,11 @@ gum_darwin_module_load_image_header_from_filesystem (GumDarwinModule * self,
   data = gum_alloc_n_pages (1, GUM_PAGE_RW);
   size = page_size;
 
+  header_size = 0;
   cursor = 0;
   do
   {
-    gsize header_offset;
+    gsize header_offset = 0;
 
     memcpy (data, g_mapped_file_get_contents (file) + cursor, size);
     if (!gum_darwin_module_get_header_offset_size (self, data, size,
