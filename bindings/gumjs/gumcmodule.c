@@ -697,10 +697,12 @@ gum_add_abi_symbols (TCCState * state)
 #define GUM_REGISTER_HELPER(name) \
     tcc_add_symbol (state, G_STRINGIFY (__aeabi_ ## name), __aeabi_ ## name)
 
+#ifndef HAVE_QNX
 GUM_DECLARE_HELPER (memmove)
 GUM_DECLARE_HELPER (memmove4)
 GUM_DECLARE_HELPER (memmove8)
 GUM_DECLARE_HELPER (memset)
+#endif
 GUM_DECLARE_HELPER (f2ulz)
 GUM_DECLARE_HELPER (f2lz)
 GUM_DECLARE_HELPER (d2ulz)
@@ -722,10 +724,12 @@ GUM_DECLARE_HELPER (uidivmod)
 static void
 gum_add_abi_symbols (TCCState * state)
 {
+#ifndef HAVE_QNX
   GUM_REGISTER_HELPER (memmove);
   GUM_REGISTER_HELPER (memmove4);
   GUM_REGISTER_HELPER (memmove8);
   GUM_REGISTER_HELPER (memset);
+#endif
   GUM_REGISTER_HELPER (f2ulz);
   GUM_REGISTER_HELPER (f2lz);
   GUM_REGISTER_HELPER (d2ulz);
