@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -100,8 +100,12 @@ show_disassembly (const guint16 * input,
 
   while (cs_disasm_iter (capstone, &code, &size, &address, insn))
   {
+    guint16 raw_insn;
+
+    memcpy (&raw_insn, insn->bytes, sizeof (raw_insn));
+
     g_print ("0x%" G_GINT64_MODIFIER "x\t0x%04x,               /* %s %s */\n",
-        insn->address, *(guint16 *) insn->bytes, insn->mnemonic, insn->op_str);
+        insn->address, raw_insn, insn->mnemonic, insn->op_str);
   }
 
   cs_free (insn, 1);
