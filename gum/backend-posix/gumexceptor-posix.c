@@ -53,7 +53,7 @@
 # include <unix.h>
 #endif
 
-#ifdef HAVE_FREEBSD
+#if defined (HAVE_FREEBSD) || defined (HAVE_QNX)
 typedef sig_t GumSignalHandler;
 #else
 typedef sighandler_t GumSignalHandler;
