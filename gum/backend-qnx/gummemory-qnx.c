@@ -52,7 +52,7 @@ gum_memory_read (gconstpointer address,
   int fd = -1;
   guint8 * buffer = NULL;
   gint num_read = 0;
-  gint res = 0;
+  gint res G_GNUC_UNUSED;
 
   fd = open ("/proc/self/as", O_RDONLY);
   g_assert (fd != -1);
@@ -81,7 +81,7 @@ gum_memory_write (gpointer address,
 {
   gboolean success = FALSE;
   int fd = -1;
-  gint res = 0;
+  gint res G_GNUC_UNUSED;
   gint num_written = 0;
 
   if (!gum_memory_is_writable (address, len))
@@ -127,7 +127,7 @@ gum_try_mprotect (gpointer address,
   {
     int fd = -1;
     char * buffer;
-    gpointer address_mmaped;
+    gpointer address_mmapped G_GNUC_UNUSED;
     gint total_read_count = 0;
 
     fd = open ("/proc/self/as", O_RDONLY);
@@ -147,9 +147,9 @@ gum_try_mprotect (gpointer address,
 
     ThreadCtl (_NTO_TCTL_THREADS_HOLD, 0);
 
-    address_mmaped = mmap (aligned_address, aligned_size,
+    address_mmapped = mmap (aligned_address, aligned_size,
         PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, NOFD, 0);
-    g_assert (address_mmaped == aligned_address);
+    g_assert (address_mmapped == aligned_address);
 
     memcpy (aligned_address, buffer, aligned_size);
 
@@ -177,7 +177,7 @@ gum_memory_get_protection (gconstpointer address,
                            GumPageProtection * prot)
 {
   gboolean success;
-  gint fd, res;
+  gint fd, res G_GNUC_UNUSED;
   procfs_mapinfo * mapinfos;
   gint num_mapinfos;
   gpointer start, end;

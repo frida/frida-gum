@@ -188,7 +188,7 @@ gum_process_modify_thread (GumThreadId thread_id,
   if (vfork () == 0)
   {
     gchar as_path[PATH_MAX];
-    int fd, res;
+    int fd, res G_GNUC_UNUSED;
     procfs_greg gregs;
     GumCpuContext cpu_context;
 
@@ -225,7 +225,7 @@ void
 _gum_process_enumerate_threads (GumFoundThreadFunc func,
                                 gpointer user_data)
 {
-  gint fd, res;
+  gint fd, res G_GNUC_UNUSED;
   debug_process_t info;
   debug_thread_t thread;
   gboolean carry_on = TRUE;
@@ -273,7 +273,7 @@ gum_qnx_enumerate_ranges (pid_t pid,
                           gpointer user_data)
 {
   gchar * as_path;
-  gint fd, res;
+  gint fd, res G_GNUC_UNUSED;
   gboolean carry_on = TRUE;
   procfs_mapinfo * mapinfos;
   gint num_mapinfos;
@@ -368,7 +368,7 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
-  gint fd, res;
+  gint fd, res G_GNUC_UNUSED;
   gboolean carry_on = TRUE;
   procfs_mapinfo * mapinfos;
   gint num_mapinfos;
