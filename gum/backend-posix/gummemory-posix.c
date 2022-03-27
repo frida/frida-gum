@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -296,6 +296,7 @@ gboolean
 gum_memory_decommit (gpointer address,
                      gsize size)
 {
+#if defined (HAVE_MADVISE)
   int res;
 
   res = madvise (address, size, MADV_FREE);
@@ -309,6 +310,19 @@ gum_memory_decommit (gpointer address,
   }
 
   return res == 0;
+#elif defined (HAVE_POSIX_MADVISE)
+  int advice;
+
+# ifdef POSIX_MADV_DISCARD_NP
+  advice = POSIX_MADV_DISCARD_NP;
+# else
+  advice = POSIX_MADV_DONTNEED;
+# endif
+
+  return posix_madvise (address, size, advice) == 0;
+#else
+# error FIXME
+#endif
 }
 
 static void

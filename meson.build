@@ -207,6 +207,16 @@ if cc.compiles('#include <asm/prctl.h>', name: 'asm/prctl.h is available')
   cdata.set('HAVE_ASM_PRCTL_H', 1)
 endif
 
+functions = [
+  'madvise',
+  'posix_madvise',
+]
+foreach f : functions
+  if cc.has_function(f)
+    cdata.set('HAVE_' + f.to_upper(), 1)
+  endif
+endforeach
+
 types = [
   'long double',
   'long long int',
