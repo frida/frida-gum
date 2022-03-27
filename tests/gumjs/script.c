@@ -1156,7 +1156,7 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
    *   https://sourceware.org/bugzilla/show_bug.cgi?id=13575
    */
 
-  sprintf (ret, "\"%zu\"", SIZE_MAX);
+  sprintf (ret, "\"%" G_GSIZE_MODIFIER "u\"", (gsize) SIZE_MAX);
   COMPILE_AND_LOAD_SCRIPT (
       "const getSizeMax = new NativeFunction(" GUM_PTR_CONST ", 'size_t', []);"
       "send(getSizeMax());",
@@ -1164,7 +1164,7 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   EXPECT_SEND_MESSAGE_WITH (ret);
   EXPECT_NO_MESSAGES ();
 
-  sprintf (arg, "%zu", SIZE_MAX - 1);
+  sprintf (arg, "%" G_GSIZE_MODIFIER "u", (gsize) (SIZE_MAX - 1));
   COMPILE_AND_LOAD_SCRIPT (
       "const addSize = new NativeFunction(" GUM_PTR_CONST ", 'size_t', "
           "['size_t']);"
@@ -1173,7 +1173,7 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   EXPECT_SEND_MESSAGE_WITH (ret);
   EXPECT_NO_MESSAGES ();
 
-  sprintf (arg, "%zu", SIZE_MAX);
+  sprintf (arg, "%" G_GSIZE_MODIFIER "u", (gsize) SIZE_MAX);
   COMPILE_AND_LOAD_SCRIPT (
       "const testSizeMax = new NativeFunction(" GUM_PTR_CONST ", 'bool', "
           "['size_t']);"
@@ -1182,8 +1182,8 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 
-  sprintf (arg, "%zu", SIZE_MAX);
-  sprintf (ret, "\"%zu\"", SIZE_MAX);
+  sprintf (arg, "%" G_GSIZE_MODIFIER "u", (gsize) SIZE_MAX);
+  sprintf (ret, "\"%" G_GSIZE_MODIFIER "u\"", (gsize) SIZE_MAX);
   COMPILE_AND_LOAD_SCRIPT (
       "const passSize = new NativeFunction(" GUM_PTR_CONST ", 'size_t', "
           "['size_t']);"
@@ -1193,8 +1193,8 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   EXPECT_NO_MESSAGES ();
 
 #ifndef _MSC_VER
-  sprintf (arg, "%td", PTRDIFF_MAX);
-  sprintf (ret, "\"%td\"", PTRDIFF_MAX);
+  sprintf (arg, "%td", (ptrdiff_t) PTRDIFF_MAX);
+  sprintf (ret, "\"%td\"", (ptrdiff_t) PTRDIFF_MAX);
   COMPILE_AND_LOAD_SCRIPT (
       "const passSSize = new NativeFunction(" GUM_PTR_CONST ", 'ssize_t', "
           "['ssize_t']);"
@@ -1203,8 +1203,8 @@ TESTCASE (native_function_can_be_invoked_with_size_t)
   EXPECT_SEND_MESSAGE_WITH (ret);
   EXPECT_NO_MESSAGES ();
 
-  sprintf (arg, "%zd", PTRDIFF_MIN);
-  sprintf (ret, "\"%zd\"", PTRDIFF_MIN);
+  sprintf (arg, "%" G_GSIZE_MODIFIER"d", (gsize) PTRDIFF_MIN);
+  sprintf (ret, "\"%" G_GSIZE_MODIFIER "d\"", (gsize) PTRDIFF_MIN);
   COMPILE_AND_LOAD_SCRIPT (
       "const passSSize = new NativeFunction(" GUM_PTR_CONST ", 'ssize_t', "
           "['ssize_t']);"
