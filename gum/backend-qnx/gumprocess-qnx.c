@@ -40,7 +40,9 @@ typedef Elf32_Dyn GumElfDynEntry;
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
-typedef struct _GumDlPhdrInternal GumDlPhdrInternal;
+typedef struct _GumQnxListHead GumQnxListHead;
+typedef struct _GumQnxModuleList GumQnxModuleList;
+typedef struct _GumQnxModule GumQnxModule;
 
 struct _GumFindModuleContext
 {
@@ -63,11 +65,27 @@ struct _GumResolveModuleNameContext
   GumAddress base;
 };
 
-struct _GumDlPhdrInternal
+struct _GumQnxListHead
 {
-  GumDlPhdrInternal * p_next;
-  gint unknown;
-  Link_map * linkmap;
+  GumQnxListHead * next;
+  GumQnxListHead * prev;
+};
+
+struct _GumQnxModuleList
+{
+  GumQnxListHead list;
+  GumQnxModule * module;
+  GumQnxListHead * root;
+  guint flags;
+};
+
+struct _GumQnxModule
+{
+  Link_map map;
+  gint ref_count;
+  guint flags;
+  const gchar * name;
+  /* ... */
 };
 
 static gchar * gum_try_init_libc_name (void);
@@ -368,74 +386,43 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
-  gint fd, res G_GNUC_UNUSED;
+  GumQnxListHead * handle;
+  GumQnxListHead * cur;
   gboolean carry_on = TRUE;
-  procfs_mapinfo * mapinfos;
-  gint num_mapinfos;
-  gint i;
-  GumDlPhdrInternal ** handle;
-  GumDlPhdrInternal * phdr;
-
-  fd = open ("/proc/self/as", O_RDONLY);
-  g_assert (fd != -1);
-
-  res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
-  g_assert (res == 0);
-
-  if (num_mapinfos == 0)
-    goto beach;
-
-  mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
-
-  res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfos,
-      num_mapinfos * sizeof (procfs_mapinfo), &num_mapinfos);
-  g_assert (res == 0);
 
   handle = dlopen (NULL, RTLD_NOW);
 
-  for (i = 0; carry_on && i != num_mapinfos; i++)
+  for (cur = handle->next; carry_on && cur != handle; cur = cur->next)
   {
+    const GumQnxModuleList * l = (GumQnxModuleList *) cur;
+    const GumQnxModule * mod = l->module;
+    const Link_map * map = &mod->map;
     GumModuleDetails details;
     GumMemoryRange range;
+    const Elf32_Ehdr * ehdr;
+    const Elf32_Phdr * phdr;
+    guint i;
 
+    details.name = (map->l_name != NULL) ? map->l_name : map->l_path;
     details.range = &range;
-    details.path = NULL;
+    details.path = map->l_path;
 
-    range.base_address = mapinfos[i].vaddr;
-    range.size = mapinfos[i].size;
+    range.base_address = map->l_addr;
 
-    for (phdr = *handle;
-         phdr != NULL && phdr->linkmap != NULL;
-         phdr = phdr->p_next)
+    ehdr = GSIZE_TO_POINTER (map->l_addr);
+    phdr = (gconstpointer) ehdr + ehdr->e_ehsize;
+    range.size = 0;
+    for (i = 0; i != ehdr->e_phnum; i++)
     {
-      Link_map * linkmap = phdr->linkmap;
-      if (linkmap->l_addr == range.base_address)
-      {
-        if (linkmap->l_path != NULL)
-          details.path = linkmap->l_path;
-        break;
-      }
+      const Elf32_Phdr * h = &phdr[i];
+      if (h->p_type == PT_LOAD)
+        range.size += h->p_memsz;
     }
 
-    if (details.path != NULL)
-    {
-      gchar * name;
-
-      name = g_path_get_basename (details.path);
-      details.name = name;
-
-      carry_on = func (&details, user_data);
-
-      g_free (name);
-    }
+    carry_on = func (&details, user_data);
   }
 
   dlclose (handle);
-
-  g_free (mapinfos);
-
-beach:
-  close (fd);
 }
 
 gboolean
@@ -883,16 +870,19 @@ static gchar *
 gum_resolve_module_name (const gchar * name,
                          GumAddress * base)
 {
+  GumQnxListHead * handle;
   GumResolveModuleNameContext ctx;
-  struct link_map * map;
 
-  map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
-  if (map != NULL)
+  handle = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
+  if (handle != NULL)
   {
-    ctx.name = g_file_read_link (map->l_name, NULL);
+    const GumQnxModuleList * l = (GumQnxModuleList *) handle->next->next;
+    const GumQnxModule * mod = l->module;
+
+    ctx.name = g_file_read_link (mod->map.l_name, NULL);
     if (ctx.name == NULL)
-      ctx.name = g_strdup (map->l_name);
-    dlclose (map);
+      ctx.name = g_strdup (mod->map.l_name);
+    dlclose (handle);
   }
   else
   {
