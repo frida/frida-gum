@@ -539,7 +539,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
                                    gpointer return_address,
                                    gpointer dedicated_target)
 {
-#if defined (HAVE_DARWIN) || (defined (HAVE_LINUX) && GLIB_SIZEOF_VOID_P == 4)
+#if defined (HAVE_DARWIN) || (defined (HAVE_ELF) && GLIB_SIZEOF_VOID_P == 4)
   GumCodeDeflectorDispatcher * dispatcher;
   GumProbeRangeForCodeCaveContext probe_ctx;
   GumInsertDeflectorContext insert_ctx;
