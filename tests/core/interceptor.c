@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -582,14 +582,6 @@ TESTCASE (replace_one)
   guint counter = 0;
   volatile gpointer ret;
 
-#ifdef HAVE_QNX
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
-
   if (RUNNING_ON_VALGRIND)
   {
     g_print ("<skipping, not compatible with Valgrind> ");
@@ -629,14 +621,6 @@ TESTCASE (replace_two)
   gpointer malloc_impl, free_impl;
   guint malloc_counter = 0, free_counter = 0;
   volatile gpointer ret;
-
-#ifdef HAVE_QNX
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
 
   if (RUNNING_ON_VALGRIND)
   {
