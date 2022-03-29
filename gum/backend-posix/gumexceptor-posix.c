@@ -149,7 +149,7 @@ gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
 
   libc = gum_process_query_libc_name ();
 
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID)
   libdir = NULL;
   pthread = NULL;
 
@@ -159,6 +159,14 @@ gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
   gum_original_signal = gum_try_resolve_symbol ("signal", module_candidates);
   if (gum_original_signal == NULL)
     gum_original_signal = gum_resolve_symbol ("bsd_signal", module_candidates);
+#elif defined (HAVE_QNX)
+  libdir = NULL;
+  pthread = NULL;
+
+  module_candidates[0] = libc;
+  module_candidates[1] = NULL;
+
+  gum_original_signal = gum_resolve_symbol ("signal", module_candidates);
 #else
   libdir = g_path_get_dirname (libc);
   pthread = g_build_filename (libdir, "libpthread.so.0", NULL);
