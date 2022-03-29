@@ -11,6 +11,12 @@
 #ifdef HAVE_ANDROID
 # include "backend-linux/gumandroid.h"
 #endif
+#ifdef HAVE_FREEBSD
+# include "backend-freebsd/gumfreebsd.h"
+#endif
+#ifdef HAVE_QNX
+# include "backend-qnx/gumqnx.h"
+#endif
 
 #if defined (HAVE_WINDOWS) && defined (_DEBUG)
 # include <crtdbg.h>
@@ -30,19 +36,8 @@
 # else
 #  include <stdio.h>
 # endif
-# ifdef HAVE_LINUX
+# if defined (HAVE_LINUX) || defined (HAVE_FREEBSD)
 #  include <dlfcn.h>
-# endif
-# ifdef HAVE_FREEBSD
-#  include <dlfcn.h>
-#  include <sys/sysctl.h>
-#  include <sys/types.h>
-# endif
-# ifdef HAVE_QNX
-#  include <devctl.h>
-#  include <errno.h>
-#  include <fcntl.h>
-#  include <sys/procfs.h>
 # endif
 #endif
 #include <stdlib.h>
@@ -350,43 +345,21 @@ test_util_get_data_dir (void)
 
   return result;
 #elif defined (HAVE_FREEBSD)
-  int mib[4];
-  char path[PATH_MAX];
-  size_t size;
+  gchar * result, * path;
 
-  mib[0] = CTL_KERN;
-  mib[1] = KERN_PROC;
-  mib[2] = KERN_PROC_PATHNAME;
-  mib[3] = -1;
+  path = gum_freebsd_query_program_path_for_self (NULL);
+  result = find_data_dir_from_executable_path (path);
+  g_free (path);
 
-  size = sizeof (path);
-
-  g_assert_cmpint (sysctl (mib, G_N_ELEMENTS (mib), path, &size, NULL, 0),
-      ==, 0);
-
-  return find_data_dir_from_executable_path (path);
+  return result;
 #elif defined (HAVE_QNX)
-  gint fd;
+  gchar * result, * path;
 
-  fd = open ("/proc/self/as", O_RDONLY);
-  if (fd == -1)
-    return NULL;
+  path = gum_qnx_query_program_path_for_self (NULL);
+  result = find_data_dir_from_executable_path (path);
+  g_free (path);
 
-  static struct
-  {
-    procfs_debuginfo info;
-    char buff[PATH_MAX];
-  } name;
-
-  if (devctl (fd, DCMD_PROC_MAPDEBUG_BASE, &name, sizeof (name), 0) != EOK)
-  {
-    close (fd);
-    return NULL;
-  }
-
-  close (fd);
-
-  return find_data_dir_from_executable_path (name.info.path);
+  return result;
 #else
 # error Implement support for your OS here
 #endif
