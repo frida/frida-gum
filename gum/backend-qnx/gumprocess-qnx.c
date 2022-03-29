@@ -153,7 +153,8 @@ gum_deinit_libc_name (void)
 gboolean
 gum_process_is_debugger_attached (void)
 {
-  g_assert_not_reached ();
+  /* FIXME */
+  return FALSE;
 }
 
 GumProcessId
