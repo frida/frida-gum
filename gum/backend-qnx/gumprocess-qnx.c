@@ -1,4 +1,6 @@
 /*
+ * Copyright (C) 2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
@@ -757,8 +759,8 @@ gum_store_base_and_path_if_name_matches (const GumModuleDetails * details,
 }
 
 GumCpuType
-gum_linux_cpu_type_from_file (const gchar * path,
-                              GError ** error)
+gum_qnx_cpu_type_from_file (const gchar * path,
+                            GError ** error)
 {
   GumCpuType result = -1;
   FILE * file;
@@ -831,8 +833,8 @@ beach:
 }
 
 GumCpuType
-gum_linux_cpu_type_from_pid (pid_t pid,
-                             GError ** error)
+gum_qnx_cpu_type_from_pid (pid_t pid,
+                           GError ** error)
 {
   GumCpuType result = -1;
   gchar * auxv_path;
