@@ -1,4 +1,6 @@
 /*
+ * Copyright (C) 2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
@@ -11,6 +13,9 @@
 
 G_BEGIN_DECLS
 
+GUM_API GumCpuType gum_qnx_cpu_type_from_file (const gchar * path,
+    GError ** error);
+GUM_API GumCpuType gum_qnx_cpu_type_from_pid (pid_t pid, GError ** error);
 GUM_API void gum_qnx_enumerate_ranges (pid_t pid, GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 
