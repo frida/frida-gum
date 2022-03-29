@@ -108,6 +108,8 @@ static gboolean gum_wait_for_child_signal (pid_t pid, gint expected_signal);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
+static gchar * gum_query_program_path_for_target (int target, GError ** error);
+
 static int gum_emit_module_from_phdr (struct dl_phdr_info * info, size_t size,
     void * user_data);
 
@@ -483,8 +485,21 @@ gum_store_cpu_context (GumThreadId thread_id,
 }
 
 gchar *
-gum_freebsd_query_program_path (pid_t pid,
-                                GError ** error)
+gum_freebsd_query_program_path_for_self (GError ** error)
+{
+  return gum_query_program_path_for_target (-1, error);
+}
+
+gchar *
+gum_freebsd_query_program_path_for_pid (pid_t pid,
+                                        GError ** error)
+{
+  return gum_query_program_path_for_target (pid, error);
+}
+
+static gchar *
+gum_query_program_path_for_target (int target,
+                                   GError ** error)
 {
   gchar * path;
   size_t size;
@@ -496,7 +511,7 @@ gum_freebsd_query_program_path (pid_t pid,
   mib[0] = CTL_KERN;
   mib[1] = KERN_PROC;
   mib[2] = KERN_PROC_PATHNAME;
-  mib[3] = pid;
+  mib[3] = target;
 
   if (sysctl (mib, G_N_ELEMENTS (mib), path, &size, NULL, 0) != 0)
     goto failure;

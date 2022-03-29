@@ -14,7 +14,9 @@
 
 G_BEGIN_DECLS
 
-GUM_API gchar * gum_freebsd_query_program_path (pid_t pid, GError ** error);
+GUM_API gchar * gum_freebsd_query_program_path_for_self (GError ** error);
+GUM_API gchar * gum_freebsd_query_program_path_for_pid (pid_t pid,
+    GError ** error);
 GUM_API void gum_freebsd_enumerate_ranges (pid_t pid, GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 
