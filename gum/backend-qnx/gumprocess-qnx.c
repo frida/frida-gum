@@ -10,6 +10,7 @@
 #include "gumqnx.h"
 #include "gumqnx-priv.h"
 
+#include <devctl.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -26,6 +27,8 @@
 #include <sys/types.h>
 #include <ucontext.h>
 #include <unistd.h>
+
+#define GUM_QNX_MODULE_FLAG_EXECUTABLE 0x00000200
 
 #define GUM_PSR_THUMB 0x20
 
@@ -96,6 +99,7 @@ static gboolean gum_store_base_and_path_if_name_matches (
 static gchar * gum_resolve_module_name (const gchar * name);
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
+static gchar * gum_resolve_path (const gchar * path);
 
 static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
     GumCpuContext * ctx);
@@ -133,23 +137,7 @@ gum_try_init_libc_name (void)
       return NULL;
   }
 
-  gum_libc_name = g_strdup (info.dli_fname);
-
-  if (g_file_test (gum_libc_name, G_FILE_TEST_IS_SYMLINK))
-  {
-    gchar * parent_dir, * target, * canonical_name;
-
-    parent_dir = g_path_get_dirname (gum_libc_name);
-    target = g_file_read_link (gum_libc_name, NULL);
-
-    canonical_name = g_canonicalize_filename (target, parent_dir);
-
-    g_free (target);
-    g_free (parent_dir);
-
-    g_free (gum_libc_name);
-    gum_libc_name = canonical_name;
-  }
+  gum_libc_name = gum_resolve_path (info.dli_fname);
 
   _gum_register_destructor (gum_deinit_libc_name);
 
@@ -389,25 +377,29 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     const GumQnxModuleList * l = (GumQnxModuleList *) cur;
     const GumQnxModule * mod = l->module;
     const Link_map * map = &mod->map;
-    gchar * resolved_path, * synthetic_name;
+    gchar * resolved_path, * resolved_name;
     GumModuleDetails details;
     GumMemoryRange range;
     const Elf32_Ehdr * ehdr;
     const Elf32_Phdr * phdr;
     guint i;
 
-    resolved_path = g_file_read_link (map->l_path, NULL);
-    details.path = (resolved_path != NULL) ? resolved_path : map->l_path;
-
-    if (map->l_name != NULL)
+    if ((mod->flags & GUM_QNX_MODULE_FLAG_EXECUTABLE) != 0)
     {
-      synthetic_name = NULL;
-      details.name = map->l_name;
+      resolved_path = gum_qnx_query_program_path_for_self (NULL);
+      g_assert (resolved_path != NULL);
+      resolved_name = g_path_get_basename (resolved_path);
+
+      details.name = resolved_name;
+      details.path = resolved_path;
     }
     else
     {
-      synthetic_name = g_path_get_basename (details.path);
-      details.name = synthetic_name;
+      resolved_path = gum_resolve_path (map->l_path);
+      resolved_name = NULL;
+
+      details.name = map->l_name;
+      details.path = resolved_path;
     }
 
     details.range = &range;
@@ -424,7 +416,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
     carry_on = func (&details, user_data);
 
-    g_free (synthetic_name);
+    g_free (resolved_name);
     g_free (resolved_path);
   }
 
@@ -923,18 +915,14 @@ gum_resolve_module_name (const gchar * name)
   gchar * resolved_path;
   GumQnxListHead * handle;
   const GumQnxModuleList * l;
-  const GumQnxModule * mod;
 
   handle = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
   if (handle == NULL)
     return NULL;
 
   l = (GumQnxModuleList *) handle->next->next;
-  mod = l->module;
 
-  resolved_path = g_file_read_link (mod->map.l_path, NULL);
-  if (resolved_path == NULL)
-    resolved_path = g_strdup (mod->map.l_path);
+  resolved_path = gum_resolve_path (l->module->map.l_path);
 
   dlclose (handle);
 
@@ -954,6 +942,25 @@ gum_module_path_equals (const gchar * path,
     return strcmp (name_or_path, s + 1) == 0;
 
   return strcmp (name_or_path, path) == 0;
+}
+
+static gchar *
+gum_resolve_path (const gchar * path)
+{
+  gchar * target, * parent_dir, * canonical_path;
+
+  target = g_file_read_link (path, NULL);
+  if (target == NULL)
+    return g_strdup (path);
+
+  parent_dir = g_path_get_dirname (path);
+
+  canonical_path = g_canonicalize_filename (target, parent_dir);
+
+  g_free (parent_dir);
+  g_free (target);
+
+  return canonical_path;
 }
 
 static void
