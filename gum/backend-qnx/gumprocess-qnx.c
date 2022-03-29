@@ -39,7 +39,6 @@ typedef Elf32_Dyn GumElfDynEntry;
 
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
-typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
 typedef struct _GumQnxListHead GumQnxListHead;
 typedef struct _GumQnxModuleList GumQnxModuleList;
 typedef struct _GumQnxModule GumQnxModule;
@@ -56,13 +55,6 @@ struct _GumEnumerateModuleRangesContext
   const gchar * module_name;
   GumFoundRangeFunc func;
   gpointer user_data;
-};
-
-struct _GumResolveModuleNameContext
-{
-  gchar * name;
-  gchar * path;
-  GumAddress base;
 };
 
 struct _GumQnxListHead
@@ -99,9 +91,7 @@ static gboolean gum_emit_range_if_module_name_matches (
 static gboolean gum_store_base_and_path_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
 
-static gchar * gum_resolve_module_name (const gchar * name, GumAddress * base);
-static gboolean gum_store_module_path_and_base_if_name_matches (
-    const GumModuleDetails * details, gpointer user_data);
+static gchar * gum_resolve_module_name (const gchar * name);
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
@@ -397,21 +387,32 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     const GumQnxModuleList * l = (GumQnxModuleList *) cur;
     const GumQnxModule * mod = l->module;
     const Link_map * map = &mod->map;
+    gchar * resolved_path, * synthetic_name;
     GumModuleDetails details;
     GumMemoryRange range;
     const Elf32_Ehdr * ehdr;
     const Elf32_Phdr * phdr;
     guint i;
 
-    details.name = (map->l_name != NULL) ? map->l_name : map->l_path;
+    resolved_path = g_file_read_link (map->l_path, NULL);
+    details.path = (resolved_path != NULL) ? resolved_path : map->l_path;
+
+    if (map->l_name != NULL)
+    {
+      synthetic_name = NULL;
+      details.name = map->l_name;
+    }
+    else
+    {
+      synthetic_name = g_path_get_basename (details.path);
+      details.name = synthetic_name;
+    }
+
     details.range = &range;
-    details.path = map->l_path;
-
     range.base_address = map->l_addr;
-
+    range.size = 0;
     ehdr = GSIZE_TO_POINTER (map->l_addr);
     phdr = (gconstpointer) ehdr + ehdr->e_ehsize;
-    range.size = 0;
     for (i = 0; i != ehdr->e_phnum; i++)
     {
       const Elf32_Phdr * h = &phdr[i];
@@ -420,6 +421,9 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     }
 
     carry_on = func (&details, user_data);
+
+    g_free (synthetic_name);
+    g_free (resolved_path);
   }
 
   dlclose (handle);
@@ -450,7 +454,7 @@ gum_module_ensure_initialized (const gchar * module_name)
 
   success = FALSE;
 
-  name = gum_resolve_module_name (module_name, NULL);
+  name = gum_resolve_module_name (module_name);
   if (name == NULL)
     goto beach;
 
@@ -702,7 +706,7 @@ gum_module_find_export_by_name (const gchar * module_name,
   {
     gchar * name;
 
-    name = gum_resolve_module_name (module_name, NULL);
+    name = gum_resolve_module_name (module_name);
     if (name == NULL)
       return 0;
     module = dlopen (name, RTLD_LAZY);
@@ -867,56 +871,27 @@ beach:
 }
 
 static gchar *
-gum_resolve_module_name (const gchar * name,
-                         GumAddress * base)
+gum_resolve_module_name (const gchar * name)
 {
+  gchar * resolved_path;
   GumQnxListHead * handle;
-  GumResolveModuleNameContext ctx;
+  const GumQnxModuleList * l;
+  const GumQnxModule * mod;
 
   handle = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
-  if (handle != NULL)
-  {
-    const GumQnxModuleList * l = (GumQnxModuleList *) handle->next->next;
-    const GumQnxModule * mod = l->module;
+  if (handle == NULL)
+    return NULL;
 
-    ctx.name = g_file_read_link (mod->map.l_name, NULL);
-    if (ctx.name == NULL)
-      ctx.name = g_strdup (mod->map.l_name);
-    dlclose (handle);
-  }
-  else
-  {
-    ctx.name = g_strdup (name);
-  }
-  ctx.path = NULL;
-  ctx.base = 0;
+  l = (GumQnxModuleList *) handle->next->next;
+  mod = l->module;
 
-  gum_process_enumerate_modules (gum_store_module_path_and_base_if_name_matches,
-      &ctx);
+  resolved_path = g_file_read_link (mod->map.l_path, NULL);
+  if (resolved_path == NULL)
+    resolved_path = g_strdup (mod->map.l_path);
 
-  g_free (ctx.name);
+  dlclose (handle);
 
-  if (base != NULL)
-    *base = ctx.base;
-
-  return ctx.path;
-}
-
-static gboolean
-gum_store_module_path_and_base_if_name_matches (
-    const GumModuleDetails * details,
-    gpointer user_data)
-{
-  GumResolveModuleNameContext * ctx = user_data;
-
-  if (gum_module_path_equals (details->path, ctx->name))
-  {
-    ctx->path = g_strdup (details->path);
-    ctx->base = details->range->base_address;
-    return FALSE;
-  }
-
-  return TRUE;
+  return resolved_path;
 }
 
 static gboolean
