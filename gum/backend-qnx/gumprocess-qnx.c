@@ -153,8 +153,19 @@ gum_deinit_libc_name (void)
 gboolean
 gum_process_is_debugger_attached (void)
 {
-  /* FIXME */
-  return FALSE;
+  gint fd, res G_GNUC_UNUSED;
+  procfs_status status;
+
+  fd = open ("/proc/self", O_RDONLY);
+  g_assert (fd != -1);
+
+  status.tid = gettid ();
+  res = devctl (fd, DCMD_PROC_TIDSTATUS, &status, sizeof (status), NULL);
+  g_assert (res == 0);
+
+  close (fd);
+
+  return status.flags != 0;
 }
 
 GumProcessId
