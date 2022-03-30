@@ -183,8 +183,23 @@ gum_process_get_current_thread_id (void)
 gboolean
 gum_process_has_thread (GumThreadId thread_id)
 {
-  /* FIXME */
-  return TRUE;
+  gboolean found = FALSE;
+  gint fd;
+  procfs_status status;
+
+  fd = open ("/proc/self", O_RDONLY);
+  g_assert (fd != -1);
+
+  status.tid = thread_id;
+  if (devctl (fd, DCMD_PROC_TIDSTATUS, &status, sizeof (status), NULL) != EOK)
+    goto beach;
+
+  found = status.tid == thread_id;
+
+beach:
+  close (fd);
+
+  return found;
 }
 
 gboolean
