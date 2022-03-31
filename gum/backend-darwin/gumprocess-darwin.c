@@ -335,7 +335,7 @@ static gboolean gum_darwin_fill_file_mapping (gint pid,
     mach_vm_address_t address, GumFileMapping * file,
     struct proc_regionwithpathinfo * region);
 static void gum_darwin_clamp_range_size (GumMemoryRange * range,
-    GumFileMapping * file);
+    const GumFileMapping * file);
 
 const gchar *
 gum_process_query_libc_name (void)
@@ -1836,13 +1836,13 @@ gum_darwin_fill_file_mapping (gint pid,
 
 static void
 gum_darwin_clamp_range_size (GumMemoryRange * range,
-                             GumFileMapping * file)
+                             const GumFileMapping * file)
 {
-  gsize end_of_map = file->offset + range->size;
+  const gsize end_of_map = file->offset + range->size;
 
   if (end_of_map > file->size)
   {
-    gsize delta = end_of_map - file->size;
+    const gsize delta = end_of_map - file->size;
 
     range->size = MIN (
         range->size,
