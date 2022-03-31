@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,7 +34,7 @@
 # include <stdio.h>
 #endif
 
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN) || defined (HAVE_QNX)
 # include <dlfcn.h>
 #endif
 
@@ -168,6 +168,10 @@ main (gint argc, gchar * argv[])
 
     dlclose (module);
   }
+#endif
+
+#ifdef HAVE_QNX
+  dlopen (SYSTEM_MODULE_NAME, RTLD_LAZY | RTLD_GLOBAL);
 #endif
 
 #ifdef _MSC_VER
