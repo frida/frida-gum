@@ -90,7 +90,8 @@ static void gum_deinit_libc_name (void);
 
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
-
+static void gum_enumerate_ranges_of (const gchar * device_path,
+    GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_store_base_and_path_if_name_matches (
@@ -297,60 +298,9 @@ gum_qnx_enumerate_ranges (pid_t pid,
                           GumFoundRangeFunc func,
                           gpointer user_data)
 {
-  gchar * as_path;
-  gint fd, res G_GNUC_UNUSED;
-  gboolean carry_on = TRUE;
-  procfs_mapinfo * mapinfos;
-  gint num_mapinfos;
-  procfs_debuginfo * debuginfo;
-  gint i;
-
-  as_path = g_strdup_printf ("/proc/%d/as", pid);
-  fd = open (as_path, O_RDONLY);
-  g_assert (fd != -1);
+  gchar * as_path = g_strdup_printf ("/proc/%d/as", pid);
+  gum_enumerate_ranges_of (as_path, prot, func, user_data);
   g_free (as_path);
-
-  res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
-  g_assert (res == 0);
-
-  mapinfos = g_malloc (num_mapinfos * sizeof (procfs_mapinfo));
-  debuginfo = g_malloc (sizeof (procfs_debuginfo) + 0x100);
-
-  res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfos,
-      num_mapinfos * sizeof (procfs_mapinfo), &num_mapinfos);
-  g_assert (res == 0);
-
-  for (i = 0; carry_on && i != num_mapinfos; i++)
-  {
-    GumRangeDetails details;
-    GumMemoryRange range;
-    GumFileMapping file;
-
-    details.range = &range;
-    details.file = &file;
-    details.protection = _gum_page_protection_from_posix (mapinfos[i].flags);
-
-    range.base_address = mapinfos[i].vaddr;
-    range.size = mapinfos[i].size;
-
-    debuginfo->vaddr = mapinfos[i].vaddr;
-    res = devctl (fd, DCMD_PROC_MAPDEBUG, debuginfo,
-        sizeof (procfs_debuginfo) + 0x100, NULL);
-    g_assert (res == 0);
-    file.path = debuginfo->path;
-    file.offset = 0; /* TODO */
-    file.size = 0; /* TODO */
-
-    if ((details.protection & prot) == prot)
-    {
-      carry_on = func (&details, user_data);
-    }
-  }
-
-  g_free (debuginfo);
-  g_free (mapinfos);
-
-  close (fd);
 }
 
 void
@@ -358,7 +308,90 @@ _gum_process_enumerate_ranges (GumPageProtection prot,
                                GumFoundRangeFunc func,
                                gpointer user_data)
 {
-  gum_qnx_enumerate_ranges (getpid (), prot, func, user_data);
+  gum_enumerate_ranges_of ("/proc/self/as", prot, func, user_data);
+}
+
+static void
+gum_enumerate_ranges_of (const gchar * device_path,
+                         GumPageProtection prot,
+                         GumFoundRangeFunc func,
+                         gpointer user_data)
+{
+  gint fd, res G_GNUC_UNUSED;
+  gboolean carry_on = TRUE;
+  gint mapinfo_count;
+  procfs_mapinfo * mapinfo_entries;
+  gsize mapinfo_size;
+  procfs_debuginfo * debuginfo;
+  const gsize debuginfo_size = sizeof (procfs_debuginfo) + 0x100;
+  gint i;
+
+  fd = open (device_path, O_RDONLY);
+  if (fd == -1)
+    return;
+
+  res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &mapinfo_count);
+  g_assert (res == 0);
+  mapinfo_size = mapinfo_count * sizeof (procfs_mapinfo);
+  mapinfo_entries = g_malloc (mapinfo_size);
+
+  debuginfo = g_malloc (debuginfo_size);
+
+  res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfo_entries, mapinfo_size,
+      &mapinfo_count);
+  g_assert (res == 0);
+
+  for (i = 0; carry_on && i != mapinfo_count; i++)
+  {
+    const procfs_mapinfo * mapinfo = &mapinfo_entries[i];
+    GumRangeDetails details;
+    GumMemoryRange range;
+    GumFileMapping file;
+    gchar * path = NULL;
+
+    details.range = &range;
+    details.protection = _gum_page_protection_from_posix (mapinfo->flags);
+
+    range.base_address = mapinfo->vaddr;
+    range.size = mapinfo->size;
+
+    debuginfo->vaddr = mapinfo->vaddr;
+    res = devctl (fd, DCMD_PROC_MAPDEBUG, debuginfo, debuginfo_size, NULL);
+    g_assert (res == 0);
+    if (strcmp (debuginfo->path, "/dev/zero") != 0)
+    {
+      if (debuginfo->path[0] != '/')
+      {
+        path = g_strconcat ("/", debuginfo->path, NULL);
+        file.path = path;
+      }
+      else
+      {
+        file.path = debuginfo->path;
+      }
+
+      file.offset = mapinfo->offset;
+      file.size = mapinfo->size;
+
+      details.file = &file;
+    }
+    else
+    {
+      details.file = NULL;
+    }
+
+    if ((details.protection & prot) == prot)
+    {
+      carry_on = func (&details, user_data);
+    }
+
+    g_free (path);
+  }
+
+  g_free (debuginfo);
+  g_free (mapinfo_entries);
+
+  close (fd);
 }
 
 void
