@@ -167,7 +167,7 @@ void
 gum_clear_cache (gpointer address,
                  gsize size)
 {
-  msync (address, size, MS_SYNC | MS_INVALIDATE_ICACHE);
+  msync (address, size, MS_INVALIDATE_ICACHE);
 }
 
 static gboolean
