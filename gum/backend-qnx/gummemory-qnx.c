@@ -1,4 +1,6 @@
 /*
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
