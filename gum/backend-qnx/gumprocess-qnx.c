@@ -1010,11 +1010,17 @@ gum_cpu_context_from_qnx (const debug_greg_t * gregs,
 #elif defined (HAVE_ARM)
   const ARM_CPU_REGISTERS * regs = &gregs->arm;
 
+  ctx->cpsr = regs->spsr;
   ctx->pc = regs->gpr[ARM_REG_R15];
   ctx->sp = regs->gpr[ARM_REG_R13];
 
-  memcpy (ctx->r, regs->gpr, sizeof (ctx->r));
+  ctx->r8 = regs->gpr[ARM_REG_R8];
+  ctx->r9 = regs->gpr[ARM_REG_R9];
+  ctx->r10 = regs->gpr[ARM_REG_R10];
+  ctx->r11 = regs->gpr[ARM_REG_R11];
+  ctx->r12 = regs->gpr[ARM_REG_R12];
 
+  memcpy (ctx->r, regs->gpr, sizeof (ctx->r));
   ctx->lr = regs->gpr[ARM_REG_R14];
 #else
 # error Fix this for other architectures
@@ -1041,11 +1047,17 @@ gum_cpu_context_to_qnx (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM)
   ARM_CPU_REGISTERS * regs = &gregs->arm;
 
+  regs->spsr = ctx->cpsr;
   regs->gpr[ARM_REG_R15] = ctx->pc;
   regs->gpr[ARM_REG_R13] = ctx->sp;
 
-  memcpy (regs->gpr, ctx->r, sizeof (ctx->r));
+  regs->gpr[ARM_REG_R8] = ctx->r8;
+  regs->gpr[ARM_REG_R9] = ctx->r9;
+  regs->gpr[ARM_REG_R10] = ctx->r10;
+  regs->gpr[ARM_REG_R11] = ctx->r11;
+  regs->gpr[ARM_REG_R12] = ctx->r12;
 
+  memcpy (regs->gpr, ctx->r, sizeof (ctx->r));
   regs->gpr[ARM_REG_R14] = ctx->lr;
 #else
 # error Fix this for other architectures
