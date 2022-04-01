@@ -144,18 +144,10 @@ gum_process_query_libc_name (void)
 static gchar *
 gum_try_init_libc_name (void)
 {
-  Dl_info info = { NULL, };
+  const gpointer exit_impl = dlsym (RTLD_NEXT, "exit");
 
-  dladdr (dlsym (RTLD_NEXT, "__libc_start_main"), &info);
-
-  if (info.dli_fname == NULL)
-  {
-    dladdr (dlsym (RTLD_NEXT, "exit"), &info);
-    if (info.dli_fname == NULL)
-      return NULL;
-  }
-
-  gum_libc_name = gum_resolve_path (info.dli_fname);
+  if (!gum_process_resolve_module_pointer (exit_impl, &gum_libc_name, NULL))
+    return NULL;
 
   _gum_register_destructor (gum_deinit_libc_name);
 
