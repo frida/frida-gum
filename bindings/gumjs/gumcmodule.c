@@ -694,14 +694,23 @@ gum_add_abi_symbols (TCCState * state)
 
 #define GUM_DECLARE_HELPER(name) \
     extern void __aeabi_ ## name (void);
+#define GUM_DECLARE_HELPER_FALLBACK(name, ...) \
+    static void gum_aeabi_ ## name (__VA_ARGS__);
 #define GUM_REGISTER_HELPER(name) \
     tcc_add_symbol (state, G_STRINGIFY (__aeabi_ ## name), __aeabi_ ## name)
+#define GUM_REGISTER_HELPER_FALLBACK(name) \
+    GUM_REGISTER_HELPER_FALLBACK_ALIASED (name, name)
+#define GUM_REGISTER_HELPER_FALLBACK_ALIASED(name, impl) \
+    tcc_add_symbol (state, G_STRINGIFY (__aeabi_ ## name), gum_aeabi_ ## impl)
 
-#ifndef HAVE_QNX
+#ifdef HAVE_AEABI_MEMORY_BUILTINS
 GUM_DECLARE_HELPER (memmove)
 GUM_DECLARE_HELPER (memmove4)
 GUM_DECLARE_HELPER (memmove8)
 GUM_DECLARE_HELPER (memset)
+#else
+GUM_DECLARE_HELPER_FALLBACK (memmove, void *, const void *, size_t)
+GUM_DECLARE_HELPER_FALLBACK (memset, void *, size_t, int)
 #endif
 GUM_DECLARE_HELPER (f2ulz)
 GUM_DECLARE_HELPER (f2lz)
@@ -724,11 +733,16 @@ GUM_DECLARE_HELPER (uidivmod)
 static void
 gum_add_abi_symbols (TCCState * state)
 {
-#ifndef HAVE_QNX
+#ifdef HAVE_AEABI_MEMORY_BUILTINS
   GUM_REGISTER_HELPER (memmove);
   GUM_REGISTER_HELPER (memmove4);
   GUM_REGISTER_HELPER (memmove8);
   GUM_REGISTER_HELPER (memset);
+#else
+  GUM_REGISTER_HELPER_FALLBACK (memmove);
+  GUM_REGISTER_HELPER_FALLBACK_ALIASED (memmove4, memmove);
+  GUM_REGISTER_HELPER_FALLBACK_ALIASED (memmove8, memmove);
+  GUM_REGISTER_HELPER_FALLBACK (memset);
 #endif
   GUM_REGISTER_HELPER (f2ulz);
   GUM_REGISTER_HELPER (f2lz);
@@ -747,6 +761,22 @@ gum_add_abi_symbols (TCCState * state)
   GUM_REGISTER_HELPER (uidiv);
   GUM_REGISTER_HELPER (idivmod);
   GUM_REGISTER_HELPER (uidivmod);
+}
+
+static void
+gum_aeabi_memmove (void * dst,
+                   const void * src,
+                   size_t n)
+{
+  memmove (dst, src, n);
+}
+
+static void
+gum_aeabi_memset (void * s,
+                  size_t n,
+                  int c)
+{
+  memset (s, c, n);
 }
 
 #else

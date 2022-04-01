@@ -518,6 +518,10 @@ if have_gumjs
   libtcc_dep = dependency('libtcc', required: host_arch != 'mips')
   cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
+  if host_arch == 'arm' and cc.has_function('__aeabi_memmove')
+    cdata.set('HAVE_AEABI_MEMORY_BUILTINS', 1)
+  endif
+
   sqlite_dep = dependency('sqlite3', required: get_option('database'))
   cdata.set('HAVE_SQLITE', sqlite_dep.found())
 
