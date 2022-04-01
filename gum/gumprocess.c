@@ -9,6 +9,7 @@
 #include "gumcloak.h"
 
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
+typedef struct _GumResolveModulePointerContext GumResolveModulePointerContext;
 typedef struct _GumEmitRangesContext GumEmitRangesContext;
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
@@ -16,6 +17,14 @@ struct _GumEmitThreadsContext
 {
   GumFoundThreadFunc func;
   gpointer user_data;
+};
+
+struct _GumResolveModulePointerContext
+{
+  gconstpointer ptr;
+  gboolean success;
+  gchar ** path;
+  GumMemoryRange * range;
 };
 
 struct _GumEmitRangesContext
@@ -32,6 +41,8 @@ struct _GumResolveSymbolContext
 
 static gboolean gum_emit_thread_if_not_cloaked (
     const GumThreadDetails * details, gpointer user_data);
+static gboolean gum_try_resolve_module_pointer_from (
+    const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean gum_store_address_if_name_matches (
@@ -119,6 +130,55 @@ gum_emit_thread_if_not_cloaked (const GumThreadDetails * details,
     return TRUE;
 
   return ctx->func (details, ctx->user_data);
+}
+
+/**
+ * gum_process_resolve_module_pointer:
+ * @ptr: memory location potentially belonging to a module
+ * @path: (out) (optional): absolute path of module
+ * @range: (out caller-allocates) (optional): memory range of module
+ *
+ * Determines which module @ptr belongs to, if any.
+ *
+ * Returns: whether the pointer resolved to a module
+ */
+gboolean
+gum_process_resolve_module_pointer (gconstpointer ptr,
+                                    gchar ** path,
+                                    GumMemoryRange * range)
+{
+  GumResolveModulePointerContext ctx = {
+    .ptr = ptr,
+    .success = FALSE,
+    .path = path,
+    .range = range
+  };
+
+  gum_process_enumerate_modules (gum_try_resolve_module_pointer_from, &ctx);
+
+  return ctx.success;
+}
+
+static gboolean
+gum_try_resolve_module_pointer_from (const GumModuleDetails * details,
+                                     gpointer user_data)
+{
+  GumResolveModulePointerContext * ctx = user_data;
+
+  if (GUM_MEMORY_RANGE_INCLUDES (details->range, GUM_ADDRESS (ctx->ptr)))
+  {
+    ctx->success = TRUE;
+
+    if (ctx->path != NULL)
+      *ctx->path = g_strdup (details->path);
+
+    if (ctx->range != NULL)
+      *ctx->range = *details->range;
+
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
