@@ -3138,7 +3138,13 @@ TESTCASE (socket_type_can_be_inspected)
   EXPECT_SEND_MESSAGE_WITH ("\"unix:dgram\"");
   close (fd);
 
-  fd = open ("/etc/hosts", O_RDONLY);
+  fd = open (
+# ifdef HAVE_QNX
+      "/usr/lib/ldqnx.so.2",
+# else
+      "/etc/hosts",
+# endif
+      O_RDONLY);
   g_assert_cmpint (fd, >=, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("null");
