@@ -482,35 +482,32 @@ gum_module_entry_from_address (gpointer address,
                                GumNearestSymbolDetails * nearest)
 {
   GumModuleEntry * entry;
-  Dl_info dl_info;
-  const gchar * path;
-  gchar * path_malloc_data;
+  gchar * path;
+  GumMemoryRange range;
 
-  if (dladdr (address, &dl_info) == 0)
-  {
-    nearest->name = NULL;
-    nearest->address = NULL;
+  nearest->name = NULL;
+  nearest->address = NULL;
+
+  if (!gum_process_resolve_module_pointer (address, &path, &range))
     return NULL;
-  }
 
-  nearest->name = dl_info.dli_sname;
-  nearest->address = dl_info.dli_saddr;
+  entry = gum_module_entry_from_path_and_base (path, range.base_address);
 
-  path = dl_info.dli_fname;
-  if (!g_path_is_absolute (path))
+  g_free (path);
+
+  if (entry == NULL)
+    return NULL;
+
+  if (entry->dbg == NULL)
   {
-    path_malloc_data = g_canonicalize_filename (path, NULL);
-    path = path_malloc_data;
-  }
-  else
-  {
-    path_malloc_data = NULL;
-  }
+    Dl_info dl_info;
 
-  entry = gum_module_entry_from_path_and_base (path,
-      GUM_ADDRESS (dl_info.dli_fbase));
-
-  g_free (path_malloc_data);
+    if (dladdr (address, &dl_info) != 0)
+    {
+      nearest->name = dl_info.dli_sname;
+      nearest->address = dl_info.dli_saddr;
+    }
+  }
 
   return entry;
 }
