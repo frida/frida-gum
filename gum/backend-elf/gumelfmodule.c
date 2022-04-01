@@ -855,6 +855,8 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
     gelf_getsym (data, symbol_index, &sym);
 
     details.name = elf_strptr (self->elf, shdr.sh_link, sym.st_name);
+    if (details.name == NULL)
+      continue;
     details.address = (sym.st_value != 0)
         ? gum_elf_module_translate_to_online (self, sym.st_value)
         : 0;
