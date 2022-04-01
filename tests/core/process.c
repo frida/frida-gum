@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
@@ -666,7 +666,6 @@ TESTCASE (module_can_be_loaded)
 
 TESTCASE (module_imports)
 {
-#ifndef HAVE_QNX
   TestForEachContext ctx;
 
   ctx.number_of_calls = 0;
@@ -678,9 +677,6 @@ TESTCASE (module_imports)
   ctx.value_to_return = FALSE;
   gum_module_enumerate_imports (GUM_TESTS_MODULE_NAME, import_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
-#else
-  (void) import_found_cb;
-#endif
 }
 
 TESTCASE (module_import_slot_should_contain_correct_value)
@@ -735,7 +731,7 @@ TESTCASE (module_exports)
 
 TESTCASE (module_symbols)
 {
-#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
+#ifndef HAVE_WINDOWS
   TestForEachContext ctx;
 
   ctx.number_of_calls = 0;
