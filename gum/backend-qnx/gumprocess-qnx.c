@@ -310,6 +310,67 @@ gum_store_cpu_context (GumThreadId thread_id,
 }
 
 void
+gum_process_enumerate_modules (GumFoundModuleFunc func,
+                               gpointer user_data)
+{
+  GumQnxListHead * handle;
+  GumQnxListHead * cur;
+  gboolean carry_on = TRUE;
+
+  handle = dlopen (NULL, RTLD_NOW);
+
+  for (cur = handle->next; carry_on && cur != handle; cur = cur->next)
+  {
+    const GumQnxModuleList * l = (GumQnxModuleList *) cur;
+    const GumQnxModule * mod = l->module;
+    const Link_map * map = &mod->map;
+    gchar * resolved_path, * resolved_name;
+    GumModuleDetails details;
+    GumMemoryRange range;
+    const Elf32_Ehdr * ehdr;
+    const Elf32_Phdr * phdr;
+    guint i;
+
+    if ((mod->flags & GUM_QNX_MODULE_FLAG_EXECUTABLE) != 0)
+    {
+      resolved_path = gum_qnx_query_program_path_for_self (NULL);
+      g_assert (resolved_path != NULL);
+      resolved_name = g_path_get_basename (resolved_path);
+
+      details.name = resolved_name;
+      details.path = resolved_path;
+    }
+    else
+    {
+      resolved_path = gum_resolve_path (map->l_path);
+      resolved_name = NULL;
+
+      details.name = map->l_name;
+      details.path = resolved_path;
+    }
+
+    details.range = &range;
+    range.base_address = map->l_addr;
+    range.size = 0;
+    ehdr = GSIZE_TO_POINTER (map->l_addr);
+    phdr = (gconstpointer) ehdr + ehdr->e_ehsize;
+    for (i = 0; i != ehdr->e_phnum; i++)
+    {
+      const Elf32_Phdr * h = &phdr[i];
+      if (h->p_type == PT_LOAD)
+        range.size += h->p_memsz;
+    }
+
+    carry_on = func (&details, user_data);
+
+    g_free (resolved_name);
+    g_free (resolved_path);
+  }
+
+  dlclose (handle);
+}
+
+void
 gum_qnx_enumerate_ranges (pid_t pid,
                           GumPageProtection prot,
                           GumFoundRangeFunc func,
@@ -436,67 +497,6 @@ void
 gum_thread_set_system_error (gint value)
 {
   errno = value;
-}
-
-void
-gum_process_enumerate_modules (GumFoundModuleFunc func,
-                               gpointer user_data)
-{
-  GumQnxListHead * handle;
-  GumQnxListHead * cur;
-  gboolean carry_on = TRUE;
-
-  handle = dlopen (NULL, RTLD_NOW);
-
-  for (cur = handle->next; carry_on && cur != handle; cur = cur->next)
-  {
-    const GumQnxModuleList * l = (GumQnxModuleList *) cur;
-    const GumQnxModule * mod = l->module;
-    const Link_map * map = &mod->map;
-    gchar * resolved_path, * resolved_name;
-    GumModuleDetails details;
-    GumMemoryRange range;
-    const Elf32_Ehdr * ehdr;
-    const Elf32_Phdr * phdr;
-    guint i;
-
-    if ((mod->flags & GUM_QNX_MODULE_FLAG_EXECUTABLE) != 0)
-    {
-      resolved_path = gum_qnx_query_program_path_for_self (NULL);
-      g_assert (resolved_path != NULL);
-      resolved_name = g_path_get_basename (resolved_path);
-
-      details.name = resolved_name;
-      details.path = resolved_path;
-    }
-    else
-    {
-      resolved_path = gum_resolve_path (map->l_path);
-      resolved_name = NULL;
-
-      details.name = map->l_name;
-      details.path = resolved_path;
-    }
-
-    details.range = &range;
-    range.base_address = map->l_addr;
-    range.size = 0;
-    ehdr = GSIZE_TO_POINTER (map->l_addr);
-    phdr = (gconstpointer) ehdr + ehdr->e_ehsize;
-    for (i = 0; i != ehdr->e_phnum; i++)
-    {
-      const Elf32_Phdr * h = &phdr[i];
-      if (h->p_type == PT_LOAD)
-        range.size += h->p_memsz;
-    }
-
-    carry_on = func (&details, user_data);
-
-    g_free (resolved_name);
-    g_free (resolved_path);
-  }
-
-  dlclose (handle);
 }
 
 gboolean
