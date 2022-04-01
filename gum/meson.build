@@ -176,7 +176,7 @@ if host_os_family == 'qnx'
     'backend-qnx/gumprocess-qnx.c',
     'backend-qnx/gummemory-qnx.c',
     'backend-posix/gummemory-posix.c',
-    'backend-qnx/gumtls-qnx.c',
+    'backend-posix/gumtls-posix.c',
     'backend-posix/gumexceptor-posix.c',
   ]
 endif
