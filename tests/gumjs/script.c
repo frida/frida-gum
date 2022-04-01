@@ -63,7 +63,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (invocations_are_bound_on_tls_object)
     TESTENTRY (invocations_provide_thread_id)
     TESTENTRY (invocations_provide_call_depth)
-#if !defined (HAVE_QNX) && !defined (HAVE_MIPS)
+#ifndef HAVE_MIPS
     TESTENTRY (invocations_provide_context_for_backtrace)
 #endif
     TESTENTRY (invocations_provide_context_serializable_to_json)
@@ -172,9 +172,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_current_dir_can_be_queried)
     TESTENTRY (process_home_dir_can_be_queried)
     TESTENTRY (process_tmp_dir_can_be_queried)
-#ifndef HAVE_QNX
     TESTENTRY (process_debugger_status_is_available)
-#endif
     TESTENTRY (process_id_is_available)
     TESTENTRY (process_current_thread_id_is_available)
     TESTENTRY (process_threads_can_be_enumerated)
@@ -195,10 +193,8 @@ TESTLIST_BEGIN (script)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Module")
-#ifndef HAVE_QNX
     TESTENTRY (module_imports_can_be_enumerated)
     TESTENTRY (module_imports_can_be_enumerated_legacy_style)
-#endif
     TESTENTRY (module_exports_can_be_enumerated)
     TESTENTRY (module_exports_can_be_enumerated_legacy_style)
     TESTENTRY (module_exports_enumeration_performance)
@@ -4447,7 +4443,7 @@ TESTCASE (module_exports_enumeration_performance)
 
 TESTCASE (module_symbols_can_be_enumerated)
 {
-#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
+#ifndef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "const symbols = Process.getModuleByName('%s').enumerateSymbols();"
       "send(symbols.length > 0);"
@@ -4471,7 +4467,7 @@ TESTCASE (module_symbols_can_be_enumerated)
 
 TESTCASE (module_symbols_can_be_enumerated_legacy_style)
 {
-#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
+#ifndef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
       "const symbols = Module.enumerateSymbols('%s');"
       "send(symbols.length > 0);",
