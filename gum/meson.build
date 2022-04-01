@@ -186,6 +186,7 @@ if host_executable_format == 'elf'
     'backend-elf/gumelfmodule.h',
   ]
   gum_sources += [
+    'backend-elf/gumprocess-elf.c',
     'backend-elf/gumelfmodule.c',
   ]
 endif
