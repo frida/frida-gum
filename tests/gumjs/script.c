@@ -3342,7 +3342,7 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
 {
   GumThreadId test_thread_id;
 
-#ifdef __ARM_PCS_VFP
+#if defined (HAVE_QNX) || defined (__ARM_PCS_VFP)
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
@@ -3396,6 +3396,14 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
 TESTCASE (execution_can_be_traced_with_faulty_transformer)
 {
   GumThreadId test_thread_id;
+
+#ifdef HAVE_QNX
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
 
   test_thread_id = gum_process_get_current_thread_id ();
 
@@ -3590,7 +3598,7 @@ TESTCASE (basic_block_can_be_invalidated_for_current_thread)
   GThread * thread;
   GumThreadId thread_id;
 
-#if defined (HAVE_ANDROID) && defined (HAVE_ARM)
+#if (defined (HAVE_ANDROID) && defined (HAVE_ARM)) || defined (HAVE_QNX)
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
@@ -3689,7 +3697,7 @@ TESTCASE (basic_block_can_be_invalidated_for_specific_thread)
   GThread * thread;
   GumThreadId thread_id;
 
-#if defined (HAVE_ANDROID) && defined (HAVE_ARM)
+#if (defined (HAVE_ANDROID) && defined (HAVE_ARM)) || defined (HAVE_QNX)
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");

@@ -88,6 +88,14 @@ TESTCASE (malloc_count)
   GumInterceptor * interceptor;
   volatile gpointer a, b, c = NULL;
 
+#ifdef HAVE_QNX
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   if (RUNNING_ON_VALGRIND)
   {
     g_print ("<skipping, not compatible with Valgrind> ");
