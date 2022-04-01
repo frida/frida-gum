@@ -6,7 +6,7 @@
 
 #include "gumprocess-priv.h"
 
-#include "backend-elf/gumelfmodule.h"
+#include "backend-elf/gumprocess-elf.h"
 #include "gum-init.h"
 #include "gumqnx.h"
 #include "gumqnx-priv.h"
@@ -23,45 +23,9 @@
 
 #define GUM_PSR_THUMB 0x20
 
-typedef struct _GumEnumerateModuleImportsContext GumEnumerateModuleImportsContext;
-typedef struct _GumDependencyExport GumDependencyExport;
-typedef struct _GumEnumerateModuleSymbolsContext GumEnumerateModuleSymbolsContext;
-typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
-
 typedef struct _GumQnxListHead GumQnxListHead;
 typedef struct _GumQnxModuleList GumQnxModuleList;
 typedef struct _GumQnxModule GumQnxModule;
-
-struct _GumEnumerateModuleImportsContext
-{
-  GumFoundImportFunc func;
-  gpointer user_data;
-
-  GHashTable * dependency_exports;
-  GumElfModule * current_dependency;
-  GumModuleMap * module_map;
-};
-
-struct _GumDependencyExport
-{
-  gchar * module;
-  GumAddress address;
-};
-
-struct _GumEnumerateModuleSymbolsContext
-{
-  GumFoundSymbolFunc func;
-  gpointer user_data;
-
-  GArray * sections;
-};
-
-struct _GumEnumerateModuleRangesContext
-{
-  const gchar * module_name;
-  GumFoundRangeFunc func;
-  gpointer user_data;
-};
 
 struct _GumQnxListHead
 {
@@ -93,31 +57,12 @@ static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 static void gum_enumerate_ranges_of (const gchar * device_path,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
-static gboolean gum_emit_import (const GumImportDetails * details,
-    gpointer user_data);
-static gboolean gum_collect_dependency_exports (
-    const GumElfDependencyDetails * details, gpointer user_data);
-static gboolean gum_collect_dependency_export (const GumExportDetails * details,
-    gpointer user_data);
-static GumDependencyExport * gum_dependency_export_new (const gchar * module,
-    GumAddress address);
-static void gum_dependency_export_free (GumDependencyExport * export);
-static gboolean gum_emit_symbol (const GumElfSymbolDetails * details,
-    gpointer user_data);
-static gboolean gum_append_symbol_section (const GumElfSectionDetails * details,
-    gpointer user_data);
-static void gum_symbol_section_destroy (GumSymbolSection * self);
-static gboolean gum_emit_range_if_module_name_matches (
-    const GumRangeDetails * details, gpointer user_data);
 
-static gboolean gum_resolve_module_name (const gchar * name, gchar ** path,
-    GumAddress * base);
 static gboolean gum_maybe_resolve_program_module (const gchar * name,
     gchar ** path, GumAddress * base);
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 static gchar * gum_resolve_path (const gchar * path);
-static GumElfModule * gum_open_elf_module (const gchar * name);
 
 static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
     GumCpuContext * ctx);
@@ -516,7 +461,7 @@ gum_module_ensure_initialized (const gchar * module_name)
 
   success = FALSE;
 
-  if (!gum_resolve_module_name (module_name, &name, NULL))
+  if (!_gum_process_resolve_module_name (module_name, &name, NULL))
     goto beach;
 
   module = dlopen (name, RTLD_LAZY);
@@ -532,259 +477,6 @@ beach:
   return success;
 }
 
-void
-gum_module_enumerate_imports (const gchar * module_name,
-                              GumFoundImportFunc func,
-                              gpointer user_data)
-{
-  GumElfModule * module;
-  GumEnumerateModuleImportsContext ctx;
-
-  module = gum_open_elf_module (module_name);
-  if (module == NULL)
-    return;
-
-  ctx.func = func;
-  ctx.user_data = user_data;
-
-  ctx.dependency_exports = g_hash_table_new_full (g_str_hash, g_str_equal,
-      g_free, (GDestroyNotify) gum_dependency_export_free);
-  ctx.current_dependency = NULL;
-  ctx.module_map = NULL;
-
-  gum_elf_module_enumerate_dependencies (module, gum_collect_dependency_exports,
-      &ctx);
-
-  gum_elf_module_enumerate_imports (module, gum_emit_import, &ctx);
-
-  if (ctx.module_map != NULL)
-    gum_object_unref (ctx.module_map);
-  g_hash_table_unref (ctx.dependency_exports);
-
-  gum_object_unref (module);
-}
-
-static gboolean
-gum_emit_import (const GumImportDetails * details,
-                 gpointer user_data)
-{
-  GumEnumerateModuleImportsContext * ctx = user_data;
-  GumImportDetails d;
-  GumDependencyExport * exp;
-
-  d.type = details->type;
-  d.name = details->name;
-  d.slot = details->slot;
-
-  exp = g_hash_table_lookup (ctx->dependency_exports, details->name);
-  if (exp != NULL)
-  {
-    d.module = exp->module;
-    d.address = exp->address;
-  }
-  else
-  {
-    d.module = NULL;
-    d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, details->name));
-
-    if (d.address != 0)
-    {
-      const GumModuleDetails * module;
-
-      if (ctx->module_map == NULL)
-        ctx->module_map = gum_module_map_new ();
-      module = gum_module_map_find (ctx->module_map, d.address);
-      if (module != NULL)
-        d.module = module->path;
-    }
-  }
-
-  return ctx->func (&d, ctx->user_data);
-}
-
-static gboolean
-gum_collect_dependency_exports (const GumElfDependencyDetails * details,
-                                gpointer user_data)
-{
-  GumEnumerateModuleImportsContext * ctx = user_data;
-  GumElfModule * module;
-
-  module = gum_open_elf_module (details->name);
-  if (module == NULL)
-    return TRUE;
-  ctx->current_dependency = module;
-  gum_elf_module_enumerate_exports (module, gum_collect_dependency_export, ctx);
-  ctx->current_dependency = NULL;
-  gum_object_unref (module);
-
-  return TRUE;
-}
-
-static gboolean
-gum_collect_dependency_export (const GumExportDetails * details,
-                               gpointer user_data)
-{
-  GumEnumerateModuleImportsContext * ctx = user_data;
-  GumElfModule * module = ctx->current_dependency;
-
-  g_hash_table_insert (ctx->dependency_exports,
-      g_strdup (details->name),
-      gum_dependency_export_new (gum_elf_module_get_path (module),
-          details->address));
-
-  return TRUE;
-}
-
-static GumDependencyExport *
-gum_dependency_export_new (const gchar * module,
-                           GumAddress address)
-{
-  GumDependencyExport * export;
-
-  export = g_slice_new (GumDependencyExport);
-  export->module = g_strdup (module);
-  export->address = address;
-
-  return export;
-}
-
-static void
-gum_dependency_export_free (GumDependencyExport * export)
-{
-  g_free (export->module);
-  g_slice_free (GumDependencyExport, export);
-}
-
-void
-gum_module_enumerate_exports (const gchar * module_name,
-                              GumFoundExportFunc func,
-                              gpointer user_data)
-{
-  GumElfModule * module;
-
-  module = gum_open_elf_module (module_name);
-  if (module == NULL)
-    return;
-  gum_elf_module_enumerate_exports (module, func, user_data);
-  gum_object_unref (module);
-}
-
-void
-gum_module_enumerate_symbols (const gchar * module_name,
-                              GumFoundSymbolFunc func,
-                              gpointer user_data)
-{
-  GumElfModule * module;
-  GumEnumerateModuleSymbolsContext ctx;
-
-  module = gum_open_elf_module (module_name);
-  if (module == NULL)
-    return;
-
-  ctx.func = func;
-  ctx.user_data = user_data;
-
-  ctx.sections = g_array_new (FALSE, FALSE, sizeof (GumSymbolSection));
-  g_array_set_clear_func (ctx.sections,
-      (GDestroyNotify) gum_symbol_section_destroy);
-
-  gum_elf_module_enumerate_sections (module, gum_append_symbol_section,
-      ctx.sections);
-
-  gum_elf_module_enumerate_symbols (module, gum_emit_symbol, &ctx);
-
-  g_array_free (ctx.sections, TRUE);
-
-  gum_object_unref (module);
-}
-
-static gboolean
-gum_emit_symbol (const GumElfSymbolDetails * details,
-                 gpointer user_data)
-{
-  GumEnumerateModuleSymbolsContext * ctx = user_data;
-  GumSymbolDetails symbol;
-
-  symbol.is_global = details->bind == GUM_ELF_BIND_GLOBAL ||
-      details->bind == GUM_ELF_BIND_WEAK;
-
-  switch (details->type)
-  {
-    case GUM_ELF_SYMBOL_OBJECT:  symbol.type = GUM_SYMBOL_OBJECT;   break;
-    case GUM_ELF_SYMBOL_FUNC:    symbol.type = GUM_SYMBOL_FUNCTION; break;
-    case GUM_ELF_SYMBOL_SECTION: symbol.type = GUM_SYMBOL_SECTION;  break;
-    case GUM_ELF_SYMBOL_FILE:    symbol.type = GUM_SYMBOL_FILE;     break;
-    case GUM_ELF_SYMBOL_COMMON:  symbol.type = GUM_SYMBOL_COMMON;   break;
-    case GUM_ELF_SYMBOL_TLS:     symbol.type = GUM_SYMBOL_TLS;      break;
-    default:                     symbol.type = GUM_SYMBOL_UNKNOWN;  break;
-  }
-
-  if (details->section_header_index != SHN_UNDEF &&
-      details->section_header_index <= ctx->sections->len)
-  {
-    symbol.section = &g_array_index (ctx->sections, GumSymbolSection,
-        details->section_header_index - 1);
-  }
-  else
-  {
-    symbol.section = NULL;
-  }
-
-  symbol.name = details->name;
-  symbol.address = details->address;
-  symbol.size = details->size;
-
-  return ctx->func (&symbol, ctx->user_data);
-}
-
-static gboolean
-gum_append_symbol_section (const GumElfSectionDetails * details,
-                           gpointer user_data)
-{
-  GArray * sections = user_data;
-  GumSymbolSection section;
-
-  section.id = g_strdup_printf ("%u%s", 1 + sections->len, details->name);
-  section.protection = details->protection;
-
-  g_array_append_val (sections, section);
-
-  return TRUE;
-}
-
-static void
-gum_symbol_section_destroy (GumSymbolSection * self)
-{
-  g_free ((gpointer) self->id);
-}
-
-void
-gum_module_enumerate_ranges (const gchar * module_name,
-                             GumPageProtection prot,
-                             GumFoundRangeFunc func,
-                             gpointer user_data)
-{
-  GumEnumerateModuleRangesContext ctx;
-
-  ctx.module_name = module_name;
-  ctx.func = func;
-  ctx.user_data = user_data;
-
-  gum_process_enumerate_ranges (prot, gum_emit_range_if_module_name_matches,
-      &ctx);
-}
-
-GumAddress
-gum_module_find_base_address (const gchar * module_name)
-{
-  GumAddress base;
-
-  if (!gum_resolve_module_name (module_name, NULL, &base))
-    return 0;
-
-  return base;
-}
-
 GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
@@ -796,7 +488,7 @@ gum_module_find_export_by_name (const gchar * module_name,
   {
     gchar * name;
 
-    if (!gum_resolve_module_name (module_name, &name, NULL))
+    if (!_gum_process_resolve_module_name (module_name, &name, NULL))
       return 0;
     module = dlopen (name, RTLD_LAZY);
     g_free (name);
@@ -815,20 +507,6 @@ gum_module_find_export_by_name (const gchar * module_name,
     dlclose (module);
 
   return result;
-}
-
-static gboolean
-gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
-                                       gpointer user_data)
-{
-  GumEnumerateModuleRangesContext * ctx = user_data;
-
-  if (details->file == NULL)
-    return TRUE;
-  else if (!gum_module_path_equals (details->file->path, ctx->module_name))
-    return TRUE;
-
-  return ctx->func (details, ctx->user_data);
 }
 
 GumCpuType
@@ -990,10 +668,10 @@ beach:
   }
 }
 
-static gboolean
-gum_resolve_module_name (const gchar * name,
-                         gchar ** path,
-                         GumAddress * base)
+gboolean
+_gum_process_resolve_module_name (const gchar * name,
+                                  gchar ** path,
+                                  GumAddress * base)
 {
   GumQnxListHead * handle;
   const GumQnxModule * module;
@@ -1088,23 +766,6 @@ gum_resolve_path (const gchar * path)
   g_free (target);
 
   return canonical_path;
-}
-
-static GumElfModule *
-gum_open_elf_module (const gchar * name)
-{
-  gchar * path;
-  GumAddress base_address;
-  GumElfModule * module;
-
-  if (!gum_resolve_module_name (name, &path, &base_address))
-    return NULL;
-
-  module = gum_elf_module_new_from_memory (path, base_address, NULL);
-
-  g_free (path);
-
-  return module;
 }
 
 static void
