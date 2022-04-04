@@ -24,9 +24,6 @@
 #ifdef HAVE_LINUX
 # include <sys/syscall.h>
 #endif
-#ifdef HAVE_ANDROID
-# include <dlfcn.h>
-#endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
 #define GUM_CODE_SLAB_SIZE_DYNAMIC  (4 * 1024 * 1024)
@@ -5711,7 +5708,9 @@ static gpointer
 gum_find_thread_exit_implementation (void)
 {
 #ifdef HAVE_ANDROID
-  return dlsym (RTLD_DEFAULT, "pthread_exit");
+  return GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_query_libc_name (),
+        "pthread_exit"));
 #else
   return NULL;
 #endif
