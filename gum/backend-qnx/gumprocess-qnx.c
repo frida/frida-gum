@@ -163,9 +163,19 @@ gum_process_modify_thread (GumThreadId thread_id,
                            gpointer user_data)
 {
   gboolean success = FALSE;
+  gboolean holding = FALSE;
+  pid_t child;
+  int status;
 
-  ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, (void *) thread_id);
-  if (vfork () == 0)
+  if (ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, (void *) thread_id) == -1)
+    goto beach;
+  holding = TRUE;
+
+  child = vfork ();
+  if (child == -1)
+    goto beach;
+
+  if (child == 0)
   {
     gchar as_path[PATH_MAX];
     int fd, res G_GNUC_UNUSED;
@@ -194,9 +204,14 @@ gum_process_modify_thread (GumThreadId thread_id,
     close (fd);
     _exit (0);
   }
-  ThreadCtl (_NTO_TCTL_ONE_THREAD_CONT, (void *) thread_id);
+
+  waitpid (child, &status, 0);
 
   success = TRUE;
+
+beach:
+  if (holding)
+    ThreadCtl (_NTO_TCTL_ONE_THREAD_CONT, (void *) thread_id);
 
   return success;
 }
