@@ -463,14 +463,8 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
   /* Handle 'LDR Rt, [Rn, #x]' or 'LDR Rt, [Rn, #-x]' */
   if (src->mem.index == ARM_REG_INVALID)
   {
-    gint disp = src->mem.disp;
-
-    gum_arm_writer_put_ldr_reg_address (ctx->output, target, ctx->pc);
-
-    if (disp >= 0)
-      gum_arm_writer_put_add_reg_u16 (ctx->output, target, disp);
-    else
-      gum_arm_writer_put_sub_reg_u16 (ctx->output, target, -disp);
+    gum_arm_writer_put_ldr_reg_address (ctx->output, target,
+        ctx->pc + src->mem.disp);
   }
   else
   {

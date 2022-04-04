@@ -10,7 +10,6 @@ TESTLIST_BEGIN (armrelocator)
   TESTENTRY (one_to_one)
   TESTENTRY (pc_relative_ldr_positive_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_negative_should_be_rewritten)
-  TESTENTRY (pc_relative_ldr_with_large_displacement_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_reg_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_reg_shift_should_be_rewritten)
   TESTENTRY (pc_relative_ldr_into_pc_should_be_rewritten)
@@ -99,13 +98,12 @@ TESTCASE (pc_relative_ldr_positive_should_be_rewritten)
     ARM_INS_LDR,
     { 0xe59f3028 }, 1,          /* ldr r3, [pc, #0x28] */
     {
-      0xe59f3004,               /* ldr r3, [pc, #4]  */
-      0xe2833028,               /* add r3, r3, #0x28 */
+      0xe59f3000,               /* ldr r3, [pc, #0]  */
       0xe5933000,               /* ldr r3, [r3]      */
       0xffffffff                /* <calculated PC    */
                                 /*  goes here>       */
-    }, 4,
-    3, 0,
+    }, 3,
+    2, 0x28,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
@@ -117,32 +115,12 @@ TESTCASE (pc_relative_ldr_negative_should_be_rewritten)
     ARM_INS_LDR,
     { 0xe51f3028 }, 1,          /* ldr r3, [pc, -#0x28] */
     {
-      0xe59f3004,               /* ldr r3, [pc, #4]  */
-      0xe2433028,               /* sub r3, r3, #0x28 */
+      0xe59f3000,               /* ldr r3, [pc, #0]  */
       0xe5933000,               /* ldr r3, [r3]      */
       0xffffffff                /* <calculated PC    */
                                 /*  goes here>       */
-    }, 4,
-    3, 0,
-    -1, -1
-  };
-  branch_scenario_execute (&bs, fixture);
-}
-
-TESTCASE (pc_relative_ldr_with_large_displacement_should_be_rewritten)
-{
-  BranchScenario bs = {
-    ARM_INS_LDR,
-    { 0xe59f338c }, 1,          /* ldr r3, [pc, #0x38c] */
-    {
-      0xe59f3008,               /* ldr r3, [pc, #8]             */
-      0xe2833c03,               /* add r3, r3, <0x03 >>> 0xc*2> */
-      0xe283308c,               /* add r3, r3, #0x8c            */
-      0xe5933000,               /* ldr r3, [r3]                 */
-      0xffffffff                /* <calculated PC               */
-                                /*  goes here>                  */
-    }, 5,
-    4, 0,
+    }, 3,
+    2, -0x28,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
@@ -188,15 +166,14 @@ TESTCASE (pc_relative_ldr_into_pc_should_be_rewritten)
     { 0xe59ff004 }, 1,          /* ldr pc, [pc, #4] */
     {
       0xe92d8001,               /* push {r0, pc}      */
-      0xe59f000c,               /* ldr r0, [pc, #0xc] */
-      0xe2800004,               /* add r0, r0, #4     */
+      0xe59f0008,               /* ldr r0, [pc, #0x8] */
       0xe5900000,               /* ldr r0, [r0]       */
       0xe58d0004,               /* str r0, [sp, #4]   */
       0xe8bd8001,               /* pop {r0, pc}       */
       0xffffffff                /* <calculated PC     */
                                 /*  goes here>        */
-    }, 7,
-    6, 0,
+    }, 6,
+    5, 4,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
