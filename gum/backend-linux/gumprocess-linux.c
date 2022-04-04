@@ -111,8 +111,6 @@ typedef gint (* GumCloneFunc) (gpointer arg);
 enum _GumModifyThreadAck
 {
   GUM_ACK_READY = 1,
-  GUM_ACK_ATTACHED,
-  GUM_ACK_STOPPED,
   GUM_ACK_READ_CONTEXT,
   GUM_ACK_MODIFIED_CONTEXT,
   GUM_ACK_WROTE_CONTEXT,
@@ -237,6 +235,7 @@ static gssize gum_libc_clone (GumCloneFunc child_func, gpointer child_stack,
     pid_t * child_tidptr);
 static gssize gum_libc_read (gint fd, gpointer buf, gsize count);
 static gssize gum_libc_write (gint fd, gconstpointer buf, gsize count);
+static pid_t gum_libc_waitpid (pid_t pid, int * status, int options);
 static gssize gum_libc_ptrace (gsize request, pid_t pid, gpointer address,
     gpointer data);
 
@@ -516,34 +515,12 @@ gum_process_modify_thread (GumThreadId thread_id,
 
     gum_put_ack (fd, GUM_ACK_READY);
 
-    if (gum_await_ack (fd, GUM_ACK_ATTACHED))
+    if (gum_await_ack (fd, GUM_ACK_READ_CONTEXT))
     {
-      GumThreadState state;
-      gboolean still_alive;
+      func (thread_id, &ctx.cpu_context, user_data);
+      gum_put_ack (fd, GUM_ACK_MODIFIED_CONTEXT);
 
-      while ((still_alive = gum_thread_read_state (thread_id, &state)) &&
-          state != GUM_THREAD_STOPPED && state != GUM_THREAD_UNINTERRUPTIBLE)
-      {
-        g_usleep (G_USEC_PER_SEC / 100);
-      }
-
-      if (state == GUM_THREAD_STOPPED)
-      {
-        gum_put_ack (fd, GUM_ACK_STOPPED);
-
-        if (still_alive)
-        {
-          gum_await_ack (fd, GUM_ACK_READ_CONTEXT);
-          func (thread_id, &ctx.cpu_context, user_data);
-          gum_put_ack (fd, GUM_ACK_MODIFIED_CONTEXT);
-
-          success = gum_await_ack (fd, GUM_ACK_WROTE_CONTEXT);
-        }
-      }
-      else
-      {
-        gum_put_ack (fd, GUM_ACK_FAILED_TO_STOP);
-      }
+      success = gum_await_ack (fd, GUM_ACK_WROTE_CONTEXT);
     }
 
     if (prev_dumpable != -1 && prev_dumpable != 1)
@@ -567,7 +544,10 @@ gum_do_modify_thread (gpointer data)
 {
   GumModifyThreadContext * ctx = data;
   gint fd;
+  gboolean attached = FALSE;
   gssize res;
+  pid_t wait_result;
+  int status;
   GumRegs regs;
 
   fd = ctx->fd[1];
@@ -575,14 +555,17 @@ gum_do_modify_thread (gpointer data)
   gum_await_ack (fd, GUM_ACK_READY);
 
   res = gum_libc_ptrace (PTRACE_ATTACH, ctx->thread_id, NULL, NULL);
-  if (res < 0)
+  if (res == -1)
     goto failed_to_attach;
-  gum_put_ack (fd, GUM_ACK_ATTACHED);
+  attached = TRUE;
 
-  if (!gum_await_ack (fd, GUM_ACK_STOPPED))
+  wait_result = gum_libc_waitpid (ctx->thread_id, &status, 0);
+  if (wait_result != ctx->thread_id || !WIFSTOPPED (status) ||
+      WSTOPSIG (status) != SIGSTOP)
     goto failed_to_stop;
+
   res = gum_get_regs (ctx->thread_id, &regs);
-  if (res < 0)
+  if (res == -1)
     goto failed_to_read;
   gum_parse_regs (&regs, &ctx->cpu_context);
   gum_put_ack (fd, GUM_ACK_READ_CONTEXT);
@@ -590,11 +573,12 @@ gum_do_modify_thread (gpointer data)
   gum_await_ack (fd, GUM_ACK_MODIFIED_CONTEXT);
   gum_unparse_regs (&ctx->cpu_context, &regs);
   res = gum_set_regs (ctx->thread_id, &regs);
-  if (res < 0)
+  if (res == -1)
     goto failed_to_write;
 
   res = gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL, NULL);
-  if (res < 0)
+  attached = FALSE;
+  if (res == -1)
     goto failed_to_detach;
 
   gum_put_ack (fd, GUM_ACK_WROTE_CONTEXT);
@@ -608,7 +592,7 @@ failed_to_attach:
   }
 failed_to_stop:
   {
-    gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL, NULL);
+    gum_put_ack (fd, GUM_ACK_FAILED_TO_STOP);
     goto beach;
   }
 failed_to_read:
@@ -628,6 +612,9 @@ failed_to_detach:
   }
 beach:
   {
+    if (attached)
+      gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL, NULL);
+
     return 0;
   }
 }
@@ -2683,6 +2670,20 @@ gum_libc_write (gint fd,
                 gsize count)
 {
   return gum_libc_syscall_3 (__NR_write, fd, GPOINTER_TO_SIZE (buf), count);
+}
+
+static pid_t
+gum_libc_waitpid (pid_t pid,
+                  int * status,
+                  int options)
+{
+#ifdef __NR_waitpid
+  return gum_libc_syscall_3 (__NR_waitpid, pid, GPOINTER_TO_SIZE (status),
+      options);
+#else
+  return gum_libc_syscall_4 (__NR_wait4, pid, GPOINTER_TO_SIZE (status),
+      options, 0);
+#endif
 }
 
 static gssize
