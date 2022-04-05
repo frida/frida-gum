@@ -6297,6 +6297,10 @@ gum_find_thread_exit_implementation (void)
 #endif
 
   return GSIZE_TO_POINTER (result);
+#elif defined (HAVE_GLIBC)
+  return GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_query_libc_name (),
+        "__call_tls_dtors"));
 #elif defined (HAVE_ANDROID)
   return GSIZE_TO_POINTER (gum_module_find_export_by_name (
         gum_process_query_libc_name (),
