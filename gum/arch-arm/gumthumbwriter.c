@@ -382,7 +382,12 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
                                           guint n_args,
                                           const GumArgument * args)
 {
+  guint n_stack_args;
   gint arg_index;
+
+  n_stack_args = MAX ((gint) n_args - 4, 0);
+  if (n_stack_args % 2 != 0)
+    gum_thumb_writer_put_sub_reg_imm (self, ARM_REG_SP, 4);
 
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
@@ -447,10 +452,17 @@ static void
 gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
                                              guint n_args)
 {
-  if (n_args > 4)
-  {
-    gum_thumb_writer_put_add_reg_imm (self, ARM_REG_SP, (n_args - 4) * 4);
-  }
+  guint n_stack_args, n_stack_slots;
+
+  n_stack_args = MAX ((gint) n_args - 4, 0);
+  if (n_stack_args == 0)
+    return;
+
+  n_stack_slots = n_stack_args;
+  if (n_stack_slots % 2 != 0)
+    n_stack_slots++;
+
+  gum_thumb_writer_put_add_reg_imm (self, ARM_REG_SP, n_stack_slots * 4);
 }
 
 void
