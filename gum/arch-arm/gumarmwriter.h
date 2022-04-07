@@ -61,6 +61,10 @@ GUM_API void gum_arm_writer_put_call_address_with_arguments_array (
     GumArmWriter * self, GumAddress func, guint n_args,
     const GumArgument * args);
 GUM_API void gum_arm_writer_put_call_reg (GumArmWriter * self, arm_reg reg);
+GUM_API void gum_arm_writer_put_call_reg_with_arguments (GumArmWriter * self,
+    arm_reg reg, guint n_args, ...);
+GUM_API void gum_arm_writer_put_call_reg_with_arguments_array (
+    GumArmWriter * self, arm_reg reg, guint n_args, const GumArgument * args);
 
 GUM_API void gum_arm_writer_put_branch_address (GumArmWriter * self,
     GumAddress address);

@@ -282,6 +282,36 @@ gum_arm_writer_put_call_reg (GumArmWriter * self,
     gum_arm_writer_put_bl_reg (self, reg);
 }
 
+void
+gum_arm_writer_put_call_reg_with_arguments (GumArmWriter * self,
+                                            arm_reg reg,
+                                            guint n_args,
+                                            ...)
+{
+  va_list args;
+
+  va_start (args, n_args);
+  gum_arm_writer_put_argument_list_setup_va (self, n_args, args);
+  va_end (args);
+
+  gum_arm_writer_put_call_reg (self, reg);
+
+  gum_arm_writer_put_argument_list_teardown (self, n_args);
+}
+
+void
+gum_arm_writer_put_call_reg_with_arguments_array (GumArmWriter * self,
+                                                  arm_reg reg,
+                                                  guint n_args,
+                                                  const GumArgument * args)
+{
+  gum_arm_writer_put_argument_list_setup (self, n_args, args);
+
+  gum_arm_writer_put_call_reg (self, reg);
+
+  gum_arm_writer_put_argument_list_teardown (self, n_args);
+}
+
 static void
 gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
                                         guint n_args,
