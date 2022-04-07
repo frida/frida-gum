@@ -36,7 +36,7 @@ static void gum_arm_writer_put_argument_list_setup_va (GumArmWriter * self,
 static void gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
     guint n_args);
 static void gum_arm_writer_put_call_address_body (GumArmWriter * self,
-    GumAddress address, guint n_args);
+    GumAddress address);
 
 static gboolean gum_arm_writer_try_commit_label_refs (GumArmWriter * self);
 static void gum_arm_writer_maybe_commit_literals (GumArmWriter * self);
@@ -254,7 +254,7 @@ gum_arm_writer_put_call_address_with_arguments (GumArmWriter * self,
   gum_arm_writer_put_argument_list_setup_va (self, n_args, args);
   va_end (args);
 
-  gum_arm_writer_put_call_address_body (self, func, n_args);
+  gum_arm_writer_put_call_address_body (self, func);
 
   gum_arm_writer_put_argument_list_teardown (self, n_args);
 }
@@ -267,7 +267,7 @@ gum_arm_writer_put_call_address_with_arguments_array (GumArmWriter * self,
 {
   gum_arm_writer_put_argument_list_setup (self, n_args, args);
 
-  gum_arm_writer_put_call_address_body (self, func, n_args);
+  gum_arm_writer_put_call_address_body (self, func);
 
   gum_arm_writer_put_argument_list_teardown (self, n_args);
 }
@@ -407,8 +407,7 @@ gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
 
 static void
 gum_arm_writer_put_call_address_body (GumArmWriter * self,
-                                      GumAddress address,
-                                      guint n_args)
+                                      GumAddress address)
 {
   GumAddress aligned_address;
 
