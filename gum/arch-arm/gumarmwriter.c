@@ -287,32 +287,47 @@ gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
                                         guint n_args,
                                         const GumArgument * args)
 {
+  guint n_stack_args;
   gint arg_index;
 
-  /*
-   * This function does not support the pushing of stack based arguments. If we
-   * add this later, we should note that the stack must be 8 byte aligned.
-   */
-  g_assert (n_args <= 4);
+  n_stack_args = MAX ((gint) n_args - 4, 0);
+  if (n_stack_args % 2 != 0)
+    gum_arm_writer_put_sub_reg_u16 (self, ARM_REG_SP, 4);
 
   for (arg_index = (gint) n_args - 1; arg_index >= 0; arg_index--)
   {
     const GumArgument * arg = &args[arg_index];
     const arm_reg dst_reg = ARM_REG_R0 + arg_index;
 
-    if (arg->type == GUM_ARG_ADDRESS)
+    if (arg_index < 4)
     {
-      gum_arm_writer_put_ldr_reg_address (self, dst_reg, arg->value.address);
+      if (arg->type == GUM_ARG_ADDRESS)
+      {
+        gum_arm_writer_put_ldr_reg_address (self, dst_reg, arg->value.address);
+      }
+      else
+      {
+        arm_reg src_reg = arg->value.reg;
+        GumArmRegInfo rs;
+
+        gum_arm_reg_describe (src_reg, &rs);
+
+        if (src_reg != dst_reg)
+          gum_arm_writer_put_mov_reg_reg (self, dst_reg, arg->value.reg);
+      }
     }
     else
     {
-      arm_reg src_reg = arg->value.reg;
-      GumArmRegInfo rs;
-
-      gum_arm_reg_describe (src_reg, &rs);
-
-      if (src_reg != dst_reg)
-        gum_arm_writer_put_mov_reg_reg (self, dst_reg, arg->value.reg);
+      if (arg->type == GUM_ARG_ADDRESS)
+      {
+        gum_arm_writer_put_ldr_reg_address (self, ARM_REG_R0,
+            arg->value.address);
+        gum_arm_writer_put_push_registers (self, 1, ARM_REG_R0);
+      }
+      else
+      {
+        gum_arm_writer_put_push_registers (self, 1, arg->value.reg);
+      }
     }
   }
 }
@@ -347,6 +362,17 @@ static void
 gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
                                            guint n_args)
 {
+  guint n_stack_args, n_stack_slots;
+
+  n_stack_args = MAX ((gint) n_args - 4, 0);
+  if (n_stack_args == 0)
+    return;
+
+  n_stack_slots = n_stack_args;
+  if (n_stack_slots % 2 != 0)
+    n_stack_slots++;
+
+  gum_arm_writer_put_add_reg_u16 (self, ARM_REG_SP, n_stack_slots * 4);
 }
 
 static void
