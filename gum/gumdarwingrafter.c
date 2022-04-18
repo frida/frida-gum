@@ -411,12 +411,9 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
   *code_offsets = NULL;
   *imports = NULL;
 
+  memset (layout, 0, sizeof (GumGraftedLayout));
   layout->page_size = 16384;
-  layout->text_address = 0;
-  layout->linkedit_address = 0;
   layout->linkedit_offset_in = -1;
-  layout->linkedit_size_in = 0;
-  layout->linkedit_shift = 0;
   for (i = 0; i != module->segments->len; i++)
   {
     const GumDarwinSegment * segment =
@@ -438,9 +435,7 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
 
   layout->linkedit_size_out = layout->linkedit_size_in;
   layout->rewritten_binds_offset = -1;
-  layout->rewritten_binds_capacity = 0;
   layout->rewritten_binds_split_offset = -1;
-  layout->rewritten_binds_shift = 0;
   if ((self->flags & GUM_DARWIN_GRAFTER_FLAGS_TRANSFORM_LAZY_BINDS) != 0)
   {
     const GumMachHeader64 * mach_header;
