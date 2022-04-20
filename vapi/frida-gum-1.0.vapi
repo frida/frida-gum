@@ -247,6 +247,30 @@ namespace Gum {
 		public void enumerate_threads (Gum.FoundThreadFunc func);
 		public void enumerate_modules (Gum.FoundModuleFunc func);
 		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
+		public Gum.HeapApiList find_heap_apis ();
+	}
+
+	[Compact]
+	[CCode (copy_function = "gum_heap_api_list_copy", free_function = "gum_heap_api_list_free")]
+	public class HeapApiList {
+		public unowned HeapApi? get_nth (uint n);
+		public void add (Gum.HeapApi api);
+
+		public uint len;
+	}
+
+	public struct HeapApi {
+		public void * malloc;
+		public void * calloc;
+		public void * realloc;
+		public void * free;
+
+		// For Microsoft's Debug CRT:
+		public void * _malloc_dbg;
+		public void * _calloc_dbg;
+		public void * _realloc_dbg;
+		public void * _free_dbg;
+		public void * _CrtReportBlockType;
 	}
 
 	namespace Thread {
@@ -570,44 +594,6 @@ namespace Gum {
 		public unowned string symbol_name;
 		public unowned string file_name;
 		public uint line_number;
-	}
-
-	[CCode (cheader_filename = "gum/gum-heap.h")]
-	public class InstanceTracker : GLib.Object {
-		public InstanceTracker ();
-
-		public void begin (Gum.InstanceVTable? vtable = null);
-		public void end ();
-
-		public uint peek_total_count (string type_name);
-		public GLib.List peek_instances ();
-		public void walk_instances (Gum.WalkInstanceFunc func);
-	}
-
-	public delegate void WalkInstanceFunc (Gum.InstanceDetails id);
-
-	public struct InstanceVTable {
-		void * create_instance;
-		void * free_instance;
-
-		void * type_id_to_name;
-	}
-
-	public struct InstanceDetails {
-		public void * address;
-		public uint ref_count;
-		public string type_name;
-	}
-
-	[CCode (cheader_filename = "gum/gum-heap.h")]
-	public class BoundsChecker : GLib.Object {
-		public BoundsChecker ();
-
-		public uint pool_size { get; set; }
-		public uint front_alignment { get; set; }
-
-		public void attach ();
-		public void detach ();
 	}
 
 	[CCode (cprefix = "GUM_ATTACH_")]

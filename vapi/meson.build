@@ -1,5 +1,6 @@
 vapis = [
   'frida-gum-@0@.vapi'.format(api_version),
+  'frida-gum-heap-@0@.vapi'.format(api_version),
 ]
 
 if host_os_family == 'darwin'
