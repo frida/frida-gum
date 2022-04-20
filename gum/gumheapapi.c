@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,16 +32,13 @@ static gboolean
 gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
                                     gpointer user_data)
 {
-  const gchar * name = details->name;
   GumHeapApiList * list = (GumHeapApiList *) user_data;
   gboolean is_libc_module;
 
-#if defined (HAVE_WINDOWS)
-  is_libc_module = g_ascii_strncasecmp (name, "msvcr", 5) == 0;
-#elif defined (HAVE_DARWIN)
-  is_libc_module = g_ascii_strncasecmp (name, "libSystem.B", 11) == 0;
+#ifdef HAVE_WINDOWS
+  is_libc_module = g_ascii_strncasecmp (details->name, "msvcr", 5) == 0;
 #else
-  is_libc_module = strcmp (name, "libc.so") == 0;
+  is_libc_module = strcmp (details->path, gum_process_query_libc_name ()) == 0;
 #endif
 
   if (is_libc_module)
@@ -58,7 +55,7 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
     GUM_ASSIGN (GumFreeFunc, free);
 
 #ifdef HAVE_WINDOWS
-    if (g_str_has_suffix (name, "d.dll"))
+    if (g_str_has_suffix (details->name, "d.dll"))
     {
       GUM_ASSIGN (GumMallocDbgFunc, _malloc_dbg);
       GUM_ASSIGN (GumCallocDbgFunc, _calloc_dbg);
