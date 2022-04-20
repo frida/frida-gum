@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,6 +25,8 @@
 #define BLOCK_FREE_RETADDRS(b) \
     ((GumReturnAddressArray *) ((guint8 *) (b)->guard + ((b)->guard_size / 2)))
 
+typedef struct _GumBoundsHookGroup GumBoundsHookGroup;
+
 struct _GumBoundsChecker
 {
   GObject parent;
@@ -41,6 +43,7 @@ struct _GumBoundsChecker
   GumInterceptor * interceptor;
   GumExceptor * exceptor;
   GumHeapApiList * heap_apis;
+  GumBoundsHookGroup * hook_groups;
   gboolean attached;
   volatile gboolean detaching;
   volatile gboolean handled_invalid_access;
@@ -48,6 +51,12 @@ struct _GumBoundsChecker
   guint pool_size;
   guint front_alignment;
   GumPagePool * page_pool;
+};
+
+struct _GumBoundsHookGroup
+{
+  GumBoundsChecker * checker;
+  const GumHeapApi * api;
 };
 
 enum
@@ -283,6 +292,9 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
   g_assert (self->heap_apis == NULL);
   self->heap_apis = gum_heap_api_list_copy (apis);
 
+  g_assert (self->hook_groups == NULL);
+  self->hook_groups = g_new0 (GumBoundsHookGroup, apis->len);
+
   g_assert (self->page_pool == NULL);
   self->page_pool = gum_page_pool_new (GUM_PROTECT_MODE_ABOVE,
       self->pool_size);
@@ -293,12 +305,19 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
 
   for (i = 0; i != apis->len; i++)
   {
-    const GumHeapApi * api = gum_heap_api_list_get_nth (apis, i);
+    const GumHeapApi * api;
+    GumBoundsHookGroup * group;
+
+    api = gum_heap_api_list_get_nth (apis, i);
+
+    group = &self->hook_groups[i];
+    group->checker = self;
+    group->api = api;
 
 #define GUM_REPLACE_API_FUNC(name) \
     gum_interceptor_replace (self->interceptor, \
         GUM_FUNCPTR_TO_POINTER (api->name), \
-        GUM_FUNCPTR_TO_POINTER (replacement_##name), self)
+        GUM_FUNCPTR_TO_POINTER (replacement_##name), group)
 
     GUM_REPLACE_API_FUNC (malloc);
     GUM_REPLACE_API_FUNC (calloc);
@@ -348,6 +367,9 @@ gum_bounds_checker_detach (GumBoundsChecker * self)
     g_object_unref (self->page_pool);
     self->page_pool = NULL;
 
+    g_free (self->hook_groups);
+    self->hook_groups = NULL;
+
     gum_heap_api_list_free (self->heap_apis);
     self->heap_apis = NULL;
   }
@@ -357,11 +379,13 @@ static gpointer
 replacement_malloc (gsize size)
 {
   GumInvocationContext * ctx;
+  GumBoundsHookGroup * group;
   GumBoundsChecker * self;
   gpointer result;
 
   ctx = gum_interceptor_get_current_invocation ();
-  self = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsChecker *);
+  group = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsHookGroup *);
+  self = group->checker;
 
   if (self->detaching || self->handled_invalid_access)
     goto fallback;
@@ -375,7 +399,7 @@ replacement_malloc (gsize size)
   return result;
 
 fallback:
-  return malloc (size);
+  return group->api->malloc (size);
 }
 
 static gpointer
@@ -383,11 +407,13 @@ replacement_calloc (gsize num,
                     gsize size)
 {
   GumInvocationContext * ctx;
+  GumBoundsHookGroup * group;
   GumBoundsChecker * self;
   gpointer result;
 
   ctx = gum_interceptor_get_current_invocation ();
-  self = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsChecker *);
+  group = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsHookGroup *);
+  self = group->checker;
 
   if (self->detaching || self->handled_invalid_access)
     goto fallback;
@@ -403,7 +429,7 @@ replacement_calloc (gsize num,
   return result;
 
 fallback:
-  return calloc (num, size);
+  return group->api->calloc (num, size);
 }
 
 static gpointer
@@ -411,19 +437,21 @@ replacement_realloc (gpointer old_address,
                      gsize new_size)
 {
   GumInvocationContext * ctx;
+  GumBoundsHookGroup * group;
   GumBoundsChecker * self;
   gpointer result = NULL;
   GumBlockDetails old_block;
 
   ctx = gum_interceptor_get_current_invocation ();
-  self = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsChecker *);
+  group = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsHookGroup *);
+  self = group->checker;
 
   if (old_address == NULL)
-    return malloc (new_size);
+    return group->api->malloc (new_size);
 
   if (new_size == 0)
   {
-    free (old_address);
+    group->api->free (old_address);
     return NULL;
   }
 
@@ -445,7 +473,7 @@ replacement_realloc (gpointer old_address,
   GUM_BOUNDS_CHECKER_UNLOCK ();
 
   if (result == NULL)
-    result = malloc (new_size);
+    result = group->api->malloc (new_size);
 
   if (result != NULL)
     gum_memcpy (result, old_address, MIN (old_block.size, new_size));
@@ -457,25 +485,27 @@ replacement_realloc (gpointer old_address,
   return result;
 
 fallback:
-  return realloc (old_address, new_size);
+  return group->api->realloc (old_address, new_size);
 }
 
 static void
 replacement_free (gpointer address)
 {
   GumInvocationContext * ctx;
+  GumBoundsHookGroup * group;
   GumBoundsChecker * self;
   gboolean freed;
 
   ctx = gum_interceptor_get_current_invocation ();
-  self = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsChecker *);
+  group = GUM_IC_GET_REPLACEMENT_DATA (ctx, GumBoundsHookGroup *);
+  self = group->checker;
 
   GUM_BOUNDS_CHECKER_LOCK ();
   freed = gum_bounds_checker_try_free (self, address, ctx);
   GUM_BOUNDS_CHECKER_UNLOCK ();
 
   if (!freed)
-    free (address);
+    group->api->free (address);
 }
 
 static gpointer
