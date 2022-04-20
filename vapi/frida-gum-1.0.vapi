@@ -151,6 +151,19 @@ namespace Gum {
 		LEAVE
 	}
 
+	[CCode (type_cname = "GumBacktracerInterface")]
+	public interface Backtracer : GLib.Object {
+		public static Backtracer? make_accurate ();
+		public static Backtracer? make_fuzzy ();
+
+		public abstract void generate (Gum.CpuContext * cpu_context, out Gum.ReturnAddressArray return_addresses);
+	}
+
+	public struct ReturnAddressArray {
+		public uint len;
+		public void * items[16];
+	}
+
 	public class MemoryAccessMonitor : GLib.Object {
 		public MemoryAccessMonitor ();
 
