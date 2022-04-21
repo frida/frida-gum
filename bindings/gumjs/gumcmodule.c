@@ -763,6 +763,8 @@ gum_add_abi_symbols (TCCState * state)
   GUM_REGISTER_HELPER (uidivmod);
 }
 
+#ifndef HAVE_AEABI_MEMORY_BUILTINS
+
 static void
 gum_aeabi_memmove (void * dst,
                    const void * src,
@@ -778,6 +780,8 @@ gum_aeabi_memset (void * s,
 {
   memset (s, c, n);
 }
+
+#endif
 
 #else
 
