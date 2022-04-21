@@ -3,7 +3,13 @@ task:
   freebsd_instance:
     image_family: freebsd-13-0
   install_script: pkg install -y git meson ninja npm
-  compile_script:
-    - meson setup --default-library static -Dgumpp=enabled -Dgumjs=enabled -Db_lundef=false build
-    - meson compile -C build
+  compile_script: |
+    meson setup \
+      --default-library static \
+      -Doptimization=s \
+      -Dgumpp=enabled \
+      -Dgumjs=enabled \
+      -Db_lundef=false \
+      build
+    meson compile -C build
   test_script: ./build/tests/gum-tests
