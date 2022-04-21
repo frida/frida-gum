@@ -100,6 +100,7 @@ jobs:
             --native-file /tmp/native.txt \
             --cross-file /tmp/cross.txt \
             --default-library static \
+            -Dwerror=true \
             -Dgumpp=enabled \
             -Dgumjs=enabled \
             build
@@ -141,6 +142,7 @@ jobs:
             --native-file /tmp/native.txt \
             --cross-file /tmp/cross.txt \
             --default-library static \
+            -Dwerror=true \
             -Dgumpp=enabled \
             -Dgumjs=enabled \
             -Dtests=enabled \
@@ -181,6 +183,7 @@ jobs:
             --native-file /tmp/native.txt \
             --cross-file /tmp/cross.txt \
             --default-library static \
+            -Dwerror=true \
             -Dgumpp=enabled \
             -Dgumjs=enabled \
             -Dtests=enabled \
@@ -236,6 +239,7 @@ jobs:
             --native-file /tmp/native.txt \
             --cross-file /tmp/cross.txt \
             --default-library static \
+            -Dwerror=true \
             -Dgumpp=enabled \
             -Dgumjs=enabled \
             -Dtests=enabled \
