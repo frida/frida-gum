@@ -6305,6 +6305,10 @@ gum_find_thread_exit_implementation (void)
   return GSIZE_TO_POINTER (gum_module_find_export_by_name (
         gum_process_query_libc_name (),
         "pthread_exit"));
+#elif defined (HAVE_FREEBSD)
+  return GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        "/lib/libthr.so.3",
+        "_pthread_exit"));
 #else
   return NULL;
 #endif
