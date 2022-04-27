@@ -30,7 +30,7 @@ TESTCASE (cycle)
   {
     sample_a = gum_sampler_sample (fixture->sampler);
     sample_b = gum_sampler_sample (fixture->sampler);
-    g_assert_cmpuint (sample_a, !=, sample_b);
+    g_assert_cmpuint (sample_b, >=, sample_a);
   }
   else
   {
