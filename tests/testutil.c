@@ -445,42 +445,7 @@ const GumHeapApiList *
 test_util_heap_apis (void)
 {
   if (_test_util_heap_apis == NULL)
-  {
-    GumHeapApi api = { 0, };
-
-#ifdef HAVE_LINUX
-    {
-      void * libc;
-
-      libc = dlopen (test_util_get_system_module_name (),
-          RTLD_LAZY | RTLD_GLOBAL);
-
-      api.malloc = dlsym (libc, "malloc");
-      api.calloc = dlsym (libc, "calloc");
-      api.realloc = dlsym (libc, "realloc");
-      api.free = dlsym (libc, "free");
-
-      dlclose (libc);
-    }
-#else
-    api.malloc = (gpointer (*) (gsize)) malloc;
-    api.calloc = (gpointer (*) (gsize, gsize)) calloc;
-    api.realloc = (gpointer (*) (gpointer, gsize)) realloc;
-    api.free = free;
-#endif
-
-#if defined (HAVE_WINDOWS) && defined (_DEBUG)
-    api._malloc_dbg = _malloc_dbg;
-    api._calloc_dbg = _calloc_dbg;
-    api._realloc_dbg = _realloc_dbg;
-    api._free_dbg = _free_dbg;
-    api._CrtReportBlockType = _CrtReportBlockType;
-#endif
-
-    _test_util_heap_apis = gum_heap_api_list_new ();
-    gum_heap_api_list_add (_test_util_heap_apis, &api);
-  }
-
+    _test_util_heap_apis = gum_process_find_heap_apis ();
   return _test_util_heap_apis;
 }
 
