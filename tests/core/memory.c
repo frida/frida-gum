@@ -517,6 +517,14 @@ TESTCASE (allocate_near_handles_alignment)
   gsize size, alignment;
   gpointer page;
 
+#if defined (HAVE_FREEBSD) && defined (HAVE_ARM64)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   as.near_address = &variable_on_stack;
   as.max_distance = G_MAXINT32;
 
