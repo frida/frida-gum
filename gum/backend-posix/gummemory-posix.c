@@ -267,6 +267,16 @@ gum_allocate_page_aligned (gpointer address,
   result = mmap (address, size, prot, MAP_PRIVATE | MAP_ANONYMOUS | extra_flags,
       -1, 0);
 
+#if defined (HAVE_FREEBSD) && GLIB_SIZEOF_VOID_P == 8
+  if (result == MAP_FAILED && (extra_flags & MAP_32BIT) != 0)
+  {
+    result = mmap (NULL, size, prot, MAP_PRIVATE | MAP_ANONYMOUS |
+        extra_flags, -1, 0);
+    if (result == MAP_FAILED)
+      result = mmap (address, size, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  }
+#endif
+
   return (result != MAP_FAILED) ? result : NULL;
 }
 
