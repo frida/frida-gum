@@ -958,6 +958,9 @@ gum_arm64_writer_put_ldr_reg_u32 (GumArm64Writer * self,
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
 
+  if (ri.is_integer && val == 0)
+    return gum_arm64_writer_put_mov_reg_reg (self, reg, ARM64_REG_WZR);
+
   if (ri.width != 32)
     return FALSE;
 
@@ -975,6 +978,9 @@ gum_arm64_writer_put_ldr_reg_u64 (GumArm64Writer * self,
   GumArm64RegInfo ri;
 
   gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  if (ri.is_integer && val == 0)
+    return gum_arm64_writer_put_mov_reg_reg (self, reg, ARM64_REG_XZR);
 
   if (ri.width != 64)
     return FALSE;
