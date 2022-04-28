@@ -121,6 +121,7 @@ void
 gum_clear_cache (gpointer address,
                  gsize size)
 {
+  msync (address, size, MS_INVALIDATE);
   __builtin___clear_cache (address, address + size);
 
   VALGRIND_DISCARD_TRANSLATIONS (address, size);
