@@ -1607,7 +1607,10 @@ gum_accumulate_chained_fixups_size (
   GumAccumulateFootprintContext * ctx = user_data;
 
   if (ctx->chained_fixups_count++ == 0)
+  {
     ctx->total += sizeof (gum_fixup_chain_processor_code);
+    ctx->total += sizeof (GumFixupChainProcessorApi);
+  }
 
   ctx->total += GUM_MAPPER_CHAINED_FIXUP_CALL_SIZE;
 
