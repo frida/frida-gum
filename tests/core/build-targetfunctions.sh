@@ -11,7 +11,7 @@ if [ -z "$os" -o -z "$arch" ]; then
   exit 1
 fi
 
-if [ -z "$CONFIG_SITE" ]; then
+if [ -z "$VALAC" ]; then
   echo "This script must be run from within a Frida build environment." > /dev/stderr
   exit 1
 fi

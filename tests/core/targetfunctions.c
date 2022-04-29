@@ -1,6 +1,10 @@
-#include "gumdefs.h"
-
 #include <glib.h>
+
+#ifdef _MSC_VER
+# define GUM_NOINLINE __declspec (noinline)
+#else
+# define GUM_NOINLINE __attribute__ ((noinline))
+#endif
 
 gpointer GUM_NOINLINE
 gum_test_target_function (GString * str)
