@@ -192,6 +192,8 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
+static void gum_do_enumerate_modules (const gchar * libc_name,
+    GumFoundModuleFunc func, gpointer user_data);
 static void gum_process_enumerate_modules_by_using_libc (
     GumDlIteratePhdrImpl iterate_phdr, GumFoundModuleFunc func,
     gpointer user_data);
@@ -213,6 +215,8 @@ static gboolean gum_try_translate_vdso_name (gchar * name);
 static void * gum_module_get_handle (const gchar * module_name);
 static void * gum_module_get_symbol (void * module, const gchar * symbol_name);
 
+static gboolean gum_do_resolve_module_name (const gchar * name,
+    const gchar * libc_name, gchar ** path, GumAddress * base);
 static gboolean gum_store_module_path_and_base_if_match (
     const GumModuleDetails * details, gpointer user_data);
 
@@ -286,24 +290,12 @@ gum_try_init_libc_name (void)
         NULL);
   }
 #else
-  gum_libc_name = g_strdup (info.dli_fname);
-#endif
-
-  if (g_file_test (gum_libc_name, G_FILE_TEST_IS_SYMLINK))
   {
-    gchar * parent_dir, * target, * canonical_name;
-
-    parent_dir = g_path_get_dirname (gum_libc_name);
-    target = g_file_read_link (gum_libc_name, NULL);
-
-    canonical_name = g_canonicalize_filename (target, parent_dir);
-
-    g_free (target);
-    g_free (parent_dir);
-
-    g_free (gum_libc_name);
-    gum_libc_name = canonical_name;
+    GumAddress base;
+    gum_do_resolve_module_name (info.dli_fname, info.dli_fname, &gum_libc_name,
+        &base);
   }
+#endif
 
   _gum_register_destructor (gum_deinit_libc_name);
 
@@ -684,6 +676,14 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
+  gum_do_enumerate_modules (gum_process_query_libc_name (), func, user_data);
+}
+
+static void
+gum_do_enumerate_modules (const gchar * libc_name,
+                          GumFoundModuleFunc func,
+                          gpointer user_data)
+{
   static gsize iterate_phdr_value = 0;
   GumDlIteratePhdrImpl iterate_phdr;
 
@@ -699,8 +699,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   {
     GumAddress impl;
 
-    impl = gum_module_find_export_by_name (gum_process_query_libc_name (),
-        "dl_iterate_phdr");
+    impl = gum_module_find_export_by_name (libc_name, "dl_iterate_phdr");
 
     g_once_init_leave (&iterate_phdr_value, impl + 1);
   }
@@ -1594,6 +1593,16 @@ _gum_process_resolve_module_name (const gchar * name,
                                   gchar ** path,
                                   GumAddress * base)
 {
+  return gum_do_resolve_module_name (name, gum_process_query_libc_name (), path,
+      base);
+}
+
+static gboolean
+gum_do_resolve_module_name (const gchar * name,
+                            const gchar * libc_name,
+                            gchar ** path,
+                            GumAddress * base)
+{
   gboolean success = FALSE;
   GumResolveModuleNameContext ctx;
 
@@ -1622,7 +1631,8 @@ _gum_process_resolve_module_name (const gchar * name,
   ctx.path = NULL;
   ctx.base = 0;
 
-  gum_process_enumerate_modules (gum_store_module_path_and_base_if_match, &ctx);
+  gum_do_enumerate_modules (libc_name, gum_store_module_path_and_base_if_match,
+      &ctx);
 
   success = ctx.path != NULL;
 
