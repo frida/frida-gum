@@ -131,6 +131,24 @@ jobs:
       - name: Test
         run: ./build/tests/gum-tests
 
+  freebsd-arm64:
+    runs-on: [self-hosted, freebsd, arm64]
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v3
+      - name: Build
+        run: |
+          meson setup \
+            --default-library static \
+            -Doptimization=s \
+            -Dgumpp=enabled \
+            -Dgumjs=enabled \
+            -Db_lundef=false \
+            build
+          meson compile -C build
+      - name: Test
+        run: ./build/tests/gum-tests
+
   ios-arm64:
     runs-on: macos-latest
     steps:
