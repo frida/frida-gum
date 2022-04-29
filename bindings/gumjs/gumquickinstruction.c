@@ -59,7 +59,8 @@ static JSValue gum_parse_regs (JSContext * ctx, const uint16_t * regs,
 static JSValue gum_parse_groups (JSContext * ctx, const uint8_t * groups,
     uint8_t count, csh cs);
 
-static JSValue gum_access_type_to_string (JSContext * ctx, uint8_t access_type);
+G_GNUC_UNUSED static JSValue gum_access_type_to_string (JSContext * ctx,
+    uint8_t access_type);
 
 static const JSClassDef gumjs_instruction_def =
 {
