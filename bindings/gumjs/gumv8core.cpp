@@ -3105,6 +3105,10 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
 # ifdef HAVE_DARWIN
   return_address &= G_GUINT64_CONSTANT (0x7fffffffff);
 # endif
+#elif defined (HAVE_MIPS)
+  asm ("move %0, $ra" : "=r" (return_address));
+  asm ("move %0, $sp" : "=r" (stack_pointer));
+  asm ("move %0, $fp" : "=r" (frame_pointer));
 #endif
 
   auto self = (GumV8NativeCallback *) user_data;
