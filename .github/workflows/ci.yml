@@ -43,6 +43,7 @@ jobs:
     strategy:
       matrix:
         arch: [amd64_x86, amd64]
+      fail-fast: false
     steps:
       - name: Checkout frida-gum
         uses: actions/checkout@v3
@@ -193,6 +194,7 @@ jobs:
     strategy:
       matrix:
         arch: [x86, x86_64]
+      fail-fast: false
     steps:
       - name: Checkout frida-gum
         uses: actions/checkout@v3
@@ -250,6 +252,7 @@ jobs:
     strategy:
       matrix:
         arch: [arm, arm64]
+      fail-fast: false
     steps:
       - name: Checkout frida-gum
         uses: actions/checkout@v3
