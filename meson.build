@@ -28,6 +28,13 @@ elif host_machine.cpu_family() == 'mips'
   else
     host_abi = 'mips'
   endif
+elif host_machine.cpu_family() == 'mips64'
+  host_arch = 'mips64'
+  if host_machine.endian() == 'little'
+    host_abi = 'mips64el'
+  else
+    host_abi = 'mips64'
+  endif
 else
   host_arch = host_machine.cpu_family()
   host_abi = host_arch
@@ -174,6 +181,7 @@ cpu_defines = [
   ['arm', 'HAVE_ARM'],
   ['arm64', 'HAVE_ARM64'],
   ['mips', 'HAVE_MIPS'],
+  ['mips64', 'HAVE_MIPS'],
 ]
 foreach d : cpu_defines
   if d.get(0) == host_arch
@@ -515,7 +523,7 @@ if have_gumjs
     'tests=false',
   ])
 
-  libtcc_dep = dependency('libtcc', required: host_arch != 'mips')
+  libtcc_dep = dependency('libtcc', required: host_arch not in ['mips', 'mips64'])
   cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
   if host_arch == 'arm' and cc.has_function('__aeabi_memmove')

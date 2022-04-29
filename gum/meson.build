@@ -270,7 +270,7 @@ gum_mips_headers = [
   'arch-mips/gummipswriter.h',
   'arch-mips/gummipsrelocator.h',
 ]
-if host_arch == 'mips'
+if host_arch in ['mips', 'mips64']
   gum_mips_headers += [
     'arch-mips/gummipsbacktracer.h',
     'arch-mips/gummipsreader.h',

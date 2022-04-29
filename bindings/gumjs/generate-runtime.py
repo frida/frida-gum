@@ -212,7 +212,12 @@ cpp_comment_pattern = re.compile(r"\s+?\/\/.+")
 
 
 def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir):
-    writer_arch = "x86" if arch.startswith("x86") or arch == "x64" else arch
+    if arch.startswith("x86") or arch == "x64":
+        writer_arch = "x86"
+    elif arch.startswith("mips"):
+        writer_arch = "mips"
+    else:
+        writer_arch = arch
     capstone_arch = writer_arch
 
     def gum_header_matches_writer(name):
