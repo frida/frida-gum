@@ -33,7 +33,7 @@ if host_os == 'android'
   ]
 endif
 
-if host_arch == 'x86' or host_arch == 'x86_64'
+if host_arch in ['x86', 'x86_64']
   core_sources += [
     'arch-x86/stalker-x86.c',
   ]

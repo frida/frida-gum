@@ -196,7 +196,7 @@ gum_x86_headers = [
   'arch-x86/gumx86relocator.h',
   'arch-x86/gumx86reader.h',
 ]
-if host_arch == 'x86' or host_arch == 'x86_64'
+if host_arch in ['x86', 'x86_64']
   gum_x86_headers += [
     'arch-x86/gumx86backtracer.h',
   ]
