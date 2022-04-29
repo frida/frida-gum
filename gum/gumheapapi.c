@@ -9,6 +9,13 @@
 #include "gumprocess.h"
 
 #include <string.h>
+#ifdef _MSC_VER
+# include <malloc.h>
+# include <stdlib.h>
+# ifdef _DEBUG
+#  include <crtdbg.h>
+# endif
+#endif
 
 /**
  * GumHeapApiList: (skip)
@@ -23,6 +30,29 @@ gum_process_find_heap_apis (void)
   GumHeapApiList * list;
 
   list = gum_heap_api_list_new ();
+
+#ifdef _MSC_VER
+  /* XXX: For now we assume that the static CRT is being used. */
+  {
+    GumHeapApi api = { 0, };
+
+    api.malloc = (gpointer (*) (gsize)) malloc;
+    api.calloc = (gpointer (*) (gsize, gsize)) calloc;
+    api.realloc = (gpointer (*) (gpointer, gsize)) realloc;
+    api.free = free;
+
+# ifdef _DEBUG
+    api._malloc_dbg = _malloc_dbg;
+    api._calloc_dbg = _calloc_dbg;
+    api._realloc_dbg = _realloc_dbg;
+    api._free_dbg = _free_dbg;
+    api._CrtReportBlockType = _CrtReportBlockType;
+# endif
+
+    gum_heap_api_list_add (list, &api);
+  }
+#endif
+
   gum_process_enumerate_modules (gum_collect_heap_api_if_crt_module, list);
 
   return list;
