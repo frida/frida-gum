@@ -5288,7 +5288,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   GumStalker * stalker = block->ctx->stalker;
   const gint trust_threshold = stalker->trust_threshold;
   GumX86Writer * cw = gc->code_writer;
-  const GumAddress call_code_start = cw->pc;
+  const GumAddress call_code_start = GPOINTER_TO_SIZE (cw->code);
   GumX86Writer * cws = gc->slow_writer;
   const GumPrologType opened_prolog = gc->opened_prolog;
   gboolean can_backpatch_statically;
@@ -5417,7 +5417,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 {
   const gint trust_threshold = block->ctx->stalker->trust_threshold;
   GumX86Writer * cw = gc->code_writer;
-  const GumAddress code_start = cw->pc;
+  const GumAddress code_start = GPOINTER_TO_SIZE (cw->code);
   GumX86Writer * cws = gc->slow_writer;
   const GumPrologType opened_prolog = gc->opened_prolog;
   gboolean can_backpatch_statically;
