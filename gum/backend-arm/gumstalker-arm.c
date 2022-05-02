@@ -16,7 +16,6 @@
 #include "gumspinlock.h"
 #include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
-#include "gumtls.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -106,7 +105,6 @@ struct _GumStalker
 
   GMutex mutex;
   GSList * contexts;
-  GumTlsKey exec_ctx;
 
   GArray * exclusions;
   gint trust_threshold;
@@ -400,7 +398,7 @@ static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumThreadId thread_id, GumStalkerTransformer * transformer,
     GumEventSink * sink);
 static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
-static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
+static GumExecCtx * gum_stalker_get_exec_ctx (void);
 static GumExecCtx * gum_stalker_find_exec_ctx_by_thread_id (GumStalker * self,
     GumThreadId thread_id);
 
@@ -656,6 +654,8 @@ static guint gum_count_trailing_zeros (guint16 value);
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
+static GPrivate gum_stalker_exec_ctx_private;
+
 static gpointer gum_thread_exit_address;
 
 gboolean
@@ -730,7 +730,6 @@ gum_stalker_init (GumStalker * self)
 
   g_mutex_init (&self->mutex);
   self->contexts = NULL;
-  self->exec_ctx = gum_tls_key_new ();
 }
 
 static void
@@ -744,7 +743,6 @@ gum_stalker_finalize (GObject * object)
   g_array_free (self->exclusions, TRUE);
 
   g_assert (self->contexts == NULL);
-  gum_tls_key_free (self->exec_ctx);
   g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
@@ -922,7 +920,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
   ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
       transformer, sink);
-  gum_tls_key_set_value (self->exec_ctx, ctx);
+  g_private_set (&gum_stalker_exec_ctx_private, ctx);
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, ret_addr,
       &code_address);
@@ -944,7 +942,7 @@ gum_stalker_unfollow_me (GumStalker * self)
 {
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   if (ctx == NULL)
     return;
 
@@ -961,7 +959,7 @@ gum_stalker_unfollow_me (GumStalker * self)
 gboolean
 gum_stalker_is_following_me (GumStalker * self)
 {
-  return gum_stalker_get_exec_ctx (self) != NULL;
+  return gum_stalker_get_exec_ctx () != NULL;
 }
 
 void
@@ -1060,8 +1058,8 @@ gum_stalker_infect (GumThreadId thread_id,
 
   gum_exec_ctx_write_arm_prolog (ctx, cw);
   gum_arm_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (gum_tls_key_set_value), 2,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (self->exec_ctx),
+      GUM_ADDRESS (g_private_set), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (&gum_stalker_exec_ctx_private),
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
   gum_exec_ctx_write_arm_epilog (ctx, cw);
 
@@ -1104,7 +1102,7 @@ _gum_stalker_do_activate (GumStalker * self,
 {
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   if (ctx == NULL)
     return ret_addr;
 
@@ -1133,7 +1131,7 @@ _gum_stalker_do_deactivate (GumStalker * self,
 {
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   if (ctx == NULL)
     return ret_addr;
 
@@ -1156,7 +1154,7 @@ gum_stalker_maybe_deactivate (GumStalker * self,
 {
   GumExecCtx * ctx;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   activation->ctx = ctx;
 
   if (ctx != NULL && ctx->pending_calls == 0)
@@ -1196,7 +1194,7 @@ gum_stalker_prefetch (GumStalker * self,
   GumExecBlock * block;
   gpointer code_address;
 
-  ctx = gum_stalker_get_exec_ctx (self);
+  ctx = gum_stalker_get_exec_ctx ();
   g_assert (ctx != NULL);
 
   block = gum_exec_ctx_obtain_block_for (ctx, (gpointer) address,
@@ -1504,9 +1502,9 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
 }
 
 static GumExecCtx *
-gum_stalker_get_exec_ctx (GumStalker * self)
+gum_stalker_get_exec_ctx (void)
 {
-  return gum_tls_key_get_value (self->exec_ctx);
+  return g_private_get (&gum_stalker_exec_ctx_private);
 }
 
 static GumExecCtx *
@@ -1785,7 +1783,7 @@ gum_exec_ctx_unfollow (GumExecCtx * ctx,
 
   ctx->resume_at = resume_at;
 
-  gum_tls_key_set_value (ctx->stalker->exec_ctx, NULL);
+  g_private_set (&gum_stalker_exec_ctx_private, NULL);
 
   ctx->destroy_pending_since = g_get_monotonic_time ();
   g_atomic_int_set (&ctx->state, GUM_EXEC_CTX_DESTROY_PENDING);
