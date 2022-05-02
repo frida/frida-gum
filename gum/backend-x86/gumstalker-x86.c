@@ -4538,8 +4538,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
        * We insert into our hashtable the real address of the next instruction
        * using the code address of the next instrumented instruction as a key.
        */
-      gum_metal_hash_table_insert (ctx->excluded_calls, end_of_call,
-          GSIZE_TO_POINTER (insn->ci->address + insn->ci->size));
+      gum_metal_hash_table_insert (ctx->excluded_calls, end_of_call, insn->end);
 #endif
 
       gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc,
