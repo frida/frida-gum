@@ -4176,13 +4176,6 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
   switch (id)
   {
     case X86_INS_JMP:
-    /*
-     * These instructions only support a short form offset (8 bits) and
-     * therefore don't give enough range for their offset to be replaced with
-     * the target address, we therefore patch them just like a normal JMP.
-     */
-    case X86_INS_JECXZ:
-    case X86_INS_JRCXZ:
       gum_exec_block_backpatch_unconditional_jmp (block, from, from_insn,
           is_eob, code_offset, opened_prolog);
       break;
@@ -4665,7 +4658,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
      * the Jcc instruction itself.
      */
     gum_exec_block_write_jmp_transfer_code (block, &target,
-        GUM_ENTRYGATE (jmp_cond_jcxz), gc, insn->ci->id, GUM_ADDRESS (0));
+        GUM_ENTRYGATE (jmp_cond_jcxz), gc, X86_INS_JMP, GUM_ADDRESS (0));
   }
   else if (gum_exec_block_is_direct_jmp_to_plt_got (block, gc, &target))
   {
