@@ -2706,9 +2706,7 @@ gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
    * callback and let the user decide what to do.
    */
   if (from_insn != NULL)
-  {
     insn = gum_x86_reader_disassemble_instruction_at (from_insn);
-  }
 
   gum_stalker_observer_switch_callback (ctx->observer, start_address, insn,
       target);
@@ -4673,7 +4671,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   else
   {
     gpointer is_true;
-    GumAddress jcc_address = GUM_ADDRESS (0);
+    GumAddress jcc_address = 0;
     GumExecCtxReplaceCurrentBlockFunc regular_entry_func, cond_entry_func;
 
     gum_x86_relocator_skip_one_no_label (gc->relocator);
