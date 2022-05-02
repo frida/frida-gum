@@ -22,7 +22,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/syscall.h>
+#ifdef HAVE_LINUX
+# include <sys/syscall.h>
+#endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
 #define GUM_CODE_SLAB_SIZE_DYNAMIC  (4 * 1024 * 1024)
