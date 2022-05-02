@@ -2447,9 +2447,7 @@ gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
    * callback and let the user decide what to do.
    */
   if (from_insn != NULL)
-  {
     insn = gum_arm64_reader_disassemble_instruction_at (from_insn);
-  }
 
   gum_stalker_observer_switch_callback (ctx->observer, start_address, insn,
       target);
