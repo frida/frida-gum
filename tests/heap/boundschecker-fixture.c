@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -127,3 +127,7 @@ static const GumReturnAddress violation_backtrace[] =
   GUINT_TO_POINTER (0xaaaa1111),
   GUINT_TO_POINTER (0xaaaa2222)
 };
+
+#if defined (__GNUC__) && __GNUC__ >= 12
+# pragma GCC diagnostic ignored "-Wuse-after-free"
+#endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -655,7 +655,14 @@ replacement_malloc_calling_malloc_and_replaced_free (gsize size)
   result = malloc (1);
   free (result); /* should do nothing because we replace free */
 
+#if defined (__GNUC__) && __GNUC__ >= 12
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wuse-after-free"
+#endif
   return result;
+#if defined (__GNUC__) && __GNUC__ >= 12
+# pragma GCC diagnostic pop
+#endif
 }
 
 static void
