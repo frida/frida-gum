@@ -855,8 +855,8 @@ static GPrivate gum_stalker_exec_ctx_private;
 static gpointer _gum_thread_exit_impl;
 
 #ifdef HAVE_LINUX
-static const guint8 int80[] = { 0xcd, 0x80 };
-static const guint8 syscall[] = { 0x0f, 0x05 };
+static const guint8 gum_int80_code[] = { 0xcd, 0x80 };
+static const guint8 gum_syscall_code[] = { 0x0f, 0x05 };
 
 # ifndef HAVE_ANDROID
 static GumInterceptor * gum_exec_ctx_interceptor = NULL;
@@ -5083,12 +5083,14 @@ gum_exec_block_virtualize_linux_syscall (GumExecBlock * block,
    */
   g_assert (insn->size == 2);
 
-  if (memcmp (insn->bytes, int80, sizeof (int80)) == 0)
+  if (memcmp (insn->bytes, gum_int80_code,
+        sizeof (gum_int80_code)) == 0)
   {
     gum_x86_writer_put_call_address (cw,
         GUM_ADDRESS (block->ctx->last_int80));
   }
-  else if (memcmp (insn->bytes, syscall, sizeof (syscall)) == 0)
+  else if (memcmp (insn->bytes, gum_syscall_code,
+        sizeof (gum_syscall_code)) == 0)
   {
     gum_x86_writer_put_call_address (cw,
         GUM_ADDRESS (block->ctx->last_syscall));
@@ -5119,14 +5121,16 @@ static void
 gum_exec_ctx_write_int80_helper (GumExecCtx * ctx,
                                  GumX86Writer * cw)
 {
-  gum_exec_ctx_write_aligned_syscall (ctx, cw, int80, sizeof (int80));
+  gum_exec_ctx_write_aligned_syscall (ctx, cw, gum_int80_code,
+      sizeof (gum_int80_code));
 }
 
 static void
 gum_exec_ctx_write_syscall_helper (GumExecCtx * ctx,
                                    GumX86Writer * cw)
 {
-  gum_exec_ctx_write_aligned_syscall (ctx, cw, syscall, sizeof (syscall));
+  gum_exec_ctx_write_aligned_syscall (ctx, cw, gum_syscall_code,
+      sizeof (gum_syscall_code));
 }
 
 static void
