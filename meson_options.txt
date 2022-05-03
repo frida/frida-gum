@@ -11,6 +11,12 @@ option('allocator',
   description: 'Which memory allocator to use'
 )
 
+option('jailbreak',
+  type: 'feature',
+  value: 'auto',
+  description: 'Include jailbreak-specific integrations'
+)
+
 option('gumpp',
   type: 'feature',
   value: 'disabled',

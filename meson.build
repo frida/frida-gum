@@ -170,6 +170,10 @@ if allocator == 'system'
   cdata.set('GUM_USE_SYSTEM_ALLOC', 1)
 endif
 
+if get_option('jailbreak').allowed()
+  cdata.set('HAVE_JAILBREAK', 1)
+endif
+
 cdata.set('HAVE_' + host_os_family.to_upper(), 1)
 if host_os != host_os_family
   cdata.set('HAVE_' + host_os.to_upper(), 1)

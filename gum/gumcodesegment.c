@@ -10,7 +10,7 @@
  * GumCodeSegment: (skip)
  */
 
-#ifndef HAVE_DARWIN
+#if !(defined (HAVE_DARWIN) && defined (HAVE_JAILBREAK))
 
 gboolean
 gum_code_segment_is_supported (void)

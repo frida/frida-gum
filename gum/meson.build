@@ -121,12 +121,16 @@ if host_os_family == 'darwin'
     'backend-darwin/gumtls-darwin.c',
     'backend-darwin/gummemory-darwin.c',
     'backend-darwin/gumprocess-darwin.c',
-    'backend-darwin/gumcodesegment-darwin.c',
-    'backend-darwin/substratedclient.c',
     'backend-darwin/gumexceptor-darwin.c',
     'backend-darwin/gumdarwinmapper.c',
     'backend-darwin/gumdarwinmoduleresolver.c',
   ]
+  if get_option('jailbreak').allowed()
+    gum_sources += [
+      'backend-darwin/gumcodesegment-darwin.c',
+      'backend-darwin/substratedclient.c',
+    ]
+  endif
   if not diet
     gum_sources += [
       'backend-darwin/gumobjcdisposeclasspairmonitor.c',
