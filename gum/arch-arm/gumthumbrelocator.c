@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -264,8 +264,8 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   if (instruction != NULL)
     *instruction = insn;
 
-  self->input_cur += insn->size;
-  self->input_pc += insn->size;
+  self->input_cur = code;
+  self->input_pc = address;
 
   if (it_block_size > 0)
   {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -235,8 +235,8 @@ gum_mips_relocator_read_one (GumMipsRelocator * self,
   if (instruction != NULL)
     *instruction = insn;
 
-  self->input_cur += insn->size;
-  self->input_pc += insn->size;
+  self->input_cur = code;
+  self->input_pc = address;
 
   return self->input_cur - self->input_start;
 }

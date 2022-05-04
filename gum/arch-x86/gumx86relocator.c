@@ -219,7 +219,7 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
   if (instruction != NULL)
     *instruction = insn;
 
-  self->input_cur += insn->size;
+  self->input_cur = code;
 
   return self->input_cur - self->input_start;
 }

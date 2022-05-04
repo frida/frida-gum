@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -224,8 +224,8 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
   if (instruction != NULL)
     *instruction = insn;
 
-  self->input_cur += insn->size;
-  self->input_pc += insn->size;
+  self->input_cur = code;
+  self->input_pc = address;
 
   return self->input_cur - self->input_start;
 }
