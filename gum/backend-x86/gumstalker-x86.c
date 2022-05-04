@@ -40,6 +40,9 @@
 # ifndef HAVE_ANDROID
 #  include <unwind.h>
 # endif
+# ifndef __NR_clone3
+#  define __NR_clone3 435
+# endif
 #endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
@@ -5041,23 +5044,27 @@ gum_exec_block_virtualize_linux_syscall (GumExecBlock * block,
 {
   GumX86Writer * cw = gc->code_writer;
   const cs_insn * insn = gc->instruction->ci;
-  gconstpointer perform_regular_syscall = cw->code + 1;
-  gconstpointer perform_next_instruction = cw->code + 2;
+  gconstpointer perform_clone_syscall = cw->code + 1;
+  gconstpointer perform_regular_syscall = cw->code + 2;
+  gconstpointer perform_next_instruction = cw->code + 3;
 
   gum_x86_relocator_skip_one (gc->relocator);
 
   if (gc->opened_prolog != GUM_PROLOG_NONE)
     gum_exec_block_close_prolog (block, gc, cw);
 
-  /* Save state */
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
       GUM_REG_XSP, -GUM_RED_ZONE_SIZE);
   gum_x86_writer_put_pushfx (cw);
 
-  /* See if the syscall is clone */
   gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_XAX, __NR_clone);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, perform_clone_syscall,
+      GUM_NO_HINT);
+  gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_XAX, __NR_clone3);
   gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, perform_regular_syscall,
-      GUM_UNLIKELY);
+      GUM_NO_HINT);
+
+  gum_x86_writer_put_label (cw, perform_clone_syscall);
 
   /*
    * Store the return address. Note that we cannot use the stack to store this
@@ -5100,16 +5107,14 @@ gum_exec_block_virtualize_linux_syscall (GumExecBlock * block,
     g_assert_not_reached ();
   }
 
-  gum_x86_writer_put_jmp_near_label (cw, perform_next_instruction);
+  gum_x86_writer_put_jmp_short_label (cw, perform_next_instruction);
 
   gum_x86_writer_put_label (cw, perform_regular_syscall);
 
-  /* Restore state */
   gum_x86_writer_put_popfx (cw);
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
       GUM_REG_XSP, GUM_RED_ZONE_SIZE);
 
-  /* Original syscall instruction */
   gum_x86_writer_put_bytes (cw, insn->bytes, insn->size);
 
   gum_x86_writer_put_label (cw, perform_next_instruction);
