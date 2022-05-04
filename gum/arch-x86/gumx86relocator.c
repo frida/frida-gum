@@ -19,9 +19,7 @@ typedef struct _GumCodeGenCtx GumCodeGenCtx;
 struct _GumCodeGenCtx
 {
   cs_insn * insn;
-  guint8 * start;
-  guint8 * end;
-  guint len;
+  GumAddress pc;
 
   GumX86Writer * code_writer;
 };
@@ -288,20 +286,20 @@ gum_x86_relocator_write_one_no_label (GumX86Relocator * self)
 static gboolean
 gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
 {
+  cs_insn * insn;
   GumCodeGenCtx ctx;
   gboolean rewritten = FALSE;
 
-  if ((ctx.insn = gum_x86_relocator_peek_next_write_insn (self)) == NULL)
+  if ((insn = gum_x86_relocator_peek_next_write_insn (self)) == NULL)
     return FALSE;
   gum_x86_relocator_increment_outpos (self);
 
-  ctx.len = ctx.insn->size;
-  ctx.start = (guint8 *) GSIZE_TO_POINTER (ctx.insn->address);
-  ctx.end = ctx.start + ctx.len;
+  ctx.insn = insn;
+  ctx.pc = insn->address + insn->size;
 
   ctx.code_writer = self->output;
 
-  switch (ctx.insn->id)
+  switch (insn->id)
   {
     case X86_INS_CALL:
     case X86_INS_JMP:
@@ -355,7 +353,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
 #endif
 
     default:
-      if (gum_x86_reader_insn_is_jcc (ctx.insn))
+      if (gum_x86_reader_insn_is_jcc (insn))
         rewritten = gum_x86_relocator_rewrite_conditional_branch (self, &ctx);
       else if (self->output->target_cpu == GUM_CPU_AMD64)
         rewritten = gum_x86_relocator_rewrite_if_rip_relative (self, &ctx);
@@ -363,7 +361,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
   }
 
   if (!rewritten)
-    gum_x86_writer_put_bytes (ctx.code_writer, ctx.start, ctx.len);
+    gum_x86_writer_put_bytes (ctx.code_writer, insn->bytes, insn->size);
 
   return TRUE;
 }
@@ -466,47 +464,47 @@ static gboolean
 gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
                                                 GumCodeGenCtx * ctx)
 {
-  cs_x86_op * op = &ctx->insn->detail->x86.operands[0];
+  cs_insn * insn = ctx->insn;
+  cs_x86_op * op = &insn->detail->x86.operands[0];
   GumX86Writer * cw = ctx->code_writer;
 
   if (ctx->insn->id == X86_INS_CALL)
   {
     GumCpuReg pc_reg;
 
-    if (gum_x86_call_is_to_next_instruction (ctx->insn))
+    if (gum_x86_call_is_to_next_instruction (insn))
     {
       if (cw->target_cpu == GUM_CPU_AMD64)
       {
         gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
-        gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-            GUM_ADDRESS (ctx->end));
+        gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX, ctx->pc);
         gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
       }
       else
       {
-        gum_x86_writer_put_push_u32 (cw, GPOINTER_TO_SIZE (ctx->end));
+        gum_x86_writer_put_push_u32 (cw, ctx->pc);
       }
 
       return TRUE;
     }
-    else if (gum_x86_call_try_parse_get_pc_thunk (ctx->insn,
+    else if (gum_x86_call_try_parse_get_pc_thunk (insn,
         self->output->target_cpu, &pc_reg))
     {
-      gum_x86_writer_put_mov_reg_u32 (cw, pc_reg, GPOINTER_TO_SIZE (ctx->end));
+      gum_x86_writer_put_mov_reg_u32 (cw, pc_reg, ctx->pc);
       return TRUE;
     }
   }
 
   if (op->type == X86_OP_IMM)
   {
-    if (ctx->insn->id == X86_INS_CALL)
+    if (insn->id == X86_INS_CALL)
       gum_x86_writer_put_call_address (cw, op->imm);
     else
       gum_x86_writer_put_jmp_address (cw, op->imm);
 
     return TRUE;
   }
-  else if ((ctx->insn->id == X86_INS_CALL || ctx->insn->id == X86_INS_JMP) &&
+  else if ((insn->id == X86_INS_CALL || insn->id == X86_INS_JMP) &&
       op->type == X86_OP_MEM)
   {
     if (self->output->target_cpu == GUM_CPU_AMD64)
@@ -514,8 +512,7 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
     return FALSE;
   }
-  else if (ctx->insn->id == X86_INS_JMP && op->type == X86_OP_IMM &&
-      op->size == 8)
+  else if (insn->id == X86_INS_JMP && op->type == X86_OP_IMM && op->size == 8)
   {
     return FALSE;
   }
@@ -608,23 +605,32 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   if (!is_rip_relative)
     return FALSE;
 
-  address = GUM_ADDRESS (insn->address + insn->size + x86->disp);
+  address = ctx->pc + x86->disp;
   offset = address - (GUM_ADDRESS (cw->code) + insn->size);
 
   if (offset >= G_MININT32 && offset <= G_MAXINT32)
   {
     const gint32 raw_offset = GINT32_TO_LE ((gint32) offset);
-    gum_memcpy (code, ctx->start, ctx->len);
+    gum_memcpy (code, insn->bytes, insn->size);
     gum_memcpy (code + x86->encoding.disp_offset, &raw_offset,
         sizeof (raw_offset));
-    gum_x86_writer_put_bytes (cw, code, ctx->len);
+    gum_x86_writer_put_bytes (cw, code, insn->size);
     return TRUE;
   }
 
   if (insn->id == X86_INS_CALL || insn->id == X86_INS_JMP)
   {
-    gint32 distance = *((gint32 *) (ctx->end - sizeof (gint32)));
+    union
+    {
+      gint32 value;
+      guint8 bytes[4];
+    } i32;
+    gint32 distance;
     guint64 * return_address_placeholder = NULL;
+
+    gum_memcpy (i32.bytes, insn->bytes + insn->size - sizeof (gint32),
+        sizeof (i32.bytes));
+    distance = GINT32_FROM_LE (i32.value);
 
     if (insn->id == X86_INS_CALL)
     {
@@ -635,8 +641,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     }
 
     gum_x86_writer_put_push_reg (cw, GUM_REG_RAX);
-    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RAX,
-        GUM_ADDRESS (ctx->end + distance));
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RAX, ctx->pc + distance);
     gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RAX);
     gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RSP);
     gum_x86_writer_put_ret (cw);
@@ -681,8 +686,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
         -GUM_RED_ZONE_SIZE);
   }
   gum_x86_writer_put_push_reg (cw, rip_reg);
-  gum_x86_writer_put_mov_reg_address (cw, rip_reg,
-      GUM_ADDRESS (ctx->end));
+  gum_x86_writer_put_mov_reg_address (cw, rip_reg, ctx->pc);
 
   if (insn->id == X86_INS_PUSH)
   {
@@ -694,9 +698,9 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   }
   else
   {
-    gum_memcpy (code, ctx->start, ctx->len);
+    gum_memcpy (code, insn->bytes, insn->size);
     code[x86->encoding.modrm_offset] = (mod << 6) | (reg << 3) | rm;
-    gum_x86_writer_put_bytes (cw, code, ctx->len);
+    gum_x86_writer_put_bytes (cw, code, insn->size);
   }
 
   gum_x86_writer_put_pop_reg (cw, rip_reg);
