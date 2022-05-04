@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,7 +15,7 @@
     void test_relocator_ ## NAME ( \
         TestRelocatorFixture * fixture, gconstpointer data)
 #define TESTENTRY(NAME) \
-    TESTENTRY_WITH_FIXTURE ("Core/Relocator", test_relocator, NAME, \
+    TESTENTRY_WITH_FIXTURE ("Core/X86Relocator", test_relocator, NAME, \
         TestRelocatorFixture)
 
 #define TEST_OUTBUF_SIZE 32
