@@ -821,26 +821,17 @@ TESTCASE (rip_relative_call)
 TESTCASE (rip_relative_adjust_offset)
 {
   guint8 input[] = {
-    0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
-    0xc3,                               /* ret                */
-    0x01, 0x02, 0x03, 0x04
+    0x48, 0x8b, 0x05,             /* mov rax, qword ptr [rip + 0x140bc6a] */
+          0x6a, 0xbc, 0x40, 0x01,
   };
   guint8 expected_output[] = {
-    0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
+    0x48, 0x8b, 0x05,             /* mov rax, qword ptr [rip - 0x1d98dcc] */
+           0x34, 0x72, 0x26, 0xfe,
   };
 
-  /*
-   * Since our test fixture writes our output to a stack buffer, we ensure our
-   * input is also on the stack so that it is within 2GB of the output and thus
-   * we can test it can be relocated by just updating the offset.
-   */
-  g_assert (((input - expected_output) >= G_MININT32) &&
-      ((input - expected_output) <= G_MAXINT32));
-
-  *((gint32 *) (expected_output + 2)) += input - fixture->output;
-
-  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
   SETUP_RELOCATOR_WITH (input);
+  fixture->rl.input_pc = G_GUINT64_CONSTANT (0x10007043f);
+  fixture->rl.output->pc = G_GUINT64_CONSTANT (0x103214e75);
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);

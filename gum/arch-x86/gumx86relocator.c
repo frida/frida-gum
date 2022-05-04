@@ -606,7 +606,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     return FALSE;
 
   address = ctx->pc + x86->disp;
-  offset = address - (GUM_ADDRESS (cw->code) + insn->size);
+  offset = address - (cw->pc + insn->size);
 
   if (offset >= G_MININT32 && offset <= G_MAXINT32)
   {
