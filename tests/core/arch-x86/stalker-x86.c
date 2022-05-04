@@ -15,6 +15,7 @@
 # include <errno.h>
 # include <fcntl.h>
 # include <unistd.h>
+# include <pthread.h>
 # include <sys/wait.h>
 # ifndef F_SETPIPE_SZ
 #  define F_SETPIPE_SZ 1031
@@ -331,7 +332,7 @@ run_stalked_briefly (gpointer data)
 
 TESTCASE (create_thread)
 {
-  GThread * thread;
+  pthread_t thread;
   gpointer result;
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
@@ -339,12 +340,12 @@ TESTCASE (create_thread)
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  thread = g_thread_new ("stalker-test-target", run_spawned_thread, NULL);
-
-  result = g_thread_join (thread);
-  g_assert (result == GSIZE_TO_POINTER (0xdeadface));
+  pthread_create (&thread, NULL, run_spawned_thread, NULL);
+  pthread_join (thread, &result);
 
   gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert (result == GSIZE_TO_POINTER (0xdeadface));
 }
 
 static gpointer
