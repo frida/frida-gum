@@ -23,6 +23,7 @@ struct _GumX86Relocator
 
   const guint8 * input_start;
   const guint8 * input_cur;
+  GumAddress input_pc;
   cs_insn ** input_insns;
   GumX86Writer * output;
 

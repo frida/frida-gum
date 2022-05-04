@@ -120,6 +120,7 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
 {
   relocator->input_start = input_code;
   relocator->input_cur = input_code;
+  relocator->input_pc = GUM_ADDRESS (input_code);
 
   if (output != NULL)
     gum_x86_writer_ref (output);
@@ -179,7 +180,7 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
 
   code = self->input_cur;
   size = 16;
-  address = GPOINTER_TO_SIZE (self->input_cur);
+  address = self->input_pc;
   insn = *insn_ptr;
 
   if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
@@ -220,6 +221,7 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
     *instruction = insn;
 
   self->input_cur = code;
+  self->input_pc = address;
 
   return self->input_cur - self->input_start;
 }
@@ -536,16 +538,17 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
 
   if (op->type == X86_OP_IMM)
   {
-    const guint8 * target = GSIZE_TO_POINTER (op->imm);
+    GumAddress target = op->imm;
 
-    if (target >= self->input_start && target < self->input_cur)
+    if (target >= self->input_pc - (self->input_cur - self->input_start) &&
+        target < self->input_pc)
     {
       gum_x86_writer_put_jcc_short_label (ctx->code_writer, ctx->insn->id,
-          target, GUM_NO_HINT);
+          GSIZE_TO_POINTER (target), GUM_NO_HINT);
     }
     else if (ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ ||
-        !gum_x86_writer_put_jcc_near (ctx->code_writer, ctx->insn->id, target,
-          GUM_NO_HINT))
+        !gum_x86_writer_put_jcc_near (ctx->code_writer, ctx->insn->id,
+          GSIZE_TO_POINTER (target), GUM_NO_HINT))
     {
       gsize unique_id = GPOINTER_TO_SIZE (ctx->code_writer->code) << 1;
       gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
@@ -556,7 +559,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
       gum_x86_writer_put_jmp_short_label (ctx->code_writer, is_false);
 
       gum_x86_writer_put_label (ctx->code_writer, is_true);
-      gum_x86_writer_put_jmp_address (ctx->code_writer, GUM_ADDRESS (target));
+      gum_x86_writer_put_jmp_address (ctx->code_writer, target);
 
       gum_x86_writer_put_label (ctx->code_writer, is_false);
     }
