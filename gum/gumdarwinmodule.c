@@ -20,6 +20,11 @@
 #define GUM_DARWIN_MODULE_HAS_HEADER_ONLY(self) \
     ((self->flags & GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY) != 0)
 
+#define GUM_SPECIAL_DYLIB_SELF 0
+#define GUM_SPECIAL_DYLIB_MAIN_EXECUTABLE 0xff
+#define GUM_SPECIAL_DYLIB_FLAT_LOOKUP 0xfe
+#define GUM_SPECIAL_DYLIB_WEAK_LOOKUP 0xfd
+
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
 typedef struct _GumEmitImportContext GumEmitImportContext;
@@ -1896,6 +1901,16 @@ const gchar *
 gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
                                              gint ordinal)
 {
+  switch (ordinal)
+  {
+    case GUM_SPECIAL_DYLIB_SELF:
+      return self->name;
+    case GUM_SPECIAL_DYLIB_MAIN_EXECUTABLE:
+    case GUM_SPECIAL_DYLIB_FLAT_LOOKUP:
+    case GUM_SPECIAL_DYLIB_WEAK_LOOKUP:
+      return NULL;
+  }
+
   gint i = ordinal - 1;
 
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
