@@ -1897,6 +1897,8 @@ const gchar *
 gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
                                              gint ordinal)
 {
+  gint i;
+
   switch (ordinal)
   {
     case GUM_BIND_SPECIAL_DYLIB_SELF:
@@ -1907,7 +1909,7 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
       return NULL;
   }
 
-  gint i = ordinal - 1;
+  i = ordinal - 1;
 
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
