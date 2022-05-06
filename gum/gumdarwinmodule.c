@@ -1899,6 +1899,9 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
 {
   gint i;
 
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+    return NULL;
+
   switch (ordinal)
   {
     case GUM_BIND_SPECIAL_DYLIB_SELF:
@@ -1910,9 +1913,6 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
   }
 
   i = ordinal - 1;
-
-  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
-    return NULL;
 
   if (i < 0 || i >= (gint) self->dependencies->len)
     return NULL;
