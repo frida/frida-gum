@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1570,7 +1571,7 @@ gum_emit_chained_imports (const GumDarwinChainedFixupsDetails * details,
   for (imp_index = 0; imp_index != fixups_header->imports_count; imp_index++)
   {
     guint name_offset;
-    gint lib_ordinal;
+    gint8 lib_ordinal;
     GumImportDetails * d;
     gpointer key;
 
@@ -1896,10 +1897,22 @@ const gchar *
 gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
                                              gint ordinal)
 {
-  gint i = ordinal - 1;
+  gint i;
 
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return NULL;
+
+  switch (ordinal)
+  {
+    case GUM_BIND_SPECIAL_DYLIB_SELF:
+      return self->name;
+    case GUM_BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
+    case GUM_BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
+    case GUM_BIND_SPECIAL_DYLIB_WEAK_LOOKUP:
+      return NULL;
+  }
+
+  i = ordinal - 1;
 
   if (i < 0 || i >= (gint) self->dependencies->len)
     return NULL;

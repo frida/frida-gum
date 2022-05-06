@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,6 +35,7 @@
 #define GUM_BIND_SPECIAL_DYLIB_SELF             0
 #define GUM_BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE -1
 #define GUM_BIND_SPECIAL_DYLIB_FLAT_LOOKUP     -2
+#define GUM_BIND_SPECIAL_DYLIB_WEAK_LOOKUP     -3
 
 G_BEGIN_DECLS
 

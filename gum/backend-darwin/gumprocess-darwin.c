@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
+ * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1894,17 +1895,23 @@ gum_emit_import (const GumImportDetails * details,
 
   if (d.module == NULL)
   {
-    d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, d.name));
+    if (details->address != 0)
+      d.address = details->address;
+    else
+      d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, d.name));
 
     if (d.address != 0)
     {
       const GumModuleDetails * module_details;
+      Dl_info info;
 
       if (ctx->module_map == NULL)
         ctx->module_map = gum_module_map_new ();
       module_details = gum_module_map_find (ctx->module_map, d.address);
       if (module_details != NULL)
         d.module = module_details->path;
+      else if (dladdr (GSIZE_TO_POINTER (d.address), &info) != 0)
+        d.module = info.dli_fname;
     }
   }
 
@@ -1935,6 +1942,12 @@ gum_resolve_export (const char * module_name,
 {
   GumEnumerateImportsContext * ctx = user_data;
   GumDarwinModule * module;
+
+  if (module_name == NULL)
+  {
+    const char * name = gum_symbol_name_from_darwin (symbol_name);
+    return GUM_ADDRESS (dlsym (RTLD_DEFAULT, name));
+  }
 
   module = gum_darwin_module_resolver_find_module (ctx->resolver, module_name);
   if (module != NULL)
