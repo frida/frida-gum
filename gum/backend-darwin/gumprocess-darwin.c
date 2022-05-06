@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
+ * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1885,7 +1886,6 @@ gum_emit_import (const GumImportDetails * details,
 {
   GumEnumerateImportsContext * ctx = user_data;
   GumImportDetails d;
-  Dl_info info;
 
   d.type = GUM_IMPORT_UNKNOWN;
   d.name = gum_symbol_name_from_darwin (details->name);
@@ -1903,6 +1903,7 @@ gum_emit_import (const GumImportDetails * details,
     if (d.address != 0)
     {
       const GumModuleDetails * module_details;
+      Dl_info info;
 
       if (ctx->module_map == NULL)
         ctx->module_map = gum_module_map_new ();

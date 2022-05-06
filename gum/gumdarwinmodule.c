@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C)      2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,11 +20,6 @@
 
 #define GUM_DARWIN_MODULE_HAS_HEADER_ONLY(self) \
     ((self->flags & GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY) != 0)
-
-#define GUM_SPECIAL_DYLIB_SELF 0
-#define GUM_SPECIAL_DYLIB_MAIN_EXECUTABLE 0xff
-#define GUM_SPECIAL_DYLIB_FLAT_LOOKUP 0xfe
-#define GUM_SPECIAL_DYLIB_WEAK_LOOKUP 0xfd
 
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
@@ -1575,7 +1571,7 @@ gum_emit_chained_imports (const GumDarwinChainedFixupsDetails * details,
   for (imp_index = 0; imp_index != fixups_header->imports_count; imp_index++)
   {
     guint name_offset;
-    gint lib_ordinal;
+    gint8 lib_ordinal;
     GumImportDetails * d;
     gpointer key;
 
@@ -1903,11 +1899,11 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
 {
   switch (ordinal)
   {
-    case GUM_SPECIAL_DYLIB_SELF:
+    case GUM_BIND_SPECIAL_DYLIB_SELF:
       return self->name;
-    case GUM_SPECIAL_DYLIB_MAIN_EXECUTABLE:
-    case GUM_SPECIAL_DYLIB_FLAT_LOOKUP:
-    case GUM_SPECIAL_DYLIB_WEAK_LOOKUP:
+    case GUM_BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
+    case GUM_BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
+    case GUM_BIND_SPECIAL_DYLIB_WEAK_LOOKUP:
       return NULL;
   }
 
