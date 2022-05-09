@@ -143,7 +143,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 
   _gum_quick_scope_suspend (&scope);
 
-  g_usleep (delay * G_USEC_PER_SEC);
+  g_usleep ((gulong) (delay * G_USEC_PER_SEC));
 
   _gum_quick_scope_resume (&scope);
 
