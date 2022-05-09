@@ -45,8 +45,8 @@ namespace Gum.Darwin {
 	}
 
 	public class Symbolicator : GLib.Object {
-		public Symbolicator.with_path (string path, Gum.CpuType cpu_type) throws GLib.Error;
-		public Symbolicator.with_task (Gum.DarwinPort task) throws GLib.Error;
+		public Symbolicator.with_path (string path, Gum.CpuType cpu_type) throws Gum.Error;
+		public Symbolicator.with_task (Gum.DarwinPort task) throws Gum.Error;
 
 		public bool load () throws Gum.Error;
 

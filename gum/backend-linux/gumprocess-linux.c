@@ -1497,16 +1497,26 @@ gum_linux_cpu_type_from_pid (pid_t pid,
 
   auxv_path = g_strdup_printf ("/proc/%d/auxv", pid);
 
-  if (!g_file_get_contents (auxv_path, &auxv, &auxv_size, error))
-    goto beach;
+  auxv = NULL;
+  if (!g_file_get_contents (auxv_path, &auxv, &auxv_size, NULL))
+    goto not_found;
 
   result = gum_linux_cpu_type_from_auxv (auxv, auxv_size);
 
-beach:
-  g_free (auxv);
-  g_free (auxv_path);
+  goto beach;
 
-  return result;
+not_found:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND, "Process not found");
+    goto beach;
+  }
+beach:
+  {
+    g_free (auxv);
+    g_free (auxv_path);
+
+    return result;
+  }
 }
 
 GumCpuType

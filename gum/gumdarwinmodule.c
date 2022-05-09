@@ -1981,9 +1981,9 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
   gpointer data;
   GBytes * blob;
 
-  file = g_mapped_file_new (path, FALSE, error);
+  file = g_mapped_file_new (path, FALSE, NULL);
   if (file == NULL)
-    return FALSE;
+    goto not_found;
 
   size = g_mapped_file_get_length (file);
   page_size = gum_query_page_size ();
@@ -2003,6 +2003,13 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
   g_bytes_unref (blob);
 
   return success;
+
+not_found:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
+        "Module not found at \"%s\"", path);
+    return FALSE;
+  }
 }
 
 static gboolean
@@ -2018,9 +2025,9 @@ gum_darwin_module_load_image_header_from_filesystem (GumDarwinModule * self,
   gsize header_size, cursor;
   gboolean is_fat;
 
-  file = g_mapped_file_new (path, FALSE, error);
+  file = g_mapped_file_new (path, FALSE, NULL);
   if (file == NULL)
-    return FALSE;
+    goto not_found;
 
   page_size = gum_query_page_size ();
   data = gum_alloc_n_pages (1, GUM_PAGE_RW);
@@ -2067,6 +2074,13 @@ gum_darwin_module_load_image_header_from_filesystem (GumDarwinModule * self,
   g_bytes_unref (blob);
 
   return success;
+
+not_found:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
+        "Module not found at \"%s\"", path);
+    return FALSE;
+  }
 }
 
 static gboolean
