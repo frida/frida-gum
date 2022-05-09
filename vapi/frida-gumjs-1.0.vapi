@@ -15,13 +15,13 @@ namespace Gum {
 		public static unowned ScriptBackend? obtain_qjs ();
 		public static unowned ScriptBackend? obtain_v8 ();
 
-		public async Script create (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public Script create_sync (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public async Script create_from_bytes (GLib.Bytes bytes, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public Script create_from_bytes_sync (GLib.Bytes bytes, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public async Script create (string name, string source, GLib.Cancellable? cancellable = null) throws Gum.Error;
+		public Script create_sync (string name, string source, GLib.Cancellable? cancellable = null) throws Gum.Error;
+		public async Script create_from_bytes (GLib.Bytes bytes, GLib.Cancellable? cancellable = null) throws Gum.Error;
+		public Script create_from_bytes_sync (GLib.Bytes bytes, GLib.Cancellable? cancellable = null) throws Gum.Error;
 
-		public async GLib.Bytes compile (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public GLib.Bytes compile_sync (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public async GLib.Bytes compile (string name, string source, GLib.Cancellable? cancellable = null) throws Gum.Error;
+		public GLib.Bytes compile_sync (string name, string source, GLib.Cancellable? cancellable = null) throws Gum.Error;
 
 		public void set_debug_message_handler (owned Gum.ScriptBackend.DebugMessageHandler? handler);
 		public void post_debug_message (string message);
@@ -80,7 +80,7 @@ namespace Gum {
 		public InspectorServer ();
 		public InspectorServer.with_port (uint port);
 
-		public bool start () throws GLib.IOError;
+		public bool start () throws Gum.Error;
 		public void stop ();
 
 		public void post_message (string message);
