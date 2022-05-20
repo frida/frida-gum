@@ -575,9 +575,9 @@ gum_android_get_linker_flavor (void)
 guint
 gum_android_get_api_level (void)
 {
-  static guint cached_api_level = 0;
+  static guint cached_api_level = G_MAXUINT;
 
-  if (cached_api_level == 0)
+  if (cached_api_level == G_MAXUINT)
   {
     gchar sdk_version[PROP_VALUE_MAX];
 
