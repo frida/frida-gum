@@ -581,7 +581,6 @@ gum_android_get_api_level (void)
   {
     gchar sdk_version[PROP_VALUE_MAX];
 
-    sdk_version[0] = '\0';
     __system_property_get ("ro.build.version.sdk", sdk_version);
 
     cached_api_level = atoi (sdk_version);

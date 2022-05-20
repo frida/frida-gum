@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -257,7 +257,6 @@ get_system_api_level (void)
 {
   gchar sdk_version[PROP_VALUE_MAX];
 
-  sdk_version[0] = '\0';
   __system_property_get ("ro.build.version.sdk", sdk_version);
 
   return atoi (sdk_version);
