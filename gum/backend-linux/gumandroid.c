@@ -42,11 +42,15 @@ typedef struct _GumLinkerApi GumLinkerApi;
 typedef struct _GumSoinfo GumSoinfo;
 typedef struct _GumSoinfoHead GumSoinfoHead;
 typedef struct _GumSoinfoBody GumSoinfoBody;
+typedef struct _GumSoinfoExtrasPre33 GumSoinfoExtrasPre33;
+typedef struct _GumSoinfoExtrasPost33 GumSoinfoExtrasPost33;
 typedef struct _GumSoinfoModern GumSoinfoModern;
 typedef struct _GumSoinfoLegacy23 GumSoinfoLegacy23;
 typedef struct _GumSoinfoLegacy GumSoinfoLegacy;
 typedef guint32 GumSoinfoFlags;
-typedef struct _GumSoinfoList GumSoinfoList;
+typedef struct _GumSoinfoListModern GumSoinfoListModern;
+typedef struct _GumSoinfoListLegacy GumSoinfoListLegacy;
+typedef struct _GumSoinfoListHeader GumSoinfoListHeader;
 typedef struct _GumSoinfoListEntry GumSoinfoListEntry;
 
 typedef struct _GumFindDlopenApiContext GumFindDlopenApiContext;
@@ -107,7 +111,18 @@ struct _GumLinkerApi
   const char * (* soinfo_get_path) (GumSoinfo * si);
 };
 
-struct _GumSoinfoList
+struct _GumSoinfoListModern
+{
+  GumSoinfoListHeader * header;
+};
+
+struct _GumSoinfoListLegacy
+{
+  GumSoinfoListEntry * head;
+  GumSoinfoListEntry * tail;
+};
+
+struct _GumSoinfoListHeader
 {
   GumSoinfoListEntry * head;
   GumSoinfoListEntry * tail;
@@ -146,6 +161,82 @@ struct _GumSoinfoHead
 
   const ElfW(Phdr) * phdr;
   gsize phnum;
+};
+
+struct _GumSoinfoExtrasPre33
+{
+  GumSoinfoListLegacy children;
+  GumSoinfoListLegacy parents;
+
+  /* version >= 1 */
+  off64_t file_offset;
+  guint32 rtld_flags;
+  guint32 dt_flags_1;
+  gsize strtab_size;
+
+  /* version >= 2 */
+  gsize gnu_nbucket;
+  guint32 * gnu_bucket;
+  guint32 * gnu_chain;
+  guint32 gnu_maskwords;
+  guint32 gnu_shift2;
+  ElfW(Addr) * gnu_bloom_filter;
+
+  GumSoinfo * local_group_root;
+
+  guint8 * android_relocs;
+  gsize android_relocs_size;
+
+  const gchar * soname;
+  GumLibcxxString realpath;
+
+  const ElfW(Versym) * versym;
+
+  ElfW(Addr) verdef_ptr;
+  gsize verdef_cnt;
+
+  ElfW(Addr) verneed_ptr;
+  gsize verneed_cnt;
+
+  gint target_sdk_version;
+
+  /* For now we don't need anything from version >= 3. */
+};
+
+struct _GumSoinfoExtrasPost33
+{
+  GumSoinfoListModern children;
+  GumSoinfoListModern parents;
+
+  off64_t file_offset;
+  guint32 rtld_flags;
+  guint32 dt_flags_1;
+  gsize strtab_size;
+
+  gsize gnu_nbucket;
+  guint32 * gnu_bucket;
+  guint32 * gnu_chain;
+  guint32 gnu_maskwords;
+  guint32 gnu_shift2;
+  ElfW(Addr) * gnu_bloom_filter;
+
+  GumSoinfo * local_group_root;
+
+  guint8 * android_relocs;
+  gsize android_relocs_size;
+
+  GumLibcxxString soname;
+  GumLibcxxString realpath;
+
+  const ElfW(Versym) * versym;
+
+  ElfW(Addr) verdef_ptr;
+  gsize verdef_cnt;
+
+  ElfW(Addr) verneed_ptr;
+  gsize verneed_cnt;
+
+  gint target_sdk_version;
 };
 
 struct _GumSoinfoBody
@@ -229,42 +320,12 @@ struct _GumSoinfoBody
   dev_t st_dev;
   ino_t st_ino;
 
-  GumSoinfoList children;
-  GumSoinfoList parents;
-
-  /* version >= 1 */
-  off64_t file_offset;
-  guint32 rtld_flags;
-  guint32 dt_flags_1;
-  gsize strtab_size;
-
-  /* version >= 2 */
-  gsize gnu_nbucket;
-  guint32 * gnu_bucket;
-  guint32 * gnu_chain;
-  guint32 gnu_maskwords;
-  guint32 gnu_shift2;
-  ElfW(Addr) * gnu_bloom_filter;
-
-  GumSoinfo * local_group_root;
-
-  guint8 * android_relocs;
-  gsize android_relocs_size;
-
-  const gchar * soname;
-  GumLibcxxString realpath;
-
-  const ElfW(Versym) * versym;
-
-  ElfW(Addr) verdef_ptr;
-  gsize verdef_cnt;
-
-  ElfW(Addr) verneed_ptr;
-  gsize verneed_cnt;
-
-  gint target_sdk_version;
-
-  /* For now we don't need anything from version >= 3. */
+  union
+  {
+    GumSoinfoExtrasPre33 pre33;
+    GumSoinfoExtrasPost33 post33;
+  }
+  extras;
 };
 
 struct _GumSoinfoModern
@@ -390,6 +451,9 @@ static GumSoinfoHead * gum_soinfo_get_head (GumSoinfo * self);
 #endif
 static GumSoinfoBody * gum_soinfo_get_body (GumSoinfo * self);
 static gboolean gum_soinfo_is_linker (GumSoinfo * self);
+static GumSoinfo * gum_soinfo_get_parent (GumSoinfo * self);
+static guint32 gum_soinfo_get_rtld_flags (GumSoinfo * self);
+static const gchar * gum_soinfo_get_realpath (GumSoinfo * self);
 static const char * gum_soinfo_get_path_fallback (GumSoinfo * self);
 
 static void * gum_call_inner_dlopen (const char * filename, int flags);
@@ -580,10 +644,12 @@ gum_android_get_api_level (void)
   if (cached_api_level == G_MAXUINT)
   {
     gchar sdk_version[PROP_VALUE_MAX];
+    gchar vendor_api_level[PROP_VALUE_MAX];
 
     __system_property_get ("ro.build.version.sdk", sdk_version);
+    __system_property_get ("ro.vendor.api_level", vendor_api_level);
 
-    cached_api_level = atoi (sdk_version);
+    cached_api_level = MAX (atoi (sdk_version), atoi (vendor_api_level));
   }
 
   return cached_api_level;
@@ -874,9 +940,7 @@ gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
     {
       GumSoinfo * parent;
 
-      parent = (sb->parents.head != NULL)
-          ? sb->parents.head->element
-          : NULL;
+      parent = gum_soinfo_get_parent (details->si);
       if (parent != NULL)
       {
         caller_addr = GSIZE_TO_POINTER (gum_soinfo_get_body (parent)->base);
@@ -884,7 +948,7 @@ gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
 
       if (sb->version >= 1)
       {
-        flags = sb->rtld_flags;
+        flags = gum_soinfo_get_rtld_flags (details->si);
       }
     }
 
@@ -1547,18 +1611,72 @@ gum_soinfo_is_linker (GumSoinfo * self)
   return gum_soinfo_get_body (self)->base == 0;
 }
 
-static const char *
-gum_soinfo_get_path_fallback (GumSoinfo * self)
+static GumSoinfo *
+gum_soinfo_get_parent (GumSoinfo * self)
+{
+  GumSoinfoBody * sb;
+  GumSoinfoListEntry * entry;
+
+  sb = gum_soinfo_get_body (self);
+
+  if (gum_android_get_api_level () >= 33)
+  {
+    GumSoinfoListHeader * header = sb->extras.post33.parents.header;
+
+    if (header == NULL)
+      return NULL;
+
+    entry = header->head;
+  }
+  else
+  {
+    entry = sb->extras.pre33.parents.head;
+  }
+
+  if (entry == NULL)
+    return NULL;
+
+  return entry->element;
+}
+
+static guint32
+gum_soinfo_get_rtld_flags (GumSoinfo * self)
 {
   GumSoinfoBody * sb = gum_soinfo_get_body (self);
 
+  if (gum_android_get_api_level () >= 33)
+    return sb->extras.post33.rtld_flags;
+  else
+    return sb->extras.pre33.rtld_flags;
+}
+
+static const gchar *
+gum_soinfo_get_realpath (GumSoinfo * self)
+{
+  GumSoinfoBody * sb;
+  GumLibcxxString * str;
+
+  sb = gum_soinfo_get_body (self);
+
+  str = (gum_android_get_api_level () >= 33)
+      ? &sb->extras.post33.realpath
+      : &sb->extras.pre33.realpath;
+
+  return gum_libcxx_string_get_data (str);
+}
+
+static const char *
+gum_soinfo_get_path_fallback (GumSoinfo * self)
+{
 #ifdef GUM_ANDROID_LEGACY_SOINFO
+  GumSoinfoBody * sb = gum_soinfo_get_body (self);
+
   if ((sb->flags & GUM_SOINFO_NEW_FORMAT) != 0 && sb->version >= 2)
-    return gum_libcxx_string_get_data (&sb->realpath);
+    return gum_soinfo_get_realpath (self);
   else
     return gum_soinfo_get_head (self)->old_name;
 #else
-  return gum_libcxx_string_get_data (&sb->realpath);
+  return gum_soinfo_get_realpath (self);
 #endif
 }
 
