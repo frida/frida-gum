@@ -11,7 +11,7 @@ gadget_unstripped=../../frida-core/lib/gadget/_frida-gadget.dylib
 
 cd "$gum_tests/../../build/tmp_thin-ios-$arch/frida-gum" || exit 1
 
-. ../../frida_thin-meson-env-macos-x86_64.rc
+. ../../frida_thin-env-macos-x86_64.rc
 ninja || exit 1
 
 cd tests
