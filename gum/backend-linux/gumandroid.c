@@ -644,15 +644,40 @@ gum_android_get_api_level (void)
   if (cached_api_level == G_MAXUINT)
   {
     gchar sdk_version[PROP_VALUE_MAX];
-    gchar vendor_api_level[PROP_VALUE_MAX];
 
     __system_property_get ("ro.build.version.sdk", sdk_version);
-    __system_property_get ("ro.vendor.api_level", vendor_api_level);
 
-    cached_api_level = MAX (atoi (sdk_version), atoi (vendor_api_level));
+    cached_api_level = atoi (sdk_version);
   }
 
   return cached_api_level;
+}
+
+static gboolean
+gum_android_is_api33_or_newer (void)
+{
+  static gboolean is_api33_or_newer;
+  static gboolean initialized = FALSE;
+
+  if (!initialized)
+  {
+    if (gum_android_get_api_level () >= 33)
+    {
+      is_api33_or_newer = TRUE;
+    }
+    else
+    {
+      gchar codename[PROP_VALUE_MAX];
+
+      __system_property_get ("ro.build.version.codename", codename);
+
+      is_api33_or_newer = strcmp (codename, "Tiramisu") == 0;
+    }
+
+    initialized = TRUE;
+  }
+
+  return is_api33_or_newer;
 }
 
 gboolean
@@ -1619,7 +1644,7 @@ gum_soinfo_get_parent (GumSoinfo * self)
 
   sb = gum_soinfo_get_body (self);
 
-  if (gum_android_get_api_level () >= 33)
+  if (gum_android_is_api33_or_newer ())
   {
     GumSoinfoListHeader * header = sb->extras.post33.parents.header;
 
@@ -1644,7 +1669,7 @@ gum_soinfo_get_rtld_flags (GumSoinfo * self)
 {
   GumSoinfoBody * sb = gum_soinfo_get_body (self);
 
-  if (gum_android_get_api_level () >= 33)
+  if (gum_android_is_api33_or_newer ())
     return sb->extras.post33.rtld_flags;
   else
     return sb->extras.pre33.rtld_flags;
@@ -1658,7 +1683,7 @@ gum_soinfo_get_realpath (GumSoinfo * self)
 
   sb = gum_soinfo_get_body (self);
 
-  str = (gum_android_get_api_level () >= 33)
+  str = gum_android_is_api33_or_newer ()
       ? &sb->extras.post33.realpath
       : &sb->extras.pre33.realpath;
 
