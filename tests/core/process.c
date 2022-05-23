@@ -493,14 +493,18 @@ TESTCASE (process_ranges)
     stack_buf = g_alloca (stack_buf_size);
 
     ctx.range.base_address = GUM_ADDRESS (malloc_buf);
+#if defined (HAVE_ANDROID) && defined (HAVE_ARM64)
+    /* https://source.android.com/devices/tech/debug/tagged-pointers */
+    ctx.range.base_address &= G_GUINT64_CONSTANT (0x00ffffffffffffff);
+#endif
     ctx.range.size = malloc_buf_size;
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
     g_assert_true (ctx.found);
 
-    ctx.range.base_address = GUM_ADDRESS (malloc_buf) + 1;
-    ctx.range.size = malloc_buf_size - 1;
+    ctx.range.base_address++;
+    ctx.range.size--;
     ctx.found = FALSE;
     ctx.found_exact = FALSE;
     gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
