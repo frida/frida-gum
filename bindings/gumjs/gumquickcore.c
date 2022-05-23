@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
@@ -2504,6 +2504,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
     return _gum_quick_throw_literal (ctx, "invalid key");
 
   return _gum_quick_native_pointer_new (ctx, value, core);
+#elif defined (HAVE_ANDROID) && defined (HAVE_ARM64)
+  GumQuickNativePointer * self;
+  gpointer value_without_top_byte;
+
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  /* https://source.android.com/devices/tech/debug/tagged-pointers */
+  value_without_top_byte = GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (self->value) & G_GUINT64_CONSTANT (0x00ffffffffffffff));
+
+  if (value_without_top_byte == self->value)
+    return JS_DupValue (ctx, this_val);
+
+  return _gum_quick_native_pointer_new (ctx, value_without_top_byte, core);
 #else
   return JS_DupValue (ctx, this_val);
 #endif

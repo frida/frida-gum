@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
@@ -2067,6 +2067,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_strip)
   }
 
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (value, core));
+#elif defined (HAVE_ANDROID) && defined (HAVE_ARM64)
+  gpointer value = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
+
+  /* https://source.android.com/devices/tech/debug/tagged-pointers */
+  gpointer value_without_top_byte = GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (value) & G_GUINT64_CONSTANT (0x00ffffffffffffff));
+
+  if (value_without_top_byte == value)
+  {
+    info.GetReturnValue ().Set (info.This ());
+    return;
+  }
+
+  info.GetReturnValue ().Set (
+      _gum_v8_native_pointer_new (value_without_top_byte, core));
 #else
   info.GetReturnValue ().Set (info.This ());
 #endif

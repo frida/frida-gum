@@ -242,6 +242,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_pointer_provides_arithmetic_operations)
     TESTENTRY (native_pointer_provides_uint32_conversion_functionality)
     TESTENTRY (native_pointer_provides_ptrauth_functionality)
+    TESTENTRY (native_pointer_provides_arm_tbi_functionality)
     TESTENTRY (native_pointer_to_match_pattern)
     TESTENTRY (native_pointer_can_be_constructed_from_64bit_value)
     TESTENTRY (native_pointer_should_be_serializable_to_json)
@@ -2341,6 +2342,32 @@ TESTCASE (native_pointer_provides_ptrauth_functionality)
 #endif
 
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (native_pointer_provides_arm_tbi_functionality)
+{
+#if defined (HAVE_ANDROID) && defined (HAVE_ARM64)
+  void * block = malloc (1);
+
+  if (GUM_ADDRESS (block) >> 56 != 0)
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "const original = " GUM_PTR_CONST ";"
+        "const expected = original.and(ptr(0xff).shl(56).not());"
+        "send(original.strip().equals(expected));",
+        block);
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_NO_MESSAGES ();
+  }
+  else
+  {
+    g_print ("<skipping on this device> ");
+  }
+
+  free (block);
+#else
+  g_print ("<skipping on this platform> ");
+#endif
 }
 
 TESTCASE (native_pointer_to_match_pattern)
