@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -240,12 +240,7 @@ static gboolean check_linker_export (const GumApiDetails * details,
 
 TESTCASE (linker_exports_can_be_resolved_on_android)
 {
-  const gchar * linker_name = (sizeof (gpointer) == 4)
-      ? "/system/bin/linker"
-      : "/system/bin/linker64";
-  const gchar * libdl_name = (sizeof (gpointer) == 4)
-      ? "/system/lib/libdl.so"
-      : "/system/lib64/libdl.so";
+  const gchar * linker_name, * libdl_name;
   const gchar * linker_exports[] =
   {
     "dlopen",
@@ -255,6 +250,25 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
   };
   const gchar * correct_module_name, * incorrect_module_name;
   guint i;
+
+  if (gum_android_get_api_level () >= 29)
+  {
+    linker_name = (sizeof (gpointer) == 4)
+        ? "/apex/com.android.runtime/bin/linker"
+        : "/apex/com.android.runtime/bin/linker64";
+    libdl_name = (sizeof (gpointer) == 4)
+        ? "/apex/com.android.runtime/lib/bionic/libdl.so"
+        : "/apex/com.android.runtime/lib64/bionic/libdl.so";
+  }
+  else
+  {
+    linker_name = (sizeof (gpointer) == 4)
+        ? "/system/bin/linker"
+        : "/system/bin/linker64";
+    libdl_name = (sizeof (gpointer) == 4)
+        ? "/system/lib/libdl.so"
+        : "/system/lib64/libdl.so";
+  }
 
   if (gum_android_get_api_level () >= 26)
   {
