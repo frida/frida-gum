@@ -245,7 +245,6 @@ gum_arm_relocator_peek_next_write_source (GumArmRelocator * self)
 void
 gum_arm_relocator_skip_one (GumArmRelocator * self)
 {
-  gum_arm_relocator_peek_next_write_insn (self);
   gum_arm_relocator_increment_outpos (self);
 }
 

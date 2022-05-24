@@ -254,7 +254,6 @@ gum_arm64_relocator_peek_next_write_source (GumArm64Relocator * self)
 void
 gum_arm64_relocator_skip_one (GumArm64Relocator * self)
 {
-  gum_arm64_relocator_peek_next_write_insn (self);
   gum_arm64_relocator_increment_outpos (self);
 }
 

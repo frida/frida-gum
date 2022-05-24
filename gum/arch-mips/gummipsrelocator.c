@@ -265,7 +265,6 @@ gum_mips_relocator_peek_next_write_source (GumMipsRelocator * self)
 void
 gum_mips_relocator_skip_one (GumMipsRelocator * self)
 {
-  gum_mips_relocator_peek_next_write_insn (self);
   gum_mips_relocator_increment_outpos (self);
 }
 
