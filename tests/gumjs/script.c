@@ -804,6 +804,8 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("\"fmov\"");
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
   EXPECT_SEND_MESSAGE_WITH ("1");
+#else
+  g_print ("<skipping, missing code for current architecture> ");
 #endif
 }
 
@@ -852,6 +854,8 @@ TESTCASE (instruction_can_be_generated)
       "const cw = new X86Writer(code);"
       "cw.putMovRegU32('rax', 42);");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid argument");
+#else
+  g_print ("<skipping, missing code for current architecture> ");
 #endif
 }
 
@@ -918,6 +922,8 @@ TESTCASE (instruction_can_be_relocated)
   EXPECT_SEND_MESSAGE_WITH ("42");
 
   EXPECT_NO_MESSAGES ();
+#else
+  g_print ("<skipping, missing code for current architecture> ");
 #endif
 }
 
