@@ -334,12 +334,13 @@ def generate_quick_wrapper_code(component, api):
             elif method.return_type == "GumAddress":
                 lines.append("  return _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (result), core);")
             elif method.return_type == "cs_insn *":
-                if component.flavor == "x86":
-                    target = "GSIZE_TO_POINTER (result->address)"
-                else:
-                    target = "self->impl->input_start + (result->address -\n            (self->impl->input_pc - self->impl->inpos))"
-                    if component.flavor == "thumb":
-                        target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
+                target = "\n".join([
+                    "self->impl->input_start + (result->address -",
+                    "          (self->impl->input_pc -",
+                    "            (self->impl->input_cur - self->impl->input_start)))",
+                ])
+                if component.flavor == "thumb":
+                    target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
                 lines.extend([
                     "  if (result != NULL)",
                     "  {",
@@ -1162,12 +1163,9 @@ GUMJS_DEFINE_GETTER ({gumjs_function_prefix}_get_eoi)
 }}
 """
 
-    if component.flavor == "x86":
-        target = "GSIZE_TO_POINTER (self->input->insn->address)"
-    else:
-        target = "self->impl->input_start +\n        (self->input->insn->address -\n            (self->impl->input_pc - self->impl->inpos))"
-        if component.flavor == "thumb":
-            target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
+    target = "self->impl->input_cur - self->input->insn->size"
+    if component.flavor == "thumb":
+        target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
 
     params = {
         "writer_wrapper_struct_name": component.wrapper_struct_name.replace("Relocator", "Writer"),
@@ -1347,12 +1345,13 @@ def generate_v8_wrapper_code(component, api):
             elif method.return_type == "GumAddress":
                 lines.append("  info.GetReturnValue ().Set (_gum_v8_native_pointer_new (GSIZE_TO_POINTER (result), core));")
             elif method.return_type == "cs_insn *":
-                if component.flavor == "x86":
-                    target = "GSIZE_TO_POINTER (result->address)"
-                else:
-                    target = "self->impl->input_start + (result->address - (self->impl->input_pc - self->impl->inpos))"
-                    if component.flavor == "thumb":
-                        target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
+                target = "\n".join([
+                    "self->impl->input_start + (result->address -",
+                    "          (self->impl->input_pc -",
+                    "            (self->impl->input_cur - self->impl->input_start)))",
+                ])
+                if component.flavor == "thumb":
+                    target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
                 lines.extend([
                     "  if (result != NULL)",
                     "  {",
@@ -2148,12 +2147,9 @@ static const GumV8Property {gumjs_function_prefix}_values[] =
 }};
 """
 
-    if component.flavor == "x86":
-        target = "GSIZE_TO_POINTER (self->input->insn->address)"
-    else:
-        target = "self->impl->input_start + (self->input->insn->address - (self->impl->input_pc - self->impl->inpos))"
-        if component.flavor == "thumb":
-            target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
+    target = "self->impl->input_cur - self->input->insn->size"
+    if component.flavor == "thumb":
+        target = "GSIZE_TO_POINTER (GPOINTER_TO_SIZE ({0}) | 1)".format(target)
 
     params = {
         "writer_impl_struct_name": to_camel_case('gum_{0}_writer'.format(component.flavor), start_high=True),

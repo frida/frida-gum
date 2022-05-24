@@ -349,6 +349,10 @@ TESTLIST_BEGIN (script)
     TESTENTRY (instruction_can_be_relocated)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("Relocator")
+    TESTENTRY (relocator_should_expose_input_instruction)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("File")
     TESTENTRY (file_can_be_written_to)
   TESTGROUP_END ()
@@ -922,6 +926,51 @@ TESTCASE (instruction_can_be_relocated)
   EXPECT_SEND_MESSAGE_WITH ("42");
 
   EXPECT_NO_MESSAGES ();
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
+}
+
+TESTCASE (relocator_should_expose_input_instruction)
+{
+#ifdef HAVE_ARM64
+  COMPILE_AND_LOAD_SCRIPT (
+      "const code = Memory.alloc(8);"
+      "code.writeU32(0xb9400ae8);"
+      "code.add(4).writeU32(0x3100051f);"
+
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new Arm64Writer(page);"
+      "const relocator = new Arm64Relocator(code, writer);"
+
+      "send(relocator.input);"
+      "send(relocator.peekNextWriteInsn());"
+
+      "send(relocator.readOne());"
+      "let insn = relocator.input;"
+      "send(insn.toString());"
+      "send(insn.address.equals(code));"
+      "send(insn.next.equals(code.add(4)));"
+      "relocator.writeOne();"
+
+      "send(relocator.readOne());"
+      "insn = relocator.peekNextWriteInsn();"
+      "send(insn.toString());"
+      "send(insn.address.equals(code.add(4)));"
+      "send(insn.next.equals(code.add(8)));");
+
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  EXPECT_SEND_MESSAGE_WITH ("4");
+  EXPECT_SEND_MESSAGE_WITH ("\"ldr w8, [x23, #8]\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("8");
+  EXPECT_SEND_MESSAGE_WITH ("\"cmn w8, #1\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 #else
   g_print ("<skipping, missing code for current architecture> ");
 #endif
