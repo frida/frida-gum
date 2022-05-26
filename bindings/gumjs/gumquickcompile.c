@@ -11,6 +11,7 @@ main (int argc,
       char * argv[])
 {
   int exit_code = 1;
+  int extra_write_flags = 0;
   const char * input_path, * output_path;
   JSRuntime * rt;
   JSContext * ctx;
@@ -25,9 +26,18 @@ main (int argc,
   uint8_t * code_cursor;
   FILE * output = NULL;
 
+  if (argc >= 2 && strcmp (argv[1], "--bswap") == 0)
+  {
+    extra_write_flags = JS_WRITE_OBJ_BSWAP;
+
+    argc--;
+    argv[1] = argv[0];
+    argv++;
+  }
+
   if (argc != 3)
   {
-    fprintf (stderr, "Usage: %s input.js output.qjs\n", argv[0]);
+    fprintf (stderr, "Usage: %s [--bswap] input.js output.qjs\n", argv[0]);
     return 1;
   }
 
@@ -81,7 +91,8 @@ main (int argc,
   if (JS_IsException (val))
     goto compilation_failed;
 
-  code = JS_WriteObject (ctx, &size, val, JS_WRITE_OBJ_BYTECODE);
+  code = JS_WriteObject (ctx, &size, val,
+      JS_WRITE_OBJ_BYTECODE | extra_write_flags);
 
   output = fopen (output_path, "wb");
   if (output == NULL)

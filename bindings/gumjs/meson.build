@@ -214,6 +214,7 @@ gumjs_runtime = custom_target('gumjs-runtime',
   command: [
     find_program('generate-runtime.py'),
     host_arch,
+    host_machine.endian(),
     meson.current_source_dir(),
     meson.project_source_root() / 'gum',
     capstone_dep.get_variable('includedir') / 'capstone',

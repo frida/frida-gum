@@ -22,7 +22,7 @@ EXACT_DEPS = {
 }
 
 
-def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir):
+def generate_runtime(arch, endian, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir):
     frida_compile = output_dir / "node_modules" / ".bin" / make_script_filename("frida-compile")
     if not frida_compile.exists():
         pkg_files = [output_dir / "package.json", output_dir / "package-lock.json"]
@@ -84,10 +84,14 @@ def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir, q
     subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + quick_options, cwd=output_dir, check=True)
     subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + quick_options, cwd=output_dir, check=True)
 
-    generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", [runtime], quickcompile)
-    generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", [objc], quickcompile)
-    generate_runtime_quick("swift", output_dir, "gumquickscript-swift.h", [swift], quickcompile)
-    generate_runtime_quick("java", output_dir, "gumquickscript-java.h", [java], quickcompile)
+    qcflags = []
+    if endian != sys.byteorder:
+        qcflags.append("--bswap")
+
+    generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", [runtime], quickcompile, qcflags)
+    generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", [objc], quickcompile, qcflags)
+    generate_runtime_quick("swift", output_dir, "gumquickscript-swift.h", [swift], quickcompile, qcflags)
+    generate_runtime_quick("java", output_dir, "gumquickscript-java.h", [java], quickcompile, qcflags)
 
 
     v8_tmp_dir = Path("runtime-build-v8")
@@ -113,7 +117,7 @@ def generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir, q
     generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir)
 
 
-def generate_runtime_quick(runtime_name, output_dir, output, inputs, quickcompile):
+def generate_runtime_quick(runtime_name, output_dir, output, inputs, quickcompile, flags):
     with (output_dir / output).open('w', encoding='utf-8') as output_file:
         output_file.write("#include \"gumquickbundle.h\"\n")
 
@@ -124,7 +128,7 @@ def generate_runtime_quick(runtime_name, output_dir, output, inputs, quickcompil
 
             input_quick_relpath = input_relpath.parent / (stem + ".qjs")
             input_quick_path = output_dir / input_quick_relpath
-            subprocess.run([quickcompile, input_relpath, input_quick_relpath], cwd=output_dir, check=True)
+            subprocess.run([quickcompile] + flags + [input_relpath, input_quick_relpath], cwd=output_dir, check=True)
             bytecode = input_quick_path.read_bytes()
             bytecode_size = len(bytecode)
 
@@ -412,11 +416,11 @@ def make_script_filename(name):
 
 
 if __name__ == '__main__':
-    arch = sys.argv[1]
-    input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir = [Path(d).resolve() for d in sys.argv[2:]]
+    arch, endian = sys.argv[1:3]
+    input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir = [Path(d).resolve() for d in sys.argv[3:]]
 
     try:
-        generate_runtime(arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir)
+        generate_runtime(arch, endian, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir)
     except Exception as e:
         print(e, file=sys.stderr)
         sys.exit(1)
