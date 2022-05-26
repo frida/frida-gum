@@ -697,6 +697,7 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
   writer = {wrapper_function_prefix}_alloc (ctx, parent);
   writer->wrapper = wrapper;
   writer->impl = {impl_function_prefix}_new (code_address);
+  writer->impl->flush_on_destroy = FALSE;
   if (pc_specified)
     writer->impl->pc = pc;
 
@@ -1732,6 +1733,7 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
     {wrapper_function_prefix}_mark_weak (writer);
 
     writer->impl = {impl_function_prefix}_new (code_address);
+    writer->impl->flush_on_destroy = FALSE;
     if (pc_specified)
       writer->impl->pc = pc;
   }}

@@ -349,6 +349,10 @@ TESTLIST_BEGIN (script)
     TESTENTRY (instruction_can_be_relocated)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("CodeWriter")
+    TESTENTRY (code_writer_should_not_flush_on_gc)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("CodeRelocator")
     TESTENTRY (code_relocator_should_expose_input_instruction)
   TESTGROUP_END ()
@@ -925,6 +929,73 @@ TESTCASE (instruction_can_be_relocated)
 
   EXPECT_SEND_MESSAGE_WITH ("42");
 
+  EXPECT_NO_MESSAGES ();
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
+}
+
+TESTCASE (code_writer_should_not_flush_on_gc)
+{
+#if defined (HAVE_I386)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "let writer = new X86Writer(page);"
+      "writer.putJmpShortLabel('later');"
+      "writer.putBreakpoint();"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "Memory.protect(page, Process.pageSize, '---');"
+      "writer = null;"
+      "gc();");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_ARM)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "let writer = new ArmWriter(page);"
+      "writer.putBLabel('later');"
+      "writer.putBrkImm(42);"
+      "writer.putLabel('later');"
+      "writer.putMovRegReg('pc', 'lr');"
+      "Memory.protect(page, Process.pageSize, '---');"
+      "writer = null;"
+      "gc();");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "let writer = new ThumbWriter(page);"
+      "writer.putBLabel('later');"
+      "writer.putBkptImm(42);"
+      "writer.putLabel('later');"
+      "writer.putPopRegs(['pc']);"
+      "Memory.protect(page, Process.pageSize, '---');"
+      "writer = null;"
+      "gc();");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "let writer = new Arm64Writer(page);"
+      "writer.putBLabel('later');"
+      "writer.putBrkImm(42);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "Memory.protect(page, Process.pageSize, '---');"
+      "writer = null;"
+      "gc();");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_MIPS)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "let writer = new MipsWriter(page);"
+      "writer.putJLabel('later');"
+      "writer.putBreak(42);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "Memory.protect(page, Process.pageSize, '---');"
+      "writer = null;"
+      "gc();");
   EXPECT_NO_MESSAGES ();
 #else
   g_print ("<skipping, missing code for current architecture> ");
