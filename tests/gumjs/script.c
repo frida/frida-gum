@@ -349,8 +349,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (instruction_can_be_relocated)
   TESTGROUP_END ()
 
-  TESTGROUP_BEGIN ("Relocator")
-    TESTENTRY (relocator_should_expose_input_instruction)
+  TESTGROUP_BEGIN ("CodeRelocator")
+    TESTENTRY (code_relocator_should_expose_input_instruction)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("File")
@@ -931,7 +931,7 @@ TESTCASE (instruction_can_be_relocated)
 #endif
 }
 
-TESTCASE (relocator_should_expose_input_instruction)
+TESTCASE (code_relocator_should_expose_input_instruction)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   COMPILE_AND_LOAD_SCRIPT (
