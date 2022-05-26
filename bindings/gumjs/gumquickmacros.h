@@ -70,6 +70,26 @@
     N##_impl (JSRuntime * rt, \
               JSValue val, \
               GumQuickCore * core)
+#define GUMJS_DEFINE_GC_MARKER(N) \
+    static void N##_impl (JSRuntime * rt, JSContext * ctx, JSValueConst val, \
+        JS_MarkFunc * mark_func, GumQuickCore * core); \
+    \
+    static void \
+    N (JSRuntime * rt, \
+       JSValueConst val, \
+       JS_MarkFunc * mark_func) \
+    { \
+      GumQuickCore * core = JS_GetRuntimeOpaque (rt); \
+      \
+      N##_impl (rt, core->ctx, val, mark_func, core); \
+    } \
+    \
+    static void \
+    N##_impl (JSRuntime * rt, \
+              JSContext * ctx, \
+              JSValueConst val, \
+              JS_MarkFunc * mark_func, \
+              GumQuickCore * core)
 #define GUMJS_DEFINE_FUNCTION(N) \
     static JSValue N##_impl (JSContext * ctx, JSValueConst this_val, \
         GumQuickArgs * args, GumQuickCore * core); \

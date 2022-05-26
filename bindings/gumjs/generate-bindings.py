@@ -142,6 +142,7 @@ typedef {impl_struct_name} {alias_struct_name}Impl;
 #define _{alias_function_prefix}_release{persistent_suffix} _{wrapper_function_prefix}_release{persistent_suffix}
 #define _{alias_function_prefix}_init _{wrapper_function_prefix}_init
 #define _{alias_function_prefix}_finalize _{wrapper_function_prefix}_finalize
+#define _{alias_function_prefix}_gc_mark _{wrapper_function_prefix}_gc_mark
 #define _{alias_function_prefix}_reset _{wrapper_function_prefix}_reset
 """.format(**params).split("\n")
 
@@ -381,6 +382,7 @@ def generate_quick_wrapper_code(component, api):
         "{",
         "  .class_name = \"{0}\",".format(component.gumjs_class_name),
         "  .finalizer = {0}_finalize,".format(prefix),
+        "  .gc_mark = {0}_gc_mark,".format(prefix),
         "};",
         "",
         "static const JSCFunctionListEntry {0}_entries[] =".format(prefix),
@@ -524,6 +526,7 @@ G_GNUC_INTERNAL gboolean _gum_quick_{flavor}_{name}_get (JSContext * ctx, JSValu
 
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_init ({wrapper_struct_name} * self, JSContext * ctx, {module_struct_name} * parent);
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_finalize ({wrapper_struct_name} * self);
+G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_gc_mark ({wrapper_struct_name} * self);
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);
 """
     return template.format(**params)
@@ -797,6 +800,10 @@ GUMJS_DEFINE_FINALIZER ({gumjs_function_prefix}_finalize)
     return;
 
   {wrapper_function_prefix}_free (w);
+}}
+
+GUMJS_DEFINE_GC_MARKER ({gumjs_function_prefix}_gc_mark)
+{{
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_flush)
@@ -1098,6 +1105,19 @@ GUMJS_DEFINE_FINALIZER ({gumjs_function_prefix}_finalize)
     return;
 
   {wrapper_function_prefix}_free (r);
+}}
+
+GUMJS_DEFINE_GC_MARKER ({gumjs_function_prefix}_gc_mark)
+{{
+  {module_struct_name} * parent;
+  {wrapper_struct_name} * self;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_{wrapper_function_prefix}_get (core->ctx, val, parent, &self))
+    g_assert_not_reached ();
+
+  JS_MarkValue (rt, self->input->wrapper, mark_func);
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_read_one)
