@@ -1109,15 +1109,13 @@ GUMJS_DEFINE_FINALIZER ({gumjs_function_prefix}_finalize)
 
 GUMJS_DEFINE_GC_MARKER ({gumjs_function_prefix}_gc_mark)
 {{
-  {module_struct_name} * parent;
-  {wrapper_struct_name} * self;
+  {wrapper_struct_name} * r;
 
-  parent = gumjs_get_parent_module (core);
+  r = JS_GetOpaque (val, gumjs_get_parent_module (core)->{flavor}_relocator_class);
+  if (r == NULL)
+    return;
 
-  if (!_{wrapper_function_prefix}_get (core->ctx, val, parent, &self))
-    g_assert_not_reached ();
-
-  JS_MarkValue (rt, self->input->wrapper, mark_func);
+  JS_MarkValue (rt, r->input->wrapper, mark_func);
 }}
 
 GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_read_one)
