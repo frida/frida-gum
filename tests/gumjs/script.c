@@ -933,7 +933,44 @@ TESTCASE (instruction_can_be_relocated)
 
 TESTCASE (relocator_should_expose_input_instruction)
 {
-#ifdef HAVE_ARM64
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  COMPILE_AND_LOAD_SCRIPT (
+      "const code = Memory.alloc(4);"
+      "code.writeByteArray([0x55, 0x48, 0x8b, 0xec]);"
+
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new X86Writer(page);"
+      "const relocator = new X86Relocator(code, writer);"
+
+      "send(relocator.input);"
+      "send(relocator.peekNextWriteInsn());"
+
+      "send(relocator.readOne());"
+      "let insn = relocator.input;"
+      "send(insn.toString());"
+      "send(insn.address.equals(code));"
+      "send(insn.next.equals(code.add(1)));"
+      "relocator.writeOne();"
+
+      "send(relocator.readOne());"
+      "insn = relocator.peekNextWriteInsn();"
+      "send(insn.toString());"
+      "send(insn.address.equals(code.add(1)));"
+      "send(insn.next.equals(code.add(4)));");
+
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("\"push rbp\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("4");
+  EXPECT_SEND_MESSAGE_WITH ("\"mov rbp, rsp\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#elif defined (HAVE_ARM64)
   COMPILE_AND_LOAD_SCRIPT (
       "const code = Memory.alloc(8);"
       "code.writeU32(0xb9400ae8);"
