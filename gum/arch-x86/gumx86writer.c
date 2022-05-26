@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -123,6 +123,7 @@ gum_x86_writer_init (GumX86Writer * writer,
                      gpointer code_address)
 {
   writer->ref_count = 1;
+  writer->flush_on_destroy = TRUE;
 
   writer->label_defs = NULL;
   writer->label_refs.data = NULL;
@@ -145,7 +146,8 @@ gum_x86_writer_has_label_refs (GumX86Writer * self)
 void
 gum_x86_writer_clear (GumX86Writer * writer)
 {
-  gum_x86_writer_flush (writer);
+  if (writer->flush_on_destroy)
+    gum_x86_writer_flush (writer);
 
   if (gum_x86_writer_has_label_defs (writer))
     gum_metal_hash_table_unref (writer->label_defs);

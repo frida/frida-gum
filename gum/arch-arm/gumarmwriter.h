@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,6 +21,7 @@ typedef struct _GumArmWriter GumArmWriter;
 struct _GumArmWriter
 {
   volatile gint ref_count;
+  gboolean flush_on_destroy;
 
   GumOS target_os;
   GumCpuFeatures cpu_features;

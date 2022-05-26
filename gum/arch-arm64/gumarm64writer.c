@@ -209,6 +209,7 @@ gum_arm64_writer_init (GumArm64Writer * writer,
                        gpointer code_address)
 {
   writer->ref_count = 1;
+  writer->flush_on_destroy = TRUE;
 
   writer->target_os = gum_process_get_native_os ();
   writer->ptrauth_support = gum_query_ptrauth_support ();
@@ -242,7 +243,8 @@ gum_arm64_writer_has_literal_refs (GumArm64Writer * self)
 void
 gum_arm64_writer_clear (GumArm64Writer * writer)
 {
-  gum_arm64_writer_flush (writer);
+  if (writer->flush_on_destroy)
+    gum_arm64_writer_flush (writer);
 
   if (gum_arm64_writer_has_label_defs (writer))
     gum_metal_hash_table_unref (writer->label_defs);

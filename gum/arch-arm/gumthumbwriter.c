@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -113,6 +113,7 @@ gum_thumb_writer_init (GumThumbWriter * writer,
                        gpointer code_address)
 {
   writer->ref_count = 1;
+  writer->flush_on_destroy = TRUE;
 
   writer->target_os = gum_process_get_native_os ();
 
@@ -144,7 +145,8 @@ gum_thumb_writer_has_literal_refs (GumThumbWriter * self)
 void
 gum_thumb_writer_clear (GumThumbWriter * writer)
 {
-  gum_thumb_writer_flush (writer);
+  if (writer->flush_on_destroy)
+    gum_thumb_writer_flush (writer);
 
   if (gum_thumb_writer_has_label_defs (writer))
     gum_metal_hash_table_unref (writer->label_defs);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -153,6 +153,7 @@ gum_mips_writer_init (GumMipsWriter * writer,
                       gpointer code_address)
 {
   writer->ref_count = 1;
+  writer->flush_on_destroy = TRUE;
 
   writer->label_defs = NULL;
   writer->label_refs.data = NULL;
@@ -175,7 +176,8 @@ gum_mips_writer_has_label_refs (GumMipsWriter * self)
 void
 gum_mips_writer_clear (GumMipsWriter * writer)
 {
-  gum_mips_writer_flush (writer);
+  if (writer->flush_on_destroy)
+    gum_mips_writer_flush (writer);
 
   if (gum_mips_writer_has_label_defs (writer))
     gum_metal_hash_table_unref (writer->label_defs);

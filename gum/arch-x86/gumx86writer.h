@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -22,6 +22,7 @@ typedef guint GumPtrTarget;
 struct _GumX86Writer
 {
   volatile gint ref_count;
+  gboolean flush_on_destroy;
 
   GumCpuType target_cpu;
   GumAbiType target_abi;

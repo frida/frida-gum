@@ -25,6 +25,7 @@ typedef guint GumArm64IndexMode;
 struct _GumArm64Writer
 {
   volatile gint ref_count;
+  gboolean flush_on_destroy;
 
   GumOS target_os;
   GumPtrauthSupport ptrauth_support;

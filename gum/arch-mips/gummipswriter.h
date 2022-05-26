@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -22,6 +22,7 @@ typedef struct _GumMipsWriter GumMipsWriter;
 struct _GumMipsWriter
 {
   volatile gint ref_count;
+  gboolean flush_on_destroy;
 
   guint32 * base;
   guint32 * code;
