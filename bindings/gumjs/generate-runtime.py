@@ -16,7 +16,7 @@ RELAXED_DEPS = {
 }
 
 EXACT_DEPS = {
-    "frida-java-bridge": "6.1.1",
+    "frida-java-bridge": "6.1.2",
     "frida-objc-bridge": "7.0.2",
     "frida-swift-bridge": "2.0.6"
 }
