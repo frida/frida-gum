@@ -170,6 +170,7 @@ _gum_quick_instruction_new (JSContext * ctx,
 
     v->insn = insn_copy;
   }
+  v->owns_memory = insn != NULL;
   v->target = target;
 
   JS_SetOpaque (wrapper, v);
@@ -251,7 +252,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_instruction_finalize)
   if (v == NULL)
     return;
 
-  if (v->insn != NULL)
+  if (v->owns_memory && v->insn != NULL)
     cs_free ((cs_insn *) v->insn, 1);
 
   g_slice_free (GumQuickInstructionValue, v);

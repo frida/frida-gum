@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,6 +26,7 @@ struct GumV8InstructionValue
 {
   GumPersistent<v8::Object>::type * object;
   const cs_insn * insn;
+  gboolean owns_memory;
   gconstpointer target;
 
   GumV8Instruction * module;
