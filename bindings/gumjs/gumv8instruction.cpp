@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 EvilWind <evilwind@protonmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -173,10 +173,15 @@ _gum_v8_instruction_new (csh capstone,
   else
   {
     g_assert (capstone != 0);
-    value->insn = cs_malloc (capstone);
-    memcpy ((void *) value->insn, insn, sizeof (cs_insn));
-    if (insn->detail != NULL)
-      memcpy (value->insn->detail, insn->detail, sizeof (cs_detail));
+
+    cs_insn * insn_copy = cs_malloc (capstone);
+    cs_detail * detail_copy = insn_copy->detail;
+    memcpy (insn_copy, insn, sizeof (cs_insn));
+    insn_copy->detail = detail_copy;
+    if (detail_copy != NULL)
+      memcpy (detail_copy, insn->detail, sizeof (cs_detail));
+
+    value->insn = insn_copy;
   }
   value->target = target;
 
