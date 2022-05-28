@@ -723,6 +723,8 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_reset)
       &pc_specified))
     return JS_EXCEPTION;
 
+  {impl_function_prefix}_flush (self->impl);
+
   {impl_function_prefix}_reset (self->impl, code_address);
   if (pc_specified)
     self->impl->pc = pc;
@@ -786,6 +788,8 @@ GUMJS_DEFINE_FUNCTION ({gumjs_function_prefix}_dispose)
 
   if (!_{wrapper_function_prefix}_get (ctx, this_val, parent, &self))
     return JS_EXCEPTION;
+
+  {impl_function_prefix}_flush (self->impl);
 
   {wrapper_function_prefix}_dispose (self);
 
@@ -1753,6 +1757,8 @@ GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_reset, {wrapper_struct_name})
       &pc_specified))
     return;
 
+  {impl_function_prefix}_flush (self->impl);
+
   {impl_function_prefix}_reset (self->impl, code_address);
   if (pc_specified)
     self->impl->pc = pc;
@@ -1802,6 +1808,9 @@ static gboolean
 
 GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_dispose, {wrapper_struct_name})
 {{
+  if (self->impl != NULL)
+    {impl_function_prefix}_flush (self->impl);
+
   {wrapper_function_prefix}_dispose (self);
 }}
 

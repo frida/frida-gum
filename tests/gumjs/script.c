@@ -351,6 +351,8 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("CodeWriter")
     TESTENTRY (code_writer_should_not_flush_on_gc)
+    TESTENTRY (code_writer_should_flush_on_reset)
+    TESTENTRY (code_writer_should_flush_on_dispose)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("CodeRelocator")
@@ -996,6 +998,158 @@ TESTCASE (code_writer_should_not_flush_on_gc)
       "Memory.protect(page, Process.pageSize, '---');"
       "writer = null;"
       "gc();");
+  EXPECT_NO_MESSAGES ();
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
+}
+
+TESTCASE (code_writer_should_flush_on_reset)
+{
+  const gchar * test_reset =
+      "const size = writer.offset;"
+      "const before = new Uint8Array(page.readByteArray(size));"
+      "writer.reset(page);"
+      "const after = new Uint8Array(page.readByteArray(size));"
+      "send(after.join(',') !== before.join(','));";
+
+#if defined (HAVE_I386)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new X86Writer(page);"
+      "writer.putJmpShortLabel('later');"
+      "writer.putBreakpoint();"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "%s",
+      test_reset);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_ARM)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new ArmWriter(page);"
+      "writer.putBLabel('later');"
+      "writer.putBrkImm(13);"
+      "writer.putBrkImm(37);"
+      "writer.putLabel('later');"
+      "writer.putMovRegReg('pc', 'lr');"
+      "%s",
+      test_reset);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new ThumbWriter(page);"
+      "writer.putBLabel('later');"
+      "writer.putBkptImm(13);"
+      "writer.putBkptImm(37);"
+      "writer.putLabel('later');"
+      "writer.putPopRegs(['pc']);"
+      "%s",
+      test_reset);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new Arm64Writer(page);"
+      "writer.putBLabel('later');"
+      "writer.putBrkImm(42);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "%s",
+      test_reset);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_MIPS)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new MipsWriter(page);"
+      "writer.putJLabel('later');"
+      "writer.putBreak(42);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "%s",
+      test_reset);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
+}
+
+TESTCASE (code_writer_should_flush_on_dispose)
+{
+  const gchar * test_dispose =
+      "const size = writer.offset;"
+      "const before = new Uint8Array(page.readByteArray(size));"
+      "writer.dispose();"
+      "const after = new Uint8Array(page.readByteArray(size));"
+      "send(after.join(',') !== before.join(','));";
+
+#if defined (HAVE_I386)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new X86Writer(page);"
+      "writer.putJmpShortLabel('later');"
+      "writer.putBreakpoint();"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "%s",
+      test_dispose);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_ARM)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new ArmWriter(page);"
+      "writer.putBLabel('later');"
+      "writer.putBrkImm(13);"
+      "writer.putBrkImm(37);"
+      "writer.putLabel('later');"
+      "writer.putMovRegReg('pc', 'lr');"
+      "%s",
+      test_dispose);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new ThumbWriter(page);"
+      "writer.putBLabel('later');"
+      "writer.putBkptImm(13);"
+      "writer.putBkptImm(37);"
+      "writer.putLabel('later');"
+      "writer.putPopRegs(['pc']);"
+      "%s",
+      test_dispose);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new Arm64Writer(page);"
+      "writer.putBLabel('later');"
+      "writer.putBrkImm(42);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "%s",
+      test_dispose);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_MIPS)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new MipsWriter(page);"
+      "writer.putJLabel('later');"
+      "writer.putBreak(42);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "%s",
+      test_dispose);
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 #else
   g_print ("<skipping, missing code for current architecture> ");
