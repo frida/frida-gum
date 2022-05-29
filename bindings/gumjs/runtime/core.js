@@ -1,6 +1,7 @@
 const Console = require('./console');
 const hexdump = require('./hexdump');
 const MessageDispatcher = require('./message-dispatcher');
+const REPL = require('./repl');
 
 const engine = global;
 let messageDispatcher;
@@ -105,6 +106,10 @@ Object.defineProperties(engine, {
   hexdump: {
     enumerable: true,
     value: hexdump
+  },
+  REPL: {
+    enumerable: true,
+    value: new REPL()
   },
   ObjC: {
     enumerable: true,

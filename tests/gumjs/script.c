@@ -375,6 +375,10 @@ TESTLIST_BEGIN (script)
     TESTENTRY (match_pattern_can_be_constructed_from_string)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("REPL")
+    TESTENTRY (REPL_can_set_quick_cmd_and_run)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("Stalker")
 #if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
     TESTENTRY (execution_can_be_traced)
@@ -3199,6 +3203,35 @@ TESTCASE (match_pattern_can_be_constructed_from_string)
   COMPILE_AND_LOAD_SCRIPT ("new MatchPattern('Some bad pattern');");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid match pattern");
 }
+
+TESTCASE (REPL_can_set_quick_cmd_and_run)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "REPL.setQuickCmd('square', 1, v => send(v*v));"
+
+      "const okCmd1 = ['square', 3];"
+      "REPL._doQuickCmd(encodeURIComponent(JSON.stringify(okCmd1)));"
+
+      "try {"
+          "const errCmd1 = ['square'];"
+          "REPL._doQuickCmd(encodeURIComponent(JSON.stringify(errCmd1)));"
+      "} catch(e) {"
+          "send('arg cnt err');"
+      "}"
+
+      "try {"
+          "const errCmd2 = ['squar'];"
+          "REPL._doQuickCmd(encodeURIComponent(JSON.stringify(errCmd2)));"
+      "} catch(e) {"
+          "send('cmd err');"
+      "}"
+
+  );
+  EXPECT_SEND_MESSAGE_WITH ("9");
+  EXPECT_SEND_MESSAGE_WITH ("\"arg cnt err\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"cmd err\"");
+}
+
 
 TESTCASE (socket_connection_can_be_established)
 {
