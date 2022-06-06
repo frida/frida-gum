@@ -3314,7 +3314,7 @@ gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
   gum_arm_writer_put_ands_reg_reg_imm (cw, ARM_REG_R0, ARM_REG_SP, 7);
   gum_arm_writer_put_sub_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
 
-  if ((cpu_features & GUM_CPU_VFP3) != 0)
+  if ((cpu_features & GUM_CPU_VFPD32) != 0)
   {
     /* vpush {q8-q15} */
     gum_arm_writer_put_instruction (cw, 0xed6d0b20);
@@ -3379,7 +3379,7 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
   gum_thumb_writer_put_sub_reg_reg_imm (cw, ARM_REG_SP, ARM_REG_SP, 8);
   gum_thumb_writer_put_add_reg_reg_reg (cw, ARM_REG_SP, ARM_REG_SP, ARM_REG_R0);
 
-  if ((cpu_features & GUM_CPU_VFP3) != 0)
+  if ((cpu_features & GUM_CPU_VFPD32) != 0)
   {
     /* vpush {q8-q15} */
     gum_thumb_writer_put_instruction_wide (cw, 0xed6d, 0x0b20);
@@ -3404,7 +3404,7 @@ gum_exec_ctx_write_arm_epilog (GumExecCtx * ctx,
     gum_arm_writer_put_instruction (cw, 0xecbd0b10);
   }
 
-  if ((cpu_features & GUM_CPU_VFP3) != 0)
+  if ((cpu_features & GUM_CPU_VFPD32) != 0)
   {
     /* vpop {q8-q15} */
     gum_arm_writer_put_instruction (cw, 0xecfd0b20);
@@ -3446,7 +3446,7 @@ gum_exec_ctx_write_thumb_epilog (GumExecCtx * ctx,
     gum_thumb_writer_put_instruction_wide (cw, 0xecbd, 0x0b10);
   }
 
-  if ((cpu_features & GUM_CPU_VFP3) != 0)
+  if ((cpu_features & GUM_CPU_VFPD32) != 0)
   {
     /* vpop {q8-q15} */
     gum_thumb_writer_put_instruction_wide (cw, 0xecfd, 0x0b20);
