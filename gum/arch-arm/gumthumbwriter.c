@@ -64,6 +64,9 @@ static gboolean gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
 static gboolean gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
     guint16 narrow_template, guint16 wide_template, GumArmMetaReg special_reg,
     guint n_regs, arm_reg first_reg, va_list args);
+static gboolean gum_thumb_writer_put_vector_push_or_pop_range (
+    GumThumbWriter * self, guint16 upper_template, arm_reg first_reg,
+    arm_reg last_reg);
 static gboolean gum_thumb_writer_put_transfer_reg_reg_offset (
     GumThumbWriter * self, GumThumbMemoryOperation operation, arm_reg left_reg,
     arm_reg right_reg, gsize right_offset);
@@ -815,6 +818,59 @@ gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
 
   return gum_thumb_writer_put_push_or_pop_regs (self, narrow_template,
       wide_template, special_reg, n_regs, regs);
+}
+
+gboolean
+gum_thumb_writer_put_vpush_range (GumThumbWriter * self,
+                                  arm_reg first_reg,
+                                  arm_reg last_reg)
+{
+  return gum_thumb_writer_put_vector_push_or_pop_range (self, 0xed2d, first_reg,
+      last_reg);
+}
+
+gboolean
+gum_thumb_writer_put_vpop_range (GumThumbWriter * self,
+                                 arm_reg first_reg,
+                                 arm_reg last_reg)
+{
+  return gum_thumb_writer_put_vector_push_or_pop_range (self, 0xecbd, first_reg,
+      last_reg);
+}
+
+static gboolean
+gum_thumb_writer_put_vector_push_or_pop_range (GumThumbWriter * self,
+                                               guint16 upper_template,
+                                               arm_reg first_reg,
+                                               arm_reg last_reg)
+{
+  GumArmRegInfo rf, rl;
+  guint8 count, imm8;
+
+  gum_arm_reg_describe (first_reg, &rf);
+  gum_arm_reg_describe (last_reg, &rl);
+
+  if (rl.width != rf.width || rl.index < rf.index)
+    return FALSE;
+
+  count = rl.index - rf.index + 1;
+  if (rf.width == 64)
+  {
+    if (count > 16)
+      return FALSE;
+    imm8 = 2 * count;
+  }
+  else
+  {
+    imm8 = count;
+  }
+
+  gum_thumb_writer_put_instruction_wide (self,
+      upper_template | ((rf.index >> 4) << 6) |
+      ((rf.index & GUM_INT4_MASK) << 12),
+      0x0a00 | ((rf.width == 64) << 8) | imm8);
+
+  return TRUE;
 }
 
 gboolean

@@ -110,6 +110,10 @@ GUM_API gboolean gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
     guint n_regs, arm_reg first_reg, ...);
 GUM_API gboolean gum_thumb_writer_put_pop_regs_array (GumThumbWriter * self,
     guint n_regs, const arm_reg * regs);
+GUM_API gboolean gum_thumb_writer_put_vpush_range (GumThumbWriter * self,
+    arm_reg first_reg, arm_reg last_reg);
+GUM_API gboolean gum_thumb_writer_put_vpop_range (GumThumbWriter * self,
+    arm_reg first_reg, arm_reg last_reg);
 GUM_API gboolean gum_thumb_writer_put_ldr_reg_address (GumThumbWriter * self,
     arm_reg reg, GumAddress address);
 GUM_API gboolean gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
