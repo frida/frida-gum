@@ -15,6 +15,8 @@ typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
 typedef struct _GumCpuContext GumCpuContext;
+typedef union _GumArmVectorReg GumArmVectorReg;
+typedef union _GumArm64VectorReg GumArm64VectorReg;
 typedef struct _GumMemoryRange GumMemoryRange;
 
 enum _GumCallingConvention
@@ -53,6 +55,22 @@ enum _GumBranchHint
   GUM_UNLIKELY
 };
 
+union _GumArmVectorReg
+{
+  guint8 q[16];
+  gdouble d[2];
+  gfloat s[4];
+};
+
+union _GumArm64VectorReg
+{
+  guint8 q[16];
+  gdouble d;
+  gfloat s;
+  guint16 h;
+  guint8 b;
+};
+
 struct _GumCpuContext
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
@@ -87,9 +105,9 @@ struct _GumCpuContext
   guint64 rcx;
   guint64 rax;
 #elif defined (HAVE_ARM)
-  guint32 cpsr;
   guint32 pc;
   guint32 sp;
+  guint32 cpsr;
 
   guint32 r8;
   guint32 r9;
@@ -97,16 +115,22 @@ struct _GumCpuContext
   guint32 r11;
   guint32 r12;
 
+  GumArmVectorReg v[16];
+
+  guint32 _padding;
+
   guint32 r[8];
   guint32 lr;
 #elif defined (HAVE_ARM64)
   guint64 pc;
   guint64 sp;
+  guint64 nzcv;
 
   guint64 x[29];
   guint64 fp;
   guint64 lr;
-  guint8 q[128];
+
+  GumArm64VectorReg v[32];
 #elif defined (HAVE_MIPS)
   gsize pc;
 

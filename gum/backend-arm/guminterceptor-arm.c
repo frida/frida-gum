@@ -29,9 +29,7 @@
 
 #define GUM_FRAME_OFFSET_NEXT_HOP 0
 #define GUM_FRAME_OFFSET_CPU_CONTEXT \
-    (GUM_FRAME_OFFSET_NEXT_HOP + sizeof (gpointer))
-#define GUM_FRAME_OFFSET_TOP \
-    (GUM_FRAME_OFFSET_CPU_CONTEXT + sizeof (GumCpuContext))
+    (GUM_FRAME_OFFSET_NEXT_HOP + (2 * sizeof (gpointer)))
 
 #define GUM_FCDATA(context) \
     ((GumArmFunctionContextData *) (context)->backend_data.storage)
@@ -48,7 +46,8 @@ struct _GumInterceptorBackend
   GumThumbWriter thumb_writer;
   GumThumbRelocator thumb_relocator;
 
-  GumCodeSlice * thunks;
+  GumCodeSlice * arm_thunks;
+  GumCodeSlice * thumb_thunks;
 
   gpointer enter_thunk_arm;
   gpointer enter_thunk_thumb;
@@ -250,14 +249,14 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
   }
 
   gum_emit_arm_push_cpu_context_high_part (aw);
-  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R7, GUM_ADDRESS (ctx));
+  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R6, GUM_ADDRESS (ctx));
   gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
       GUM_ADDRESS (self->enter_thunk_arm));
 
   ctx->on_leave_trampoline = gum_arm_writer_cur (aw);
 
   gum_emit_arm_push_cpu_context_high_part (aw);
-  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R7, GUM_ADDRESS (ctx));
+  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R6, GUM_ADDRESS (ctx));
   gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
       GUM_ADDRESS (self->leave_thunk_arm));
 
@@ -341,14 +340,14 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
     gum_emit_thumb_push_cpu_context_high_part (tw);
   }
 
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R7, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R6, GUM_ADDRESS (ctx));
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
       GUM_ADDRESS (self->enter_thunk_thumb));
 
   ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
 
   gum_emit_thumb_push_cpu_context_high_part (tw);
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R7, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R6, GUM_ADDRESS (ctx));
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
       GUM_ADDRESS (self->leave_thunk_thumb));
 
@@ -631,9 +630,8 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   GumArmWriter * aw = &self->arm_writer;
   GumThumbWriter * tw = &self->thumb_writer;
 
-  self->thunks = gum_code_allocator_alloc_slice (self->allocator);
-
-  gum_arm_writer_reset (aw, self->thunks->data);
+  self->arm_thunks = gum_code_allocator_alloc_slice (self->allocator);
+  gum_arm_writer_reset (aw, self->arm_thunks->data);
 
   self->enter_thunk_arm = gum_arm_writer_cur (aw);
   gum_emit_arm_enter_thunk (aw);
@@ -642,9 +640,10 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   gum_emit_arm_leave_thunk (aw);
 
   gum_arm_writer_flush (aw);
-  g_assert (gum_arm_writer_offset (aw) <= self->thunks->size);
+  g_assert (gum_arm_writer_offset (aw) <= self->arm_thunks->size);
 
-  gum_thumb_writer_reset (tw, gum_arm_writer_cur (aw));
+  self->thumb_thunks = gum_code_allocator_alloc_slice (self->allocator);
+  gum_thumb_writer_reset (tw, self->thumb_thunks->data);
 
   self->enter_thunk_thumb = gum_thumb_writer_cur (tw) + 1;
   gum_emit_thumb_enter_thunk (tw);
@@ -653,13 +652,14 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   gum_emit_thumb_leave_thunk (tw);
 
   gum_thumb_writer_flush (tw);
-  g_assert (gum_thumb_writer_offset (tw) <= self->thunks->size);
+  g_assert (gum_thumb_writer_offset (tw) <= self->thumb_thunks->size);
 }
 
 static void
 gum_interceptor_backend_destroy_thunks (GumInterceptorBackend * self)
 {
-  gum_code_slice_unref (self->thunks);
+  gum_code_slice_unref (self->thumb_thunks);
+  gum_code_slice_unref (self->arm_thunks);
 }
 
 static void
@@ -669,14 +669,13 @@ gum_emit_arm_enter_thunk (GumArmWriter * aw)
 
   gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R1, ARM_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT);
-  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R2, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_arm_writer_put_sub_reg_reg_imm (aw, ARM_REG_R2, ARM_REG_R4, 4);
   gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R3, ARM_REG_SP,
       GUM_FRAME_OFFSET_NEXT_HOP);
 
   gum_arm_writer_put_call_address_with_arguments (aw,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
-      GUM_ARG_REGISTER, ARM_REG_R7,
+      GUM_ARG_REGISTER, ARM_REG_R6,
       GUM_ARG_REGISTER, ARM_REG_R1,
       GUM_ARG_REGISTER, ARM_REG_R2,
       GUM_ARG_REGISTER, ARM_REG_R3);
@@ -691,14 +690,13 @@ gum_emit_thumb_enter_thunk (GumThumbWriter * tw)
 
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT);
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R2, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_thumb_writer_put_sub_reg_reg_imm (tw, ARM_REG_R2, ARM_REG_R4, 4);
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R3, ARM_REG_SP,
       GUM_FRAME_OFFSET_NEXT_HOP);
 
   gum_thumb_writer_put_call_address_with_arguments (tw,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
-      GUM_ARG_REGISTER, ARM_REG_R7,
+      GUM_ARG_REGISTER, ARM_REG_R6,
       GUM_ARG_REGISTER, ARM_REG_R1,
       GUM_ARG_REGISTER, ARM_REG_R2,
       GUM_ARG_REGISTER, ARM_REG_R3);
@@ -718,7 +716,7 @@ gum_emit_arm_leave_thunk (GumArmWriter * aw)
 
   gum_arm_writer_put_call_address_with_arguments (aw,
       GUM_ADDRESS (_gum_function_context_end_invocation), 3,
-      GUM_ARG_REGISTER, ARM_REG_R7,
+      GUM_ARG_REGISTER, ARM_REG_R6,
       GUM_ARG_REGISTER, ARM_REG_R1,
       GUM_ARG_REGISTER, ARM_REG_R2);
 
@@ -737,7 +735,7 @@ gum_emit_thumb_leave_thunk (GumThumbWriter * tw)
 
   gum_thumb_writer_put_call_address_with_arguments (tw,
       GUM_ADDRESS (_gum_function_context_end_invocation), 3,
-      GUM_ARG_REGISTER, ARM_REG_R7,
+      GUM_ARG_REGISTER, ARM_REG_R6,
       GUM_ARG_REGISTER, ARM_REG_R1,
       GUM_ARG_REGISTER, ARM_REG_R2);
 
@@ -747,104 +745,212 @@ gum_emit_thumb_leave_thunk (GumThumbWriter * tw)
 static void
 gum_emit_arm_push_cpu_context_high_part (GumArmWriter * aw)
 {
-  gum_arm_writer_put_push_regs (aw, 8 + 1,
-      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
-      ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
-      ARM_REG_LR);
+  gum_arm_writer_put_push_regs (aw, 9,
+      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
+      ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
+      ARM_REG_R6, ARM_REG_R7, ARM_REG_LR);
 }
 
 static void
 gum_emit_thumb_push_cpu_context_high_part (GumThumbWriter * tw)
 {
-  gum_thumb_writer_put_push_regs (tw, 8 + 1,
-      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
-      ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
-      ARM_REG_LR);
+  gum_thumb_writer_put_push_regs (tw, 9,
+      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
+      ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
+      ARM_REG_R6, ARM_REG_R7, ARM_REG_LR);
 }
 
 static void
 gum_emit_arm_prolog (GumArmWriter * aw)
 {
+  GumCpuFeatures cpu_features;
+
   /*
    * Set up our stack frame:
    *
    * [cpu_context] <-- high part already pushed
+   * [padding]
    * [next_hop]
    */
 
-  /* build middle part of GumCpuContext */
-  gum_arm_writer_put_push_regs (aw, 5,
+  gum_arm_writer_put_mov_reg_cpsr (aw, ARM_REG_R5);
+  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R4, ARM_REG_SP, 9 * 4);
+
+  /* Store vector registers + padding */
+  cpu_features = gum_query_cpu_features ();
+
+  if ((cpu_features & GUM_CPU_VFP2) != 0)
+  {
+    if ((cpu_features & GUM_CPU_VFPD32) != 0)
+    {
+      gum_arm_writer_put_sub_reg_u16 (aw, ARM_REG_SP, 4);
+      gum_arm_writer_put_vpush_range (aw, ARM_REG_Q8, ARM_REG_Q15);
+    }
+    else
+    {
+      gum_arm_writer_put_sub_reg_u16 (aw, ARM_REG_SP,
+          (8 * sizeof (GumArmVectorReg)) + 4);
+    }
+
+    gum_arm_writer_put_vpush_range (aw, ARM_REG_Q0, ARM_REG_Q7);
+  }
+  else
+  {
+    gum_arm_writer_put_sub_reg_u16 (aw, ARM_REG_SP,
+        (16 * sizeof (GumArmVectorReg)) + 4);
+  }
+
+  /* Store SP, CPSR, followed by R8-R12 */
+  gum_arm_writer_put_push_regs (aw, 7,
+      ARM_REG_R4, ARM_REG_R5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
-  /* build low part of GumCpuContext */
-  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R1, ARM_REG_SP,
-      (5 + 9) * 4);
-  gum_arm_writer_put_push_regs (aw, 2, ARM_REG_R0, ARM_REG_R1);
-
-  /* reserve space for next_hop and for cpsr in GumCpuContext */
-  gum_arm_writer_put_sub_reg_reg_imm (aw, ARM_REG_SP, ARM_REG_SP, 8);
+  /* Reserve space for next_hop, padding, and the PC placeholder */
+  gum_arm_writer_put_sub_reg_u16 (aw, ARM_REG_SP, 3 * 4);
 }
 
 static void
 gum_emit_thumb_prolog (GumThumbWriter * tw)
 {
-  gum_thumb_writer_put_push_regs (tw, 5,
+  GumCpuFeatures cpu_features;
+
+  gum_thumb_writer_put_mov_reg_cpsr (tw, ARM_REG_R5);
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R4, ARM_REG_SP, 9 * 4);
+
+  cpu_features = gum_query_cpu_features ();
+
+  if ((cpu_features & GUM_CPU_VFP2) != 0)
+  {
+    if ((cpu_features & GUM_CPU_VFPD32) != 0)
+    {
+      gum_thumb_writer_put_sub_reg_imm (tw, ARM_REG_SP, 4);
+      gum_thumb_writer_put_vpush_range (tw, ARM_REG_Q8, ARM_REG_Q15);
+    }
+    else
+    {
+      gum_thumb_writer_put_sub_reg_imm (tw, ARM_REG_SP,
+          (8 * sizeof (GumArmVectorReg)) + 4);
+    }
+
+    gum_thumb_writer_put_vpush_range (tw, ARM_REG_Q0, ARM_REG_Q7);
+  }
+  else
+  {
+    gum_thumb_writer_put_sub_reg_imm (tw, ARM_REG_SP,
+        (16 * sizeof (GumArmVectorReg)) + 4);
+  }
+
+  gum_thumb_writer_put_push_regs (tw, 7,
+      ARM_REG_R4, ARM_REG_R5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
-      (5 + 9) * 4);
-  gum_thumb_writer_put_push_regs (tw, 2, ARM_REG_R0, ARM_REG_R1);
-
-  gum_thumb_writer_put_sub_reg_reg_imm (tw, ARM_REG_SP, ARM_REG_SP, 8);
+  gum_thumb_writer_put_sub_reg_imm (tw, ARM_REG_SP, 3 * 4);
 }
 
 static void
 gum_emit_arm_epilog (GumArmWriter * aw)
 {
-  /* restore LR */
-  gum_arm_writer_put_ldr_reg_reg_offset (aw, ARM_REG_R0, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
-  gum_arm_writer_put_mov_reg_reg (aw, ARM_REG_LR, ARM_REG_R0);
+  GumCpuFeatures cpu_features;
 
-  /* replace LR with next_hop so we can pop it straight into PC */
-  gum_arm_writer_put_ldr_reg_reg_offset (aw, ARM_REG_R0, ARM_REG_SP,
+  /* Restore LR */
+  gum_arm_writer_put_sub_reg_reg_imm (aw, ARM_REG_R0, ARM_REG_R4, 4);
+  gum_arm_writer_put_ldr_reg_reg (aw, ARM_REG_LR, ARM_REG_R0);
+
+  /* Replace LR with next_hop so we can pop it straight into PC */
+  gum_arm_writer_put_ldr_reg_reg_offset (aw, ARM_REG_R1, ARM_REG_SP,
       GUM_FRAME_OFFSET_NEXT_HOP);
-  gum_arm_writer_put_str_reg_reg_offset (aw, ARM_REG_R0, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_arm_writer_put_str_reg_reg (aw, ARM_REG_R1, ARM_REG_R0);
 
-  /* clear next_hop and low part of GumCpuContext */
-  gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_SP, ARM_REG_SP, 4 + 12);
+  gum_arm_writer_put_ldr_reg_reg_offset (aw, ARM_REG_R5, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, cpsr));
 
-  /* restore middle part */
+  /* Skip [next_hop, padding] and [PC, SP, and CPSR] */
+  gum_arm_writer_put_add_reg_u16 (aw, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + (3 * 4));
+
   gum_arm_writer_put_pop_regs (aw, 5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
-  /* restore r[0-8] and jump straight to LR */
+  cpu_features = gum_query_cpu_features ();
+
+  if ((cpu_features & GUM_CPU_VFP2) != 0)
+  {
+    gum_arm_writer_put_vpop_range (aw, ARM_REG_Q0, ARM_REG_Q7);
+
+    if ((cpu_features & GUM_CPU_VFPD32) != 0)
+    {
+      gum_arm_writer_put_vpop_range (aw, ARM_REG_Q8, ARM_REG_Q15);
+      gum_arm_writer_put_add_reg_u16 (aw, ARM_REG_SP, 4);
+    }
+    else
+    {
+      gum_arm_writer_put_add_reg_u16 (aw, ARM_REG_SP,
+          (8 * sizeof (GumArmVectorReg)) + 4);
+    }
+  }
+  else
+  {
+    gum_arm_writer_put_add_reg_u16 (aw, ARM_REG_SP,
+        (16 * sizeof (GumArmVectorReg)) + 4);
+  }
+
+  gum_arm_writer_put_mov_cpsr_reg (aw, ARM_REG_R5);
+
   gum_arm_writer_put_pop_regs (aw, 9,
-      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
-      ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
-      ARM_REG_PC);
+      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
+      ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
+      ARM_REG_R6, ARM_REG_R7, ARM_REG_PC);
 }
 
 static void
 gum_emit_thumb_epilog (GumThumbWriter * tw)
 {
-  gum_thumb_writer_put_ldr_reg_reg_offset (tw, ARM_REG_R0, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
-  gum_thumb_writer_put_mov_reg_reg (tw, ARM_REG_LR, ARM_REG_R0);
+  GumCpuFeatures cpu_features;
 
-  gum_thumb_writer_put_ldr_reg_reg_offset (tw, ARM_REG_R0, ARM_REG_SP,
+  gum_thumb_writer_put_sub_reg_reg_imm (tw, ARM_REG_R0, ARM_REG_R4, 4);
+  gum_thumb_writer_put_ldr_reg_reg (tw, ARM_REG_R1, ARM_REG_R0);
+  gum_thumb_writer_put_mov_reg_reg (tw, ARM_REG_LR, ARM_REG_R1);
+
+  gum_thumb_writer_put_ldr_reg_reg_offset (tw, ARM_REG_R1, ARM_REG_SP,
       GUM_FRAME_OFFSET_NEXT_HOP);
-  gum_thumb_writer_put_str_reg_reg_offset (tw, ARM_REG_R0, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_thumb_writer_put_str_reg_reg (tw, ARM_REG_R1, ARM_REG_R0);
 
-  gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP, 4 + 12);
+  gum_thumb_writer_put_ldr_reg_reg_offset (tw, ARM_REG_R5, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, cpsr));
+
+  gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + (3 * 4));
 
   gum_thumb_writer_put_pop_regs (tw, 5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
+  cpu_features = gum_query_cpu_features ();
+
+  if ((cpu_features & GUM_CPU_VFP2) != 0)
+  {
+    gum_thumb_writer_put_vpop_range (tw, ARM_REG_Q0, ARM_REG_Q7);
+
+    if ((cpu_features & GUM_CPU_VFPD32) != 0)
+    {
+      gum_thumb_writer_put_vpop_range (tw, ARM_REG_Q8, ARM_REG_Q15);
+      gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP, 4);
+    }
+    else
+    {
+      gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP,
+          (8 * sizeof (GumArmVectorReg)) + 4);
+    }
+  }
+  else
+  {
+    gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP,
+        (16 * sizeof (GumArmVectorReg)) + 4);
+  }
+
+  gum_thumb_writer_put_mov_cpsr_reg (tw, ARM_REG_R5);
+
   gum_thumb_writer_put_pop_regs (tw, 9,
-      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
-      ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
-      ARM_REG_PC);
+      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
+      ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
+      ARM_REG_R6, ARM_REG_R7, ARM_REG_PC);
 }

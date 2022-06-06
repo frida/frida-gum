@@ -54,8 +54,12 @@ TESTLIST_BEGIN (script)
     TESTENTRY (return_value_can_be_read)
     TESTENTRY (return_value_can_be_replaced)
     TESTENTRY (return_address_can_be_read)
-    TESTENTRY (register_can_be_read)
-    TESTENTRY (register_can_be_written)
+    TESTENTRY (general_purpose_register_can_be_read)
+    TESTENTRY (general_purpose_register_can_be_written)
+    TESTENTRY (vector_register_can_be_read)
+    TESTENTRY (double_register_can_be_read)
+    TESTENTRY (float_register_can_be_read)
+    TESTENTRY (status_register_can_be_read)
     TESTENTRY (system_error_can_be_read_from_interceptor_listener)
     TESTENTRY (system_error_can_be_read_from_replacement_function)
     TESTENTRY (system_error_can_be_replaced_from_interceptor_listener)
@@ -500,6 +504,8 @@ static void on_outgoing_debug_message (const gchar * message,
     gpointer user_data);
 
 static int target_function_int (int arg);
+G_GNUC_UNUSED static float target_function_float (float arg);
+G_GNUC_UNUSED static double target_function_double (double arg);
 static const guint8 * target_function_base_plus_offset (const guint8 * base,
     int offset);
 static const gchar * target_function_string (const gchar * arg);
@@ -5870,7 +5876,7 @@ TESTCASE (return_address_can_be_read)
   EXPECT_NO_MESSAGES ();
 }
 
-TESTCASE (register_can_be_read)
+TESTCASE (general_purpose_register_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -5884,7 +5890,7 @@ TESTCASE (register_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("1890");
 }
 
-TESTCASE (register_can_be_written)
+TESTCASE (general_purpose_register_can_be_written)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -5896,6 +5902,90 @@ TESTCASE (register_can_be_written)
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (target_function_int (42), ==, 1337);
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (vector_register_can_be_read)
+{
+#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter() {"
+      "    const v = new Float64Array(this.context.q0);"
+      "    send(v[0]);"
+      "  }"
+      "});", target_function_double);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_double (42.0);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+#else
+  g_print ("<skipping, missing code for current architecture or ABI> ");
+#endif
+}
+
+TESTCASE (double_register_can_be_read)
+{
+#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter() {"
+      "    send(this.context.d0);"
+      "  }"
+      "});", target_function_double);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_double (42.0);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+#else
+  g_print ("<skipping, missing code for current architecture or ABI> ");
+#endif
+}
+
+TESTCASE (float_register_can_be_read)
+{
+#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter() {"
+      "    send(this.context.s0);"
+      "  }"
+      "});", target_function_float);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_float (42.0f);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+#else
+  g_print ("<skipping, missing code for current architecture or ABI> ");
+#endif
+}
+
+TESTCASE (status_register_can_be_read)
+{
+#if defined (HAVE_ARM)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter() {"
+      "    send(typeof this.context.cpsr);"
+      "  }"
+      "});", target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("\"number\"");
+#elif defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter() {"
+      "    send(typeof this.context.nzcv);"
+      "  }"
+      "});", target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("\"number\"");
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
 }
 
 TESTCASE (system_error_can_be_read_from_interceptor_listener)
@@ -9542,6 +9632,38 @@ target_function_int (int arg)
    * JS-defined replacement function (NativeCallback) will be prone to clobber
    * registers used by the custom calling convention.
    */
+  fflush (stdout);
+
+  return result;
+}
+
+GUM_NOINLINE static float
+target_function_float (float arg)
+{
+  float result = 0;
+  int i;
+
+  for (i = 0; i != 10; i++)
+    result += i * arg;
+
+  gum_script_dummy_global_to_trick_optimizer += result;
+
+  fflush (stdout);
+
+  return result;
+}
+
+GUM_NOINLINE static double
+target_function_double (double arg)
+{
+  double result = 0;
+  int i;
+
+  for (i = 0; i != 10; i++)
+    result += i * arg;
+
+  gum_script_dummy_global_to_trick_optimizer += result;
+
   fflush (stdout);
 
   return result;

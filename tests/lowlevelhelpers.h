@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,19 +25,19 @@ struct _UnsupportedFunction
   guint8 code[16];
 };
 
-extern ClobberTestFunc clobber_test_function;
+extern ClobberTestFunc clobber_test_functions[3];
 
 void lowlevel_helpers_init (void);
 void lowlevel_helpers_deinit (void);
 
 void fill_cpu_context_with_magic_values (GumCpuContext * ctx);
-void assert_cpu_contexts_are_equal (GumCpuContext * input,
-    GumCpuContext * output);
+void assert_cpu_contexts_are_equal (const GumCpuContext * input,
+    const GumCpuContext * output);
 
-void invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
-    GumCpuContext * output);
-void invoke_clobber_test_function_with_carry_set (gsize * flags_input,
-    gsize * flags_output);
+void invoke_clobber_test_function_with_cpu_context (ClobberTestFunc target_func,
+    const GumCpuContext * input, GumCpuContext * output);
+void invoke_clobber_test_function_with_carry_set (ClobberTestFunc target_func,
+    gsize * flags_input, gsize * flags_output);
 
 UnsupportedFunction * unsupported_function_list_new (guint * count);
 void unsupported_function_list_free (UnsupportedFunction * functions);

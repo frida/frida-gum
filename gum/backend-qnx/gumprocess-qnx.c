@@ -813,15 +813,17 @@ gum_cpu_context_from_qnx (const debug_greg_t * gregs,
 #elif defined (HAVE_ARM)
   const ARM_CPU_REGISTERS * regs = &gregs->arm;
 
-  ctx->cpsr = regs->spsr;
   ctx->pc = regs->gpr[ARM_REG_R15];
   ctx->sp = regs->gpr[ARM_REG_R13];
+  ctx->cpsr = regs->spsr;
 
   ctx->r8 = regs->gpr[ARM_REG_R8];
   ctx->r9 = regs->gpr[ARM_REG_R9];
   ctx->r10 = regs->gpr[ARM_REG_R10];
   ctx->r11 = regs->gpr[ARM_REG_R11];
   ctx->r12 = regs->gpr[ARM_REG_R12];
+
+  memset (ctx->v, 0, sizeof (ctx->v));
 
   memcpy (ctx->r, regs->gpr, sizeof (ctx->r));
   ctx->lr = regs->gpr[ARM_REG_R14];
@@ -850,9 +852,9 @@ gum_cpu_context_to_qnx (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM)
   ARM_CPU_REGISTERS * regs = &gregs->arm;
 
-  regs->spsr = ctx->cpsr;
   regs->gpr[ARM_REG_R15] = ctx->pc;
   regs->gpr[ARM_REG_R13] = ctx->sp;
+  regs->spsr = ctx->cpsr;
 
   regs->gpr[ARM_REG_R8] = ctx->r8;
   regs->gpr[ARM_REG_R9] = ctx->r9;
@@ -927,16 +929,18 @@ gum_qnx_parse_ucontext (const ucontext_t * uc,
   ctx->pc = cpu->gpr[ARM_REG_PC];
   ctx->sp = cpu->gpr[ARM_REG_SP];
   ctx->cpsr = cpu->spsr;
-  ctx->lr = cpu->gpr[ARM_REG_LR];
-
-  for (i = 0; i != G_N_ELEMENTS (ctx->r); i++)
-    ctx->r[i] = cpu->gpr[i];
 
   ctx->r8 = cpu->gpr[ARM_REG_R8];
   ctx->r9 = cpu->gpr[ARM_REG_R9];
   ctx->r10 = cpu->gpr[ARM_REG_R10];
   ctx->r11 = cpu->gpr[ARM_REG_R11];
   ctx->r12 = cpu->gpr[ARM_REG_R12];
+
+  memset (ctx->v, 0, sizeof (ctx->v));
+
+  for (i = 0; i != G_N_ELEMENTS (ctx->r); i++)
+    ctx->r[i] = cpu->gpr[i];
+  ctx->lr = cpu->gpr[ARM_REG_LR];
 #else
 # error FIXME
 #endif
@@ -944,7 +948,7 @@ gum_qnx_parse_ucontext (const ucontext_t * uc,
 
 void
 gum_qnx_unparse_ucontext (const GumCpuContext * ctx,
-                            ucontext_t * uc)
+                          ucontext_t * uc)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   X86_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
@@ -965,10 +969,11 @@ gum_qnx_unparse_ucontext (const GumCpuContext * ctx,
 
   cpu->gpr[ARM_REG_PC] = ctx->pc;
   cpu->gpr[ARM_REG_SP] = ctx->sp;
-  cpu->gpr[ARM_REG_LR] = ctx->lr;
-
-  for (i = 0; i != G_N_ELEMENTS (ctx->r); i++)
-    cpu->gpr[i] = ctx->r[i];
+  cpu->spsr = ctx->cpsr;
+  if (ctx->pc & 1)
+    cpu->spsr |= GUM_PSR_THUMB;
+  else
+    cpu->spsr &= ~GUM_PSR_THUMB;
 
   cpu->gpr[ARM_REG_R8] = ctx->r8;
   cpu->gpr[ARM_REG_R9] = ctx->r9;
@@ -976,11 +981,9 @@ gum_qnx_unparse_ucontext (const GumCpuContext * ctx,
   cpu->gpr[ARM_REG_R11] = ctx->r11;
   cpu->gpr[ARM_REG_R12] = ctx->r12;
 
-  cpu->spsr = ctx->cpsr;
-  if (ctx->pc & 1)
-    cpu->spsr |= GUM_PSR_THUMB;
-  else
-    cpu->spsr &= ~GUM_PSR_THUMB;
+  for (i = 0; i != G_N_ELEMENTS (ctx->r); i++)
+    cpu->gpr[i] = ctx->r[i];
+  cpu->gpr[ARM_REG_LR] = ctx->lr;
 #else
 # error FIXME
 #endif

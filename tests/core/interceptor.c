@@ -8,10 +8,8 @@
 #include "interceptor-fixture.c"
 
 TESTLIST_BEGIN (interceptor)
-#ifdef HAVE_I386
   TESTENTRY (cpu_register_clobber)
   TESTENTRY (cpu_flag_clobber)
-#endif
 
   TESTENTRY (i_can_has_attachability)
 #ifdef HAVE_I386
@@ -47,9 +45,7 @@ TESTLIST_BEGIN (interceptor)
 #endif
   TESTENTRY (function_arguments)
   TESTENTRY (function_return_value)
-#ifdef HAVE_I386
   TESTENTRY (function_cpu_context_on_enter)
-#endif
   TESTENTRY (ignore_current_thread)
   TESTENTRY (ignore_current_thread_nested)
   TESTENTRY (ignore_other_threads)
@@ -265,22 +261,32 @@ TESTCASE (function_return_value)
       ==, GPOINTER_TO_SIZE (return_value));
 }
 
-#ifdef HAVE_I386
-
 TESTCASE (function_cpu_context_on_enter)
 {
-  GumCpuContext input, output;
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
+  ClobberTestFunc * cursor;
 
-  interceptor_fixture_attach (fixture, 0, clobber_test_function, 'a', 'b');
+  for (cursor = clobber_test_functions; *cursor != NULL; cursor++)
+  {
+    ClobberTestFunc target_func = *cursor;
+    GumCpuContext input, output;
 
-  fill_cpu_context_with_magic_values (&input);
-  invoke_clobber_test_function_with_cpu_context (&input, &output);
-  g_assert_cmpstr (fixture->result->str, ==, "ab");
-  assert_cpu_contexts_are_equal (&input,
-      &fixture->listener_context[0]->last_on_enter_cpu_context);
-}
+    interceptor_fixture_attach (fixture, 0, target_func, 'a', 'b');
 
+    fill_cpu_context_with_magic_values (&input);
+    invoke_clobber_test_function_with_cpu_context (target_func,
+        &input, &output);
+    g_assert_cmpstr (fixture->result->str, ==, "ab");
+    assert_cpu_contexts_are_equal (&input,
+        &fixture->listener_context[0]->last_on_enter_cpu_context);
+
+    g_string_truncate (fixture->result, 0);
+    interceptor_fixture_detach (fixture, 0);
+  }
+#else
+  g_print ("<skipping, missing code for current architecture> ");
 #endif
+}
 
 TESTCASE (ignore_current_thread)
 {
@@ -435,32 +441,56 @@ TESTCASE (function_data)
   g_object_unref (fd_listener);
 }
 
-#ifdef HAVE_I386
-
 TESTCASE (cpu_register_clobber)
 {
-  GumCpuContext input, output;
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
+  ClobberTestFunc * cursor;
 
-  interceptor_fixture_attach (fixture, 0, clobber_test_function, '>', '<');
+  for (cursor = clobber_test_functions; *cursor != NULL; cursor++)
+  {
+    ClobberTestFunc target_func = *cursor;
+    GumCpuContext input, output;
 
-  fill_cpu_context_with_magic_values (&input);
-  invoke_clobber_test_function_with_cpu_context (&input, &output);
-  g_assert_cmpstr (fixture->result->str, ==, "><");
-  assert_cpu_contexts_are_equal (&input, &output);
+    interceptor_fixture_attach (fixture, 0, target_func, '>', '<');
+
+    fill_cpu_context_with_magic_values (&input);
+    invoke_clobber_test_function_with_cpu_context (target_func,
+        &input, &output);
+    g_assert_cmpstr (fixture->result->str, ==, "><");
+    assert_cpu_contexts_are_equal (&input, &output);
+
+    g_string_truncate (fixture->result, 0);
+    interceptor_fixture_detach (fixture, 0);
+  }
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
 }
 
 TESTCASE (cpu_flag_clobber)
 {
-  gsize flags_input, flags_output;
+#if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
+  ClobberTestFunc * cursor;
 
-  interceptor_fixture_attach (fixture, 0, clobber_test_function, '>', '<');
+  for (cursor = clobber_test_functions; *cursor != NULL; cursor++)
+  {
+    ClobberTestFunc target_func = *cursor;
+    gsize flags_input, flags_output;
 
-  invoke_clobber_test_function_with_carry_set (&flags_input, &flags_output);
-  g_assert_cmpstr (fixture->result->str, ==, "><");
-  g_assert_cmphex (flags_output, ==, flags_input);
-}
+    interceptor_fixture_attach (fixture, 0, target_func, '>', '<');
 
+    invoke_clobber_test_function_with_carry_set (target_func,
+        &flags_input, &flags_output);
+    g_assert_cmpstr (fixture->result->str, ==, "><");
+    g_assert_cmphex (flags_output, ==, flags_input);
+
+    g_string_truncate (fixture->result, 0);
+    interceptor_fixture_detach (fixture, 0);
+  }
+#else
+  g_print ("<skipping, missing code for current architecture> ");
 #endif
+}
 
 TESTCASE (i_can_has_attachability)
 {
