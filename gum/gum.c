@@ -797,8 +797,13 @@ gum_do_query_cpu_features (void)
   features |= GUM_CPU_VFP3;
 #endif
 
+#ifdef __ARM_NEON__
+  features |= GUM_CPU_VFPD32;
+#endif
+
 #if defined (HAVE_LINUX) && defined (__ARM_EABI__) && \
-    !(defined (__ARM_VFPV2__) && defined (__ARM_VFPV3__))
+    !(defined (__ARM_VFPV2__) && defined (__ARM_VFPV3__) && \
+        defined (__ARM_NEON__))
   {
     gchar * info = NULL;
     gchar ** items = NULL;
@@ -834,6 +839,10 @@ gum_do_query_cpu_features (void)
       else if (strcmp (item, "vfpv3") == 0)
       {
         features |= GUM_CPU_VFP3;
+      }
+      else if (strcmp (item, "neon") == 0 || strcmp (item, "asimd") == 0)
+      {
+        features |= GUM_CPU_VFP2 | GUM_CPU_VFP3 | GUM_CPU_VFPD32;
       }
     }
 
