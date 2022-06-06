@@ -840,7 +840,11 @@ gum_do_query_cpu_features (void)
       {
         features |= GUM_CPU_VFP3;
       }
-      else if (strcmp (item, "neon") == 0 || strcmp (item, "asimd") == 0)
+      else if (strcmp (item, "vfpd32") == 0 || strcmp (item, "neon") == 0)
+      {
+        features |= GUM_CPU_VFPD32;
+      }
+      else if (strcmp (item, "asimd") == 0)
       {
         features |= GUM_CPU_VFP2 | GUM_CPU_VFP3 | GUM_CPU_VFPD32;
       }
