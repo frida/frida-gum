@@ -59,10 +59,10 @@ static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
 static void gum_thumb_writer_put_branch_imm (GumThumbWriter * self,
     GumAddress target, gboolean link, gboolean thumb);
 static gboolean gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
-    guint16 narrow_opcode, guint16 wide_opcode, GumArmMetaReg special_reg,
+    guint16 narrow_template, guint16 wide_template, GumArmMetaReg special_reg,
     guint n_regs, const arm_reg * regs);
 static gboolean gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
-    guint16 narrow_opcode, guint16 wide_opcode, GumArmMetaReg special_reg,
+    guint16 narrow_template, guint16 wide_template, GumArmMetaReg special_reg,
     guint n_regs, arm_reg first_reg, va_list args);
 static gboolean gum_thumb_writer_put_transfer_reg_reg_offset (
     GumThumbWriter * self, GumThumbMemoryOperation operation, arm_reg left_reg,
@@ -730,8 +730,8 @@ gum_thumb_writer_put_pop_regs_array (GumThumbWriter * self,
 
 static gboolean
 gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
-                                       guint16 narrow_opcode,
-                                       guint16 wide_opcode,
+                                       guint16 narrow_template,
+                                       guint16 wide_template,
                                        GumArmMetaReg special_reg,
                                        guint n_regs,
                                        const arm_reg * regs)
@@ -761,7 +761,7 @@ gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
   {
     guint16 mask = 0;
 
-    gum_thumb_writer_put_instruction (self, wide_opcode);
+    gum_thumb_writer_put_instruction (self, wide_template);
 
     for (reg_index = 0; reg_index != n_regs; reg_index++)
     {
@@ -774,7 +774,7 @@ gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
   }
   else
   {
-    guint16 insn = narrow_opcode;
+    guint16 insn = narrow_template;
 
     for (reg_index = 0; reg_index != n_regs; reg_index++)
     {
@@ -794,8 +794,8 @@ gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
 
 static gboolean
 gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
-                                          guint16 narrow_opcode,
-                                          guint16 wide_opcode,
+                                          guint16 narrow_template,
+                                          guint16 wide_template,
                                           GumArmMetaReg special_reg,
                                           guint n_regs,
                                           arm_reg first_reg,
@@ -813,8 +813,8 @@ gum_thumb_writer_put_push_or_pop_regs_va (GumThumbWriter * self,
     regs[reg_index] = (reg_index == 0) ? first_reg : va_arg (args, arm_reg);
   }
 
-  return gum_thumb_writer_put_push_or_pop_regs (self, narrow_opcode,
-      wide_opcode, special_reg, n_regs, regs);
+  return gum_thumb_writer_put_push_or_pop_regs (self, narrow_template,
+      wide_template, special_reg, n_regs, regs);
 }
 
 gboolean
