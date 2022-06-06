@@ -354,11 +354,11 @@ gum_arm_writer_put_argument_list_setup (GumArmWriter * self,
       {
         gum_arm_writer_put_ldr_reg_address (self, ARM_REG_R0,
             arg->value.address);
-        gum_arm_writer_put_push_registers (self, 1, ARM_REG_R0);
+        gum_arm_writer_put_push_regs (self, 1, ARM_REG_R0);
       }
       else
       {
-        gum_arm_writer_put_push_registers (self, 1, arg->value.reg);
+        gum_arm_writer_put_push_regs (self, 1, arg->value.reg);
       }
     }
   }
@@ -426,10 +426,10 @@ gum_arm_writer_put_call_address_body (GumArmWriter * self,
   else
   {
     gum_arm_writer_put_add_reg_reg_imm (self, ARM_REG_LR, ARM_REG_PC, 3 * 4);
-    gum_arm_writer_put_push_registers (self, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_push_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
     gum_arm_writer_put_ldr_reg_address (self, ARM_REG_R0, address);
     gum_arm_writer_put_str_reg_reg_offset (self, ARM_REG_R0, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_registers (self, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_pop_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
   }
 }
 
@@ -443,10 +443,10 @@ gum_arm_writer_put_branch_address (GumArmWriter * self,
   }
   else
   {
-    gum_arm_writer_put_push_registers (self, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_push_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
     gum_arm_writer_put_ldr_reg_address (self, ARM_REG_R0, address);
     gum_arm_writer_put_str_reg_reg_offset (self, ARM_REG_R0, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_registers (self, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_pop_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
   }
 }
 
@@ -580,9 +580,9 @@ gum_arm_writer_put_ret (GumArmWriter * self)
 }
 
 void
-gum_arm_writer_put_push_registers (GumArmWriter * self,
-                                   guint n,
-                                   ...)
+gum_arm_writer_put_push_regs (GumArmWriter * self,
+                              guint n,
+                              ...)
 {
   va_list args;
   guint16 mask;
@@ -608,9 +608,9 @@ gum_arm_writer_put_push_registers (GumArmWriter * self,
 }
 
 void
-gum_arm_writer_put_pop_registers (GumArmWriter * self,
-                                  guint n,
-                                  ...)
+gum_arm_writer_put_pop_regs (GumArmWriter * self,
+                             guint n,
+                             ...)
 {
   va_list args;
   guint16 mask;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -262,7 +262,7 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
    * otherwise would not need to store R0 since it is a caller rather than
    * callee saved register.
    */
-  gum_arm_writer_put_push_registers (&cw, 2, ARM_REG_R0, ARM_REG_LR);
+  gum_arm_writer_put_push_regs (&cw, 2, ARM_REG_R0, ARM_REG_LR);
 
   gum_arm_writer_put_ldr_reg_address (&cw, ARM_REG_R3,
       GUM_ADDRESS (gum_stalker_follow_me));
@@ -286,7 +286,7 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
       GUM_ADDRESS (fixture->stalker));
   gum_arm_writer_put_blx_reg (&cw, ARM_REG_R1);
 
-  gum_arm_writer_put_pop_registers (&cw, 2, ARM_REG_R0, ARM_REG_LR);
+  gum_arm_writer_put_pop_regs (&cw, 2, ARM_REG_R0, ARM_REG_LR);
   gum_arm_writer_put_ret (&cw);
 
   gum_arm_writer_flush (&cw);

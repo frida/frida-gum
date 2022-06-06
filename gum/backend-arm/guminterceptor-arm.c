@@ -747,7 +747,7 @@ gum_emit_thumb_leave_thunk (GumThumbWriter * tw)
 static void
 gum_emit_arm_push_cpu_context_high_part (GumArmWriter * aw)
 {
-  gum_arm_writer_put_push_registers (aw, 8 + 1,
+  gum_arm_writer_put_push_regs (aw, 8 + 1,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
       ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
       ARM_REG_LR);
@@ -773,13 +773,13 @@ gum_emit_arm_prolog (GumArmWriter * aw)
    */
 
   /* build middle part of GumCpuContext */
-  gum_arm_writer_put_push_registers (aw, 5,
+  gum_arm_writer_put_push_regs (aw, 5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
   /* build low part of GumCpuContext */
   gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_R1, ARM_REG_SP,
       (5 + 9) * 4);
-  gum_arm_writer_put_push_registers (aw, 2, ARM_REG_R0, ARM_REG_R1);
+  gum_arm_writer_put_push_regs (aw, 2, ARM_REG_R0, ARM_REG_R1);
 
   /* reserve space for next_hop and for cpsr in GumCpuContext */
   gum_arm_writer_put_sub_reg_reg_imm (aw, ARM_REG_SP, ARM_REG_SP, 8);
@@ -816,11 +816,11 @@ gum_emit_arm_epilog (GumArmWriter * aw)
   gum_arm_writer_put_add_reg_reg_imm (aw, ARM_REG_SP, ARM_REG_SP, 4 + 12);
 
   /* restore middle part */
-  gum_arm_writer_put_pop_registers (aw, 5,
+  gum_arm_writer_put_pop_regs (aw, 5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
   /* restore r[0-8] and jump straight to LR */
-  gum_arm_writer_put_pop_registers (aw, 9,
+  gum_arm_writer_put_pop_regs (aw, 9,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
       ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
       ARM_REG_PC);

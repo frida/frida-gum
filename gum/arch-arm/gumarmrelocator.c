@@ -452,7 +452,7 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
      */
     target = (src->mem.index != ARM_REG_INVALID) ? src->mem.index : ARM_REG_R0;
 
-    gum_arm_writer_put_push_registers (ctx->output, 2, target, ARM_REG_PC);
+    gum_arm_writer_put_push_regs (ctx->output, 2, target, ARM_REG_PC);
   }
   else
   {
@@ -486,7 +486,7 @@ gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
   if (dst->reg == ARM_REG_PC)
   {
     gum_arm_writer_put_str_reg_reg_offset (ctx->output, target, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_registers (ctx->output, 2, target, ARM_REG_PC);
+    gum_arm_writer_put_pop_regs (ctx->output, 2, target, ARM_REG_PC);
   }
 
   return TRUE;
@@ -537,7 +537,7 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
      */
     target = (right->type == ARM_OP_REG) ? right->reg : ARM_REG_R0;
 
-    gum_arm_writer_put_push_registers (ctx->output, 2, target, ARM_REG_PC);
+    gum_arm_writer_put_push_regs (ctx->output, 2, target, ARM_REG_PC);
   }
   else
   {
@@ -618,7 +618,7 @@ gum_arm_relocator_rewrite_add (GumArmRelocator * self,
   if (dst->reg == ARM_REG_PC)
   {
     gum_arm_writer_put_str_reg_reg_offset (ctx->output, target, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_registers (ctx->output, 2, target, ARM_REG_PC);
+    gum_arm_writer_put_pop_regs (ctx->output, 2, target, ARM_REG_PC);
   }
 
   return TRUE;
@@ -653,7 +653,7 @@ gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
         ? right->reg
         : ARM_REG_R0;
 
-    gum_arm_writer_put_push_registers (ctx->output, 2, target, ARM_REG_PC);
+    gum_arm_writer_put_push_regs (ctx->output, 2, target, ARM_REG_PC);
   }
   else
   {
@@ -762,7 +762,7 @@ gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
   if (dst->reg == ARM_REG_PC)
   {
     gum_arm_writer_put_str_reg_reg_offset (ctx->output, target, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_registers (ctx->output, 2, target, ARM_REG_PC);
+    gum_arm_writer_put_pop_regs (ctx->output, 2, target, ARM_REG_PC);
   }
 
   return TRUE;

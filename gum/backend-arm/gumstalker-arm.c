@@ -3244,14 +3244,14 @@ gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
    */
 
   /* Store R0 through R7 and LR */
-  gum_arm_writer_put_push_registers (cw, 9,
+  gum_arm_writer_put_push_regs (cw, 9,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
       ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
       ARM_REG_R6, ARM_REG_R7, ARM_REG_LR);
   immediate_for_sp += 9 * 4;
 
   /* Store R8 through R12 */
-  gum_arm_writer_put_push_registers (cw, 5,
+  gum_arm_writer_put_push_regs (cw, 5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10,
       ARM_REG_R11, ARM_REG_R12);
   immediate_for_sp += 5 * 4;
@@ -3284,7 +3284,7 @@ gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
    * Push the values of R0, R1 and R2 containing the CPSR, zeroed PC and
    * adjusted stack pointer respectively.
    */
-  gum_arm_writer_put_push_registers (cw, 3,
+  gum_arm_writer_put_push_regs (cw, 3,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
   /*
@@ -3419,16 +3419,16 @@ gum_exec_ctx_write_arm_epilog (GumExecCtx * ctx,
    */
   gum_arm_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R10);
 
-  gum_arm_writer_put_pop_registers (cw, 3,
+  gum_arm_writer_put_pop_regs (cw, 3,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2);
 
   gum_arm_writer_put_mov_cpsr_reg (cw, ARM_REG_R0);
 
-  gum_arm_writer_put_pop_registers (cw, 5,
+  gum_arm_writer_put_pop_regs (cw, 5,
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10,
       ARM_REG_R11, ARM_REG_R12);
 
-  gum_arm_writer_put_pop_registers (cw, 9,
+  gum_arm_writer_put_pop_regs (cw, 9,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
       ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
       ARM_REG_R6, ARM_REG_R7, ARM_REG_LR);
@@ -3490,7 +3490,7 @@ gum_exec_ctx_write_arm_invalidator (GumExecCtx * ctx,
       GUM_ARG_REGISTER, ARM_REG_LR);
 
   gum_exec_ctx_write_arm_epilog (ctx, cw);
-  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_LR);
+  gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_LR);
 
   gum_exec_block_write_arm_exec_generated_code (cw, ctx);
 }
@@ -4074,7 +4074,7 @@ gum_exec_block_invalidate (GumExecBlock * block)
 
     gum_arm_writer_reset (cw, block->code_start);
 
-    gum_arm_writer_put_push_registers (cw, 1, ARM_REG_LR);
+    gum_arm_writer_put_push_regs (cw, 1, ARM_REG_LR);
     gum_arm_writer_put_bl_imm (cw,
         GUM_ADDRESS (block->code_slab->arm_invalidator));
     gum_arm_writer_put_bytes (cw, (guint8 *) &block, sizeof (GumExecBlock *));
@@ -4417,7 +4417,7 @@ gum_exec_block_virtualize_arm_svc_insn (GumExecBlock * block,
     gconstpointer not_cloned_child = cw->code + 1;
 
     /* Save the flags */
-    gum_arm_writer_put_push_registers (cw, 1, ARM_REG_R1);
+    gum_arm_writer_put_push_regs (cw, 1, ARM_REG_R1);
     gum_arm_writer_put_mov_reg_cpsr (cw, ARM_REG_R1);
 
     /* Check the SVC number */
@@ -4430,20 +4430,20 @@ gum_exec_block_virtualize_arm_svc_insn (GumExecBlock * block,
 
     /* Restore the flags */
     gum_arm_writer_put_mov_cpsr_reg (cw, ARM_REG_R1);
-    gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R1);
+    gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_R1);
 
     /* Vector to the original next instruction */
-    gum_arm_writer_put_push_registers (cw, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
     gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0,
         GUM_ADDRESS (gc->instruction->end));
     gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_registers (cw, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
 
     gum_arm_writer_put_label (cw, not_cloned_child);
 
     /* Restore the flags */
     gum_arm_writer_put_mov_cpsr_reg (cw, ARM_REG_R1);
-    gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_R1);
+    gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_R1);
   }
 #endif
 }
@@ -4592,9 +4592,9 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
    * documentation states that all of the input and output make use of registers
    * rather than the stack.
    */
-  gum_arm_writer_put_push_registers (cw, 1, ARM_REG_LR);
+  gum_arm_writer_put_push_regs (cw, 1, ARM_REG_LR);
   gum_arm_writer_put_call_reg (cw, ARM_REG_R12);
-  gum_arm_writer_put_pop_registers (cw, 1, ARM_REG_LR);
+  gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_LR);
 
   gum_exec_block_arm_open_prolog (block, gc);
 
@@ -5148,13 +5148,13 @@ gum_exec_block_write_arm_exec_generated_code (GumArmWriter * cw,
    * resume_at before we subsequently pop both registers. This allows us to
    * branch to an arbitrary address without clobbering any registers.
    */
-  gum_arm_writer_put_push_registers (cw, 2, ARM_REG_R0, ARM_REG_PC);
+  gum_arm_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
   gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0,
       GUM_ADDRESS (&ctx->resume_at));
   gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_R0, 0);
 
   gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
-  gum_arm_writer_put_pop_registers (cw, 2, ARM_REG_R0, ARM_REG_PC);
+  gum_arm_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
 }
 
 static void
