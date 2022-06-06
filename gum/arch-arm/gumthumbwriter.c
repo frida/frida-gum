@@ -853,6 +853,19 @@ gum_thumb_writer_put_vector_push_or_pop_range (GumThumbWriter * self,
   if (rl.width != rf.width || rl.index < rf.index)
     return FALSE;
 
+  if (rf.width == 128)
+  {
+    rf.width = 64;
+    rf.index *= 2;
+    rf.meta = GUM_ARM_MREG_D0 + rf.index;
+
+    rl.width = 64;
+    rl.index *= 2;
+    if (rl.index % 2 == 0)
+      rl.index++;
+    rl.meta = GUM_ARM_MREG_D0 + rl.index;
+  }
+
   count = rl.index - rf.index + 1;
   if (rf.width == 64)
   {
