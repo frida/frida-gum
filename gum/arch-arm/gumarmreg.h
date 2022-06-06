@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -99,6 +99,23 @@ enum _GumArmMetaReg
   GUM_ARM_MREG_D29,
   GUM_ARM_MREG_D30,
   GUM_ARM_MREG_D31,
+
+  GUM_ARM_MREG_Q0,
+  GUM_ARM_MREG_Q1,
+  GUM_ARM_MREG_Q2,
+  GUM_ARM_MREG_Q3,
+  GUM_ARM_MREG_Q4,
+  GUM_ARM_MREG_Q5,
+  GUM_ARM_MREG_Q6,
+  GUM_ARM_MREG_Q7,
+  GUM_ARM_MREG_Q8,
+  GUM_ARM_MREG_Q9,
+  GUM_ARM_MREG_Q10,
+  GUM_ARM_MREG_Q11,
+  GUM_ARM_MREG_Q12,
+  GUM_ARM_MREG_Q13,
+  GUM_ARM_MREG_Q14,
+  GUM_ARM_MREG_Q15,
 
   GUM_ARM_MREG_SP = GUM_ARM_MREG_R13,
   GUM_ARM_MREG_LR = GUM_ARM_MREG_R14,

@@ -127,24 +127,30 @@ TESTCASE (ldmia_with_rn_in_reglist)
 
 TESTCASE (vpush_range)
 {
+  gum_arm_writer_put_vpush_range (&fixture->aw, ARM_REG_Q8, ARM_REG_Q15);
+  assert_output_n_equals (0, 0xed6d0b20);
+
   gum_arm_writer_put_vpush_range (&fixture->aw, ARM_REG_D0, ARM_REG_D15);
-  assert_output_n_equals (0, 0xed2d0b20);
+  assert_output_n_equals (1, 0xed2d0b20);
 
   gum_arm_writer_put_vpush_range (&fixture->aw, ARM_REG_D16, ARM_REG_D31);
-  assert_output_n_equals (1, 0xed6d0b20);
+  assert_output_n_equals (2, 0xed6d0b20);
 
   gum_arm_writer_put_vpush_range (&fixture->aw, ARM_REG_S0, ARM_REG_S31);
-  assert_output_n_equals (2, 0xed2d0a20);
+  assert_output_n_equals (3, 0xed2d0a20);
 }
 
 TESTCASE (vpop_range)
 {
+  gum_arm_writer_put_vpop_range (&fixture->aw, ARM_REG_Q8, ARM_REG_Q15);
+  assert_output_n_equals (0, 0xecfd0b20);
+
   gum_arm_writer_put_vpop_range (&fixture->aw, ARM_REG_D0, ARM_REG_D15);
-  assert_output_n_equals (0, 0xecbd0b20);
+  assert_output_n_equals (1, 0xecbd0b20);
 
   gum_arm_writer_put_vpop_range (&fixture->aw, ARM_REG_D16, ARM_REG_D31);
-  assert_output_n_equals (1, 0xecfd0b20);
+  assert_output_n_equals (2, 0xecfd0b20);
 
   gum_arm_writer_put_vpop_range (&fixture->aw, ARM_REG_S0, ARM_REG_S31);
-  assert_output_n_equals (2, 0xecbd0a20);
+  assert_output_n_equals (3, 0xecbd0a20);
 }

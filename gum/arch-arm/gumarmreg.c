@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -45,6 +45,12 @@ gum_arm_reg_describe (arm_reg reg,
     ri->meta = GUM_ARM_MREG_D0 + (reg - ARM_REG_D0);
     ri->width = 64;
     ri->index = ri->meta - GUM_ARM_MREG_D0;
+  }
+  else if (reg >= ARM_REG_Q0 && reg <= ARM_REG_Q15)
+  {
+    ri->meta = GUM_ARM_MREG_Q0 + (reg - ARM_REG_Q0);
+    ri->width = 128;
+    ri->index = ri->meta - GUM_ARM_MREG_Q0;
   }
   else
   {
