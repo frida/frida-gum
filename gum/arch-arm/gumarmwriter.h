@@ -93,6 +93,10 @@ GUM_API void gum_arm_writer_put_ret (GumArmWriter * self);
 
 GUM_API void gum_arm_writer_put_push_regs (GumArmWriter * self, guint n, ...);
 GUM_API void gum_arm_writer_put_pop_regs (GumArmWriter * self, guint n, ...);
+GUM_API gboolean gum_arm_writer_put_vpush_range (GumArmWriter * self,
+    arm_reg first_reg, arm_reg last_reg);
+GUM_API gboolean gum_arm_writer_put_vpop_range (GumArmWriter * self,
+    arm_reg first_reg, arm_reg last_reg);
 
 GUM_API gboolean gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,
     arm_reg reg, GumAddress address);

@@ -37,6 +37,9 @@ static void gum_arm_writer_put_argument_list_teardown (GumArmWriter * self,
     guint n_args);
 static void gum_arm_writer_put_call_address_body (GumArmWriter * self,
     GumAddress address);
+static gboolean gum_arm_writer_put_vector_push_or_pop_range (
+    GumArmWriter * self, guint32 insn_template, arm_reg first_reg,
+    arm_reg last_reg);
 
 static gboolean gum_arm_writer_try_commit_label_refs (GumArmWriter * self);
 static void gum_arm_writer_maybe_commit_literals (GumArmWriter * self);
@@ -633,6 +636,58 @@ gum_arm_writer_put_pop_regs (GumArmWriter * self,
   va_end (args);
 
   gum_arm_writer_put_ldmia_reg_mask (self, ARM_REG_SP, mask);
+}
+
+gboolean
+gum_arm_writer_put_vpush_range (GumArmWriter * self,
+                                arm_reg first_reg,
+                                arm_reg last_reg)
+{
+  return gum_arm_writer_put_vector_push_or_pop_range (self, 0x0d2d0a00,
+      first_reg, last_reg);
+}
+
+gboolean
+gum_arm_writer_put_vpop_range (GumArmWriter * self,
+                               arm_reg first_reg,
+                               arm_reg last_reg)
+{
+  return gum_arm_writer_put_vector_push_or_pop_range (self, 0x0cbd0a00,
+      first_reg, last_reg);
+}
+
+static gboolean
+gum_arm_writer_put_vector_push_or_pop_range (GumArmWriter * self,
+                                             guint32 insn_template,
+                                             arm_reg first_reg,
+                                             arm_reg last_reg)
+{
+  GumArmRegInfo rf, rl;
+  guint8 count, imm8;
+
+  gum_arm_reg_describe (first_reg, &rf);
+  gum_arm_reg_describe (last_reg, &rl);
+
+  if (rl.width != rf.width || rl.index < rf.index)
+    return FALSE;
+
+  count = rl.index - rf.index + 1;
+  if (rf.width == 64)
+  {
+    if (count > 16)
+      return FALSE;
+    imm8 = 2 * count;
+  }
+  else
+  {
+    imm8 = count;
+  }
+
+  gum_arm_writer_put_instruction (self, insn_template | (0xe << 28) |
+      ((rf.index >> 4) << 22) | ((rf.index & GUM_INT4_MASK) << 12) |
+      ((rf.width == 64) << 8) | imm8);
+
+  return TRUE;
 }
 
 gboolean

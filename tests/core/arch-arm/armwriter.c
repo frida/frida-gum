@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,9 +12,10 @@ TESTLIST_BEGIN (armwriter)
 #ifdef HAVE_ARM
   TESTENTRY (ldr_in_large_block)
 #endif
-
   TESTENTRY (nop)
   TESTENTRY (ldmia_with_rn_in_reglist)
+  TESTENTRY (vpush_range)
+  TESTENTRY (vpop_range)
 TESTLIST_END ()
 
 #ifdef HAVE_ARM
@@ -122,4 +123,28 @@ TESTCASE (ldmia_with_rn_in_reglist)
   gum_arm_writer_flush (&fixture->aw);
   /* pop {r4, r5, r6, r7, r8, sb, sl, fp, ip, sp, pc} */
   assert_output_n_equals (0, 0xe8bdbff0);
+}
+
+TESTCASE (vpush_range)
+{
+  gum_arm_writer_put_vpush_range (&fixture->aw, ARM_REG_D0, ARM_REG_D15);
+  assert_output_n_equals (0, 0xed2d0b20);
+
+  gum_arm_writer_put_vpush_range (&fixture->aw, ARM_REG_D16, ARM_REG_D31);
+  assert_output_n_equals (1, 0xed6d0b20);
+
+  gum_arm_writer_put_vpush_range (&fixture->aw, ARM_REG_S0, ARM_REG_S31);
+  assert_output_n_equals (2, 0xed2d0a20);
+}
+
+TESTCASE (vpop_range)
+{
+  gum_arm_writer_put_vpop_range (&fixture->aw, ARM_REG_D0, ARM_REG_D15);
+  assert_output_n_equals (0, 0xecbd0b20);
+
+  gum_arm_writer_put_vpop_range (&fixture->aw, ARM_REG_D16, ARM_REG_D31);
+  assert_output_n_equals (1, 0xecfd0b20);
+
+  gum_arm_writer_put_vpop_range (&fixture->aw, ARM_REG_S0, ARM_REG_S31);
+  assert_output_n_equals (2, 0xecbd0a20);
 }
