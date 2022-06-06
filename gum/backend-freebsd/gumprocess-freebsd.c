@@ -897,12 +897,17 @@ gum_freebsd_parse_ucontext (const ucontext_t * uc,
 
   ctx->pc = gp->gp_elr;
   ctx->sp = gp->gp_sp;
+  ctx->nzcv = 0;
 
   for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
     ctx->x[i] = gp->gp_x[i];
   ctx->fp = gp->gp_x[29];
   ctx->lr = gp->gp_lr;
-  memcpy (ctx->q, uc->uc_mcontext.mc_fpregs.fp_q, sizeof (ctx->q));
+
+  if ((uc->uc_mcontext.mc_flags & _MC_FP_VALID) != 0)
+    memcpy (ctx->v, uc->uc_mcontext.mc_fpregs.fp_q, sizeof (ctx->v));
+  else
+    memset (ctx->v, 0, sizeof (ctx->v));
 #else
 # error FIXME
 #endif
@@ -945,7 +950,9 @@ gum_freebsd_unparse_ucontext (const GumCpuContext * ctx,
     gp->gp_x[i] = ctx->x[i];
   gp->gp_x[29] = ctx->fp;
   gp->gp_lr = ctx->lr;
-  memcpy (uc->uc_mcontext.mc_fpregs.fp_q, ctx->q, sizeof (ctx->q));
+
+  uc->uc_mcontext.mc_flags = _MC_FP_VALID;
+  memcpy (uc->uc_mcontext.mc_fpregs.fp_q, ctx->v, sizeof (ctx->v));
 #else
 # error FIXME
 #endif

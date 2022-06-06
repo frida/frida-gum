@@ -299,8 +299,16 @@ GUMJS_DECLARE_GETTER (gumjs_callback_context_get_return_address)
 GUMJS_DECLARE_GETTER (gumjs_callback_context_get_cpu_context)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
-GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_register)
-GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_register)
+GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_gpr)
+GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_gpr)
+G_GNUC_UNUSED GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_vector)
+G_GNUC_UNUSED GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_vector)
+G_GNUC_UNUSED GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_double)
+G_GNUC_UNUSED GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_double)
+G_GNUC_UNUSED GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_float)
+G_GNUC_UNUSED GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_float)
+G_GNUC_UNUSED GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_flags)
+G_GNUC_UNUSED GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_flags)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_match_pattern_construct)
 static GumV8MatchPattern * gum_v8_match_pattern_new (Local<Object> wrapper,
@@ -585,155 +593,384 @@ _gum_v8_core_init (GumV8Core * self,
   self->cpu_context =
       new GumPersistent<FunctionTemplate>::type (isolate, cpu_context);
 
-#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED(A, R) \
     cpu_context_object->SetAccessor ( \
         _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
-        gumjs_cpu_context_get_register, \
-        gumjs_cpu_context_set_register, \
+        gumjs_cpu_context_get_gpr, \
+        gumjs_cpu_context_set_gpr, \
         Integer::NewFromUnsigned (isolate, \
-            G_STRUCT_OFFSET (GumCpuContext, R) / GLIB_SIZEOF_VOID_P), \
+            G_STRUCT_OFFSET (GumCpuContext, R)), \
         DEFAULT, \
         DontDelete, \
         cpu_context_signature)
-#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
-    GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR(R) \
+    GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (R, R)
+
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR(A, R) \
+    cpu_context_object->SetAccessor ( \
+        _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
+        gumjs_cpu_context_get_vector, \
+        gumjs_cpu_context_set_vector, \
+        Integer::NewFromUnsigned (isolate, \
+            G_STRUCT_OFFSET (GumCpuContext, R) << 8 | \
+              sizeof (((GumCpuContext *) NULL)->R)), \
+        DEFAULT, \
+        DontDelete, \
+        cpu_context_signature)
+
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE(A, R) \
+    cpu_context_object->SetAccessor ( \
+        _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
+        gumjs_cpu_context_get_double, \
+        gumjs_cpu_context_set_double, \
+        Integer::NewFromUnsigned (isolate, \
+            G_STRUCT_OFFSET (GumCpuContext, R)), \
+        DEFAULT, \
+        DontDelete, \
+        cpu_context_signature)
+
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT(A, R) \
+    cpu_context_object->SetAccessor ( \
+        _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
+        gumjs_cpu_context_get_float, \
+        gumjs_cpu_context_set_float, \
+        Integer::NewFromUnsigned (isolate, \
+            G_STRUCT_OFFSET (GumCpuContext, R)), \
+        DEFAULT, \
+        DontDelete, \
+        cpu_context_signature)
+
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLAGS(A, R) \
+    cpu_context_object->SetAccessor ( \
+        _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
+        gumjs_cpu_context_get_flags, \
+        gumjs_cpu_context_set_flags, \
+        Integer::NewFromUnsigned (isolate, \
+            G_STRUCT_OFFSET (GumCpuContext, R)), \
+        DEFAULT, \
+        DontDelete, \
+        cpu_context_signature)
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (pc, eip);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (sp, esp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (pc, eip);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (sp, esp);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (eax);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (ecx);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (edx);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (ebx);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (esp);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (ebp);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (esi);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (edi);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (eax);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (ecx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (edx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (ebx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (esp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (ebp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (esi);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (edi);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (eip);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (eip);
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (pc, rip);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (sp, rsp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (pc, rip);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (sp, rsp);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rax);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rcx);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rdx);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rbx);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rsp);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rbp);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rsi);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rdi);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rax);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rcx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rdx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rbx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rsp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rbp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rsi);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rdi);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r8);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r9);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r10);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r11);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r12);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r13);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r14);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r15);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r8);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r9);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r10);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r11);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r12);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r13);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r14);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r15);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rip);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rip);
 #elif defined (HAVE_ARM)
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (pc);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (sp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (pc);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (sp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLAGS (cpsr, cpsr);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r0, r[0]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r1, r[1]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r2, r[2]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r3, r[3]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r4, r[4]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r5, r[5]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r6, r[6]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r7, r[7]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (r0, r[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (r1, r[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (r2, r[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (r3, r[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (r4, r[4]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (r5, r[5]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (r6, r[6]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (r7, r[7]);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r8);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r9);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r10);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r11);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r12);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r8);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r9);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r10);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r11);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r12);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (lr);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (lr);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q0, v[0].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q1, v[1].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q2, v[2].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q3, v[3].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q4, v[4].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q5, v[5].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q6, v[6].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q7, v[7].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q8, v[8].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q9, v[9].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q10, v[10].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q11, v[11].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q12, v[12].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q13, v[13].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q14, v[14].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q15, v[15].q);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d0, v[0].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d1, v[0].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d2, v[1].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d3, v[1].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d4, v[2].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d5, v[2].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d6, v[3].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d7, v[3].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d8, v[4].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d9, v[4].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d10, v[5].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d11, v[5].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d12, v[6].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d13, v[6].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d14, v[7].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d15, v[7].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d16, v[8].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d17, v[8].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d18, v[9].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d19, v[9].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d20, v[10].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d21, v[10].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d22, v[11].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d23, v[11].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d24, v[12].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d25, v[12].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d26, v[13].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d27, v[13].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d28, v[14].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d29, v[14].d[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d30, v[15].d[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d31, v[15].d[1]);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s0, v[0].s[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s1, v[0].s[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s2, v[0].s[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s3, v[0].s[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s4, v[1].s[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s5, v[1].s[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s6, v[1].s[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s7, v[1].s[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s8, v[2].s[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s9, v[2].s[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s10, v[2].s[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s11, v[2].s[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s12, v[3].s[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s13, v[3].s[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s14, v[3].s[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s15, v[3].s[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s16, v[4].s[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s17, v[4].s[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s18, v[4].s[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s19, v[4].s[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s20, v[5].s[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s21, v[5].s[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s22, v[5].s[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s23, v[5].s[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s24, v[6].s[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s25, v[6].s[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s26, v[6].s[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s27, v[6].s[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s28, v[7].s[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s29, v[7].s[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s30, v[7].s[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s31, v[7].s[3]);
 #elif defined (HAVE_ARM64)
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (pc);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (sp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (pc);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (sp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLAGS (nzcv, nzcv);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x0, x[0]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x1, x[1]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x2, x[2]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x3, x[3]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x4, x[4]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x5, x[5]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x6, x[6]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x7, x[7]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x8, x[8]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x9, x[9]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x10, x[10]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x11, x[11]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x12, x[12]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x13, x[13]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x14, x[14]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x15, x[15]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x16, x[16]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x17, x[17]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x18, x[18]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x19, x[19]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x20, x[20]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x21, x[21]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x22, x[22]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x23, x[23]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x24, x[24]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x25, x[25]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x26, x[26]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x27, x[27]);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x28, x[28]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x0, x[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x1, x[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x2, x[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x3, x[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x4, x[4]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x5, x[5]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x6, x[6]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x7, x[7]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x8, x[8]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x9, x[9]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x10, x[10]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x11, x[11]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x12, x[12]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x13, x[13]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x14, x[14]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x15, x[15]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x16, x[16]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x17, x[17]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x18, x[18]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x19, x[19]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x20, x[20]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x21, x[21]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x22, x[22]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x23, x[23]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x24, x[24]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x25, x[25]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x26, x[26]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x27, x[27]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (x28, x[28]);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (fp);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (lr);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (fp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (lr);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q0, v[0].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q1, v[1].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q2, v[2].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q3, v[3].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q4, v[4].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q5, v[5].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q6, v[6].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q7, v[7].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q8, v[8].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q9, v[9].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q10, v[10].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q11, v[11].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q12, v[12].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q13, v[13].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q14, v[14].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q15, v[15].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q16, v[16].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q17, v[17].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q18, v[18].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q19, v[19].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q20, v[20].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q21, v[21].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q22, v[22].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q23, v[23].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q24, v[24].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q25, v[25].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q26, v[26].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q27, v[27].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q28, v[28].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q29, v[29].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q30, v[30].q);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_VECTOR (q31, v[31].q);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d0, v[0].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d1, v[1].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d2, v[2].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d3, v[3].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d4, v[4].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d5, v[5].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d6, v[6].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d7, v[7].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d8, v[8].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d9, v[9].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d10, v[10].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d11, v[11].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d12, v[12].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d13, v[13].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d14, v[14].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d15, v[15].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d16, v[16].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d17, v[17].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d18, v[18].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d19, v[19].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d20, v[20].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d21, v[21].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d22, v[22].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d23, v[23].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d24, v[24].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d25, v[25].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d26, v[26].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d27, v[27].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d28, v[28].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d29, v[29].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d30, v[30].d);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE (d31, v[31].d);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s0, v[0].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s1, v[1].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s2, v[2].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s3, v[3].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s4, v[4].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s5, v[5].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s6, v[6].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s7, v[7].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s8, v[8].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s9, v[9].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s10, v[10].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s11, v[11].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s12, v[12].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s13, v[13].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s14, v[14].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s15, v[15].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s16, v[16].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s17, v[17].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s18, v[18].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s19, v[19].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s20, v[20].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s21, v[21].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s22, v[22].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s23, v[23].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s24, v[24].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s25, v[25].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s26, v[26].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s27, v[27].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s28, v[28].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s29, v[29].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s30, v[30].s);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_FLOAT (s31, v[31].s);
 #elif defined (HAVE_MIPS)
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (pc);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (pc);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (gp);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (sp);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (fp);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (ra);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (gp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (sp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (fp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (ra);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (hi);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (lo);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (hi);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (lo);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (at);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (at);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (v0);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (v1);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (v0);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (v1);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (a0);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (a1);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (a2);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (a3);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (a0);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (a1);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (a2);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (a3);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t0);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t1);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t2);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t3);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t4);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t5);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t6);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t7);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t8);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (t9);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t0);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t1);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t2);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t3);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t4);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t5);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t6);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t7);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t8);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (t9);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (s0);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (s1);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (s2);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (s3);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (s4);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (s5);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (s6);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (s7);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (s0);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (s1);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (s2);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (s3);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (s4);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (s5);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (s6);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (s7);
 
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (k0);
-  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (k1);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (k0);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (k1);
 #endif
 
   auto match_pattern = _gum_v8_create_class ("MatchPattern",
@@ -3310,31 +3547,31 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 }
 
 static void
-gumjs_cpu_context_get_register (Local<Name> property,
-                                const PropertyCallbackInfo<Value> & info)
+gumjs_cpu_context_get_gpr (Local<Name> property,
+                           const PropertyCallbackInfo<Value> & info)
 {
   auto wrapper = info.Holder ();
   auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
   auto cpu_context =
-      (gpointer *) wrapper->GetInternalField (0).As<External> ()->Value ();
-  gsize offset = info.Data ().As<Integer> ()->Value ();
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  const gsize offset = info.Data ().As<Integer> ()->Value ();
 
   info.GetReturnValue ().Set (
-      _gum_v8_native_pointer_new (cpu_context[offset], core));
+      _gum_v8_native_pointer_new (*(gpointer *) (cpu_context + offset), core));
 }
 
 static void
-gumjs_cpu_context_set_register (Local<Name> property,
-                                Local<Value> value,
-                                const PropertyCallbackInfo<void> & info)
+gumjs_cpu_context_set_gpr (Local<Name> property,
+                           Local<Value> value,
+                           const PropertyCallbackInfo<void> & info)
 {
   auto isolate = info.GetIsolate ();
   auto wrapper = info.Holder ();
   auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
   auto cpu_context =
-      (gpointer *) wrapper->GetInternalField (0).As<External> ()->Value ();
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
   bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
-  gsize offset = info.Data ().As<Integer> ()->Value ();
+  const gsize offset = info.Data ().As<Integer> ()->Value ();
 
   if (!is_mutable)
   {
@@ -3342,11 +3579,188 @@ gumjs_cpu_context_set_register (Local<Name> property,
     return;
   }
 
-  gpointer ptr;
-  if (!_gum_v8_native_pointer_parse (value, &ptr, core))
+  _gum_v8_native_pointer_parse (value, (gpointer *) (cpu_context + offset),
+      core);
+}
+
+static void
+gumjs_cpu_context_get_vector (Local<Name> property,
+                              const PropertyCallbackInfo<Value> & info)
+{
+  auto wrapper = info.Holder ();
+  auto cpu_context =
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  gsize spec = info.Data ().As<Integer> ()->Value ();
+  const gsize offset = spec >> 8;
+  const gsize size = spec & 0xff;
+
+  auto result = ArrayBuffer::New (info.GetIsolate (), size);
+  auto store = result.As<ArrayBuffer> ()->GetBackingStore ();
+  memcpy (store->Data (), cpu_context + offset, size);
+
+  info.GetReturnValue ().Set (result);
+}
+
+static void
+gumjs_cpu_context_set_vector (Local<Name> property,
+                              Local<Value> value,
+                              const PropertyCallbackInfo<void> & info)
+{
+  auto isolate = info.GetIsolate ();
+  auto wrapper = info.Holder ();
+  auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
+  auto cpu_context =
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
+  gsize spec = info.Data ().As<Integer> ()->Value ();
+  const gsize offset = spec >> 8;
+  const gsize size = spec & 0xff;
+
+  if (!is_mutable)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid operation");
+    return;
+  }
+
+  GBytes * new_bytes = _gum_v8_bytes_get (value, core);
+  if (new_bytes == NULL)
     return;
 
-  cpu_context[offset] = ptr;
+
+  gsize new_size;
+  gconstpointer new_data = g_bytes_get_data (new_bytes, &new_size);
+  if (new_size != size)
+  {
+    g_bytes_unref (new_bytes);
+    _gum_v8_throw_ascii_literal (isolate, "incorrect vector size");
+    return;
+  }
+
+  memcpy (cpu_context + offset, new_data, new_size);
+
+  g_bytes_unref (new_bytes);
+}
+
+static void
+gumjs_cpu_context_get_double (Local<Name> property,
+                              const PropertyCallbackInfo<Value> & info)
+{
+  auto wrapper = info.Holder ();
+  auto cpu_context =
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  const gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  info.GetReturnValue ().Set (
+      Number::New (info.GetIsolate (), *(gdouble *) (cpu_context + offset)));
+}
+
+static void
+gumjs_cpu_context_set_double (Local<Name> property,
+                              Local<Value> value,
+                              const PropertyCallbackInfo<void> & info)
+{
+  auto isolate = info.GetIsolate ();
+  auto wrapper = info.Holder ();
+  auto cpu_context =
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
+  const gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  if (!is_mutable)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid operation");
+    return;
+  }
+
+  if (!value->IsNumber ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected a number");
+    return;
+  }
+  gdouble d = value.As<Number> ()->Value ();
+
+  *(gdouble *) (cpu_context + offset) = d;
+}
+
+static void
+gumjs_cpu_context_get_float (Local<Name> property,
+                             const PropertyCallbackInfo<Value> & info)
+{
+  auto wrapper = info.Holder ();
+  auto cpu_context =
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  const gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  info.GetReturnValue ().Set (
+      Number::New (info.GetIsolate (), *(gfloat *) (cpu_context + offset)));
+}
+
+static void
+gumjs_cpu_context_set_float (Local<Name> property,
+                             Local<Value> value,
+                             const PropertyCallbackInfo<void> & info)
+{
+  auto isolate = info.GetIsolate ();
+  auto wrapper = info.Holder ();
+  auto cpu_context =
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
+  const gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  if (!is_mutable)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid operation");
+    return;
+  }
+
+  if (!value->IsNumber ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected a number");
+    return;
+  }
+  gdouble d = value.As<Number> ()->Value ();
+
+  *(gfloat *) (cpu_context + offset) = (gfloat) d;
+}
+
+static void
+gumjs_cpu_context_get_flags (Local<Name> property,
+                             const PropertyCallbackInfo<Value> & info)
+{
+  auto wrapper = info.Holder ();
+  auto cpu_context =
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  const gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  info.GetReturnValue ().Set (
+      Integer::NewFromUnsigned (info.GetIsolate (),
+        *(gsize *) (cpu_context + offset)));
+}
+
+static void
+gumjs_cpu_context_set_flags (Local<Name> property,
+                             Local<Value> value,
+                             const PropertyCallbackInfo<void> & info)
+{
+  auto isolate = info.GetIsolate ();
+  auto wrapper = info.Holder ();
+  auto cpu_context =
+      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
+  auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
+  const gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  if (!is_mutable)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid operation");
+    return;
+  }
+
+  gsize f;
+  if (!_gum_v8_size_get (value, &f, core))
+    return;
+
+  *(gsize *) (cpu_context + offset) = f;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)

@@ -3179,6 +3179,8 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
                                   GumPrologType type,
                                   GumArm64Writer * cw)
 {
+  gint i;
+
   /* X19 and LR have been pushed by our caller */
 
   /*
@@ -3220,123 +3222,109 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
 
   if (type == GUM_PROLOG_MINIMAL)
   {
-    /* GumCpuContext.q[128] */
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_Q6, ARM64_REG_Q7,
-        ARM64_REG_X19, -0x20, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_Q4, ARM64_REG_Q5,
-        ARM64_REG_X19, -0x20, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_Q2, ARM64_REG_Q3,
-        ARM64_REG_X19, -0x20, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_Q0, ARM64_REG_Q1,
-        ARM64_REG_X19, -0x20, GUM_INDEX_PRE_ADJUST);
+    /* GumCpuContext.v[0:8] plus padding for v[8:32] */
+    for (i = 6; i != -2; i -= 2)
+    {
+      gssize size = 2 * sizeof (GumArm64VectorReg);
 
-    gum_arm64_writer_put_str_reg_reg_offset_mode (cw, ARM64_REG_X30,
-        ARM64_REG_X19, -0x8, GUM_INDEX_PRE_ADJUST);
+      if (i == 6)
+        size += (32 - 8) * sizeof (GumArm64VectorReg);
 
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_XZR,
-        ARM64_REG_X29, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
+      gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+          ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,
+          ARM64_REG_X19, -size, GUM_INDEX_PRE_ADJUST);
+    }
 
-    /* X19-X28 are callee-saved registers */
+    /* GumCpuContext.{fp,lr}, LR being a placeholder updated below */
+    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+        ARM64_REG_FP, ARM64_REG_XZR,
+        ARM64_REG_X19, -16, GUM_INDEX_PRE_ADJUST);
+
+    /* GumCpuContext.x[19:29]: skipped as X19-X28 are callee-saved registers */
     gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X19, ARM64_REG_X19,
-        0x40);
+        (29 - 19) * 8);
 
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X18,
-        ARM64_REG_XZR, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X16,
-        ARM64_REG_X17, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X12,
-        ARM64_REG_X13, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X10,
-        ARM64_REG_X11, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
+    /* GumCpuContext.x[1:19] */
+    for (i = 17; i != -1; i -= 2)
+    {
+      gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+          ARM64_REG_X0 + i, ARM64_REG_X1 + i,
+          ARM64_REG_X19, -16, GUM_INDEX_PRE_ADJUST);
+    }
 
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X8, ARM64_REG_X9,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X6, ARM64_REG_X7,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X4, ARM64_REG_X5,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X2, ARM64_REG_X3,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X0, ARM64_REG_X1,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
+    /* GumCpuContext.{nzcv,x0} */
+    gum_arm64_writer_put_mov_reg_nzcv (cw, ARM64_REG_X1);
+    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+        ARM64_REG_X1, ARM64_REG_X0,
+        ARM64_REG_X19, -16, GUM_INDEX_PRE_ADJUST);
 
-    /* GumCpuContext.pc + sp */
-    gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X19, ARM64_REG_X19,
-        0x10);
+    /* GumCpuContext.{pc,sp} */
+    gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X19, ARM64_REG_X19, 16);
   }
   else if (type == GUM_PROLOG_FULL)
   {
-    /* GumCpuContext.q[128] */
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_Q6, ARM64_REG_Q7,
-        ARM64_REG_X19, -0x20, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_Q4, ARM64_REG_Q5,
-        ARM64_REG_X19, -0x20, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_Q2, ARM64_REG_Q3,
-        ARM64_REG_X19, -0x20, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_Q0, ARM64_REG_Q1,
-        ARM64_REG_X19, -0x20, GUM_INDEX_PRE_ADJUST);
+    guint distance_to_top = 0;
 
-    /* GumCpuContext.x[29] + fp + lr + padding */
-    gum_arm64_writer_put_str_reg_reg_offset_mode (cw, ARM64_REG_X30,
-        ARM64_REG_X19, -0x8, GUM_INDEX_PRE_ADJUST);
+    /* GumCpuContext.v[32] */
+    for (i = 30; i != -2; i -= 2)
+    {
+      const gssize vector_pair_size = 2 * sizeof (GumArm64VectorReg);
 
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X28,
-        ARM64_REG_X29, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X26,
-        ARM64_REG_X27, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X24,
-        ARM64_REG_X25, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X22,
-        ARM64_REG_X23, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X20,
-        ARM64_REG_X21, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
+      gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+          ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,
+          ARM64_REG_X19, -vector_pair_size,
+          GUM_INDEX_PRE_ADJUST);
 
-    /*
-     * X19 has been stored above our CpuContext by the prologue code, we reach
-     * up and grab it here and copy it to the right place in the context. Here
-     * we use X28 as scratch since it has already been saved in the context
-     * above.
-     */
-    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X28, ARM64_REG_X19,
-        (5 * 16) + 8 + (4 * 32));
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X18,
-        ARM64_REG_X28, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
+      distance_to_top += vector_pair_size;
+    }
 
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X16,
-        ARM64_REG_X17, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X12,
-        ARM64_REG_X13, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X10,
-        ARM64_REG_X11, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
+    /* GumCpuContext.{fp,lr}, LR being a placeholder updated below */
+    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+        ARM64_REG_FP, ARM64_REG_XZR,
+        ARM64_REG_X19, -16, GUM_INDEX_PRE_ADJUST);
+    distance_to_top += 16;
 
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X8, ARM64_REG_X9,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X6, ARM64_REG_X7,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X4, ARM64_REG_X5,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X2, ARM64_REG_X3,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X0, ARM64_REG_X1,
-        ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
+    /* GumCpuContext.x[1:29] */
+    for (i = 27; i != -1; i -= 2)
+    {
+      if (i == 19)
+      {
+        /*
+         * X19 has been stored above our CpuContext by the prologue code, we reach
+         * up and grab it here and copy it to the right place in the context. Here
+         * we use X28 as scratch since it has already been saved in the context
+         * above.
+         */
+        gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X28,
+            ARM64_REG_X19, distance_to_top);
+        gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+            ARM64_REG_X28, ARM64_REG_X20,
+            ARM64_REG_X19, -16, GUM_INDEX_PRE_ADJUST);
+        distance_to_top += 16;
+        continue;
+      }
 
-    /*
-     * GumCpuContext.pc + sp. Correct the stack pointer, so far we have pushed
-     * the whole context minus the pc and sp fields we are about to push. The
-     * epilogue accounts for the remainder.
-     */
-    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X1, ARM64_REG_X19,
-        sizeof (GumCpuContext) - G_STRUCT_OFFSET (GumCpuContext, x)
-        + 16 + GUM_RED_ZONE_SIZE);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_XZR,
-        ARM64_REG_X1, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
+      gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+          ARM64_REG_X0 + i, ARM64_REG_X1 + i,
+          ARM64_REG_X19, -16, GUM_INDEX_PRE_ADJUST);
+      distance_to_top += 16;
+    }
+
+    /* GumCpuContext.{nzcv,x0} */
+    gum_arm64_writer_put_mov_reg_nzcv (cw, ARM64_REG_X1);
+    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+        ARM64_REG_X1, ARM64_REG_X0,
+        ARM64_REG_X19, -16, GUM_INDEX_PRE_ADJUST);
+    distance_to_top += 16;
+
+    /* GumCpuContext.{pc,sp} */
+    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X0,
+        ARM64_REG_X19, distance_to_top + 16 + GUM_RED_ZONE_SIZE);
+    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+        ARM64_REG_XZR, ARM64_REG_X0,
+        ARM64_REG_X19, -16, GUM_INDEX_PRE_ADJUST);
+    distance_to_top += 16;
   }
-
-  gum_arm64_writer_put_mov_reg_nzcv (cw, ARM64_REG_X15);
 
   /*
    * Read the value of the LR stored by the prologue code above the CpuContext
@@ -3355,14 +3343,8 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG_X20, ARM64_REG_X19,
       sizeof (GumCpuContext) + 8);
 
-  /* Padding + status */
-  gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X14, ARM64_REG_X15,
-      ARM64_REG_X19, -0x10, GUM_INDEX_SIGNED_OFFSET);
-
   /* Align our stack pointer */
   gum_arm64_writer_put_and_reg_reg_imm (cw, ARM64_REG_SP, ARM64_REG_X19, ~0xf);
-  /* Skip the padding and status */
-  gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_SP, ARM64_REG_SP, 0x10);
 
   /* Set X20 as our context pointer */
   gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X20, ARM64_REG_X19);
@@ -3375,134 +3357,110 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
                                   GumPrologType type,
                                   GumArm64Writer * cw)
 {
+  gint i;
+
   /* X19 and X20 have been pushed by our caller */
 
   if (type == GUM_PROLOG_FULL)
   {
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X0, ARM64_REG_X1,
+    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw,
+        ARM64_REG_X0, ARM64_REG_X1,
         ARM64_REG_X20, G_STRUCT_OFFSET (GumCpuContext, x[19]),
         GUM_INDEX_SIGNED_OFFSET);
-    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X0,
-        ARM64_REG_X1, ARM64_REG_X20, sizeof (GumCpuContext),
+    gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
+        ARM64_REG_X0, ARM64_REG_X1,
+        ARM64_REG_X20, sizeof (GumCpuContext),
         GUM_INDEX_SIGNED_OFFSET);
   }
-
-  /* Restore our stack pointer (using the frame base X20 as a reference) */
-  gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X20, ARM64_REG_X20, 0x10);
-
-  /* Padding + status */
-  gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14, ARM64_REG_X15,
-      ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
 
   if (type == GUM_PROLOG_MINIMAL)
   {
-    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X20, ARM64_REG_X20,
-        0x10);
+    /* GumCpuContext.{pc,sp}: skipped */
+    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X20, ARM64_REG_X20, 16);
 
-    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
+    /* GumCpuContext.{nzcv,x[0]} */
+    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X1, ARM64_REG_X0,
+        ARM64_REG_X20, 16, GUM_INDEX_POST_ADJUST);
 
     /* Restore status */
-    gum_arm64_writer_put_mov_nzcv_reg (cw, ARM64_REG_X15);
+    gum_arm64_writer_put_mov_nzcv_reg (cw, ARM64_REG_X1);
 
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X0, ARM64_REG_X1,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X2, ARM64_REG_X3,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X4, ARM64_REG_X5,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X6, ARM64_REG_X7,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X8, ARM64_REG_X9,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
+    /* GumCpuContext.x[1:19] */
+    for (i = 1; i != 19; i += 2)
+    {
+      gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw,
+          ARM64_REG_X0 + i, ARM64_REG_X1 + i,
+          ARM64_REG_X20, 16, GUM_INDEX_POST_ADJUST);
+    }
 
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X10,
-        ARM64_REG_X11, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X12,
-        ARM64_REG_X13, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X16,
-        ARM64_REG_X17, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X18,
-        ARM64_REG_XZR, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-
-    /* X19-X28 are callee-saved registers */
+    /* GumCpuContext.x[19:29]: skipped as X19-X28 are callee-saved registers */
     gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X20, ARM64_REG_X20,
-        0x40);
+        (29 - 19) * 8);
 
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_XZR,
-        ARM64_REG_X29, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldr_reg_reg_offset_mode (cw, ARM64_REG_X30,
-        ARM64_REG_X20, 0x8, GUM_INDEX_POST_ADJUST);
+    /* Last chance to grab LR so we can return from this thunk */
+    gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
 
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_Q0, ARM64_REG_Q1,
-        ARM64_REG_X20, 0x20, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_Q2, ARM64_REG_Q3,
-        ARM64_REG_X20, 0x20, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_Q4, ARM64_REG_Q5,
-        ARM64_REG_X20, 0x20, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_Q6, ARM64_REG_Q7,
-        ARM64_REG_X20, 0x20, GUM_INDEX_POST_ADJUST);
+    /* GumCpuContext.{fp,lr} */
+    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw,
+        ARM64_REG_FP, ARM64_REG_LR,
+        ARM64_REG_X20, 16, GUM_INDEX_POST_ADJUST);
+
+    /* GumCpuContext.v[0:8] plus padding for v[8:32] */
+    for (i = 0; i != 8; i += 2)
+    {
+      gssize size = 2 * sizeof (GumArm64VectorReg);
+
+      if (i == 6)
+        size += (32 - 8) * sizeof (GumArm64VectorReg);
+
+      gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw,
+          ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,
+          ARM64_REG_X20, size, GUM_INDEX_POST_ADJUST);
+    }
   }
   else if (type == GUM_PROLOG_FULL)
   {
-    /* GumCpuContext.pc + sp */
-    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X20, ARM64_REG_X20,
-        0x10);
+    /* GumCpuContext.{pc,sp}: skipped */
+    gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X20, ARM64_REG_X20, 16);
+
+    /* GumCpuContext.{nzcv,x[0]} */
+    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X1, ARM64_REG_X0,
+        ARM64_REG_X20, 16, GUM_INDEX_POST_ADJUST);
 
     /* Restore status */
-    gum_arm64_writer_put_mov_nzcv_reg (cw, ARM64_REG_X15);
+    gum_arm64_writer_put_mov_nzcv_reg (cw, ARM64_REG_X1);
 
-    /* GumCpuContext.x[29] + fp + lr + padding */
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X0, ARM64_REG_X1,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X2, ARM64_REG_X3,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X4, ARM64_REG_X5,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X6, ARM64_REG_X7,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X8, ARM64_REG_X9,
-        ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
+    /* GumCpuContext.x[1:29] */
+    for (i = 1; i != 29; i += 2)
+    {
+      if (i == 19)
+      {
+        /* We already dealt with X19 and X20 above */
+        gum_arm64_writer_put_add_reg_reg_imm (cw, ARM64_REG_X20,
+            ARM64_REG_X20, 16);
+        continue;
+      }
 
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X10,
-        ARM64_REG_X11, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X12,
-        ARM64_REG_X13, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X14,
-        ARM64_REG_X15, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X16,
-        ARM64_REG_X17, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
+      gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw,
+          ARM64_REG_X0 + i, ARM64_REG_X1 + i,
+          ARM64_REG_X20, 16, GUM_INDEX_POST_ADJUST);
+    }
 
-    /* X19 and X20 are stored above the GumCpuContext in the frame */
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X18,
-        ARM64_REG_XZR, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_XZR,
-        ARM64_REG_X21, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-
+    /* Last chance to grab LR so we can return from this thunk */
     gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
 
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X22,
-        ARM64_REG_X23, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X24,
-        ARM64_REG_X25, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X26,
-        ARM64_REG_X27, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X28,
-        ARM64_REG_X29, ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
+    /* GumCpuContext.{fp,lr} */
+    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw,
+        ARM64_REG_FP, ARM64_REG_LR,
+        ARM64_REG_X20, 16, GUM_INDEX_POST_ADJUST);
 
-    gum_arm64_writer_put_ldr_reg_reg_offset_mode (cw, ARM64_REG_X30,
-        ARM64_REG_X20, 0x8, GUM_INDEX_POST_ADJUST);
-
-    /* GumCpuContext.q[128] */
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_Q0, ARM64_REG_Q1,
-        ARM64_REG_X20, 0x20, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_Q2, ARM64_REG_Q3,
-        ARM64_REG_X20, 0x20, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_Q4, ARM64_REG_Q5,
-        ARM64_REG_X20, 0x20, GUM_INDEX_POST_ADJUST);
-    gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_Q6, ARM64_REG_Q7,
-        ARM64_REG_X20, 0x20, GUM_INDEX_POST_ADJUST);
+    /* GumCpuContext.v[0:32] */
+    for (i = 0; i != 32; i += 2)
+    {
+      gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw,
+          ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,
+          ARM64_REG_X20, 2 * sizeof (GumArm64VectorReg), GUM_INDEX_POST_ADJUST);
+    }
   }
 
   gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_SP, ARM64_REG_X20);

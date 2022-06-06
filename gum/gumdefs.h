@@ -47,7 +47,9 @@ typedef guint GumBranchHint;
 typedef struct _GumIA32CpuContext GumIA32CpuContext;
 typedef struct _GumX64CpuContext GumX64CpuContext;
 typedef struct _GumArmCpuContext GumArmCpuContext;
+typedef union _GumArmVectorReg GumArmVectorReg;
 typedef struct _GumArm64CpuContext GumArm64CpuContext;
+typedef union _GumArm64VectorReg GumArm64VectorReg;
 typedef struct _GumMipsCpuContext GumMipsCpuContext;
 typedef guint GumRelocationScenario;
 
@@ -235,11 +237,18 @@ struct _GumX64CpuContext
   guint64 rax;
 };
 
+union _GumArmVectorReg
+{
+  guint8 q[16];
+  gdouble d[2];
+  gfloat s[4];
+};
+
 struct _GumArmCpuContext
 {
-  guint32 cpsr;
   guint32 pc;
   guint32 sp;
+  guint32 cpsr;
 
   guint32 r8;
   guint32 r9;
@@ -247,19 +256,34 @@ struct _GumArmCpuContext
   guint32 r11;
   guint32 r12;
 
+  GumArmVectorReg v[16];
+
+  guint32 _padding;
+
   guint32 r[8];
   guint32 lr;
+};
+
+union _GumArm64VectorReg
+{
+  guint8 q[16];
+  gdouble d;
+  gfloat s;
+  guint16 h;
+  guint8 b;
 };
 
 struct _GumArm64CpuContext
 {
   guint64 pc;
   guint64 sp;
+  guint64 nzcv;
 
   guint64 x[29];
   guint64 fp;
   guint64 lr;
-  guint8 q[128];
+
+  GumArm64VectorReg v[32];
 };
 
 struct _GumMipsCpuContext
@@ -375,7 +399,7 @@ enum _GumRelocationScenario
 #define GUM_MAX_WORST_CASE_INFO_SIZE 128
 
 #define GUM_MAX_LISTENERS_PER_FUNCTION 2
-#define GUM_MAX_LISTENER_DATA        512
+#define GUM_MAX_LISTENER_DATA       1024
 
 #define GUM_MAX_THREAD_RANGES 2
 

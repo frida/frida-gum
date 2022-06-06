@@ -1832,15 +1832,17 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
 #elif defined (HAVE_ARM) && defined (HAVE_LEGACY_MCONTEXT)
   const elf_greg_t * gr = uc->uc_mcontext.gregs;
 
-  ctx->cpsr = 0; /* FIXME: Anything we can do about this? */
   ctx->pc = gr[R15];
   ctx->sp = gr[R13];
+  ctx->cpsr = 0; /* FIXME: Anything we can do about this? */
 
   ctx->r8 = gr[R8];
   ctx->r9 = gr[R9];
   ctx->r10 = gr[R10];
   ctx->r11 = gr[R11];
   ctx->r12 = gr[R12];
+
+  memset (ctx->v, 0, sizeof (ctx->v));
 
   ctx->r[0] = gr[R0];
   ctx->r[1] = gr[R1];
@@ -1854,15 +1856,17 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
 #elif defined (HAVE_ARM)
   const mcontext_t * mc = &uc->uc_mcontext;
 
-  ctx->cpsr = mc->arm_cpsr;
   ctx->pc = mc->arm_pc;
   ctx->sp = mc->arm_sp;
+  ctx->cpsr = mc->arm_cpsr;
 
   ctx->r8 = mc->arm_r8;
   ctx->r9 = mc->arm_r9;
   ctx->r10 = mc->arm_r10;
   ctx->r11 = mc->arm_fp;
   ctx->r12 = mc->arm_ip;
+
+  memset (ctx->v, 0, sizeof (ctx->v));
 
   ctx->r[0] = mc->arm_r0;
   ctx->r[1] = mc->arm_r1;
@@ -1879,12 +1883,14 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
 
   ctx->pc = mc->pc;
   ctx->sp = mc->sp;
+  ctx->nzcv = 0;
 
   for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
     ctx->x[i] = mc->regs[i];
   ctx->fp = mc->regs[29];
   ctx->lr = mc->regs[30];
-  memset (ctx->q, 0, sizeof (ctx->q));
+
+  memset (ctx->v, 0, sizeof (ctx->v));
 #elif defined (HAVE_MIPS)
   const greg_t * gr = uc->uc_mcontext.gregs;
 
@@ -2000,9 +2006,9 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM)
   mcontext_t * mc = &uc->uc_mcontext;
 
-  mc->arm_cpsr = ctx->cpsr;
   mc->arm_pc = ctx->pc;
   mc->arm_sp = ctx->sp;
+  mc->arm_cpsr = ctx->cpsr;
 
   mc->arm_r8 = ctx->r8;
   mc->arm_r9 = ctx->r9;
@@ -2119,15 +2125,17 @@ gum_parse_regs (const GumRegs * regs,
 #elif defined (HAVE_ARM)
   gsize i;
 
-  ctx->cpsr = regs->ARM_cpsr;
   ctx->pc = regs->ARM_pc;
   ctx->sp = regs->ARM_sp;
+  ctx->cpsr = regs->ARM_cpsr;
 
   ctx->r8 = regs->uregs[8];
   ctx->r9 = regs->uregs[9];
   ctx->r10 = regs->uregs[10];
   ctx->r11 = regs->uregs[11];
   ctx->r12 = regs->uregs[12];
+
+  memset (ctx->v, 0, sizeof (ctx->v));
 
   for (i = 0; i != G_N_ELEMENTS (ctx->r); i++)
     ctx->r[i] = regs->uregs[i];
@@ -2137,11 +2145,14 @@ gum_parse_regs (const GumRegs * regs,
 
   ctx->pc = regs->pc;
   ctx->sp = regs->sp;
+  ctx->nzcv = 0;
 
   for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
     ctx->x[i] = regs->regs[i];
   ctx->fp = regs->regs[29];
   ctx->lr = regs->regs[30];
+
+  memset (ctx->v, 0, sizeof (ctx->v));
 #elif defined (HAVE_MIPS)
   ctx->at = regs->regs[1];
 
@@ -2230,9 +2241,9 @@ gum_unparse_regs (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM)
   gsize i;
 
-  regs->ARM_cpsr = ctx->cpsr;
   regs->ARM_pc = ctx->pc;
   regs->ARM_sp = ctx->sp;
+  regs->ARM_cpsr = ctx->cpsr;
 
   regs->uregs[8] = ctx->r8;
   regs->uregs[9] = ctx->r9;

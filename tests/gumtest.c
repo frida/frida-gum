@@ -8,11 +8,9 @@
 
 #include "testutil.h"
 
+#include "lowlevelhelpers.h"
 #ifdef HAVE_GUMJS
 # include "gumscriptbackend.h"
-#endif
-#ifdef HAVE_I386
-# include "lowlevelhelpers.h"
 #endif
 #include "valgrind.h"
 
@@ -128,9 +126,7 @@ main (gint argc, gchar * argv[])
   gum_init ();
 
   _test_util_init ();
-#ifdef HAVE_I386
   lowlevel_helpers_init ();
-#endif
 
 #ifdef HAVE_ASAN
   {
