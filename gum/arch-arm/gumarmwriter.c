@@ -1043,14 +1043,9 @@ gum_arm_writer_put_ands_reg_reg_imm (GumArmWriter * self,
                                      guint32 imm_val)
 {
   GumArmRegInfo rd, rs;
-  gboolean is_noop;
 
   gum_arm_reg_describe (dst_reg, &rd);
   gum_arm_reg_describe (src_reg, &rs);
-
-  is_noop = dst_reg == src_reg && (imm_val & GUM_INT8_MASK) == 0;
-  if (is_noop)
-    return;
 
   gum_arm_writer_put_instruction (self, 0xe2100000 | (rd.index << 12) |
       (rs.index << 16) | (imm_val & GUM_INT8_MASK));
