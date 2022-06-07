@@ -727,6 +727,14 @@ gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
 }
 
 gboolean
+gum_arm_writer_put_ldr_reg_reg (GumArmWriter * self,
+                                arm_reg dst_reg,
+                                arm_reg src_reg)
+{
+  return gum_arm_writer_put_ldr_reg_reg_offset (self, dst_reg, src_reg, 0);
+}
+
+gboolean
 gum_arm_writer_put_ldr_reg_reg_offset (GumArmWriter * self,
                                        arm_reg dst_reg,
                                        arm_reg src_reg,
@@ -772,6 +780,14 @@ gum_arm_writer_put_ldmia_reg_mask (GumArmWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
   gum_arm_writer_put_instruction (self, 0xe8b00000 | (ri.index << 16) | mask);
+}
+
+gboolean
+gum_arm_writer_put_str_reg_reg (GumArmWriter * self,
+                                arm_reg src_reg,
+                                arm_reg dst_reg)
+{
+  return gum_arm_writer_put_str_reg_reg_offset (self, src_reg, dst_reg, 0);
 }
 
 gboolean
