@@ -3180,7 +3180,6 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
                                   GumArm64Writer * cw)
 {
   /* X19 and LR have been pushed by our caller */
-  const guint32 mrs_x15_nzcv = 0xd53b420f;
 
   /*
    * Our prolog and epilog code makes extensive use of the stack to store and
@@ -3337,7 +3336,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
         ARM64_REG_X1, ARM64_REG_X19, -0x10, GUM_INDEX_PRE_ADJUST);
   }
 
-  gum_arm64_writer_put_instruction (cw, mrs_x15_nzcv);
+  gum_arm64_writer_put_mov_reg_nzcv (cw, ARM64_REG_X15);
 
   /*
    * Read the value of the LR stored by the prologue code above the CpuContext
@@ -3376,8 +3375,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
                                   GumPrologType type,
                                   GumArm64Writer * cw)
 {
-  /* X19 and X20 have been push by our caller */
-  const guint32 msr_nzcv_x15 = 0xd51b420f;
+  /* X19 and X20 have been pushed by our caller */
 
   if (type == GUM_PROLOG_FULL)
   {
@@ -3404,7 +3402,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
     gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
 
     /* Restore status */
-    gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
+    gum_arm64_writer_put_mov_nzcv_reg (cw, ARM64_REG_X15);
 
     gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X0, ARM64_REG_X1,
         ARM64_REG_X20, 0x10, GUM_INDEX_POST_ADJUST);
@@ -3453,7 +3451,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
         0x10);
 
     /* Restore status */
-    gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
+    gum_arm64_writer_put_mov_nzcv_reg (cw, ARM64_REG_X15);
 
     /* GumCpuContext.x[29] + fp + lr + padding */
     gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X0, ARM64_REG_X1,
@@ -4558,8 +4556,6 @@ gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
   gconstpointer perform_clone_syscall = cw->code + 1;
   gconstpointer perform_regular_syscall = cw->code + 2;
   gconstpointer perform_next_instruction = cw->code + 3;
-  const guint32 mrs_x15_nzcv = 0xd53b420f;
-  const guint32 msr_nzcv_x15 = 0xd51b420f;
 
   gum_arm64_relocator_skip_one (gc->relocator);
 
@@ -4568,7 +4564,7 @@ gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
 
   gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X15, ARM64_REG_X17,
       ARM64_REG_SP, -(16 + GUM_RED_ZONE_SIZE), GUM_INDEX_PRE_ADJUST);
-  gum_arm64_writer_put_instruction (cw, mrs_x15_nzcv);
+  gum_arm64_writer_put_mov_reg_nzcv (cw, ARM64_REG_X15);
 
   gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X17,
       ARM64_REG_X8, __NR_clone);
@@ -4577,7 +4573,7 @@ gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
   gum_arm64_writer_put_b_label (cw, perform_regular_syscall);
 
   gum_arm64_writer_put_label (cw, perform_clone_syscall);
-  gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
+  gum_arm64_writer_put_mov_nzcv_reg (cw, ARM64_REG_X15);
   gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X15,
       ARM64_REG_X17, ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE,
       GUM_INDEX_POST_ADJUST);
@@ -4585,7 +4581,7 @@ gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
   gum_arm64_writer_put_b_label (cw, perform_next_instruction);
 
   gum_arm64_writer_put_label (cw, perform_regular_syscall);
-  gum_arm64_writer_put_instruction (cw, msr_nzcv_x15);
+  gum_arm64_writer_put_mov_nzcv_reg (cw, ARM64_REG_X15);
   gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X15,
       ARM64_REG_X17, ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE,
       GUM_INDEX_POST_ADJUST);
