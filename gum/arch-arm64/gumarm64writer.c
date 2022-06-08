@@ -1087,6 +1087,14 @@ gum_arm64_writer_put_ldr_reg_pcrel (GumArm64Writer * self,
 }
 
 gboolean
+gum_arm64_writer_put_ldr_reg_reg (GumArm64Writer * self,
+                                  arm64_reg dst_reg,
+                                  arm64_reg src_reg)
+{
+  return gum_arm64_writer_put_ldr_reg_reg_offset (self, dst_reg, src_reg, 0);
+}
+
+gboolean
 gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
                                          arm64_reg dst_reg,
                                          arm64_reg src_reg,
@@ -1241,6 +1249,14 @@ gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
       (imm_lo << 29) | (imm_hi << 5) | ri.index);
 
   return TRUE;
+}
+
+gboolean
+gum_arm64_writer_put_str_reg_reg (GumArm64Writer * self,
+                                  arm64_reg src_reg,
+                                  arm64_reg dst_reg)
+{
+  return gum_arm64_writer_put_str_reg_reg_offset (self, src_reg, dst_reg, 0);
 }
 
 gboolean
