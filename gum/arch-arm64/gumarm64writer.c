@@ -875,7 +875,7 @@ gum_arm64_writer_put_push_all_x_registers (GumArm64Writer * self)
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X24, ARM64_REG_X25);
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X26, ARM64_REG_X27);
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X28, ARM64_REG_X29);
-  gum_arm64_writer_put_instruction (self, 0xd53b420f); /* mrs x15, NZCV */
+  gum_arm64_writer_put_mov_reg_nzcv (self, ARM64_REG_X15);
   gum_arm64_writer_put_push_reg_reg (self, ARM64_REG_X30, ARM64_REG_X15);
 }
 
@@ -883,7 +883,7 @@ void
 gum_arm64_writer_put_pop_all_x_registers (GumArm64Writer * self)
 {
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X30, ARM64_REG_X15);
-  gum_arm64_writer_put_instruction (self, 0xd51b420f); /* msr NZCV, x15 */
+  gum_arm64_writer_put_mov_nzcv_reg (self, ARM64_REG_X15);
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X28, ARM64_REG_X29);
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X26, ARM64_REG_X27);
   gum_arm64_writer_put_pop_reg_reg (self, ARM64_REG_X24, ARM64_REG_X25);
@@ -1410,6 +1410,28 @@ gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self,
   }
 
   return TRUE;
+}
+
+void
+gum_arm64_writer_put_mov_reg_nzcv (GumArm64Writer * self,
+                                   arm64_reg reg)
+{
+  GumArm64RegInfo ri;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  gum_arm64_writer_put_instruction (self, 0xd53b4200 | ri.index);
+}
+
+void
+gum_arm64_writer_put_mov_nzcv_reg (GumArm64Writer * self,
+                                   arm64_reg reg)
+{
+  GumArm64RegInfo ri;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  gum_arm64_writer_put_instruction (self, 0xd51b4200 | ri.index);
 }
 
 gboolean
