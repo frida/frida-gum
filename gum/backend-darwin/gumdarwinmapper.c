@@ -932,14 +932,14 @@ gum_emit_runtime (GumDarwinMapper * self,
   if (self->parent == NULL)
   {
     /* atexit stub */
-    gum_x86_writer_put_xor_reg_reg (&cw, GUM_REG_XAX, GUM_REG_XAX);
+    gum_x86_writer_put_xor_reg_reg (&cw, GUM_X86_XAX, GUM_X86_XAX);
     gum_x86_writer_put_ret (&cw);
   }
 
   self->constructor_offset = gum_x86_writer_offset (&cw);
-  gum_x86_writer_put_push_reg (&cw, GUM_REG_XBP);
-  gum_x86_writer_put_push_reg (&cw, GUM_REG_XBX);
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, self->module->pointer_size);
+  gum_x86_writer_put_push_reg (&cw, GUM_X86_XBP);
+  gum_x86_writer_put_push_reg (&cw, GUM_X86_XBX);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_X86_XSP, self->module->pointer_size);
 
   g_slist_foreach (self->children, (GFunc) gum_emit_child_constructor_call,
       &ctx);
@@ -950,15 +950,15 @@ gum_emit_runtime (GumDarwinMapper * self,
   gum_darwin_module_enumerate_init_pointers (module,
       (GumFoundDarwinInitPointersFunc) gum_emit_init_calls, &ctx);
 
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, self->module->pointer_size);
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XBX);
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XBP);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, self->module->pointer_size);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_XBX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_XBP);
   gum_x86_writer_put_ret (&cw);
 
   self->destructor_offset = gum_x86_writer_offset (&cw);
-  gum_x86_writer_put_push_reg (&cw, GUM_REG_XBP);
-  gum_x86_writer_put_push_reg (&cw, GUM_REG_XBX);
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, self->module->pointer_size);
+  gum_x86_writer_put_push_reg (&cw, GUM_X86_XBP);
+  gum_x86_writer_put_push_reg (&cw, GUM_X86_XBX);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_X86_XSP, self->module->pointer_size);
 
   gum_darwin_module_enumerate_term_pointers (module,
       (GumFoundDarwinTermPointersFunc) gum_emit_term_calls, &ctx);
@@ -967,9 +967,9 @@ gum_emit_runtime (GumDarwinMapper * self,
       &ctx);
   g_slist_free (children_reversed);
 
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, self->module->pointer_size);
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XBX);
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XBP);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, self->module->pointer_size);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_XBX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_XBP);
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_flush (&cw);
@@ -983,9 +983,9 @@ gum_emit_child_constructor_call (GumDarwinMapper * child,
 {
   GumX86Writer * cw = ctx->cw;
 
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX,
       gum_darwin_mapper_constructor (child));
-  gum_x86_writer_put_call_reg (cw, GUM_REG_XCX);
+  gum_x86_writer_put_call_reg (cw, GUM_X86_XCX);
 }
 
 static void
@@ -994,9 +994,9 @@ gum_emit_child_destructor_call (GumDarwinMapper * child,
 {
   GumX86Writer * cw = ctx->cw;
 
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX,
       gum_darwin_mapper_destructor (child));
-  gum_x86_writer_put_call_reg (cw, GUM_REG_XCX);
+  gum_x86_writer_put_call_reg (cw, GUM_X86_XCX);
 }
 
 static gboolean
@@ -1025,13 +1025,13 @@ gum_emit_resolve_if_needed (const GumDarwinBindDetails * details,
   entry = self->module->base_address + details->segment->vm_address +
       details->offset;
 
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX,
       gum_darwin_mapper_make_code_address (self, value.resolver));
-  gum_x86_writer_put_call_reg (cw, GUM_REG_XCX);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX, details->addend);
-  gum_x86_writer_put_add_reg_reg (cw, GUM_REG_XAX, GUM_REG_XCX);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX, entry);
-  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_REG_XCX, GUM_REG_XAX);
+  gum_x86_writer_put_call_reg (cw, GUM_X86_XCX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX, details->addend);
+  gum_x86_writer_put_add_reg_reg (cw, GUM_X86_XAX, GUM_X86_XCX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX, entry);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XCX, GUM_X86_XAX);
 
   return TRUE;
 }
@@ -1044,22 +1044,22 @@ gum_emit_init_calls (const GumDarwinInitPointersDetails * details,
   GumX86Writer * cw = ctx->cw;
   gconstpointer next_label = GSIZE_TO_POINTER (details->address);
 
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBP, details->address);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX, details->count);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XBP, details->address);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XBX, details->count);
 
   gum_x86_writer_put_label (cw, next_label);
 
-  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XBP);
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XBP);
   gum_x86_writer_put_call_reg_with_aligned_arguments (cw, GUM_CALL_CAPI,
-      GUM_REG_XAX, 5,
+      GUM_X86_XAX, 5,
       /*   argc */ GUM_ARG_ADDRESS, GUM_ADDRESS (0),
       /*   argv */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
       /*   envp */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
       /*  apple */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->apple_strv_address),
       /* result */ GUM_ARG_ADDRESS, GUM_ADDRESS (0));
 
-  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XBP, self->module->pointer_size);
-  gum_x86_writer_put_dec_reg (cw, GUM_REG_XBX);
+  gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XBP, self->module->pointer_size);
+  gum_x86_writer_put_dec_reg (cw, GUM_X86_XBX);
   gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, next_label, GUM_NO_HINT);
 
   return TRUE;
@@ -1073,17 +1073,17 @@ gum_emit_term_calls (const GumDarwinTermPointersDetails * details,
   GumX86Writer * cw = ctx->cw;
   gconstpointer next_label = GSIZE_TO_POINTER (details->address);
 
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBP, details->address +
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XBP, details->address +
       ((details->count - 1) * self->module->pointer_size));
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX, details->count);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XBX, details->count);
 
   gum_x86_writer_put_label (cw, next_label);
 
-  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XBP);
-  gum_x86_writer_put_call_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XBP);
+  gum_x86_writer_put_call_reg (cw, GUM_X86_XAX);
 
-  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XBP, self->module->pointer_size);
-  gum_x86_writer_put_dec_reg (cw, GUM_REG_XBX);
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XBP, self->module->pointer_size);
+  gum_x86_writer_put_dec_reg (cw, GUM_X86_XBX);
   gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, next_label, GUM_NO_HINT);
 
   return TRUE;

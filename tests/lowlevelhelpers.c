@@ -45,10 +45,10 @@ struct _GumEmitTestClobberFlagsContext
 
 ClobberTestFunc clobber_test_functions[3] = { NULL, };
 
-typedef void (GUM_THUNK * InvokeWithCpuContextFunc) (
-    const GumCpuContext * input, GumCpuContext * output);
-typedef void (GUM_THUNK * InvokeWithCpuFlagsFunc) (
-    gsize * flags_input, gsize * flags_output);
+typedef void (* InvokeWithCpuContextFunc) (const GumCpuContext * input,
+    GumCpuContext * output);
+typedef void (* InvokeWithCpuFlagsFunc) (gsize * flags_input,
+    gsize * flags_output);
 
 static void gum_emit_clobber_test_functions (gpointer mem, gpointer user_data);
 static void gum_emit_test_clobber_regs_function (gpointer mem,
@@ -436,172 +436,177 @@ gum_emit_test_clobber_regs_function (gpointer mem,
 
   gum_x86_writer_put_pushax (&cw);
 
-  gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for xip */
+  gum_x86_writer_put_push_reg (&cw, GUM_X86_XAX); /* Placeholder for xip */
 
 # if GLIB_SIZEOF_VOID_P == 4
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_EAX,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, eax));
-  /* leave GUM_REG_ECX for last */
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_EDX,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, edx));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_EBX,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ebx));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_EBP,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ebp));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ESI,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, esi));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_EDI,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, edi));
+  /* Load first argument */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_ECX,
+      GUM_X86_ESP, sizeof (GumCpuContext) + 4);
 
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_EAX,
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, eax));
+  /* Leave GUM_X86_ECX for last */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_EDX,
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, edx));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_EBX,
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ebx));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_EBP,
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ebp));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_ESI,
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, esi));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_EDI,
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, edi));
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_ECX,
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx));
 # else
   if (cw.target_abi == GUM_ABI_UNIX)
-    gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_RCX, GUM_REG_RDI);
+    gum_x86_writer_put_mov_reg_reg (&cw, GUM_X86_RCX, GUM_X86_RDI);
 
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RAX,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rax));
-  /* leave GUM_REG_RCX for last */
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RDX,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rdx));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RBX,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rbx));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RBP,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rbp));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RSI,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rsi));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RDI,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rdi));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RAX,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rax));
+  /* Leave GUM_X86_RCX for last */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RDX,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rdx));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RBX,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rbx));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RBP,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rbp));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RSI,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rsi));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RDI,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rdi));
 
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_R8,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r8));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_R9,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r9));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_R10,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r10));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_R11,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r11));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_R12,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r12));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_R13,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r13));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_R14,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r14));
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_R15,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r15));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_R8,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r8));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_R9,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r9));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_R10,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r10));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_R11,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r11));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_R12,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r12));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_R13,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r13));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_R14,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r14));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_R15,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r15));
 
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RCX,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rcx));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RCX,
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rcx));
 # endif
 
   if (align_correction != 0)
   {
-    gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XSP,
-        GUM_REG_XSP, -align_correction);
+    gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_X86_XSP,
+        GUM_X86_XSP, -align_correction);
   }
 
   gum_x86_writer_put_call_address (&cw, GUM_ADDRESS (ctx->target_func));
 
   if (align_correction != 0)
   {
-    gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XSP,
-        GUM_REG_XSP, align_correction);
+    gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_X86_XSP,
+        GUM_X86_XSP, align_correction);
   }
 
-  gum_x86_writer_put_push_reg (&cw, GUM_REG_XCX);
+  gum_x86_writer_put_push_reg (&cw, GUM_X86_XCX);
 
 # if GLIB_SIZEOF_VOID_P == 4
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
-      GUM_REG_ESP, 4 + G_STRUCT_OFFSET (GumCpuContext, edx));
+  /* Load second argument */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_ECX,
+      GUM_X86_ESP, 4 + sizeof (GumCpuContext) + 8);
 
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, eax),
-      GUM_REG_EAX);
-  /* leave GUM_REG_ECX for last */
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, eax),
+      GUM_X86_EAX);
+  /* Leave GUM_X86_ECX for last */
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, edx),
-      GUM_REG_EDX);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, edx),
+      GUM_X86_EDX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ebx),
-      GUM_REG_EBX);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ebx),
+      GUM_X86_EBX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ebp),
-      GUM_REG_EBP);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ebp),
+      GUM_X86_EBP);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, esi),
-      GUM_REG_ESI);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, esi),
+      GUM_X86_ESI);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, edi),
-      GUM_REG_EDI);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, edi),
+      GUM_X86_EDI);
 
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_EDX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_EDX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx),
-      GUM_REG_EDX);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx),
+      GUM_X86_EDX);
 # else
   if (cw.target_abi == GUM_ABI_UNIX)
   {
-    gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RCX,
-        GUM_REG_RSP, 8 + G_STRUCT_OFFSET (GumCpuContext, rsi));
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RCX,
+        GUM_X86_RSP, 8 + G_STRUCT_OFFSET (GumCpuContext, rsi));
   }
   else
   {
-    gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RCX,
-        GUM_REG_RSP, 8 + G_STRUCT_OFFSET (GumCpuContext, rdx));
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_RCX,
+        GUM_X86_RSP, 8 + G_STRUCT_OFFSET (GumCpuContext, rdx));
   }
 
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rax),
-      GUM_REG_RAX);
-  /* leave GUM_REG_RCX for last */
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rax),
+      GUM_X86_RAX);
+  /* Leave GUM_X86_RCX for last */
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rdx),
-      GUM_REG_RDX);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rdx),
+      GUM_X86_RDX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rbx),
-      GUM_REG_RBX);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rbx),
+      GUM_X86_RBX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rbp),
-      GUM_REG_RBP);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rbp),
+      GUM_X86_RBP);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rsi),
-      GUM_REG_RSI);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rsi),
+      GUM_X86_RSI);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rdi),
-      GUM_REG_RDI);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rdi),
+      GUM_X86_RDI);
 
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r8),
-      GUM_REG_R8);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r8),
+      GUM_X86_R8);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r9),
-      GUM_REG_R9);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r9),
+      GUM_X86_R9);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r10),
-      GUM_REG_R10);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r10),
+      GUM_X86_R10);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r11),
-      GUM_REG_R11);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r11),
+      GUM_X86_R11);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r12),
-      GUM_REG_R12);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r12),
+      GUM_X86_R12);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r13),
-      GUM_REG_R13);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r13),
+      GUM_X86_R13);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r14),
-      GUM_REG_R14);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r14),
+      GUM_X86_R14);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, r15),
-      GUM_REG_R15);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, r15),
+      GUM_X86_R15);
 
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_RDX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_RDX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rcx),
-      GUM_REG_RDX);
+      GUM_X86_RCX, G_STRUCT_OFFSET (GumCpuContext, rcx),
+      GUM_X86_RDX);
 # endif
 
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_XAX);
   gum_x86_writer_put_popax (&cw);
   gum_x86_writer_put_ret (&cw);
 
@@ -821,25 +826,31 @@ gum_emit_test_clobber_flags_function (gpointer mem,
   gum_x86_writer_init (&cw, mem);
   cw.pc = ctx->start_address;
 
+# if GLIB_SIZEOF_VOID_P == 4
+  /* Load arguments */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_ECX, GUM_X86_ESP, 4);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_EDX, GUM_X86_ESP, 8);
+# endif
+
   gum_x86_writer_put_stc (&cw); /* set carry flag, likely to get clobbered */
 
   gum_x86_writer_put_pushfx (&cw);
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_XAX);
   gum_x86_writer_put_mov_reg_ptr_reg (&cw,
-      gum_x86_writer_get_cpu_register_for_nth_argument (&cw, 0), GUM_REG_XAX);
+      gum_x86_writer_get_cpu_register_for_nth_argument (&cw, 0), GUM_X86_XAX);
 
-  gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XSP,
-      GUM_REG_XSP, -align_correction);
+  gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_X86_XSP,
+      GUM_X86_XSP, -align_correction);
 
   gum_x86_writer_put_call_address (&cw, GUM_ADDRESS (ctx->target_func));
 
-  gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XSP,
-      GUM_REG_XSP, align_correction);
+  gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_X86_XSP,
+      GUM_X86_XSP, align_correction);
 
   gum_x86_writer_put_pushfx (&cw);
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_XAX);
   gum_x86_writer_put_mov_reg_ptr_reg (&cw,
-      gum_x86_writer_get_cpu_register_for_nth_argument (&cw, 1), GUM_REG_XAX);
+      gum_x86_writer_get_cpu_register_for_nth_argument (&cw, 1), GUM_X86_XAX);
 
   gum_x86_writer_put_ret (&cw);
 

@@ -38,7 +38,7 @@ static gboolean gum_x86_relocator_rewrite_if_rip_relative (
 
 static gboolean gum_x86_call_is_to_next_instruction (cs_insn * insn);
 static gboolean gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
-    GumCpuType cpu_type, GumCpuReg * pc_reg);
+    GumCpuType cpu_type, GumX86Reg * pc_reg);
 
 GumX86Relocator *
 gum_x86_relocator_new (gconstpointer input_code,
@@ -470,15 +470,15 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
   if (ctx->insn->id == X86_INS_CALL)
   {
-    GumCpuReg pc_reg;
+    GumX86Reg pc_reg;
 
     if (gum_x86_call_is_to_next_instruction (insn))
     {
       if (cw->target_cpu == GUM_CPU_AMD64)
       {
-        gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
-        gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX, ctx->pc);
-        gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
+        gum_x86_writer_put_push_reg (cw, GUM_X86_XAX);
+        gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX, ctx->pc);
+        gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XSP);
       }
       else
       {
@@ -581,16 +581,16 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   gboolean is_rip_relative;
   GumAddress address;
   gssize offset;
-  GumCpuReg cpu_regs[7] = {
-    GUM_REG_RAX, GUM_REG_RCX, GUM_REG_RDX, GUM_REG_RBX, GUM_REG_RBP,
-    GUM_REG_RSI, GUM_REG_RDI
+  GumX86Reg cpu_regs[7] = {
+    GUM_X86_RAX, GUM_X86_RCX, GUM_X86_RDX, GUM_X86_RBX, GUM_X86_RBP,
+    GUM_X86_RSI, GUM_X86_RDI
   };
   x86_reg cs_regs[7] = {
     X86_REG_RAX, X86_REG_RCX, X86_REG_RDX, X86_REG_RBX, X86_REG_RBP,
     X86_REG_RSI, X86_REG_RDI
   };
   gint rip_reg_index, i;
-  GumCpuReg other_reg, rip_reg;
+  GumX86Reg other_reg, rip_reg;
   GumAbiType target_abi = self->output->target_abi;
   guint8 code[16];
 
@@ -634,16 +634,16 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 
     if (insn->id == X86_INS_CALL)
     {
-      gum_x86_writer_put_push_reg (cw, GUM_REG_RAX);
-      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RAX, 0);
+      gum_x86_writer_put_push_reg (cw, GUM_X86_RAX);
+      gum_x86_writer_put_mov_reg_address (cw, GUM_X86_RAX, 0);
       return_address_placeholder = (guint64 *) (cw->code - sizeof (guint64));
-      gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RSP);
+      gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_X86_RAX, GUM_X86_RSP);
     }
 
-    gum_x86_writer_put_push_reg (cw, GUM_REG_RAX);
-    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RAX, ctx->pc + distance);
-    gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RAX);
-    gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_RAX, GUM_REG_RSP);
+    gum_x86_writer_put_push_reg (cw, GUM_X86_RAX);
+    gum_x86_writer_put_mov_reg_address (cw, GUM_X86_RAX, ctx->pc + distance);
+    gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_RAX, GUM_X86_RAX);
+    gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_X86_RAX, GUM_X86_RSP);
     gum_x86_writer_put_ret (cw);
 
     if (insn->id == X86_INS_CALL)
@@ -654,14 +654,14 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     return TRUE;
   }
 
-  other_reg = (GumCpuReg) (GUM_REG_RAX + reg);
+  other_reg = (GumX86Reg) (GUM_X86_RAX + reg);
 
   rip_reg_index = -1;
   for (i = 0; i != G_N_ELEMENTS (cs_regs) && rip_reg_index == -1; i++)
   {
     if (cpu_regs[i] == other_reg)
       continue;
-    if (insn->id == X86_INS_CMPXCHG && cpu_regs[i] == GUM_REG_RAX)
+    if (insn->id == X86_INS_CMPXCHG && cpu_regs[i] == GUM_X86_RAX)
       continue;
     if (cs_reg_read (self->capstone, ctx->insn, cs_regs[i]))
       continue;
@@ -673,16 +673,16 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   rip_reg = cpu_regs[rip_reg_index];
 
   mod = 2;
-  rm = rip_reg - GUM_REG_RAX;
+  rm = rip_reg - GUM_X86_RAX;
 
   if (insn->id == X86_INS_PUSH)
   {
-    gum_x86_writer_put_push_reg (cw, GUM_REG_RAX);
+    gum_x86_writer_put_push_reg (cw, GUM_X86_RAX);
   }
 
   if (target_abi == GUM_ABI_UNIX)
   {
-    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_RSP, GUM_REG_RSP,
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_RSP, GUM_X86_RSP,
         -GUM_RED_ZONE_SIZE);
   }
   gum_x86_writer_put_push_reg (cw, rip_reg);
@@ -692,7 +692,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, rip_reg, rip_reg, x86->disp);
     gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
-        GUM_REG_RSP,
+        GUM_X86_RSP,
         0x08 + ((target_abi == GUM_ABI_UNIX) ? GUM_RED_ZONE_SIZE : 0),
         rip_reg);
   }
@@ -706,7 +706,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   gum_x86_writer_put_pop_reg (cw, rip_reg);
   if (target_abi == GUM_ABI_UNIX)
   {
-    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_RSP, GUM_REG_RSP,
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_RSP, GUM_X86_RSP,
         GUM_RED_ZONE_SIZE);
   }
 
@@ -725,7 +725,7 @@ gum_x86_call_is_to_next_instruction (cs_insn * insn)
 static gboolean
 gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
                                      GumCpuType cpu_type,
-                                     GumCpuReg * pc_reg)
+                                     GumX86Reg * pc_reg)
 {
   cs_x86_op * op;
   guint8 * p;
@@ -748,6 +748,6 @@ gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
     return FALSE;
 
   if (pc_reg != NULL)
-    *pc_reg = (GumCpuReg) ((p[1] & 0x38) >> 3);
+    *pc_reg = (GumX86Reg) ((p[1] & 0x38) >> 3);
   return TRUE;
 }

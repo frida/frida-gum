@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -312,7 +312,7 @@ TESTCASE (jcc_short_within_block)
   gum_x86_relocator_write_one (&fixture->rl);
   gum_x86_relocator_write_one (&fixture->rl);
   gum_x86_relocator_write_one (&fixture->rl);
-  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX);
+  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_X86_EAX);
   gum_x86_relocator_write_one (&fixture->rl);
 
   gum_x86_writer_flush (&fixture->cw);
@@ -401,7 +401,7 @@ TESTCASE (jcxz_short_within_block)
 
   gum_x86_relocator_write_one (&fixture->rl);
   gum_x86_relocator_write_one (&fixture->rl);
-  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX);
+  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_X86_EAX);
   gum_x86_relocator_write_one (&fixture->rl);
 
   gum_x86_writer_flush (&fixture->cw);
@@ -490,8 +490,8 @@ TESTCASE (skip_instruction)
   gum_x86_relocator_write_one (&fixture->rl);
   gum_x86_relocator_write_one (&fixture->rl);
   gum_x86_relocator_skip_one (&fixture->rl); /* skip retn */
-  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX); /* put "inc eax"
-                                                            * there instead */
+  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_X86_EAX); /* put "inc eax"
+                                                           * there instead */
 
   gum_x86_writer_flush (&fixture->cw);
 
