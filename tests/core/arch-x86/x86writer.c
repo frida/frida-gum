@@ -4,9 +4,9 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "codewriter-fixture.c"
+#include "x86writer-fixture.c"
 
-TESTLIST_BEGIN (codewriter)
+TESTLIST_BEGIN (x86writer)
   TESTENTRY (jump_label)
   TESTENTRY (call_label)
   TESTENTRY (call_indirect)

@@ -4,9 +4,9 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "relocator-fixture.c"
+#include "x86relocator-fixture.c"
 
-TESTLIST_BEGIN (relocator)
+TESTLIST_BEGIN (x86relocator)
   TESTENTRY (one_to_one)
   TESTENTRY (call_near_relative)
   TESTENTRY (call_near_relative_to_next_instruction)

@@ -54,10 +54,10 @@
     <ClCompile Include="core\interceptor.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
-    <ClCompile Include="core\arch-x86\codewriter.c">
+    <ClCompile Include="core\arch-x86\x86writer.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
-    <ClCompile Include="core\arch-x86\relocator.c">
+    <ClCompile Include="core\arch-x86\x86relocator.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
     <ClCompile Include="core\arch-x86\stalker-x86.c">
@@ -81,7 +81,7 @@
     <ClCompile Include="core\interceptor-callbacklistener.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
-    <ClCompile Include="core\arch-x86\codewriter-fixture.c">
+    <ClCompile Include="core\arch-x86\x86writer-fixture.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
     <ClCompile Include="stalkerdummychannel.c">
@@ -90,7 +90,7 @@
     <ClCompile Include="lowlevelhelpers.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\arch-x86\relocator-fixture.c">
+    <ClCompile Include="core\arch-x86\x86relocator-fixture.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
     <ClCompile Include="heap\allocatorprobe.c">
