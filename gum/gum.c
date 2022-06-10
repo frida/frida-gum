@@ -745,7 +745,7 @@ gum_get_cpuid (guint level,
                guint * d)
 {
 #ifdef _MSC_VER
-  gint info[40];
+  gint info[4];
   guint n;
 
   __cpuid (info, 0);
