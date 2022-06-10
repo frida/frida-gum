@@ -916,7 +916,7 @@ insert_extra_increment_after_xor (GumStalkerIterator * iterator,
     {
       in_leaf_func = TRUE;
 
-      gum_x86_writer_put_inc_reg (output->writer.x86, GUM_REG_EAX);
+      gum_x86_writer_put_inc_reg (output->writer.x86, GUM_X86_EAX);
     }
   }
 }
@@ -1115,7 +1115,7 @@ modify_to_return_true_after_three_calls (GumStalkerIterator * iterator,
 
     if (insn->id == X86_INS_RET && in_target_function && ctx->n == 3)
     {
-      gum_x86_writer_put_mov_reg_u32 (output->writer.x86, GUM_REG_EAX, TRUE);
+      gum_x86_writer_put_mov_reg_u32 (output->writer.x86, GUM_X86_EAX, TRUE);
     }
 
     gum_stalker_iterator_keep (iterator);
@@ -1256,7 +1256,7 @@ modify_to_return_true_on_subsequent_transform (GumStalkerIterator * iterator,
 
     if (insn->id == X86_INS_RET && in_target_function && ctx->n > 1)
     {
-      gum_x86_writer_put_mov_reg_u32 (output->writer.x86, GUM_REG_EAX, TRUE);
+      gum_x86_writer_put_mov_reg_u32 (output->writer.x86, GUM_X86_EAX, TRUE);
     }
 
     gum_stalker_iterator_keep (iterator);
@@ -1324,7 +1324,7 @@ add_n_return_value_increments (GumStalkerIterator * iterator,
 
       for (increment_index = 0; increment_index != ctx->n; increment_index++)
       {
-        gum_x86_writer_put_inc_reg (output->writer.x86, GUM_REG_EAX);
+        gum_x86_writer_put_inc_reg (output->writer.x86, GUM_X86_EAX);
       }
     }
 
@@ -1580,21 +1580,21 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
 
   gum_x86_writer_put_call_near_label (&cw, start_following_lbl);
   gum_x86_writer_put_nop (&cw);
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_X86_XSP, align_correction_unfollow);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, align_correction_unfollow);
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_put_label (&cw, start_following_lbl);
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_X86_XSP, align_correction_follow);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_stalker_follow_me), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, align_correction_follow);
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_flush (&cw);
@@ -1737,13 +1737,13 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 
   gum_x86_writer_init (&cw, code);
 
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_X86_XSP, align_correction_follow);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_stalker_follow_me), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, align_correction_follow);
   gum_x86_writer_put_call_near_label (&cw, func_a_lbl);
   gum_x86_writer_put_ret (&cw);
 
@@ -1756,11 +1756,11 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_put_label (&cw, func_c_lbl);
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_X86_XSP, align_correction_unfollow);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, align_correction_unfollow);
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_flush (&cw);
@@ -2361,45 +2361,45 @@ TESTCASE (no_register_clobber)
   gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->transformer);
   gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_x86_writer_put_call_address (&cw, GUM_ADDRESS (gum_stalker_follow_me));
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 3 * sizeof (gpointer));
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_ESP, 3 * sizeof (gpointer));
   gum_x86_writer_put_popax (&cw);
 
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0xcafebabe);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, 0xbeefbabe);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 0xb00bbabe);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EBX, 0xf001babe);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EBP, 0xababe);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_ESI, 0x1337);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EDI, 0x1227);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EAX, 0xcafebabe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_ECX, 0xbeefbabe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EDX, 0xb00bbabe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EBX, 0xf001babe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EBP, 0xababe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_ESI, 0x1337);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EDI, 0x1227);
 
   gum_x86_writer_put_call_near_label (&cw, my_func_lbl);
 
   gum_x86_writer_put_pushax (&cw);
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_X86_ESP, 2 * sizeof (gpointer));
   gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_x86_writer_put_call_address (&cw, GUM_ADDRESS (gum_stalker_unfollow_me));
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 3 * sizeof (gpointer));
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_ESP, 3 * sizeof (gpointer));
   gum_x86_writer_put_popax (&cw);
 
-  gum_x86_writer_put_push_reg (&cw, GUM_REG_ECX);
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
-      GUM_REG_ESP, sizeof (gpointer) + (8 * sizeof (gpointer))
+  gum_x86_writer_put_push_reg (&cw, GUM_X86_ECX);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_ECX,
+      GUM_X86_ESP, sizeof (gpointer) + (8 * sizeof (gpointer))
       + sizeof (gpointer));
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, eax), GUM_REG_EAX);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, eax), GUM_X86_EAX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, edx), GUM_REG_EDX);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, edx), GUM_X86_EDX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ebx), GUM_REG_EBX);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ebx), GUM_X86_EBX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ebp), GUM_REG_EBP);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ebp), GUM_X86_EBP);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, esi), GUM_REG_ESI);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, esi), GUM_X86_ESI);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, edi), GUM_REG_EDI);
-  gum_x86_writer_put_pop_reg (&cw, GUM_REG_EAX);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, edi), GUM_X86_EDI);
+  gum_x86_writer_put_pop_reg (&cw, GUM_X86_EAX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx), GUM_REG_EAX);
+      GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx), GUM_X86_EAX);
 
   gum_x86_writer_put_popax (&cw);
 

@@ -13,7 +13,7 @@ G_BEGIN_DECLS
 
 typedef struct _UnsupportedFunction UnsupportedFunction;
 
-typedef void (GUM_THUNK * ClobberTestFunc) (gpointer data);
+typedef void (* ClobberTestFunc) (gpointer data);
 typedef gpointer (* ProxyFunc) (GString * str);
 typedef ProxyFunc TargetFunc;
 

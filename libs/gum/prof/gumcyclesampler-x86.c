@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,7 +10,7 @@
 #include "gumx86writer.h"
 #include "gummemory.h"
 
-typedef void (GUM_THUNK * ReadTimestampCounterFunc) (GumSample * sample);
+typedef void (GUM_X86_THUNK * ReadTimestampCounterFunc) (GumSample * sample);
 
 struct _GumCycleSampler
 {
@@ -54,16 +54,16 @@ static void
 gum_cycle_sampler_init (GumCycleSampler * self)
 {
   GumX86Writer cw;
-  GumCpuReg first_arg_reg;
+  GumX86Reg first_arg_reg;
 
   self->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_x86_writer_init (&cw, self->code);
   gum_x86_writer_put_lfence (&cw);
   gum_x86_writer_put_rdtsc (&cw);
   first_arg_reg = gum_x86_writer_get_cpu_register_for_nth_argument (&cw, 0);
-  gum_x86_writer_put_mov_reg_ptr_reg (&cw, first_arg_reg, GUM_REG_EAX);
+  gum_x86_writer_put_mov_reg_ptr_reg (&cw, first_arg_reg, GUM_X86_EAX);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw, first_arg_reg, 4,
-      GUM_REG_EDX);
+      GUM_X86_EDX);
   gum_x86_writer_put_ret (&cw);
   gum_x86_writer_clear (&cw);
 

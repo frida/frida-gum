@@ -61,7 +61,7 @@ typedef struct _GumExecCtx GumExecCtx;
 typedef void (* GumExecHelperWriteFunc) (GumExecCtx * ctx, GumArm64Writer * cw);
 typedef struct _GumExecBlock GumExecBlock;
 typedef guint GumExecBlockFlags;
-typedef gpointer (GUM_THUNK * GumExecCtxReplaceCurrentBlockFunc) (
+typedef gpointer (* GumExecCtxReplaceCurrentBlockFunc) (
     GumExecBlock * block, gpointer start_address, gpointer from_insn);
 
 typedef struct _GumCodeSlab GumCodeSlab;
@@ -2338,7 +2338,7 @@ gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
 #define GUM_ENTRYGATE(name) \
     gum_exec_ctx_replace_current_block_from_##name
 #define GUM_DEFINE_ENTRYGATE(name) \
-    static gpointer GUM_THUNK \
+    static gpointer \
     GUM_ENTRYGATE (name) ( \
         GumExecBlock * block, \
         gpointer start_address, \

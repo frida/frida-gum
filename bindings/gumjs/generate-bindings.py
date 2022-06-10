@@ -2229,7 +2229,7 @@ arch_names = {
 
 writer_enums = {
     "x86": [
-        ("x86_register", "GumCpuReg", "GUM_REG_", [
+        ("x86_register", "GumX86Reg", "GUM_X86_", [
             "xax", "xcx", "xdx", "xbx", "xsp", "xbp", "xsi", "xdi",
             "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi",
             "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
@@ -2244,7 +2244,7 @@ writer_enums = {
         ("x86_branch_hint", "GumBranchHint", "GUM_", [
             "no-hint", "likely", "unlikely",
         ]),
-        ("x86_pointer_target", "GumPtrTarget", "GUM_PTR_", [
+        ("x86_pointer_target", "GumX86PtrTarget", "GUM_X86_PTR_", [
             "byte", "dword", "qword",
         ]),
     ],
@@ -2962,7 +2962,7 @@ class Component(object):
         self.gumjs_field_prefix = "{0}_{1}".format(flavor, name)
         self.gumjs_function_prefix = "gumjs_{0}_{1}".format(flavor, name)
         self.module_struct_name = to_camel_case("gum_{0}_code_{1}".format(namespace, name), start_high=True)
-        self.register_type = "GumCpuReg" if arch == "x86" else arch + "_reg"
+        self.register_type = "GumX86Reg" if arch == "x86" else arch + "_reg"
 
 class Api(object):
     def __init__(self, static_methods, instance_methods):
@@ -3024,10 +3024,10 @@ class MethodArgument(object):
         name_raw = None
         converter = None
 
-        if type in ("GumCpuReg", "arm_reg", "arm64_reg", "mips_reg"):
+        if type in ("GumX86Reg", "arm_reg", "arm64_reg", "mips_reg"):
             self.type_raw = "const gchar *"
             self.type_format = "s"
-            self.type_ts = to_camel_case("x86_register" if type == "GumCpuReg" else type.replace("_reg", "_register"), start_high=True)
+            self.type_ts = to_camel_case("x86_register" if type == "GumX86Reg" else type.replace("_reg", "_register"), start_high=True)
             converter = "register"
         elif type in ("arm_sysreg",):
             self.type_raw = "const gchar *"
@@ -3101,7 +3101,7 @@ class MethodArgument(object):
             self.type_format = "s"
             self.type_ts = "X86BranchHint"
             converter = "branch_hint"
-        elif type == "GumPtrTarget":
+        elif type == "GumX86PtrTarget":
             self.type_raw = "const gchar *"
             self.type_format = "s"
             self.type_ts = "X86PointerTarget"
