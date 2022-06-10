@@ -314,10 +314,6 @@ GUM_API void gum_x86_writer_put_pushfx (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_popfx (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_sahf (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_lahf (GumX86Writer * self);
-GUM_API gboolean gum_x86_writer_put_fxsave_reg_ptr (GumX86Writer * self,
-    GumX86Reg reg);
-GUM_API gboolean gum_x86_writer_put_fxrstor_reg_ptr (GumX86Writer * self,
-    GumX86Reg reg);
 
 GUM_API gboolean gum_x86_writer_put_test_reg_reg (GumX86Writer * self,
     GumX86Reg reg_a, GumX86Reg reg_b);
@@ -344,6 +340,11 @@ GUM_API void gum_x86_writer_put_nop (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_breakpoint (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_padding (GumX86Writer * self, guint n);
 GUM_API void gum_x86_writer_put_nop_padding (GumX86Writer * self, guint n);
+
+GUM_API gboolean gum_x86_writer_put_fxsave_reg_ptr (GumX86Writer * self,
+    GumX86Reg reg);
+GUM_API gboolean gum_x86_writer_put_fxrstor_reg_ptr (GumX86Writer * self,
+    GumX86Reg reg);
 
 GUM_API void gum_x86_writer_put_u8 (GumX86Writer * self, guint8 value);
 GUM_API void gum_x86_writer_put_s8 (GumX86Writer * self, gint8 value);

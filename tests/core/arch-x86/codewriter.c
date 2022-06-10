@@ -64,13 +64,6 @@ TESTLIST_BEGIN (codewriter)
 
   TESTENTRY (push_near_ptr_for_ia32)
   TESTENTRY (push_near_ptr_for_amd64)
-  TESTENTRY (fxsave_xsp)
-  TESTENTRY (fxsave_xcx)
-  TESTENTRY (fxsave_r11)
-  TESTENTRY (fxsave_r12)
-  TESTENTRY (fxrstor_xsp)
-  TESTENTRY (fxrstor_r11)
-  TESTENTRY (fxrstor_r12)
 
   TESTENTRY (test_eax_ecx)
   TESTENTRY (test_rax_rcx)
@@ -81,6 +74,14 @@ TESTLIST_BEGIN (codewriter)
   TESTENTRY (cmp_r12_i8_offset_ptr_rcx)
   TESTENTRY (cmp_rsp_i8_offset_ptr_rcx)
   TESTENTRY (cmp_rsp_i32_offset_ptr_rcx)
+
+  TESTENTRY (fxsave_xsp)
+  TESTENTRY (fxsave_xcx)
+  TESTENTRY (fxsave_r11)
+  TESTENTRY (fxsave_r12)
+  TESTENTRY (fxrstor_xsp)
+  TESTENTRY (fxrstor_r11)
+  TESTENTRY (fxrstor_r12)
 TESTLIST_END ()
 
 TESTCASE (jump_label)
@@ -750,59 +751,6 @@ TESTCASE (push_near_ptr_for_amd64)
   assert_output_equals (expected_code);
 }
 
-TESTCASE (fxsave_xsp)
-{
-  const guint8 expected_code[] = { 0x0f, 0xae, 0x04, 0x24 };
-  gum_x86_writer_put_fxsave_reg_ptr (&fixture->cw, GUM_X86_XSP);
-  assert_output_equals (expected_code);
-}
-
-TESTCASE (fxsave_xcx)
-{
-  const guint8 expected_code[] = { 0x0f, 0xae, 0x01 };
-  gum_x86_writer_put_fxsave_reg_ptr (&fixture->cw, GUM_X86_XCX);
-  assert_output_equals (expected_code);
-}
-
-TESTCASE (fxsave_r11)
-{
-  const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x03 };
-  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  gum_x86_writer_put_fxsave_reg_ptr (&fixture->cw, GUM_X86_R11);
-  assert_output_equals (expected_code);
-}
-
-TESTCASE (fxsave_r12)
-{
-  const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x04, 0x24 };
-  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  gum_x86_writer_put_fxsave_reg_ptr (&fixture->cw, GUM_X86_R12);
-  assert_output_equals (expected_code);
-}
-
-TESTCASE (fxrstor_xsp)
-{
-  const guint8 expected_code[] = { 0x0f, 0xae, 0x0c, 0x24 };
-  gum_x86_writer_put_fxrstor_reg_ptr (&fixture->cw, GUM_X86_XSP);
-  assert_output_equals (expected_code);
-}
-
-TESTCASE (fxrstor_r11)
-{
-  const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x0b };
-  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  gum_x86_writer_put_fxrstor_reg_ptr (&fixture->cw, GUM_X86_R11);
-  assert_output_equals (expected_code);
-}
-
-TESTCASE (fxrstor_r12)
-{
-  const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x0c, 0x24 };
-  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  gum_x86_writer_put_fxrstor_reg_ptr (&fixture->cw, GUM_X86_R12);
-  assert_output_equals (expected_code);
-}
-
 TESTCASE (test_eax_ecx)
 {
   const guint8 expected_code[] = { 0x85, 0xc8 };
@@ -870,6 +818,59 @@ TESTCASE (cmp_rsp_i32_offset_ptr_rcx)
   };
   gum_x86_writer_put_cmp_reg_offset_ptr_reg (&fixture->cw, GUM_X86_RSP, 0xaa,
       GUM_X86_RCX);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (fxsave_xsp)
+{
+  const guint8 expected_code[] = { 0x0f, 0xae, 0x04, 0x24 };
+  gum_x86_writer_put_fxsave_reg_ptr (&fixture->cw, GUM_X86_XSP);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (fxsave_xcx)
+{
+  const guint8 expected_code[] = { 0x0f, 0xae, 0x01 };
+  gum_x86_writer_put_fxsave_reg_ptr (&fixture->cw, GUM_X86_XCX);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (fxsave_r11)
+{
+  const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x03 };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_put_fxsave_reg_ptr (&fixture->cw, GUM_X86_R11);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (fxsave_r12)
+{
+  const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x04, 0x24 };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_put_fxsave_reg_ptr (&fixture->cw, GUM_X86_R12);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (fxrstor_xsp)
+{
+  const guint8 expected_code[] = { 0x0f, 0xae, 0x0c, 0x24 };
+  gum_x86_writer_put_fxrstor_reg_ptr (&fixture->cw, GUM_X86_XSP);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (fxrstor_r11)
+{
+  const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x0b };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_put_fxrstor_reg_ptr (&fixture->cw, GUM_X86_R11);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (fxrstor_r12)
+{
+  const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x0c, 0x24 };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_put_fxrstor_reg_ptr (&fixture->cw, GUM_X86_R12);
   assert_output_equals (expected_code);
 }
 
