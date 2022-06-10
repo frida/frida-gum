@@ -314,6 +314,10 @@ GUM_API void gum_x86_writer_put_pushfx (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_popfx (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_sahf (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_lahf (GumX86Writer * self);
+GUM_API gboolean gum_x86_writer_put_fxsave_reg_ptr (GumX86Writer * self,
+    GumX86Reg reg);
+GUM_API gboolean gum_x86_writer_put_fxrstor_reg_ptr (GumX86Writer * self,
+    GumX86Reg reg);
 
 GUM_API gboolean gum_x86_writer_put_test_reg_reg (GumX86Writer * self,
     GumX86Reg reg_a, GumX86Reg reg_b);
