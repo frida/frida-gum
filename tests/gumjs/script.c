@@ -396,6 +396,13 @@ TESTLIST_BEGIN (script)
     TESTENTRY (stalker_events_can_be_parsed)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("ESM")
+    TESTENTRY (esm_in_root_should_be_supported)
+    TESTENTRY (esm_in_subdir_should_be_supported)
+    TESTENTRY (esm_referencing_subdir_should_be_supported)
+    TESTENTRY (esm_referencing_parent_should_be_supported)
+  TESTGROUP_END ()
+
   TESTENTRY (script_can_be_compiled_to_bytecode)
   TESTENTRY (script_should_not_leak_if_destroyed_before_load)
   TESTENTRY (script_memory_usage)
@@ -9160,6 +9167,62 @@ TESTCASE (script_memory_usage)
       (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
 
   g_object_unref (script);
+}
+
+TESTCASE (esm_in_root_should_be_supported)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "57 /main.js\n"
+      "27 /dependency.js\n"
+      "✄\n"
+      "import { value } from './dependency.js';\n"
+      "send({ value });\n"
+      "✄\n"
+      "export const value = 1337;\n");
+  EXPECT_SEND_MESSAGE_WITH ("{\"value\":1337}");
+}
+
+TESTCASE (esm_in_subdir_should_be_supported)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "57 /lib/main.js\n"
+      "27 /lib/dependency.js\n"
+      "✄\n"
+      "import { value } from './dependency.js';\n"
+      "send({ value });\n"
+      "✄\n"
+      "export const value = 1337;\n");
+  EXPECT_SEND_MESSAGE_WITH ("{\"value\":1337}");
+}
+
+TESTCASE (esm_referencing_subdir_should_be_supported)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "61 /main.js\n"
+      "27 /lib/dependency.js\n"
+      "✄\n"
+      "import { value } from './lib/dependency.js';\n"
+      "send({ value });\n"
+      "✄\n"
+      "export const value = 1337;\n");
+  EXPECT_SEND_MESSAGE_WITH ("{\"value\":1337}");
+}
+
+TESTCASE (esm_referencing_parent_should_be_supported)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "58 /lib/main.js\n"
+      "27 /dependency.js\n"
+      "✄\n"
+      "import { value } from '../dependency.js';\n"
+      "send({ value });\n"
+      "✄\n"
+      "export const value = 1337;\n");
+  EXPECT_SEND_MESSAGE_WITH ("{\"value\":1337}");
 }
 
 TESTCASE (source_maps_should_be_supported_for_our_runtime)

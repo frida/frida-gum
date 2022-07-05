@@ -653,9 +653,7 @@ gum_normalize_module_name (const gchar * base_name,
     }
   }
 
-  if (result[0] != '\0')
-    strcat (result, "/");
-
+  strcat (result, "/");
   strcat (result, cursor);
 
   return result;

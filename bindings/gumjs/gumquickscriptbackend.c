@@ -525,9 +525,7 @@ gum_normalize_module_name (JSContext * ctx,
     }
   }
 
-  if (result[0] != '\0')
-    strcat (result, "/");
-
+  strcat (result, "/");
   strcat (result, cursor);
 
   return result;
