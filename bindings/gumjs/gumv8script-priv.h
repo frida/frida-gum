@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,7 @@
 #define __GUM_V8_SCRIPT_PRIV_H__
 
 #include "gumv8apiresolver.h"
+#include "gumv8checksum.h"
 #include "gumv8cmodule.h"
 #include "gumv8coderelocator.h"
 #include "gumv8codewriter.h"
@@ -54,6 +55,7 @@ struct _GumV8Script
   GumV8Process process;
   GumV8Thread thread;
   GumV8File file;
+  GumV8Checksum checksum;
   GumV8Stream stream;
   GumV8Socket socket;
 #ifdef HAVE_SQLITE

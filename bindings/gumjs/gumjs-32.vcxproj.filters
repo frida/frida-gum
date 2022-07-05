@@ -34,6 +34,9 @@
     <ClCompile Include="gumv8file.cpp">
       <Filter>v8</Filter>
     </ClCompile>
+    <ClCompile Include="gumv8checksum.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
     <ClCompile Include="gumv8instruction.cpp">
       <Filter>v8</Filter>
     </ClCompile>
@@ -130,6 +133,9 @@
     <ClCompile Include="gumquickfile.c">
       <Filter>quick</Filter>
     </ClCompile>
+    <ClCompile Include="gumquickchecksum.c">
+      <Filter>quick</Filter>
+    </ClCompile>
     <ClCompile Include="gumquickinstruction.c">
       <Filter>quick</Filter>
     </ClCompile>
@@ -214,6 +220,9 @@
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8file.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8checksum.h">
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8instruction.h">
@@ -319,6 +328,9 @@
       <Filter>quick</Filter>
     </ClInclude>
     <ClInclude Include="gumquickfile.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickchecksum.h">
       <Filter>quick</Filter>
     </ClInclude>
     <ClInclude Include="gumquickinstruction.h">
