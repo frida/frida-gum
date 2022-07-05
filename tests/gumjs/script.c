@@ -364,6 +364,23 @@ TESTLIST_BEGIN (script)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("File")
+    TESTENTRY (whole_file_can_be_read_as_bytes)
+    TESTENTRY (whole_file_can_be_read_as_text)
+    TESTENTRY (whole_file_can_be_read_as_text_with_validation)
+    TESTENTRY (whole_file_can_be_written_from_bytes)
+    TESTENTRY (whole_file_can_be_written_from_text)
+    TESTENTRY (file_can_be_read_as_bytes_in_one_go)
+    TESTENTRY (file_can_be_read_as_bytes_in_chunks)
+    TESTENTRY (file_can_be_read_as_text_in_one_go)
+    TESTENTRY (file_can_be_read_as_text_in_chunks)
+    TESTENTRY (file_can_be_read_as_text_with_validation)
+    TESTENTRY (file_can_be_read_line_by_line)
+    TESTENTRY (file_can_be_read_line_by_line_with_validation)
+    TESTENTRY (file_position_can_be_queried)
+    TESTENTRY (file_position_can_be_updated_to_absolute_position_implicitly)
+    TESTENTRY (file_position_can_be_updated_to_absolute_position_explicitly)
+    TESTENTRY (file_position_can_be_updated_to_relative_position_from_current)
+    TESTENTRY (file_position_can_be_updated_to_relative_position_from_end)
     TESTENTRY (file_can_be_written_to)
   TESTGROUP_END ()
 
@@ -2997,24 +3014,268 @@ gum_add_pointers_and_float_variadic (gpointer a,
   return total;
 }
 
-TESTCASE (file_can_be_written_to)
+TESTCASE (whole_file_can_be_read_as_bytes)
 {
-  gchar d00d[4] = { 0x64, 0x30, 0x30, 0x64 };
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Array.from(new Uint8Array(File.readAllBytes('%s'))));",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("[97,98,99]");
+  EXPECT_NO_MESSAGES ();
+}
 
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
+TESTCASE (whole_file_can_be_read_as_text)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT ("send(File.readAllText('%s'));", ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("\"abc\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (whole_file_can_be_read_as_text_with_validation)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("ab\xc3\x28" "c");
+  COMPILE_AND_LOAD_SCRIPT ("send(File.readAllText('%s'));", ESCAPE_PATH (path));
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: can't decode byte 0xc3 in position 2");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (whole_file_can_be_written_from_bytes)
+{
+  const gchar * path;
+  gchar * contents;
+
+  path = MAKE_TEMPFILE_CONTAINING ("abc");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "const log = new File(\"/tmp/script-test.log\", 'a');"
+      "File.writeAllBytes('%s', new Uint8Array([100,101,102]));",
+      ESCAPE_PATH (path));
+  EXPECT_NO_MESSAGES ();
+
+  g_file_get_contents (path, &contents, NULL, NULL);
+  g_assert_cmpstr (contents, ==, "def");
+  g_free (contents);
+}
+
+TESTCASE (whole_file_can_be_written_from_text)
+{
+  const gchar * path;
+  gchar * contents;
+
+  path = MAKE_TEMPFILE_CONTAINING ("abc");
+
+  COMPILE_AND_LOAD_SCRIPT ("File.writeAllText('%s', 'def');",
+      ESCAPE_PATH (path));
+  EXPECT_NO_MESSAGES ();
+
+  g_file_get_contents (path, &contents, NULL, NULL);
+  g_assert_cmpstr (contents, ==, "def");
+  g_free (contents);
+}
+
+TESTCASE (file_can_be_read_as_bytes_in_one_go)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "const buf = file.readBytes();"
+      "send(buf instanceof ArrayBuffer);"
+      "send(Array.from(new Uint8Array(buf)));",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("[97,98,99]");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_can_be_read_as_bytes_in_chunks)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "send(Array.from(new Uint8Array(file.readBytes(2))));"
+      "send(Array.from(new Uint8Array(file.readBytes())));"
+      "send(Array.from(new Uint8Array(file.readBytes(1))));",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("[97,98]");
+  EXPECT_SEND_MESSAGE_WITH ("[99]");
+  EXPECT_SEND_MESSAGE_WITH ("[]");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_can_be_read_as_text_in_one_go)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "send(file.readText());",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("\"abc\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_can_be_read_as_text_in_chunks)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "send(file.readText(2));"
+      "send(file.readText());"
+      "send(file.readText(1));",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("\"ab\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"c\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_can_be_read_as_text_with_validation)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("\xc3\x28yay");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "try {"
+      "  send(file.readText(2));"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}"
+      "send(file.tell());"
+      "file.seek(2, File.SEEK_CUR);"
+      "send(file.readText());",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("\"can't decode byte 0xc3 in position 0\"");
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("\"yay\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_can_be_read_line_by_line)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("first\nsecond");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');\n"
+      "send(file.readLine());\n"
+      "send(file.readLine());\n"
+      "send(file.readLine());\n",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("\"first\\n\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"second\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_can_be_read_line_by_line_with_validation)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("first\noops\xc3\x28\nlast");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');\n"
+      "send(file.readLine());\n"
+      "try {"
+      "  send(file.readLine());"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}"
+      "file.seek(7, File.SEEK_CUR);"
+      "send(file.readLine());\n",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("\"first\\n\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"can't decode byte 0xc3 in position 4\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"last\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_position_can_be_queried)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "send(file.tell());"
+      "file.readBytes(2);"
+      "send(file.tell());",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_position_can_be_updated_to_absolute_position_implicitly)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "file.seek(2);"
+      "send(file.tell());"
+      "send(Array.from(new Uint8Array(file.readBytes())));"
+      "send(file.tell());",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("[99]");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_position_can_be_updated_to_absolute_position_explicitly)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "file.seek(2, File.SEEK_SET);"
+      "send(file.tell());"
+      "send(Array.from(new Uint8Array(file.readBytes())));"
+      "send(file.tell());",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("[99]");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_position_can_be_updated_to_relative_position_from_current)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "send(Array.from(new Uint8Array(file.readBytes(2))));"
+      "file.seek(-1, File.SEEK_CUR);"
+      "send(Array.from(new Uint8Array(file.readBytes())));",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("[97,98]");
+  EXPECT_SEND_MESSAGE_WITH ("[98,99]");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_position_can_be_updated_to_relative_position_from_end)
+{
+  const gchar * path = MAKE_TEMPFILE_CONTAINING ("abc");
+  COMPILE_AND_LOAD_SCRIPT (
+      "const file = new File('%s', 'rb');"
+      "file.seek(-2, File.SEEK_END);"
+      "send(Array.from(new Uint8Array(file.readBytes())));",
+      ESCAPE_PATH (path));
+  EXPECT_SEND_MESSAGE_WITH ("[98,99]");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (file_can_be_written_to)
+{
+  const gchar * path;
+  const gchar d00d[4] = { 0x64, 0x30, 0x30, 0x64 };
+  gchar * contents;
+
+  path = MAKE_TEMPFILE_CONTAINING ("abc");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const log = new File('%s', 'wb');"
       "log.write(\"Hello \");"
       "log.write(" GUM_PTR_CONST ".readByteArray(4));"
       "log.write(\"!\\n\");"
       "log.close();",
-      d00d);
+      ESCAPE_PATH (path), d00d);
   EXPECT_NO_MESSAGES ();
+
+  g_file_get_contents (path, &contents, NULL, NULL);
+  g_assert_cmpstr (contents, ==, "Hello d00d!\n");
+  g_free (contents);
 }
 
 TESTCASE (md5_can_be_computed_for_stream)

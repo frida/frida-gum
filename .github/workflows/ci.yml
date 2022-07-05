@@ -286,7 +286,7 @@ jobs:
           script: |
             gtar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
             adb push /tmp/runner.tar.gz /data/local/tmp/
-            adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; ./gum-tests'"
+            adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; TMPDIR=/data/local/tmp ./gum-tests'"
 
   android-arm:
     runs-on: ubuntu-latest
