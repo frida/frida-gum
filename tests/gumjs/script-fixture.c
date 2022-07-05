@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <glib/gstdio.h>
 #include <gio/gio.h>
 #ifdef HAVE_WINDOWS
 # ifndef WIN32_LEAN_AND_MEAN
@@ -109,6 +110,10 @@
 #define POP_TIMEOUT() test_script_fixture_pop_timeout (fixture)
 #define DISABLE_LOG_MESSAGE_HANDLING() \
     fixture->enable_log_message_handling = FALSE
+#define MAKE_TEMPFILE_CONTAINING(str) \
+    test_script_fixture_make_tempfile_containing (fixture, str)
+#define ESCAPE_PATH(path) \
+    test_script_fixture_escape_path (fixture, path)
 
 #define GUM_PTR_CONST "ptr(\"0x%" G_GSIZE_MODIFIER "x\")"
 
@@ -143,6 +148,8 @@ struct _TestScriptFixture
   GMainContext * context;
   GQueue messages;
   GQueue timeouts;
+  GQueue tempfiles;
+  GQueue heap_blocks;
   gboolean enable_log_message_handling;
 };
 
@@ -199,6 +206,8 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   g_queue_init (&fixture->messages);
   g_queue_init (&fixture->timeouts);
+  g_queue_init (&fixture->tempfiles);
+  g_queue_init (&fixture->heap_blocks);
   fixture->enable_log_message_handling = TRUE;
 
   test_script_fixture_push_timeout (fixture,
@@ -215,6 +224,7 @@ static void
 test_script_fixture_teardown (TestScriptFixture * fixture,
                               gconstpointer data)
 {
+  gchar * path;
   TestScriptMessageItem * item;
 
   if (fixture->script != NULL)
@@ -225,6 +235,14 @@ test_script_fixture_teardown (TestScriptFixture * fixture,
 
   while (g_main_context_pending (fixture->context))
     g_main_context_iteration (fixture->context, FALSE);
+
+  g_queue_clear_full (&fixture->heap_blocks, g_free);
+
+  while ((path = g_queue_pop_tail (&fixture->tempfiles)) != NULL)
+  {
+    g_unlink (path);
+    g_free (path);
+  }
 
   while ((item = test_script_fixture_try_pop_message (fixture, 1)) != NULL)
   {
@@ -635,4 +653,51 @@ static void
 test_script_fixture_pop_timeout (TestScriptFixture * fixture)
 {
   g_queue_pop_tail (&fixture->timeouts);
+}
+
+static const gchar *
+test_script_fixture_make_tempfile_containing (TestScriptFixture * fixture,
+                                              const gchar * contents)
+{
+  gchar * path;
+  gint fd;
+  FILE * file;
+
+  fd = g_file_open_tmp ("gum-tests.XXXXXX", &path, NULL);
+  g_assert_cmpint (fd, !=, -1);
+
+#ifdef _MSC_VER
+  file = _fdopen (fd, "wb");
+#else
+  file = fdopen (fd, "wb");
+#endif
+  g_assert_nonnull (file);
+
+  fputs (contents, file);
+
+  fclose (file);
+
+  g_queue_push_tail (&fixture->tempfiles, path);
+
+  return path;
+}
+
+static const gchar *
+test_script_fixture_escape_path (TestScriptFixture * fixture,
+                                 const gchar * path)
+{
+#ifdef HAVE_WINDOWS
+  gchar * result;
+  GString * escaped;
+
+  escaped = g_string_new (path);
+  g_string_replace (escaped, "\\", "\\\\", 0);
+  result = g_string_free (escaped, FALSE);
+
+  g_queue_push_tail (&fixture->heap_blocks, result);
+
+  return result;
+#else
+  return path;
+#endif
 }
