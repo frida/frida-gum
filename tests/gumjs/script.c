@@ -367,6 +367,17 @@ TESTLIST_BEGIN (script)
     TESTENTRY (file_can_be_written_to)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("Checksum")
+    TESTENTRY (md5_can_be_computed_for_stream)
+    TESTENTRY (md5_can_be_computed_for_string)
+    TESTENTRY (md5_can_be_computed_for_bytes)
+    TESTENTRY (sha1_can_be_computed_for_string)
+    TESTENTRY (sha256_can_be_computed_for_string)
+    TESTENTRY (sha384_can_be_computed_for_string)
+    TESTENTRY (sha512_can_be_computed_for_string)
+    TESTENTRY (requesting_unknown_checksum_for_string_should_throw)
+  TESTGROUP_END ()
+
 #ifdef HAVE_SQLITE
   TESTGROUP_BEGIN ("Database")
     TESTENTRY (inline_sqlite_database_can_be_queried)
@@ -3004,6 +3015,84 @@ TESTCASE (file_can_be_written_to)
       "log.close();",
       d00d);
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (md5_can_be_computed_for_stream)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const checksum = new Checksum('md5');"
+      "checksum.update('ab').update('c');"
+
+      "send(checksum.getString());"
+
+      "const view = new DataView(checksum.getDigest());"
+      "send(["
+      "  view.getUint32(0).toString(16),"
+      "  view.getUint32(4).toString(16),"
+      "  view.getUint32(8).toString(16),"
+      "  view.getUint32(12).toString(16)"
+      "]);"
+
+      "checksum.update('d');");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"900150983cd24fb0d6963f7d28e17f72\"");
+  EXPECT_SEND_MESSAGE_WITH ("[\"90015098\",\"3cd24fb0\",\"d6963f7d\","
+      "\"28e17f72\"]");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: checksum is closed");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (md5_can_be_computed_for_string)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Checksum.compute('md5', 'abc'));");
+  EXPECT_SEND_MESSAGE_WITH ("\"900150983cd24fb0d6963f7d28e17f72\"");
+}
+
+TESTCASE (md5_can_be_computed_for_bytes)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const data = new Uint8Array([ 1, 2, 3 ]);"
+      "send(Checksum.compute('md5', data.buffer));");
+  EXPECT_SEND_MESSAGE_WITH ("\"5289df737df57326fcdd22597afb1fac\"");
+}
+
+TESTCASE (sha1_can_be_computed_for_string)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Checksum.compute('sha1', 'abc'));");
+  EXPECT_SEND_MESSAGE_WITH ("\"a9993e364706816aba3e25717850c26c9cd0d89d\"");
+}
+
+TESTCASE (sha256_can_be_computed_for_string)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Checksum.compute('sha256', 'abc'));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      "\"");
+}
+
+TESTCASE (sha384_can_be_computed_for_string)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Checksum.compute('sha384', 'abc'));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed"
+      "8086072ba1e7cc2358baeca134c825a7"
+      "\"");
+}
+
+TESTCASE (sha512_can_be_computed_for_string)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Checksum.compute('sha512', 'abc'));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a"
+      "2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+      "\"");
+}
+
+TESTCASE (requesting_unknown_checksum_for_string_should_throw)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Checksum.compute('bogus', 'abc'));");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: unsupported checksum type");
 }
 
 #ifdef HAVE_SQLITE

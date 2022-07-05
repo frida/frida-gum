@@ -52,6 +52,7 @@
     <ClInclude Include="gumquickthread.h" />
     <ClInclude Include="gumquickmodule.h" />
     <ClInclude Include="gumquickfile.h" />
+    <ClInclude Include="gumquickchecksum.h" />
     <ClInclude Include="gumquickstream.h" />
     <ClInclude Include="gumquicksocket.h" />
     <ClInclude Include="gumquickdatabase.h" />
@@ -78,6 +79,7 @@
     <ClCompile Include="gumquickthread.c" />
     <ClCompile Include="gumquickmodule.c" />
     <ClCompile Include="gumquickfile.c" />
+    <ClCompile Include="gumquickchecksum.c" />
     <ClCompile Include="gumquickstream.c" />
     <ClCompile Include="gumquicksocket.c" />
     <ClCompile Include="gumquickdatabase.c" />
@@ -111,6 +113,7 @@
     <ClInclude Include="gumv8thread.h" />
     <ClInclude Include="gumv8module.h" />
     <ClInclude Include="gumv8file.h" />
+    <ClInclude Include="gumv8checksum.h" />
     <ClInclude Include="gumv8stream.h" />
     <ClInclude Include="gumv8socket.h" />
     <ClInclude Include="gumv8database.h" />
@@ -139,6 +142,7 @@
     <ClCompile Include="gumv8thread.cpp" />
     <ClCompile Include="gumv8module.cpp" />
     <ClCompile Include="gumv8file.cpp" />
+    <ClCompile Include="gumv8checksum.cpp" />
     <ClCompile Include="gumv8stream.cpp" />
     <ClCompile Include="gumv8socket.cpp" />
     <ClCompile Include="gumv8database.cpp" />
