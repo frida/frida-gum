@@ -2638,7 +2638,7 @@ interface {class_name}Options {{
      * temporary location that later gets mapped into memory at the
      * intended memory location.
      */
-    pc?: NativePointer;
+    pc?: NativePointer | undefined;
 }}""".format(**params).split("\n"))
 
         if flavor != "thumb":
