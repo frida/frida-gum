@@ -490,7 +490,16 @@ gum_v8_script_compile (GumV8Script * self,
       TryCatch trycatch (isolate);
       auto result =
           gum_ensure_module_loaded (isolate, context, entrypoint, program);
-      if (!result.ToLocal (&module))
+      bool success = result.ToLocal (&module);
+      if (success)
+      {
+        auto instantiate_result =
+            module->InstantiateModule (context, gum_resolve_module);
+        if (!instantiate_result.To (&success))
+          success = false;
+      }
+
+      if (!success)
       {
         gchar * message =
             _gum_v8_error_get_message (isolate, trycatch.Exception ());
@@ -725,24 +734,6 @@ gum_ensure_module_loaded (Isolate * isolate,
 
   g_hash_table_insert (program->es_modules,
       GINT_TO_POINTER (module->ScriptId ()), asset);
-
-  bool success = false;
-  {
-    TryCatch trycatch (isolate);
-    auto instantiate_result =
-        module->InstantiateModule (context, gum_resolve_module);
-    if (!instantiate_result.To (&success) || !success)
-    {
-      error_description =
-          _gum_v8_error_get_message (isolate, trycatch.Exception ());
-    }
-  }
-  if (error_description != NULL)
-  {
-    _gum_v8_throw_literal (isolate, error_description);
-    g_free (error_description);
-    return MaybeLocal<Module> ();
-  }
 
   g_free (asset->data);
   asset->data = NULL;
