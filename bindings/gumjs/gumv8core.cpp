@@ -3583,6 +3583,11 @@ gumjs_cpu_context_set_gpr (Local<Name> property,
       core);
 }
 
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4505)
+#endif
+
 static void
 gumjs_cpu_context_get_vector (Local<Name> property,
                               const PropertyCallbackInfo<Value> & info)
@@ -3762,6 +3767,10 @@ gumjs_cpu_context_set_flags (Local<Name> property,
 
   *(gsize *) (cpu_context + offset) = f;
 }
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
 {
