@@ -109,7 +109,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_checksum_compute)
   }
   else
   {
-    if (!_gum_v8_args_parse (args, "sB~", &type_str, &bytes))
+    if (!_gum_v8_args_parse (args, "sB", &type_str, &bytes))
       return;
     str = NULL;
   }
@@ -185,7 +185,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_checksum_update, GumChecksum)
   }
   else
   {
-    if (!_gum_v8_args_parse (args, "B~", &bytes))
+    if (!_gum_v8_args_parse (args, "B", &bytes))
       return;
     str = NULL;
   }

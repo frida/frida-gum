@@ -109,7 +109,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_checksum_compute)
   }
   else
   {
-    if (!_gum_quick_args_parse (args, "sB~", &type_str, &bytes))
+    if (!_gum_quick_args_parse (args, "sB", &type_str, &bytes))
       return JS_EXCEPTION;
     str = NULL;
   }
@@ -196,7 +196,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_checksum_update)
   }
   else
   {
-    if (!_gum_quick_args_parse (args, "B~", &bytes))
+    if (!_gum_quick_args_parse (args, "B", &bytes))
       return JS_EXCEPTION;
     str = NULL;
   }
