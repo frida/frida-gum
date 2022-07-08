@@ -127,8 +127,8 @@ static gboolean gum_quick_script_backend_is_locked (GumScriptBackend * backend);
 
 static GumESProgram * gum_es_program_new (void);
 
-static GumESAsset * gum_es_asset_new_take (gchar * name, gchar * alias,
-    gpointer data, gsize data_size);
+static GumESAsset * gum_es_asset_new_take (const gchar * name, gpointer data,
+    gsize data_size);
 static GumESAsset * gum_es_asset_ref (GumESAsset * asset);
 static void gum_es_asset_unref (GumESAsset * asset);
 
@@ -257,7 +257,7 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
   {
     const gchar * source_end, * header_cursor;
 
-    program->es_assets = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
+    program->es_assets = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
         (GDestroyNotify) gum_es_asset_unref);
 
     JS_SetModuleLoaderFunc (rt, gum_normalize_module_name, gum_load_module,
@@ -284,7 +284,7 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
       {
         guint64 asset_size;
         const gchar * size_end, * rest_start, * rest_end;
-        gchar * asset_name, * asset_alias, * asset_data;
+        gchar * asset_name, * asset_data;
         GumESAsset * asset;
 
         if (i != 0 && !g_str_has_prefix (asset_cursor, delimiter_marker))
@@ -301,38 +301,35 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
         rest_end = strchr (rest_start, '\n');
 
         asset_name = g_strndup (rest_start, rest_end - rest_start);
-
-        asset_alias = NULL;
-        if (g_str_has_prefix (rest_end, alias_marker))
+        if (g_hash_table_contains (program->es_assets, asset_name))
         {
-          const gchar * alias_start, * alias_end;
-
-          alias_start = rest_end + strlen (alias_marker);
-          alias_end = strchr (alias_start, '\n');
-
-          asset_alias = g_strndup (alias_start, alias_end - alias_start);
-
-          rest_end = alias_end;
-        }
-
-        if (g_hash_table_contains (program->es_assets, asset_name) ||
-            (asset_alias != NULL &&
-              g_hash_table_contains (program->es_assets, asset_alias)))
-        {
-          g_free (asset_alias);
           g_free (asset_name);
           goto malformed_package;
         }
 
         asset_data = g_strndup (asset_cursor, asset_size);
 
-        asset = gum_es_asset_new_take (asset_name, asset_alias, asset_data,
-            asset_size);
+        asset = gum_es_asset_new_take (asset_name, asset_data, asset_size);
         g_hash_table_insert (program->es_assets, asset_name, asset);
-        if (asset_alias != NULL)
+
+        while (g_str_has_prefix (rest_end, alias_marker))
         {
+          const gchar * alias_start, * alias_end;
+          gchar * asset_alias;
+
+          alias_start = rest_end + strlen (alias_marker);
+          alias_end = strchr (alias_start, '\n');
+
+          asset_alias = g_strndup (alias_start, alias_end - alias_start);
+          if (g_hash_table_contains (program->es_assets, asset_alias))
+          {
+            g_free (asset_alias);
+            goto malformed_package;
+          }
           g_hash_table_insert (program->es_assets, asset_alias,
               gum_es_asset_ref (asset));
+
+          rest_end = alias_end;
         }
 
         if (entrypoint == NULL && g_str_has_suffix (asset_name, ".js"))
@@ -1101,8 +1098,7 @@ gum_es_program_free (GumESProgram * program,
 }
 
 static GumESAsset *
-gum_es_asset_new_take (gchar * name,
-                       gchar * alias,
+gum_es_asset_new_take (const gchar * name,
                        gpointer data,
                        gsize data_size)
 {
@@ -1113,7 +1109,6 @@ gum_es_asset_new_take (gchar * name,
   asset->ref_count = 1;
 
   asset->name = name;
-  asset->alias = alias;
 
   asset->data = data;
   asset->data_size = data_size;
@@ -1139,8 +1134,6 @@ gum_es_asset_unref (GumESAsset * asset)
     return;
 
   g_free (asset->data);
-  g_free (asset->alias);
-  g_free (asset->name);
 
   g_slice_free (GumESAsset, asset);
 }

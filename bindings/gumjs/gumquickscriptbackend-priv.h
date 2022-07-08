@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -31,8 +31,7 @@ struct _GumESAsset
 {
   gint ref_count;
 
-  gchar * name;
-  gchar * alias;
+  const gchar * name;
 
   gpointer data;
   gsize data_size;

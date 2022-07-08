@@ -91,8 +91,7 @@ struct GumESAsset
 {
   gint ref_count;
 
-  gchar * name;
-  gchar * alias;
+  const gchar * name;
 
   gpointer data;
   gsize data_size;
