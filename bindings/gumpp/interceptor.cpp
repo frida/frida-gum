@@ -69,7 +69,7 @@ namespace Gum
 
     virtual void replace (void * function_address, void * replacement_address, void * replacement_data)
     {
-      gum_interceptor_replace (handle, function_address, replacement_address, replacement_data);
+      gum_interceptor_replace (handle, function_address, replacement_address, replacement_data, NULL);
     }
 
     virtual void revert (void * function_address)

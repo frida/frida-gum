@@ -662,7 +662,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   entry->ctx = ctx;
 
   replace_ret = gum_interceptor_replace (self->interceptor, target,
-      replacement_function, replacement_data);
+      replacement_function, replacement_data, NULL);
   if (replace_ret != GUM_REPLACE_OK)
     goto unable_to_replace;
 

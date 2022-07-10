@@ -514,7 +514,8 @@ GumReplaceReturn
 gum_interceptor_replace (GumInterceptor * self,
                          gpointer function_address,
                          gpointer replacement_function,
-                         gpointer replacement_data)
+                         gpointer replacement_data,
+                         gpointer * original_function)
 {
   GumReplaceReturn result = GUM_REPLACE_OK;
   GumFunctionContext * function_ctx;
@@ -535,6 +536,9 @@ gum_interceptor_replace (GumInterceptor * self,
 
   function_ctx->replacement_data = replacement_data;
   function_ctx->replacement_function = replacement_function;
+
+  if (original_function != NULL)
+    *original_function = function_ctx->on_invoke_trampoline;
 
   goto beach;
 

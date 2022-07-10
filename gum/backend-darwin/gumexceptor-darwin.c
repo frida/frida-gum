@@ -322,16 +322,16 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   gum_interceptor_begin_transaction (interceptor);
 
   gum_interceptor_replace (interceptor, task_get_exception_ports,
-      gum_exceptor_backend_replacement_task_get_exception_ports, self);
+      gum_exceptor_backend_replacement_task_get_exception_ports, self, NULL);
   gum_interceptor_replace (interceptor, task_set_exception_ports,
-      gum_exceptor_backend_replacement_task_set_exception_ports, self);
+      gum_exceptor_backend_replacement_task_set_exception_ports, self, NULL);
   gum_interceptor_replace (interceptor, task_swap_exception_ports,
-      gum_exceptor_backend_replacement_task_swap_exception_ports, self);
+      gum_exceptor_backend_replacement_task_swap_exception_ports, self, NULL);
 
   gum_interceptor_replace (interceptor, signal,
-      gum_exceptor_backend_replacement_signal, self);
+      gum_exceptor_backend_replacement_signal, self, NULL);
   gum_interceptor_replace (interceptor, sigaction,
-      gum_exceptor_backend_replacement_sigaction, self);
+      gum_exceptor_backend_replacement_sigaction, self, NULL);
 
   gum_interceptor_end_transaction (interceptor);
 

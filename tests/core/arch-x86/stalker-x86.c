@@ -2999,7 +2999,7 @@ TESTCASE (prefetch_backpatch)
   interceptor = gum_interceptor_obtain ();
   gum_interceptor_begin_transaction (interceptor);
   g_assert_cmpint (gum_interceptor_replace (interceptor, fork_addr,
-      prefetch_on_fork, NULL), ==, GUM_REPLACE_OK);
+      prefetch_on_fork, NULL, NULL), ==, GUM_REPLACE_OK);
   gum_interceptor_end_transaction (interceptor);
 
   gum_stalker_set_trust_threshold (fixture->stalker, 0);
