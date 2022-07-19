@@ -96,7 +96,8 @@ namespace Gum {
 		public Gum.AttachReturn attach (void * function_address, Gum.InvocationListener listener, void * listener_function_data = null);
 		public void detach (Gum.InvocationListener listener);
 
-		public Gum.ReplaceReturn replace (void * function_address, void * replacement_function, void * replacement_data = null);
+		public Gum.ReplaceReturn replace (void * function_address, void * replacement_function, void * replacement_data = null,
+			out void * original_function = null);
 		public void revert (void * function_address);
 
 		public void begin_transaction ();
