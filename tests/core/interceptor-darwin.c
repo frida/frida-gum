@@ -423,7 +423,7 @@ replace_if_function_export (const GumExportDetails * details,
 
     replace_ret = gum_interceptor_replace (ctx->interceptor,
         GSIZE_TO_POINTER (details->address), dummy_replacement_never_called,
-        NULL);
+        NULL, NULL);
     if (replace_ret == GUM_REPLACE_OK)
     {
       ctx->count++;

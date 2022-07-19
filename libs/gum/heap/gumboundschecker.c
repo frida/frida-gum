@@ -317,7 +317,7 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
 #define GUM_REPLACE_API_FUNC(name) \
     gum_interceptor_replace (self->interceptor, \
         GUM_FUNCPTR_TO_POINTER (api->name), \
-        GUM_FUNCPTR_TO_POINTER (replacement_##name), group)
+        GUM_FUNCPTR_TO_POINTER (replacement_##name), group, NULL)
 
     GUM_REPLACE_API_FUNC (malloc);
     GUM_REPLACE_API_FUNC (calloc);

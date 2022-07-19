@@ -1036,11 +1036,11 @@ gum_stalker_ensure_unwind_apis_instrumented (void)
     gum_exec_ctx_interceptor = gum_interceptor_obtain ();
 
     res = gum_interceptor_replace (gum_exec_ctx_interceptor,
-        __gxx_personality_v0, gum_stalker_exception_personality, NULL);
+        __gxx_personality_v0, gum_stalker_exception_personality, NULL, NULL);
     g_assert (res == GUM_REPLACE_OK);
 
     res = gum_interceptor_replace (gum_exec_ctx_interceptor,
-        _Unwind_Find_FDE, gum_stalker_exception_find_fde, NULL);
+        _Unwind_Find_FDE, gum_stalker_exception_find_fde, NULL, NULL);
     g_assert (res == GUM_REPLACE_OK);
 
     _gum_register_early_destructor (

@@ -62,6 +62,7 @@ TESTLIST_BEGIN (interceptor)
 # endif
 #endif
   TESTENTRY (replace_then_attach)
+  TESTENTRY (replace_keep_original)
 TESTLIST_END ()
 
 #ifdef HAVE_WINDOWS
@@ -613,7 +614,7 @@ TESTCASE (replace_one)
   malloc_impl = interceptor_fixture_get_libc_malloc ();
 
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor, malloc_impl,
-      replacement_malloc, &counter), ==, GUM_REPLACE_OK);
+      replacement_malloc, &counter, NULL), ==, GUM_REPLACE_OK);
   ret = malloc_impl (0x42);
 
   /*
@@ -654,9 +655,10 @@ TESTCASE (replace_two)
   free_impl = interceptor_fixture_get_libc_free ();
 
   gum_interceptor_replace (fixture->interceptor, malloc_impl,
-      replacement_malloc_calling_malloc_and_replaced_free, &malloc_counter);
+      replacement_malloc_calling_malloc_and_replaced_free, &malloc_counter,
+      NULL);
   gum_interceptor_replace (fixture->interceptor, free_impl,
-      replacement_free_doing_nothing, &free_counter);
+      replacement_free_doing_nothing, &free_counter, NULL);
 
   ret = malloc (0x42);
   g_assert_nonnull (ret);
@@ -716,12 +718,47 @@ TESTCASE (replace_then_attach)
   guint target_counter = 0;
 
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
-      target_function, replacement_target_function, &target_counter),
+      target_function, replacement_target_function, &target_counter, NULL),
       ==, GUM_REPLACE_OK);
   interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">/|\\<");
   gum_interceptor_revert (fixture->interceptor, target_function);
+}
+
+TESTCASE (replace_keep_original)
+{
+  gpointer (* malloc_impl) (gsize size);
+  gpointer (* original_impl) (gsize size) = NULL;
+  guint counter = 0;
+  volatile gpointer ret;
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
+  malloc_impl = interceptor_fixture_get_libc_malloc ();
+
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor, malloc_impl,
+      replacement_malloc, &counter, (void **) &original_impl),
+      ==, GUM_REPLACE_OK);
+  g_assert_nonnull (original_impl);
+  ret = original_impl (0x42);
+
+  /*
+   * This statement is needed so the compiler doesn't move the malloc() call
+   * to after revert().  We do the real assert after reverting, as failing
+   * asserts with broken malloc() are quite tricky to debug. :)
+   */
+  g_assert_nonnull (ret);
+
+  gum_interceptor_revert (fixture->interceptor, malloc_impl);
+  g_assert_cmpint (counter, ==, 0);
+  g_assert_cmphex (GPOINTER_TO_SIZE (ret), !=, 0x42);
+
+  free (ret);
 }
 
 static gpointer
@@ -748,7 +785,7 @@ TESTCASE (i_can_has_replaceability)
     UnsupportedFunction * func = &unsupported_functions[i];
 
     g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
-        func->code + func->code_offset, replacement_malloc, NULL),
+        func->code + func->code_offset, replacement_malloc, NULL, NULL),
         ==, GUM_REPLACE_WRONG_SIGNATURE);
   }
 
@@ -758,9 +795,9 @@ TESTCASE (i_can_has_replaceability)
 TESTCASE (already_replaced)
 {
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
-        target_function, malloc, NULL), ==, GUM_REPLACE_OK);
+        target_function, malloc, NULL, NULL), ==, GUM_REPLACE_OK);
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
-        target_function, malloc, NULL), ==, GUM_REPLACE_ALREADY_REPLACED);
+        target_function, malloc, NULL, NULL), ==, GUM_REPLACE_ALREADY_REPLACED);
   gum_interceptor_revert (fixture->interceptor, target_function);
 }
 

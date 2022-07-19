@@ -46,7 +46,7 @@ GUM_API void gum_interceptor_detach (GumInterceptor * self,
 
 GUM_API GumReplaceReturn gum_interceptor_replace (GumInterceptor * self,
     gpointer function_address, gpointer replacement_function,
-    gpointer replacement_data);
+    gpointer replacement_data, gpointer * original_function);
 GUM_API void gum_interceptor_revert (GumInterceptor * self,
     gpointer function_address);
 

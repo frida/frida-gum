@@ -711,7 +711,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
       replacement_function_value);
 
   auto replace_ret = gum_interceptor_replace (module->interceptor, target,
-      replacement_function, replacement_data);
+      replacement_function, replacement_data, NULL);
 
   if (replace_ret == GUM_REPLACE_OK)
   {
