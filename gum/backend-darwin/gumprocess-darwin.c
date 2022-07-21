@@ -214,6 +214,10 @@ struct _DyldImageInfo64
   guint64 image_file_mod_date;
 };
 
+#ifndef PROC_PIDREGIONPATHINFO2
+# define PROC_PIDREGIONPATHINFO2 22
+#endif
+
 #ifndef PROC_INFO_CALL_PIDINFO
 
 # define PROC_INFO_CALL_PIDINFO 0x2
@@ -1814,10 +1818,15 @@ gum_darwin_fill_file_mapping (gint pid,
                               GumFileMapping * file,
                               struct proc_regionwithpathinfo * region)
 {
-  gint retval, len;
+  gint flavor, retval, len;
 
-  retval = __proc_info (PROC_INFO_CALL_PIDINFO, pid, PROC_PIDREGIONPATHINFO,
-      (uint64_t) address, region, sizeof (struct proc_regionwithpathinfo));
+  if (gum_darwin_check_xnu_version (2782, 1, 97))
+    flavor = PROC_PIDREGIONPATHINFO2;
+  else
+    flavor = PROC_PIDREGIONPATHINFO;
+
+  retval = __proc_info (PROC_INFO_CALL_PIDINFO, pid, flavor, (uint64_t) address,
+      region, sizeof (struct proc_regionwithpathinfo));
 
   if (retval == -1)
     return FALSE;
