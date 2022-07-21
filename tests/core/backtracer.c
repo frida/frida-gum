@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,7 +25,7 @@ static void print_backtrace (GumReturnAddressArray * ret_addrs);
 TESTCASE (basics)
 {
   GumReturnAddressArray ret_addrs = { 0, };
-  guint expected_line_number;
+  G_GNUC_UNUSED guint expected_line_number;
   GumReturnAddress first_address;
   GumReturnAddressDetails rad;
 

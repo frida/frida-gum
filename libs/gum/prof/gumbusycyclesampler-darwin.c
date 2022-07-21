@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2011-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -65,7 +65,7 @@ gum_busy_cycle_sampler_sample (GumSampler * sampler)
   mach_port_t port;
   thread_basic_info_data_t info;
   mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
-  kern_return_t kr;
+  G_GNUC_UNUSED kern_return_t kr;
 
   port = mach_thread_self ();
   kr = thread_info (port, THREAD_BASIC_INFO,

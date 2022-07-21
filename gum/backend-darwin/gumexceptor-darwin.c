@@ -275,7 +275,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 {
   GumInterceptor * interceptor = self->interceptor;
   mach_port_t self_task;
-  kern_return_t kr;
+  G_GNUC_UNUSED kern_return_t kr;
   GumExceptionPortSet * old_ports;
   struct sigaction action;
 
@@ -389,7 +389,7 @@ gum_exceptor_restore_old_ports (GumExceptorBackend * self)
 
   for (i = 0; i != old_ports->count; i++)
   {
-    kern_return_t kr;
+    G_GNUC_UNUSED kern_return_t kr;
 
     kr = task_set_exception_ports (mach_task_self (),
         old_ports->masks[i],
@@ -431,7 +431,7 @@ static void
 gum_exceptor_backend_send_stop_request (GumExceptorBackend * self)
 {
   mach_msg_header_t header;
-  kern_return_t kr;
+  G_GNUC_UNUSED kern_return_t kr;
 
   header.msgh_bits = MACH_MSGH_BITS (MACH_MSG_TYPE_MAKE_SEND_ONCE, 0);
   header.msgh_size = sizeof (header);
@@ -449,7 +449,7 @@ gum_exceptor_backend_process_messages (GumExceptorBackend * self)
   union __RequestUnion__mach_exc_subsystem request;
   union __ReplyUnion__mach_exc_subsystem reply;
   mach_msg_header_t * header_in, * header_out;
-  kern_return_t kr;
+  G_GNUC_UNUSED kern_return_t kr;
   boolean_t handled;
 
   while (TRUE)

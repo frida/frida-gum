@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -145,8 +145,8 @@ gum_kernel_alloc_n_pages (guint n_pages)
   mach_vm_address_t result;
   mach_port_t task;
   gsize page_size, size;
-  kern_return_t kr;
-  gboolean written;
+  G_GNUC_UNUSED kern_return_t kr;
+  G_GNUC_UNUSED gboolean written;
 
   task = gum_kernel_get_task ();
   if (task == MACH_PORT_NULL)
@@ -177,7 +177,7 @@ gum_kernel_free_pages (GumAddress mem)
   mach_vm_address_t address;
   mach_vm_size_t * size;
   gsize bytes_read;
-  kern_return_t kr;
+  G_GNUC_UNUSED kern_return_t kr;
 
   task = gum_kernel_get_task ();
   if (task == MACH_PORT_NULL)
@@ -731,7 +731,7 @@ gum_kernel_get_version (void)
 {
   char buf[256];
   size_t size;
-  int res;
+  G_GNUC_UNUSED int res;
   float version;
 
   size = sizeof (buf);
@@ -774,7 +774,7 @@ gum_kernel_is_debug (void)
 {
   char buf[256];
   size_t size;
-  int res;
+  G_GNUC_UNUSED int res;
 
   size = sizeof (buf);
   res = sysctlbyname ("kern.bootargs", buf, &size, NULL, 0);

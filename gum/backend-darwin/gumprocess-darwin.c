@@ -350,7 +350,7 @@ gum_process_is_debugger_attached (void)
   int mib[4];
   struct kinfo_proc info;
   size_t size;
-  int result;
+  G_GNUC_UNUSED int result;
 
   mib[0] = CTL_KERN;
   mib[1] = KERN_PROC;
@@ -891,7 +891,7 @@ gum_darwin_check_xnu_version (guint major,
   {
     char buf[256] = { 0, };
     size_t size;
-    int res;
+    G_GNUC_UNUSED int res;
     const char * version_str;
 
     size = sizeof (buf);

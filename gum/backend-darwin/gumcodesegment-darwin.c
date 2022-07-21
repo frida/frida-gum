@@ -303,7 +303,7 @@ gum_code_segment_map (GumCodeSegment * self,
                       gsize source_size,
                       gpointer target_address)
 {
-  gboolean mapped_successfully;
+  G_GNUC_UNUSED gboolean mapped_successfully;
 
 #ifdef HAVE_IOS
   if (self->fd != -1)
@@ -554,7 +554,7 @@ gum_put_mach_headers (const gchar * dylib_path,
 {
   gsize dylib_path_size;
   gum_mach_header_t * header = output;
-  gum_segment_command_t * seg, * text_segment, * linkedit_segment;
+  gum_segment_command_t * seg, * text_segment;
   gum_section_t * sect;
   struct dylib_command * dl;
   struct linkedit_data_command * sig;
@@ -628,7 +628,6 @@ gum_put_mach_headers (const gchar * dylib_path,
   seg->initprot = PROT_READ;
   seg->nsects = 0;
   seg->flags = 0;
-  linkedit_segment = seg;
 
   dl = (struct dylib_command *) (seg + 1);
   dl->cmd = LC_ID_DYLIB;

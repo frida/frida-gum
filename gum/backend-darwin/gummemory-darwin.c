@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -119,7 +119,7 @@ gum_darwin_query_page_size (mach_port_t task,
       {
         char buf[256];
         size_t size;
-        int res;
+        G_GNUC_UNUSED int res;
         guint64 hw_page_size = 0;
 
         size = sizeof (buf);
@@ -510,7 +510,7 @@ gum_free_pages (gpointer mem)
   gsize page_size;
   mach_vm_address_t address;
   mach_vm_size_t size;
-  kern_return_t kr;
+  G_GNUC_UNUSED kern_return_t kr;
 
   page_size = gum_query_page_size ();
 
