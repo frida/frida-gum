@@ -164,6 +164,12 @@ static void gum_quick_script_post (GumScript * script, const gchar * message,
 static void gum_quick_script_do_post (GumPostData * d);
 static void gum_quick_post_data_free (GumPostData * d);
 
+static void gum_quick_script_set_debug_message_handler (GumScript * backend,
+    GumScriptDebugMessageHandler handler, gpointer data,
+    GDestroyNotify data_destroy);
+static void gum_quick_script_post_debug_message (GumScript * backend,
+    const gchar * message);
+
 static GumStalker * gum_quick_script_get_stalker (GumScript * script);
 
 static void gum_quick_script_emit (GumQuickScript * self,
@@ -222,6 +228,9 @@ gum_quick_script_iface_init (gpointer g_iface,
 
   iface->set_message_handler = gum_quick_script_set_message_handler;
   iface->post = gum_quick_script_post;
+
+  iface->set_debug_message_handler = gum_quick_script_set_debug_message_handler;
+  iface->post_debug_message = gum_quick_script_post_debug_message;
 
   iface->get_stalker = gum_quick_script_get_stalker;
 }
@@ -778,6 +787,23 @@ gum_quick_post_data_free (GumPostData * d)
   g_slice_free (GumPostData, d);
 }
 
+static void
+gum_quick_script_set_debug_message_handler (
+    GumScript * backend,
+    GumScriptDebugMessageHandler handler,
+    gpointer data,
+    GDestroyNotify data_destroy)
+{
+  if (data_destroy != NULL)
+    data_destroy (data);
+}
+
+static void
+gum_quick_script_post_debug_message (GumScript * backend,
+                                     const gchar * message)
+{
+}
+
 static GumStalker *
 gum_quick_script_get_stalker (GumScript * script)
 {
@@ -815,10 +841,7 @@ gum_quick_script_do_emit (GumEmitData * d)
   GumQuickScript * self = d->script;
 
   if (self->message_handler != NULL)
-  {
-    self->message_handler (GUM_SCRIPT (self), d->message, d->data,
-        self->message_handler_data);
-  }
+    self->message_handler (d->message, d->data, self->message_handler_data);
 
   return FALSE;
 }

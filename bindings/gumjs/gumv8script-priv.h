@@ -33,8 +33,31 @@
 # include "gumv8database.h"
 #endif
 
-typedef guint GumScriptState;
+#include <v8/v8-inspector.h>
+
+enum GumScriptState
+{
+  GUM_SCRIPT_STATE_CREATED,
+  GUM_SCRIPT_STATE_LOADING,
+  GUM_SCRIPT_STATE_LOADED,
+  GUM_SCRIPT_STATE_UNLOADING,
+  GUM_SCRIPT_STATE_UNLOADED
+};
+
+enum GumV8InspectorState
+{
+  GUM_V8_RUNNING,
+  GUM_V8_DEBUGGING,
+  GUM_V8_PAUSED
+};
+
 struct GumESProgram;
+
+class GumInspectorClient;
+class GumInspectorChannel;
+
+typedef std::map<guint, std::unique_ptr<GumInspectorChannel>>
+    GumInspectorChannelMap;
 
 struct _GumV8Script
 {
@@ -75,6 +98,22 @@ struct _GumV8Script
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
   GDestroyNotify message_handler_data_destroy;
+
+  GMutex inspector_mutex;
+  GCond inspector_cond;
+  volatile GumV8InspectorState inspector_state;
+  int context_group_id;
+
+  GumScriptDebugMessageHandler debug_handler;
+  gpointer debug_handler_data;
+  GDestroyNotify debug_handler_data_destroy;
+  GMainContext * debug_handler_context;
+  GQueue debug_messages;
+  volatile bool flush_scheduled;
+
+  v8_inspector::V8Inspector * inspector;
+  GumInspectorClient * inspector_client;
+  GumInspectorChannelMap * channels;
 };
 
 struct GumESProgram

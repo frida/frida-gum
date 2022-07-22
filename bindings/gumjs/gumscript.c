@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -75,6 +75,23 @@ gum_script_post (GumScript * self,
                  GBytes * data)
 {
   GUM_SCRIPT_GET_IFACE (self)->post (self, message, data);
+}
+
+void
+gum_script_set_debug_message_handler (GumScript * self,
+                                      GumScriptDebugMessageHandler handler,
+                                      gpointer data,
+                                      GDestroyNotify data_destroy)
+{
+  GUM_SCRIPT_GET_IFACE (self)->set_debug_message_handler (self, handler, data,
+      data_destroy);
+}
+
+void
+gum_script_post_debug_message (GumScript * self,
+                               const gchar * message)
+{
+  GUM_SCRIPT_GET_IFACE (self)->post_debug_message (self, message);
 }
 
 GumStalker *

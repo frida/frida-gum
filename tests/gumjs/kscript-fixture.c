@@ -113,8 +113,7 @@ test_kscript_message_item_free (TestScriptMessageItem * item)
 }
 
 static void
-test_kscript_fixture_store_message (GumScript * script,
-                                    const gchar * message,
+test_kscript_fixture_store_message (const gchar * message,
                                     GBytes * data,
                                     gpointer user_data)
 {

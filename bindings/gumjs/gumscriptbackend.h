@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,8 +18,6 @@ G_BEGIN_DECLS
 G_DECLARE_INTERFACE (GumScriptBackend, gum_script_backend, GUM, SCRIPT_BACKEND,
     GObject)
 
-typedef void (* GumScriptBackendDebugMessageHandler) (const gchar * message,
-    gpointer user_data);
 typedef void (* GumScriptBackendLockedFunc) (gpointer user_data);
 
 struct _GumScriptBackendInterface
@@ -49,11 +47,6 @@ struct _GumScriptBackendInterface
       GError ** error);
   GBytes * (* compile_sync) (GumScriptBackend * self, const gchar * name,
       const gchar * source, GCancellable * cancellable, GError ** error);
-
-  void (* set_debug_message_handler) (GumScriptBackend * self,
-      GumScriptBackendDebugMessageHandler handler, gpointer data,
-      GDestroyNotify data_destroy);
-  void (* post_debug_message) (GumScriptBackend * self, const gchar * message);
 
   void (* with_lock_held) (GumScriptBackend * self,
       GumScriptBackendLockedFunc func, gpointer user_data);
@@ -89,12 +82,6 @@ GUM_API GBytes * gum_script_backend_compile_finish (GumScriptBackend * self,
 GUM_API GBytes * gum_script_backend_compile_sync (GumScriptBackend * self,
     const gchar * name, const gchar * source, GCancellable * cancellable,
     GError ** error);
-
-GUM_API void gum_script_backend_set_debug_message_handler (
-    GumScriptBackend * self, GumScriptBackendDebugMessageHandler handler,
-    gpointer data, GDestroyNotify data_destroy);
-GUM_API void gum_script_backend_post_debug_message (GumScriptBackend * self,
-    const gchar * message);
 
 GUM_API void gum_script_backend_with_lock_held (GumScriptBackend * self,
     GumScriptBackendLockedFunc func, gpointer user_data);

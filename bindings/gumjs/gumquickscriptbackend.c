@@ -115,12 +115,6 @@ static void gum_compile_script_task_run (GumScriptTask * task,
     GCancellable * cancellable);
 static void gum_compile_script_data_free (GumCompileScriptData * d);
 
-static void gum_quick_script_backend_set_debug_message_handler (
-    GumScriptBackend * backend, GumScriptBackendDebugMessageHandler handler,
-    gpointer data, GDestroyNotify data_destroy);
-static void gum_quick_script_backend_post_debug_message (
-    GumScriptBackend * backend, const gchar * message);
-
 static void gum_quick_script_backend_with_lock_held (GumScriptBackend * backend,
     GumScriptBackendLockedFunc func, gpointer user_data);
 static gboolean gum_quick_script_backend_is_locked (GumScriptBackend * backend);
@@ -174,10 +168,6 @@ gum_quick_script_backend_iface_init (gpointer g_iface,
   iface->compile = gum_quick_script_backend_compile;
   iface->compile_finish = gum_quick_script_backend_compile_finish;
   iface->compile_sync = gum_quick_script_backend_compile_sync;
-
-  iface->set_debug_message_handler =
-      gum_quick_script_backend_set_debug_message_handler;
-  iface->post_debug_message = gum_quick_script_backend_post_debug_message;
 
   iface->with_lock_held = gum_quick_script_backend_with_lock_held;
   iface->is_locked = gum_quick_script_backend_is_locked;
@@ -998,23 +988,6 @@ gum_compile_script_data_free (GumCompileScriptData * d)
   g_free (d->source);
 
   g_slice_free (GumCompileScriptData, d);
-}
-
-static void
-gum_quick_script_backend_set_debug_message_handler (
-    GumScriptBackend * backend,
-    GumScriptBackendDebugMessageHandler handler,
-    gpointer data,
-    GDestroyNotify data_destroy)
-{
-  if (data_destroy != NULL)
-    data_destroy (data);
-}
-
-static void
-gum_quick_script_backend_post_debug_message (GumScriptBackend * backend,
-                                             const gchar * message)
-{
 }
 
 static void

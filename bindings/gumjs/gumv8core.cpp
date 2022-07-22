@@ -16,6 +16,15 @@
 #include "gumv8macros.h"
 #include "gumv8scope.h"
 #include "gumv8script-priv.h"
+#ifdef HAVE_OBJC_BRIDGE
+# include "gumv8script-objc.h"
+#endif
+#ifdef HAVE_SWIFT_BRIDGE
+# include "gumv8script-swift.h"
+#endif
+#ifdef HAVE_JAVA_BRIDGE
+# include "gumv8script-java.h"
+#endif
 
 #ifdef _MSC_VER
 # include <intrin.h>
@@ -1638,10 +1647,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
   bool loaded = false;
 
 #ifdef HAVE_OBJC_BRIDGE
-  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->backend);
-
-  gum_v8_bundle_run (platform->GetObjCBundle ());
+  auto bundle = gum_v8_bundle_new (isolate, gumjs_objc_modules);
+  gum_v8_bundle_run (bundle);
+  gum_v8_bundle_free (bundle);
 
   loaded = true;
 #endif
@@ -1654,10 +1662,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
   bool loaded = false;
 
 #ifdef HAVE_SWIFT_BRIDGE
-  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->backend);
-
-  gum_v8_bundle_run (platform->GetSwiftBundle ());
+  auto bundle = gum_v8_bundle_new (isolate, gumjs_swift_modules);
+  gum_v8_bundle_run (bundle);
+  gum_v8_bundle_free (bundle);
 
   loaded = true;
 #endif
@@ -1670,10 +1677,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
   bool loaded = false;
 
 #ifdef HAVE_JAVA_BRIDGE
-  auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-      core->script->backend);
-
-  gum_v8_bundle_run (platform->GetJavaBundle ());
+  auto bundle = gum_v8_bundle_new (isolate, gumjs_java_modules);
+  gum_v8_bundle_run (bundle);
+  gum_v8_bundle_free (bundle);
 
   loaded = true;
 #endif
@@ -1737,9 +1743,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
     }
     else
     {
-      auto platform = (GumV8Platform *) gum_v8_script_backend_get_platform (
-          core->script->backend);
-
       if (strcmp (name, "/_frida.js") == 0)
       {
         json = core->runtime_source_map;
@@ -1747,19 +1750,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
 #ifdef HAVE_OBJC_BRIDGE
       else if (strcmp (name, "/_objc.js") == 0)
       {
-        json = platform->GetObjCSourceMap ();
+        json = gumjs_objc_source_map;
       }
 #endif
 #ifdef HAVE_SWIFT_BRIDGE
       else if (strcmp (name, "/_swift.js") == 0)
       {
-        json = platform->GetSwiftSourceMap ();
+        json = gumjs_swift_source_map;
       }
 #endif
 #ifdef HAVE_JAVA_BRIDGE
       else if (strcmp (name, "/_java.js") == 0)
       {
-        json = platform->GetJavaSourceMap ();
+        json = gumjs_java_source_map;
       }
 #endif
     }
