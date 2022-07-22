@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,8 +16,10 @@ G_BEGIN_DECLS
 #define GUM_TYPE_SCRIPT (gum_script_get_type ())
 G_DECLARE_INTERFACE (GumScript, gum_script, GUM, SCRIPT, GObject)
 
-typedef void (* GumScriptMessageHandler) (GumScript * script,
-    const gchar * message, GBytes * data, gpointer user_data);
+typedef void (* GumScriptMessageHandler) (const gchar * message, GBytes * data,
+    gpointer user_data);
+typedef void (* GumScriptDebugMessageHandler) (const gchar * message,
+    gpointer user_data);
 
 struct _GumScriptInterface
 {
@@ -36,6 +38,11 @@ struct _GumScriptInterface
       GumScriptMessageHandler handler, gpointer data,
       GDestroyNotify data_destroy);
   void (* post) (GumScript * self, const gchar * message, GBytes * data);
+
+  void (* set_debug_message_handler) (GumScript * self,
+      GumScriptDebugMessageHandler handler, gpointer data,
+      GDestroyNotify data_destroy);
+  void (* post_debug_message) (GumScript * self, const gchar * message);
 
   GumStalker * (* get_stalker) (GumScript * self);
 };
@@ -56,6 +63,12 @@ GUM_API void gum_script_set_message_handler (GumScript * self,
     GDestroyNotify data_destroy);
 GUM_API void gum_script_post (GumScript * self, const gchar * message,
     GBytes * data);
+
+GUM_API void gum_script_set_debug_message_handler (GumScript * self,
+    GumScriptDebugMessageHandler handler, gpointer data,
+    GDestroyNotify data_destroy);
+GUM_API void gum_script_post_debug_message (GumScript * self,
+    const gchar * message);
 
 GUM_API GumStalker * gum_script_get_stalker (GumScript * self);
 

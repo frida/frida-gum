@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -231,24 +231,6 @@ gum_script_backend_compile_sync (GumScriptBackend * self,
 {
   return GUM_SCRIPT_BACKEND_GET_IFACE (self)->compile_sync (self, name, source,
       cancellable, error);
-}
-
-void
-gum_script_backend_set_debug_message_handler (
-    GumScriptBackend * self,
-    GumScriptBackendDebugMessageHandler handler,
-    gpointer data,
-    GDestroyNotify data_destroy)
-{
-  GUM_SCRIPT_BACKEND_GET_IFACE (self)->set_debug_message_handler (self, handler,
-      data, data_destroy);
-}
-
-void
-gum_script_backend_post_debug_message (GumScriptBackend * self,
-                                       const gchar * message)
-{
-  GUM_SCRIPT_BACKEND_GET_IFACE (self)->post_debug_message (self, message);
 }
 
 void

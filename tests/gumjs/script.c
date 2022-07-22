@@ -531,8 +531,8 @@ static int compare_measurements (gconstpointer element_a,
 
 static gboolean check_exception_handling_testable (void);
 
-static void on_script_message (GumScript * script, const gchar * message,
-    GBytes * data, gpointer user_data);
+static void on_script_message (const gchar * message, GBytes * data,
+    gpointer user_data);
 static void on_incoming_debug_message (GumInspectorServer * server,
     const gchar * message, gpointer user_data);
 static void on_outgoing_debug_message (const gchar * message,
@@ -9906,8 +9906,8 @@ TESTCASE (exceptions_can_be_handled)
 
 TESTCASE (debugger_can_be_enabled)
 {
-  GumScript * badger, * snake;
   GumInspectorServer * server;
+  GumScript * script;
   GError * error;
 
   if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
@@ -9922,25 +9922,18 @@ TESTCASE (debugger_can_be_enabled)
     return;
   }
 
-  badger = gum_script_backend_create_sync (fixture->backend, "badger",
-      "const badgerTimer = setInterval(() => {\n"
-      "  send('badger');\n"
-      "}, 1000);", NULL, NULL);
-  gum_script_set_message_handler (badger, on_script_message, "badger", NULL);
-  gum_script_load_sync (badger, NULL);
-
-  snake = gum_script_backend_create_sync (fixture->backend, "snake",
-      "const snakeTimer = setInterval(() => {\n"
-      "  send('snake');\n"
-      "}, 1000);", NULL, NULL);
-  gum_script_set_message_handler (snake, on_script_message, "snake", NULL);
-  gum_script_load_sync (snake, NULL);
-
   server = gum_inspector_server_new ();
   g_signal_connect (server, "message", G_CALLBACK (on_incoming_debug_message),
       fixture->backend);
-  gum_script_backend_set_debug_message_handler (fixture->backend,
-      on_outgoing_debug_message, server, NULL);
+
+  script = gum_script_backend_create_sync (fixture->backend, "script",
+      "const scriptTimer = setInterval(() => {\n"
+      "  send('hello');\n"
+      "}, 1000);", NULL, NULL);
+  gum_script_set_message_handler (script, on_script_message, "script", NULL);
+  gum_script_set_debug_message_handler (script, on_outgoing_debug_message,
+      server, NULL);
+  gum_script_load_sync (script, NULL);
 
   error = NULL;
   if (gum_inspector_server_start (server, &error))
@@ -9962,10 +9955,8 @@ TESTCASE (debugger_can_be_enabled)
     g_error_free (error);
   }
 
+  g_object_unref (script);
   g_object_unref (server);
-
-  g_object_unref (snake);
-  g_object_unref (badger);
 }
 
 TESTCASE (objc_api_is_embedded)
@@ -9999,8 +9990,7 @@ check_exception_handling_testable (void)
 }
 
 static void
-on_script_message (GumScript * script,
-                   const gchar * message,
+on_script_message (const gchar * message,
                    GBytes * data,
                    gpointer user_data)
 {
@@ -10013,9 +10003,9 @@ on_incoming_debug_message (GumInspectorServer * server,
                            const gchar * message,
                            gpointer user_data)
 {
-  GumScriptBackend * backend = user_data;
+  GumScript * script = user_data;
 
-  gum_script_backend_post_debug_message (backend, message);
+  gum_script_post_debug_message (script, message);
 }
 
 static void

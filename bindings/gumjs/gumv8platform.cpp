@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,16 +7,6 @@
 #include "gumv8platform.h"
 
 #include "gumscriptbackend.h"
-#include "gumv8script-runtime.h"
-#ifdef HAVE_OBJC_BRIDGE
-# include "gumv8script-objc.h"
-#endif
-#ifdef HAVE_SWIFT_BRIDGE
-# include "gumv8script-swift.h"
-#endif
-#ifdef HAVE_JAVA_BRIDGE
-# include "gumv8script-java.h"
-#endif
 
 #include <algorithm>
 #include <gum/gumcloak.h>
@@ -437,17 +427,7 @@ private:
 };
 
 GumV8Platform::GumV8Platform ()
-  :
-#ifdef HAVE_OBJC_BRIDGE
-    objc_bundle (NULL),
-#endif
-#ifdef HAVE_SWIFT_BRIDGE
-    swift_bundle (NULL),
-#endif
-#ifdef HAVE_JAVA_BRIDGE
-    java_bundle (NULL),
-#endif
-    scheduler (gum_script_backend_get_scheduler ()),
+  : scheduler (gum_script_backend_get_scheduler ()),
     page_allocator (new GumV8PageAllocator ()),
     array_buffer_allocator (new GumV8ArrayBufferAllocator ()),
     threading_backend (new GumV8ThreadingBackend ()),
@@ -459,15 +439,6 @@ GumV8Platform::GumV8Platform ()
 
   V8::InitializePlatform (this);
   V8::Initialize ();
-
-  Isolate::CreateParams params;
-  params.array_buffer_allocator = array_buffer_allocator.get ();
-
-  shared_isolate = Isolate::New (params);
-  shared_isolate->SetFatalErrorHandler (OnFatalError);
-  shared_isolate->SetMicrotasksPolicy (MicrotasksPolicy::kExplicit);
-
-  InitRuntime ();
 }
 
 GumV8Platform::~GumV8Platform ()
@@ -480,42 +451,8 @@ GumV8Platform::~GumV8Platform ()
 }
 
 void
-GumV8Platform::InitRuntime ()
-{
-  Locker locker (shared_isolate);
-  Isolate::Scope isolate_scope (shared_isolate);
-  HandleScope handle_scope (shared_isolate);
-  Local<Context> context (Context::New (shared_isolate));
-  Context::Scope context_scope (context);
-
-  runtime_bundle = gum_v8_bundle_new (shared_isolate, gumjs_runtime_modules);
-}
-
-void
 GumV8Platform::Dispose ()
 {
-  CancelPendingOperations ();
-
-  {
-    Locker locker (shared_isolate);
-    Isolate::Scope isolate_scope (shared_isolate);
-    HandleScope handle_scope (shared_isolate);
-
-#ifdef HAVE_OBJC_BRIDGE
-    g_clear_pointer (&objc_bundle, gum_v8_bundle_free);
-#endif
-#ifdef HAVE_SWIFT_BRIDGE
-    g_clear_pointer (&swift_bundle, gum_v8_bundle_free);
-#endif
-#ifdef HAVE_JAVA_BRIDGE
-    g_clear_pointer (&java_bundle, gum_v8_bundle_free);
-#endif
-
-    g_clear_pointer (&runtime_bundle, gum_v8_bundle_free);
-  }
-
-  shared_isolate->Dispose ();
-
   CancelPendingOperations ();
 
   V8::Dispose ();
@@ -562,71 +499,44 @@ GumV8Platform::CancelPendingOperations ()
 }
 
 void
-GumV8Platform::OnFatalError (const char * location,
-                             const char * message)
+GumV8Platform::ForgetIsolate (Isolate * isolate)
 {
-  g_log ("V8", G_LOG_LEVEL_ERROR, "%s: %s", location, message);
+  std::unordered_set<std::shared_ptr<GumV8Operation>> isolate_ops;
+  do
+  {
+    isolate_ops.clear ();
+
+    {
+      GumV8PlatformLocker locker (this);
+
+      for (const auto & op : js_ops)
+      {
+        if (op->IsAnchoredTo (isolate))
+          isolate_ops.insert (op);
+      }
+
+      for (const auto & op : pool_ops)
+      {
+        if (op->IsAnchoredTo (isolate))
+          isolate_ops.insert (op);
+      }
+    }
+
+    for (const auto & op : isolate_ops)
+      op->Cancel ();
+    for (const auto & op : isolate_ops)
+      op->Await ();
+  }
+  while (!isolate_ops.empty ());
+
+  {
+    GumV8PlatformLocker locker (this);
+
+    auto it = foreground_runners.find (isolate);
+    if (it != foreground_runners.end ())
+      foreground_runners.erase (it);
+  }
 }
-
-const gchar *
-GumV8Platform::GetRuntimeSourceMap () const
-{
-  return gumjs_frida_source_map;
-}
-
-#ifdef HAVE_OBJC_BRIDGE
-
-GumV8Bundle *
-GumV8Platform::GetObjCBundle ()
-{
-  if (objc_bundle == NULL)
-    objc_bundle = gum_v8_bundle_new (shared_isolate, gumjs_objc_modules);
-  return objc_bundle;
-}
-
-const gchar *
-GumV8Platform::GetObjCSourceMap () const
-{
-  return gumjs_objc_source_map;
-}
-
-#endif
-
-#ifdef HAVE_SWIFT_BRIDGE
-
-GumV8Bundle *
-GumV8Platform::GetSwiftBundle ()
-{
-  if (swift_bundle == NULL)
-    swift_bundle = gum_v8_bundle_new (shared_isolate, gumjs_swift_modules);
-  return swift_bundle;
-}
-
-const gchar *
-GumV8Platform::GetSwiftSourceMap () const
-{
-  return gumjs_swift_source_map;
-}
-
-#endif
-
-#ifdef HAVE_JAVA_BRIDGE
-
-GumV8Bundle *
-GumV8Platform::GetJavaBundle ()
-{
-  if (java_bundle == NULL)
-    java_bundle = gum_v8_bundle_new (shared_isolate, gumjs_java_modules);
-  return java_bundle;
-}
-
-const gchar *
-GumV8Platform::GetJavaSourceMap () const
-{
-  return gumjs_java_source_map;
-}
-
-#endif
 
 std::shared_ptr<GumV8Operation>
 GumV8Platform::ScheduleOnJSThread (std::function<void ()> f)
@@ -858,6 +768,8 @@ GumV8Platform::NumberOfWorkerThreads ()
 std::shared_ptr<TaskRunner>
 GumV8Platform::GetForegroundTaskRunner (Isolate * isolate)
 {
+  GumV8PlatformLocker locker (this);
+
   auto runner = foreground_runners[isolate];
   if (!runner)
   {
@@ -934,6 +846,23 @@ TracingController *
 GumV8Platform::GetTracingController ()
 {
   return tracing_controller.get ();
+}
+
+ArrayBuffer::Allocator *
+GumV8Platform::GetArrayBufferAllocator () const
+{
+  return array_buffer_allocator.get ();
+}
+
+GumV8Operation::GumV8Operation ()
+  : isolate (Isolate::GetCurrent ())
+{
+}
+
+bool
+GumV8Operation::IsAnchoredTo (v8::Isolate * i) const
+{
+  return isolate == i;
 }
 
 GumV8MainContextOperation::GumV8MainContextOperation (

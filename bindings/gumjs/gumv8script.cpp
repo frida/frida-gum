@@ -9,11 +9,16 @@
 
 #include "gumscripttask.h"
 #include "gumv8script-priv.h"
+#include "gumv8script-runtime.h"
 #include "gumv8value.h"
 
 #include <cstring>
 
+#define GUM_V8_INSPECTOR_LOCK(o) g_mutex_lock (&(o)->inspector_mutex)
+#define GUM_V8_INSPECTOR_UNLOCK(o) g_mutex_unlock (&(o)->inspector_mutex)
+
 using namespace v8;
+using namespace v8_inspector;
 
 typedef void (* GumUnloadNotifyFunc) (GumV8Script * self, gpointer user_data);
 
@@ -33,20 +38,18 @@ enum
   PROP_BACKEND
 };
 
-enum _GumScriptState
-{
-  GUM_SCRIPT_STATE_CREATED,
-  GUM_SCRIPT_STATE_LOADING,
-  GUM_SCRIPT_STATE_LOADED,
-  GUM_SCRIPT_STATE_UNLOADING,
-  GUM_SCRIPT_STATE_UNLOADED
-};
-
 struct GumUnloadNotifyCallback
 {
   GumUnloadNotifyFunc func;
   gpointer data;
   GDestroyNotify data_destroy;
+};
+
+struct GumPostData
+{
+  GumV8Script * script;
+  gchar * message;
+  GBytes * data;
 };
 
 struct GumEmitData
@@ -56,11 +59,50 @@ struct GumEmitData
   GBytes * data;
 };
 
-struct GumPostData
+struct GumEmitDebugMessageData
 {
   GumV8Script * script;
   gchar * message;
-  GBytes * data;
+};
+
+class GumInspectorClient : public V8InspectorClient
+{
+public:
+  GumInspectorClient (GumV8Script * script);
+
+  void runMessageLoopOnPause (int context_group_id) override;
+  void quitMessageLoopOnPause () override;
+
+  Local<Context> ensureDefaultContextInGroup (int contextGroupId) override;
+
+  double currentTimeMS () override;
+
+private:
+  void startSkippingAllPauses ();
+
+  GumV8Script * script;
+};
+
+class GumInspectorChannel : public V8Inspector::Channel
+{
+public:
+  GumInspectorChannel (GumV8Script * script, guint id);
+
+  void takeSession (std::unique_ptr<V8InspectorSession> session);
+  void dispatchStanza (const char * stanza);
+  void startSkippingAllPauses ();
+
+  void sendResponse (int call_id,
+      std::unique_ptr<StringBuffer> message) override;
+  void sendNotification (std::unique_ptr<StringBuffer> message) override;
+  void flushProtocolNotifications () override;
+
+private:
+  void emitStanza (std::unique_ptr<StringBuffer> stanza);
+
+  GumV8Script * script;
+  guint id;
+  std::unique_ptr<V8InspectorSession> inspector_session;
 };
 
 static void gum_v8_script_iface_init (gpointer g_iface, gpointer iface_data);
@@ -117,12 +159,38 @@ static void gum_v8_script_post (GumScript * script, const gchar * message,
 static void gum_v8_script_do_post (GumPostData * d);
 static void gum_v8_post_data_free (GumPostData * d);
 
-static GumStalker * gum_v8_script_get_stalker (GumScript * script);
-
 static void gum_v8_script_emit (GumV8Script * self, const gchar * message,
     GBytes * data);
 static gboolean gum_v8_script_do_emit (GumEmitData * d);
 static void gum_v8_emit_data_free (GumEmitData * d);
+
+static void gum_v8_script_set_debug_message_handler (GumScript * backend,
+    GumScriptDebugMessageHandler handler, gpointer data,
+    GDestroyNotify data_destroy);
+static void gum_v8_script_post_debug_message (GumScript * backend,
+    const gchar * message);
+static void gum_v8_script_process_queued_debug_messages (GumV8Script * self);
+static void gum_v8_script_process_queued_debug_messages_unlocked (
+    GumV8Script * self);
+static void gum_v8_script_drop_queued_debug_messages_unlocked (
+    GumV8Script * self);
+static void gum_v8_script_process_debug_message (GumV8Script * self,
+    const gchar * message);
+static gboolean gum_v8_script_do_emit_debug_message (
+    GumEmitDebugMessageData * d);
+static void gum_emit_debug_message_data_free (GumEmitDebugMessageData * d);
+static void gum_v8_script_clear_inspector_channels (GumV8Script * self);
+static void gum_v8_script_connect_inspector_channel (GumV8Script * self,
+    guint id);
+static void gum_v8_script_disconnect_inspector_channel (GumV8Script * self,
+    guint id);
+static void gum_v8_script_dispatch_inspector_stanza (GumV8Script * self,
+    guint channel_id, const gchar * stanza);
+
+static GumStalker * gum_v8_script_get_stalker (GumScript * script);
+
+static void gum_v8_script_on_fatal_error (const char * location,
+    const char * message);
 
 static GumESProgram * gum_es_program_new (void);
 static void gum_es_program_free (GumESProgram * program);
@@ -131,6 +199,10 @@ static GumESAsset * gum_es_asset_new_take (const gchar * name, gpointer data,
     gsize data_size);
 static GumESAsset * gum_es_asset_ref (GumESAsset * asset);
 static void gum_es_asset_unref (GumESAsset * asset);
+
+static std::unique_ptr<StringBuffer> gum_string_buffer_from_utf8 (
+    const gchar * str);
+static gchar * gum_string_view_to_utf8 (const StringView & view);
 
 G_DEFINE_TYPE_EXTENDED (GumV8Script,
                         gum_v8_script,
@@ -195,6 +267,9 @@ gum_v8_script_iface_init (gpointer g_iface,
   iface->set_message_handler = gum_v8_script_set_message_handler;
   iface->post = gum_v8_script_post;
 
+  iface->set_debug_message_handler = gum_v8_script_set_debug_message_handler;
+  iface->post_debug_message = gum_v8_script_post_debug_message;
+
   iface->get_stalker = gum_v8_script_get_stalker;
 }
 
@@ -203,6 +278,16 @@ gum_v8_script_init (GumV8Script * self)
 {
   self->state = GUM_SCRIPT_STATE_CREATED;
   self->on_unload = NULL;
+
+  g_mutex_init (&self->inspector_mutex);
+  g_cond_init (&self->inspector_cond);
+  self->inspector_state = GUM_V8_RUNNING;
+  self->context_group_id = 1;
+
+  g_queue_init (&self->debug_messages);
+  self->flush_scheduled = false;
+
+  self->channels = new GumInspectorChannelMap ();
 }
 
 static void
@@ -212,7 +297,16 @@ gum_v8_script_constructed (GObject * object)
 
   G_OBJECT_CLASS (gum_v8_script_parent_class)->constructed (object);
 
-  self->isolate = (Isolate *) gum_v8_script_backend_get_isolate (self->backend);
+  Isolate::CreateParams params;
+  params.array_buffer_allocator =
+      ((GumV8Platform *) gum_v8_script_backend_get_platform (self->backend))
+      ->GetArrayBufferAllocator ();
+
+  Isolate * isolate = Isolate::New (params);
+  isolate->SetData (0, self);
+  isolate->SetFatalErrorHandler (gum_v8_script_on_fatal_error);
+  isolate->SetMicrotasksPolicy (MicrotasksPolicy::kExplicit);
+  self->isolate = isolate;
 }
 
 static void
@@ -233,7 +327,40 @@ gum_v8_script_dispose (GObject * object)
     if (self->state == GUM_SCRIPT_STATE_CREATED && self->context != nullptr)
       gum_v8_script_destroy_context (self);
 
-    self->isolate = nullptr;
+    g_clear_pointer (&self->debug_handler_context, g_main_context_unref);
+    if (self->debug_handler_data_destroy != NULL)
+      self->debug_handler_data_destroy (self->debug_handler_data);
+    self->debug_handler = NULL;
+    self->debug_handler_data = NULL;
+    self->debug_handler_data_destroy = NULL;
+
+    GUM_V8_INSPECTOR_LOCK (self);
+    self->inspector_state = GUM_V8_RUNNING;
+    g_cond_signal (&self->inspector_cond);
+    GUM_V8_INSPECTOR_UNLOCK (self);
+
+    gum_v8_script_clear_inspector_channels (self);
+
+    GUM_V8_INSPECTOR_LOCK (self);
+    gum_v8_script_drop_queued_debug_messages_unlocked (self);
+    GUM_V8_INSPECTOR_UNLOCK (self);
+
+    auto isolate = self->isolate;
+    {
+      Locker locker (isolate);
+      Isolate::Scope isolate_scope (isolate);
+      HandleScope handle_scope (isolate);
+
+      delete self->inspector;
+      self->inspector = nullptr;
+
+      delete self->inspector_client;
+      self->inspector_client = nullptr;
+    }
+
+    auto platform =
+        (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
+    platform->ForgetIsolate (isolate);
 
     g_clear_pointer (&self->main_context, g_main_context_unref);
     g_clear_pointer (&self->backend, g_object_unref);
@@ -247,8 +374,14 @@ gum_v8_script_finalize (GObject * object)
 {
   auto self = GUM_V8_SCRIPT (object);
 
+  g_cond_clear (&self->inspector_cond);
+  g_mutex_clear (&self->inspector_mutex);
+
+  delete self->channels;
+
   g_free (self->name);
   g_free (self->source);
+  self->isolate->Dispose ();
 
   G_OBJECT_CLASS (gum_v8_script_parent_class)->finalize (object);
 }
@@ -323,9 +456,7 @@ gum_v8_script_create_context (GumV8Script * self,
     HandleScope handle_scope (isolate);
 
     auto global_templ = ObjectTemplate::New (isolate);
-    auto platform =
-        (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
-    _gum_v8_core_init (&self->core, self, platform->GetRuntimeSourceMap (),
+    _gum_v8_core_init (&self->core, self, gumjs_frida_source_map,
         gum_v8_script_emit, gum_v8_script_backend_get_scheduler (self->backend),
         isolate, global_templ);
     _gum_v8_kernel_init (&self->kernel, &self->core, global_templ);
@@ -355,6 +486,13 @@ gum_v8_script_create_context (GumV8Script * self,
 
     Local<Context> context (Context::New (isolate, NULL, global_templ));
     g_signal_emit (self, gum_v8_script_signals[CONTEXT_CREATED], 0, &context);
+    if (self->inspector != nullptr)
+    {
+      auto name_buffer = gum_string_buffer_from_utf8 (self->name);
+      V8ContextInfo info (context, self->context_group_id,
+          name_buffer->string ());
+      self->inspector->contextCreated (info);
+    }
     self->context = new GumPersistent<Context>::type (isolate, context);
     Context::Scope context_scope (context);
     _gum_v8_core_realize (&self->core);
@@ -771,6 +909,8 @@ gum_v8_script_destroy_context (GumV8Script * self)
 
     auto context = Local<Context>::New (self->isolate, *self->context);
     g_signal_emit (self, gum_v8_script_signals[CONTEXT_DESTROYED], 0, &context);
+    if (self->inspector != nullptr)
+      self->inspector->contextDestroyed (context);
   }
 
   gum_es_program_free (self->program);
@@ -872,9 +1012,9 @@ gum_v8_script_execute_entrypoints (GumV8Script * self,
     auto isolate = self->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    auto platform =
-        (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
-    gum_v8_bundle_run (platform->GetRuntimeBundle ());
+    auto runtime = gum_v8_bundle_new (isolate, gumjs_runtime_modules);
+    gum_v8_bundle_run (runtime);
+    gum_v8_bundle_free (runtime);
 
     auto program = self->program;
     if (program->entrypoints != NULL)
@@ -1133,14 +1273,6 @@ gum_v8_post_data_free (GumPostData * d)
   g_slice_free (GumPostData, d);
 }
 
-static GumStalker *
-gum_v8_script_get_stalker (GumScript * script)
-{
-  auto self = GUM_V8_SCRIPT (script);
-
-  return _gum_v8_stalker_get (&self->stalker);
-}
-
 static void
 gum_v8_script_emit (GumV8Script * self,
                     const gchar * message,
@@ -1165,10 +1297,7 @@ gum_v8_script_do_emit (GumEmitData * d)
   auto self = d->script;
 
   if (self->message_handler != NULL)
-  {
-    self->message_handler (GUM_SCRIPT (self), d->message, d->data,
-        self->message_handler_data);
-  }
+    self->message_handler (d->message, d->data, self->message_handler_data);
 
   return FALSE;
 }
@@ -1181,6 +1310,425 @@ gum_v8_emit_data_free (GumEmitData * d)
   g_object_unref (d->script);
 
   g_slice_free (GumEmitData, d);
+}
+
+static void
+gum_v8_script_set_debug_message_handler (GumScript * backend,
+                                         GumScriptDebugMessageHandler handler,
+                                         gpointer data,
+                                         GDestroyNotify data_destroy)
+{
+  auto self = GUM_V8_SCRIPT (backend);
+
+  if (handler != NULL && self->inspector == nullptr)
+  {
+    auto isolate = self->isolate;
+    Locker locker (isolate);
+    Isolate::Scope isolate_scope (isolate);
+    HandleScope handle_scope (isolate);
+
+    auto client = new GumInspectorClient (self);
+    self->inspector_client = client;
+
+    auto inspector = V8Inspector::create (isolate, client);
+    self->inspector = inspector.release ();
+  }
+
+  if (self->debug_handler_data_destroy != NULL)
+    self->debug_handler_data_destroy (self->debug_handler_data);
+
+  self->debug_handler = handler;
+  self->debug_handler_data = data;
+  self->debug_handler_data_destroy = data_destroy;
+
+  auto new_context = (handler != NULL)
+      ? g_main_context_ref_thread_default ()
+      : NULL;
+
+  GUM_V8_INSPECTOR_LOCK (self);
+
+  auto old_context = self->debug_handler_context;
+  self->debug_handler_context = new_context;
+
+  if (handler != NULL)
+  {
+    if (self->inspector_state == GUM_V8_RUNNING)
+      self->inspector_state = GUM_V8_DEBUGGING;
+  }
+  else
+  {
+    gum_v8_script_drop_queued_debug_messages_unlocked (self);
+
+    self->inspector_state = GUM_V8_RUNNING;
+    g_cond_signal (&self->inspector_cond);
+  }
+
+  GUM_V8_INSPECTOR_UNLOCK (self);
+
+  if (old_context != NULL)
+    g_main_context_unref (old_context);
+
+  if (handler == NULL)
+  {
+    gum_script_scheduler_push_job_on_js_thread (
+        gum_v8_script_backend_get_scheduler (self->backend), G_PRIORITY_DEFAULT,
+        (GumScriptJobFunc) gum_v8_script_clear_inspector_channels,
+        self, NULL);
+  }
+}
+
+static void
+gum_v8_script_post_debug_message (GumScript * backend,
+                                  const gchar * message)
+{
+  auto self = GUM_V8_SCRIPT (backend);
+
+  if (self->debug_handler == NULL)
+    return;
+
+  gchar * message_copy = g_strdup (message);
+
+  GUM_V8_INSPECTOR_LOCK (self);
+
+  g_queue_push_tail (&self->debug_messages, message_copy);
+  g_cond_signal (&self->inspector_cond);
+
+  bool flush_not_already_scheduled = !self->flush_scheduled;
+  self->flush_scheduled = true;
+
+  GUM_V8_INSPECTOR_UNLOCK (self);
+
+  if (flush_not_already_scheduled)
+  {
+    gum_script_scheduler_push_job_on_js_thread (
+        gum_v8_script_backend_get_scheduler (self->backend), G_PRIORITY_DEFAULT,
+        (GumScriptJobFunc) gum_v8_script_process_queued_debug_messages,
+        self, NULL);
+  }
+}
+
+static void
+gum_v8_script_process_queued_debug_messages (GumV8Script * self)
+{
+  auto isolate = self->isolate;
+  Locker locker (isolate);
+  Isolate::Scope isolate_scope (isolate);
+  HandleScope handle_scope (isolate);
+
+  GUM_V8_INSPECTOR_LOCK (self);
+  gum_v8_script_process_queued_debug_messages_unlocked (self);
+  GUM_V8_INSPECTOR_UNLOCK (self);
+
+  isolate->PerformMicrotaskCheckpoint ();
+}
+
+static void
+gum_v8_script_process_queued_debug_messages_unlocked (GumV8Script * self)
+{
+  gchar * message;
+  while ((message = (gchar *) g_queue_pop_head (&self->debug_messages)) != NULL)
+  {
+    GUM_V8_INSPECTOR_UNLOCK (self);
+    gum_v8_script_process_debug_message (self, message);
+    GUM_V8_INSPECTOR_LOCK (self);
+
+    g_free (message);
+  }
+
+  self->flush_scheduled = false;
+}
+
+static void
+gum_v8_script_drop_queued_debug_messages_unlocked (GumV8Script * self)
+{
+  gchar * message;
+  while ((message = (gchar *) g_queue_pop_head (&self->debug_messages)) != NULL)
+    g_free (message);
+}
+
+static void
+gum_v8_script_process_debug_message (GumV8Script * self,
+                                     const gchar * message)
+{
+  guint id;
+  const char * id_start, * id_end;
+  id_start = strchr (message, ' ');
+  if (id_start == NULL)
+    return;
+  id_start++;
+  id = (guint) g_ascii_strtoull (id_start, (gchar **) &id_end, 10);
+  if (id_end == id_start)
+    return;
+
+  if (g_str_has_prefix (message, "CONNECT "))
+  {
+    gum_v8_script_connect_inspector_channel (self, id);
+  }
+  else if (g_str_has_prefix (message, "DISCONNECT "))
+  {
+    gum_v8_script_disconnect_inspector_channel (self, id);
+  }
+  else if (g_str_has_prefix (message, "DISPATCH "))
+  {
+    if (*id_end != ' ')
+      return;
+    const char * stanza = id_end + 1;
+    gum_v8_script_dispatch_inspector_stanza (self, id, stanza);
+  }
+}
+
+static void
+gum_v8_script_emit_debug_message (GumV8Script * self,
+                                  const gchar * format,
+                                  ...)
+{
+  GUM_V8_INSPECTOR_LOCK (self);
+  auto context = (self->debug_handler_context != NULL)
+      ? g_main_context_ref (self->debug_handler_context)
+      : NULL;
+  GUM_V8_INSPECTOR_UNLOCK (self);
+
+  if (context == NULL)
+    return;
+
+  auto d = g_slice_new (GumEmitDebugMessageData);
+
+  d->script = self;
+  g_object_ref (self);
+
+  va_list args;
+  va_start (args, format);
+  d->message = g_strdup_vprintf (format, args);
+  va_end (args);
+
+  auto source = g_idle_source_new ();
+  g_source_set_callback (source,
+      (GSourceFunc) gum_v8_script_do_emit_debug_message, d,
+      (GDestroyNotify) gum_emit_debug_message_data_free);
+  g_source_attach (source, context);
+  g_source_unref (source);
+
+  g_main_context_unref (context);
+}
+
+static gboolean
+gum_v8_script_do_emit_debug_message (GumEmitDebugMessageData * d)
+{
+  auto self = d->script;
+
+  if (self->debug_handler != NULL)
+    self->debug_handler (d->message, self->debug_handler_data);
+
+  return FALSE;
+}
+
+static void
+gum_emit_debug_message_data_free (GumEmitDebugMessageData * d)
+{
+  g_free (d->message);
+  g_object_unref (d->script);
+
+  g_slice_free (GumEmitDebugMessageData, d);
+}
+
+static void
+gum_v8_script_clear_inspector_channels (GumV8Script * self)
+{
+  auto isolate = self->isolate;
+  Locker locker (isolate);
+  Isolate::Scope isolate_scope (isolate);
+  HandleScope handle_scope (isolate);
+
+  GUM_V8_INSPECTOR_LOCK (self);
+  bool debugger_still_disabled = (self->inspector_state == GUM_V8_RUNNING);
+  GUM_V8_INSPECTOR_UNLOCK (self);
+
+  if (debugger_still_disabled)
+    self->channels->clear ();
+}
+
+static void
+gum_v8_script_connect_inspector_channel (GumV8Script * self,
+                                         guint id)
+{
+  auto channel = new GumInspectorChannel (self, id);
+  (*self->channels)[id] = std::unique_ptr<GumInspectorChannel> (channel);
+
+  auto session = self->inspector->connect (self->context_group_id, channel,
+      StringView ());
+  channel->takeSession (std::move (session));
+}
+
+static void
+gum_v8_script_disconnect_inspector_channel (GumV8Script * self,
+                                            guint id)
+{
+  self->channels->erase (id);
+}
+
+static void
+gum_v8_script_dispatch_inspector_stanza (GumV8Script * self,
+                                         guint channel_id,
+                                         const gchar * stanza)
+{
+  auto channel = (*self->channels)[channel_id].get ();
+  if (channel == nullptr)
+    return;
+
+  channel->dispatchStanza (stanza);
+}
+
+static void
+gum_v8_script_emit_inspector_stanza (GumV8Script * self,
+                                     guint channel_id,
+                                     const gchar * stanza)
+{
+  gum_v8_script_emit_debug_message (self, "DISPATCH %u %s",
+      channel_id, stanza);
+}
+
+GumInspectorClient::GumInspectorClient (GumV8Script * script)
+  : script (script)
+{
+}
+
+void
+GumInspectorClient::runMessageLoopOnPause (int context_group_id)
+{
+  GUM_V8_INSPECTOR_LOCK (script);
+
+  if (script->inspector_state == GUM_V8_RUNNING)
+  {
+    startSkippingAllPauses ();
+    GUM_V8_INSPECTOR_UNLOCK (script);
+    return;
+  }
+
+  script->inspector_state = GUM_V8_PAUSED;
+  while (script->inspector_state == GUM_V8_PAUSED)
+  {
+    gum_v8_script_process_queued_debug_messages_unlocked (script);
+
+    if (script->inspector_state == GUM_V8_PAUSED)
+      g_cond_wait (&script->inspector_cond, &script->inspector_mutex);
+  }
+
+  gum_v8_script_process_queued_debug_messages_unlocked (script);
+
+  if (script->inspector_state == GUM_V8_RUNNING)
+  {
+    startSkippingAllPauses ();
+  }
+
+  GUM_V8_INSPECTOR_UNLOCK (script);
+}
+
+void
+GumInspectorClient::quitMessageLoopOnPause ()
+{
+  GUM_V8_INSPECTOR_LOCK (script);
+
+  if (script->inspector_state == GUM_V8_PAUSED)
+  {
+    script->inspector_state = GUM_V8_DEBUGGING;
+    g_cond_signal (&script->inspector_cond);
+  }
+
+  GUM_V8_INSPECTOR_UNLOCK (script);
+}
+
+Local<Context>
+GumInspectorClient::ensureDefaultContextInGroup (int contextGroupId)
+{
+  return Local<Context>::New (script->isolate, *script->context);
+}
+
+double
+GumInspectorClient::currentTimeMS ()
+{
+  auto platform =
+      (GumV8Platform *) gum_v8_script_backend_get_platform (script->backend);
+
+  return platform->CurrentClockTimeMillis ();
+}
+
+void
+GumInspectorClient::startSkippingAllPauses ()
+{
+  for (const auto & pair : *script->channels)
+  {
+    pair.second->startSkippingAllPauses ();
+  }
+}
+
+GumInspectorChannel::GumInspectorChannel (GumV8Script * script,
+                                          guint id)
+  : script (script),
+    id (id)
+{
+}
+
+void
+GumInspectorChannel::takeSession (std::unique_ptr<V8InspectorSession> session)
+{
+  inspector_session = std::move (session);
+}
+
+void
+GumInspectorChannel::dispatchStanza (const char * stanza)
+{
+  auto buffer = gum_string_buffer_from_utf8 (stanza);
+
+  inspector_session->dispatchProtocolMessage (buffer->string ());
+}
+
+void
+GumInspectorChannel::startSkippingAllPauses ()
+{
+  inspector_session->setSkipAllPauses (true);
+}
+
+void
+GumInspectorChannel::emitStanza (std::unique_ptr<StringBuffer> stanza)
+{
+  gchar * stanza_utf8 = gum_string_view_to_utf8 (stanza->string ());
+
+  gum_v8_script_emit_inspector_stanza (script, id, stanza_utf8);
+
+  g_free (stanza_utf8);
+}
+
+void
+GumInspectorChannel::sendResponse (int call_id,
+                                   std::unique_ptr<StringBuffer> message)
+{
+  emitStanza (std::move (message));
+}
+
+void
+GumInspectorChannel::sendNotification (std::unique_ptr<StringBuffer> message)
+{
+  emitStanza (std::move (message));
+}
+
+void
+GumInspectorChannel::flushProtocolNotifications ()
+{
+}
+
+static GumStalker *
+gum_v8_script_get_stalker (GumScript * script)
+{
+  auto self = GUM_V8_SCRIPT (script);
+
+  return _gum_v8_stalker_get (&self->stalker);
+}
+
+static void
+gum_v8_script_on_fatal_error (const char * location,
+                              const char * message)
+{
+  g_log ("V8", G_LOG_LEVEL_ERROR, "%s: %s", location, message);
 }
 
 static GumESProgram *
@@ -1245,4 +1793,28 @@ gum_es_asset_unref (GumESAsset * asset)
   g_free (asset->data);
 
   g_slice_free (GumESAsset, asset);
+}
+
+static std::unique_ptr<StringBuffer>
+gum_string_buffer_from_utf8 (const gchar * str)
+{
+  glong length;
+  auto str_utf16 = g_utf8_to_utf16 (str, -1, NULL, &length, NULL);
+  g_assert (str_utf16 != NULL);
+
+  auto buffer = StringBuffer::create (StringView (str_utf16, length));
+
+  g_free (str_utf16);
+
+  return buffer;
+}
+
+static gchar *
+gum_string_view_to_utf8 (const StringView & view)
+{
+  if (view.is8Bit ())
+    return g_strndup ((const gchar *) view.characters8 (), view.length ());
+
+  return g_utf16_to_utf8 (view.characters16 (), (glong) view.length (), NULL,
+      NULL, NULL);
 }
