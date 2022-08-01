@@ -1071,6 +1071,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_spinlock_release (&ctx->code_lock);
 
   gum_event_sink_start (ctx->sink);
+  ctx->sink_started = TRUE;
 }
 
 static void
