@@ -244,7 +244,7 @@ static guint32
 test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
                                             GumAddress addr)
 {
-  GumAddress retval;
+  guint32 retval;
   GumAddressSpec spec;
   GumArmWriter cw;
   GCallback stalked_func;

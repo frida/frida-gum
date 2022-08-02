@@ -2102,10 +2102,17 @@ TESTCODE (thumb_tbh,
   0x5f, 0xf0, 0x02, 0x0c, /* movs.w ip, 2         */
   0xdf, 0xe8, 0x1c, 0xf0, /* tbh [pc, ip, lsl 1]  */
 
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN  
   /* table1:                                      */
   0x03, 0x00,             /* (one - table1) / 2   */
   0x04, 0x00,             /* (two - table1) / 2   */
   0x05, 0x00,             /* (three - table1) / 2 */
+#else
+  /* table1:                                      */
+  0x00, 0x03,             /* (one - table1) / 2   */
+  0x00, 0x04,             /* (two - table1) / 2   */
+  0x00, 0x05,             /* (three - table1) / 2 */
+#endif
 
   /* one:                                         */
   0x40, 0x1c,             /* adds r0, r0, 1       */
@@ -2190,13 +2197,13 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
   value = f ();
   g_assert_cmpuint (value, ==, 1);
 
-  patch_code_pointer (func, 4, 0xe2800002);
+  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800002));
   value = f ();
   g_assert_cmpuint (value, ==, 2);
   f ();
   f ();
 
-  patch_code_pointer (func, 4, 0xe2800003);
+  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800003));
   value = f ();
   g_assert_cmpuint (value, ==, 3);
 
@@ -2223,7 +2230,7 @@ TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
   value = f ();
   g_assert_cmpuint (value, ==, 1);
 
-  patch_code_pointer (func, 4, 0xe2800002);
+  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800002));
   value = f ();
   g_assert_cmpuint (value, ==, 1);
 
@@ -2250,13 +2257,13 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
   value = f ();
   g_assert_cmpuint (value, ==, 1);
 
-  patch_code_pointer (func, 4, 0xe2800002);
+  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800002));
   value = f ();
   g_assert_cmpuint (value, ==, 2);
   f ();
   f ();
 
-  patch_code_pointer (func, 4, 0xe2800003);
+  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800003));
   value = f ();
   g_assert_cmpuint (value, ==, 2);
 
