@@ -34,6 +34,7 @@ enum
   PROP_0,
   PROP_NAME,
   PROP_SOURCE,
+  PROP_SNAPSHOT,
   PROP_MAIN_CONTEXT,
   PROP_BACKEND
 };
@@ -236,6 +237,10 @@ gum_v8_script_class_init (GumV8ScriptClass * klass)
       g_param_spec_string ("source", "Source", "Source code", NULL,
       (GParamFlags) (G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (object_class, PROP_SNAPSHOT,
+      g_param_spec_boxed ("snapshot", "Snapshot", "Snapshot", G_TYPE_BYTES,
+      (GParamFlags) (G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
       g_param_spec_boxed ("main-context", "MainContext",
       "MainContext being used", G_TYPE_MAIN_CONTEXT,
@@ -302,6 +307,7 @@ gum_v8_script_constructed (GObject * object)
   G_OBJECT_CLASS (gum_v8_script_parent_class)->constructed (object);
 
   Isolate::CreateParams params;
+  params.snapshot_blob = self->snapshot_blob;
   params.array_buffer_allocator =
       ((GumV8Platform *) gum_v8_script_backend_get_platform (self->backend))
       ->GetArrayBufferAllocator ();
@@ -370,9 +376,11 @@ gum_v8_script_finalize (GObject * object)
 
   delete self->channels;
 
+  self->isolate->Dispose ();
+
   g_free (self->name);
   g_free (self->source);
-  self->isolate->Dispose ();
+  g_bytes_unref (self->snapshot);
 
   G_OBJECT_CLASS (gum_v8_script_parent_class)->finalize (object);
 }
@@ -418,6 +426,24 @@ gum_v8_script_set_property (GObject * object,
     case PROP_SOURCE:
       g_free (self->source);
       self->source = g_value_dup_string (value);
+      break;
+    case PROP_SNAPSHOT:
+      g_bytes_unref (self->snapshot);
+      self->snapshot = (GBytes *) g_value_dup_boxed (value);
+
+      if (self->snapshot != NULL)
+      {
+        gsize size;
+        gconstpointer data = g_bytes_get_data (self->snapshot, &size);
+
+        self->snapshot_blob_storage = { (const char *) data, (int) size };
+        self->snapshot_blob = &self->snapshot_blob_storage;
+      }
+      else
+      {
+        self->snapshot_blob = NULL;
+      }
+
       break;
     case PROP_MAIN_CONTEXT:
       if (self->main_context != NULL)

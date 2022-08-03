@@ -65,6 +65,9 @@ struct _GumV8Script
 
   gchar * name;
   gchar * source;
+  GBytes * snapshot;
+  v8::StartupData * snapshot_blob;
+  v8::StartupData snapshot_blob_storage;
   GMainContext * main_context;
   GumV8ScriptBackend * backend;
 

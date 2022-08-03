@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -171,7 +171,7 @@ test_kscript_fixture_compile_and_load_kscript (TestScriptFixture * fixture,
   va_end (args);
 
   fixture->kscript = gum_script_backend_create_sync (fixture->backend,
-      "testcase", source, NULL, &err);
+      "testcase", source, NULL, NULL, &err);
   g_assert_nonnull (fixture->kscript);
   g_assert_null (err);
 

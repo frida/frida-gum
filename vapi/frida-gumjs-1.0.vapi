@@ -14,13 +14,21 @@ namespace Gum {
 		public static unowned ScriptBackend? obtain_qjs ();
 		public static unowned ScriptBackend? obtain_v8 ();
 
-		public async Script create (string name, string source, GLib.Cancellable? cancellable = null) throws Gum.Error;
-		public Script create_sync (string name, string source, GLib.Cancellable? cancellable = null) throws Gum.Error;
-		public async Script create_from_bytes (GLib.Bytes bytes, GLib.Cancellable? cancellable = null) throws Gum.Error;
-		public Script create_from_bytes_sync (GLib.Bytes bytes, GLib.Cancellable? cancellable = null) throws Gum.Error;
+		public async Script create (string name, string source, GLib.Bytes? snapshot = null, GLib.Cancellable? cancellable = null)
+			throws Gum.Error;
+		public Script create_sync (string name, string source, GLib.Bytes? snapshot = null, GLib.Cancellable? cancellable = null)
+			throws Gum.Error;
+		public async Script create_from_bytes (GLib.Bytes bytes, GLib.Bytes? snapshot = null, GLib.Cancellable? cancellable = null)
+			throws Gum.Error;
+		public Script create_from_bytes_sync (GLib.Bytes bytes, GLib.Bytes? snapshot = null, GLib.Cancellable? cancellable = null)
+			throws Gum.Error;
 
 		public async GLib.Bytes compile (string name, string source, GLib.Cancellable? cancellable = null) throws Gum.Error;
 		public GLib.Bytes compile_sync (string name, string source, GLib.Cancellable? cancellable = null) throws Gum.Error;
+		public async GLib.Bytes snapshot (string embed_script, string? warmup_script, GLib.Cancellable? cancellable = null)
+			throws Gum.Error;
+		public GLib.Bytes snapshot_sync (string embed_script, string? warmup_script, GLib.Cancellable? cancellable = null)
+			throws Gum.Error;
 
 		public static unowned ScriptScheduler get_scheduler ();
 

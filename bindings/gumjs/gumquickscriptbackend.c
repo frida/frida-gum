@@ -18,6 +18,7 @@ typedef struct _GumCompileProgramOperation GumCompileProgramOperation;
 typedef struct _GumCreateScriptData GumCreateScriptData;
 typedef struct _GumCreateScriptFromBytesData GumCreateScriptFromBytesData;
 typedef struct _GumCompileScriptData GumCompileScriptData;
+typedef struct _GumSnapshotScriptData GumSnapshotScriptData;
 
 struct _GumQuickScriptBackend
 {
@@ -40,17 +41,25 @@ struct _GumCreateScriptData
 {
   gchar * name;
   gchar * source;
+  GBytes * snapshot;
 };
 
 struct _GumCreateScriptFromBytesData
 {
   GBytes * bytes;
+  GBytes * snapshot;
 };
 
 struct _GumCompileScriptData
 {
   gchar * name;
   gchar * source;
+};
+
+struct _GumSnapshotScriptData
+{
+  gchar * embed_script;
+  gchar * warmup_script;
 };
 
 static void gum_quick_script_backend_iface_init (gpointer g_iface,
@@ -66,32 +75,35 @@ static JSValue gum_compile_module (JSContext * ctx, GumESAsset * asset,
     GumCompileProgramOperation * op);
 
 static void gum_quick_script_backend_create (GumScriptBackend * backend,
-    const gchar * name, const gchar * source, GCancellable * cancellable,
-    GAsyncReadyCallback callback, gpointer user_data);
+    const gchar * name, const gchar * source, GBytes * snapshot,
+    GCancellable * cancellable, GAsyncReadyCallback callback,
+    gpointer user_data);
 static GumScript * gum_quick_script_backend_create_finish (
     GumScriptBackend * backend, GAsyncResult * result, GError ** error);
 static GumScript * gum_quick_script_backend_create_sync (
     GumScriptBackend * backend, const gchar * name, const gchar * source,
-    GCancellable * cancellable, GError ** error);
+    GBytes * snapshot, GCancellable * cancellable, GError ** error);
 static GumScriptTask * gum_create_script_task_new (
     GumQuickScriptBackend * backend, const gchar * name, const gchar * source,
-    GCancellable * cancellable, GAsyncReadyCallback callback,
+    GBytes * snapshot, GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
 static void gum_create_script_task_run (GumScriptTask * task,
     GumQuickScriptBackend * self, GumCreateScriptData * d,
     GCancellable * cancellable);
 static void gum_create_script_data_free (GumCreateScriptData * d);
 static void gum_quick_script_backend_create_from_bytes (
-    GumScriptBackend * backend, GBytes * bytes, GCancellable * cancellable,
-    GAsyncReadyCallback callback, gpointer user_data);
+    GumScriptBackend * backend, GBytes * bytes, GBytes * snapshot,
+    GCancellable * cancellable, GAsyncReadyCallback callback,
+    gpointer user_data);
 static GumScript * gum_quick_script_backend_create_from_bytes_finish (
     GumScriptBackend * backend, GAsyncResult * result, GError ** error);
 static GumScript * gum_quick_script_backend_create_from_bytes_sync (
-    GumScriptBackend * backend, GBytes * bytes, GCancellable * cancellable,
-    GError ** error);
+    GumScriptBackend * backend, GBytes * bytes, GBytes * snapshot,
+    GCancellable * cancellable, GError ** error);
 static GumScriptTask * gum_create_script_from_bytes_task_new (
-    GumQuickScriptBackend * backend, GBytes * bytes, GCancellable * cancellable,
-    GAsyncReadyCallback callback, gpointer user_data);
+    GumQuickScriptBackend * backend, GBytes * bytes, GBytes * snapshot,
+    GCancellable * cancellable, GAsyncReadyCallback callback,
+    gpointer user_data);
 static void gum_create_script_from_bytes_task_run (GumScriptTask * task,
     GumQuickScriptBackend * self, GumCreateScriptFromBytesData * d,
     GCancellable * cancellable);
@@ -114,6 +126,23 @@ static void gum_compile_script_task_run (GumScriptTask * task,
     GumQuickScriptBackend * self, GumCompileScriptData * d,
     GCancellable * cancellable);
 static void gum_compile_script_data_free (GumCompileScriptData * d);
+static void gum_quick_script_backend_snapshot (GumScriptBackend * backend,
+    const gchar * embed_script, const gchar * warmup_script,
+    GCancellable * cancellable, GAsyncReadyCallback callback,
+    gpointer user_data);
+static GBytes * gum_quick_script_backend_snapshot_finish (
+    GumScriptBackend * backend, GAsyncResult * result, GError ** error);
+static GBytes * gum_quick_script_backend_snapshot_sync (
+    GumScriptBackend * backend, const gchar * embed_script,
+    const gchar * warmup_script, GCancellable * cancellable, GError ** error);
+static GumScriptTask * gum_snapshot_script_task_new (
+    GumQuickScriptBackend * backend, const gchar * embed_script,
+    const gchar * warmup_script, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
+static void gum_snapshot_script_task_run (GumScriptTask * task,
+    GumQuickScriptBackend * self, GumSnapshotScriptData * d,
+    GCancellable * cancellable);
+static void gum_snapshot_script_data_free (GumSnapshotScriptData * d);
 
 static void gum_quick_script_backend_with_lock_held (GumScriptBackend * backend,
     GumScriptBackendLockedFunc func, gpointer user_data);
@@ -168,6 +197,9 @@ gum_quick_script_backend_iface_init (gpointer g_iface,
   iface->compile = gum_quick_script_backend_compile;
   iface->compile_finish = gum_quick_script_backend_compile_finish;
   iface->compile_sync = gum_quick_script_backend_compile_sync;
+  iface->snapshot = gum_quick_script_backend_snapshot;
+  iface->snapshot_finish = gum_quick_script_backend_snapshot_finish;
+  iface->snapshot_sync = gum_quick_script_backend_snapshot_sync;
 
   iface->with_lock_held = gum_quick_script_backend_with_lock_held;
   iface->is_locked = gum_quick_script_backend_is_locked;
@@ -663,15 +695,18 @@ static void
 gum_quick_script_backend_create (GumScriptBackend * backend,
                                  const gchar * name,
                                  const gchar * source,
+                                 GBytes * snapshot,
                                  GCancellable * cancellable,
                                  GAsyncReadyCallback callback,
                                  gpointer user_data)
 {
-  GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
+  GumQuickScriptBackend * self;
   GumScriptTask * task;
 
-  task = gum_create_script_task_new (self, name, source, cancellable, callback,
-      user_data);
+  self = GUM_QUICK_SCRIPT_BACKEND (backend);
+
+  task = gum_create_script_task_new (self, name, source, snapshot, cancellable,
+      callback, user_data);
   gum_script_task_run_in_js_thread (task, self->scheduler);
   g_object_unref (task);
 }
@@ -688,15 +723,18 @@ static GumScript *
 gum_quick_script_backend_create_sync (GumScriptBackend * backend,
                                       const gchar * name,
                                       const gchar * source,
+                                      GBytes * snapshot,
                                       GCancellable * cancellable,
                                       GError ** error)
 {
-  GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
   GumScript * script;
+  GumQuickScriptBackend * self;
   GumScriptTask * task;
 
-  task = gum_create_script_task_new (self, name, source, cancellable, NULL,
-      NULL);
+  self = GUM_QUICK_SCRIPT_BACKEND (backend);
+
+  task = gum_create_script_task_new (self, name, source, snapshot, cancellable,
+      NULL, NULL);
   gum_script_task_run_in_js_thread_sync (task, self->scheduler);
   script = gum_script_task_propagate_pointer (task, error);
   g_object_unref (task);
@@ -708,21 +746,24 @@ static GumScriptTask *
 gum_create_script_task_new (GumQuickScriptBackend * backend,
                             const gchar * name,
                             const gchar * source,
+                            GBytes * snapshot,
                             GCancellable * cancellable,
                             GAsyncReadyCallback callback,
                             gpointer user_data)
 {
-  GumCreateScriptData * d;
   GumScriptTask * task;
+  GumCreateScriptData * d;
 
   d = g_slice_new (GumCreateScriptData);
   d->name = g_strdup (name);
   d->source = g_strdup (source);
+  d->snapshot = (snapshot != NULL) ? g_bytes_ref (snapshot) : NULL;
 
   task = gum_script_task_new ((GumScriptTaskFunc) gum_create_script_task_run,
       backend, cancellable, callback, user_data);
   gum_script_task_set_task_data (task, d,
       (GDestroyNotify) gum_create_script_data_free);
+
   return task;
 }
 
@@ -734,6 +775,14 @@ gum_create_script_task_run (GumScriptTask * task,
 {
   GumQuickScript * script;
   GError * error = NULL;
+
+  if (d->snapshot != NULL)
+  {
+    gum_script_task_return_error (task,
+        g_error_new (GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+          "snapshots are not supported by the QuickJS runtime"));
+    return;
+  }
 
   script = g_object_new (GUM_QUICK_TYPE_SCRIPT,
       "name", d->name,
@@ -760,6 +809,7 @@ gum_create_script_data_free (GumCreateScriptData * d)
 {
   g_free (d->name);
   g_free (d->source);
+  g_bytes_unref (d->snapshot);
 
   g_slice_free (GumCreateScriptData, d);
 }
@@ -767,6 +817,7 @@ gum_create_script_data_free (GumCreateScriptData * d)
 static void
 gum_quick_script_backend_create_from_bytes (GumScriptBackend * backend,
                                             GBytes * bytes,
+                                            GBytes * snapshot,
                                             GCancellable * cancellable,
                                             GAsyncReadyCallback callback,
                                             gpointer user_data)
@@ -774,8 +825,8 @@ gum_quick_script_backend_create_from_bytes (GumScriptBackend * backend,
   GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
   GumScriptTask * task;
 
-  task = gum_create_script_from_bytes_task_new (self, bytes, cancellable,
-      callback, user_data);
+  task = gum_create_script_from_bytes_task_new (self, bytes, snapshot,
+      cancellable, callback, user_data);
   gum_script_task_run_in_js_thread (task, self->scheduler);
   g_object_unref (task);
 }
@@ -791,6 +842,7 @@ gum_quick_script_backend_create_from_bytes_finish (GumScriptBackend * backend,
 static GumScript *
 gum_quick_script_backend_create_from_bytes_sync (GumScriptBackend * backend,
                                                  GBytes * bytes,
+                                                 GBytes * snapshot,
                                                  GCancellable * cancellable,
                                                  GError ** error)
 {
@@ -798,8 +850,8 @@ gum_quick_script_backend_create_from_bytes_sync (GumScriptBackend * backend,
   GumScript * script;
   GumScriptTask * task;
 
-  task = gum_create_script_from_bytes_task_new (self, bytes, cancellable, NULL,
-      NULL);
+  task = gum_create_script_from_bytes_task_new (self, bytes, snapshot,
+      cancellable, NULL, NULL);
   gum_script_task_run_in_js_thread_sync (task, self->scheduler);
   script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
   g_object_unref (task);
@@ -810,21 +862,24 @@ gum_quick_script_backend_create_from_bytes_sync (GumScriptBackend * backend,
 static GumScriptTask *
 gum_create_script_from_bytes_task_new (GumQuickScriptBackend * backend,
                                        GBytes * bytes,
+                                       GBytes * snapshot,
                                        GCancellable * cancellable,
                                        GAsyncReadyCallback callback,
                                        gpointer user_data)
 {
-  GumCreateScriptFromBytesData * d;
   GumScriptTask * task;
+  GumCreateScriptFromBytesData * d;
 
   d = g_slice_new (GumCreateScriptFromBytesData);
   d->bytes = g_bytes_ref (bytes);
+  d->snapshot = (snapshot != NULL) ? g_bytes_ref (snapshot) : NULL;
 
   task = gum_script_task_new (
       (GumScriptTaskFunc) gum_create_script_from_bytes_task_run, backend,
       cancellable, callback, user_data);
   gum_script_task_set_task_data (task, d,
       (GDestroyNotify) gum_create_script_from_bytes_data_free);
+
   return task;
 }
 
@@ -836,6 +891,14 @@ gum_create_script_from_bytes_task_run (GumScriptTask * task,
 {
   GumQuickScript * script;
   GError * error = NULL;
+
+  if (d->snapshot != NULL)
+  {
+    gum_script_task_return_error (task,
+        g_error_new (GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+          "snapshots are not supported by the QuickJS runtime"));
+    return;
+  }
 
   script = g_object_new (GUM_QUICK_TYPE_SCRIPT,
       "bytecode", d->bytes,
@@ -860,6 +923,7 @@ static void
 gum_create_script_from_bytes_data_free (GumCreateScriptFromBytesData * d)
 {
   g_bytes_unref (d->bytes);
+  g_bytes_unref (d->snapshot);
 
   g_slice_free (GumCreateScriptFromBytesData, d);
 }
@@ -872,8 +936,10 @@ gum_quick_script_backend_compile (GumScriptBackend * backend,
                                   GAsyncReadyCallback callback,
                                   gpointer user_data)
 {
-  GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
+  GumQuickScriptBackend * self;
   GumScriptTask * task;
+
+  self = GUM_QUICK_SCRIPT_BACKEND (backend);
 
   task = gum_compile_script_task_new (self, name, source, cancellable, callback,
       user_data);
@@ -896,9 +962,11 @@ gum_quick_script_backend_compile_sync (GumScriptBackend * backend,
                                        GCancellable * cancellable,
                                        GError ** error)
 {
-  GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
   GBytes * bytes;
+  GumQuickScriptBackend * self;
   GumScriptTask * task;
+
+  self = GUM_QUICK_SCRIPT_BACKEND (backend);
 
   task = gum_compile_script_task_new (self, name, source, cancellable, NULL,
       NULL);
@@ -917,15 +985,18 @@ gum_compile_script_task_new (GumQuickScriptBackend * backend,
                              GAsyncReadyCallback callback,
                              gpointer user_data)
 {
-  GumCompileScriptData * d = g_slice_new (GumCompileScriptData);
+  GumScriptTask * task;
+  GumCompileScriptData * d;
+
+  d = g_slice_new (GumCompileScriptData);
   d->name = g_strdup (name);
   d->source = g_strdup (source);
 
-  GumScriptTask * task = gum_script_task_new (
-      (GumScriptTaskFunc) gum_compile_script_task_run, backend, cancellable,
-      callback, user_data);
+  task = gum_script_task_new ((GumScriptTaskFunc) gum_compile_script_task_run,
+      backend, cancellable, callback, user_data);
   gum_script_task_set_task_data (task, d,
       (GDestroyNotify) gum_compile_script_data_free);
+
   return task;
 }
 
@@ -988,6 +1059,98 @@ gum_compile_script_data_free (GumCompileScriptData * d)
   g_free (d->source);
 
   g_slice_free (GumCompileScriptData, d);
+}
+
+static void
+gum_quick_script_backend_snapshot (GumScriptBackend * backend,
+                                   const gchar * embed_script,
+                                   const gchar * warmup_script,
+                                   GCancellable * cancellable,
+                                   GAsyncReadyCallback callback,
+                                   gpointer user_data)
+{
+  GumQuickScriptBackend * self;
+  GumScriptTask * task;
+
+  self = GUM_QUICK_SCRIPT_BACKEND (backend);
+
+  task = gum_snapshot_script_task_new (self, embed_script, warmup_script,
+      cancellable, callback, user_data);
+  gum_script_task_run_in_js_thread (task, self->scheduler);
+  g_object_unref (task);
+}
+
+static GBytes *
+gum_quick_script_backend_snapshot_finish (GumScriptBackend * backend,
+                                          GAsyncResult * result,
+                                          GError ** error)
+{
+  return gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), error);
+}
+
+static GBytes *
+gum_quick_script_backend_snapshot_sync (GumScriptBackend * backend,
+                                        const gchar * embed_script,
+                                        const gchar * warmup_script,
+                                        GCancellable * cancellable,
+                                        GError ** error)
+{
+  GBytes * bytes;
+  GumQuickScriptBackend * self;
+  GumScriptTask * task;
+
+  self = GUM_QUICK_SCRIPT_BACKEND (backend);
+
+  task = gum_snapshot_script_task_new (self, embed_script, warmup_script,
+      cancellable, NULL, NULL);
+  gum_script_task_run_in_js_thread_sync (task, self->scheduler);
+  bytes = gum_script_task_propagate_pointer (task, error);
+  g_object_unref (task);
+
+  return bytes;
+}
+
+static GumScriptTask *
+gum_snapshot_script_task_new (GumQuickScriptBackend * backend,
+                              const gchar * embed_script,
+                              const gchar * warmup_script,
+                              GCancellable * cancellable,
+                              GAsyncReadyCallback callback,
+                              gpointer user_data)
+{
+  GumScriptTask * task;
+  GumSnapshotScriptData * d;
+
+  d = g_slice_new (GumSnapshotScriptData);
+  d->embed_script = g_strdup (embed_script);
+  d->warmup_script = g_strdup (warmup_script);
+
+  task = gum_script_task_new ((GumScriptTaskFunc) gum_snapshot_script_task_run,
+      backend, cancellable, callback, user_data);
+  gum_script_task_set_task_data (task, d,
+      (GDestroyNotify) gum_snapshot_script_data_free);
+
+  return task;
+}
+
+static void
+gum_snapshot_script_task_run (GumScriptTask * task,
+                              GumQuickScriptBackend * self,
+                              GumSnapshotScriptData * d,
+                              GCancellable * cancellable)
+{
+  gum_script_task_return_error (task,
+      g_error_new (GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+        "not supported by the QuickJS runtime"));
+}
+
+static void
+gum_snapshot_script_data_free (GumSnapshotScriptData * d)
+{
+  g_free (d->embed_script);
+  g_free (d->warmup_script);
+
+  g_slice_free (GumSnapshotScriptData, d);
 }
 
 static void
