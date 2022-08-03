@@ -143,12 +143,13 @@ void
 gum_script_backend_create (GumScriptBackend * self,
                            const gchar * name,
                            const gchar * source,
+                           GBytes * snapshot,
                            GCancellable * cancellable,
                            GAsyncReadyCallback callback,
                            gpointer user_data)
 {
-  GUM_SCRIPT_BACKEND_GET_IFACE (self)->create (self, name, source, cancellable,
-      callback, user_data);
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->create (self, name, source, snapshot,
+      cancellable, callback, user_data);
 }
 
 GumScript *
@@ -164,21 +165,23 @@ GumScript *
 gum_script_backend_create_sync (GumScriptBackend * self,
                                 const gchar * name,
                                 const gchar * source,
+                                GBytes * snapshot,
                                 GCancellable * cancellable,
                                 GError ** error)
 {
   return GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_sync (self, name, source,
-      cancellable, error);
+      snapshot, cancellable, error);
 }
 
 void
 gum_script_backend_create_from_bytes (GumScriptBackend * self,
                                       GBytes * bytes,
+                                      GBytes * snapshot,
                                       GCancellable * cancellable,
                                       GAsyncReadyCallback callback,
                                       gpointer user_data)
 {
-  GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_from_bytes (self, bytes,
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_from_bytes (self, bytes, snapshot,
       cancellable, callback, user_data);
 }
 
@@ -194,11 +197,12 @@ gum_script_backend_create_from_bytes_finish (GumScriptBackend * self,
 GumScript *
 gum_script_backend_create_from_bytes_sync (GumScriptBackend * self,
                                            GBytes * bytes,
+                                           GBytes * snapshot,
                                            GCancellable * cancellable,
                                            GError ** error)
 {
   return GUM_SCRIPT_BACKEND_GET_IFACE (self)->create_from_bytes_sync (self,
-      bytes, cancellable, error);
+      bytes, snapshot, cancellable, error);
 }
 
 void
@@ -231,6 +235,38 @@ gum_script_backend_compile_sync (GumScriptBackend * self,
 {
   return GUM_SCRIPT_BACKEND_GET_IFACE (self)->compile_sync (self, name, source,
       cancellable, error);
+}
+
+void
+gum_script_backend_snapshot (GumScriptBackend * self,
+                             const gchar * embed_script,
+                             const gchar * warmup_script,
+                             GCancellable * cancellable,
+                             GAsyncReadyCallback callback,
+                             gpointer user_data)
+{
+  GUM_SCRIPT_BACKEND_GET_IFACE (self)->snapshot (self, embed_script,
+      warmup_script, cancellable, callback, user_data);
+}
+
+GBytes *
+gum_script_backend_snapshot_finish (GumScriptBackend * self,
+                                    GAsyncResult * result,
+                                    GError ** error)
+{
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->snapshot_finish (self, result,
+      error);
+}
+
+GBytes *
+gum_script_backend_snapshot_sync (GumScriptBackend * self,
+                                  const gchar * embed_script,
+                                  const gchar * warmup_script,
+                                  GCancellable * cancellable,
+                                  GError ** error)
+{
+  return GUM_SCRIPT_BACKEND_GET_IFACE (self)->snapshot_sync (self, embed_script,
+      warmup_script, cancellable, error);
 }
 
 void

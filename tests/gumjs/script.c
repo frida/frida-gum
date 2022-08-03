@@ -5419,10 +5419,10 @@ TESTCASE (invalid_script_should_return_null)
   GError * err = NULL;
 
   g_assert_null (gum_script_backend_create_sync (fixture->backend, "testcase",
-      "'", NULL, NULL));
+      "'", NULL, NULL, NULL));
 
   g_assert_null (gum_script_backend_create_sync (fixture->backend, "testcase",
-      "'", NULL, &err));
+      "'", NULL, NULL, &err));
   g_assert_nonnull (err);
   g_assert_true (g_str_has_prefix (err->message,
       "Script(line 1): SyntaxError: "));
@@ -9421,7 +9421,7 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   }
 
   script = gum_script_backend_create_from_bytes_sync (fixture->backend, code,
-      NULL, &error);
+      NULL, NULL, &error);
   if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     TestScriptMessageItem * item;
@@ -9467,7 +9467,7 @@ TESTCASE (script_should_not_leak_if_destroyed_before_load)
   ref_count_before = G_OBJECT (held_instance)->ref_count;
 
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "console.log('Hello World');", NULL, NULL);
+      "console.log('Hello World');", NULL, NULL, NULL);
   g_object_unref (script);
 
   g_assert_cmpuint (G_OBJECT (held_instance)->ref_count, ==, ref_count_before);
@@ -9488,7 +9488,7 @@ TESTCASE (script_memory_usage)
 
   /* Warm up */
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "const foo = 42;", NULL, NULL);
+      "const foo = 42;", NULL, NULL, NULL);
   gum_script_load_sync (script, NULL);
   gum_script_unload_sync (script, NULL);
   g_object_unref (script);
@@ -9499,7 +9499,7 @@ TESTCASE (script_memory_usage)
 
   g_timer_reset (timer);
   script = gum_script_backend_create_sync (fixture->backend, "testcase",
-      "const foo = 42;", NULL, NULL);
+      "const foo = 42;", NULL, NULL, NULL);
   g_print ("created in %u ms\n",
       (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
 
@@ -9929,7 +9929,7 @@ TESTCASE (debugger_can_be_enabled)
   script = gum_script_backend_create_sync (fixture->backend, "script",
       "const scriptTimer = setInterval(() => {\n"
       "  send('hello');\n"
-      "}, 1000);", NULL, NULL);
+      "}, 1000);", NULL, NULL, NULL);
   gum_script_set_message_handler (script, on_script_message, "script", NULL);
   gum_script_set_debug_message_handler (script, on_outgoing_debug_message,
       server, NULL);

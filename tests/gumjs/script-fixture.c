@@ -382,7 +382,7 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   va_end (args);
 
   fixture->script = gum_script_backend_create_sync (fixture->backend,
-      "testcase", source, NULL, &err);
+      "testcase", source, NULL, NULL, &err);
   if (err != NULL)
     g_printerr ("%s\n", err->message);
   g_assert_nonnull (fixture->script);
