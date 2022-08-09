@@ -9414,7 +9414,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   {
     g_assert_null (code);
     g_assert_nonnull (error);
-    g_assert_cmpstr (error->message, ==, "not yet supported by the V8 runtime");
+    g_assert_cmpstr (error->message, ==,
+        "compilation to bytecode is not supported by the V8 runtime");
     g_clear_error (&error);
 
     code = g_bytes_new (NULL, 0);
@@ -9450,7 +9451,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
   {
     g_assert_null (script);
     g_assert_nonnull (error);
-    g_assert_cmpstr (error->message, ==, "not yet supported by the V8 runtime");
+    g_assert_cmpstr (error->message, ==,
+        "script creation from bytecode is not supported by the V8 runtime");
     g_clear_error (&error);
   }
 
@@ -9861,19 +9863,13 @@ TESTCASE (globals_can_be_dynamically_generated)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "let totalGetCalls = 0;"
       "Script.setGlobalAccessHandler({"
       "  get(property) {"
-      "    totalGetCalls++;"
       "  },"
       "});"
       "(1, eval)('mushroom = 42;');"
-      "send(totalGetCalls);"
-      "send(mushroom);"
-      "send(totalGetCalls);");
-  EXPECT_SEND_MESSAGE_WITH ("0");
+      "send(mushroom);");
   EXPECT_SEND_MESSAGE_WITH ("42");
-  EXPECT_SEND_MESSAGE_WITH ("0");
   EXPECT_NO_MESSAGES ();
 }
 

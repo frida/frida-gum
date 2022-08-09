@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2012-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,8 +26,8 @@ struct _GumV8JSEventSink
   GumV8Core * core;
   GMainContext * main_context;
   GumEventType event_mask;
-  GumPersistent<Function>::type * on_receive;
-  GumPersistent<Function>::type * on_call_summary;
+  Global<Function> * on_receive;
+  Global<Function> * on_call_summary;
   GSource * source;
 };
 
@@ -106,12 +106,12 @@ gum_v8_event_sink_new (const GumV8EventSinkOptions * options)
     if (!options->on_receive.IsEmpty ())
     {
       sink->on_receive =
-          new GumPersistent<Function>::type (isolate, options->on_receive);
+          new Global<Function> (isolate, options->on_receive);
     }
     if (!options->on_call_summary.IsEmpty ())
     {
       sink->on_call_summary =
-          new GumPersistent<Function>::type (isolate, options->on_call_summary);
+          new Global<Function> (isolate, options->on_call_summary);
     }
 
     return GUM_EVENT_SINK (sink);

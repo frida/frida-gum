@@ -33,7 +33,7 @@
 # include "gumv8database.h"
 #endif
 
-#include <v8/v8-inspector.h>
+#include <v8-inspector.h>
 
 enum GumScriptState
 {
@@ -95,7 +95,7 @@ struct _GumV8Script
   GumV8CodeWriter code_writer;
   GumV8CodeRelocator code_relocator;
   GumV8Stalker stalker;
-  GumPersistent<v8::Context>::type * context;
+  v8::Global<v8::Context> * context;
   GumESProgram * program;
 
   GumScriptMessageHandler message_handler;
@@ -126,7 +126,7 @@ struct GumESProgram
   GHashTable * es_modules;
 
   gchar * global_filename;
-  GumPersistent<v8::Script>::type * global_code;
+  v8::Global<v8::Script> * global_code;
 };
 
 struct GumESAsset
@@ -138,7 +138,7 @@ struct GumESAsset
   gpointer data;
   gsize data_size;
 
-  GumPersistent<v8::Module>::type * module;
+  v8::Global<v8::Module> * module;
 };
 
 #endif

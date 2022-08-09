@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,8 +15,8 @@ using namespace v8;
 
 struct GumCModuleEntry
 {
-  GumPersistent<Object>::type * wrapper;
-  GumPersistent<Object>::type * symbols;
+  Global<Object> * wrapper;
+  Global<Object> * symbols;
   GumCModule * handle;
   GumV8CModule * module;
 };
@@ -94,7 +94,7 @@ _gum_v8_cmodule_realize (GumV8CModule * self)
   self->cmodules = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_cmodule_entry_free);
 
-  self->toolchain_key = new GumPersistent<String>::type (isolate,
+  self->toolchain_key = new Global<String> (isolate,
       _gum_v8_string_new_ascii (isolate, "toolchain"));
 }
 
@@ -374,10 +374,10 @@ gum_cmodule_entry_new (Local<Object> wrapper,
   const GumMemoryRange * range;
 
   auto entry = g_slice_new (GumCModuleEntry);
-  entry->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
+  entry->wrapper = new Global<Object> (isolate, wrapper);
   entry->wrapper->SetWeak (entry, gum_cmodule_entry_on_weak_notify,
       WeakCallbackType::kParameter);
-  entry->symbols = new GumPersistent<Object>::type (isolate, symbols);
+  entry->symbols = new Global<Object> (isolate, symbols);
   entry->handle = handle;
   entry->module = module;
 

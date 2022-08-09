@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -41,9 +41,9 @@ struct GumKernelScanContext
 {
   GumMemoryRange range;
   GumMatchPattern * pattern;
-  GumPersistent<Function>::type * on_match;
-  GumPersistent<Function>::type * on_error;
-  GumPersistent<Function>::type * on_complete;
+  Global<Function> * on_match;
+  Global<Function> * on_error;
+  Global<Function> * on_complete;
 
   GumV8Core * core;
 };
@@ -754,9 +754,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_scan)
   auto ctx = g_slice_new0 (GumKernelScanContext);
   ctx->range = range;
   ctx->pattern = pattern;
-  ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
-  ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
-  ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
+  ctx->on_match = new Global<Function> (isolate, on_match);
+  ctx->on_error = new Global<Function> (isolate, on_error);
+  ctx->on_complete = new Global<Function> (isolate, on_complete);
   ctx->core = core;
 
   _gum_v8_core_pin (core);

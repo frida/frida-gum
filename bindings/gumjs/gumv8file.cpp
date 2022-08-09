@@ -17,7 +17,7 @@ using namespace v8;
 
 struct GumFile
 {
-  GumPersistent<Object>::type * wrapper;
+  Global<Object> * wrapper;
   FILE * handle;
   GumV8File * module;
 };
@@ -433,8 +433,7 @@ gum_file_new (Local<Object> wrapper,
               GumV8File * module)
 {
   auto file = g_slice_new (GumFile);
-  file->wrapper =
-      new GumPersistent<Object>::type (module->core->isolate, wrapper);
+  file->wrapper = new Global<Object> (module->core->isolate, wrapper);
   file->wrapper->SetWeak (file, gum_file_on_weak_notify,
       WeakCallbackType::kParameter);
   file->handle = handle;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -77,7 +77,7 @@ _gum_v8_object_manager_add (GumV8ObjectManager * self,
 {
   auto object = g_slice_new (GumV8AnyObject);
 
-  auto * w = new GumPersistent<Object>::type (core->isolate, wrapper);
+  auto * w = new Global<Object> (core->isolate, wrapper);
   w->SetWeak (object, gum_v8_object_on_weak_notify,
       WeakCallbackType::kParameter);
   object->wrapper = w;
@@ -142,13 +142,11 @@ _gum_v8_object_operation_new (gsize size,
   auto op = (GumV8AnyObjectOperation *) g_slice_alloc (size);
 
   op->object = object;
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback.As<Function> ());
+  op->callback = new Global<Function> (isolate, callback.As<Function> ());
 
   op->core = core;
 
-  op->wrapper = new GumPersistent<Object>::type (isolate,
-      *object->wrapper);
+  op->wrapper = new Global<Object> (isolate, *object->wrapper);
   op->job = gum_script_job_new (core->scheduler, (GumScriptJobFunc) perform, op,
       (GDestroyNotify) gum_v8_object_operation_free);
   op->pending_dependencies = NULL;
@@ -270,8 +268,7 @@ _gum_v8_module_operation_new (gsize size,
 
   op->module = module;
   op->cancellable = manager->cancellable;
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback.As<Function> ());
+  op->callback = new Global<Function> (isolate, callback.As<Function> ());
 
   op->core = core;
 

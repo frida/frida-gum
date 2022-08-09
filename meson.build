@@ -506,13 +506,13 @@ if have_gumjs
     quickjs_dep_native = dependency('quickjs', native: true)
   endif
 
-  v8_dep = dependency('v8-8.0',
-    version: '>=8.8.273',
+  v8_dep = dependency('v8-10.0',
+    version: '>=10.6.122',
     required: get_option('v8'),
   )
   cdata.set('HAVE_V8', v8_dep.found())
   if v8_dep.found()
-    gumjs_extra_requires += 'v8-8.0'
+    gumjs_extra_requires += 'v8-10.0'
   endif
 
   if not (quickjs_dep.found() or v8_dep.found())

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -17,7 +17,7 @@ using namespace v8;
 
 struct GumSymbol
 {
-  GumPersistent<Object>::type * wrapper;
+  Global<Object> * wrapper;
   gboolean resolved;
   GumDebugSymbolDetails details;
   GumV8Symbol * module;
@@ -89,7 +89,7 @@ _gum_v8_symbol_init (GumV8Symbol * self,
       isolate);
   _gum_v8_class_add (klass, gumjs_symbol_values, module, isolate);
   _gum_v8_class_add (klass, gumjs_symbol_functions, module, isolate);
-  self->klass = new GumPersistent<FunctionTemplate>::type (isolate, klass);
+  self->klass = new Global<FunctionTemplate> (isolate, klass);
 }
 
 void
@@ -104,7 +104,7 @@ _gum_v8_symbol_realize (GumV8Symbol * self)
   auto klass = Local<FunctionTemplate>::New (isolate, *self->klass);
   auto object = klass->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, 0, nullptr).ToLocalChecked ();
-  self->template_object = new GumPersistent<Object>::type (isolate, object);
+  self->template_object = new Global<Object> (isolate, object);
 }
 
 void
@@ -293,7 +293,7 @@ gum_symbol_new (GumV8Symbol * module,
   auto object = template_object->Clone ();
 
   auto s = g_slice_new (GumSymbol);
-  s->wrapper = new GumPersistent<Object>::type (isolate, object);
+  s->wrapper = new Global<Object> (isolate, object);
   s->wrapper->SetWeak (s, gum_symbol_on_weak_notify,
       WeakCallbackType::kParameter);
   s->module = module;

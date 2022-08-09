@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -57,9 +57,9 @@ struct GumMemoryScanContext
 {
   GumMemoryRange range;
   GumMatchPattern * pattern;
-  GumPersistent<Function>::type * on_match;
-  GumPersistent<Function>::type * on_error;
-  GumPersistent<Function>::type * on_complete;
+  Global<Function> * on_match;
+  Global<Function> * on_error;
+  Global<Function> * on_complete;
 
   GumV8Core * core;
 };
@@ -925,9 +925,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   auto ctx = g_slice_new0 (GumMemoryScanContext);
   ctx->range = range;
   ctx->pattern = pattern;
-  ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
-  ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
-  ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
+  ctx->on_match = new Global<Function> (isolate, on_match);
+  ctx->on_error = new Global<Function> (isolate, on_error);
+  ctx->on_complete = new Global<Function> (isolate, on_complete);
   ctx->core = core;
 
   _gum_v8_core_pin (core);
@@ -1121,7 +1121,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
   g_array_free (ranges, TRUE);
 
   delete module->on_access;
-  module->on_access = new GumPersistent<Function>::type (isolate, on_access);
+  module->on_access = new Global<Function> (isolate, on_access);
 
   GError * error = NULL;
   gum_memory_access_monitor_enable (module->monitor, &error);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,8 +18,8 @@ struct GumV8Thread
   GumBacktracer * accurate_backtracer;
   GumBacktracer * fuzzy_backtracer;
 
-  GumPersistent<v8::Symbol>::type * accurate_enum_value;
-  GumPersistent<v8::Symbol>::type * fuzzy_enum_value;
+  v8::Global<v8::Symbol> * accurate_enum_value;
+  v8::Global<v8::Symbol> * fuzzy_enum_value;
 };
 
 G_GNUC_INTERNAL void _gum_v8_thread_init (GumV8Thread * self,

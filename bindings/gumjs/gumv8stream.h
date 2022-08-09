@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,9 +15,9 @@ struct GumV8Stream
 
   GumV8ObjectManager objects;
 
-  GumPersistent<v8::FunctionTemplate>::type * io_stream;
-  GumPersistent<v8::FunctionTemplate>::type * input_stream;
-  GumPersistent<v8::FunctionTemplate>::type * output_stream;
+  v8::Global<v8::FunctionTemplate> * io_stream;
+  v8::Global<v8::FunctionTemplate> * input_stream;
+  v8::Global<v8::FunctionTemplate> * output_stream;
 };
 
 typedef GumV8Object<GIOStream, GumV8Stream> GumV8IOStream;

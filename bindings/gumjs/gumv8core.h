@@ -17,7 +17,7 @@
 #include <ffi.h>
 #include <gum/gumexceptor.h>
 #include <gum/gumprocess.h>
-#include <v8/v8.h>
+#include <v8.h>
 
 #define GUMJS_NATIVE_POINTER_VALUE(o) \
     (o)->GetInternalField (0).As<External> ()->Value ()
@@ -32,12 +32,6 @@
 
 struct GumV8ExceptionSink;
 struct GumV8MessageSink;
-
-template <typename T>
-struct GumPersistent
-{
-  typedef v8::Persistent<T, v8::CopyablePersistentTraits<T> > type;
-};
 
 typedef void (* GumV8FlushNotify) (GumV8Script * script);
 typedef void (* GumV8MessageEmitter) (GumV8Script * script,
@@ -69,8 +63,8 @@ struct GumV8Core
   GumV8ExceptionSink * unhandled_exception_sink;
   GumV8MessageSink * incoming_message_sink;
 
-  GumPersistent<v8::Function>::type * on_global_get;
-  GumPersistent<v8::Object>::type * global_receiver;
+  v8::Global<v8::Function> * on_global_get;
+  v8::Global<v8::Object> * global_receiver;
 
   GHashTable * weak_refs;
   guint last_weak_ref_id;
@@ -91,40 +85,40 @@ struct GumV8Core
 
   GHashTable * source_maps;
 
-  GumPersistent<v8::FunctionTemplate>::type * int64;
-  GumPersistent<v8::Object>::type * int64_value;
+  v8::Global<v8::FunctionTemplate> * int64;
+  v8::Global<v8::Object> * int64_value;
 
-  GumPersistent<v8::FunctionTemplate>::type * uint64;
-  GumPersistent<v8::Object>::type * uint64_value;
+  v8::Global<v8::FunctionTemplate> * uint64;
+  v8::Global<v8::Object> * uint64_value;
 
-  GumPersistent<v8::FunctionTemplate>::type * native_pointer;
-  GumPersistent<v8::Object>::type * native_pointer_value;
-  GumPersistent<v8::String>::type * handle_key;
+  v8::Global<v8::FunctionTemplate> * native_pointer;
+  v8::Global<v8::Object> * native_pointer_value;
+  v8::Global<v8::String> * handle_key;
 
-  GumPersistent<v8::FunctionTemplate>::type * native_function;
-  GumPersistent<v8::String>::type * abi_key;
-  GumPersistent<v8::String>::type * scheduling_key;
-  GumPersistent<v8::String>::type * exceptions_key;
-  GumPersistent<v8::String>::type * traps_key;
-  GumPersistent<v8::Object>::type * native_return_value;
-  GumPersistent<v8::String>::type * value_key;
-  GumPersistent<v8::String>::type * system_error_key;
+  v8::Global<v8::FunctionTemplate> * native_function;
+  v8::Global<v8::String> * abi_key;
+  v8::Global<v8::String> * scheduling_key;
+  v8::Global<v8::String> * exceptions_key;
+  v8::Global<v8::String> * traps_key;
+  v8::Global<v8::Object> * native_return_value;
+  v8::Global<v8::String> * value_key;
+  v8::Global<v8::String> * system_error_key;
 
-  GumPersistent<v8::FunctionTemplate>::type * native_callback;
-  GumPersistent<v8::FunctionTemplate>::type * callback_context;
-  GumPersistent<v8::Object>::type * callback_context_value;
+  v8::Global<v8::FunctionTemplate> * native_callback;
+  v8::Global<v8::FunctionTemplate> * callback_context;
+  v8::Global<v8::Object> * callback_context_value;
 
-  GumPersistent<v8::FunctionTemplate>::type * cpu_context;
-  GumPersistent<v8::Object>::type * cpu_context_value;
+  v8::Global<v8::FunctionTemplate> * cpu_context;
+  v8::Global<v8::Object> * cpu_context_value;
 
-  GumPersistent<v8::FunctionTemplate>::type * match_pattern;
+  v8::Global<v8::FunctionTemplate> * match_pattern;
 
-  GumPersistent<v8::FunctionTemplate>::type * source_map;
+  v8::Global<v8::FunctionTemplate> * source_map;
 };
 
 struct GumV8NativeResource
 {
-  GumPersistent<v8::Object>::type * instance;
+  v8::Global<v8::Object> * instance;
   gpointer data;
   gsize size;
   GDestroyNotify notify;
@@ -133,7 +127,7 @@ struct GumV8NativeResource
 
 struct GumV8KernelResource
 {
-  GumPersistent<v8::Object>::type * instance;
+  v8::Global<v8::Object> * instance;
   GumAddress data;
   gsize size;
   GumV8KernelDestroyNotify notify;
@@ -142,7 +136,7 @@ struct GumV8KernelResource
 
 struct GumV8ByteArray
 {
-  GumPersistent<v8::Object>::type * instance;
+  v8::Global<v8::Object> * instance;
   gpointer data;
   gsize size;
   GumV8Core * core;
@@ -152,9 +146,9 @@ struct GumV8NativeCallback
 {
   gint ref_count;
 
-  GumPersistent<v8::Object>::type * wrapper;
+  v8::Global<v8::Object> * wrapper;
 
-  GumPersistent<v8::Function>::type * func;
+  v8::Global<v8::Function> * func;
   ffi_closure * closure;
   ffi_cif cif;
   ffi_type ** atypes;

@@ -170,7 +170,7 @@ public:
   {
   public:
     explicit JobDelegate (GumV8JobState * parent, bool is_joining_thread);
-    ~JobDelegate ();
+    virtual ~JobDelegate ();
 
     void NotifyConcurrencyIncrease () override;
     bool ShouldYield () override;
@@ -210,9 +210,7 @@ public:
   void Join () override;
   void Cancel () override;
   void CancelAndDetach () override;
-  bool IsCompleted () override { return !IsActive (); }
   bool IsActive () override;
-  bool IsRunning () override { return IsValid (); }
   bool IsValid () override { return state != nullptr; }
   bool UpdatePriorityEnabled () const override { return true; }
   void UpdatePriority (TaskPriority new_priority) override;
@@ -251,6 +249,9 @@ public:
   bool ReleasePages (void * address, size_t length, size_t new_length) override;
   bool SetPermissions (void * address, size_t length,
       Permission permissions) override;
+  bool RecommitPages (void * address, size_t length, Permission permissions)
+      override;
+  bool DecommitPages (void * address, size_t size) override;
 };
 
 class GumV8ArrayBufferAllocator : public ArrayBuffer::Allocator
@@ -456,7 +457,7 @@ GumV8Platform::Dispose ()
   CancelPendingOperations ();
 
   V8::Dispose ();
-  V8::ShutdownPlatform ();
+  V8::DisposePlatform ();
 }
 
 void
@@ -805,8 +806,8 @@ GumV8Platform::IdleTasksEnabled (Isolate * isolate)
 }
 
 std::unique_ptr<JobHandle>
-GumV8Platform::PostJob (TaskPriority priority,
-                        std::unique_ptr<JobTask> job_task)
+GumV8Platform::CreateJob (TaskPriority priority,
+                          std::unique_ptr<JobTask> job_task)
 {
   size_t num_worker_threads = NumberOfWorkerThreads ();
   if (priority == TaskPriority::kBestEffort)
@@ -1405,7 +1406,6 @@ GumV8JobState::JobDelegate::GetTaskId ()
 GumV8JobHandle::GumV8JobHandle (std::shared_ptr<GumV8JobState> state)
   : state (std::move (state))
 {
-  this->state->NotifyConcurrencyIncrease ();
 }
 
 GumV8JobHandle::~GumV8JobHandle ()
@@ -1586,6 +1586,25 @@ GumV8PageAllocator::SetPermissions (void * address,
     gum_memory_decommit (address, length);
   else
     gum_memory_commit (address, length, prot);
+
+  return true;
+}
+
+bool
+GumV8PageAllocator::RecommitPages (void * address,
+                                   size_t length,
+                                   Permission permissions)
+{
+  return SetPermissions (address, length, permissions);
+}
+
+bool
+GumV8PageAllocator::DecommitPages (void * address,
+                                   size_t size)
+{
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
+  gum_memory_decommit (address, size);
 
   return true;
 }
@@ -1787,15 +1806,16 @@ gum_page_protection_from_v8 (PageAllocator::Permission permission)
   switch (permission)
   {
     case PageAllocator::kNoAccess:
+    case PageAllocator::kNoAccessWillJitLater:
       return GUM_PAGE_NO_ACCESS;
     case PageAllocator::kRead:
       return GUM_PAGE_READ;
     case PageAllocator::kReadWrite:
       return GUM_PAGE_RW;
-    case PageAllocator::kReadExecute:
-      return GUM_PAGE_RX;
     case PageAllocator::kReadWriteExecute:
       return GUM_PAGE_RWX;
+    case PageAllocator::kReadExecute:
+      return GUM_PAGE_RX;
     default:
       g_assert_not_reached ();
       return GUM_PAGE_NO_ACCESS;

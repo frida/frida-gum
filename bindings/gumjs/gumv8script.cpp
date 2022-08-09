@@ -118,7 +118,8 @@ static void gum_v8_script_set_property (GObject * object, guint property_id,
 static GumESProgram * gum_v8_script_compile (GumV8Script * self,
     Isolate * isolate, Local<Context> context, GError ** error);
 static MaybeLocal<Module> gum_resolve_module (Local<Context> context,
-    Local<String> specifier, Local<Module> referrer);
+    Local<String> specifier, Local<FixedArray> import_assertions,
+    Local<Module> referrer);
 static gchar * gum_normalize_module_name (const gchar * base_name,
     const gchar * name, GumESProgram * program);
 static MaybeLocal<Module> gum_ensure_module_loaded (Isolate * isolate,
@@ -505,7 +506,7 @@ gum_v8_script_create_context (GumV8Script * self,
     g_signal_emit (self, gum_v8_script_signals[CONTEXT_CREATED], 0, &context);
     if (self->inspector != nullptr)
       gum_v8_script_announce_context (self, context);
-    self->context = new GumPersistent<Context>::type (isolate, context);
+    self->context = new Global<Context> (isolate, context);
     Context::Scope context_scope (context);
     _gum_v8_core_realize (&self->core);
     _gum_v8_kernel_realize (&self->kernel);
@@ -671,7 +672,7 @@ gum_v8_script_compile (GumV8Script * self,
 
     auto resource_name = String::NewFromUtf8 (isolate, program->global_filename)
         .ToLocalChecked ();
-    ScriptOrigin origin (resource_name);
+    ScriptOrigin origin (isolate, resource_name);
 
     auto source_str = String::NewFromUtf8 (isolate, source).ToLocalChecked ();
 
@@ -680,7 +681,7 @@ gum_v8_script_compile (GumV8Script * self,
     auto maybe_code = Script::Compile (context, source_str, &origin);
     if (maybe_code.ToLocal (&code))
     {
-      program->global_code = new GumPersistent<Script>::type (isolate, code);
+      program->global_code = new Global<Script> (isolate, code);
     }
     else
     {
@@ -721,6 +722,7 @@ beach:
 static MaybeLocal<Module>
 gum_resolve_module (Local<Context> context,
                     Local<String> specifier,
+                    Local<FixedArray> import_assertions,
                     Local<Module> referrer)
 {
   auto isolate = context->GetIsolate ();
@@ -832,15 +834,16 @@ gum_ensure_module_loaded (Isolate * isolate,
 
   auto resource_name = String::NewFromUtf8 (isolate, asset->name)
       .ToLocalChecked ();
-  auto resource_line_offset = Local<Integer> ();
-  auto resource_column_offset = Local<Integer> ();
-  auto resource_is_shared_cross_origin = Local<Boolean> ();
-  auto script_id = Local<Integer> ();
+  int resource_line_offset = 0;
+  int resource_column_offset = 0;
+  bool resource_is_shared_cross_origin = false;
+  int script_id = -1;
   auto source_map_url = Local<Value> ();
-  auto resource_is_opaque = Local<Boolean> ();
-  auto is_wasm = Local<Boolean> ();
-  auto is_module = True (isolate);
+  bool resource_is_opaque = false;
+  bool is_wasm = false;
+  bool is_module = true;
   ScriptOrigin origin (
+      isolate,
       resource_name,
       resource_line_offset,
       resource_column_offset,
@@ -878,7 +881,7 @@ gum_ensure_module_loaded (Isolate * isolate,
     return MaybeLocal<Module> ();
   }
 
-  asset->module = new GumPersistent<Module>::type (isolate, module);
+  asset->module = new Global<Module> (isolate, module);
 
   g_hash_table_insert (program->es_modules,
       GINT_TO_POINTER (module->ScriptId ()), asset);
@@ -1601,7 +1604,7 @@ gum_v8_script_connect_inspector_channel (GumV8Script * self,
   (*self->channels)[id] = std::unique_ptr<GumInspectorChannel> (channel);
 
   auto session = self->inspector->connect (self->context_group_id, channel,
-      StringView ());
+      StringView (), V8Inspector::ClientTrustLevel::kFullyTrusted);
   channel->takeSession (std::move (session));
 }
 

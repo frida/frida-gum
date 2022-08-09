@@ -27,8 +27,6 @@
     GUM_V8_PLATFORM_FLAGS \
     "--use-strict " \
     "--expose-gc " \
-    "--es-staging " \
-    "--harmony-top-level-await " \
     "--wasm-staging " \
     "--experimental-wasm-eh " \
     "--experimental-wasm-simd " \
@@ -657,7 +655,7 @@ gum_create_snapshot (const gchar * embed_script,
     }
   }
 
-  StartupData blob;
+  StartupData blob = {};
   if (success)
     blob = creator.CreateBlob (SnapshotCreator::FunctionCodeHandling::kKeep);
 
@@ -683,7 +681,7 @@ gum_warm_up_snapshot (StartupData cold,
     success = gum_run_code (isolate, context, warmup_script, "warmup", error);
   }
 
-  StartupData blob;
+  StartupData blob = {};
   if (success)
   {
     {

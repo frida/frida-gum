@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -82,7 +82,7 @@ struct GumV8ArgsParseScope
 
 struct GumCpuContextWrapper
 {
-  GumPersistent<Object>::type * instance;
+  Global<Object> * instance;
   GumCpuContext * cpu_context;
 };
 
@@ -771,7 +771,7 @@ _gum_v8_native_resource_new (gpointer data,
                              GumV8Core * core)
 {
   auto resource = g_slice_new (GumV8NativeResource);
-  resource->instance = new GumPersistent<Object>::type (core->isolate,
+  resource->instance = new Global<Object> (core->isolate,
       _gum_v8_native_pointer_new (data, core));
   resource->instance->SetWeak (resource, gum_v8_native_resource_on_weak_notify,
       WeakCallbackType::kParameter);
@@ -815,7 +815,7 @@ _gum_v8_kernel_resource_new (GumAddress data,
                              GumV8Core * core)
 {
   auto resource = g_slice_new (GumV8KernelResource);
-  resource->instance = new GumPersistent<Object>::type (core->isolate,
+  resource->instance = new Global<Object> (core->isolate,
       _gum_v8_uint64_new (data, core));
   resource->instance->SetWeak (resource, gum_v8_kernel_resource_on_weak_notify,
       WeakCallbackType::kParameter);
@@ -1435,8 +1435,7 @@ _gum_v8_throw_native (GumExceptionDetails * details,
 {
   Local<Object> ex, context;
   _gum_v8_parse_exception_details (details, ex, context, core);
-  _gum_v8_cpu_context_free_later (
-      new GumPersistent<Object>::type (core->isolate, context),
+  _gum_v8_cpu_context_free_later (new Global<Object> (core->isolate, context),
       core);
   core->isolate->ThrowException (ex);
 }
@@ -1504,7 +1503,7 @@ _gum_v8_cpu_context_new_mutable (GumCpuContext * cpu_context,
 }
 
 void
-_gum_v8_cpu_context_free_later (GumPersistent<Object>::type * cpu_context,
+_gum_v8_cpu_context_free_later (Global<Object> * cpu_context,
                                 GumV8Core * core)
 {
   auto isolate = core->isolate;

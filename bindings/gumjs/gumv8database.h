@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,8 +16,8 @@ struct GumV8Database
 
   GHashTable * databases;
   GHashTable * statements;
-  GumPersistent<v8::FunctionTemplate>::type * database;
-  GumPersistent<v8::FunctionTemplate>::type * statement;
+  v8::Global<v8::FunctionTemplate> * database;
+  v8::Global<v8::FunctionTemplate> * statement;
 
   GumMemoryVfs * memory_vfs;
 };

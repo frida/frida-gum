@@ -18,13 +18,13 @@ struct GumV8Instruction
   csh capstone;
   GHashTable * instructions;
 
-  GumPersistent<v8::FunctionTemplate>::type * klass;
-  GumPersistent<v8::Object>::type * template_object;
+  v8::Global<v8::FunctionTemplate> * klass;
+  v8::Global<v8::Object> * template_object;
 };
 
 struct GumV8InstructionValue
 {
-  GumPersistent<v8::Object>::type * object;
+  v8::Global<v8::Object> * object;
   const cs_insn * insn;
   gboolean owns_memory;
   gconstpointer target;

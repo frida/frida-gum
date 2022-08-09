@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -50,7 +50,7 @@ public:
 
 struct GumV8ModuleMap
 {
-  GumPersistent<Object>::type * wrapper;
+  Global<Object> * wrapper;
   GumModuleMap * handle;
 
   GumV8Module * module;
@@ -58,7 +58,7 @@ struct GumV8ModuleMap
 
 struct GumV8ModuleFilter
 {
-  GumPersistent<Function>::type * callback;
+  Global<Function> * callback;
 
   GumV8Module * module;
 };
@@ -146,7 +146,7 @@ _gum_v8_module_init (GumV8Module * self,
   auto klass = _gum_v8_create_class ("Module", nullptr, scope, module, isolate);
   _gum_v8_class_add_static (klass, gumjs_module_static_functions, module,
       isolate);
-  self->klass = new GumPersistent<FunctionTemplate>::type (isolate, klass);
+  self->klass = new Global<FunctionTemplate> (isolate, klass);
 
   auto map = _gum_v8_create_class ("ModuleMap", gumjs_module_map_construct,
       scope, module, isolate);
@@ -164,20 +164,19 @@ _gum_v8_module_realize (GumV8Module * self)
       (GDestroyNotify) gum_v8_module_map_free);
 
   auto type_key = _gum_v8_string_new_ascii (isolate, "type");
-  self->type_key = new GumPersistent<String>::type (isolate, type_key);
+  self->type_key = new Global<String> (isolate, type_key);
   auto name_key = _gum_v8_string_new_ascii (isolate, "name");
-  self->name_key = new GumPersistent<String>::type (isolate, name_key);
+  self->name_key = new Global<String> (isolate, name_key);
   auto module_key = _gum_v8_string_new_ascii (isolate, "module");
-  self->module_key = new GumPersistent<String>::type (isolate, module_key);
+  self->module_key = new Global<String> (isolate, module_key);
   auto address_key = _gum_v8_string_new_ascii (isolate, "address");
-  self->address_key = new GumPersistent<String>::type (isolate, address_key);
+  self->address_key = new Global<String> (isolate, address_key);
   auto slot_key = _gum_v8_string_new_ascii (isolate, "slot");
-  self->slot_key = new GumPersistent<String>::type (isolate, slot_key);
+  self->slot_key = new Global<String> (isolate, slot_key);
 
   auto function_value = _gum_v8_string_new_ascii (isolate, "function");
   auto variable_value = _gum_v8_string_new_ascii (isolate, "variable");
-  self->variable_value = new GumPersistent<String>::type (isolate,
-      variable_value);
+  self->variable_value = new Global<String> (isolate, variable_value);
 
   auto empty_string = String::Empty (isolate);
 
@@ -187,14 +186,14 @@ _gum_v8_module_realize (GumV8Module * self)
   imp->Set (context, module_key, empty_string).FromJust ();
   imp->Set (context, address_key, _gum_v8_native_pointer_new (
       GSIZE_TO_POINTER (NULL), self->core)).FromJust ();
-  self->import_value = new GumPersistent<Object>::type (isolate, imp);
+  self->import_value = new Global<Object> (isolate, imp);
 
   auto exp = Object::New (isolate);
   exp->Set (context, type_key, function_value).FromJust ();
   exp->Set (context, name_key, empty_string).FromJust ();
   exp->Set (context, address_key, _gum_v8_native_pointer_new (
       GSIZE_TO_POINTER (NULL), self->core)).FromJust ();
-  self->export_value = new GumPersistent<Object>::type (isolate, exp);
+  self->export_value = new Global<Object> (isolate, exp);
 }
 
 void
@@ -583,8 +582,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
     GumV8ModuleFilter * filter;
 
     filter = g_slice_new (GumV8ModuleFilter);
-    filter->callback =
-        new GumPersistent<Function>::type (isolate, filter_callback);
+    filter->callback = new Global<Function> (isolate, filter_callback);
     filter->module = module;
 
     handle = gum_module_map_new_filtered (
@@ -690,8 +688,7 @@ gum_v8_module_map_new (Local<Object> wrapper,
                        GumV8Module * module)
 {
   auto map = g_slice_new (GumV8ModuleMap);
-  map->wrapper =
-      new GumPersistent<Object>::type (module->core->isolate, wrapper);
+  map->wrapper = new Global<Object> (module->core->isolate, wrapper);
   map->wrapper->SetWeak (map, gum_v8_module_map_on_weak_notify,
       WeakCallbackType::kParameter);
   map->handle = handle;
