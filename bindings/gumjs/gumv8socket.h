@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,8 +15,8 @@ struct GumV8Socket
 
   GumV8ObjectManager objects;
 
-  GumPersistent<v8::FunctionTemplate>::type * listener;
-  GumPersistent<v8::FunctionTemplate>::type * connection;
+  v8::Global<v8::FunctionTemplate> * listener;
+  v8::Global<v8::FunctionTemplate> * connection;
 };
 
 typedef GumV8Object<GSocketListener, GumV8Socket> GumV8SocketListener;

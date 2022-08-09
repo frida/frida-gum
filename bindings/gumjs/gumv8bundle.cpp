@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -28,7 +28,7 @@ gum_v8_bundle_new (Isolate * isolate,
   {
     auto resource_name_str = g_strconcat ("/_", module->name, NULL);
     auto resource_name = _gum_v8_string_new_ascii (isolate, resource_name_str);
-    ScriptOrigin origin (resource_name);
+    ScriptOrigin origin (isolate, resource_name);
     g_free (resource_name_str);
 
     auto source_string = String::NewFromUtf8 (isolate, module->source_code)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,7 +14,7 @@ using namespace v8;
 
 struct GumDatabase
 {
-  GumPersistent<Object>::type * wrapper;
+  Global<Object> * wrapper;
   sqlite3 * handle;
   gchar * path;
   gboolean is_virtual;
@@ -23,7 +23,7 @@ struct GumDatabase
 
 struct GumStatement
 {
-  GumPersistent<Object>::type * wrapper;
+  Global<Object> * wrapper;
   sqlite3_stmt * handle;
   GumV8Database * module;
 };
@@ -109,14 +109,12 @@ _gum_v8_database_init (GumV8Database * self,
   _gum_v8_class_add_static (database, gumjs_database_module_functions, module,
       isolate);
   _gum_v8_class_add (database, gumjs_database_functions, module, isolate);
-  self->database =
-      new GumPersistent<FunctionTemplate>::type (isolate, database);
+  self->database = new Global<FunctionTemplate> (isolate, database);
 
   auto statement = _gum_v8_create_class ("SqliteStatement", nullptr, scope,
       module, isolate);
   _gum_v8_class_add (statement, gumjs_statement_functions, module, isolate);
-  self->statement =
-      new GumPersistent<FunctionTemplate>::type (isolate, statement);
+  self->statement = new Global<FunctionTemplate> (isolate, statement);
 
   self->memory_vfs = gum_memory_vfs_new ();
   sqlite3_vfs_register (&self->memory_vfs->vfs, FALSE);
@@ -354,7 +352,7 @@ gum_database_new (sqlite3 * handle,
       ->NewInstance (context, 0, nullptr).ToLocalChecked ();
 
   auto database = g_slice_new (GumDatabase);
-  database->wrapper = new GumPersistent<Object>::type (isolate, object);
+  database->wrapper = new Global<Object> (isolate, object);
   database->wrapper->SetWeak (database, gum_database_on_weak_notify,
       WeakCallbackType::kParameter);
   database->handle = handle;
@@ -514,7 +512,7 @@ gum_statement_new (sqlite3_stmt * handle,
       ->NewInstance (context, 0, nullptr).ToLocalChecked ();
 
   auto statement = g_slice_new (GumStatement);
-  statement->wrapper = new GumPersistent<Object>::type (isolate, object);
+  statement->wrapper = new Global<Object> (isolate, object);
   statement->wrapper->SetWeak (statement, gum_statement_on_weak_notify,
       WeakCallbackType::kParameter);
   statement->handle = handle;

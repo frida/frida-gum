@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -99,9 +99,9 @@ ScriptScope::PerformPendingIO ()
 
     if (!g_queue_is_empty (tick_callbacks))
     {
-      GumPersistent<Function>::type * tick_callback;
+      Global<Function> * tick_callback;
       auto receiver = Undefined (isolate);
-      while ((tick_callback = (GumPersistent<Function>::type *)
+      while ((tick_callback = (Global<Function> *)
           g_queue_pop_head (tick_callbacks)) != nullptr)
       {
         auto callback = Local<Function>::New (isolate, *tick_callback);
@@ -136,8 +136,8 @@ ScriptScope::PerformPendingIO ()
 void
 ScriptScope::AddTickCallback (Local<Function> callback)
 {
-  g_queue_push_tail (tick_callbacks, new GumPersistent<Function>::type (
-      parent->isolate, callback));
+  g_queue_push_tail (tick_callbacks,
+      new Global<Function> (parent->isolate, callback));
 }
 
 void

@@ -48,7 +48,7 @@ using namespace v8;
 
 struct GumV8ExceptionHandler
 {
-  GumPersistent<Function>::type * callback;
+  Global<Function> * callback;
 
   GumV8Core * core;
 };
@@ -227,8 +227,8 @@ gum_emit_thread (const GumThreadDetails * details,
 
   auto proceed = mc->OnMatch (thread);
 
-  _gum_v8_cpu_context_free_later (
-      new GumPersistent<Object>::type (isolate, cpu_context), core);
+  _gum_v8_cpu_context_free_later (new Global<Object> (isolate, cpu_context),
+      core);
 
   return proceed;
 }
@@ -430,8 +430,7 @@ gum_v8_exception_handler_new (Local<Function> callback,
                               GumV8Core * core)
 {
   auto handler = g_slice_new (GumV8ExceptionHandler);
-  handler->callback =
-      new GumPersistent<Function>::type (core->isolate, callback);
+  handler->callback = new Global<Function> (core->isolate, callback);
   handler->core = core;
 
   gum_exceptor_add (core->exceptor,
@@ -478,8 +477,7 @@ gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
       handled = result.As<Boolean> ()->Value ();
   }
 
-  _gum_v8_cpu_context_free_later (
-      new GumPersistent<Object>::type (isolate, context), core);
+  _gum_v8_cpu_context_free_later (new Global<Object> (isolate, context), core);
 
   return handled;
 }

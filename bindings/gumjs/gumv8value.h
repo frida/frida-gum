@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -110,7 +110,7 @@ G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new_immutable (
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new_mutable (
     GumCpuContext * cpu_context, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_cpu_context_free_later (
-    GumPersistent<v8::Object>::type * cpu_context, GumV8Core * core);
+    v8::Global<v8::Object> * cpu_context, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_cpu_context_get (
     v8::Local<v8::Value> value, GumCpuContext ** context, GumV8Core * core);
 

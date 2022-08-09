@@ -120,7 +120,7 @@ _gum_v8_instruction_init (GumV8Instruction * self,
       isolate);
   _gum_v8_class_add (klass, gumjs_instruction_values, module, isolate);
   _gum_v8_class_add (klass, gumjs_instruction_functions, module, isolate);
-  self->klass = new GumPersistent<FunctionTemplate>::type (isolate, klass);
+  self->klass = new Global<FunctionTemplate> (isolate, klass);
 }
 
 void
@@ -135,7 +135,7 @@ _gum_v8_instruction_realize (GumV8Instruction * self)
   auto klass = Local<FunctionTemplate>::New (isolate, *self->klass);
   auto object = klass->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, 0, nullptr).ToLocalChecked ();
-  self->template_object = new GumPersistent<Object>::type (isolate, object);
+  self->template_object = new Global<Object> (isolate, object);
 }
 
 void
@@ -203,7 +203,7 @@ _gum_v8_instruction_new_persistent (GumV8Instruction * module)
 
   auto template_object = Local<Object>::New (isolate, *module->template_object);
   auto object = template_object->Clone ();
-  value->object = new GumPersistent<Object>::type (isolate, object);
+  value->object = new Global<Object> (isolate, object);
   object->SetAlignedPointerInInternalField (0, value);
 
   return value;

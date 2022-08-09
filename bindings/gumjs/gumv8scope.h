@@ -10,7 +10,7 @@
 
 #include "gumv8script.h"
 
-#include <v8/v8.h>
+#include <v8.h>
 
 struct GumV8Core;
 

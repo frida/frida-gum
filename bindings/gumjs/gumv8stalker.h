@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,12 +29,12 @@ struct GumV8Stalker
   GHashTable * default_iterators;
   GHashTable * special_iterators;
 
-  GumPersistent<v8::FunctionTemplate>::type * default_iterator;
-  GumPersistent<v8::FunctionTemplate>::type * special_iterator;
-  GumPersistent<v8::ObjectTemplate>::type * probe_args;
+  v8::Global<v8::FunctionTemplate> * default_iterator;
+  v8::Global<v8::FunctionTemplate> * special_iterator;
+  v8::Global<v8::ObjectTemplate> * probe_args;
 
-  GumPersistent<v8::Object>::type * default_iterator_value;
-  GumPersistent<v8::Object>::type * special_iterator_value;
+  v8::Global<v8::Object> * default_iterator_value;
+  v8::Global<v8::Object> * special_iterator_value;
 
   GumV8StalkerDefaultIterator * cached_default_iterator;
   gboolean cached_default_iterator_in_use;

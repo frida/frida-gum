@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,8 +15,8 @@ struct GumV8Symbol
 
   GHashTable * symbols;
 
-  GumPersistent<v8::FunctionTemplate>::type * klass;
-  GumPersistent<v8::Object>::type * template_object;
+  v8::Global<v8::FunctionTemplate> * klass;
+  v8::Global<v8::Object> * template_object;
 };
 
 G_GNUC_INTERNAL void _gum_v8_symbol_init (GumV8Symbol * self,

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -148,8 +148,7 @@ _gum_v8_socket_init (GumV8Socket * self,
       gumjs_socket_listener_construct, scope, module, isolate);
   _gum_v8_class_add (listener, gumjs_socket_listener_functions, module,
       isolate);
-  self->listener =
-      new GumPersistent<FunctionTemplate>::type (isolate, listener);
+  self->listener = new Global<FunctionTemplate> (isolate, listener);
 
   auto connection = _gum_v8_create_class ("SocketConnection",
       gumjs_socket_connection_construct, scope, module, isolate);
@@ -158,8 +157,7 @@ _gum_v8_socket_init (GumV8Socket * self,
   connection->Inherit (io_stream);
   _gum_v8_class_add (connection, gumjs_socket_connection_functions, module,
       isolate);
-  self->connection =
-      new GumPersistent<FunctionTemplate>::type (isolate, connection);
+  self->connection = new Global<FunctionTemplate> (isolate, connection);
 }
 
 void

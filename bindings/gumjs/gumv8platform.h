@@ -13,7 +13,7 @@
 #include <functional>
 #include <map>
 #include <unordered_set>
-#include <v8/v8-platform.h>
+#include <v8-platform.h>
 
 class GumV8Operation;
 class GumV8MainContextOperation;
@@ -55,7 +55,7 @@ public:
   void CallDelayedOnWorkerThread (std::unique_ptr<v8::Task> task,
       double delay_in_seconds) override;
   bool IdleTasksEnabled (v8::Isolate * isolate) override;
-  std::unique_ptr<v8::JobHandle> PostJob (v8::TaskPriority priority,
+  std::unique_ptr<v8::JobHandle> CreateJob (v8::TaskPriority priority,
       std::unique_ptr<v8::JobTask> job_task) override;
   double MonotonicallyIncreasingTime () override;
   double CurrentClockTimeMillis () override;

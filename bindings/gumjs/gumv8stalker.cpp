@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -24,7 +24,7 @@ struct GumV8CallbackTransformer
   GObject parent;
 
   GumThreadId thread_id;
-  GumPersistent<Function>::type * callback;
+  Global<Function> * callback;
 
   GumV8Stalker * module;
 };
@@ -56,14 +56,14 @@ struct GumV8StalkerSpecialIterator
 
 struct GumV8Callout
 {
-  GumPersistent<Function>::type * callback;
+  Global<Function> * callback;
 
   GumV8Stalker * module;
 };
 
 struct GumV8CallProbe
 {
-  GumPersistent<Function>::type * callback;
+  Global<Function> * callback;
 
   GumV8Stalker * module;
 };
@@ -268,8 +268,7 @@ _gum_v8_stalker_init (GumV8Stalker * self,
     _gum_v8_class_add (iter, gumjs_stalker_default_iterator_functions, module,
         isolate);
     iter->InstanceTemplate ()->SetInternalFieldCount (2);
-    self->default_iterator =
-        new GumPersistent<FunctionTemplate>::type (isolate, iter);
+    self->default_iterator = new Global<FunctionTemplate> (isolate, iter);
   }
 
   {
@@ -281,8 +280,7 @@ _gum_v8_stalker_init (GumV8Stalker * self,
     _gum_v8_class_add (iter, gumjs_stalker_special_iterator_functions, module,
         isolate);
     iter->InstanceTemplate ()->SetInternalFieldCount (2);
-    self->special_iterator =
-        new GumPersistent<FunctionTemplate>::type (isolate, iter);
+    self->special_iterator = new Global<FunctionTemplate> (isolate, iter);
   }
 }
 
@@ -296,23 +294,21 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
     auto iter = Local<FunctionTemplate>::New (isolate, *self->default_iterator);
     auto iter_value = iter->GetFunction (context).ToLocalChecked ()
         ->NewInstance (context, 0, nullptr).ToLocalChecked ();
-    self->default_iterator_value =
-        new GumPersistent<Object>::type (isolate, iter_value);
+    self->default_iterator_value = new Global<Object> (isolate, iter_value);
   }
 
   {
     auto iter = Local<FunctionTemplate>::New (isolate, *self->special_iterator);
     auto iter_value = iter->GetFunction (context).ToLocalChecked ()
         ->NewInstance (context, 0, nullptr).ToLocalChecked ();
-    self->special_iterator_value =
-        new GumPersistent<Object>::type (isolate, iter_value);
+    self->special_iterator_value = new Global<Object> (isolate, iter_value);
   }
 
   auto args = ObjectTemplate::New (isolate);
   args->SetInternalFieldCount (2);
   args->SetIndexedPropertyHandler (gumjs_probe_args_get_nth,
       gumjs_probe_args_set_nth);
-  self->probe_args = new GumPersistent<ObjectTemplate>::type (isolate, args);
+  self->probe_args = new Global<ObjectTemplate> (isolate, args);
 
   self->cached_default_iterator =
       gum_v8_stalker_default_iterator_new_persistent (self);
@@ -568,8 +564,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
     auto cbt = (GumV8CallbackTransformer *)
         g_object_new (GUM_V8_TYPE_CALLBACK_TRANSFORMER, NULL);
     cbt->thread_id = thread_id;
-    cbt->callback = new GumPersistent<Function>::type (isolate,
-        transformer_callback_js);
+    cbt->callback = new Global<Function> (isolate, transformer_callback_js);
     cbt->module = module;
 
     transformer = GUM_STALKER_TRANSFORMER (cbt);
@@ -660,7 +655,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
   if (!callback_js.IsEmpty ())
   {
     auto probe = g_slice_new (GumV8CallProbe);
-    probe->callback = new GumPersistent<Function>::type (isolate, callback_js);
+    probe->callback = new Global<Function> (isolate, callback_js);
     probe->module = module;
 
     id = gum_stalker_add_call_probe (stalker, target_address,
@@ -869,7 +864,7 @@ gum_v8_callback_transformer_transform_block (
 
     GumV8StalkerDefaultIterator * default_iter = NULL;
     GumV8StalkerSpecialIterator * special_iter = NULL;
-    GumPersistent<v8::Object>::type * iter_object_handle;
+    Global<v8::Object> * iter_object_handle;
     if (output->encoding == GUM_INSTRUCTION_DEFAULT)
     {
       default_iter = gum_v8_stalker_obtain_default_iterator (module);
@@ -1028,8 +1023,7 @@ gum_v8_stalker_iterator_put_callout (GumV8StalkerIterator * self,
   if (!callback_js.IsEmpty ())
   {
     auto callout = g_slice_new (GumV8Callout);
-    callout->callback =
-        new GumPersistent<Function>::type (isolate, callback_js);
+    callout->callback = new Global<Function> (isolate, callback_js);
     callout->module = self->module;
 
     gum_stalker_iterator_put_callout (self->handle,
@@ -1060,7 +1054,7 @@ gum_v8_stalker_default_iterator_new_persistent (GumV8Stalker * parent)
   auto object = iter_value->Clone ();
   object->SetAlignedPointerInInternalField (0, writer);
   object->SetAlignedPointerInInternalField (1, iter);
-  writer->object = new GumPersistent<Object>::type (isolate, object);
+  writer->object = new Global<Object> (isolate, object);
 
   return iter;
 }
@@ -1140,7 +1134,7 @@ gum_v8_stalker_special_iterator_new_persistent (GumV8Stalker * parent)
   auto object = iter_value->Clone ();
   object->SetAlignedPointerInInternalField (0, writer);
   object->SetAlignedPointerInInternalField (1, iter);
-  writer->object = new GumPersistent<Object>::type (isolate, object);
+  writer->object = new Global<Object> (isolate, object);
 
   return iter;
 }
@@ -1234,7 +1228,7 @@ gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
     scope.ProcessAnyPendingException ();
 
   _gum_v8_cpu_context_free_later (
-      new GumPersistent<Object>::type (isolate, cpu_context_value), core);
+      new Global<Object> (isolate, cpu_context_value), core);
 }
 
 static void

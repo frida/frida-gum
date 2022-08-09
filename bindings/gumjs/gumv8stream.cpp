@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -160,22 +160,19 @@ _gum_v8_stream_init (GumV8Stream * self,
   auto io_stream = _gum_v8_create_class ("IOStream",
       gumjs_io_stream_construct, scope, module, isolate);
   _gum_v8_class_add (io_stream, gumjs_io_stream_functions, module, isolate);
-  self->io_stream =
-      new GumPersistent<FunctionTemplate>::type (isolate, io_stream);
+  self->io_stream = new Global<FunctionTemplate> (isolate, io_stream);
 
   auto input_stream = _gum_v8_create_class ("InputStream",
       gumjs_input_stream_construct, scope, module, isolate);
   _gum_v8_class_add (input_stream, gumjs_input_stream_functions, module,
       isolate);
-  self->input_stream =
-      new GumPersistent<FunctionTemplate>::type (isolate, input_stream);
+  self->input_stream = new Global<FunctionTemplate> (isolate, input_stream);
 
   auto output_stream = _gum_v8_create_class ("OutputStream",
       gumjs_output_stream_construct, scope, module, isolate);
   _gum_v8_class_add (output_stream, gumjs_output_stream_functions, module,
       isolate);
-  self->output_stream =
-      new GumPersistent<FunctionTemplate>::type (isolate, output_stream);
+  self->output_stream = new Global<FunctionTemplate> (isolate, output_stream);
 
   auto native_input_stream = _gum_v8_create_class (GUM_NATIVE_INPUT_STREAM,
       gumjs_native_input_stream_construct, scope, module, isolate);

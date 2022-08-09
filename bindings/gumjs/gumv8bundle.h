@@ -8,7 +8,7 @@
 #define __GUM_V8_BUNDLE_H__
 
 #include <glib.h>
-#include <v8/v8.h>
+#include <v8.h>
 
 struct GumV8Bundle
 {

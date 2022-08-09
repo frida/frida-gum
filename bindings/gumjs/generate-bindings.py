@@ -1484,7 +1484,7 @@ def generate_v8_parse_register_array_element(component, api):
 def generate_v8_fields(component):
     return """\
   GHashTable * {flavor}_{name}s;
-  GumPersistent<v8::FunctionTemplate>::type * {flavor}_{name};""".format(**component.__dict__)
+  v8::Global<v8::FunctionTemplate> * {flavor}_{name};""".format(**component.__dict__)
 
 def generate_v8_methods(component):
     params = dict(component.__dict__)
@@ -1501,7 +1501,7 @@ def generate_v8_methods(component):
 
 struct {wrapper_struct_name}
 {{
-  GumPersistent<v8::Object>::type * object;
+  v8::Global<v8::Object> * object;
   {impl_struct_name} * impl;{extra_fields}
   {module_struct_name} * module;
 }};
@@ -1525,7 +1525,7 @@ def generate_v8_init_code(component):
   _gum_v8_class_add ({flavor}_{name}, {gumjs_function_prefix}_functions, module,
       isolate);
   self->{flavor}_{name} =
-      new GumPersistent<FunctionTemplate>::type (isolate, {flavor}_{name});
+      new Global<FunctionTemplate> (isolate, {flavor}_{name});
 
   self->{flavor}_{name}s = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) {wrapper_function_prefix}_free);
@@ -1600,7 +1600,7 @@ _{wrapper_function_prefix}_new_persistent (GumV8CodeWriter * module)
   auto object = writer_class->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 
-  writer->object = new GumPersistent<Object>::type (isolate, object);
+  writer->object = new Global<Object> (isolate, object);
 
   return writer;
 }}
@@ -1733,7 +1733,7 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 
     writer = {wrapper_function_prefix}_alloc (module);
 
-    writer->object = new GumPersistent<Object>::type (isolate, wrapper);
+    writer->object = new Global<Object> (isolate, wrapper);
     {wrapper_function_prefix}_mark_weak (writer);
 
     writer->impl = {impl_function_prefix}_new (code_address);
@@ -1944,7 +1944,7 @@ _{wrapper_function_prefix}_new_persistent (GumV8CodeRelocator * module)
   auto object = relocator_class->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 
-  relocator->object = new GumPersistent<Object>::type (isolate, object);
+  relocator->object = new Global<Object> (isolate, object);
 
   return relocator;
 }}
@@ -2074,7 +2074,7 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 
     relocator = {wrapper_function_prefix}_alloc (module);
 
-    relocator->object = new GumPersistent<Object>::type (isolate, wrapper);
+    relocator->object = new Global<Object> (isolate, wrapper);
     {wrapper_function_prefix}_mark_weak (relocator);
 
     relocator->impl = {impl_function_prefix}_new (input_code, writer);

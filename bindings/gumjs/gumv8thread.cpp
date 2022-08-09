@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -55,16 +55,14 @@ _gum_v8_thread_realize (GumV8Thread * self)
   backtracer->DefineOwnProperty (context,
       _gum_v8_string_new_ascii (isolate, "ACCURATE"), accurate,
       (PropertyAttribute) (ReadOnly | DontDelete)).ToChecked ();
-  self->accurate_enum_value =
-      new GumPersistent<Symbol>::type (isolate, accurate);
+  self->accurate_enum_value = new Global<Symbol> (isolate, accurate);
 
   auto fuzzy = Symbol::ForApi (isolate,
       _gum_v8_string_new_ascii (isolate, "Backtracer.FUZZY"));
   backtracer->DefineOwnProperty (context,
       _gum_v8_string_new_ascii (isolate, "FUZZY"), fuzzy,
       (PropertyAttribute) (ReadOnly | DontDelete)).ToChecked ();
-  self->fuzzy_enum_value =
-      new GumPersistent<Symbol>::type (isolate, fuzzy);
+  self->fuzzy_enum_value = new Global<Symbol> (isolate, fuzzy);
 }
 
 void

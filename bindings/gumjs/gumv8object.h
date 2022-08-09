@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,7 +18,7 @@ struct GumV8ObjectManager
 template<typename O, typename M>
 struct GumV8Object
 {
-  GumPersistent<v8::Object>::type * wrapper;
+  v8::Global<v8::Object> * wrapper;
   O * handle;
   GCancellable * cancellable;
 
@@ -34,11 +34,11 @@ template<typename O, typename M>
 struct GumV8ObjectOperation
 {
   GumV8Object<O, M> * object;
-  GumPersistent<v8::Function>::type * callback;
+  v8::Global<v8::Function> * callback;
 
   GumV8Core * core;
 
-  GumPersistent<v8::Object>::type * wrapper;
+  v8::Global<v8::Object> * wrapper;
   GumScriptJob * job;
   GSList * pending_dependencies;
   gsize size;
@@ -50,7 +50,7 @@ struct GumV8ModuleOperation
 {
   M * module;
   GCancellable * cancellable;
-  GumPersistent<v8::Function>::type * callback;
+  v8::Global<v8::Function> * callback;
 
   GumV8Core * core;
 

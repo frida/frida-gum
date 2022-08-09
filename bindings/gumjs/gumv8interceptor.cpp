@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -49,7 +49,7 @@ struct GumV8InvocationListener
 {
   GObject object;
 
-  GumPersistent<Object>::type * resource;
+  Global<Object> * resource;
 
   GumV8Interceptor * module;
 };
@@ -63,8 +63,8 @@ struct GumV8JSCallListener
 {
   GumV8InvocationListener listener;
 
-  GumPersistent<Function>::type * on_enter;
-  GumPersistent<Function>::type * on_leave;
+  Global<Function> * on_enter;
+  Global<Function> * on_leave;
 };
 
 struct GumV8JSCallListenerClass
@@ -76,7 +76,7 @@ struct GumV8JSProbeListener
 {
   GumV8InvocationListener listener;
 
-  GumPersistent<Function>::type * on_hit;
+  Global<Function> * on_hit;
 };
 
 struct GumV8JSProbeListenerClass
@@ -116,7 +116,7 @@ struct GumV8InvocationState
 
 struct GumV8InvocationArgs
 {
-  GumPersistent<Object>::type * object;
+  Global<Object> * object;
   GumInvocationContext * ic;
 
   GumV8Interceptor * module;
@@ -124,7 +124,7 @@ struct GumV8InvocationArgs
 
 struct GumV8InvocationReturnValue
 {
-  GumPersistent<Object>::type * object;
+  Global<Object> * object;
   GumInvocationContext * ic;
 
   GumV8Interceptor * module;
@@ -134,7 +134,7 @@ struct GumV8ReplaceEntry
 {
   GumInterceptor * interceptor;
   gpointer target;
-  GumPersistent<Value>::type * replacement;
+  Global<Value> * replacement;
 };
 
 static gboolean gum_v8_interceptor_on_flush_timer_tick (
@@ -351,8 +351,7 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
       module, isolate);
   _gum_v8_class_add (listener, gumjs_invocation_listener_functions, module,
       isolate);
-  self->invocation_listener =
-      new GumPersistent<FunctionTemplate>::type (isolate, listener);
+  self->invocation_listener = new Global<FunctionTemplate> (isolate, listener);
 
   auto ic = _gum_v8_create_class ("InvocationContext", nullptr, scope,
       module, isolate);
@@ -362,16 +361,14 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
   ic_access.data = module;
   ic_access.flags = PropertyHandlerFlags::kNonMasking;
   ic->InstanceTemplate ()->SetHandler (ic_access);
-  self->invocation_context =
-      new GumPersistent<FunctionTemplate>::type (isolate, ic);
+  self->invocation_context = new Global<FunctionTemplate> (isolate, ic);
 
   auto ia = _gum_v8_create_class ("InvocationArgs", nullptr, scope, module,
       isolate);
   ia->InstanceTemplate ()->SetIndexedPropertyHandler (
       gumjs_invocation_args_get_nth, gumjs_invocation_args_set_nth, nullptr,
       nullptr, nullptr, module);
-  self->invocation_args =
-      new GumPersistent<FunctionTemplate>::type (isolate, ia);
+  self->invocation_args = new Global<FunctionTemplate> (isolate, ia);
 
   auto ir = _gum_v8_create_class ("InvocationReturnValue", nullptr, scope,
       module, isolate);
@@ -381,8 +378,7 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
   _gum_v8_class_add (ir, gumjs_invocation_return_value_functions, module,
       isolate);
   ir->InstanceTemplate ()->SetInternalFieldCount (2);
-  self->invocation_return =
-      new GumPersistent<FunctionTemplate>::type (isolate, ir);
+  self->invocation_return = new Global<FunctionTemplate> (isolate, ir);
 }
 
 void
@@ -396,25 +392,22 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
   auto listener_value = listener->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, 0, nullptr).ToLocalChecked ();
   self->invocation_listener_value =
-      new GumPersistent<Object>::type (isolate, listener_value);
+      new Global<Object> (isolate, listener_value);
 
   auto ic = Local<FunctionTemplate>::New (isolate, *self->invocation_context);
   auto ic_value = ic->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, 0, nullptr).ToLocalChecked ();
-  self->invocation_context_value =
-      new GumPersistent<Object>::type (isolate, ic_value);
+  self->invocation_context_value = new Global<Object> (isolate, ic_value);
 
   auto ia = Local<FunctionTemplate>::New (isolate, *self->invocation_args);
   auto ia_value = ia->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, 0, nullptr).ToLocalChecked ();
-  self->invocation_args_value =
-      new GumPersistent<Object>::type (isolate, ia_value);
+  self->invocation_args_value = new Global<Object> (isolate, ia_value);
 
   auto ir = Local<FunctionTemplate>::New (isolate, *self->invocation_return);
   auto ir_value = ir->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, 0, nullptr).ToLocalChecked ();
-  self->invocation_return_value = new GumPersistent<Object>::type (isolate,
-      ir_value);
+  self->invocation_return_value = new Global<Object> (isolate, ir_value);
 
   self->cached_invocation_context =
       gum_v8_invocation_context_new_persistent (self);
@@ -559,8 +552,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
     auto l = GUM_V8_JS_PROBE_LISTENER (
         g_object_new (GUM_V8_TYPE_JS_PROBE_LISTENER, NULL));
-    l->on_hit = new GumPersistent<Function>::type (isolate,
-        callback_val.As<Function> ());
+    l->on_hit = new Global<Function> (isolate, callback_val.As<Function> ());
 
     listener = GUM_V8_INVOCATION_LISTENER (l);
   }
@@ -593,9 +585,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       auto l = GUM_V8_JS_CALL_LISTENER (
           g_object_new (GUM_V8_TYPE_JS_CALL_LISTENER, NULL));
       if (!on_enter_js.IsEmpty ())
-        l->on_enter = new GumPersistent<Function>::type (isolate, on_enter_js);
+        l->on_enter = new Global<Function> (isolate, on_enter_js);
       if (!on_leave_js.IsEmpty ())
-        l->on_leave = new GumPersistent<Function>::type (isolate, on_leave_js);
+        l->on_leave = new Global<Function> (isolate, on_leave_js);
 
       listener = GUM_V8_INVOCATION_LISTENER (l);
     }
@@ -615,8 +607,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
     }
   }
 
-  listener->resource =
-      new GumPersistent<Object>::type (isolate, callback_val.As<Object> ());
+  listener->resource = new Global<Object> (isolate, callback_val.As<Object> ());
   listener->module = module;
 
   gpointer listener_function_data;
@@ -707,8 +698,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   auto entry = g_slice_new (GumV8ReplaceEntry);
   entry->interceptor = module->interceptor;
   entry->target = target;
-  entry->replacement = new GumPersistent<Value>::type (isolate,
-      replacement_function_value);
+  entry->replacement = new Global<Value> (isolate, replacement_function_value);
 
   auto replace_ret = gum_interceptor_replace (module->interceptor, target,
       replacement_function, replacement_data, NULL);
@@ -1168,7 +1158,7 @@ gum_v8_invocation_context_new_persistent (GumV8Interceptor * parent)
       *parent->invocation_context_value);
   auto object = invocation_context_value->Clone ();
   object->SetAlignedPointerInInternalField (0, jic);
-  jic->object = new GumPersistent<Object>::type (isolate, object);
+  jic->object = new Global<Object> (isolate, object);
   jic->handle = NULL;
   jic->cpu_context = nullptr;
   jic->dirty = FALSE;
@@ -1252,7 +1242,7 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_cpu_context,
   auto context = self->cpu_context;
   if (context == nullptr)
   {
-    context = new GumPersistent<Object>::type (isolate,
+    context = new Global<Object> (isolate,
         _gum_v8_cpu_context_new_mutable (self->handle->cpu_context, core));
     self->cpu_context = context;
   }
@@ -1334,7 +1324,7 @@ gum_v8_invocation_args_new_persistent (GumV8Interceptor * parent)
       *parent->invocation_args_value);
   auto object = invocation_args_value->Clone ();
   object->SetAlignedPointerInInternalField (0, args);
-  args->object = new GumPersistent<Object>::type (isolate, object);
+  args->object = new Global<Object> (isolate, object);
   args->ic = NULL;
 
   args->module = parent;
@@ -1435,7 +1425,7 @@ gum_v8_invocation_return_value_new_persistent (GumV8Interceptor * parent)
       *parent->invocation_return_value);
   auto object = template_object->Clone ();
   object->SetAlignedPointerInInternalField (1, retval);
-  retval->object = new GumPersistent<Object>::type (isolate, object);
+  retval->object = new Global<Object> (isolate, object);
   retval->ic = NULL;
 
   retval->module = parent;

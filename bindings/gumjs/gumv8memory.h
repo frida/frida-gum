@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,7 +16,7 @@ struct GumV8Memory
   GumV8Core * core;
 
   GumMemoryAccessMonitor * monitor;
-  GumPersistent<v8::Function>::type * on_access;
+  v8::Global<v8::Function> * on_access;
 };
 
 G_GNUC_INTERNAL void _gum_v8_memory_init (GumV8Memory * self,

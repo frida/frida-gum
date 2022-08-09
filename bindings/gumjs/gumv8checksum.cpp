@@ -14,7 +14,7 @@ using namespace v8;
 
 struct GumChecksum
 {
-  GumPersistent<Object>::type * wrapper;
+  Global<Object> * wrapper;
   GChecksum * handle;
   GChecksumType type;
   gboolean closed;
@@ -237,8 +237,7 @@ gum_checksum_new (Local<Object> wrapper,
                   GumV8Checksum * module)
 {
   auto cs = g_slice_new (GumChecksum);
-  cs->wrapper =
-      new GumPersistent<Object>::type (module->core->isolate, wrapper);
+  cs->wrapper = new Global<Object> (module->core->isolate, wrapper);
   cs->wrapper->SetWeak (cs, gum_checksum_on_weak_notify,
       WeakCallbackType::kParameter);
   cs->handle = g_checksum_new (type);
