@@ -2725,6 +2725,9 @@ gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
   if (ctx->observer == NULL)
     return;
 
+  if (!gum_stalker_observer_has_switch_callback (ctx->observer))
+    return;
+
   /*
    * In the event of a block continuation (e.g. we had to split the generated
    * code for a single basic block into two separate instrumented blocks, e.g.

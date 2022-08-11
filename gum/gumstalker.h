@@ -267,6 +267,8 @@ GUM_DECLARE_OBSERVER_INCREMENT (sysenter_slow_path)
 GUM_API void gum_stalker_observer_notify_backpatch (
     GumStalkerObserver * observer, const GumBackpatch * backpatch, gsize size);
 
+GUM_API gboolean gum_stalker_observer_has_switch_callback (
+    GumStalkerObserver * observer);
 GUM_API void gum_stalker_observer_switch_callback (
     GumStalkerObserver * observer, gpointer from_address,
     gpointer start_address, const cs_insn * from_insn, gpointer * target);
