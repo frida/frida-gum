@@ -75,6 +75,7 @@ typedef struct _GumBranchIndirectRegOffset GumBranchIndirectRegOffset;
 typedef struct _GumBranchIndirectRegShift GumBranchIndirectRegShift;
 typedef struct _GumBranchIndirectPcrelTable GumBranchIndirectPcrelTable;
 typedef struct _GumWriteback GumWriteback;
+typedef guint GumBackpatchType;
 
 typedef gboolean (* GumCheckExcludedFunc) (GumExecCtx * ctx,
     gconstpointer address);
@@ -386,6 +387,22 @@ struct _GumWriteback
 {
   arm_reg target;
   gssize offset;
+};
+
+enum _GumBackpatchType
+{
+  GUM_BACKPATCH_ARM,
+  GUM_BACKPATCH_THUMB,
+};
+
+struct _GumBackpatch
+{
+  GumBackpatchType type;
+  gpointer to;
+  gpointer from;
+  gpointer from_insn;
+  gsize code_offset;
+  GumPrologState opened_prolog;
 };
 
 static void gum_stalker_finalize (GObject * object);
@@ -4090,6 +4107,20 @@ gum_exec_ctx_backpatch_arm_branch_to_current (GumExecBlock * block,
   gum_stalker_freeze (ctx->stalker, code_start, code_max_size);
 
   gum_spinlock_release (&ctx->code_lock);
+
+  if (ctx->observer)
+  {
+    GumBackpatch p;
+
+    p.type = GUM_BACKPATCH_ARM;
+    p.to = block->real_start;
+    p.from = from->real_start;
+    p.from_insn = from_insn;
+    p.code_offset = code_offset;
+    p.opened_prolog = opened_prolog;
+
+    gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
+  }
 }
 
 static void
@@ -4136,6 +4167,20 @@ gum_exec_ctx_backpatch_thumb_branch_to_current (GumExecBlock * block,
   gum_stalker_freeze (ctx->stalker, code_start, code_max_size);
 
   gum_spinlock_release (&ctx->code_lock);
+
+  if (ctx->observer)
+  {
+    GumBackpatch p;
+
+    p.type = GUM_BACKPATCH_THUMB;
+    p.to = block->real_start;
+    p.from = from->real_start;
+    p.from_insn = from_insn;
+    p.code_offset = code_offset;
+    p.opened_prolog = opened_prolog;
+
+    gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
+  }
 }
 
 static GumExecBlock *
