@@ -121,6 +121,8 @@ TESTLIST_BEGIN (stalker)
 #ifdef HAVE_LINUX
   TESTENTRY (prefetch)
 #endif
+
+  TESTENTRY (arm_ldr_shift)
 TESTLIST_END ()
 
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
@@ -2102,7 +2104,7 @@ TESTCODE (thumb_tbh,
   0x5f, 0xf0, 0x02, 0x0c, /* movs.w ip, 2         */
   0xdf, 0xe8, 0x1c, 0xf0, /* tbh [pc, ip, lsl 1]  */
 
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN  
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
   /* table1:                                      */
   0x03, 0x00,             /* (one - table1) / 2   */
   0x04, 0x00,             /* (two - table1) / 2   */
@@ -3627,3 +3629,34 @@ prefetch_read_blocks (int fd,
 }
 
 #endif
+
+TESTCODE (arm_ldr_shift_code,
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0  */
+  0x04, 0x00, 0x80, 0xe2, /* add r0, r0, 4   */
+  0x00, 0xf1, 0x9f, 0xe7, /* ldr pc, [pc, r0, lsl #2] */
+  0xf0, 0x01, 0xf0, 0xe7, /* udf 0x10           */
+
+  0x22, 0x22, 0x22, 0x22,
+  0x44, 0x44, 0x44, 0x44,
+  0x66, 0x66, 0x66, 0x66,
+  0x88, 0x88, 0x88, 0x88,
+  0xaa, 0xaa, 0xaa, 0xaa, /* Branch Target */
+
+  0x0e, 0xf0, 0xa0, 0xe1  /* mov pc, lr      */
+);
+
+TESTCASE (arm_ldr_shift)
+{
+  GumAddress func;
+  guint32 * code;
+
+  func = DUP_TESTCODE (arm_ldr_shift_code);
+  code = (guint32 *) GSIZE_TO_POINTER (func);
+  g_assert_cmpuint (code[8], ==, 0xaaaaaaaa);
+  patch_code_pointer (func, 8 * sizeof (gsize), func + (9 * sizeof (gsize)));
+
+  g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 4);
+
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+}
