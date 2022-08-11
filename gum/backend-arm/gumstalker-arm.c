@@ -4344,14 +4344,14 @@ gum_exec_block_virtualize_arm_branch_insn (GumExecBlock * block,
       target->type == GUM_TARGET_DIRECT_ADDRESS &&
       !gum_is_thumb (target->value.direct_address.address))
   {
-    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R5,
         GUM_ADDRESS (&block->ctx->current_block));
-    gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0,
-        ARM_REG_R0, 0);
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R5,
+        ARM_REG_R5, 0);
 
     gum_arm_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_exec_ctx_backpatch_arm_branch_to_current), 5,
-        GUM_ARG_REGISTER, ARM_REG_R0,
+        GUM_ARG_REGISTER, ARM_REG_R5,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start),
         GUM_ARG_ADDRESS, backpatch_code_start - GUM_ADDRESS (block->code_start),
@@ -4407,14 +4407,14 @@ gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
       target->type == GUM_TARGET_DIRECT_ADDRESS &&
       gum_is_thumb (target->value.direct_address.address))
   {
-    gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+    gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R5,
         GUM_ADDRESS (&block->ctx->current_block));
-    gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0,
-        ARM_REG_R0, 0);
+    gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R5,
+        ARM_REG_R5, 0);
 
     gum_thumb_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_exec_ctx_backpatch_thumb_branch_to_current), 5,
-        GUM_ARG_REGISTER, ARM_REG_R0,
+        GUM_ARG_REGISTER, ARM_REG_R5,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start),
         GUM_ARG_ADDRESS, backpatch_code_start - GUM_ADDRESS (block->code_start),
@@ -5154,14 +5154,14 @@ gum_exec_block_write_arm_handle_not_taken (GumExecBlock * block,
     for (i = 0; i != padding_size; i++)
       gum_arm_writer_put_nop (cw);
 
-    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R5,
         GUM_ADDRESS (&block->ctx->current_block));
-    gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0,
-        ARM_REG_R0, 0);
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R5,
+        ARM_REG_R5, 0);
 
     gum_arm_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_exec_ctx_backpatch_arm_branch_to_current), 5,
-        GUM_ARG_REGISTER, ARM_REG_R0,
+        GUM_ARG_REGISTER, ARM_REG_R5,
         GUM_ARG_ADDRESS, GUM_ADDRESS (block),
         GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start),
         GUM_ARG_ADDRESS, backpatch_code_start - GUM_ADDRESS (block->code_start),
@@ -5245,14 +5245,13 @@ gum_exec_block_write_thumb_handle_not_taken (GumExecBlock * block,
       for (i = 0; i != padding_size; i++)
         gum_thumb_writer_put_nop (cw);
 
-      gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R0,
-        GUM_ADDRESS (&block->ctx->current_block));
-      gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0,
-        ARM_REG_R0, 0);
+      gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R5,
+          GUM_ADDRESS (&block->ctx->current_block));
+      gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R5, ARM_REG_R5, 0);
 
       gum_thumb_writer_put_call_address_with_arguments (cw,
           GUM_ADDRESS (gum_exec_ctx_backpatch_thumb_branch_to_current), 5,
-          GUM_ARG_REGISTER, ARM_REG_R0,
+          GUM_ARG_REGISTER, ARM_REG_R5,
           GUM_ARG_ADDRESS, GUM_ADDRESS (block),
           GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start),
           GUM_ARG_ADDRESS,
