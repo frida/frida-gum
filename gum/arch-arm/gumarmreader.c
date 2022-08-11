@@ -4,8 +4,6 @@
 
 #include "gumarmreader.h"
 
-static cs_insn * disassemble_instruction_at (gconstpointer address);
-
 static guint gum_rotate_right_32bit (guint val, guint rotation);
 
 gpointer
@@ -15,7 +13,7 @@ gum_arm_reader_try_get_relative_jump_target (gconstpointer address)
   cs_insn * insn;
   cs_arm_op * op;
 
-  insn = disassemble_instruction_at (address);
+  insn = gum_arm_reader_disassemble_instruction_at (address);
   if (insn == NULL)
     return NULL;
 
@@ -41,7 +39,7 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
   /*
    * First instruction: add r12, pc, 0
    */
-  insn = disassemble_instruction_at (address);
+  insn = gum_arm_reader_disassemble_instruction_at (address);
   if (insn == NULL)
     return NULL;
   op0 = &insn->detail->arm.operands[0];
@@ -62,7 +60,7 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
   /*
    * Second instruction: add r12, r12, 96, 20
    */
-  insn = disassemble_instruction_at (address + 4);
+  insn = gum_arm_reader_disassemble_instruction_at (address + 4);
   op0 = &insn->detail->arm.operands[0];
   op1 = &insn->detail->arm.operands[1];
   op2 = &insn->detail->arm.operands[2];
@@ -93,7 +91,7 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
   /*
    * Third instruction: ldr pc, [r12, x]
    */
-  insn = disassemble_instruction_at (address + 8);
+  insn = gum_arm_reader_disassemble_instruction_at (address + 8);
   op0 = &insn->detail->arm.operands[0];
   op1 = &insn->detail->arm.operands[1];
   if (insn->id == ARM_INS_LDR &&
@@ -113,8 +111,8 @@ beach:
   return result;
 }
 
-static cs_insn *
-disassemble_instruction_at (gconstpointer address)
+cs_insn *
+gum_arm_reader_disassemble_instruction_at (gconstpointer address)
 {
   csh capstone;
   cs_insn * insn = NULL;
