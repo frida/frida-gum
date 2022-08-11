@@ -13,6 +13,7 @@ G_BEGIN_DECLS
 
 gpointer gum_arm_reader_try_get_relative_jump_target (gconstpointer address);
 gpointer gum_arm_reader_try_get_indirect_jump_target (gconstpointer address);
+cs_insn * gum_arm_reader_disassemble_instruction_at (gconstpointer address);
 
 G_END_DECLS
 
