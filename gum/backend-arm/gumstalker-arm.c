@@ -528,6 +528,13 @@ static void gum_exec_ctx_arm_load_real_register_into (GumExecCtx * ctx,
 static void gum_exec_ctx_thumb_load_real_register_into (GumExecCtx * ctx,
     arm_reg target_register, arm_reg source_register, GumGeneratorContext * gc);
 
+static void gum_exec_ctx_backpatch_arm_branch_to_current (GumExecBlock * block,
+    GumExecBlock * from, gpointer from_insn, gsize code_offset,
+    GumPrologState opened_prolog);
+static void gum_exec_ctx_backpatch_thumb_branch_to_current (GumExecBlock * block,
+    GumExecBlock * from, gpointer from_insn, gsize code_offset,
+    GumPrologState opened_prolog);
+
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static void gum_exec_block_clear (GumExecBlock * block);
 static void gum_exec_block_commit (GumExecBlock * block);
@@ -1253,6 +1260,40 @@ void
 gum_stalker_prefetch_backpatch (GumStalker * self,
                                 const GumBackpatch * backpatch)
 {
+  GumExecCtx * ctx;
+  GumExecBlock * block_to, * block_from;
+  gpointer code_address_to, code_address_from;
+  gpointer from_insn = backpatch->from_insn;
+
+  ctx = gum_stalker_get_exec_ctx ();
+  g_assert (ctx != NULL);
+
+  block_to = gum_exec_ctx_obtain_block_for (ctx, backpatch->to,
+      &code_address_to);
+  block_from = gum_exec_ctx_obtain_block_for (ctx, backpatch->from,
+      &code_address_from);
+
+  block_to->recycle_count = self->trust_threshold;
+  block_from->recycle_count = self->trust_threshold;
+
+  switch (backpatch->type)
+  {
+    case GUM_BACKPATCH_ARM:
+    {
+      gum_exec_ctx_backpatch_arm_branch_to_current (block_to, block_from, from_insn,
+          backpatch->code_offset, backpatch->opened_prolog);
+      break;
+    }
+    case GUM_BACKPATCH_THUMB:
+    {
+      gum_exec_ctx_backpatch_thumb_branch_to_current (block_to, block_from, from_insn,
+          backpatch->code_offset, backpatch->opened_prolog);
+      break;
+    }
+    default:
+      g_assert_not_reached ();
+      break;
+  }
 }
 
 void
@@ -1275,13 +1316,13 @@ gum_stalker_recompile (GumStalker * self,
 gpointer
 gum_stalker_backpatch_get_from (const GumBackpatch * backpatch)
 {
-  return NULL;
+  return backpatch->from;
 }
 
 gpointer
 gum_stalker_backpatch_get_to (const GumBackpatch * backpatch)
 {
-  return NULL;
+  return backpatch->to;
 }
 
 void
