@@ -9,6 +9,7 @@
 #include "gumdarwin.h"
 #include "gummemory-priv.h"
 
+#include <errno.h>
 #include <unistd.h>
 #include <libkern/OSCacheControl.h>
 #include <mach/mach.h>
@@ -691,18 +692,41 @@ gum_memory_release (gpointer address,
 }
 
 gboolean
-gum_memory_commit (gpointer address,
-                   gsize size,
-                   GumPageProtection prot)
+gum_memory_recommit (gpointer address,
+                     gsize size,
+                     GumPageProtection prot)
 {
-  return madvise (address, size, MADV_FREE_REUSE) == 0;
+  int res;
+
+  do
+    res = madvise (address, size, MADV_FREE_REUSE);
+  while (res == -1 && errno == EAGAIN);
+
+  return TRUE;
+}
+
+gboolean
+gum_memory_discard (gpointer address,
+                    gsize size)
+{
+  int res;
+
+  do
+    res = madvise (address, size, MADV_FREE_REUSABLE);
+  while (res == -1 && errno == EAGAIN);
+
+  if (res == -1)
+    res = madvise (address, size, MADV_DONTNEED);
+
+  return res == 0;
 }
 
 gboolean
 gum_memory_decommit (gpointer address,
                      gsize size)
 {
-  return madvise (address, size, MADV_FREE_REUSABLE) == 0;
+  return mmap (address, size, PROT_NONE,
+      MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0) == address;
 }
 
 GumPageProtection

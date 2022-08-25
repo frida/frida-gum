@@ -145,7 +145,7 @@ gum_try_alloc_n_pages_near (guint n_pages,
   result = gum_memory_allocate_near (spec, size, page_size, prot);
   if (result != NULL && prot == GUM_PAGE_NO_ACCESS)
   {
-    gum_memory_commit (result, size, prot);
+    gum_memory_recommit (result, size, prot);
   }
 
   return result;
@@ -302,12 +302,36 @@ gum_memory_release (gpointer address,
 }
 
 gboolean
-gum_memory_commit (gpointer address,
-                   gsize size,
-                   GumPageProtection prot)
+gum_memory_recommit (gpointer address,
+                     gsize size,
+                     GumPageProtection prot)
 {
   return VirtualAlloc (address, size, MEM_COMMIT,
       gum_page_protection_to_windows (prot)) != NULL;
+}
+
+gboolean
+gum_memory_discard (gpointer address,
+                    gsize size)
+{
+  static gboolean initialized = FALSE;
+  static DWORD (WINAPI * discard_impl) (PVOID address, SIZE_T size);
+
+  if (!initialized)
+  {
+    discard_impl = GUM_POINTER_TO_FUNCPTR (DWORD (WINAPI *) (PVOID, SIZE_T),
+        GetProcAddress (GetModuleHandleW (L"kernel32.dll"),
+          "DiscardVirtualMemory"));
+    initialized = TRUE;
+  }
+
+  if (discard_impl != NULL)
+  {
+    if (discard_impl (address, size) == ERROR_SUCCESS)
+      return TRUE;
+  }
+
+  return VirtualAlloc (address, size, MEM_RESET, PAGE_READWRITE) != NULL;
 }
 
 gboolean
