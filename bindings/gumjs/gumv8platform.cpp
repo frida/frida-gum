@@ -12,6 +12,10 @@
 #include <gum/gumcloak.h>
 #include <gum/gumcodesegment.h>
 #include <gum/gummemory.h>
+#ifdef HAVE_DARWIN
+# include <mach/mach.h>
+# include <sys/mman.h>
+#endif
 
 using namespace v8;
 
@@ -251,6 +255,7 @@ public:
       Permission permissions) override;
   bool RecommitPages (void * address, size_t length, Permission permissions)
       override;
+  bool DiscardSystemPages (void * address, size_t size) override;
   bool DecommitPages (void * address, size_t size) override;
 };
 
@@ -1508,8 +1513,25 @@ GumV8PageAllocator::AllocatePages (void * address,
 {
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
-  gpointer base = gum_memory_allocate (NULL, length, alignment,
-      gum_page_protection_from_v8 (permissions));
+  gpointer base;
+#ifdef HAVE_DARWIN
+  if (permissions == PageAllocator::kNoAccessWillJitLater)
+  {
+    g_assert (alignment == gum_query_page_size ());
+
+    base = mmap (address, length, PROT_NONE,
+        MAP_PRIVATE | MAP_ANONYMOUS | MAP_JIT, VM_MAKE_TAG (255), 0);
+    if (base == MAP_FAILED)
+      base = NULL;
+  }
+  else
+#endif
+  {
+    base = gum_memory_allocate (address, length, alignment,
+        gum_page_protection_from_v8 (permissions));
+  }
+  if (base == NULL)
+    return nullptr;
 
   GumMemoryRange range;
   range.base_address = GPOINTER_TO_SIZE (base);
@@ -1567,8 +1589,13 @@ GumV8PageAllocator::SetPermissions (void * address,
 
   GumPageProtection prot = gum_page_protection_from_v8 (permissions);
 
-#ifndef HAVE_WINDOWS
   gboolean success;
+#if defined (HAVE_WINDOWS)
+  if (permissions == PageAllocator::kNoAccess)
+    success = gum_memory_decommit (address, length);
+  else
+    success = gum_memory_recommit (address, length, prot);
+#elif defined (HAVE_DARWIN)
   if (permissions == PageAllocator::kReadExecute &&
       gum_code_segment_is_supported ())
   {
@@ -1576,18 +1603,54 @@ GumV8PageAllocator::SetPermissions (void * address,
   }
   else
   {
-    success = gum_try_mprotect (address, length, prot);
+    int bsd_prot = 0;
+    switch (permissions)
+    {
+      case PageAllocator::kNoAccess:
+      case PageAllocator::kNoAccessWillJitLater:
+        bsd_prot = PROT_NONE;
+        break;
+      case PageAllocator::kRead:
+        bsd_prot = PROT_READ;
+        break;
+      case PageAllocator::kReadWrite:
+        bsd_prot = PROT_READ | PROT_WRITE;
+        break;
+      case PageAllocator::kReadWriteExecute:
+        bsd_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
+        break;
+      case PageAllocator::kReadExecute:
+        bsd_prot = PROT_READ | PROT_EXEC;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    success = mprotect (address, length, bsd_prot) == 0;
+
+    if (!success && permissions == PageAllocator::kNoAccess)
+    {
+      /*
+       * XNU refuses to transition from ReadWriteExecute to NoAccess, so do what
+       * the default v8::PageAllocator does and just discard the pages.
+       */
+      return gum_memory_discard (address, length) != FALSE;
+    }
   }
-  if (!success)
-    return false;
+
+  if (success && permissions == PageAllocator::kNoAccess)
+    gum_memory_discard (address, length);
+
+  if (permissions != PageAllocator::kNoAccess)
+    gum_memory_recommit (address, length, prot);
+#else
+  success = gum_try_mprotect (address, length, prot);
+
+  if (success && permissions == PageAllocator::kNoAccess)
+    gum_memory_discard (address, length);
 #endif
 
-  if (permissions == PageAllocator::kNoAccess)
-    gum_memory_decommit (address, length);
-  else
-    gum_memory_commit (address, length, prot);
-
-  return true;
+  return success != FALSE;
 }
 
 bool
@@ -1595,7 +1658,19 @@ GumV8PageAllocator::RecommitPages (void * address,
                                    size_t length,
                                    Permission permissions)
 {
-  return SetPermissions (address, length, permissions);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
+  return gum_memory_recommit (address, length,
+      gum_page_protection_from_v8 (permissions)) != FALSE;
+}
+
+bool
+GumV8PageAllocator::DiscardSystemPages (void * address,
+                                        size_t size)
+{
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
+  return gum_memory_discard (address, size) != FALSE;
 }
 
 bool
@@ -1604,9 +1679,7 @@ GumV8PageAllocator::DecommitPages (void * address,
 {
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
-  gum_memory_decommit (address, size);
-
-  return true;
+  return gum_memory_decommit (address, size) != FALSE;
 }
 
 void *
