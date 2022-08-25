@@ -154,8 +154,9 @@ GUM_API gpointer gum_memory_allocate_near (const GumAddressSpec * spec,
     gsize size, gsize alignment, GumPageProtection prot);
 GUM_API gboolean gum_memory_free (gpointer address, gsize size);
 GUM_API gboolean gum_memory_release (gpointer address, gsize size);
-GUM_API gboolean gum_memory_commit (gpointer address, gsize size,
+GUM_API gboolean gum_memory_recommit (gpointer address, gsize size,
     GumPageProtection prot);
+GUM_API gboolean gum_memory_discard (gpointer address, gsize size);
 GUM_API gboolean gum_memory_decommit (gpointer address, gsize size);
 
 GUM_API gboolean gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,

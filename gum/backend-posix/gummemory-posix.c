@@ -13,12 +13,6 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-#if defined (HAVE_LINUX)
-# ifndef MADV_FREE
-#  define MADV_FREE 8
-# endif
-#endif
-
 typedef struct _GumAllocNearContext GumAllocNearContext;
 typedef struct _GumEnumerateFreeRangesContext GumEnumerateFreeRangesContext;
 
@@ -295,31 +289,26 @@ gum_memory_release (gpointer address,
 }
 
 gboolean
-gum_memory_commit (gpointer address,
-                   gsize size,
-                   GumPageProtection prot)
+gum_memory_recommit (gpointer address,
+                     gsize size,
+                     GumPageProtection prot)
 {
+  gboolean success;
+
+  success = gum_try_mprotect (address, size, prot);
+
+  if (success && prot == GUM_PAGE_NO_ACCESS)
+    gum_memory_discard (address, size);
+
   return TRUE;
 }
 
 gboolean
-gum_memory_decommit (gpointer address,
-                     gsize size)
+gum_memory_discard (gpointer address,
+                    gsize size)
 {
 #if defined (HAVE_MADVISE)
-  int res;
-
-  res = madvise (address, size, MADV_FREE);
-  if (res != 0)
-  {
-    if (errno == ENOSYS)
-      return TRUE;
-
-    if (errno == EINVAL)
-      res = madvise (address, size, MADV_DONTNEED);
-  }
-
-  return res == 0;
+  return madvise (address, size, MADV_DONTNEED) == 0;
 #elif defined (HAVE_POSIX_MADVISE)
   int advice;
 
@@ -333,6 +322,14 @@ gum_memory_decommit (gpointer address,
 #else
 # error FIXME
 #endif
+}
+
+gboolean
+gum_memory_decommit (gpointer address,
+                     gsize size)
+{
+  return mmap (address, size, PROT_NONE,
+      MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0) == address;
 }
 
 static void
