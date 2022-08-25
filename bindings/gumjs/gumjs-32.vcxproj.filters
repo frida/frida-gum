@@ -502,6 +502,12 @@
     <None Include="runtime\error-handler-quickjs.js">
       <Filter>runtime</Filter>
     </None>
+    <None Include="runtime\cmodule\gum\gumtls.h">
+      <Filter>runtime\cmodule\gum</Filter>
+    </None>
+    <None Include="runtime\swift.js">
+      <Filter>runtime</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="generate-bindings.py">
