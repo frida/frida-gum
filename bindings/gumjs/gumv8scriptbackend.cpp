@@ -15,7 +15,7 @@
 #include <gum/guminterceptor.h>
 #include <string.h>
 
-#ifdef HAVE_IOS
+#if defined (HAVE_DARWIN) && (defined (HAVE_ARM) || defined (HAVE_ARM64))
 # define GUM_V8_PLATFORM_FLAGS \
     "--write-protect-code-memory " \
     "--wasm-write-protect-code-memory "
