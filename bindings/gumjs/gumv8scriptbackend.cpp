@@ -239,6 +239,13 @@ gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
       g_string_append (flags, " --jitless");
     }
 
+    const gchar * extra_flags = g_getenv ("FRIDA_V8_EXTRA_FLAGS");
+    if (extra_flags != NULL)
+    {
+      g_string_append_c (flags, ' ');
+      g_string_append (flags, extra_flags);
+    }
+
     V8::SetFlagsFromString (flags->str, (size_t) flags->len);
 
     g_string_free (flags, TRUE);
