@@ -866,7 +866,7 @@ GumV8Operation::GumV8Operation ()
 }
 
 bool
-GumV8Operation::IsAnchoredTo (v8::Isolate * i) const
+GumV8Operation::IsAnchoredTo (Isolate * i) const
 {
   return isolate == i;
 }
