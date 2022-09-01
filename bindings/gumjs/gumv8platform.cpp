@@ -435,7 +435,8 @@ private:
 };
 
 GumV8Platform::GumV8Platform ()
-  : scheduler (gum_script_backend_get_scheduler ()),
+  : disposing (false),
+    scheduler (gum_script_backend_get_scheduler ()),
     page_allocator (new GumV8PageAllocator ()),
     array_buffer_allocator (new GumV8ArrayBufferAllocator ()),
     threading_backend (new GumV8ThreadingBackend ()),
@@ -461,7 +462,13 @@ GumV8Platform::~GumV8Platform ()
 void
 GumV8Platform::Dispose ()
 {
+  disposing = true;
+
   CancelPendingOperations ();
+
+  for (const auto & isolate : dying_isolates)
+    isolate->Dispose ();
+  dying_isolates.clear ();
 
   V8::Dispose ();
   V8::DisposePlatform ();
@@ -491,9 +498,11 @@ GumV8Platform::CancelPendingOperations ()
     for (const auto & op : pool_ops_copy)
       op->Await ();
 
-    GumV8PlatformLocker locker (this);
-    if (js_ops.empty () && pool_ops.empty ())
-      break;
+    {
+      GumV8PlatformLocker locker (this);
+      if (js_ops.empty () && pool_ops.empty ())
+        break;
+    }
 
     bool anything_pending = false;
     while (g_main_context_pending (main_context))
@@ -507,28 +516,47 @@ GumV8Platform::CancelPendingOperations ()
 }
 
 void
+GumV8Platform::DisposeIsolate (Isolate ** isolate)
+{
+  Isolate * i = (Isolate *) g_steal_pointer (isolate);
+
+  {
+    GumV8PlatformLocker locker (this);
+    dying_isolates.insert (i);
+  }
+
+  MaybeDisposeIsolate (i);
+}
+
+void
+GumV8Platform::MaybeDisposeIsolate (Isolate * isolate)
+{
+  auto isolate_ops = GetPendingOperationsFor (isolate);
+  for (const auto & op : isolate_ops)
+    op->Cancel ();
+  if (!isolate_ops.empty ())
+    return;
+
+  {
+    GumV8PlatformLocker locker (this);
+
+    if (disposing || dying_isolates.find (isolate) == dying_isolates.end ())
+      return;
+
+    foreground_runners.erase (isolate);
+    dying_isolates.erase (isolate);
+  }
+
+  isolate->Dispose ();
+}
+
+void
 GumV8Platform::ForgetIsolate (Isolate * isolate)
 {
   std::unordered_set<std::shared_ptr<GumV8Operation>> isolate_ops;
   do
   {
-    isolate_ops.clear ();
-
-    {
-      GumV8PlatformLocker locker (this);
-
-      for (const auto & op : js_ops)
-      {
-        if (op->IsAnchoredTo (isolate))
-          isolate_ops.insert (op);
-      }
-
-      for (const auto & op : pool_ops)
-      {
-        if (op->IsAnchoredTo (isolate))
-          isolate_ops.insert (op);
-      }
-    }
+    isolate_ops = GetPendingOperationsFor (isolate);
 
     for (const auto & op : isolate_ops)
       op->Cancel ();
@@ -542,6 +570,50 @@ GumV8Platform::ForgetIsolate (Isolate * isolate)
 
     foreground_runners.erase (isolate);
   }
+}
+
+std::unordered_set<std::shared_ptr<GumV8Operation>>
+GumV8Platform::GetPendingOperationsFor (Isolate * isolate)
+{
+  std::unordered_set<std::shared_ptr<GumV8Operation>> isolate_ops;
+
+  GumV8PlatformLocker locker (this);
+
+  for (const auto & op : js_ops)
+  {
+    if (op->IsAnchoredTo (isolate))
+      isolate_ops.insert (op);
+  }
+
+  for (const auto & op : pool_ops)
+  {
+    if (op->IsAnchoredTo (isolate))
+      isolate_ops.insert (op);
+  }
+
+  return isolate_ops;
+}
+
+void
+GumV8Platform::OnOperationRemoved (GumV8Operation * op)
+{
+  Isolate * isolate = op->isolate;
+  if (isolate == nullptr)
+    return;
+
+  {
+    GumV8PlatformLocker locker (this);
+    if (dying_isolates.find (isolate) == dying_isolates.end ())
+      return;
+  }
+
+  if (g_main_context_is_owner (gum_script_scheduler_get_js_context (scheduler)))
+    MaybeDisposeIsolate (isolate);
+  else
+    ScheduleOnJSThread (G_PRIORITY_HIGH, [=]()
+        {
+          MaybeDisposeIsolate (isolate);
+        });
 }
 
 std::shared_ptr<GumV8Operation>
@@ -677,6 +749,8 @@ GumV8Platform::ReleaseMainContextOperation (gpointer data)
     platform->js_ops.erase (op);
   }
 
+  platform->OnOperationRemoved (op.get ());
+
   delete ptr;
 }
 
@@ -708,6 +782,8 @@ GumV8Platform::ReleaseThreadPoolOperation (gpointer data)
 
     platform->pool_ops.erase (op);
   }
+
+  platform->OnOperationRemoved (op.get ());
 
   delete ptr;
 }
@@ -741,6 +817,7 @@ GumV8Platform::ReleaseDelayedThreadPoolOperation (gpointer data)
 
   auto op = *ptr;
   auto platform = op->platform;
+  bool removed = false;
   {
     GumV8PlatformLocker locker (platform);
 
@@ -753,9 +830,13 @@ GumV8Platform::ReleaseDelayedThreadPoolOperation (gpointer data)
       case GumV8DelayedThreadPoolOperation::kCanceling:
       case GumV8DelayedThreadPoolOperation::kCanceled:
         platform->pool_ops.erase (op);
+        removed = true;
         break;
     }
   }
+
+  if (removed)
+    platform->OnOperationRemoved (op.get ());
 
   delete ptr;
 }

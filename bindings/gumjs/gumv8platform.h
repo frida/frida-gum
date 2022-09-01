@@ -30,6 +30,7 @@ public:
   GumV8Platform & operator= (const GumV8Platform &) = delete;
   ~GumV8Platform ();
 
+  void DisposeIsolate (v8::Isolate ** isolate);
   void ForgetIsolate (v8::Isolate * isolate);
 
   GumScriptScheduler * GetScheduler () const { return scheduler; }
@@ -68,6 +69,10 @@ private:
   void InitRuntime ();
   void Dispose ();
   void CancelPendingOperations ();
+  void MaybeDisposeIsolate (v8::Isolate * isolate);
+  std::unordered_set<std::shared_ptr<GumV8Operation>> GetPendingOperationsFor (
+      v8::Isolate * isolate);
+  void OnOperationRemoved (GumV8Operation * op);
 
   static gboolean PerformMainContextOperation (gpointer data);
   static void ReleaseMainContextOperation (gpointer data);
@@ -79,6 +84,7 @@ private:
   static void ReleaseDelayedThreadPoolOperation (gpointer data);
 
   GMutex mutex;
+  bool disposing;
   GumV8Bundle * runtime_bundle;
 #ifdef HAVE_OBJC_BRIDGE
   GumV8Bundle * objc_bundle;
@@ -90,6 +96,7 @@ private:
   GumV8Bundle * java_bundle;
 #endif
   GumScriptScheduler * scheduler;
+  std::unordered_set<v8::Isolate *> dying_isolates;
   std::unordered_set<std::shared_ptr<GumV8Operation>> js_ops;
   std::unordered_set<std::shared_ptr<GumV8Operation>> pool_ops;
   std::map<v8::Isolate *, std::shared_ptr<v8::TaskRunner>> foreground_runners;
@@ -120,6 +127,8 @@ public:
 
 private:
   v8::Isolate * isolate;
+
+  friend class GumV8Platform;
 };
 
 #endif

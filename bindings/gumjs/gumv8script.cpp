@@ -356,9 +356,12 @@ gum_v8_script_dispose (GObject * object)
     gum_v8_script_drop_queued_debug_messages_unlocked (self);
     GUM_V8_INSPECTOR_UNLOCK (self);
 
+    delete self->channels;
+    self->channels = nullptr;
+
     auto platform =
         (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
-    platform->ForgetIsolate (self->isolate);
+    platform->DisposeIsolate (&self->isolate);
 
     g_clear_pointer (&self->main_context, g_main_context_unref);
     g_clear_pointer (&self->backend, g_object_unref);
@@ -374,10 +377,6 @@ gum_v8_script_finalize (GObject * object)
 
   g_cond_clear (&self->inspector_cond);
   g_mutex_clear (&self->inspector_mutex);
-
-  delete self->channels;
-
-  self->isolate->Dispose ();
 
   g_free (self->name);
   g_free (self->source);
