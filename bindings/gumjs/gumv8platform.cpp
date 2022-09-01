@@ -538,9 +538,7 @@ GumV8Platform::ForgetIsolate (Isolate * isolate)
   {
     GumV8PlatformLocker locker (this);
 
-    auto it = foreground_runners.find (isolate);
-    if (it != foreground_runners.end ())
-      foreground_runners.erase (it);
+    foreground_runners.erase (isolate);
   }
 }
 
