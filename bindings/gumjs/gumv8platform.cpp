@@ -31,7 +31,8 @@ class GumV8MainContextOperation : public GumV8Operation
 {
 public:
   GumV8MainContextOperation (GumV8Platform * platform,
-      std::function<void ()> func, GSource * source);
+      std::function<void ()> func, GSource * source,
+      guint delay_in_milliseconds);
   ~GumV8MainContextOperation () override;
 
   void Perform ();
@@ -51,6 +52,7 @@ private:
   GumV8Platform * platform;
   std::function<void ()> func;
   GSource * source;
+  guint delay_in_milliseconds;
   volatile State state;
   GCond cond;
 
@@ -573,7 +575,8 @@ GumV8Platform::ScheduleOnJSThreadDelayed (guint delay_in_milliseconds,
       : g_idle_source_new ();
   g_source_set_priority (source, priority);
 
-  auto op = std::make_shared<GumV8MainContextOperation> (this, f, source);
+  auto op = std::make_shared<GumV8MainContextOperation> (this, f, source,
+      delay_in_milliseconds);
 
   {
     GumV8PlatformLocker locker (this);
@@ -601,7 +604,7 @@ GumV8Platform::PerformOnJSThread (gint priority,
   GSource * source = g_idle_source_new ();
   g_source_set_priority (source, priority);
 
-  auto op = std::make_shared<GumV8MainContextOperation> (this, f, source);
+  auto op = std::make_shared<GumV8MainContextOperation> (this, f, source, 0);
 
   g_source_set_callback (source, PerformMainContextOperation,
       new std::shared_ptr<GumV8MainContextOperation> (op),
@@ -872,10 +875,12 @@ GumV8Operation::IsAnchoredTo (Isolate * i) const
 GumV8MainContextOperation::GumV8MainContextOperation (
     GumV8Platform * platform,
     std::function<void ()> func,
-    GSource * source)
+    GSource * source,
+    guint delay_in_milliseconds)
   : platform (platform),
     func (func),
     source (source),
+    delay_in_milliseconds (delay_in_milliseconds),
     state (kScheduled)
 {
   g_cond_init (&cond);
@@ -909,6 +914,9 @@ GumV8MainContextOperation::Perform ()
 void
 GumV8MainContextOperation::Cancel ()
 {
+  if (delay_in_milliseconds == 0)
+    return;
+
   {
     GumV8PlatformLocker locker (platform);
     if (state != kScheduled)
@@ -970,11 +978,6 @@ GumV8ThreadPoolOperation::Perform ()
 void
 GumV8ThreadPoolOperation::Cancel ()
 {
-  GumV8PlatformLocker locker (platform);
-  if (state != kScheduled)
-    return;
-  state = kCanceled;
-  g_cond_signal (&cond);
 }
 
 void
