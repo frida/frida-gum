@@ -2,6 +2,7 @@
  * memcpy - copy memory area
  *
  * Copyright (c) 2019-2020, Arm Limited.
+ * Copyright (c) 2022, Ole André Vadla Ravnås.
  * SPDX-License-Identifier: MIT OR Apache-2.0 WITH LLVM-exception
  */
 
@@ -11,7 +12,7 @@
  *
  */
 
-#include "../asmdefs.h"
+#include "asmdefs.h"
 
 #define dstin	x0
 #define src	x1
@@ -50,11 +51,8 @@
    The loop tail is handled by always copying 64 bytes from the end.
 */
 
-ENTRY_ALIAS (__memmove_aarch64_simd)
-ENTRY (__memcpy_aarch64_simd)
-	PTR_ARG (0)
-	PTR_ARG (1)
-	SIZE_ARG (2)
+ENTRY_ALIAS gum_memmove
+ENTRY gum_memcpy
 	add	srcend, src, count
 	add	dstend, dstin, count
 	cmp	count, 128
@@ -202,5 +200,4 @@ L(copy64_from_start):
 	stp	A_q, B_q, [dstin]
 	ret
 
-END (__memcpy_aarch64_simd)
-
+END gum_memcpy
