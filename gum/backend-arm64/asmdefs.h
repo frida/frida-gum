@@ -2,27 +2,18 @@
  * Macros for asm code.
  *
  * Copyright (c) 2019-2020, Arm Limited.
+ * Copyright (c) 2022, Ole André Vadla Ravnås.
  * SPDX-License-Identifier: MIT OR Apache-2.0 WITH LLVM-exception
  */
 
-#ifndef _ASMDEFS_H
-#define _ASMDEFS_H
+#ifndef __GUM_ASMDEFS_H__
+#define __GUM_ASMDEFS_H__
 
-#if defined (__arm__)
-#define ARM_FNSTART .fnstart
-#if defined (IS_LEAF)
-#define ARM_FNEND \
-  .cantunwind	  \
-  .fnend
+#ifdef __APPLE__
+# define GUM_SYMBOL(s) _ ## s
 #else
-#define ARM_FNEND .fnend
-# endif
-#else
-#define ARM_FNSTART
-#define ARM_FNEND
+# define GUM_SYMBOL(s) s
 #endif
-
-#if defined(__aarch64__)
 
 /* Branch Target Identitication support.  */
 #define BTI_C		hint	34
@@ -52,8 +43,8 @@
 
 /* If set then the GNU Property Note section will be added to
    mark objects to support BTI and PAC-RET.  */
-#ifndef WANT_GNU_PROPERTY
-#define WANT_GNU_PROPERTY 1
+#if !defined (WANT_GNU_PROPERTY) && !defined (__APPLE__)
+# define WANT_GNU_PROPERTY 1
 #endif
 
 #if WANT_GNU_PROPERTY
@@ -61,55 +52,32 @@
 GNU_PROPERTY (FEATURE_1_AND, FEATURE_1_BTI|FEATURE_1_PAC)
 #endif
 
-#define ENTRY_ALIGN(name, alignment)	\
-  .global name;		\
-  .type name,%function;	\
-  .align alignment;		\
-  name:			\
-  ARM_FNSTART;		\
-  .cfi_startproc;	\
-  BTI_C;
-
-#else
-
-#define END_FILE
-
-#define ENTRY_ALIGN(name, alignment)	\
-  .global name;		\
-  .type name,%function;	\
-  .align alignment;		\
-  name:			\
-  ARM_FNSTART;		\
-  .cfi_startproc;
-
+.macro ENTRY name
+  .global GUM_SYMBOL(\name)
+#ifndef __APPLE__
+  .type GUM_SYMBOL(\name), %function
 #endif
+  .align 6
+  GUM_SYMBOL(\name):
+  .cfi_startproc
+  BTI_C
+.endm
 
-#define ENTRY(name)	ENTRY_ALIGN(name, 6)
+.macro ENTRY_ALIAS name
+  .global GUM_SYMBOL(\name)
+#ifndef __APPLE__
+  .type GUM_SYMBOL(\name), %function
+#endif
+  GUM_SYMBOL(\name):
+.endm
 
-#define ENTRY_ALIAS(name)	\
-  .global name;		\
-  .type name,%function;	\
-  name:
-
-#define END(name)	\
-  .cfi_endproc;		\
-  ARM_FNEND;		\
-  .size name, .-name;
+.macro END name
+  .cfi_endproc
+#ifndef __APPLE__
+  .size GUM_SYMBOL(\name), .-GUM_SYMBOL(\name)
+#endif
+.endm
 
 #define L(l) .L ## l
-
-#ifdef __ILP32__
-  /* Sanitize padding bits of pointer arguments as per aapcs64 */
-#define PTR_ARG(n)  mov w##n, w##n
-#else
-#define PTR_ARG(n)
-#endif
-
-#ifdef __ILP32__
-  /* Sanitize padding bits of size arguments as per aapcs64 */
-#define SIZE_ARG(n)  mov w##n, w##n
-#else
-#define SIZE_ARG(n)
-#endif
 
 #endif

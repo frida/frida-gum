@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,6 +18,8 @@ gum_memset (gpointer dst,
 
   return dst;
 }
+
+#ifndef HAVE_ARM64
 
 gpointer
 gum_memcpy (gpointer dst,
@@ -54,3 +56,5 @@ gum_memmove (gpointer dst,
 
   return dst;
 }
+
+#endif

@@ -267,6 +267,7 @@ if host_arch == 'arm64'
     'backend-arm64/gumspinlock-arm64.c',
     'backend-arm64/gumstalker-arm64.c',
     'backend-arm64/gumstalker-arm64-glue.S',
+    'backend-arm64/memcpy-advsimd.S',
   ]
 endif
 
