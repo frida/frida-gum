@@ -178,14 +178,22 @@ gumjs_runtime_sources = [
   'runtime/cmodule/json-glib/json-glib.h',
 ]
 gumjs_runtime_outputs = [
-  'gumquickscript-runtime.h',
-  'gumquickscript-objc.h',
-  'gumquickscript-java.h',
-  'gumv8script-runtime.h',
-  'gumv8script-objc.h',
-  'gumv8script-java.h',
   'gumcmodule-runtime.h',
 ]
+if quickjs_dep.found()
+  gumjs_runtime_outputs += [
+    'gumquickscript-runtime.h',
+    'gumquickscript-objc.h',
+    'gumquickscript-java.h',
+  ]
+endif
+if v8_dep.found()
+  gumjs_runtime_outputs += [
+    'gumv8script-runtime.h',
+    'gumv8script-objc.h',
+    'gumv8script-java.h',
+  ]
+endif
 
 install_headers(gumjs_headers, subdir: install_header_basedir + '/gumjs')
 
@@ -210,11 +218,20 @@ else
   libtcc_incdir = ''
 endif
 
+backends = []
+if quickjs_dep.found()
+  backends += 'qjs'
+endif
+if v8_dep.found()
+  backends += 'v8'
+endif
+
 gumjs_runtime = custom_target('gumjs-runtime',
   input: gumjs_runtime_sources,
   output: gumjs_runtime_outputs,
   command: [
     find_program('generate-runtime.py'),
+    ','.join(backends),
     host_arch,
     host_machine.endian(),
     meson.current_source_dir(),

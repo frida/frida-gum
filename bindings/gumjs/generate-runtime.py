@@ -22,7 +22,7 @@ EXACT_DEPS = {
 }
 
 
-def generate_runtime(arch, endian, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir):
+def generate_runtime(backends, arch, endian, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir):
     frida_compile = output_dir / "node_modules" / ".bin" / make_script_filename("frida-compile")
     if not frida_compile.exists():
         pkg_files = [output_dir / "package.json", output_dir / "package-lock.json"]
@@ -70,48 +70,50 @@ def generate_runtime(arch, endian, input_dir, gum_dir, capstone_incdir, libtcc_i
     shutil.copytree(runtime_srcdir, runtime_intdir)
 
 
-    quick_tmp_dir = Path("runtime-build-quick")
-    runtime = quick_tmp_dir / "frida.js"
-    objc = quick_tmp_dir / "objc.js"
-    swift = quick_tmp_dir / "swift.js"
-    java = quick_tmp_dir / "java.js"
+    if "qjs" in backends:
+        quick_tmp_dir = Path("runtime-build-quick")
+        runtime = quick_tmp_dir / "frida.js"
+        objc = quick_tmp_dir / "objc.js"
+        swift = quick_tmp_dir / "swift.js"
+        java = quick_tmp_dir / "java.js"
 
-    quick_options = [
-        "-c", # Compress for smaller code and better performance.
-    ]
-    subprocess.run([frida_compile, runtime_reldir / "entrypoint-quickjs.js", "-o", runtime] + quick_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "objc.js", "-o", objc] + quick_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + quick_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + quick_options, cwd=output_dir, check=True)
+        quick_options = [
+            "-c", # Compress for smaller code and better performance.
+        ]
+        subprocess.run([frida_compile, runtime_reldir / "entrypoint-quickjs.js", "-o", runtime] + quick_options, cwd=output_dir, check=True)
+        subprocess.run([frida_compile, runtime_reldir / "objc.js", "-o", objc] + quick_options, cwd=output_dir, check=True)
+        subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + quick_options, cwd=output_dir, check=True)
+        subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + quick_options, cwd=output_dir, check=True)
 
-    qcflags = []
-    if endian != sys.byteorder:
-        qcflags.append("--bswap")
+        qcflags = []
+        if endian != sys.byteorder:
+            qcflags.append("--bswap")
 
-    generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", [runtime], quickcompile, qcflags)
-    generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", [objc], quickcompile, qcflags)
-    generate_runtime_quick("swift", output_dir, "gumquickscript-swift.h", [swift], quickcompile, qcflags)
-    generate_runtime_quick("java", output_dir, "gumquickscript-java.h", [java], quickcompile, qcflags)
+        generate_runtime_quick("runtime", output_dir, "gumquickscript-runtime.h", [runtime], quickcompile, qcflags)
+        generate_runtime_quick("objc", output_dir, "gumquickscript-objc.h", [objc], quickcompile, qcflags)
+        generate_runtime_quick("swift", output_dir, "gumquickscript-swift.h", [swift], quickcompile, qcflags)
+        generate_runtime_quick("java", output_dir, "gumquickscript-java.h", [java], quickcompile, qcflags)
 
 
-    v8_tmp_dir = Path("runtime-build-v8")
-    runtime = v8_tmp_dir / "frida.js"
-    objc = v8_tmp_dir / "objc.js"
-    swift = v8_tmp_dir / "swift.js"
-    java = v8_tmp_dir / "java.js"
+    if "v8" in backends:
+        v8_tmp_dir = Path("runtime-build-v8")
+        runtime = v8_tmp_dir / "frida.js"
+        objc = v8_tmp_dir / "objc.js"
+        swift = v8_tmp_dir / "swift.js"
+        java = v8_tmp_dir / "java.js"
 
-    v8_options = [
-        "-c", # Compress for smaller code and better performance.
-    ]
-    subprocess.run([frida_compile, runtime_reldir / "entrypoint-v8.js", "-o", runtime] + v8_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "objc.js", "-o", objc] + v8_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + v8_options, cwd=output_dir, check=True)
-    subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + v8_options, cwd=output_dir, check=True)
+        v8_options = [
+            "-c", # Compress for smaller code and better performance.
+        ]
+        subprocess.run([frida_compile, runtime_reldir / "entrypoint-v8.js", "-o", runtime] + v8_options, cwd=output_dir, check=True)
+        subprocess.run([frida_compile, runtime_reldir / "objc.js", "-o", objc] + v8_options, cwd=output_dir, check=True)
+        subprocess.run([frida_compile, runtime_reldir / "swift.js", "-o", swift] + v8_options, cwd=output_dir, check=True)
+        subprocess.run([frida_compile, runtime_reldir / "java.js", "-o", java] + v8_options, cwd=output_dir, check=True)
 
-    generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
-    generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
-    generate_runtime_v8("swift", output_dir, "gumv8script-swift.h", [swift])
-    generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
+        generate_runtime_v8("runtime", output_dir, "gumv8script-runtime.h", [runtime])
+        generate_runtime_v8("objc", output_dir, "gumv8script-objc.h", [objc])
+        generate_runtime_v8("swift", output_dir, "gumv8script-swift.h", [swift])
+        generate_runtime_v8("java", output_dir, "gumv8script-java.h", [java])
 
 
     generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", arch, input_dir, gum_dir, capstone_incdir, libtcc_incdir)
@@ -416,11 +418,12 @@ def make_script_filename(name):
 
 
 if __name__ == '__main__':
-    arch, endian = sys.argv[1:3]
-    input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir = [Path(d).resolve() for d in sys.argv[3:]]
+    backends = set(sys.argv[1].split(","))
+    arch, endian = sys.argv[2:4]
+    input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir = [Path(d).resolve() for d in sys.argv[4:]]
 
     try:
-        generate_runtime(arch, endian, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir)
+        generate_runtime(backends, arch, endian, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir)
     except Exception as e:
         print(e, file=sys.stderr)
         sys.exit(1)
