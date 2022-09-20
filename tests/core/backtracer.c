@@ -104,11 +104,11 @@ TESTCASE (full_cycle_with_interceptor)
 
   g_assert_true (gum_return_address_details_from_address (
       collector->last_on_enter.items[0], &on_enter));
-  g_assert_cmpstr (on_enter.function_name, ==, __FUNCTION__);
+  g_assert_true (g_str_has_prefix (on_enter.function_name, __FUNCTION__));
 
   g_assert_true (gum_return_address_details_from_address (
       collector->last_on_leave.items[0], &on_leave));
-  g_assert_cmpstr (on_leave.function_name, ==, __FUNCTION__);
+  g_assert_true (g_str_has_prefix (on_leave.function_name, __FUNCTION__));
 
   g_object_unref (collector);
   g_object_unref (interceptor);
