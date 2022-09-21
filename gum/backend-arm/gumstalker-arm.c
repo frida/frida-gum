@@ -9,11 +9,13 @@
 #include "gumstalker.h"
 
 #include "gumarmreg.h"
+#include "gumarmreader.h"
 #include "gumarmrelocator.h"
 #include "gumarmwriter.h"
 #include "gummemory.h"
 #include "gummetalhash.h"
 #include "gumspinlock.h"
+#include "gumthumbreader.h"
 #include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
 
@@ -175,6 +177,7 @@ struct _GumExecCtx
   gpointer last_exec_location;
   void (* sink_process_impl) (GumEventSink * self, const GumEvent * event,
       GumCpuContext * cpu_context);
+  GumStalkerObserver * observer;
 
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
@@ -437,6 +440,11 @@ static gboolean gum_exec_ctx_maybe_unfollow (GumExecCtx * ctx,
 static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
 static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
 static gboolean gum_exec_ctx_contains (GumExecCtx * ctx, gconstpointer address);
+static gpointer gum_exec_ctx_switch_block (GumExecCtx * ctx,
+    GumExecBlock * block, gpointer start_address, gpointer from_insn);
+static void gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
+    GumExecBlock * block, gpointer start_address, gpointer from_insn,
+    gpointer * target);
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
 static void gum_exec_ctx_recompile_block (GumExecCtx * ctx,
@@ -1196,6 +1204,16 @@ void
 gum_stalker_set_observer (GumStalker * self,
                           GumStalkerObserver * observer)
 {
+  GumExecCtx * ctx;
+
+  ctx = gum_stalker_get_exec_ctx ();
+  g_assert (ctx != NULL);
+
+  if (observer != NULL)
+    g_object_ref (observer);
+  if (ctx->observer != NULL)
+    g_object_unref (ctx->observer);
+  ctx->observer = observer;
 }
 
 void
@@ -1646,6 +1664,8 @@ gum_exec_ctx_new (GumStalker * stalker,
   ctx->sink_mask = gum_event_sink_query_mask (ctx->sink);
   ctx->sink_process_impl = GUM_EVENT_SINK_GET_IFACE (ctx->sink)->process;
 
+  ctx->observer = NULL;
+
   ctx->frames = (GumExecFrame *) (base + stalker->frames_offset);
   ctx->first_frame =
       ctx->frames + (stalker->frames_size / sizeof (GumExecFrame)) - 1;
@@ -1719,6 +1739,7 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 
   g_object_unref (ctx->sink);
   g_object_unref (ctx->transformer);
+  g_clear_object (&ctx->observer);
 
   gum_thumb_relocator_clear (&ctx->thumb_relocator);
   gum_thumb_writer_clear (&ctx->thumb_writer);
@@ -1874,8 +1895,13 @@ gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
 
 static gpointer
 gum_exec_ctx_switch_block (GumExecCtx * ctx,
-                           gpointer start_address)
+                           GumExecBlock * block,
+                           gpointer start_address,
+                           gpointer from_insn)
 {
+  if (ctx->observer != NULL)
+    gum_stalker_observer_increment_total (ctx->observer);
+
   if (start_address == gum_stalker_unfollow_me ||
       start_address == gum_stalker_deactivate)
   {
@@ -1909,7 +1935,47 @@ gum_exec_ctx_switch_block (GumExecCtx * ctx,
     gum_exec_ctx_maybe_unfollow (ctx, start_address);
   }
 
+  gum_exec_ctx_query_block_switch_callback (ctx, block, start_address,
+      from_insn, &ctx->resume_at);
+
   return ctx->resume_at;
+}
+
+static void
+gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
+                                          GumExecBlock * block,
+                                          gpointer start_address,
+                                          gpointer from_insn,
+                                          gpointer * target)
+{
+  cs_insn * insn = NULL;
+  gpointer from = NULL;
+
+  if (ctx->observer == NULL)
+    return;
+
+  /*
+   * In the event of a block continuation (e.g. we had to split the generated
+   * code for a single basic block into two separate instrumented blocks, e.g.
+   * because of size), then we may have no from_insn here. Just pass NULL to
+   * the callback and let the user decide what to do.
+   */
+  if (from_insn != NULL)
+  {
+    if (gum_is_thumb (from_insn))
+      insn = gum_thumb_reader_disassemble_instruction_at (from_insn);
+    else
+      insn = gum_arm_reader_disassemble_instruction_at (from_insn);
+  }
+
+  if (block != NULL)
+    from = block->real_start;
+
+  gum_stalker_observer_switch_callback (ctx->observer, from, start_address,
+      insn, target);
+
+  if (insn != NULL)
+    cs_free (insn, 1);
 }
 
 static void
@@ -2183,9 +2249,11 @@ gum_exec_ctx_compile_arm_block (GumExecCtx * ctx,
     gum_exec_block_arm_open_prolog (block, &gc);
 
     gum_arm_writer_put_call_address_with_arguments (cw,
-        GUM_ADDRESS (gum_exec_ctx_switch_block), 2,
+        GUM_ADDRESS (gum_exec_ctx_switch_block), 4,
         GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
-        GUM_ARG_ADDRESS, GUM_ADDRESS (gc.continuation_real_address));
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc.continuation_real_address),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc.instruction->start));
 
     gum_exec_block_arm_close_prolog (block, &gc);
 
@@ -2255,9 +2323,11 @@ gum_exec_ctx_compile_thumb_block (GumExecCtx * ctx,
     gum_exec_block_thumb_open_prolog (block, &gc);
 
     gum_thumb_writer_put_call_address_with_arguments (cw,
-        GUM_ADDRESS (gum_exec_ctx_switch_block), 2,
+        GUM_ADDRESS (gum_exec_ctx_switch_block), 4,
         GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
-        GUM_ARG_ADDRESS, GUM_ADDRESS (gc.continuation_real_address) + 1);
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc.continuation_real_address) + 1,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc.instruction->start) + 1);
 
     gum_exec_block_thumb_close_prolog (block, &gc);
 
@@ -4799,11 +4869,13 @@ gum_exec_block_write_arm_call_switch_block (GumExecBlock * block,
                                             const GumBranchTarget * target,
                                             GumGeneratorContext * gc)
 {
-  gum_exec_ctx_write_arm_mov_branch_target (block->ctx, target, ARM_REG_R1, gc);
+  gum_exec_ctx_write_arm_mov_branch_target (block->ctx, target, ARM_REG_R2, gc);
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
-      GUM_ADDRESS (gum_exec_ctx_switch_block), 2,
+      GUM_ADDRESS (gum_exec_ctx_switch_block), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_REGISTER, ARM_REG_R1);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+      GUM_ARG_REGISTER, ARM_REG_R2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start));
 }
 
 static void
@@ -4811,12 +4883,14 @@ gum_exec_block_write_thumb_call_switch_block (GumExecBlock * block,
                                               const GumBranchTarget * target,
                                               GumGeneratorContext * gc)
 {
-  gum_exec_ctx_write_thumb_mov_branch_target (block->ctx, target, ARM_REG_R1,
+  gum_exec_ctx_write_thumb_mov_branch_target (block->ctx, target, ARM_REG_R2,
       gc);
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-      GUM_ADDRESS (gum_exec_ctx_switch_block), 2,
+      GUM_ADDRESS (gum_exec_ctx_switch_block), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_REGISTER, ARM_REG_R1);
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+      GUM_ARG_REGISTER, ARM_REG_R2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start) + 1);
 }
 
 static void
@@ -5031,9 +5105,11 @@ gum_exec_block_write_arm_handle_not_taken (GumExecBlock * block,
     gum_exec_block_arm_open_prolog (block, gc);
 
   gum_arm_writer_put_call_address_with_arguments (cw,
-      GUM_ADDRESS (gum_exec_ctx_switch_block), 2,
+      GUM_ADDRESS (gum_exec_ctx_switch_block), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ec),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start));
 
   if (ec->stalker->trust_threshold >= 0 &&
       target->type == GUM_TARGET_DIRECT_ADDRESS &&
@@ -5113,9 +5189,11 @@ gum_exec_block_write_thumb_handle_not_taken (GumExecBlock * block,
       gum_exec_block_thumb_open_prolog (block, gc);
 
     gum_thumb_writer_put_call_address_with_arguments (cw,
-        GUM_ADDRESS (gum_exec_ctx_switch_block), 2,
+        GUM_ADDRESS (gum_exec_ctx_switch_block), 4,
         GUM_ARG_ADDRESS, GUM_ADDRESS (ec),
-        GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end + 1));
+        GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end + 1),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start + 1));
 
     if (ec->stalker->trust_threshold >= 0 &&
         target->type == GUM_TARGET_DIRECT_ADDRESS &&
@@ -5155,9 +5233,11 @@ gum_exec_block_write_arm_handle_continue (GumExecBlock * block,
    */
 
   gum_arm_writer_put_call_address_with_arguments (gc->arm_writer,
-      GUM_ADDRESS (gum_exec_ctx_switch_block), 2,
+      GUM_ADDRESS (gum_exec_ctx_switch_block), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start));
 
   gum_exec_block_arm_close_prolog (block, gc);
 
@@ -5169,9 +5249,11 @@ gum_exec_block_write_thumb_handle_continue (GumExecBlock * block,
                                             GumGeneratorContext * gc)
 {
   gum_thumb_writer_put_call_address_with_arguments (gc->thumb_writer,
-      GUM_ADDRESS (gum_exec_ctx_switch_block), 2,
+      GUM_ADDRESS (gum_exec_ctx_switch_block), 4,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end + 1));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (block),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->end + 1),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gc->instruction->start + 1));
 
   gum_exec_block_thumb_close_prolog (block, gc);
 
