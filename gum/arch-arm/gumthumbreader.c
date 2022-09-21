@@ -8,8 +8,6 @@
 
 #include <capstone.h>
 
-static cs_insn * disassemble_instruction_at (gconstpointer address);
-
 gpointer
 gum_thumb_reader_try_get_relative_jump_target (gconstpointer address)
 {
@@ -17,7 +15,7 @@ gum_thumb_reader_try_get_relative_jump_target (gconstpointer address)
   cs_insn * insn;
   cs_arm_op * op;
 
-  insn = disassemble_instruction_at (address);
+  insn = gum_thumb_reader_disassemble_instruction_at (address);
   if (insn == NULL)
     return NULL;
 
@@ -32,8 +30,8 @@ gum_thumb_reader_try_get_relative_jump_target (gconstpointer address)
   return result;
 }
 
-static cs_insn *
-disassemble_instruction_at (gconstpointer address)
+cs_insn *
+gum_thumb_reader_disassemble_instruction_at (gconstpointer address)
 {
   gconstpointer code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (address) & ~1);
   csh capstone;

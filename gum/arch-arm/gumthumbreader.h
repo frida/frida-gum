@@ -9,9 +9,12 @@
 
 #include "gumdefs.h"
 
+#include <capstone.h>
+
 G_BEGIN_DECLS
 
 gpointer gum_thumb_reader_try_get_relative_jump_target (gconstpointer address);
+cs_insn * gum_thumb_reader_disassemble_instruction_at (gconstpointer address);
 
 G_END_DECLS
 
