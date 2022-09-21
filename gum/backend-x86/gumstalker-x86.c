@@ -2727,7 +2727,7 @@ gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
   from = (block != NULL) ? block->real_start : NULL;
 
   gum_stalker_observer_switch_callback (ctx->observer, from, start_address,
-      target);
+      from_insn, target);
 }
 
 static void

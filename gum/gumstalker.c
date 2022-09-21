@@ -395,6 +395,7 @@ void
 gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
                                       gpointer from_address,
                                       gpointer start_address,
+                                      gpointer from_insn,
                                       gpointer * target)
 {
   GumStalkerObserverInterface * iface;
@@ -405,7 +406,8 @@ gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
   if (iface->switch_callback == NULL)
     return;
 
-  iface->switch_callback (observer, from_address, start_address, target);
+  iface->switch_callback (observer, from_address, start_address, from_insn,
+      target);
 }
 
 #endif
