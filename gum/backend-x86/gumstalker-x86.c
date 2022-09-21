@@ -2719,32 +2719,15 @@ gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
                                           gpointer from_insn,
                                           gpointer * target)
 {
-  cs_insn * insn = NULL;
-  gpointer from = NULL;
+  gpointer from;
 
   if (ctx->observer == NULL)
     return;
 
-  if (!gum_stalker_observer_has_switch_callback (ctx->observer))
-    return;
-
-  /*
-   * In the event of a block continuation (e.g. we had to split the generated
-   * code for a single basic block into two separate instrumented blocks, e.g.
-   * because of size), then we may have no from_insn here. Just pass NULL to
-   * the callback and let the user decide what to do.
-   */
-  if (from_insn != NULL)
-    insn = gum_x86_reader_disassemble_instruction_at (from_insn);
-
-  if (block != NULL)
-    from = block->real_start;
+  from = (block != NULL) ? block->real_start : NULL;
 
   gum_stalker_observer_switch_callback (ctx->observer, from, start_address,
-      insn, target);
-
-  if (insn != NULL)
-    cs_free (insn, 1);
+      target);
 }
 
 static void

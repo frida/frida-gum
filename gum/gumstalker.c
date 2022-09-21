@@ -391,22 +391,10 @@ gum_stalker_observer_notify_backpatch (GumStalkerObserver * observer,
   iface->notify_backpatch (observer, backpatch, size);
 }
 
-gboolean
-gum_stalker_observer_has_switch_callback (GumStalkerObserver * observer)
-{
-  GumStalkerObserverInterface * iface;
-
-  iface = GUM_STALKER_OBSERVER_GET_IFACE (observer);
-  g_assert (iface != NULL);
-
-  return iface->switch_callback != NULL;
-}
-
 void
 gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
                                       gpointer from_address,
                                       gpointer start_address,
-                                      const cs_insn * from_insn,
                                       gpointer * target)
 {
   GumStalkerObserverInterface * iface;
@@ -417,8 +405,7 @@ gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
   if (iface->switch_callback == NULL)
     return;
 
-  iface->switch_callback (observer, from_address, start_address, from_insn,
-      target);
+  iface->switch_callback (observer, from_address, start_address, target);
 }
 
 #endif
