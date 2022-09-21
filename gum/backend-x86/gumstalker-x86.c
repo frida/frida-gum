@@ -5597,7 +5597,8 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     gum_x86_writer_put_mov_reg_address (cws, GUM_X86_XAX,
         GUM_ADDRESS (&ctx->app_stack));
     gum_x86_writer_put_mov_reg_reg_ptr (cws, GUM_X86_XAX, GUM_X86_XAX);
-    gum_x86_writer_put_mov_reg_reg_ptr (cws, GUM_X86_THUNK_REG_ARG1, GUM_X86_XAX);
+    gum_x86_writer_put_mov_reg_reg_ptr (cws, GUM_X86_THUNK_REG_ARG1,
+        GUM_X86_XAX);
 
     gum_x86_writer_put_call_address_with_aligned_arguments (cws, GUM_CALL_CAPI,
         GUM_ADDRESS (gum_exec_block_backpatch_slab),

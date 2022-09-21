@@ -3291,10 +3291,10 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
       if (i == 19)
       {
         /*
-         * X19 has been stored above our CpuContext by the prologue code, we reach
-         * up and grab it here and copy it to the right place in the context. Here
-         * we use X28 as scratch since it has already been saved in the context
-         * above.
+         * X19 has been stored above our CpuContext by the prologue code, we
+         * reach up and grab it here and copy it to the right place in the
+         * context. Here we use X28 as scratch since it has already been saved
+         * in the context above.
          */
         gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X28,
             ARM64_REG_X19, distance_to_top);

@@ -46,7 +46,8 @@ typedef struct _GumCallProbe GumCallProbe;
 
 typedef struct _GumExecCtx GumExecCtx;
 typedef void (* GumArmHelperWriteFunc) (GumExecCtx * ctx, GumArmWriter * cw);
-typedef void (* GumThumbHelperWriteFunc) (GumExecCtx * ctx, GumThumbWriter * cw);
+typedef void (* GumThumbHelperWriteFunc) (GumExecCtx * ctx,
+    GumThumbWriter * cw);
 
 typedef struct _GumExecBlock GumExecBlock;
 
