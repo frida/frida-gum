@@ -3805,7 +3805,7 @@ gum_exec_ctx_write_arm_mov_branch_target (GumExecCtx * ctx,
       }
 
       gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R12, ARM_REG_SP,
-          GUM_RED_ZONE_SIZE);
+          -GUM_RED_ZONE_SIZE - 4);
 
       /*
        * Load the second register value from the context into R12 before adding
@@ -3818,7 +3818,7 @@ gum_exec_ctx_write_arm_mov_branch_target (GumExecCtx * ctx,
           value->shifter, value->shift_value);
 
       gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R12, ARM_REG_SP,
-          GUM_RED_ZONE_SIZE);
+          -GUM_RED_ZONE_SIZE - 4);
 
       break;
     }
@@ -3862,7 +3862,7 @@ gum_exec_ctx_write_arm_mov_branch_target (GumExecCtx * ctx,
       }
 
       gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R12, ARM_REG_SP,
-          GUM_RED_ZONE_SIZE);
+          -GUM_RED_ZONE_SIZE - 4);
 
       /*
        * Load the second register value from the context into R12 before adding
@@ -3875,7 +3875,7 @@ gum_exec_ctx_write_arm_mov_branch_target (GumExecCtx * ctx,
           value->shifter, value->shift_value);
 
       gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R12, ARM_REG_SP,
-          GUM_RED_ZONE_SIZE);
+          -GUM_RED_ZONE_SIZE - 4);
 
       gum_arm_writer_put_ldr_reg_reg (cw, reg, reg);
 
