@@ -48,7 +48,13 @@ TESTCASE (symbol_details_from_address)
   assert_basename_equals (__FILE__, details.file_name);
   g_assert_cmpuint (details.line_number, >, 0);
 #endif
+
 #ifdef HAVE_LINUX
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
   g_assert_true (gum_symbol_details_from_address (&gum_dummy_variable,
       &details));
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address), ==,
