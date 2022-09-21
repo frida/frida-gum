@@ -2102,7 +2102,7 @@ TESTCODE (thumb_tbh,
   0x5f, 0xf0, 0x02, 0x0c, /* movs.w ip, 2         */
   0xdf, 0xe8, 0x1c, 0xf0, /* tbh [pc, ip, lsl 1]  */
 
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN  
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
   /* table1:                                      */
   0x03, 0x00,             /* (one - table1) / 2   */
   0x04, 0x00,             /* (two - table1) / 2   */
