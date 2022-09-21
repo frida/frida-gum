@@ -4104,126 +4104,6 @@ gum_exec_ctx_thumb_load_real_register_into (GumExecCtx * ctx,
   }
 }
 
-static void
-gum_exec_ctx_backpatch_arm_branch_to_current (GumExecBlock * block,
-                                              GumExecBlock * from,
-                                              gpointer from_insn,
-                                              gsize code_offset,
-                                              GumPrologState opened_prolog)
-{
-  gboolean just_unfollowed;
-  GumExecCtx * ctx;
-  gpointer target;
-  guint8 * code_start = from->code_start + code_offset;
-  const gsize code_max_size = from->code_size - code_offset;
-  GumArmWriter * cw;
-
-  just_unfollowed = block == NULL;
-  if (just_unfollowed)
-    return;
-
-  ctx = block->ctx;
-
-  if (!gum_exec_ctx_may_now_backpatch (ctx, block))
-    return;
-
-  target = block->code_start;
-  gum_exec_ctx_query_block_switch_callback (ctx, block, block->real_start,
-      from_insn, &target);
-
-  gum_spinlock_acquire (&ctx->code_lock);
-
-  gum_stalker_thaw (ctx->stalker, code_start, code_max_size);
-
-  cw = &ctx->arm_writer;
-  gum_arm_writer_reset (cw, code_start);
-
-  if (opened_prolog == GUM_PROLOG_OPEN)
-    gum_exec_ctx_write_arm_epilog (ctx, cw);
-
-  gum_arm_writer_put_branch_address (cw, GUM_ADDRESS (target));
-
-  gum_arm_writer_flush (cw);
-  g_assert (gum_arm_writer_offset (cw) <= code_max_size);
-  gum_stalker_freeze (ctx->stalker, code_start, code_max_size);
-
-  gum_spinlock_release (&ctx->code_lock);
-
-  if (ctx->observer)
-  {
-    GumBackpatch p;
-
-    p.type = GUM_BACKPATCH_ARM;
-    p.to = block->real_start;
-    p.from = from->real_start;
-    p.from_insn = from_insn;
-    p.code_offset = code_offset;
-    p.opened_prolog = opened_prolog;
-
-    gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
-  }
-}
-
-static void
-gum_exec_ctx_backpatch_thumb_branch_to_current (GumExecBlock * block,
-                                                GumExecBlock * from,
-                                                gpointer from_insn,
-                                                gsize code_offset,
-                                                GumPrologState opened_prolog)
-{
-  gboolean just_unfollowed;
-  GumExecCtx * ctx;
-  gpointer target;
-  guint8 * code_start = from->code_start + code_offset;
-  const gsize code_max_size = from->code_size - code_offset;
-  GumThumbWriter * cw;
-
-  just_unfollowed = block == NULL;
-  if (just_unfollowed)
-    return;
-
-  ctx = block->ctx;
-
-  if (!gum_exec_ctx_may_now_backpatch (ctx, block))
-    return;
-
-  target = block->code_start;
-  gum_exec_ctx_query_block_switch_callback (ctx, block, block->real_start,
-      from_insn, &target);
-
-  gum_spinlock_acquire (&ctx->code_lock);
-
-  gum_stalker_thaw (ctx->stalker, code_start, code_max_size);
-
-  cw = &ctx->thumb_writer;
-  gum_thumb_writer_reset (cw, code_start);
-
-  if (opened_prolog == GUM_PROLOG_OPEN)
-    gum_exec_ctx_write_thumb_epilog (ctx, cw);
-
-  gum_thumb_writer_put_branch_address (cw, GUM_ADDRESS (target));
-
-  gum_thumb_writer_flush (cw);
-  g_assert (gum_thumb_writer_offset (cw) <= code_max_size);
-  gum_stalker_freeze (ctx->stalker, code_start, code_max_size);
-
-  gum_spinlock_release (&ctx->code_lock);
-
-  if (ctx->observer)
-  {
-    GumBackpatch p;
-
-    p.type = GUM_BACKPATCH_THUMB;
-    p.to = block->real_start;
-    p.from = from->real_start;
-    p.from_insn = from_insn;
-    p.code_offset = code_offset;
-    p.opened_prolog = opened_prolog;
-
-    gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
-  }
-}
-
 static GumExecBlock *
 gum_exec_block_new (GumExecCtx * ctx)
 {
@@ -4387,6 +4267,126 @@ gum_exec_block_set_last_callout_entry (GumExecBlock * block,
                                        GumCalloutEntry * entry)
 {
   block->last_callout_offset = (guint8 *) entry - block->code_start;
+}
+
+static void
+gum_exec_ctx_backpatch_arm_branch_to_current (GumExecBlock * block,
+                                              GumExecBlock * from,
+                                              gpointer from_insn,
+                                              gsize code_offset,
+                                              GumPrologState opened_prolog)
+{
+  gboolean just_unfollowed;
+  GumExecCtx * ctx;
+  gpointer target;
+  guint8 * code_start = from->code_start + code_offset;
+  const gsize code_max_size = from->code_size - code_offset;
+  GumArmWriter * cw;
+
+  just_unfollowed = block == NULL;
+  if (just_unfollowed)
+    return;
+
+  ctx = block->ctx;
+
+  if (!gum_exec_ctx_may_now_backpatch (ctx, block))
+    return;
+
+  target = block->code_start;
+  gum_exec_ctx_query_block_switch_callback (ctx, block, block->real_start,
+      from_insn, &target);
+
+  gum_spinlock_acquire (&ctx->code_lock);
+
+  gum_stalker_thaw (ctx->stalker, code_start, code_max_size);
+
+  cw = &ctx->arm_writer;
+  gum_arm_writer_reset (cw, code_start);
+
+  if (opened_prolog == GUM_PROLOG_OPEN)
+    gum_exec_ctx_write_arm_epilog (ctx, cw);
+
+  gum_arm_writer_put_branch_address (cw, GUM_ADDRESS (target));
+
+  gum_arm_writer_flush (cw);
+  g_assert (gum_arm_writer_offset (cw) <= code_max_size);
+  gum_stalker_freeze (ctx->stalker, code_start, code_max_size);
+
+  gum_spinlock_release (&ctx->code_lock);
+
+  if (ctx->observer)
+  {
+    GumBackpatch p;
+
+    p.type = GUM_BACKPATCH_ARM;
+    p.to = block->real_start;
+    p.from = from->real_start;
+    p.from_insn = from_insn;
+    p.code_offset = code_offset;
+    p.opened_prolog = opened_prolog;
+
+    gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
+  }
+}
+
+static void
+gum_exec_ctx_backpatch_thumb_branch_to_current (GumExecBlock * block,
+                                                GumExecBlock * from,
+                                                gpointer from_insn,
+                                                gsize code_offset,
+                                                GumPrologState opened_prolog)
+{
+  gboolean just_unfollowed;
+  GumExecCtx * ctx;
+  gpointer target;
+  guint8 * code_start = from->code_start + code_offset;
+  const gsize code_max_size = from->code_size - code_offset;
+  GumThumbWriter * cw;
+
+  just_unfollowed = block == NULL;
+  if (just_unfollowed)
+    return;
+
+  ctx = block->ctx;
+
+  if (!gum_exec_ctx_may_now_backpatch (ctx, block))
+    return;
+
+  target = block->code_start;
+  gum_exec_ctx_query_block_switch_callback (ctx, block, block->real_start,
+      from_insn, &target);
+
+  gum_spinlock_acquire (&ctx->code_lock);
+
+  gum_stalker_thaw (ctx->stalker, code_start, code_max_size);
+
+  cw = &ctx->thumb_writer;
+  gum_thumb_writer_reset (cw, code_start);
+
+  if (opened_prolog == GUM_PROLOG_OPEN)
+    gum_exec_ctx_write_thumb_epilog (ctx, cw);
+
+  gum_thumb_writer_put_branch_address (cw, GUM_ADDRESS (target));
+
+  gum_thumb_writer_flush (cw);
+  g_assert (gum_thumb_writer_offset (cw) <= code_max_size);
+  gum_stalker_freeze (ctx->stalker, code_start, code_max_size);
+
+  gum_spinlock_release (&ctx->code_lock);
+
+  if (ctx->observer)
+  {
+    GumBackpatch p;
+
+    p.type = GUM_BACKPATCH_THUMB;
+    p.to = block->real_start;
+    p.from = from->real_start;
+    p.from_insn = from_insn;
+    p.code_offset = code_offset;
+    p.opened_prolog = opened_prolog;
+
+    gum_stalker_observer_notify_backpatch (ctx->observer, &p, sizeof (p));
+  }
 }
 
 static void
