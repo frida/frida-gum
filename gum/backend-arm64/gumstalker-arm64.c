@@ -2465,9 +2465,9 @@ gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
 
   /*
    * In the event of a block continuation (e.g. we had to split the generated
-   * code for a single basic block into two separate instrumented blocks (e.g.
-   * because of size), then we may have no from_insn here. Just pass NULL to the
-   * callback and let the user decide what to do.
+   * code for a single basic block into two separate instrumented blocks, e.g.
+   * because of size), then we may have no from_insn here. Just pass NULL to
+   * the callback and let the user decide what to do.
    */
   if (from_insn != NULL)
     insn = gum_arm64_reader_disassemble_instruction_at (from_insn);
