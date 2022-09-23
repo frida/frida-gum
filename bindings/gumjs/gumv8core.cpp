@@ -191,6 +191,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_swift_load)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
+GUMJS_DECLARE_FUNCTION (gumjs_script_evaluate)
+GUMJS_DECLARE_FUNCTION (gumjs_script_load)
 GUMJS_DECLARE_FUNCTION (gumjs_script_find_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
@@ -389,6 +391,8 @@ static const GumV8Function gumjs_frida_functions[] =
 
 static const GumV8Function gumjs_script_functions[] =
 {
+  { "evaluate", gumjs_script_evaluate },
+  { "_load", gumjs_script_load },
   { "_findSourceMap", gumjs_script_find_source_map },
   { "_nextTick", gumjs_script_next_tick },
   { "pin", gumjs_script_pin },
@@ -1674,6 +1678,66 @@ GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
 #endif
 
   info.GetReturnValue ().Set (loaded);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_evaluate)
+{
+  gchar * name, * source;
+  if (!_gum_v8_args_parse (args, "ss", &name, &source))
+    return;
+
+  auto context = isolate->GetCurrentContext ();
+
+  auto source_str = String::NewFromUtf8 (isolate, source).ToLocalChecked ();
+
+  auto resource_name = String::NewFromUtf8 (isolate, name).ToLocalChecked ();
+  ScriptOrigin origin (isolate, resource_name);
+
+  Local<Script> code;
+  gchar * error_description = NULL;
+  int line = -1;
+  {
+    TryCatch trycatch (isolate);
+    auto maybe_code = Script::Compile (context, source_str, &origin);
+    if (!maybe_code.ToLocal (&code))
+    {
+      error_description =
+          _gum_v8_error_get_message (isolate, trycatch.Exception ());
+      line = trycatch.Message ()->GetLineNumber (context).FromMaybe (-1);
+    }
+  }
+  if (error_description != NULL)
+  {
+    _gum_v8_throw (isolate,
+        "could not parse '%s' line %d: %s",
+        name,
+        line,
+        error_description);
+    g_free (error_description);
+  }
+
+  if (!code.IsEmpty ())
+  {
+    Local<Value> result;
+    auto maybe_result = code->Run (context);
+    if (maybe_result.ToLocal (&result))
+      info.GetReturnValue ().Set (result);
+  }
+
+  g_free (source);
+  g_free (name);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_load)
+{
+  gchar * name, * source;
+  if (!_gum_v8_args_parse (args, "ss", &name, &source))
+    return;
+
+  _gum_v8_script_load_module (core->script, name, source);
+
+  g_free (source);
+  g_free (name);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)

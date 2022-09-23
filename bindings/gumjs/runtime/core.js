@@ -187,6 +187,11 @@ function numberWrapperEquals(rhs) {
   return this.compare(rhs) === 0;
 }
 
+Script.load = async (name, source) => {
+  Script._load(name, source);
+  return await import(name);
+};
+
 const _nextTick = Script._nextTick;
 Script.nextTick = function (callback, ...args) {
   _nextTick(callback.bind(engine, ...args));
