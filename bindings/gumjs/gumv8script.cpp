@@ -892,16 +892,17 @@ gum_resolve_module (Local<Context> context,
   GumESAsset * target_module = (GumESAsset *) g_hash_table_lookup (
       program->es_assets, name);
 
-  g_free (name);
-
   if (target_module == NULL)
     goto not_found;
+
+  g_free (name);
 
   return gum_ensure_module_defined (isolate, context, target_module, program);
 
 not_found:
   {
-    _gum_v8_throw (isolate, "could not load module '%s'", *specifier_str);
+    _gum_v8_throw (isolate, "could not load module '%s'", name);
+    g_free (name);
     return MaybeLocal<Module> ();
   }
 }

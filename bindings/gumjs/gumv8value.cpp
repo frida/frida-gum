@@ -1641,7 +1641,15 @@ _gum_v8_error_get_message (Isolate * isolate,
       .ToLocalChecked ()
       .As<String> ();
   String::Utf8Value message_str (isolate, message);
-  return g_strdup (*message_str);
+  const char * m = *message_str;
+  auto length = strlen (m);
+
+  auto result = g_string_sized_new (length);
+  if (length >= 1)
+    g_string_append_unichar (result, g_unichar_toupper (g_utf8_get_char (m)));
+  if (length >= 2)
+    g_string_append (result, g_utf8_offset_to_pointer (m, 1));
+  return g_string_free (result, FALSE);
 }
 
 const gchar *
