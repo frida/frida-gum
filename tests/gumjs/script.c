@@ -429,6 +429,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (esm_in_subdir_should_be_supported)
     TESTENTRY (esm_referencing_subdir_should_be_supported)
     TESTENTRY (esm_referencing_parent_should_be_supported)
+    TESTENTRY (esm_throwing_on_load_should_emit_error)
+    TESTENTRY (esm_throwing_after_toplevel_await_should_emit_error)
+    TESTENTRY (esm_referencing_missing_module_should_fail_to_load)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Dynamic")
@@ -9588,6 +9591,60 @@ TESTCASE (esm_referencing_parent_should_be_supported)
       "✄\n"
       "export const value = 1337;\n");
   EXPECT_SEND_MESSAGE_WITH ("{\"value\":1337}");
+}
+
+TESTCASE (esm_throwing_on_load_should_emit_error)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "6 /main.js\n"
+      "✄\n"
+      "oops;\n");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+        ? "ReferenceError: 'oops' is not defined"
+        : "ReferenceError: oops is not defined");
+}
+
+TESTCASE (esm_throwing_after_toplevel_await_should_emit_error)
+{
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<not available on QuickJS> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "122 /main.js\n"
+      "✄\n"
+      "await sleep(10);\n"
+      "oops;\n"
+      "\n"
+      "function sleep(duration) {\n"
+      "  return new Promise(resolve => { setTimeout(resolve, duration); });\n"
+      "}\n");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+        ? "ReferenceError: 'oops' is not defined"
+        : "ReferenceError: oops is not defined");
+}
+
+TESTCASE (esm_referencing_missing_module_should_fail_to_load)
+{
+  const gchar * source =
+      "📦\n"
+      "41 /main.js\n"
+      "✄\n"
+      "import { value } from './dependency.js';\n";
+  GError * error = NULL;
+
+  g_assert_null (gum_script_backend_create_sync (fixture->backend,
+      "testcase", source, NULL, NULL, &error));
+  g_assert_nonnull (error);
+  g_assert_cmpstr (error->message, ==,
+      "Could not load module '/dependency.js'");
+  g_error_free (error);
 }
 
 TESTCASE (dynamic_script_evaluation_should_be_supported)
