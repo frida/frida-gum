@@ -67,7 +67,9 @@ static void gum_quick_script_backend_iface_init (gpointer g_iface,
 static void gum_quick_script_backend_dispose (GObject * object);
 static void gum_quick_script_backend_finalize (GObject * object);
 
-static char * gum_normalize_module_name (JSContext * ctx,
+static char * gum_normalize_module_name_during_compilation (JSContext * ctx,
+    const char * base_name, const char * name, void * opaque);
+static char * gum_normalize_module_name_during_runtime (JSContext * ctx,
     const char * base_name, const char * name, void * opaque);
 static JSModuleDef * gum_load_module (JSContext * ctx, const char * module_name,
     void * opaque);
@@ -149,9 +151,9 @@ static void gum_quick_script_backend_with_lock_held (GumScriptBackend * backend,
 static gboolean gum_quick_script_backend_is_locked (GumScriptBackend * backend);
 
 static GumESProgram * gum_es_program_new (void);
+static char * gum_es_program_normalize_module_name (GumESProgram * self,
+    JSContext * ctx, const char * base_name, const char * name);
 
-static GumESAsset * gum_es_asset_new_take (const gchar * name, gpointer data,
-    gsize data_size);
 static GumESAsset * gum_es_asset_ref (GumESAsset * asset);
 static void gum_es_asset_unref (GumESAsset * asset);
 
@@ -279,11 +281,8 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
   {
     const gchar * source_end, * header_cursor;
 
-    program->es_assets = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-        (GDestroyNotify) gum_es_asset_unref);
-
-    JS_SetModuleLoaderFunc (rt, gum_normalize_module_name, gum_load_module,
-        &op);
+    JS_SetModuleLoaderFunc (rt, gum_normalize_module_name_during_compilation,
+        gum_load_module, &op);
 
     source_end = source + strlen (source);
     header_cursor = source + strlen (package_marker);
@@ -467,87 +466,41 @@ propagate_error:
   }
 beach:
   {
-    JS_SetModuleLoaderFunc (rt, NULL, NULL, NULL);
+    if (program != NULL)
+    {
+      JS_SetModuleLoaderFunc (rt, gum_normalize_module_name_during_runtime,
+          NULL, program);
+    }
+    else
+    {
+      JS_SetModuleLoaderFunc (rt, NULL, NULL, NULL);
+    }
 
     return program;
   }
 }
 
 static char *
-gum_normalize_module_name (JSContext * ctx,
-                           const char * base_name,
-                           const char * name,
-                           void * opaque)
+gum_normalize_module_name_during_compilation (JSContext * ctx,
+                                              const char * base_name,
+                                              const char * name,
+                                              void * opaque)
 {
   GumCompileProgramOperation * op = opaque;
-  char * result;
-  const char * base_dir_end;
-  guint base_dir_length;
-  const char * cursor;
 
-  if (name[0] != '.')
-  {
-    GumESAsset * asset;
+  return gum_es_program_normalize_module_name (op->program, ctx, base_name,
+      name);
+}
 
-    asset = g_hash_table_lookup (op->program->es_assets, name);
-    if (asset != NULL)
-      return js_strdup (ctx, asset->name);
+static char *
+gum_normalize_module_name_during_runtime (JSContext * ctx,
+                                          const char * base_name,
+                                          const char * name,
+                                          void * opaque)
+{
+  GumESProgram * program = opaque;
 
-    return js_strdup (ctx, name);
-  }
-
-  /* The following is exactly like QuickJS' default implementation: */
-
-  base_dir_end = strrchr (base_name, '/');
-  if (base_dir_end != NULL)
-    base_dir_length = base_dir_end - base_name;
-  else
-    base_dir_length = 0;
-
-  result = js_malloc (ctx, base_dir_length + 1 + strlen (name) + 1);
-  memcpy (result, base_name, base_dir_length);
-  result[base_dir_length] = '\0';
-
-  cursor = name;
-  while (TRUE)
-  {
-    if (g_str_has_prefix (cursor, "./"))
-    {
-      cursor += 2;
-    }
-    else if (g_str_has_prefix (cursor, "../"))
-    {
-      char * new_end;
-
-      if (result[0] == '\0')
-        break;
-
-      new_end = strrchr (result, '/');
-      if (new_end != NULL)
-        new_end++;
-      else
-        new_end = result;
-
-      if (strcmp (new_end, ".") == 0 || strcmp (new_end, "..") == 0)
-        break;
-
-      if (new_end > result)
-        new_end--;
-
-      *new_end = '\0';
-
-      cursor += 3;
-    }
-    else
-    {
-      break;
-    }
-  }
-
-  strcat (result, "/");
-  strcat (result, cursor);
-
-  return result;
+  return gum_es_program_normalize_module_name (program, ctx, base_name, name);
 }
 
 static JSModuleDef *
@@ -1206,6 +1159,8 @@ gum_es_program_new (void)
 
   program = g_slice_new0 (GumESProgram);
   program->entrypoints = g_array_new (FALSE, FALSE, sizeof (JSValue));
+  program->es_assets = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      (GDestroyNotify) gum_es_asset_unref);
 
   return program;
 }
@@ -1233,7 +1188,83 @@ gum_es_program_free (GumESProgram * program,
   g_slice_free (GumESProgram, program);
 }
 
-static GumESAsset *
+static char *
+gum_es_program_normalize_module_name (GumESProgram * self,
+                                      JSContext * ctx,
+                                      const char * base_name,
+                                      const char * name)
+{
+  char * result;
+  const char * base_dir_end;
+  guint base_dir_length;
+  const char * cursor;
+
+  if (name[0] != '.')
+  {
+    GumESAsset * asset;
+
+    asset = g_hash_table_lookup (self->es_assets, name);
+    if (asset != NULL)
+      return js_strdup (ctx, asset->name);
+
+    return js_strdup (ctx, name);
+  }
+
+  /* The following mimics QuickJS' default implementation: */
+
+  base_dir_end = strrchr (base_name, '/');
+  if (base_dir_end != NULL)
+    base_dir_length = base_dir_end - base_name;
+  else
+    base_dir_length = 0;
+
+  result = js_malloc (ctx, base_dir_length + 1 + strlen (name) + 1);
+  memcpy (result, base_name, base_dir_length);
+  result[base_dir_length] = '\0';
+
+  cursor = name;
+  while (TRUE)
+  {
+    if (g_str_has_prefix (cursor, "./"))
+    {
+      cursor += 2;
+    }
+    else if (g_str_has_prefix (cursor, "../"))
+    {
+      char * new_end;
+
+      if (result[0] == '\0')
+        break;
+
+      new_end = strrchr (result, '/');
+      if (new_end != NULL)
+        new_end++;
+      else
+        new_end = result;
+
+      if (strcmp (new_end, ".") == 0 || strcmp (new_end, "..") == 0)
+        break;
+
+      if (new_end > result)
+        new_end--;
+
+      *new_end = '\0';
+
+      cursor += 3;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  strcat (result, "/");
+  strcat (result, cursor);
+
+  return result;
+}
+
+GumESAsset *
 gum_es_asset_new_take (const gchar * name,
                        gpointer data,
                        gsize data_size)

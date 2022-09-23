@@ -141,4 +141,7 @@ struct GumESAsset
   v8::Global<v8::Module> * module;
 };
 
+G_GNUC_INTERNAL v8::MaybeLocal<v8::Module> _gum_v8_script_load_module (
+    GumV8Script * self, const gchar * name, const gchar * source);
+
 #endif

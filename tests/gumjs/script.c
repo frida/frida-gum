@@ -431,6 +431,19 @@ TESTLIST_BEGIN (script)
     TESTENTRY (esm_referencing_parent_should_be_supported)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("Dynamic")
+    TESTENTRY (dynamic_script_evaluation_should_be_supported)
+    TESTENTRY (dynamic_script_evaluation_should_throw_on_syntax_error)
+    TESTENTRY (dynamic_script_evaluation_should_throw_on_runtime_error)
+    TESTENTRY (dynamic_script_loading_should_be_supported)
+    TESTENTRY (dynamic_script_loading_should_throw_on_syntax_error)
+    TESTENTRY (dynamic_script_loading_should_throw_on_runtime_error)
+    TESTENTRY (dynamic_script_loading_should_throw_on_error_with_toplevel_await)
+    TESTENTRY (dynamic_script_loading_should_throw_on_dupe_load_attempt)
+    TESTENTRY (dynamic_script_should_support_imports_from_parent)
+    TESTENTRY (dynamic_script_should_support_imports_from_other_dynamic_scripts)
+  TESTGROUP_END ()
+
   TESTENTRY (script_can_be_compiled_to_bytecode)
   TESTENTRY (script_should_not_leak_if_destroyed_before_load)
   TESTENTRY (script_memory_usage)
@@ -9575,6 +9588,149 @@ TESTCASE (esm_referencing_parent_should_be_supported)
       "✄\n"
       "export const value = 1337;\n");
   EXPECT_SEND_MESSAGE_WITH ("{\"value\":1337}");
+}
+
+TESTCASE (dynamic_script_evaluation_should_be_supported)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const result = Script.evaluate('/x.js', 'const x = 42; 1337;');"
+      "send([result, x]);");
+  EXPECT_SEND_MESSAGE_WITH ("[1337,42]");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (dynamic_script_evaluation_should_throw_on_syntax_error)
+{
+  COMPILE_AND_LOAD_SCRIPT ("Script.evaluate('/x.js', 'const x = \\'');");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+        ? "Error: could not parse '/x.js' line 1: unexpected end of string"
+        : "Error: could not parse '/x.js' line 1: Invalid or unexpected token");
+}
+
+TESTCASE (dynamic_script_evaluation_should_throw_on_runtime_error)
+{
+  COMPILE_AND_LOAD_SCRIPT ("Script.evaluate('/x.js', 'x');");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+        ? "ReferenceError: 'x' is not defined"
+        : "ReferenceError: x is not defined");
+}
+
+TESTCASE (dynamic_script_loading_should_be_supported)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "async function main() {"
+        "const m = await Script.load('/x.js',"
+            "'export const x = 42; send(\\'A\\');');"
+        "send(typeof x);"
+        "send(m.x);"
+      "}"
+      "main().catch(e => send(e.stack));");
+  EXPECT_SEND_MESSAGE_WITH ("\"A\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (dynamic_script_loading_should_throw_on_syntax_error)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Script.load('/x.js', 'const x = \\'')"
+          ".catch(e => { send(e.message); });");
+  EXPECT_SEND_MESSAGE_WITH (
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+        ? "\"could not parse '/x.js' line 1: unexpected end of string\""
+        : "\"could not parse '/x.js' line 1: Invalid or unexpected token\"");
+}
+
+TESTCASE (dynamic_script_loading_should_throw_on_runtime_error)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Script.load('/x.js', 'x')"
+          ".catch(e => { send(e.message); });");
+  EXPECT_SEND_MESSAGE_WITH (
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+        ? "\"'x' is not defined\""
+        : "\"x is not defined\"");
+}
+
+TESTCASE (dynamic_script_loading_should_throw_on_error_with_toplevel_await)
+{
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<not available on QuickJS> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Script.load('/x.js',"
+          "`"
+            "await sleep(10);\n"
+            "x;\n"
+            "\n"
+            "function sleep(duration) {\n"
+              "return new Promise(resolve => {\n"
+                "setTimeout(resolve, duration);\n"
+              "});\n"
+            "}\n"
+          "`)"
+          ".catch(e => { send(e.message); });");
+  EXPECT_SEND_MESSAGE_WITH (
+      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
+        ? "\"'x' is not defined\""
+        : "\"x is not defined\"");
+}
+
+TESTCASE (dynamic_script_loading_should_throw_on_dupe_load_attempt)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "async function main() {"
+        "await Script.load('/x.js', 'true');"
+        "Script.load('/x.js', 'true').catch(e => { send(e.message); });"
+      "}"
+      "main().catch(e => { Script.nextTick(() => { throw e; }); });");
+  EXPECT_SEND_MESSAGE_WITH ("\"module '/x.js' already exists\"");
+}
+
+TESTCASE (dynamic_script_should_support_imports_from_parent)
+{
+  const gchar * source =
+      "export const value = 1337;"
+
+      "async function main() {"
+        "await Script.load('/plugin.js', `"
+          "import { value } from '/main.js';"
+          "send(value);"
+        "`);"
+      "}"
+
+      "main().catch(e => send(e.stack));";
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "%u /main.js\n"
+      "✄\n"
+      "%s",
+      (guint) strlen (source),
+      source);
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (dynamic_script_should_support_imports_from_other_dynamic_scripts)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "async function main() {"
+        "await Script.load('/dependency.js', 'export const value = 1337;');"
+        "await Script.load('/main.js', `"
+          "import { value } from './dependency.js';"
+          "send(value);"
+        "`);"
+      "}"
+      "main().catch(e => send(e.stack));");
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (source_maps_should_be_supported_for_our_runtime)

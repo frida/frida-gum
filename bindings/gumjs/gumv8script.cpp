@@ -39,6 +39,13 @@ enum
   PROP_BACKEND
 };
 
+struct GumImportOperation
+{
+  GumV8Script * self;
+  Global<Promise::Resolver> * resolver;
+  Global<Module> * module;
+};
+
 struct GumUnloadNotifyCallback
 {
   GumUnloadNotifyFunc func;
@@ -117,12 +124,18 @@ static void gum_v8_script_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec);
 static GumESProgram * gum_v8_script_compile (GumV8Script * self,
     Isolate * isolate, Local<Context> context, GError ** error);
+static MaybeLocal<Promise> gum_import_module (Local<Context> context,
+    Local<Data> host_defined_options, Local<Value> resource_name,
+    Local<String> specifier, Local<FixedArray> import_assertions);
+static void gum_on_import_success (const FunctionCallbackInfo<Value> & info);
+static void gum_on_import_failure (const FunctionCallbackInfo<Value> & info);
+static void gum_import_operation_free (GumImportOperation * op);
 static MaybeLocal<Module> gum_resolve_module (Local<Context> context,
     Local<String> specifier, Local<FixedArray> import_assertions,
     Local<Module> referrer);
 static gchar * gum_normalize_module_name (const gchar * base_name,
     const gchar * name, GumESProgram * program);
-static MaybeLocal<Module> gum_ensure_module_loaded (Isolate * isolate,
+static MaybeLocal<Module> gum_ensure_module_defined (Isolate * isolate,
     Local<Context> context, GumESAsset * asset, GumESProgram * program);
 static void gum_v8_script_destroy_context (GumV8Script * self);
 
@@ -317,6 +330,7 @@ gum_v8_script_constructed (GObject * object)
   isolate->SetData (0, self);
   isolate->SetFatalErrorHandler (gum_v8_script_on_fatal_error);
   isolate->SetMicrotasksPolicy (MicrotasksPolicy::kExplicit);
+  isolate->SetHostImportModuleDynamicallyCallback (gum_import_module);
   self->isolate = isolate;
 }
 
@@ -561,9 +575,6 @@ gum_v8_script_compile (GumV8Script * self,
   if (g_str_has_prefix (source, package_marker))
   {
     program->entrypoints = g_ptr_array_new ();
-    program->es_assets = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-        (GDestroyNotify) gum_es_asset_unref);
-    program->es_modules = g_hash_table_new (NULL, NULL);
 
     const gchar * source_end = source + std::strlen (source);
     const gchar * header_cursor = source + std::strlen (package_marker);
@@ -637,7 +648,7 @@ gum_v8_script_compile (GumV8Script * self,
       Local<Module> module;
       TryCatch trycatch (isolate);
       auto result =
-          gum_ensure_module_loaded (isolate, context, entrypoint, program);
+          gum_ensure_module_defined (isolate, context, entrypoint, program);
       bool success = result.ToLocal (&module);
       if (success)
       {
@@ -718,6 +729,149 @@ beach:
   }
 }
 
+MaybeLocal<Module>
+_gum_v8_script_load_module (GumV8Script * self,
+                            const gchar * name,
+                            const gchar * source)
+{
+  auto isolate = self->isolate;
+
+  GumESProgram * program = self->program;
+  if (g_hash_table_contains (program->es_assets, name))
+  {
+    _gum_v8_throw (isolate, "module '%s' already exists", name);
+    return MaybeLocal<Module> ();
+  }
+
+  gchar * name_copy = g_strdup (name);
+  GumESAsset * asset =
+      gum_es_asset_new_take (name_copy, g_strdup (source), strlen (source));
+
+  auto context = Local<Context>::New (isolate, *self->context);
+
+  MaybeLocal<Module> maybe_module =
+      gum_ensure_module_defined (isolate, context, asset, program);
+
+  bool success = false;
+  Local<Module> m;
+  if (maybe_module.ToLocal (&m))
+  {
+    success = m->InstantiateModule (context, gum_resolve_module).IsJust ();
+  }
+
+  if (success)
+  {
+    g_hash_table_insert (program->es_assets, name_copy, asset);
+  }
+  else
+  {
+    gum_es_asset_unref (asset);
+    g_free (name_copy);
+  }
+
+  return maybe_module;
+}
+
+static MaybeLocal<Promise>
+gum_import_module (Local<Context> context,
+                   Local<Data> host_defined_options,
+                   Local<Value> resource_name,
+                   Local<String> specifier,
+                   Local<FixedArray> import_assertions)
+{
+  Local<Promise::Resolver> resolver =
+      Promise::Resolver::New (context).ToLocalChecked ();
+
+  auto isolate = context->GetIsolate ();
+  auto self = (GumV8Script *) isolate->GetData (0);
+  auto program =
+      (GumESProgram *) context->GetAlignedPointerFromEmbedderData (0);
+
+  String::Utf8Value specifier_str (isolate, specifier);
+  String::Utf8Value resource_name_str (isolate, resource_name);
+
+  gchar * name =
+      gum_normalize_module_name (*resource_name_str, *specifier_str, program);
+
+  GumESAsset * target_module = (GumESAsset *) g_hash_table_lookup (
+      program->es_assets, name);
+
+  g_free (name);
+
+  if (target_module == NULL)
+  {
+    resolver->Reject (context,
+        Exception::Error (_gum_v8_string_new_ascii (isolate, "not found")))
+          .ToChecked ();
+    return MaybeLocal<Promise> (resolver->GetPromise ());
+  }
+
+  Local<Module> module;
+  {
+    TryCatch trycatch (isolate);
+    if (!gum_ensure_module_defined (isolate, context, target_module, program)
+        .ToLocal (&module))
+    {
+      resolver->Reject (context, trycatch.Exception ()).ToChecked ();
+      return MaybeLocal<Promise> (resolver->GetPromise ());
+    }
+  }
+
+  auto operation = g_slice_new (GumImportOperation);
+  operation->self = self;
+  operation->resolver = new Global<Promise::Resolver> (isolate, resolver);
+  operation->module = new Global<Module> (isolate, module);
+  _gum_v8_core_pin (&self->core);
+
+  auto evaluate_request = module->Evaluate (context)
+      .ToLocalChecked ().As<Promise> ();
+  auto data = External::New (isolate, operation);
+  evaluate_request->Then (context,
+      Function::New (context, gum_on_import_success,
+        data, 1, ConstructorBehavior::kThrow).ToLocalChecked (),
+      Function::New (context, gum_on_import_failure,
+        data, 1, ConstructorBehavior::kThrow).ToLocalChecked ())
+      .ToLocalChecked ();
+
+  return MaybeLocal<Promise> (resolver->GetPromise ());
+}
+
+static void
+gum_on_import_success (const FunctionCallbackInfo<Value> & info)
+{
+  auto op = (GumImportOperation *) info.Data ().As<External> ()->Value ();
+  auto isolate = info.GetIsolate ();
+  auto context = isolate->GetCurrentContext ();
+
+  auto resolver = Local<Promise::Resolver>::New (isolate, *op->resolver);
+  auto module = Local<Module>::New (isolate, *op->module);
+  resolver->Resolve (context, module->GetModuleNamespace ()).ToChecked ();
+
+  gum_import_operation_free (op);
+}
+
+static void
+gum_on_import_failure (const FunctionCallbackInfo<Value> & info)
+{
+  auto op = (GumImportOperation *) info.Data ().As<External> ()->Value ();
+  auto isolate = info.GetIsolate ();
+  auto context = isolate->GetCurrentContext ();
+
+  auto resolver = Local<Promise::Resolver>::New (isolate, *op->resolver);
+  resolver->Reject (context, info[0]).ToChecked ();
+
+  gum_import_operation_free (op);
+}
+
+static void
+gum_import_operation_free (GumImportOperation * op)
+{
+  delete op->module;
+  delete op->resolver;
+  _gum_v8_core_unpin (&op->self->core);
+  g_slice_free (GumImportOperation, op);
+}
+
 static MaybeLocal<Module>
 gum_resolve_module (Local<Context> context,
                     Local<String> specifier,
@@ -743,7 +897,7 @@ gum_resolve_module (Local<Context> context,
   if (target_module == NULL)
     goto not_found;
 
-  return gum_ensure_module_loaded (isolate, context, target_module, program);
+  return gum_ensure_module_defined (isolate, context, target_module, program);
 
 not_found:
   {
@@ -820,10 +974,10 @@ gum_normalize_module_name (const gchar * base_name,
 }
 
 static MaybeLocal<Module>
-gum_ensure_module_loaded (Isolate * isolate,
-                          Local<Context> context,
-                          GumESAsset * asset,
-                          GumESProgram * program)
+gum_ensure_module_defined (Isolate * isolate,
+                           Local<Context> context,
+                           GumESAsset * asset,
+                           GumESProgram * program)
 {
   if (asset->module != nullptr)
     return Local<Module>::New (isolate, *asset->module);
@@ -855,10 +1009,9 @@ gum_ensure_module_loaded (Isolate * isolate,
 
   ScriptCompiler::Source source (source_str, origin);
 
+  Local<Module> module;
   gchar * error_description = NULL;
   int line = -1;
-
-  Local<Module> module;
   {
     TryCatch trycatch (isolate);
     auto compile_result = ScriptCompiler::CompileModule (isolate, &source);
@@ -1792,7 +1945,13 @@ gum_v8_script_on_fatal_error (const char * location,
 static GumESProgram *
 gum_es_program_new (void)
 {
-  return g_slice_new0 (GumESProgram);
+  auto program = g_slice_new0 (GumESProgram);
+
+  program->es_assets = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      (GDestroyNotify) gum_es_asset_unref);
+  program->es_modules = g_hash_table_new (NULL, NULL);
+
+  return program;
 }
 
 static void
