@@ -379,8 +379,6 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
   else
   {
     JSValue val;
-    GRegex * pattern;
-    GMatchInfo * match_info;
 
     program->global_filename = g_strconcat ("/", name, ".js", NULL);
 
@@ -392,30 +390,8 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
 
     g_array_append_val (program->entrypoints, val);
 
-    pattern = g_regex_new ("//[#@][ \\t]sourceMappingURL=[ \\t]*"
-        "data:application/json;.*?base64,([^\\s'\"]*)[ \\t]*$",
-        G_REGEX_MULTILINE, 0, NULL);
-
-    g_regex_match (pattern, source, 0, &match_info);
-    if (g_match_info_matches (match_info))
-    {
-      gchar * data_encoded, * data;
-      gsize size;
-
-      data_encoded = g_match_info_fetch (match_info, 1);
-
-      data = (gchar *) g_base64_decode (data_encoded, &size);
-      if (data != NULL && g_utf8_validate (data, size, NULL))
-      {
-        program->global_source_map = g_strndup (data, size);
-      }
-      g_free (data);
-
-      g_free (data_encoded);
-    }
-
-    g_match_info_free (match_info);
-    g_regex_unref (pattern);
+    program->global_source_map =
+        gum_script_backend_extract_inline_source_map (source);
   }
 
   goto beach;

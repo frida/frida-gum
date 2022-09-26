@@ -762,6 +762,14 @@ _gum_v8_script_load_module (GumV8Script * self,
   if (success)
   {
     g_hash_table_insert (program->es_assets, name_copy, asset);
+
+    gchar * source_map = gum_script_backend_extract_inline_source_map (source);
+    if (source_map != NULL)
+    {
+      gchar * map_name = g_strconcat (name, ".map", NULL);
+      g_hash_table_insert (program->es_assets, map_name,
+          gum_es_asset_new_take (map_name, source_map, strlen (source_map)));
+    }
   }
   else
   {
@@ -770,6 +778,16 @@ _gum_v8_script_load_module (GumV8Script * self,
   }
 
   return maybe_module;
+}
+
+void
+_gum_v8_script_register_source_map (GumV8Script * self,
+                                    const gchar * name,
+                                    gchar * source_map)
+{
+  gchar * map_name = g_strconcat (name, ".map", NULL);
+  g_hash_table_insert (self->program->es_assets, map_name,
+      gum_es_asset_new_take (map_name, source_map, strlen (source_map)));
 }
 
 static MaybeLocal<Promise>

@@ -108,6 +108,9 @@ GUM_API gboolean gum_script_backend_is_locked (GumScriptBackend * self);
 
 GUM_API GumScriptScheduler * gum_script_backend_get_scheduler (void);
 
+GUM_API gchar * gum_script_backend_extract_inline_source_map (
+    const gchar * source);
+
 G_END_DECLS
 
 #endif

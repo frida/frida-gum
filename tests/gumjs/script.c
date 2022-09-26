@@ -445,6 +445,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (dynamic_script_loading_should_throw_on_dupe_load_attempt)
     TESTENTRY (dynamic_script_should_support_imports_from_parent)
     TESTENTRY (dynamic_script_should_support_imports_from_other_dynamic_scripts)
+    TESTENTRY (dynamic_script_evaluated_should_support_inline_source_map)
+    TESTENTRY (dynamic_script_loaded_should_support_inline_source_map)
+    TESTENTRY (dynamic_script_loaded_should_support_separate_source_map)
   TESTGROUP_END ()
 
   TESTENTRY (script_can_be_compiled_to_bytecode)
@@ -9788,6 +9791,233 @@ TESTCASE (dynamic_script_should_support_imports_from_other_dynamic_scripts)
       "main().catch(e => send(e.stack));");
   EXPECT_SEND_MESSAGE_WITH ("1337");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (dynamic_script_evaluated_should_support_inline_source_map)
+{
+  TestScriptMessageItem * item;
+
+  /*
+   * agent/index.ts
+   * --------
+   * 01 import * as math from "./math";
+   * 02
+   * 03 try {
+   * 04     math.add(3, 4);
+   * 05 } catch (e) {
+   * 06     send((e as Error).stack);
+   * 07 }
+   *
+   * agent/math.ts
+   * -------
+   * 01 export function add(a: number, b: number): number {
+   * 02     throw new Error("not yet implemented");
+   * 03 }
+   */
+  COMPILE_AND_LOAD_SCRIPT (
+      "Script.evaluate('/user.js', `(function(){function r(e,n,t){function o(i,"
+        "f){if(!n[i]){if(!e[i]){var c=\"function\"==typeof require&&require;if("
+        "!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error(\"Cannot find"
+        " module '\"+i+\"'\");throw a.code=\"MODULE_NOT_FOUND\",a}var p=n[i]={e"
+        "xports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return "
+        "o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u=\"function"
+        "\"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return"
+        " r})()({1:[function(require,module,exports){\n"
+        "\"use strict\";\n"
+        "Object.defineProperty(exports, \"__esModule\", { value: true });\n"
+        "const math = require(\"./math\");\n"
+        "try {\n"
+        "    math.add(3, 4);\n"
+        "}\n"
+        "catch (e) {\n"
+        "    send(e.stack);\n"
+        "}\n"
+        "\n"
+        "},{\"./math\":2}],2:[function(require,module,exports){\n"
+        "\"use strict\";\n"
+        "Object.defineProperty(exports, \"__esModule\", { value: true });\n"
+        "exports.add = void 0;\n"
+        "function add(a, b) {\n"
+        "    throw new Error(\"not yet implemented\");\n"
+        "}\n"
+        "exports.add = add;\n"
+        "\n"
+        "},{}]},{},[1])\n"
+        "//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZX"
+        "JzaW9uIjozLCJzb3VyY2VzIjpbIm5vZGVfbW9kdWxlcy9icm93c2VyLXBhY2svX3ByZWx1"
+        "ZGUuanMiLCJhZ2VudC9pbmRleC50cyIsImFnZW50L21hdGgudHMiXSwibmFtZXMiOltdLC"
+        "JtYXBwaW5ncyI6IkFBQUE7OztBQ0FBLCtCQUErQjtBQUUvQixJQUFJO0lBQ0EsSUFBSSxD"
+        "QUFDLEdBQUcsQ0FBQyxDQUFDLEVBQUUsQ0FBQyxDQUFDLENBQUM7Q0FDbEI7QUFBQyxPQU"
+        "FPLENBQUMsRUFBRTtJQUNSLElBQUksQ0FBRSxDQUFXLENBQUMsS0FBSyxDQUFDLENBQUM7"
+        "Q0FDNUI7Ozs7OztBQ05ELFNBQWdCLEdBQUcsQ0FBQyxDQUFTLEVBQUUsQ0FBUztJQUNwQy"
+        "xNQUFNLElBQUksS0FBSyxDQUFDLHFCQUFxQixDQUFDLENBQUM7QUFDM0MsQ0FBQztBQUZE"
+        "LGtCQUVDIiwiZmlsZSI6ImdlbmVyYXRlZC5qcyIsInNvdXJjZVJvb3QiOiIifQ==\n"
+      "`);");
+
+  item = test_script_fixture_pop_message (fixture);
+  g_assert_nonnull (strstr (item->message, "\"type\":\"send\""));
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert_nonnull (strstr (item->message,
+        "\"payload\":\"Error: not yet implemented\\n"
+        "    at add (agent/math.ts:2)\\n"
+        "    at <anonymous> (agent/index.ts:4)\\n"
+        "    at call (native)\\n"
+        "    at o (node_modules/browser-pack/_prelude.js:1)\\n"
+        "    at r (node_modules/browser-pack/_prelude.js:1)\\n"
+        "    at <eval> (/user.js:21)"));
+  }
+  else
+  {
+    g_assert_nonnull (strstr (item->message,
+        "\"payload\":\"Error: not yet implemented\\n"
+        "    at Object.add (agent/math.ts:2:11)\\n"
+        "    at Object.1../math (agent/index.ts:4:10)\\n"
+        "    at o (node_modules/browser-pack/_prelude.js:1:1)\\n"
+        "    at r (node_modules/browser-pack/_prelude.js:1:1)\\n"
+        "    at node_modules/browser-pack/_prelude.js:1:1"));
+  }
+  test_script_message_item_free (item);
+}
+
+TESTCASE (dynamic_script_loaded_should_support_inline_source_map)
+{
+  TestScriptMessageItem * item;
+
+  /*
+   * agent/index.ts
+   * --------
+   * 01 import * as math from "./math.js";
+   * 02
+   * 03 try {
+   * 04     math.add(3, 4);
+   * 05 } catch (e) {
+   * 06     send((e as Error).stack);
+   * 07 }
+   *
+   * agent/math.ts
+   * -------
+   * 01 export function add(a: number, b: number): number {
+   * 02     throw new Error("not yet implemented");
+   * 03 }
+   */
+  COMPILE_AND_LOAD_SCRIPT (
+      "async function main() {"
+        "await Script.load('/agent/math.js', `"
+          "export function add(a, b) {\n"
+          "    throw new Error(\"not yet implemented\");\n"
+          "}\n"
+          "//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2"
+          "ZXJzaW9uIjozLCJmaWxlIjoibWF0aC5qcyIsInNvdXJjZVJvb3QiOiIvVXNlcnMvb2xl"
+          "YXZyL3NyYy9mcmlkYS1hZ2VudC1leGFtcGxlLyIsInNvdXJjZXMiOlsiYWdlbnQvbWF0"
+          "aC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxNQUFNLFVBQVUsR0FBRyxD"
+          "QUFDLENBQVMsRUFBRSxDQUFTO0lBQ3BDLE1BQU0sSUFBSSxLQUFLLENBQUMscUJBQXFC"
+          "LENBQUMsQ0FBQztBQUMzQyxDQUFDIn0=\n"
+        "`);"
+        "await Script.load('/agent/index.js', `"
+          "import * as math from \"./math.js\";\n"
+          "try {\n"
+          "    math.add(3, 4);\n"
+          "}\n"
+          "catch (e) {\n"
+          "    send(e.stack);\n"
+          "}\n"
+          "//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2"
+          "ZXJzaW9uIjozLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VSb290IjoiL1VzZXJzL29s"
+          "ZWF2ci9zcmMvZnJpZGEtYWdlbnQtZXhhbXBsZS8iLCJzb3VyY2VzIjpbImFnZW50L2lu"
+          "ZGV4LnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBLE9BQU8sS0FBSyxJQUFJ"
+          "LE1BQU0sV0FBVyxDQUFDO0FBRWxDLElBQUk7SUFDQSxJQUFJLENBQUMsR0FBRyxDQUFD"
+          "LENBQUMsRUFBRSxDQUFDLENBQUMsQ0FBQztDQUNsQjtBQUFDLE9BQU8sQ0FBQyxFQUFF"
+          "O0lBQ1IsSUFBSSxDQUFFLENBQVcsQ0FBQyxLQUFLLENBQUMsQ0FBQztDQUM1QiJ9\n"
+        "`);"
+      "}"
+      "main().catch(e => send(e.stack));");
+
+  item = test_script_fixture_pop_message (fixture);
+  g_assert_nonnull (strstr (item->message, "\"type\":\"send\""));
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert_nonnull (strstr (item->message,
+        "\"payload\":\"Error: not yet implemented\\n"
+        "    at add (agent/math.ts:2)\\n"
+        "    at <anonymous> (agent/index.ts:4)"));
+  }
+  else
+  {
+    g_assert_nonnull (strstr (item->message,
+        "\"payload\":\"Error: not yet implemented\\n"
+        "    at Module.add (agent/math.ts:2:11)\\n"
+        "    at agent/index.ts:4:10"));
+  }
+  test_script_message_item_free (item);
+}
+
+TESTCASE (dynamic_script_loaded_should_support_separate_source_map)
+{
+  TestScriptMessageItem * item;
+
+  /*
+   * agent/index.ts
+   * --------
+   * 01 import * as math from "./math.js";
+   * 02
+   * 03 try {
+   * 04     math.add(3, 4);
+   * 05 } catch (e) {
+   * 06     send((e as Error).stack);
+   * 07 }
+   *
+   * agent/math.ts
+   * -------
+   * 01 export function add(a: number, b: number): number {
+   * 02     throw new Error("not yet implemented");
+   * 03 }
+   */
+  COMPILE_AND_LOAD_SCRIPT (
+      "async function main() {"
+        "Script.registerSourceMap('/agent/math.js', `{\"version\":3,\"file\":\""
+          "math.js\",\"sourceRoot\":\"/Users/oleavr/src/frida-agent-example/\","
+          "\"sources\":[\"agent/math.ts\"],\"names\":[],\"mappings\":\"AAAA,MAA"
+          "M,UAAU,GAAG,CAAC,CAAS,EAAE,CAAS;IACpC,MAAM,IAAI,KAAK,CAAC,qBAAqB,CAA"
+          "C,CAAC;AAC3C,CAAC\"}`);"
+        "await Script.load('/agent/math.js', `"
+          "export function add(a, b) {\n"
+          "    throw new Error(\"not yet implemented\");\n"
+          "}\n`);"
+        "Script.registerSourceMap('/agent/index.js', `{\"version\":3,\"file\":"
+          "\"index.js\",\"sourceRoot\":\"/Users/oleavr/src/frida-agent-example/"
+          "\",\"sources\":[\"agent/index.ts\"],\"names\":[],\"mappings\":\"AAAA"
+          ",OAAO,KAAK,IAAI,MAAM,WAAW,CAAC;AAElC,IAAI;IACA,IAAI,CAAC,GAAG,CAAC,C"
+          "AAC,EAAE,CAAC,CAAC,CAAC;CAClB;AAAC,OAAO,CAAC,EAAE;IACR,IAAI,CAAE,CAA"
+          "W,CAAC,KAAK,CAAC,CAAC;CAC5B\"}`);"
+        "await Script.load('/agent/index.js', `"
+          "import * as math from \"./math.js\";\n"
+          "try {\n"
+          "    math.add(3, 4);\n"
+          "}\n"
+          "catch (e) {\n"
+          "    send(e.stack);\n"
+          "}\n`);"
+      "}"
+      "main().catch(e => send(e.stack));");
+
+  item = test_script_fixture_pop_message (fixture);
+  g_assert_nonnull (strstr (item->message, "\"type\":\"send\""));
+  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert_nonnull (strstr (item->message,
+        "\"payload\":\"Error: not yet implemented\\n"
+        "    at add (agent/math.ts:2)\\n"
+        "    at <anonymous> (agent/index.ts:4)"));
+  }
+  else
+  {
+    g_assert_nonnull (strstr (item->message,
+        "\"payload\":\"Error: not yet implemented\\n"
+        "    at Module.add (agent/math.ts:2:11)\\n"
+        "    at agent/index.ts:4:10"));
+  }
+  test_script_message_item_free (item);
 }
 
 TESTCASE (source_maps_should_be_supported_for_our_runtime)

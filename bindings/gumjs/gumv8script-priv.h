@@ -143,5 +143,7 @@ struct GumESAsset
 
 G_GNUC_INTERNAL v8::MaybeLocal<v8::Module> _gum_v8_script_load_module (
     GumV8Script * self, const gchar * name, const gchar * source);
+G_GNUC_INTERNAL void _gum_v8_script_register_source_map (GumV8Script * self,
+    const gchar * name, gchar * source_map);
 
 #endif

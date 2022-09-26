@@ -193,7 +193,10 @@ GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_FUNCTION (gumjs_script_evaluate)
 GUMJS_DECLARE_FUNCTION (gumjs_script_load)
+GUMJS_DECLARE_FUNCTION (gumjs_script_register_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_find_source_map)
+static gchar * gum_query_script_for_inline_source_map (Isolate * isolate,
+    Local<Script> script);
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
@@ -393,6 +396,7 @@ static const GumV8Function gumjs_script_functions[] =
 {
   { "evaluate", gumjs_script_evaluate },
   { "_load", gumjs_script_load },
+  { "registerSourceMap", gumjs_script_register_source_map },
   { "_findSourceMap", gumjs_script_find_source_map },
   { "_nextTick", gumjs_script_next_tick },
   { "pin", gumjs_script_pin },
@@ -1718,6 +1722,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_evaluate)
 
   if (!code.IsEmpty ())
   {
+    gchar * source_map = gum_query_script_for_inline_source_map (isolate, code);
+    if (source_map != NULL)
+    {
+      _gum_v8_script_register_source_map (core->script, name,
+          (gchar *) g_steal_pointer (&source_map));
+    }
+
     Local<Value> result;
     auto maybe_result = code->Run (context);
     if (maybe_result.ToLocal (&result))
@@ -1737,6 +1748,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_load)
   _gum_v8_script_load_module (core->script, name, source);
 
   g_free (source);
+  g_free (name);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_register_source_map)
+{
+  gchar * name, * json;
+  if (!_gum_v8_args_parse (args, "ss", &name, &json))
+    return;
+
+  _gum_v8_script_register_source_map (core->script, name,
+      (gchar *) g_steal_pointer (&json));
+
   g_free (name);
 }
 
@@ -1768,31 +1791,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
   {
     if (g_strcmp0 (name, program->global_filename) == 0)
     {
-      auto code = Local<Script>::New (isolate, *program->global_code);
-
-      auto url_value = code->GetUnboundScript ()->GetSourceMappingURL ();
-      if (url_value->IsString ())
-      {
-        String::Utf8Value url_utf8 (isolate, url_value);
-        auto url = *url_utf8;
-
-        auto base64_start = strstr (url, "base64,");
-
-        if (g_str_has_prefix (url, "data:application/json;") &&
-            base64_start != NULL)
-        {
-          base64_start += 7;
-
-          gsize size;
-          auto data = (gchar *) g_base64_decode (base64_start, &size);
-          if (data != NULL && g_utf8_validate (data, size, NULL))
-          {
-            json_malloc_data = g_strndup (data, size);
-            json = json_malloc_data;
-          }
-          g_free (data);
-        }
-      }
+      json_malloc_data = gum_query_script_for_inline_source_map (isolate,
+          Local<Script>::New (isolate, *program->global_code));
+      json = json_malloc_data;
     }
     else
     {
@@ -1834,6 +1835,37 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
 
   g_free (json_malloc_data);
   g_free (name);
+}
+
+static gchar *
+gum_query_script_for_inline_source_map (Isolate * isolate,
+                                        Local<Script> script)
+{
+  auto url_value = script->GetUnboundScript ()->GetSourceMappingURL ();
+  if (!url_value->IsString ())
+    return NULL;
+
+  String::Utf8Value url_utf8 (isolate, url_value);
+  auto url = *url_utf8;
+
+  if (!g_str_has_prefix (url, "data:application/json;"))
+    return NULL;
+
+  auto base64_start = strstr (url, "base64,");
+  if (base64_start == NULL)
+    return NULL;
+  base64_start += 7;
+
+  gchar * result;
+  gsize size;
+  auto data = (gchar *) g_base64_decode (base64_start, &size);
+  if (data != NULL && g_utf8_validate (data, size, NULL))
+    result = g_strndup (data, size);
+  else
+    result = NULL;
+  g_free (data);
+
+  return result;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
