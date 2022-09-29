@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,8 +16,18 @@
 # define PERF_COUNT_HW_CPU_CYCLES 0
 
 #ifndef __NR_perf_event_open
-# ifdef HAVE_ARM
+# if defined (HAVE_ARM)
 #  define __NR_perf_event_open (__NR_SYSCALL_BASE + 364)
+# elif defined (HAVE_MIPS)
+#  if _MIPS_SIM == _MIPS_SIM_ABI32
+#   define __NR_perf_event_open 4333
+#  elif _MIPS_SIM == _MIPS_SIM_ABI64
+#   define __NR_perf_event_open 5292
+#  elif _MIPS_SIM == _MIPS_SIM_NABI32
+#   define __NR_perf_event_open 6296
+#  else
+#   error Unexpected MIPS ABI
+#  endif
 # else
 #  error Please implement for your architecture
 # endif
