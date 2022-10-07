@@ -125,11 +125,14 @@ if host_os_family == 'darwin'
     'backend-darwin/gumdarwinmapper.c',
     'backend-darwin/gumdarwinmoduleresolver.c',
   ]
-  if get_option('jailbreak').allowed()
-    gum_sources += [
-      'backend-darwin/gumcodesegment-darwin.c',
-      'backend-darwin/substratedclient.c',
-    ]
+  if host_os in ['macos', 'ios']
+    gum_sources += 'backend-darwin/gumexceptor-darwin.c'
+    if have_jailbreak
+      gum_sources += [
+        'backend-darwin/gumcodesegment-darwin.c',
+        'backend-darwin/substratedclient.c',
+      ]
+    endif
   endif
   if not diet
     gum_sources += [

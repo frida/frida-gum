@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -175,6 +175,7 @@ TESTCASE (can_attach_to_accept)
 
 TESTCASE (can_attach_to_posix_spawnattr_setbinpref_np)
 {
+#ifdef HAVE_POSIX_SPAWNATTR_INIT
   int (* posix_spawnattr_setbinpref_np_impl) (posix_spawnattr_t * attr,
       size_t count, cpu_type_t * pref, size_t * ocount);
   posix_spawnattr_t attr;
@@ -195,6 +196,9 @@ TESTCASE (can_attach_to_posix_spawnattr_setbinpref_np)
   g_assert_cmpint (ret, ==, 0);
   g_assert_cmpstr (fixture->result->str, ==, "><");
   posix_spawnattr_destroy (&attr);
+#else
+  g_print ("<not supported by OS> ");
+#endif
 }
 
 TESTCASE (can_attach_to_pid_for_task)

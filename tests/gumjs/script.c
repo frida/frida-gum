@@ -6120,6 +6120,7 @@ static gboolean
 suspend_all_threads (const GumThreadDetails * details,
                      gpointer user_data)
 {
+#ifndef HAVE_WATCHOS
   GumScriptBackend * backend = user_data;
 
   if (details->id != gum_process_get_current_thread_id ())
@@ -6128,6 +6129,7 @@ suspend_all_threads (const GumThreadDetails * details,
         (GumScriptBackendLockedFunc) thread_suspend,
         GSIZE_TO_POINTER (details->id));
   }
+#endif
 
   return TRUE;
 }
@@ -6136,8 +6138,10 @@ static gboolean
 resume_all_threads (const GumThreadDetails * details,
                     gpointer user_data)
 {
+#ifndef HAVE_WATCHOS
   if (details->id != gum_process_get_current_thread_id ())
     thread_resume (details->id);
+#endif
 
   return TRUE;
 }

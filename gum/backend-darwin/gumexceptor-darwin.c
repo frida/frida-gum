@@ -4,9 +4,9 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumexceptorbackend.h"
+
+#if (defined (HAVE_MACOS) || defined (HAVE_IOS)) && !defined (GUM_DIET)
 
 #include "gumdarwin.h"
 #include "guminterceptor.h"
@@ -1264,6 +1264,15 @@ gum_exception_port_set_mod_refs (GumExceptionPortSet * self,
 
     mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, delta);
   }
+}
+
+#else
+
+GumExceptorBackend *
+gum_exceptor_backend_new (GumExceptionHandler handler,
+                          gpointer user_data)
+{
+  return NULL;
 }
 
 #endif

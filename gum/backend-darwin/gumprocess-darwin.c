@@ -333,7 +333,7 @@ static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
 static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
-static gboolean gum_darwin_is_unified_thread_state_valid (
+G_GNUC_UNUSED static gboolean gum_darwin_is_unified_thread_state_valid (
     const GumDarwinUnifiedThreadState * ts);
 
 static gboolean gum_darwin_fill_file_mapping (gint pid,
@@ -425,6 +425,9 @@ gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)
 {
+#ifdef HAVE_WATCHOS
+  return FALSE;
+#else
   gboolean success = FALSE;
   mach_port_t task;
   thread_act_array_t threads;
@@ -497,6 +500,7 @@ gum_process_modify_thread (GumThreadId thread_id,
   }
 
   return success;
+#endif
 }
 
 void
@@ -1346,18 +1350,25 @@ gum_darwin_enumerate_threads (mach_port_t task,
       thread_basic_info_data_t info;
       mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
       GumDarwinUnifiedThreadState state;
-      mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
-      thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
 
       kr = thread_info (thread, THREAD_BASIC_INFO, (thread_info_t) &info,
           &info_count);
       if (kr != KERN_SUCCESS)
         continue;
 
-      kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
-          &state_count);
-      if (kr != KERN_SUCCESS)
-        continue;
+#ifdef HAVE_WATCHOS
+      bzero (&state, sizeof (state));
+#else
+      {
+        mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
+        thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
+
+        kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
+            &state_count);
+        if (kr != KERN_SUCCESS)
+          continue;
+      }
+#endif
 
       details.id = (GumThreadId) thread;
       details.state = gum_thread_state_from_darwin (info.run_state);

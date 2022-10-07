@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,6 +15,8 @@
     void test_exceptor_ ## NAME (void)
 #define TESTENTRY(NAME) \
     TESTENTRY_SIMPLE ("Core/Exceptor/Darwin", test_exceptor, NAME)
+
+#if defined (HAVE_MACOS) || defined (HAVE_IOS)
 
 TESTLIST_BEGIN (exceptor_darwin)
   TESTENTRY (task_get_exception_ports_should_hide_our_handler)
@@ -168,3 +170,10 @@ TESTCASE (task_swap_exception_ports_should_not_obstruct_us)
 
   g_object_unref (exceptor);
 }
+
+#else
+
+TESTLIST_BEGIN (exceptor_darwin)
+TESTLIST_END ()
+
+#endif

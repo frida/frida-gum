@@ -92,7 +92,7 @@ if host_os == 'macos'
   extra_link_args += ['-Wl,-framework,AppKit']
 endif
 
-if host_os == 'ios'
+if host_os in ['ios', 'watchos', 'tvos']
   extra_link_args += ['-Wl,-framework,Foundation']
 endif
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2009 Haakon Sporsheim <haakon.sporsheim@gmail.com>
  *
@@ -16,7 +16,7 @@
 #define TESTLIST_BEGIN(NAME)                                                \
     void test_ ##NAME## _add_tests (gpointer fixture_data)                  \
     {                                                                       \
-      const gchar * group = "/";
+      G_GNUC_UNUSED const gchar * group = "/";
 #define TESTLIST_END()                                                      \
     }
 
