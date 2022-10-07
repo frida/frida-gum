@@ -43,6 +43,10 @@
 # define GUM_TEST_SHLIB_OS "linux"
 #elif defined (HAVE_IOS)
 # define GUM_TEST_SHLIB_OS "ios"
+#elif defined (HAVE_WATCHOS)
+# define GUM_TEST_SHLIB_OS "watchos"
+#elif defined (HAVE_TVOS)
+# define GUM_TEST_SHLIB_OS "tvos"
 #elif defined (HAVE_ANDROID)
 # define GUM_TEST_SHLIB_OS "android"
 #elif defined (HAVE_FREEBSD)
