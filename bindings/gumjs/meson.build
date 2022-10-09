@@ -290,3 +290,5 @@ pkg.generate(filebase: 'frida-gumjs-' + api_version,
     'gumjs_v8=' + v8_dep.found().to_string('enabled', 'disabled'),
   ],
 )
+
+meson.override_dependency('frida-gumjs-' + api_version, gumjs_dep)
