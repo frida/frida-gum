@@ -719,6 +719,7 @@ gum_query_cpu_features (void)
 
 #if defined (HAVE_I386)
 
+static gboolean gum_query_noxsave (void);
 static gboolean gum_get_cpuid (guint level, guint * a, guint * b, guint * c,
     guint * d);
 
@@ -728,6 +729,9 @@ gum_do_query_cpu_features (void)
   GumCpuFeatures features = 0;
   guint a, b, c, d;
 
+  if (gum_query_noxsave ())
+    return features;
+
   if (gum_get_cpuid (7, &a, &b, &c, &d))
   {
     if ((b & (1 << 5)) != 0)
@@ -735,6 +739,39 @@ gum_do_query_cpu_features (void)
   }
 
   return features;
+}
+
+static gboolean
+gum_query_noxsave (void)
+{
+  gboolean noxsave = FALSE;
+
+#ifdef HAVE_LINUX
+  gchar * cmdline = NULL;
+  gchar ** params = NULL;
+  gint num_params, i;
+
+  if (!g_file_get_contents ("/proc/cmdline", &cmdline, NULL, NULL))
+    goto beach;
+
+  if (!g_shell_parse_argv (cmdline, &num_params, &params, NULL))
+    goto beach;
+
+  for (i = 0; i != num_params; i++)
+  {
+    if (strcmp (params[i], "noxsave") == 0)
+    {
+      noxsave = TRUE;
+      break;
+    }
+  }
+
+beach:
+  g_strfreev (params);
+  g_free (cmdline);
+#endif
+
+  return noxsave;
 }
 
 static gboolean
