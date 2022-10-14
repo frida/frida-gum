@@ -29,6 +29,7 @@ def generate_runtime(backends, arch, endian, input_dir, gum_dir, capstone_incdir
         for f in pkg_files:
             if f.exists():
                 f.unlink()
+        (output_dir / "tsconfig.json").write_text("{ \"files\": [] }", encoding="utf-8")
 
         node_modules = output_dir / "node_modules"
         if node_modules.exists():
