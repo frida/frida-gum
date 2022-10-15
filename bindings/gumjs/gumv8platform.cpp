@@ -193,6 +193,7 @@ public:
 
 private:
   GMutex mutex;
+  Isolate * isolate;
   GumV8Platform * platform;
   std::unique_ptr<JobTask> job_task;
   TaskPriority priority;
@@ -947,6 +948,12 @@ GumV8Operation::GumV8Operation ()
 {
 }
 
+void
+GumV8Operation::AnchorTo (v8::Isolate * i)
+{
+  isolate = i;
+}
+
 bool
 GumV8Operation::IsAnchoredTo (Isolate * i) const
 {
@@ -1235,7 +1242,8 @@ GumV8JobState::GumV8JobState (GumV8Platform * platform,
                               std::unique_ptr<JobTask> job_task,
                               TaskPriority priority,
                               size_t num_worker_threads)
-  : platform (platform),
+  : isolate (Isolate::GetCurrent ()),
+    platform (platform),
     job_task (std::move (job_task)),
     priority (priority),
     num_worker_threads (std::min (num_worker_threads, kMaxWorkerPerJob))
@@ -1454,7 +1462,12 @@ GumV8JobState::CallOnWorkerThread (TaskPriority with_priority,
                                    std::unique_ptr<Task> task)
 {
   std::shared_ptr<Task> t (std::move (task));
-  platform->ScheduleOnThreadPool ([=]() { t->Run (); });
+  auto op = platform->ScheduleOnThreadPool ([=]() { t->Run (); });
+
+  {
+    GumV8PlatformLocker locker (platform);
+    op->AnchorTo (isolate);
+  }
 }
 
 GumV8JobState::JobDelegate::JobDelegate (GumV8JobState * parent,

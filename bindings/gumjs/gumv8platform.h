@@ -120,6 +120,7 @@ public:
   GumV8Operation & operator= (const GumV8Operation &) = delete;
   virtual ~GumV8Operation () = default;
 
+  void AnchorTo (v8::Isolate * i);
   bool IsAnchoredTo (v8::Isolate * i) const;
 
   virtual void Cancel () = 0;
