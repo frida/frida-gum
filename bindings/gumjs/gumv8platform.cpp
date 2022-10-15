@@ -943,7 +943,7 @@ GumV8Platform::GetArrayBufferAllocator () const
 }
 
 GumV8Operation::GumV8Operation ()
-  : isolate (Isolate::GetCurrent ())
+  : isolate (Isolate::TryGetCurrent ())
 {
 }
 
