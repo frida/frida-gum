@@ -25,6 +25,7 @@
 
 #define GUM_V8_FLAGS \
     GUM_V8_PLATFORM_FLAGS \
+    "--turbo-instruction-scheduling " \
     "--use-strict " \
     "--expose-gc " \
     "--wasm-staging " \
