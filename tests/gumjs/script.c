@@ -4660,6 +4660,9 @@ TESTCASE (process_should_support_nested_signal_handling)
 #ifdef HAVE_LINUX
   gpointer page;
 
+  if (!check_exception_handling_testable ())
+    return;
+
   page = gum_alloc_n_pages (1, GUM_PAGE_NO_ACCESS);
 
   COMPILE_AND_LOAD_SCRIPT ("Process.setExceptionHandler(details => {"
@@ -7134,6 +7137,9 @@ TESTCASE (memory_can_be_scanned_asynchronously)
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"DONE\"");
 
+  if (!check_exception_handling_testable ())
+    return;
+
   COMPILE_AND_LOAD_SCRIPT (
       "async function run() {"
       "  try {"
@@ -7238,6 +7244,9 @@ TESTCASE (memory_access_can_be_monitored)
   volatile guint8 * a, * b;
   guint page_size;
 
+  if (!check_exception_handling_testable ())
+    return;
+
   a = gum_alloc_n_pages (2, GUM_PAGE_RW);
   b = gum_alloc_n_pages (1, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
@@ -7274,6 +7283,9 @@ TESTCASE (memory_access_can_be_monitored_one_range)
 {
   volatile guint8 * a;
   guint page_size;
+
+  if (!check_exception_handling_testable ())
+    return;
 
   a = gum_alloc_n_pages (2, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
