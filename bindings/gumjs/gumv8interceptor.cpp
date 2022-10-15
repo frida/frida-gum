@@ -949,8 +949,8 @@ gum_v8_js_call_listener_on_leave (GumInvocationListener * listener,
     auto retval = gum_v8_interceptor_obtain_invocation_return_value (module);
     gum_v8_invocation_return_value_reset (retval, ic);
     auto retval_object = Local<Object>::New (isolate, *retval->object);
-    retval_object->SetInternalField (0, External::New (isolate,
-        gum_invocation_context_get_return_value (ic)));
+    retval_object->SetInternalField (0, BigInt::NewFromUnsigned (isolate,
+        GPOINTER_TO_SIZE (gum_invocation_context_get_return_value (ic))));
 
     Local<Value> argv[] = { retval_object };
     auto result = on_leave->Call (context, recv, G_N_ELEMENTS (argv), argv);
@@ -1484,7 +1484,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
   if (!_gum_v8_args_parse (args, "p~", &value))
     return;
 
-  wrapper->SetInternalField (0, External::New (isolate, value));
+  wrapper->SetInternalField (0,
+      BigInt::NewFromUnsigned (isolate, GPOINTER_TO_SIZE (value)));
 
   gum_invocation_context_replace_return_value (self->ic, value);
 }

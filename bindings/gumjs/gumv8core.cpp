@@ -556,13 +556,13 @@ _gum_v8_core_init (GumV8Core * self,
   auto int64 = _gum_v8_create_class ("Int64", gumjs_int64_construct, scope,
       module, isolate);
   _gum_v8_class_add (int64, gumjs_int64_functions, module, isolate);
-  int64->InstanceTemplate ()->SetInternalFieldCount (8 / GLIB_SIZEOF_VOID_P);
+  int64->InstanceTemplate ()->SetInternalFieldCount (1);
   self->int64 = new Global<FunctionTemplate> (isolate, int64);
 
   auto uint64 = _gum_v8_create_class ("UInt64", gumjs_uint64_construct, scope,
       module, isolate);
   _gum_v8_class_add (uint64, gumjs_uint64_functions, module, isolate);
-  uint64->InstanceTemplate ()->SetInternalFieldCount (8 / GLIB_SIZEOF_VOID_P);
+  uint64->InstanceTemplate ()->SetInternalFieldCount (1);
   self->uint64 = new Global<FunctionTemplate> (isolate, uint64);
 
   auto native_pointer = _gum_v8_create_class ("NativePointer",
@@ -1106,12 +1106,8 @@ _gum_v8_core_realize (GumV8Core * self)
       callback_context_value);
 
   auto cpu_context = Local<FunctionTemplate>::New (isolate, *self->cpu_context);
-  Local<Value> args[] = {
-    External::New (isolate, NULL),
-    Boolean::New (isolate, false)
-  };
   auto cpu_context_value = cpu_context->GetFunction (context).ToLocalChecked ()
-      ->NewInstance (context, G_N_ELEMENTS (args), args).ToLocalChecked ();
+      ->NewInstance (context).ToLocalChecked ();
   self->cpu_context_value = new Global<Object> (isolate, cpu_context_value);
 }
 
@@ -2279,7 +2275,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
   if (!_gum_v8_args_parse (args, "p~", &ptr))
     return;
 
-  wrapper->SetInternalField (0, External::New (isolate, ptr));
+  wrapper->SetInternalField (0,
+      BigInt::NewFromUnsigned (isolate, GPOINTER_TO_SIZE (ptr)));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
@@ -2860,8 +2857,8 @@ gumjs_native_function_init (Local<Object> wrapper,
     func->arglist_size += t->size;
   }
 
-  wrapper->SetInternalField (0, External::New (isolate,
-      (void *) func->implementation));
+  wrapper->SetInternalField (0, BigInt::NewFromUnsigned (isolate,
+        GPOINTER_TO_SIZE (func->implementation)));
   wrapper->SetAlignedPointerInInternalField (1, func);
 
   func->wrapper = new Global<Object> (isolate, wrapper);
@@ -3349,7 +3346,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     goto error;
   }
 
-  wrapper->SetInternalField (0, External::New (isolate, func));
+  wrapper->SetInternalField (0,
+      BigInt::NewFromUnsigned (isolate, GPOINTER_TO_SIZE (func)));
   wrapper->SetInternalField (1, External::New (isolate, callback));
 
   callback->wrapper = new Global<Object> (isolate, wrapper);
@@ -3582,8 +3580,8 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_callback_context_get_return_address,
   if (self->return_address == 0)
   {
     auto instance (Local<Object>::New (isolate, *self->cpu_context));
-    auto cpu_context = (GumCpuContext *)
-        instance->GetInternalField (0).As<External> ()->Value ();
+    auto cpu_context =
+        (GumCpuContext *) instance->GetAlignedPointerFromInternalField (0);
 
     auto backtracer = gum_backtracer_make_accurate ();
 
@@ -3623,12 +3621,12 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_callback_context_get_cpu_context,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 {
-  GumCpuContext * cpu_context;
-  gboolean is_mutable;
-  if (!_gum_v8_args_parse (args, "Xt", &cpu_context, &is_mutable))
+  GumCpuContext * cpu_context = NULL;
+  gboolean is_mutable = FALSE;
+  if (!_gum_v8_args_parse (args, "|Xt", &cpu_context, &is_mutable))
     return;
 
-  wrapper->SetInternalField (0, External::New (isolate, cpu_context));
+  wrapper->SetAlignedPointerInInternalField (0, cpu_context);
   wrapper->SetInternalField (1, Boolean::New (isolate, !!is_mutable));
   wrapper->SetAlignedPointerInInternalField (2, core);
 }
@@ -3639,8 +3637,7 @@ gumjs_cpu_context_get_gpr (Local<Name> property,
 {
   auto wrapper = info.Holder ();
   auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   const gsize offset = info.Data ().As<Integer> ()->Value ();
 
   info.GetReturnValue ().Set (
@@ -3655,8 +3652,7 @@ gumjs_cpu_context_set_gpr (Local<Name> property,
   auto isolate = info.GetIsolate ();
   auto wrapper = info.Holder ();
   auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
   const gsize offset = info.Data ().As<Integer> ()->Value ();
 
@@ -3680,8 +3676,7 @@ gumjs_cpu_context_get_vector (Local<Name> property,
                               const PropertyCallbackInfo<Value> & info)
 {
   auto wrapper = info.Holder ();
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   gsize spec = info.Data ().As<Integer> ()->Value ();
   const gsize offset = spec >> 8;
   const gsize size = spec & 0xff;
@@ -3701,8 +3696,7 @@ gumjs_cpu_context_set_vector (Local<Name> property,
   auto isolate = info.GetIsolate ();
   auto wrapper = info.Holder ();
   auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
   gsize spec = info.Data ().As<Integer> ()->Value ();
   const gsize offset = spec >> 8;
@@ -3738,8 +3732,7 @@ gumjs_cpu_context_get_double (Local<Name> property,
                               const PropertyCallbackInfo<Value> & info)
 {
   auto wrapper = info.Holder ();
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   const gsize offset = info.Data ().As<Integer> ()->Value ();
 
   info.GetReturnValue ().Set (
@@ -3753,8 +3746,7 @@ gumjs_cpu_context_set_double (Local<Name> property,
 {
   auto isolate = info.GetIsolate ();
   auto wrapper = info.Holder ();
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
   const gsize offset = info.Data ().As<Integer> ()->Value ();
 
@@ -3779,8 +3771,7 @@ gumjs_cpu_context_get_float (Local<Name> property,
                              const PropertyCallbackInfo<Value> & info)
 {
   auto wrapper = info.Holder ();
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   const gsize offset = info.Data ().As<Integer> ()->Value ();
 
   info.GetReturnValue ().Set (
@@ -3794,8 +3785,7 @@ gumjs_cpu_context_set_float (Local<Name> property,
 {
   auto isolate = info.GetIsolate ();
   auto wrapper = info.Holder ();
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
   const gsize offset = info.Data ().As<Integer> ()->Value ();
 
@@ -3820,8 +3810,7 @@ gumjs_cpu_context_get_flags (Local<Name> property,
                              const PropertyCallbackInfo<Value> & info)
 {
   auto wrapper = info.Holder ();
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   const gsize offset = info.Data ().As<Integer> ()->Value ();
 
   info.GetReturnValue ().Set (
@@ -3836,8 +3825,7 @@ gumjs_cpu_context_set_flags (Local<Name> property,
 {
   auto isolate = info.GetIsolate ();
   auto wrapper = info.Holder ();
-  auto cpu_context =
-      (guint8 *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  auto cpu_context = (guint8 *) wrapper->GetAlignedPointerFromInternalField (0);
   bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
   auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
   const gsize offset = info.Data ().As<Integer> ()->Value ();

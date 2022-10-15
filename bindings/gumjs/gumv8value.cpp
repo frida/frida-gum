@@ -975,35 +975,7 @@ _gum_v8_uint64_new (guint64 value,
 gint64
 _gum_v8_int64_get_value (Local<Object> object)
 {
-#if GLIB_SIZEOF_VOID_P == 8
-  union
-  {
-    gpointer p;
-    gint64 i;
-  } v;
-
-  v.p = object->GetInternalField (0).As<External> ()->Value ();
-
-  return v.i;
-#else
-  union
-  {
-    gpointer p;
-    guint32 bits;
-  } upper, lower;
-  union
-  {
-    guint64 bits;
-    gint64 i;
-  } v;
-
-  upper.p = object->GetInternalField (0).As<External> ()->Value ();
-  lower.p = object->GetInternalField (1).As<External> ()->Value ();
-
-  v.bits = ((guint64) upper.bits) << 32 | ((guint64) lower.bits);
-
-  return v.i;
-#endif
+  return object->GetInternalField (0).As<BigInt> ()->Int64Value ();
 }
 
 void
@@ -1011,36 +983,7 @@ _gum_v8_int64_set_value (Local<Object> object,
                          gint64 value,
                          Isolate * isolate)
 {
-#if GLIB_SIZEOF_VOID_P == 8
-  union
-  {
-    gint64 i;
-    gpointer p;
-  } v;
-
-  v.i = value;
-
-  object->SetInternalField (0, External::New (isolate, v.p));
-#else
-  union
-  {
-    gint64 i;
-    guint64 bits;
-  } v;
-  union
-  {
-    guint32 bits;
-    gpointer p;
-  } upper, lower;
-
-  v.i = value;
-
-  upper.bits = v.bits >> 32;
-  lower.bits = v.bits & 0xffffffff;
-
-  object->SetInternalField (0, External::New (isolate, upper.p));
-  object->SetInternalField (1, External::New (isolate, lower.p));
-#endif
+  object->SetInternalField (0, BigInt::New (isolate, value));
 }
 
 gboolean
@@ -1113,28 +1056,7 @@ _gum_v8_uint64_parse (Local<Value> value,
 guint64
 _gum_v8_uint64_get_value (Local<Object> object)
 {
-#if GLIB_SIZEOF_VOID_P == 8
-  union
-  {
-    gpointer p;
-    guint64 u;
-  } v;
-
-  v.p = object->GetInternalField (0).As<External> ()->Value ();
-
-  return v.u;
-#else
-  union
-  {
-    gpointer p;
-    guint32 bits;
-  } upper, lower;
-
-  upper.p = object->GetInternalField (0).As<External> ()->Value ();
-  lower.p = object->GetInternalField (1).As<External> ()->Value ();
-
-  return ((guint64) upper.bits) << 32 | ((guint64) lower.bits);
-#endif
+  return object->GetInternalField (0).As<BigInt> ()->Uint64Value ();
 }
 
 void
@@ -1142,29 +1064,7 @@ _gum_v8_uint64_set_value (Local<Object> object,
                           guint64 value,
                           Isolate * isolate)
 {
-#if GLIB_SIZEOF_VOID_P == 8
-  union
-  {
-    guint64 u;
-    gpointer p;
-  } v;
-
-  v.u = value;
-
-  object->SetInternalField (0, External::New (isolate, v.p));
-#else
-  union
-  {
-    guint32 bits;
-    gpointer p;
-  } upper, lower;
-
-  upper.bits = value >> 32;
-  lower.bits = value & 0xffffffff;
-
-  object->SetInternalField (0, External::New (isolate, upper.p));
-  object->SetInternalField (1, External::New (isolate, lower.p));
-#endif
+  object->SetInternalField (0, BigInt::NewFromUnsigned (isolate, value));
 }
 
 gboolean
@@ -1252,7 +1152,7 @@ _gum_v8_native_pointer_new (gpointer address,
       *core->native_pointer_value));
   auto native_pointer_object (native_pointer_value->Clone ());
   native_pointer_object->SetInternalField (0,
-      External::New (core->isolate, address));
+      BigInt::NewFromUnsigned (core->isolate, GPOINTER_TO_SIZE (address)));
   return native_pointer_object;
 }
 
@@ -1480,8 +1380,8 @@ _gum_v8_cpu_context_new_immutable (const GumCpuContext * cpu_context,
   auto cpu_context_value (Local<Object>::New (isolate,
       *core->cpu_context_value));
   auto cpu_context_object (cpu_context_value->Clone ());
-  cpu_context_object->SetInternalField (0,
-      External::New (isolate, (GumCpuContext *) cpu_context));
+  cpu_context_object->SetAlignedPointerInInternalField (0,
+      (void *) cpu_context);
   const bool is_mutable = false;
   cpu_context_object->SetInternalField (1, Boolean::New (isolate, is_mutable));
   return cpu_context_object;
@@ -1495,8 +1395,7 @@ _gum_v8_cpu_context_new_mutable (GumCpuContext * cpu_context,
   auto cpu_context_value (Local<Object>::New (isolate,
       *core->cpu_context_value));
   auto cpu_context_object (cpu_context_value->Clone ());
-  cpu_context_object->SetInternalField (0,
-      External::New (isolate, cpu_context));
+  cpu_context_object->SetAlignedPointerInInternalField (0, cpu_context);
   const bool is_mutable = true;
   cpu_context_object->SetInternalField (1, Boolean::New (isolate, is_mutable));
   return cpu_context_object;
@@ -1509,10 +1408,10 @@ _gum_v8_cpu_context_free_later (Global<Object> * cpu_context,
   auto isolate = core->isolate;
 
   auto instance (Local<Object>::New (isolate, *cpu_context));
-  auto original = (GumCpuContext *)
-      instance->GetInternalField (0).As<External> ()->Value ();
+  auto original =
+      (GumCpuContext *) instance->GetAlignedPointerFromInternalField (0);
   auto copy = g_slice_dup (GumCpuContext, original);
-  instance->SetInternalField (0, External::New (isolate, copy));
+  instance->SetAlignedPointerInInternalField (0, copy);
   const bool is_mutable = false;
   instance->SetInternalField (1, Boolean::New (isolate, is_mutable));
 

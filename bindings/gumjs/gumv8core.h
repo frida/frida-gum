@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -20,9 +20,9 @@
 #include <v8.h>
 
 #define GUMJS_NATIVE_POINTER_VALUE(o) \
-    (o)->GetInternalField (0).As<External> ()->Value ()
+    GSIZE_TO_POINTER ((o)->GetInternalField (0).As<BigInt> ()->Uint64Value ())
 #define GUMJS_CPU_CONTEXT_VALUE(o) \
-    ((GumCpuContext *) (o)->GetInternalField (0).As<External> ()->Value ())
+    ((GumCpuContext *) (o)->GetAlignedPointerFromInternalField (0))
 
 #ifdef HAVE_WINDOWS
 # define GUMJS_SYSTEM_ERROR_FIELD "lastError"
