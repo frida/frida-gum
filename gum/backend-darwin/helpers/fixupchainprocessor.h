@@ -23,6 +23,7 @@ struct _GumFixupChainProcessorApi
       mach_vm_address_t address, mach_vm_size_t size);
   void * (* dlopen) (const char * path, int mode);
   void * (* dlsym) (void * handle, const char * symbol);
+  int (* strcmp) (const char * s1, const char * s2);
 };
 
 void gum_process_chained_fixups (const GumChainedFixupsHeader * fixups_header,

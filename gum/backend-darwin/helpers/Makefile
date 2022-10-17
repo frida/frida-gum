@@ -25,7 +25,6 @@ build/%.dylib: %.c $(sources)
 		$< \
 		-o $@ \
 		-dynamiclib \
-		-nostdlib \
 		$(ldflags)
 
 .PHONY: build
