@@ -338,7 +338,7 @@ gum_inspector_server_on_list (SoupServer * server,
   json_builder_add_string_value (builder, "file://");
 
   json_builder_set_member_name (builder, "faviconUrl");
-  json_builder_add_string_value (builder, "https://www.frida.re/favicon.ico");
+  json_builder_add_string_value (builder, "https://frida.re/favicon.ico");
 
   json_builder_set_member_name (builder, "type");
   json_builder_add_string_value (builder, "node");
