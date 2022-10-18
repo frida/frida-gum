@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,8 @@
 #ifndef __GUM_INSPECTOR_SERVER_H__
 #define __GUM_INSPECTOR_SERVER_H__
 
-#include "gumscriptbackend.h"
+#include <glib-object.h>
+#include <gum/gumdefs.h>
 
 G_BEGIN_DECLS
 

@@ -20,7 +20,10 @@ if host_executable_format == 'elf'
 endif
 
 if have_gumjs
-  vapis += ['frida-gumjs-@0@.vapi'.format(api_version)]
+  vapis += [
+    'frida-gumjs-@0@.vapi'.format(api_version),
+    'frida-gumjs-inspector-@0@.vapi'.format(api_version),
+  ]
 endif
 
 install_data(vapis, install_dir: 'share/vala/vapi')
