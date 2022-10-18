@@ -9,17 +9,17 @@
 #include <ptrauth.h>
 #include <stdbool.h>
 
-#define FRIDA_INT2_MASK  0x00000003U
-#define FRIDA_INT11_MASK 0x000007ffU
-#define FRIDA_INT16_MASK 0x0000ffffU
-#define FRIDA_INT32_MASK 0xffffffffU
+#define GUM_INT2_MASK  0x00000003U
+#define GUM_INT11_MASK 0x000007ffU
+#define GUM_INT16_MASK 0x0000ffffU
+#define GUM_INT32_MASK 0xffffffffU
 
-typedef uint8_t FridaDarwinThreadedItemType;
+typedef uint8_t GumDarwinThreadedItemType;
 
-enum _FridaDarwinThreadedItemType
+enum _GumDarwinThreadedItemType
 {
-  FRIDA_DARWIN_THREADED_REBASE,
-  FRIDA_DARWIN_THREADED_BIND
+  GUM_DARWIN_THREADED_REBASE,
+  GUM_DARWIN_THREADED_BIND
 };
 
 static void * gum_sign_pointer (void * ptr, uint8_t key, uintptr_t diversity,
@@ -44,7 +44,7 @@ gum_process_threaded_items (uint64_t preferred_base_address,
     {
       uint64_t value;
       bool is_authenticated;
-      FridaDarwinThreadedItemType type;
+      GumDarwinThreadedItemType type;
       uint8_t key;
       bool has_address_diversity;
       uint16_t diversity;
@@ -54,26 +54,26 @@ gum_process_threaded_items (uint64_t preferred_base_address,
 
       is_authenticated      = (value >> 63) & 1;
       type                  = (value >> 62) & 1;
-      delta                 = (value >> 51) & FRIDA_INT11_MASK;
-      key                   = (value >> 49) & FRIDA_INT2_MASK;
+      delta                 = (value >> 51) & GUM_INT11_MASK;
+      key                   = (value >> 49) & GUM_INT2_MASK;
       has_address_diversity = (value >> 48) & 1;
-      diversity             = (value >> 32) & FRIDA_INT16_MASK;
+      diversity             = (value >> 32) & GUM_INT16_MASK;
 
-      if (type == FRIDA_DARWIN_THREADED_BIND)
+      if (type == GUM_DARWIN_THREADED_BIND)
       {
         uint16_t bind_ordinal;
 
-        bind_ordinal = value & FRIDA_INT16_MASK;
+        bind_ordinal = value & GUM_INT16_MASK;
 
         bound_value = symbols[bind_ordinal];
       }
-      else if (type == FRIDA_DARWIN_THREADED_REBASE)
+      else if (type == GUM_DARWIN_THREADED_REBASE)
       {
         uint64_t rebase_address;
 
         if (is_authenticated)
         {
-          rebase_address = value & FRIDA_INT32_MASK;
+          rebase_address = value & GUM_INT32_MASK;
         }
         else
         {
