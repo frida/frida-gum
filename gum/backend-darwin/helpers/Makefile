@@ -1,8 +1,10 @@
 helpers := \
+	build/threadedbindprocessor.dylib \
 	build/fixupchainprocessor.dylib \
 	$(NULL)
 
 sources := \
+	threadedbindprocessor.c \
 	fixupchainprocessor.c \
 	$(NULL)
 
