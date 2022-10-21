@@ -70,7 +70,29 @@ if host_arch == 'arm'
   endif
 endif
 
-have_ptrauth_src = '''#ifdef __clang__
+if host_os_family == 'darwin'
+  target_conditionals_prefix = '#include <TargetConditionals.h>'
+
+  is_macos_src = target_conditionals_prefix + '''
+#if !TARGET_OS_OSX
+# error Not macOS
+#endif
+'''
+  if cc.compiles(is_macos_src, name: 'compiling for macOS')
+    host_os = 'macos'
+  endif
+
+  is_ios_src = target_conditionals_prefix + '''
+#if !TARGET_OS_IOS
+# error Not iOS
+#endif
+'''
+  if cc.compiles(is_ios_src, name: 'compiling for iOS')
+    host_os = 'ios'
+  endif
+
+  have_ptrauth_src = '''
+#ifdef __clang__
 # if __has_feature (ptrauth_calls)
 #  define HAVE_PTRAUTH 1
 # endif
@@ -80,34 +102,17 @@ have_ptrauth_src = '''#ifdef __clang__
 # error Pointer authentication not supported
 #endif
 '''
-have_ptrauth = cc.compiles(have_ptrauth_src, name: 'pointer authentication')
+  have_ptrauth = cc.compiles(have_ptrauth_src, name: 'pointer authentication')
 
-target_conditionals_prefix = '#include <TargetConditionals.h>'
-
-is_macos_src = target_conditionals_prefix + '''
-#if !TARGET_OS_OSX
-# error Not macOS
-#endif
-'''
-if cc.compiles(is_macos_src, name: 'compiling for macOS')
-  host_os = 'macos'
+  if host_arch == 'arm64' and have_ptrauth
+    host_abi = 'arm64e'
+  endif
+else
+  have_ptrauth = false
 endif
 
-is_ios_src = target_conditionals_prefix + '''
-#if !TARGET_OS_IOS
-# error Not iOS
-#endif
-'''
-if cc.compiles(is_ios_src, name: 'compiling for iOS')
-  host_os = 'ios'
-endif
-
-if cc.has_header('android/api-level.h')
+if host_os_family == 'linux' and cc.has_header('android/api-level.h')
   host_os = 'android'
-endif
-
-if host_arch == 'arm64' and have_ptrauth
-  host_abi = 'arm64e'
 endif
 
 if host_os_family == 'windows'
