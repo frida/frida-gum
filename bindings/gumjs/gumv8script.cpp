@@ -507,6 +507,8 @@ gum_v8_script_create_context (GumV8Script * self,
     Isolate::Scope isolate_scope (isolate);
     HandleScope handle_scope (isolate);
 
+    self->inspector->idleStarted ();
+
     auto global_templ = ObjectTemplate::New (isolate);
     _gum_v8_core_init (&self->core, self, gumjs_frida_source_map,
         gum_v8_script_emit, gum_v8_script_backend_get_scheduler (self->backend),

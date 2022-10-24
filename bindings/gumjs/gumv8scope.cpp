@@ -43,6 +43,8 @@ ScriptScope::ScriptScope (GumV8Script * parent)
     g_queue_init (&tick_callbacks_storage);
     g_queue_init (&scheduled_sources_storage);
   }
+
+  parent->inspector->idleFinished ();
 }
 
 ScriptScope::~ScriptScope ()
@@ -53,6 +55,8 @@ ScriptScope::~ScriptScope ()
 
   if (this == root_scope)
     PerformPendingIO ();
+
+  parent->inspector->idleStarted ();
 
   core->current_scope = next_scope;
   core->current_owner = next_owner;
@@ -183,6 +187,8 @@ ScriptUnlocker::ExitCurrentScope::ExitCurrentScope (GumV8Core * core)
     scope (core->current_scope),
     owner (core->current_owner)
 {
+  core->script->inspector->idleStarted ();
+
   core->current_scope = nullptr;
   core->current_owner = GUM_THREAD_ID_INVALID;
 }
@@ -191,6 +197,8 @@ ScriptUnlocker::ExitCurrentScope::~ExitCurrentScope ()
 {
   core->current_scope = scope;
   core->current_owner = owner;
+
+  core->script->inspector->idleFinished ();
 }
 
 ScriptUnlocker::ExitIsolateScope::ExitIsolateScope (Isolate * isolate)
