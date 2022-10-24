@@ -182,8 +182,6 @@ static void gum_v8_emit_data_free (GumEmitData * d);
 static void gum_v8_script_set_debug_message_handler (GumScript * backend,
     GumScriptDebugMessageHandler handler, gpointer data,
     GDestroyNotify data_destroy);
-static void gum_v8_script_enable_debugger (GumV8Script * self);
-static void gum_v8_script_disable_debugger (GumV8Script * self);
 static void gum_v8_script_post_debug_message (GumScript * backend,
     const gchar * message);
 static void gum_v8_script_process_queued_debug_messages (GumV8Script * self);
@@ -203,8 +201,6 @@ static void gum_v8_script_disconnect_inspector_channel (GumV8Script * self,
     guint id);
 static void gum_v8_script_dispatch_inspector_stanza (GumV8Script * self,
     guint channel_id, const gchar * stanza);
-static void gum_v8_script_announce_context (GumV8Script * self,
-    Local<Context> context);
 
 static GumStalker * gum_v8_script_get_stalker (GumScript * script);
 
@@ -332,6 +328,18 @@ gum_v8_script_constructed (GObject * object)
   isolate->SetMicrotasksPolicy (MicrotasksPolicy::kExplicit);
   isolate->SetHostImportModuleDynamicallyCallback (gum_import_module);
   self->isolate = isolate;
+
+  {
+    Locker locker (isolate);
+    Isolate::Scope isolate_scope (isolate);
+    HandleScope handle_scope (isolate);
+
+    auto client = new GumInspectorClient (self);
+    self->inspector_client = client;
+
+    auto inspector = V8Inspector::create (isolate, client);
+    self->inspector = inspector.release ();
+  }
 }
 
 static void
@@ -364,7 +372,7 @@ gum_v8_script_dispose (GObject * object)
     g_cond_signal (&self->inspector_cond);
     GUM_V8_INSPECTOR_UNLOCK (self);
 
-    gum_v8_script_disable_debugger (self);
+    gum_v8_script_clear_inspector_channels (self);
 
     GUM_V8_INSPECTOR_LOCK (self);
     gum_v8_script_drop_queued_debug_messages_unlocked (self);
@@ -372,6 +380,19 @@ gum_v8_script_dispose (GObject * object)
 
     delete self->channels;
     self->channels = nullptr;
+
+    {
+      auto isolate = self->isolate;
+      Locker locker (isolate);
+      Isolate::Scope isolate_scope (isolate);
+      HandleScope handle_scope (isolate);
+
+      delete self->inspector;
+      self->inspector = nullptr;
+
+      delete self->inspector_client;
+      self->inspector_client = nullptr;
+    }
 
     auto platform =
         (GumV8Platform *) gum_v8_script_backend_get_platform (self->backend);
@@ -516,9 +537,13 @@ gum_v8_script_create_context (GumV8Script * self,
         &self->instruction, &self->core, global_templ);
 
     Local<Context> context (Context::New (isolate, NULL, global_templ));
+    {
+      auto name_buffer = gum_string_buffer_from_utf8 (self->name);
+      V8ContextInfo info (context, self->context_group_id,
+          name_buffer->string ());
+      self->inspector->contextCreated (info);
+    }
     g_signal_emit (self, gum_v8_script_signals[CONTEXT_CREATED], 0, &context);
-    if (self->inspector != nullptr)
-      gum_v8_script_announce_context (self, context);
     self->context = new Global<Context> (isolate, context);
     Context::Scope context_scope (context);
     _gum_v8_core_realize (&self->core);
@@ -1094,9 +1119,8 @@ gum_v8_script_destroy_context (GumV8Script * self)
     _gum_v8_core_dispose (&self->core);
 
     auto context = Local<Context>::New (self->isolate, *self->context);
+    self->inspector->contextDestroyed (context);
     g_signal_emit (self, gum_v8_script_signals[CONTEXT_DESTROYED], 0, &context);
-    if (self->inspector != nullptr)
-      self->inspector->contextDestroyed (context);
   }
 
   gum_es_program_free (self->program);
@@ -1540,61 +1564,13 @@ gum_v8_script_set_debug_message_handler (GumScript * backend,
   if (old_context != NULL)
     g_main_context_unref (old_context);
 
-  if (handler != NULL)
+  if (handler == NULL)
   {
     gum_script_scheduler_push_job_on_js_thread (
         gum_v8_script_backend_get_scheduler (self->backend), G_PRIORITY_DEFAULT,
-        (GumScriptJobFunc) gum_v8_script_enable_debugger, g_object_ref (self),
-        g_object_unref);
+        (GumScriptJobFunc) gum_v8_script_clear_inspector_channels,
+        g_object_ref (self), g_object_unref);
   }
-  else
-  {
-    gum_script_scheduler_push_job_on_js_thread (
-        gum_v8_script_backend_get_scheduler (self->backend), G_PRIORITY_DEFAULT,
-        (GumScriptJobFunc) gum_v8_script_disable_debugger, g_object_ref (self),
-        g_object_unref);
-  }
-}
-
-static void
-gum_v8_script_enable_debugger (GumV8Script * self)
-{
-  auto isolate = self->isolate;
-  Locker locker (isolate);
-  Isolate::Scope isolate_scope (isolate);
-  HandleScope handle_scope (isolate);
-
-  if (self->inspector != nullptr)
-    return;
-
-  auto client = new GumInspectorClient (self);
-  self->inspector_client = client;
-
-  auto inspector = V8Inspector::create (isolate, client);
-  self->inspector = inspector.release ();
-
-  if (self->context != nullptr)
-  {
-    auto context = Local<Context>::New (isolate, *self->context);
-    gum_v8_script_announce_context (self, context);
-  }
-}
-
-static void
-gum_v8_script_disable_debugger (GumV8Script * self)
-{
-  gum_v8_script_clear_inspector_channels (self);
-
-  auto isolate = self->isolate;
-  Locker locker (isolate);
-  Isolate::Scope isolate_scope (isolate);
-  HandleScope handle_scope (isolate);
-
-  delete self->inspector;
-  self->inspector = nullptr;
-
-  delete self->inspector_client;
-  self->inspector_client = nullptr;
 }
 
 static void
@@ -1805,16 +1781,6 @@ gum_v8_script_emit_inspector_stanza (GumV8Script * self,
 {
   gum_v8_script_emit_debug_message (self, "DISPATCH %u %s",
       channel_id, stanza);
-}
-
-static void
-gum_v8_script_announce_context (GumV8Script * self,
-                                Local<Context> context)
-{
-  auto name_buffer = gum_string_buffer_from_utf8 (self->name);
-  V8ContextInfo info (context, self->context_group_id,
-      name_buffer->string ());
-  self->inspector->contextCreated (info);
 }
 
 GumInspectorClient::GumInspectorClient (GumV8Script * script)
