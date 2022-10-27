@@ -156,21 +156,24 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   gum_x86_writer_reset (cw, ctx->trampoline_slice->data);
 
-  function_ctx_ptr = GUM_ADDRESS (gum_x86_writer_cur (cw));
-  gum_x86_writer_put_bytes (cw, (guint8 *) &ctx, sizeof (GumFunctionContext *));
+  if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    function_ctx_ptr = GUM_ADDRESS (gum_x86_writer_cur (cw));
+    gum_x86_writer_put_bytes (cw, (guint8 *) &ctx, sizeof (GumFunctionContext *));
 
-  ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
+    ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
 
-  gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->data));
+    gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->data));
 
-  ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
+    ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
-  gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->data));
+    gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->data));
 
-  gum_x86_writer_flush (cw);
-  g_assert (gum_x86_writer_offset (cw) <= ctx->trampoline_slice->size);
+    gum_x86_writer_flush (cw);
+    g_assert (gum_x86_writer_offset (cw) <= ctx->trampoline_slice->size);
+  }
 
   ctx->on_invoke_trampoline = gum_x86_writer_cur (cw);
   gum_x86_relocator_reset (rl, (guint8 *) ctx->function_address, cw);
@@ -216,7 +219,16 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
   gum_x86_writer_reset (cw, prologue);
   cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->on_enter_trampoline));
+
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->replacement_function));
+  }
+  else
+  {
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->on_enter_trampoline));
+  }
+
   gum_x86_writer_flush (cw);
   g_assert (gum_x86_writer_offset (cw) <= GUM_FCDATA (ctx)->redirect_code_size);
 

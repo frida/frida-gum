@@ -63,6 +63,15 @@ TESTLIST_BEGIN (interceptor)
 #endif
   TESTENTRY (replace_then_attach)
   TESTENTRY (replace_keep_original)
+
+  TESTENTRY (replace_then_replace_fast)
+  TESTENTRY (attach_then_replace_fast)
+  TESTENTRY (replace_fast_then_replace)
+  TESTENTRY (replace_fast_then_attach)
+  TESTENTRY (i_can_has_replaceability_fast)
+  TESTENTRY (replace_one_fast)
+  TESTENTRY (replace_one_fast_hook)
+  TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
 
 #ifdef HAVE_WINDOWS
@@ -70,6 +79,10 @@ static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
 static gpointer replacement_malloc (gsize size);
 static gpointer replacement_target_function (GString * str);
+static guint original_fast (guint input);
+static guint replacement_fast (gsize input);
+static guint original_fast_hook (guint input, void * ctx);
+static guint replacement_fast_hook (gsize input, void * ctx);
 
 TESTCASE (attach_one)
 {
@@ -853,4 +866,200 @@ replacement_malloc (gsize size)
       ==, size);
 
   return GSIZE_TO_POINTER (size);
+}
+
+static guint GUM_NOINLINE
+original_fast (guint input)
+{
+  g_assert_cmphex (input, ==, 0x42);
+  return 0xbaadc0de;
+}
+
+static guint GUM_NOINLINE
+replacement_fast (gsize input)
+{
+  g_assert_cmphex (input, ==, 0x42);
+  return 0xdeadface;
+}
+
+TESTCASE (replace_then_replace_fast)
+{
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
+      original_fast, replacement_fast, NULL, NULL), ==, GUM_REPLACE_OK);
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast, replacement_fast, NULL), ==, GUM_REPLACE_WRONG_TYPE);
+  gum_interceptor_revert (fixture->interceptor, original_fast);
+}
+
+TESTCASE (attach_then_replace_fast)
+{
+  TestCallbackListener * listener;
+
+  listener = test_callback_listener_new ();
+  listener->on_enter = (TestCallbackListenerFunc) original_fast;
+  listener->on_leave = (TestCallbackListenerFunc) original_fast;
+  listener->user_data = fixture->result;
+
+  g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
+      original_fast, GUM_INVOCATION_LISTENER (listener), NULL), ==,
+      GUM_ATTACH_OK);
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast, replacement_fast, NULL), ==, GUM_REPLACE_WRONG_TYPE);
+  gum_interceptor_detach (fixture->interceptor,
+      GUM_INVOCATION_LISTENER (listener));
+
+  g_object_unref (listener);
+}
+
+TESTCASE (replace_fast_then_replace)
+{
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast, replacement_fast, NULL), ==, GUM_REPLACE_OK);
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
+      original_fast, replacement_fast, NULL, NULL), ==, GUM_REPLACE_WRONG_TYPE);
+  gum_interceptor_revert (fixture->interceptor, original_fast);
+}
+
+TESTCASE (replace_fast_then_attach)
+{
+  TestCallbackListener * listener;
+
+  listener = test_callback_listener_new ();
+  listener->on_enter = (TestCallbackListenerFunc) original_fast;
+  listener->on_leave = (TestCallbackListenerFunc) original_fast;
+  listener->user_data = fixture->result;
+
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast, replacement_fast, NULL), ==, GUM_REPLACE_OK);
+
+  g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
+      original_fast, GUM_INVOCATION_LISTENER (listener), NULL), ==,
+      GUM_ATTACH_WRONG_TYPE);
+
+  gum_interceptor_revert (fixture->interceptor, original_fast);
+  g_object_unref (listener);
+}
+
+
+TESTCASE (replace_fast_then_replace_fast)
+{
+
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast, replacement_fast, NULL), ==, GUM_REPLACE_OK);
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast, replacement_fast, NULL), ==,
+      GUM_REPLACE_ALREADY_REPLACED);
+  gum_interceptor_revert (fixture->interceptor, original_fast);
+}
+
+TESTCASE (i_can_has_replaceability_fast)
+{
+  UnsupportedFunction * unsupported_functions;
+  guint count, i;
+
+  unsupported_functions = unsupported_function_list_new (&count);
+
+  for (i = 0; i < count; i++)
+  {
+    UnsupportedFunction * func = &unsupported_functions[i];
+
+    g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        func->code + func->code_offset, replacement_malloc, NULL),
+        ==, GUM_REPLACE_WRONG_SIGNATURE);
+  }
+
+  unsupported_function_list_free (unsupported_functions);
+}
+
+TESTCASE (replace_one_fast)
+{
+  guint ret;
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast, replacement_fast, NULL), ==, GUM_REPLACE_OK);
+  ret = original_fast (0x42);
+
+  g_assert_cmphex (ret, ==, 0xdeadface);
+  gum_interceptor_revert (fixture->interceptor, original_fast);
+}
+
+TESTCASE (replace_one_fast_hook)
+{
+  guint ret;
+  gpointer trampoline = NULL;
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast_hook, replacement_fast_hook, &trampoline), ==,
+      GUM_REPLACE_OK);
+
+  /*
+   * Note here, that our hooked function has a convenient unused context
+   * parameter. We use this to pass the address of the trampoline to the
+   * original function. In real usage, the hook function would not be able to
+   * retrieve the address of the trampoline from its parameters, instead it is
+   * the responsibility of the caller of gum_interceptor_replace_fast to ensure
+   * that this address is usable by the hook if required, e.g. by storing it
+   * into a global variable.
+   */
+  ret = original_fast_hook (0x42, trampoline);
+
+  g_assert_cmphex (ret, ==, 0xdeadface);
+  gum_interceptor_revert (fixture->interceptor, original_fast_hook);
+}
+
+static guint GUM_NOINLINE
+original_fast_hook (guint input, void * ctx)
+{
+  g_assert_cmphex (input, ==, 0x99);
+  g_assert_cmphex (GPOINTER_TO_UINT(ctx), ==, 0xf00dd00d);
+  return 0xbaadc0de;
+}
+
+static guint GUM_NOINLINE
+replacement_fast_hook (gsize input, void * ctx)
+{
+  guint (*trampoline)(gsize,void*) = ctx;
+  guint original = trampoline (0x99, (gpointer *)0xf00dd00d);
+  g_assert_cmphex (original, ==, 0xbaadc0de);
+  return 0xdeadface;
+}
+
+TESTCASE (fast_interceptor_performance)
+{
+  GTimer * timer;
+  gpointer trampoline = NULL;
+  guint ret;
+  gdouble duration_default, duration_fast;
+
+  timer = g_timer_new ();
+
+  /* Normal Interceptor */
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
+      original_fast_hook, replacement_fast_hook, NULL, &trampoline), ==,
+      GUM_REPLACE_OK);
+  g_timer_reset (timer);
+
+  for (gsize i = 0; i < 1000; i++)
+  {
+    ret = original_fast_hook (0x42, trampoline);
+    g_assert_cmphex (ret, ==, 0xdeadface);
+  }
+  duration_default = g_timer_elapsed (timer, NULL);
+  gum_interceptor_revert (fixture->interceptor, original_fast_hook);
+
+  /* Fast Interceptor */
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+      original_fast_hook, replacement_fast_hook, &trampoline), ==,
+      GUM_REPLACE_OK);
+  g_timer_reset (timer);
+    for (gsize i = 0; i < 1000; i++)
+  {
+    ret = original_fast_hook (0x42, trampoline);
+    g_assert_cmphex (ret, ==, 0xdeadface);
+  }
+  duration_fast = g_timer_elapsed (timer, NULL);
+  gum_interceptor_revert (fixture->interceptor, original_fast_hook);
+
+  g_timer_destroy (timer);
+
+    g_print ("<duration_fast=%f duration_default=%f ratio=%f> ",
+      duration_fast, duration_default, duration_fast / duration_default);
 }

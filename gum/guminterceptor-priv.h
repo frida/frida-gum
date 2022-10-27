@@ -18,6 +18,14 @@ typedef struct _GumInterceptorBackend GumInterceptorBackend;
 typedef struct _GumFunctionContext GumFunctionContext;
 typedef union _GumFunctionContextBackendData GumFunctionContextBackendData;
 
+typedef guint GumInterceptorType;
+
+enum _GumInterceptorType
+{
+  GUM_INTERCEPTOR_TYPE_DEFAULT = 0,
+  GUM_INTERCEPTOR_TYPE_FAST    = 1
+} ;
+
 union _GumFunctionContextBackendData
 {
   gchar storage[2 * GLIB_SIZEOF_VOID_P];
@@ -26,6 +34,8 @@ union _GumFunctionContextBackendData
 
 struct _GumFunctionContext
 {
+  GumInterceptorType type;
+
   gpointer function_address;
 
   gboolean destroyed;
