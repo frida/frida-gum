@@ -115,7 +115,13 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   spec.max_distance = GUM_X86_JMP_MAX_DISTANCE;
   ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
       self->allocator, &spec, default_alignment);
-  if (ctx->trampoline_slice != NULL)
+  /*
+   * When creating a fast interceptor, we won't be vectoring from the target
+   * function to the trampoline slice, we will instead be re-directing direct to
+   * the target replacement function and therefore must consider the worst case
+   * scenario of a JMP with RIP-relative immediate embedded in the code stream.
+   */
+  if (ctx->trampoline_slice != NULL && ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
   {
     data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
   }
@@ -231,6 +237,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
   gum_x86_writer_flush (cw);
   g_assert (gum_x86_writer_offset (cw) <= GUM_FCDATA (ctx)->redirect_code_size);
+  g_assert (gum_x86_writer_offset (cw) <= ctx->overwritten_prologue_len);
 
   padding = ctx->overwritten_prologue_len - gum_x86_writer_offset (cw);
   gum_x86_writer_put_nop_padding (cw, padding);
