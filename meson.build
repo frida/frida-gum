@@ -342,6 +342,7 @@ threads_dep = dependency('threads')
 glib_options = [
   'diet=' + diet.to_string(),
   'printf=' + allocator,
+  'cocoa=disabled',
   'selinux=disabled',
   'xattr=false',
   'libmount=disabled',
