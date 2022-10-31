@@ -1004,7 +1004,7 @@ again:
    * Factor of ten with the number of digits needed for the fractional
    * part.  For example, if the precision is 3, the mask will be 1000.
    */
-  mask = mypow10 (precision);
+  mask = (uintmax_t) mypow10 (precision);
   /*
    * We "cheat" by converting the fractional part to integer by
    * multiplying by a factor of ten.
@@ -1259,7 +1259,7 @@ cast (LDOUBLE value)
   if (value >= (LDOUBLE) UINTMAX_MAX)
     return UINTMAX_MAX;
 
-  result = value;
+  result = (uintmax_t) value;
 
   /*
    * At least on NetBSD/sparc64 3.0.2 and 4.99.30, casting long double to
