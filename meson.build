@@ -384,7 +384,10 @@ capstone_options = [
 capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
 
 if allocator == 'internal' or have_gumjs
-  ffi_dep = dependency('libffi')
+  ffi_options = [
+    'tests=false',
+  ]
+  ffi_dep = dependency('libffi', default_options: ffi_options)
 else
   ffi_dep = disabler()
 endif
