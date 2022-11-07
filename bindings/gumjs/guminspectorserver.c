@@ -58,9 +58,6 @@ static void gum_inspector_server_get_property (GObject * object,
 static void gum_inspector_server_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 
-static void gum_inspector_server_on_unknown_request (SoupServer * server,
-    SoupServerMessage * msg, const char * path, GHashTable * query,
-    gpointer user_data);
 static void gum_inspector_server_on_list (SoupServer * server,
     SoupServerMessage * msg, const char * path, GHashTable * query,
     gpointer user_data);
@@ -127,8 +124,6 @@ gum_inspector_server_init (GumInspectorServer * self)
 
   server = g_object_new (SOUP_TYPE_SERVER, NULL);
 
-  soup_server_add_handler (server, "/",
-      gum_inspector_server_on_unknown_request, self, NULL);
   soup_server_add_handler (server, "/json",
       gum_inspector_server_on_list, self, NULL);
   soup_server_add_handler (server, "/json/list",
@@ -286,16 +281,6 @@ gum_inspector_server_post_message (GumInspectorServer * self,
 
     gum_inspector_peer_post_stanza (peer, stanza);
   }
-}
-
-static void
-gum_inspector_server_on_unknown_request (SoupServer * server,
-                                         SoupServerMessage * msg,
-                                         const char * path,
-                                         GHashTable * query,
-                                         gpointer user_data)
-{
-  soup_server_message_set_status (msg, SOUP_STATUS_NOT_FOUND, NULL);
 }
 
 static void
