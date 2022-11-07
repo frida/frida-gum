@@ -572,14 +572,15 @@ if have_gumjs
     cdata.set('HAVE_JAVA_BRIDGE', 1)
   endif
 
-  libsoup_dep = dependency('libsoup-2.4', default_options: [
+  libsoup_dep = dependency('libsoup-3.0', default_options: [
     'gssapi=disabled',
     'ntlm=disabled',
     'brotli=disabled',
     'tls_check=false',
-    'gnome=false',
     'introspection=disabled',
     'vapi=disabled',
+    'docs=disabled',
+    'examples=disabled',
     'tests=false',
     'sysprof=disabled',
   ])

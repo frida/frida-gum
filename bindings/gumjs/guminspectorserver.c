@@ -59,21 +59,21 @@ static void gum_inspector_server_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 
 static void gum_inspector_server_on_unknown_request (SoupServer * server,
-    SoupMessage * msg, const char * path, GHashTable * query,
-    SoupClientContext * client, gpointer user_data);
+    SoupServerMessage * msg, const char * path, GHashTable * query,
+    gpointer user_data);
 static void gum_inspector_server_on_list (SoupServer * server,
-    SoupMessage * msg, const char * path, GHashTable * query,
-    SoupClientContext * client, gpointer user_data);
+    SoupServerMessage * msg, const char * path, GHashTable * query,
+    gpointer user_data);
 static void gum_inspector_server_on_version (SoupServer * server,
-    SoupMessage * msg, const char * path, GHashTable * query,
-    SoupClientContext * client, gpointer user_data);
+    SoupServerMessage * msg, const char * path, GHashTable * query,
+    gpointer user_data);
 static void gum_inspector_server_on_websocket_opened (SoupServer * server,
-    SoupWebsocketConnection * connection, const char * path,
-    SoupClientContext * client, gpointer user_data);
+    SoupServerMessage * msg, const char * path,
+    SoupWebsocketConnection * connection, gpointer user_data);
 static void gum_inspector_server_emit_message (GumInspectorServer * self,
     const gchar * format, ...);
 
-static gboolean gum_inspector_server_check_method (SoupMessage * msg,
+static gboolean gum_inspector_server_check_method (SoupServerMessage * msg,
     const gchar * expected_method);
 static void gum_inspector_server_add_json_headers (
     SoupMessageHeaders * headers);
@@ -290,20 +290,19 @@ gum_inspector_server_post_message (GumInspectorServer * self,
 
 static void
 gum_inspector_server_on_unknown_request (SoupServer * server,
-                                         SoupMessage * msg,
+                                         SoupServerMessage * msg,
                                          const char * path,
                                          GHashTable * query,
-                                         SoupClientContext * client,
                                          gpointer user_data)
 {
+  soup_server_message_set_status (msg, SOUP_STATUS_NOT_FOUND, NULL);
 }
 
 static void
 gum_inspector_server_on_list (SoupServer * server,
-                              SoupMessage * msg,
+                              SoupServerMessage * msg,
                               const char * path,
                               GHashTable * query,
-                              SoupClientContext * client,
                               gpointer user_data)
 {
   GumInspectorServer * self = user_data;
@@ -315,9 +314,10 @@ gum_inspector_server_on_list (SoupServer * server,
   if (!gum_inspector_server_check_method (msg, "GET"))
     return;
 
-  soup_message_set_status (msg, SOUP_STATUS_OK);
+  soup_server_message_set_status (msg, SOUP_STATUS_OK, NULL);
 
-  gum_inspector_server_add_json_headers (msg->response_headers);
+  gum_inspector_server_add_json_headers (
+      soup_server_message_get_response_headers (msg));
 
   builder = json_builder_new ();
 
@@ -347,12 +347,14 @@ gum_inspector_server_on_list (SoupServer * server,
   uris = soup_server_get_uris (self->server);
   for (cur = uris; cur != NULL; cur = cur->next)
   {
-    SoupURI * uri = cur->data;
+    GUri * uri = cur->data;
 
-    host_port = g_strdup_printf ("%s:%u", uri->host, uri->port);
+    host_port = g_strdup_printf ("%s:%d",
+        g_uri_get_host (uri),
+        g_uri_get_port (uri));
     break;
   }
-  g_slist_free_full (uris, (GDestroyNotify) soup_uri_free);
+  g_slist_free_full (uris, (GDestroyNotify) g_uri_unref);
 
   json_builder_set_member_name (builder, "devtoolsFrontendUrl");
   url = g_strdup_printf ("devtools://devtools/bundled/js_app.html"
@@ -377,15 +379,15 @@ gum_inspector_server_on_list (SoupServer * server,
 
   json_builder_end_array (builder);
 
-  gum_inspector_server_append_json_body (msg->response_body, builder);
+  gum_inspector_server_append_json_body (
+      soup_server_message_get_response_body (msg), builder);
 }
 
 static void
 gum_inspector_server_on_version (SoupServer * server,
-                                 SoupMessage * msg,
+                                 SoupServerMessage * msg,
                                  const char * path,
                                  GHashTable * query,
-                                 SoupClientContext * client,
                                  gpointer user_data)
 {
   JsonBuilder * builder;
@@ -393,9 +395,10 @@ gum_inspector_server_on_version (SoupServer * server,
   if (!gum_inspector_server_check_method (msg, "GET"))
     return;
 
-  soup_message_set_status (msg, SOUP_STATUS_OK);
+  soup_server_message_set_status (msg, SOUP_STATUS_OK, NULL);
 
-  gum_inspector_server_add_json_headers (msg->response_headers);
+  gum_inspector_server_add_json_headers (
+      soup_server_message_get_response_headers (msg));
 
   builder = json_builder_new ();
 
@@ -409,14 +412,15 @@ gum_inspector_server_on_version (SoupServer * server,
 
   json_builder_end_object (builder);
 
-  gum_inspector_server_append_json_body (msg->response_body, builder);
+  gum_inspector_server_append_json_body (
+      soup_server_message_get_response_body (msg), builder);
 }
 
 static void
 gum_inspector_server_on_websocket_opened (SoupServer * server,
-                                          SoupWebsocketConnection * connection,
+                                          SoupServerMessage * msg,
                                           const char * path,
-                                          SoupClientContext * client,
+                                          SoupWebsocketConnection * connection,
                                           gpointer user_data)
 {
   GumInspectorServer * self = user_data;
@@ -463,12 +467,12 @@ gum_inspector_server_emit_message (GumInspectorServer * self,
 }
 
 static gboolean
-gum_inspector_server_check_method (SoupMessage * msg,
+gum_inspector_server_check_method (SoupServerMessage * msg,
                                    const gchar * expected_method)
 {
-  if (strcmp (msg->method, expected_method) != 0)
+  if (strcmp (soup_server_message_get_method (msg), expected_method) != 0)
   {
-    soup_message_set_status (msg, SOUP_STATUS_METHOD_NOT_ALLOWED);
+    soup_server_message_set_status (msg, SOUP_STATUS_METHOD_NOT_ALLOWED, NULL);
     return FALSE;
   }
 
@@ -480,14 +484,13 @@ gum_inspector_server_add_json_headers (SoupMessageHeaders * headers)
 {
   GHashTable * content_params;
 
-  content_params = g_hash_table_new (soup_str_case_hash, soup_str_case_equal);
+  content_params = g_hash_table_new (g_str_hash, g_str_equal);
   g_hash_table_insert (content_params, "charset", "UTF-8");
   soup_message_headers_set_content_type (headers,
       "application/json", content_params);
   g_hash_table_unref (content_params);
 
-  soup_message_headers_replace (headers,
-      "Cache-Control", "no-cache");
+  soup_message_headers_replace (headers, "Cache-Control", "no-cache");
 }
 
 static void

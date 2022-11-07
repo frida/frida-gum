@@ -4,4 +4,4 @@ revision = main
 depth = 1
 
 [provide]
-dependency_names = libsoup-2.4
+dependency_names = libsoup-3.0
