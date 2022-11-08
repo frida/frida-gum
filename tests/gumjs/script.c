@@ -846,7 +846,7 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("\"x0\"");
   EXPECT_SEND_MESSAGE_WITH ("\"w\"");
   EXPECT_SEND_MESSAGE_WITH ("\"imm\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"w\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"r\"");
   EXPECT_SEND_MESSAGE_WITH ("42");
 
   EXPECT_SEND_MESSAGE_WITH ("\"str\"");
