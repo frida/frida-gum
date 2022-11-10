@@ -2,7 +2,7 @@
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
- * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -109,6 +109,7 @@ enum _GumV8ExceptionsBehavior
 enum _GumV8CodeTraps
 {
   GUM_V8_CODE_TRAPS_DEFAULT,
+  GUM_V8_CODE_TRAPS_NONE,
   GUM_V8_CODE_TRAPS_ALL
 };
 
@@ -3020,8 +3021,11 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
       {
         new (unlocker) ScriptUnlocker (core);
 
-        interceptor_was_ignoring_us =
-            gum_interceptor_maybe_unignore_current_thread (interceptor);
+        if (traps != GUM_V8_CODE_TRAPS_NONE)
+        {
+          interceptor_was_ignoring_us =
+              gum_interceptor_maybe_unignore_current_thread (interceptor);
+        }
       }
 
       if (traps == GUM_V8_CODE_TRAPS_ALL)
@@ -3034,6 +3038,10 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
         stalker = _gum_v8_stalker_get (stalker_module);
         gum_stalker_activate (stalker, GUM_FUNCPTR_TO_POINTER (implementation));
       }
+      else if (traps == GUM_V8_CODE_TRAPS_NONE)
+      {
+        gum_interceptor_ignore_current_thread (interceptor);
+      }
 
       ffi_call (cif, FFI_FN (implementation), rvalue, avalue);
 
@@ -3045,9 +3053,12 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
     g_clear_pointer (&stalker, gum_stalker_deactivate);
 
+    if (traps == GUM_V8_CODE_TRAPS_NONE)
+      gum_interceptor_unignore_current_thread (interceptor);
+
     if (scheduling == GUM_V8_SCHEDULING_COOPERATIVE)
     {
-      if (interceptor_was_ignoring_us)
+      if (traps != GUM_V8_CODE_TRAPS_NONE && interceptor_was_ignoring_us)
         gum_interceptor_ignore_current_thread (interceptor);
 
       unlocker->~ScriptUnlocker ();
@@ -3256,15 +3267,21 @@ gum_v8_code_traps_parse (Local<Value> value,
     String::Utf8Value str_value (isolate, value);
     auto str = *str_value;
 
-    if (strcmp (str, "all") == 0)
-    {
-      *traps = GUM_V8_CODE_TRAPS_ALL;
-      return TRUE;
-    }
-
     if (strcmp (str, "default") == 0)
     {
       *traps = GUM_V8_CODE_TRAPS_DEFAULT;
+      return TRUE;
+    }
+
+    if (strcmp (str, "none") == 0)
+    {
+      *traps = GUM_V8_CODE_TRAPS_NONE;
+      return TRUE;
+    }
+
+    if (strcmp (str, "all") == 0)
+    {
+      *traps = GUM_V8_CODE_TRAPS_ALL;
       return TRUE;
     }
   }
