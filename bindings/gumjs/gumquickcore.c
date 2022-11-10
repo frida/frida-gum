@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -114,6 +114,7 @@ enum _GumQuickExceptionsBehavior
 enum _GumQuickCodeTraps
 {
   GUM_QUICK_CODE_TRAPS_DEFAULT,
+  GUM_QUICK_CODE_TRAPS_NONE,
   GUM_QUICK_CODE_TRAPS_ALL
 };
 
@@ -3721,8 +3722,11 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
       {
         _gum_quick_scope_suspend (&scope);
 
-        interceptor_was_ignoring_us =
-            gum_interceptor_maybe_unignore_current_thread (interceptor);
+        if (traps != GUM_QUICK_CODE_TRAPS_NONE)
+        {
+          interceptor_was_ignoring_us =
+              gum_interceptor_maybe_unignore_current_thread (interceptor);
+        }
       }
 
       if (traps == GUM_QUICK_CODE_TRAPS_ALL)
@@ -3733,6 +3737,10 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
         stalker = _gum_quick_stalker_get (core->stalker);
         gum_stalker_activate (stalker,
             GUM_FUNCPTR_TO_POINTER (implementation));
+      }
+      else if (traps == GUM_QUICK_CODE_TRAPS_NONE)
+      {
+        gum_interceptor_ignore_current_thread (interceptor);
       }
 
       ffi_call (cif, implementation, rvalue, avalue);
@@ -3745,9 +3753,12 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
 
     g_clear_pointer (&stalker, gum_stalker_deactivate);
 
+    if (traps == GUM_QUICK_CODE_TRAPS_NONE)
+      gum_interceptor_unignore_current_thread (interceptor);
+
     if (scheduling == GUM_QUICK_SCHEDULING_COOPERATIVE)
     {
-      if (interceptor_was_ignoring_us)
+      if (traps != GUM_QUICK_CODE_TRAPS_NONE && interceptor_was_ignoring_us)
         gum_interceptor_ignore_current_thread (interceptor);
 
       _gum_quick_scope_resume (&scope);
@@ -4120,10 +4131,12 @@ gum_quick_code_traps_get (JSContext * ctx,
   if (str == NULL)
     return FALSE;
 
-  if (strcmp (str, "all") == 0)
-    *traps = GUM_QUICK_CODE_TRAPS_ALL;
-  else if (strcmp (str, "default") == 0)
+  if (strcmp (str, "default") == 0)
     *traps = GUM_QUICK_CODE_TRAPS_DEFAULT;
+  else if (strcmp (str, "none") == 0)
+    *traps = GUM_QUICK_CODE_TRAPS_NONE;
+  else if (strcmp (str, "all") == 0)
+    *traps = GUM_QUICK_CODE_TRAPS_ALL;
   else
     goto invalid_value;
 

@@ -271,6 +271,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_function_can_be_invoked)
     TESTENTRY (native_function_can_be_invoked_with_size_t)
     TESTENTRY (native_function_can_be_intercepted_when_thread_is_ignored)
+    TESTENTRY (native_function_can_not_be_intercepted_when_traps_are_none)
     TESTENTRY (native_function_should_implement_call_and_apply)
     TESTENTRY (native_function_crash_results_in_exception)
     TESTENTRY (nested_native_function_crash_is_handled_gracefully)
@@ -1683,6 +1684,53 @@ unignore_thread (GumInterceptor * interceptor)
   gum_interceptor_unignore_current_thread (interceptor);
 
   return FALSE;
+}
+
+TESTCASE (native_function_can_not_be_intercepted_when_traps_are_none)
+{
+  GumInterceptor * interceptor;
+
+  interceptor = gum_interceptor_obtain ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const aImpl = " GUM_PTR_CONST ";"
+      "const bImpl = " GUM_PTR_CONST ";"
+      "const cImpl = " GUM_PTR_CONST ";"
+      "Interceptor.attach(aImpl, {"
+      "  onEnter(args) {"
+      "    send('a>');"
+      "  },"
+      "  onLeave(retval) {"
+      "    send('a<');"
+      "  }"
+      "});"
+      "Interceptor.attach(bImpl, {"
+      "  onEnter(args) {"
+      "    send('b>');"
+      "  },"
+      "  onLeave(retval) {"
+      "    send('b<');"
+      "  }"
+      "});"
+      "Interceptor.attach(cImpl, {"
+      "  onEnter(args) {"
+      "    send('c>');"
+      "  },"
+      "  onLeave(retval) {"
+      "    send('c<');"
+      "  }"
+      "});"
+      "Interceptor.flush();"
+      "const f = new NativeFunction(aImpl, 'int', ['int'], { traps: 'none' });"
+      "send(f(42));",
+      target_function_nested_a,
+      target_function_nested_b,
+      target_function_nested_c);
+
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
+  EXPECT_NO_MESSAGES ();
+
+  g_object_unref (interceptor);
 }
 
 TESTCASE (native_function_should_implement_call_and_apply)
