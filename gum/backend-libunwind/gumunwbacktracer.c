@@ -159,8 +159,14 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
 #  endif
 # endif
 #elif defined (UNW_TARGET_ARM)
-  uc->regs[UNW_ARM_R15] = ctx->pc;
+  uc->regs[UNW_ARM_R15] = ctx->lr;
   uc->regs[UNW_ARM_R13] = ctx->sp;
+
+  uc->regs[UNW_ARM_R8] = ctx->r8;
+  uc->regs[UNW_ARM_R9] = ctx->r9;
+  uc->regs[UNW_ARM_R10] = ctx->r10;
+  uc->regs[UNW_ARM_R11] = ctx->r11;
+  uc->regs[UNW_ARM_R12] = ctx->r12;
 
   {
     guint i;
