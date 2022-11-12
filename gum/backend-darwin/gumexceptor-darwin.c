@@ -1268,6 +1268,21 @@ gum_exception_port_set_mod_refs (GumExceptionPortSet * self,
 
 #else
 
+void
+_gum_exceptor_backend_prepare_to_fork (void)
+{
+}
+
+void
+_gum_exceptor_backend_recover_from_fork_in_parent (void)
+{
+}
+
+void
+_gum_exceptor_backend_recover_from_fork_in_child (void)
+{
+}
+
 GumExceptorBackend *
 gum_exceptor_backend_new (GumExceptionHandler handler,
                           gpointer user_data)
