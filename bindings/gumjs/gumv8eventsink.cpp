@@ -9,6 +9,7 @@
 #include "gumv8scope.h"
 #include "gumv8value.h"
 
+#include <glib/gprintf.h>
 #include <gum/gumspinlock.h>
 #include <string.h>
 
@@ -329,7 +330,7 @@ gum_v8_js_event_sink_drain (GumV8JSEventSink * self)
       gchar target_str[32];
       while (g_hash_table_iter_next (&iter, &target, &count))
       {
-        sprintf (target_str, "0x%" G_GSIZE_MODIFIER "x",
+        g_sprintf (target_str, "0x%" G_GSIZE_MODIFIER "x",
             GPOINTER_TO_SIZE (target));
         _gum_v8_object_set (summary, target_str,
             Number::New (isolate, GPOINTER_TO_SIZE (count)), core);

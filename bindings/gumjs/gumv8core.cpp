@@ -26,6 +26,7 @@
 # include "gumv8script-java.h"
 #endif
 
+#include <glib/gprintf.h>
 #ifdef _MSC_VER
 # include <intrin.h>
 #endif
@@ -2132,11 +2133,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
 
   gchar str[32];
   if (radix == 10)
-    sprintf (str, "%" G_GINT64_FORMAT, value);
+    g_sprintf (str, "%" G_GINT64_FORMAT, value);
   else if (value >= 0)
-    sprintf (str, "%" G_GINT64_MODIFIER "x", value);
+    g_sprintf (str, "%" G_GINT64_MODIFIER "x", value);
   else
-    sprintf (str, "-%" G_GINT64_MODIFIER "x", -value);
+    g_sprintf (str, "-%" G_GINT64_MODIFIER "x", -value);
 
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
@@ -2144,7 +2145,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
 GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
 {
   gchar str[32];
-  sprintf (str, "%" G_GINT64_FORMAT, _gum_v8_int64_get_value (info.Holder ()));
+  g_sprintf (str, "%" G_GINT64_FORMAT, _gum_v8_int64_get_value (info.Holder ()));
 
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
@@ -2239,9 +2240,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
 
   gchar str[32];
   if (radix == 10)
-    sprintf (str, "%" G_GUINT64_FORMAT, value);
+    g_sprintf (str, "%" G_GUINT64_FORMAT, value);
   else
-    sprintf (str, "%" G_GINT64_MODIFIER "x", value);
+    g_sprintf (str, "%" G_GINT64_MODIFIER "x", value);
 
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
@@ -2249,7 +2250,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
 GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_json)
 {
   gchar str[32];
-  sprintf (str, "%" G_GUINT64_FORMAT,
+  g_sprintf (str, "%" G_GUINT64_FORMAT,
       _gum_v8_uint64_get_value (info.Holder ()));
 
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
@@ -2474,14 +2475,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
   gchar str[32];
   if (radix == 10)
   {
-    sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr);
+    g_sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr);
   }
   else
   {
     if (radix_specified)
-      sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr);
+      g_sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr);
     else
-      sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
+      g_sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
   }
 
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
@@ -2492,7 +2493,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
   gsize ptr = GPOINTER_TO_SIZE (GUMJS_NATIVE_POINTER_VALUE (info.Holder ()));
 
   gchar str[32];
-  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
+  g_sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
 
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }

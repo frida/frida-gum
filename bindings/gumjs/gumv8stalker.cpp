@@ -10,6 +10,8 @@
 #include "gumv8macros.h"
 #include "gumv8scope.h"
 
+#include <glib/gprintf.h>
+
 #define GUMJS_MODULE_NAME Stalker
 
 #define GUM_V8_TYPE_CALLBACK_TRANSFORMER \
@@ -1415,7 +1417,7 @@ gum_make_pointer (gpointer value,
   {
     gchar str[32];
 
-    sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (value));
+    g_sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (value));
 
     return _gum_v8_string_new_ascii (core->isolate, str);
   }
