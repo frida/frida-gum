@@ -608,13 +608,10 @@ GumV8Platform::OnOperationRemoved (GumV8Operation * op)
       return;
   }
 
-  if (g_main_context_is_owner (gum_script_scheduler_get_js_context (scheduler)))
-    MaybeDisposeIsolate (isolate);
-  else
-    ScheduleOnJSThread (G_PRIORITY_HIGH, [=]()
-        {
-          MaybeDisposeIsolate (isolate);
-        });
+  ScheduleOnJSThread (G_PRIORITY_HIGH, [=]()
+      {
+        MaybeDisposeIsolate (isolate);
+      });
 }
 
 std::shared_ptr<GumV8Operation>
