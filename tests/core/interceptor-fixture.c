@@ -16,7 +16,7 @@
 #include <string.h>
 
 #ifdef HAVE_WINDOWS
-# include "targetfunctions.c"
+# include "targetfunctions/targetfunctions.c"
 #else
 # include <dlfcn.h>
 # include <unistd.h>
