@@ -109,7 +109,9 @@ const GumModuleDetails *
 gum_module_map_find (GumModuleMap * self,
                      GumAddress address)
 {
-  return bsearch (&address, self->modules->data, self->modules->len,
+  GumAddress bare_address = gum_strip_code_address (address);
+
+  return bsearch (&bare_address, self->modules->data, self->modules->len,
       sizeof (GumModuleDetails),
       (GCompareFunc) gum_module_details_compare_to_key);
 }
