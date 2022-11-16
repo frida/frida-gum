@@ -1403,9 +1403,24 @@ gum_darwin_cmodule_new (const gchar * source,
   }
   else
   {
+    const gchar * arch;
     gint exit_status;
     gpointer data;
     gsize size;
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+    arch = "x86_64";
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+    arch = "i386";
+#elif defined (HAVE_ARM64) && defined (HAVE_PTRAUTH)
+    arch = "arm64e";
+#elif defined (HAVE_ARM64)
+    arch = "arm64";
+#elif defined (HAVE_ARM)
+    arch = "armv7";
+#else
+# error Unsupported architecture.
+#endif
 
     cmodule->workdir = g_dir_make_tmp ("cmodule-XXXXXX", error);
     if (cmodule->workdir == NULL)
@@ -1422,6 +1437,8 @@ gum_darwin_cmodule_new (const gchar * source,
 
     cmodule->argv = g_ptr_array_new_with_free_func (g_free);
     g_ptr_array_add (cmodule->argv, g_strdup ("clang"));
+    g_ptr_array_add (cmodule->argv, g_strdup ("-arch"));
+    g_ptr_array_add (cmodule->argv, g_strdup (arch));
     g_ptr_array_add (cmodule->argv, g_strdup ("-dynamiclib"));
     g_ptr_array_add (cmodule->argv, g_strdup ("-Wall"));
     g_ptr_array_add (cmodule->argv, g_strdup ("-Werror"));
