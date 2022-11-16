@@ -333,9 +333,9 @@ gum_darwin_module_resolver_resolve_export (
 
   result->name = gum_symbol_name_from_darwin (export->name);
 
-  switch (export->flags & EXPORT_SYMBOL_FLAGS_KIND_MASK)
+  switch (export->flags & GUM_DARWIN_EXPORT_KIND_MASK)
   {
-    case EXPORT_SYMBOL_FLAGS_KIND_REGULAR:
+    case GUM_DARWIN_EXPORT_REGULAR:
       if ((export->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
       {
         /* XXX: we ignore resolver and interposing */
@@ -346,10 +346,10 @@ gum_darwin_module_resolver_resolve_export (
         result->address = module->base_address + export->offset;
       }
       break;
-    case EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL:
+    case GUM_DARWIN_EXPORT_THREAD_LOCAL:
       result->address = module->base_address + export->offset;
       break;
-    case GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE:
+    case GUM_DARWIN_EXPORT_ABSOLUTE:
       result->address = export->offset;
       break;
     default:
