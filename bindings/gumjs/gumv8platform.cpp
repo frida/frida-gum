@@ -1605,7 +1605,7 @@ GumV8PageAllocator::AllocatePages (void * address,
 {
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
-  gpointer base;
+  gpointer base = NULL;
 #ifdef HAVE_DARWIN
   if (permissions == PageAllocator::kNoAccessWillJitLater)
   {
@@ -1616,8 +1616,8 @@ GumV8PageAllocator::AllocatePages (void * address,
     if (base == MAP_FAILED)
       base = NULL;
   }
-  else
 #endif
+  if (base == NULL)
   {
     base = gum_memory_allocate (address, length, alignment,
         gum_page_protection_from_v8 (permissions));
