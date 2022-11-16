@@ -1986,8 +1986,9 @@ gum_darwin_mapper_resolve_import (GumDarwinMapper * self,
   {
     dependency = NULL;
 
-    value->address = gum_darwin_module_resolver_find_dynamic_address (
-        self->resolver, gum_symbol_name_from_darwin (symbol_name));
+    value->address = gum_strip_code_address (
+        gum_darwin_module_resolver_find_dynamic_address (self->resolver,
+          gum_symbol_name_from_darwin (symbol_name)));
     value->resolver = 0;
 
     success = value->address != 0;
