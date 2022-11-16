@@ -125,6 +125,7 @@ jobs:
             --native-file /tmp/native.txt \
             --cross-file /tmp/cross.txt \
             --default-library static \
+            --force-fallback-for=glib \
             -Doptimization=s \
             -Dwerror=true \
             -Dgumpp=enabled \
@@ -149,6 +150,7 @@ jobs:
         run: |
           meson setup \
             --default-library static \
+            --force-fallback-for=glib \
             -Doptimization=s \
             -Dgumpp=enabled \
             -Dgumjs=enabled \
