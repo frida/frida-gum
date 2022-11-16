@@ -69,7 +69,8 @@ lowlevel_helpers_init (void)
   code_size = page_size;
 
   clobber_test_functions[0] = GUM_POINTER_TO_FUNCPTR (ClobberTestFunc,
-      gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW));
+      gum_sign_code_pointer (
+        gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW)));
   gum_memory_patch_code (clobber_test_functions[0], 64,
       gum_emit_clobber_test_functions, NULL);
 }
@@ -93,7 +94,7 @@ gum_emit_clobber_test_functions (gpointer mem,
   GumX86Writer cw;
 
   gum_x86_writer_init (&cw, mem);
-  cw.pc = GUM_ADDRESS (clobber_test_functions[0]);
+  cw.pc = gum_strip_code_address (GUM_ADDRESS (clobber_test_functions[0]));
 
   gum_x86_writer_put_nop (&cw);
   gum_x86_writer_put_nop (&cw);
@@ -108,7 +109,7 @@ gum_emit_clobber_test_functions (gpointer mem,
   GumThumbWriter tw;
 
   gum_arm_writer_init (&aw, mem);
-  aw.pc = GUM_ADDRESS (clobber_test_functions[0]);
+  aw.pc = gum_strip_code_address (GUM_ADDRESS (clobber_test_functions[0]));
 
   gum_arm_writer_put_nop (&aw);
   gum_arm_writer_put_nop (&aw);
@@ -134,7 +135,7 @@ gum_emit_clobber_test_functions (gpointer mem,
   GumArm64Writer cw;
 
   gum_arm64_writer_init (&cw, mem);
-  cw.pc = GUM_ADDRESS (clobber_test_functions[0]);
+  cw.pc = gum_strip_code_address (GUM_ADDRESS (clobber_test_functions[0]));
 
   gum_arm64_writer_put_nop (&cw);
   gum_arm64_writer_put_nop (&cw);
@@ -413,7 +414,8 @@ invoke_clobber_test_function_with_cpu_context (ClobberTestFunc target_func,
       (GumMemoryPatchApplyFunc) gum_emit_test_clobber_regs_function,
       &ctx);
 
-  func = GUM_POINTER_TO_FUNCPTR (InvokeWithCpuContextFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (InvokeWithCpuContextFunc,
+      gum_sign_code_pointer (code));
   func (input, output);
 
   gum_memory_free (code, code_size);
@@ -751,7 +753,8 @@ gum_emit_test_clobber_regs_function (gpointer mem,
         ARM64_REG_X0, G_STRUCT_OFFSET (GumCpuContext, x) + (i * 8));
   }
 
-  gum_arm64_writer_put_bl_imm (&cw, GUM_ADDRESS (ctx->target_func));
+  gum_arm64_writer_put_bl_imm (&cw,
+      gum_strip_code_address (GUM_ADDRESS (ctx->target_func)));
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X0, ARM64_REG_X1);
   sp_distance_to_saved_x1 += 16;
@@ -803,7 +806,8 @@ invoke_clobber_test_function_with_carry_set (ClobberTestFunc target_func,
       (GumMemoryPatchApplyFunc) gum_emit_test_clobber_flags_function,
       &ctx);
 
-  func = GUM_POINTER_TO_FUNCPTR (InvokeWithCpuFlagsFunc, code);
+  func = GUM_POINTER_TO_FUNCPTR (InvokeWithCpuFlagsFunc,
+      gum_sign_code_pointer (code));
   func (flags_input, flags_output);
 
   gum_memory_free (code, code_size);
@@ -893,7 +897,8 @@ gum_emit_test_clobber_flags_function (gpointer mem,
   gum_arm64_writer_put_mov_reg_nzcv (&cw, ARM64_REG_X2);
   gum_arm64_writer_put_str_reg_reg (&cw, ARM64_REG_X2, ARM64_REG_X0);
 
-  gum_arm64_writer_put_bl_imm (&cw, GUM_ADDRESS (ctx->target_func));
+  gum_arm64_writer_put_bl_imm (&cw,
+      gum_strip_code_address (GUM_ADDRESS (ctx->target_func)));
 
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X1, ARM64_REG_LR);
 
@@ -914,7 +919,8 @@ allocate_clobber_test_invoker_func (ClobberTestFunc target_func,
   GumAddressSpec addr_spec;
   gsize page_size;
 
-  addr_spec.near_address = GUM_FUNCPTR_TO_POINTER (target_func);
+  addr_spec.near_address =
+      gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (target_func));
 #if defined (HAVE_ARM)
   addr_spec.max_distance = GUM_ARM_B_MAX_DISTANCE;
 #elif defined (HAVE_ARM64)
