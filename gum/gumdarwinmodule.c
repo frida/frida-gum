@@ -637,7 +637,7 @@ gum_darwin_module_resolve_export (GumDarwinModule * self,
       return FALSE;
 
     details->name = name;
-    details->flags = GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE;
+    details->flags = GUM_DARWIN_EXPORT_ABSOLUTE;
     details->offset = address;
 
     return TRUE;
@@ -894,7 +894,7 @@ gum_emit_export_from_symbol (const GumDarwinSymbolDetails * details,
     return TRUE;
 
   d.name = details->name;
-  d.flags = GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE;
+  d.flags = GUM_DARWIN_EXPORT_ABSOLUTE;
   d.offset = details->address;
 
   return ctx->func (&d, ctx->user_data);
