@@ -861,7 +861,6 @@ gum_darwin_mapper_resolve (GumDarwinMapper * self,
   gchar * mangled_symbol;
   GumDarwinSymbolValue v;
   gboolean success;
-  GumAddress unslid_address;
 
   g_assert (self->mapped);
 
@@ -875,12 +874,8 @@ gum_darwin_mapper_resolve (GumDarwinMapper * self,
   if (v.resolver != 0)
     return 0;
 
-  unslid_address = v.address - module->base_address;
-
-  if (gum_darwin_module_is_address_in_text_section (module, unslid_address))
-  {
+  if (gum_darwin_module_is_address_in_text_section (module, v.address))
     v.address = gum_darwin_mapper_make_code_address (self, v.address);
-  }
 
   return v.address;
 }
