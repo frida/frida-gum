@@ -376,11 +376,14 @@ _gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
   gchar * result = NULL;
+  GumAddress bare_address;
   gint class_count, class_index;
   Class * classes;
 
   if (self->monitor == NULL)
     return NULL;
+
+  bare_address = gum_strip_code_address (address);
 
   g_rec_mutex_lock (&self->monitor->mutex);
 
@@ -420,7 +423,7 @@ _gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
 
         imp = GUM_ADDRESS (self->method_getImplementation (handle));
 
-        if (imp == address)
+        if (gum_strip_code_address (imp) == bare_address)
         {
           const gchar * name;
           const gchar prefix[3] = { *t, '[', '\0' };
