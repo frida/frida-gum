@@ -8,13 +8,21 @@ on:
     branches:
       - main
 
+env:
+  PYTHON_VERSION: 3.11
+  MESON_VERSION: 0.64.0
+
 jobs:
   gir:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install \
@@ -24,11 +32,11 @@ jobs:
             libgirepository1.0-dev \
             libglib2.0-dev \
             libjson-glib-dev \
-            libsoup2.4-dev \
+            libsoup-3.0-dev \
             libsqlite3-dev \
             libunwind-dev \
             ninja-build
-          pip install meson==0.61.2
+          pip install meson==${{ env.MESON_VERSION }}
       - name: Build
         run: |
           meson setup \
@@ -45,10 +53,14 @@ jobs:
         arch: [amd64_x86, amd64]
       fail-fast: false
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
-        run: pip install meson==0.61.2 ninja
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
+        run: pip install meson==${{ env.MESON_VERSION }} ninja
       - name: Environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -70,10 +82,14 @@ jobs:
   macos-x86_64:
     runs-on: macos-latest
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
-        run: pip3 install meson==0.61.2 ninja
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
+        run: pip install meson==${{ env.MESON_VERSION }} ninja
       - name: Build
         run: |
           meson setup \
@@ -90,13 +106,17 @@ jobs:
   linux-x86:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install gcc-multilib lib32stdc++-9-dev
-          pip3 install meson==0.61.2
+          pip install meson==${{ env.MESON_VERSION }}
           .github/env/bootstrap.sh linux-x86_64 linux-x86
       - name: Build
         run: |
@@ -117,10 +137,14 @@ jobs:
   linux-x86_64:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
-        run: pip install meson==0.61.2 ninja
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
+        run: pip install meson==${{ env.MESON_VERSION }} ninja
       - name: Build
         run: |
           meson setup \
@@ -147,17 +171,17 @@ jobs:
           - id: mips64el
             pkg: g++-mips64el-linux-gnuabi64
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
       - name: Install Python
         uses: actions/setup-python@v3
         with:
-          python-version: '3.10'
-      - name: Dependencies
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install ${{ matrix.arch.pkg }}
-          pip3 install meson==0.61.2
+          pip install meson==${{ env.MESON_VERSION }}
           .github/env/bootstrap.sh linux-x86_64 linux-${{ matrix.arch.id }}
       - name: Build
         run: |
@@ -179,6 +203,8 @@ jobs:
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v3
+      - name: Install dependencies
+        run: pip install meson==${{ env.MESON_VERSION }}
       - name: Build
         run: |
           meson setup \
@@ -195,11 +221,15 @@ jobs:
   ios-arm64:
     runs-on: macos-latest
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
         run: |
-          pip3 install meson==0.61.2
+          pip install meson==${{ env.MESON_VERSION }}
           .github/env/bootstrap.sh macos-x86_64 ios-arm64
       - name: Build
         run: |
@@ -238,11 +268,15 @@ jobs:
         arch: [x86, x86_64]
       fail-fast: false
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
         run: |
-          pip3 install meson==0.61.2
+          pip install meson==${{ env.MESON_VERSION }}
           .github/env/bootstrap.sh macos-x86_64 android-${{ matrix.arch }}
       - name: Build
         run: |
@@ -296,11 +330,15 @@ jobs:
         arch: [arm, arm64]
       fail-fast: false
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
         run: |
-          pip3 install meson==0.61.2
+          pip install meson==${{ env.MESON_VERSION }}
           .github/env/bootstrap.sh linux-x86_64 android-${{ matrix.arch }}
       - name: Build
         run: |
@@ -334,11 +372,15 @@ jobs:
     runs-on: ubuntu-latest
     container: fridadotre/qnx:latest
     steps:
-      - name: Checkout frida-gum
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+      - name: Install dependencies
         run: |
-          pip3 install meson==0.61.2
+          pip install meson==${{ env.MESON_VERSION }}
           .github/env/bootstrap.sh linux-x86_64 qnx-armeabi
       - name: Build
         run: |

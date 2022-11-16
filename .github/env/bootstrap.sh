@@ -12,7 +12,7 @@ outdir=/tmp
 set -ex
 
 mkdir -p $outdir/toolchain $outdir/native-sdk $outdir/cross-sdk
-deps_url=https://build.frida.re/deps/20220318
+deps_url=https://build.frida.re/deps/20221111
 curl $deps_url/toolchain-$build_os_arch.tar.bz2 | tar -C $outdir/toolchain  -xjf -
 curl $deps_url/sdk-$build_os_arch.tar.bz2       | tar -C $outdir/native-sdk -xjf -
 curl $deps_url/sdk-$host_os_arch.tar.bz2        | tar -C $outdir/cross-sdk  -xjf -
