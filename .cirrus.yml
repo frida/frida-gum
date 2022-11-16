@@ -1,8 +1,15 @@
 task:
   name: freebsd-x86_64
   freebsd_instance:
-    image_family: freebsd-13-0
-  install_script: pkg install -y git meson ninja npm
+    image_family: freebsd-13-1
+  install_script: |
+    pkg install -y \
+      git \
+      meson \
+      ninja \
+      npm \
+      py39-pip
+    pip install meson==0.64.0
   compile_script: |
     meson setup \
       --default-library static \
