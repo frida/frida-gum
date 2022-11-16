@@ -18,7 +18,7 @@ build/%.dylib: %.c $(sources)
 	@mkdir -p $(@D)
 	$(ios_cc) \
 		-isysroot $(shell xcrun --sdk iphoneos --show-sdk-path) \
-		-arch arm64e \
+		-target arm64e-apple-ios14.0 \
 		$(cflags) \
 		-fno-ptrauth-calls \
 		-fno-ptrauth-returns \

@@ -25,6 +25,7 @@
 #define GUM_MAPPER_CODE_BASE_SIZE           80
 #define GUM_MAPPER_DEPENDENCY_SIZE          32
 #define GUM_MAPPER_CHAINED_FIXUP_CALL_SIZE  64
+#define GUM_MAPPER_THREADED_BINDS_CALL_SIZE 64
 #define GUM_MAPPER_RESOLVER_SIZE            40
 #define GUM_MAPPER_INIT_SIZE               128
 #define GUM_MAPPER_TERM_SIZE                64
@@ -60,8 +61,10 @@ struct _GumDarwinMapper
   gsize vm_size;
   gpointer runtime;
   GumAddress runtime_address;
-  GumAddress empty_strv_address;
-  GumAddress apple_strv_address;
+  GumAddress empty_strv;
+  GumAddress apple_strv;
+  GumAddress process_chained_fixups;
+  GumAddress chained_symbols_vector;
   gsize runtime_vm_size;
   gsize runtime_file_size;
   gsize runtime_header_size;
@@ -69,6 +72,7 @@ struct _GumDarwinMapper
   gsize destructor_offset;
   guint chained_fixups_count;
 
+  GArray * chained_symbols;
   GArray * threaded_symbols;
   GArray * threaded_regions;
 
@@ -103,6 +107,8 @@ struct _GumAccumulateFootprintContext
   GumDarwinMapper * mapper;
   gsize total;
   guint chained_fixups_count;
+  guint chained_imports_count;
+  guint threaded_regions_count;
 };
 
 struct _GumMapContext
@@ -155,6 +161,9 @@ static GumDarwinMapping * gum_darwin_mapper_get_dependency_by_ordinal (
     GumDarwinMapper * self, gint ordinal, GError ** error);
 static GumDarwinMapping * gum_darwin_mapper_get_dependency_by_name (
     GumDarwinMapper * self, const gchar * name, GError ** error);
+static gboolean gum_darwin_mapper_resolve_import (GumDarwinMapper * self,
+    gint library_ordinal, const gchar * symbol_name, gboolean is_weak,
+    GumDarwinSymbolValue * value, GError ** error);
 static gboolean gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
     GumDarwinModule * module, const gchar * symbol,
     GumDarwinSymbolValue * value);
@@ -164,6 +173,11 @@ static GumDarwinMapping * gum_darwin_mapper_add_pending_mapping (
     GumDarwinMapper * self, const gchar * name, GumDarwinMapper * mapper);
 static GumDarwinMapping * gum_darwin_mapper_add_alias_mapping (
     GumDarwinMapper * self, const gchar * name, const GumDarwinMapping * to);
+static gboolean gum_darwin_mapper_resolve_chained_imports (
+    const GumDarwinChainedFixupsDetails * details, gpointer user_data);
+static gboolean gum_darwin_mapper_append_chained_symbol (GumDarwinMapper * self,
+    gint library_ordinal, const gchar * symbol_name, gboolean is_weak,
+    gint64 addend, GError ** error);
 static gboolean gum_darwin_mapper_rebase (
     const GumDarwinRebaseDetails * details, gpointer user_data);
 static gboolean gum_darwin_mapper_bind (const GumDarwinBindDetails * details,
@@ -179,6 +193,7 @@ static void gum_darwin_mapping_free (GumDarwinMapping * self);
 
 G_DEFINE_TYPE (GumDarwinMapper, gum_darwin_mapper, G_TYPE_OBJECT)
 
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
 /* Compiled from helpers/threadedbindprocessor.c */
 const guint32 gum_threaded_bind_processor_code[] = {
   0xd2800008U, 0x2a0403e9U, 0xeb09011fU, 0x54000620U, 0xf86878aaU, 0xf940014bU,
@@ -192,66 +207,63 @@ const guint32 gum_threaded_bind_processor_code[] = {
   0x8b2b4d4aU, 0x35fffa8bU, 0x91000508U, 0x17ffffcfU, 0xd65f03c0U, 0x0000000cU,
   0x0000001cU, 0x00000014U, 0x00000024U
 };
+#endif
 
 /* Compiled from helpers/fixupchainprocessor.c */
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
 const guint32 gum_fixup_chain_processor_code[] = {
-  0xd10303ffU, 0xa9066ffcU, 0xa90767faU, 0xa9085ff8U, 0xa90957f6U, 0xa90a4ff4U,
-  0xa90b7bfdU, 0x9102c3fdU, 0xaa0303f3U, 0xf9000fe2U, 0xaa0103f6U, 0xaa0003f7U,
-  0xf9400068U, 0xd63f0100U, 0xf9002fffU, 0xf9001bf3U, 0xf9400668U, 0x52800033U,
-  0x910163e1U, 0xb9000fe0U, 0x52a00022U, 0x52800023U, 0xd63f0100U, 0x52800015U,
-  0xd2800014U, 0xf9402ff8U, 0x910082d9U, 0x529ffd1aU, 0x72affffaU, 0x5281103bU,
-  0xb94012c8U, 0x6b0802bfU, 0x540002a0U, 0xb9400328U, 0x0b1a0109U, 0x71002d3fU,
-  0x1ac92269U, 0x0a1b0129U, 0x7a409924U, 0x7a4c0904U, 0x54000121U, 0xb9400b28U,
-  0x8b080320U, 0xf9401be8U, 0xf9400d08U, 0x52800121U, 0xd63f0100U, 0xf8347b00U,
-  0x91000694U, 0xb9400728U, 0x8b080339U, 0x110006b5U, 0x17ffffeaU, 0x8b140f1aU,
-  0x2941cee8U, 0x8b0802f9U, 0xb94016e8U, 0x71000d1fU, 0x54001160U, 0x7100091fU,
-  0x540012e0U, 0x7100051fU, 0x54000181U, 0xb9400ae8U, 0x8b0802f4U, 0xaa1a03f5U,
-  0xb4000113U, 0xb8404688U, 0x12001d01U, 0x53097d03U, 0x940000f1U, 0xf80086a0U,
-  0xd1000673U, 0xb5ffff53U, 0xd2800009U, 0xb94006e8U, 0x8b0802e8U, 0xf9000be8U,
-  0xb840450aU, 0xa9022be8U, 0xb26db3f4U, 0xf94017e8U, 0xeb08013fU, 0x54000c80U,
-  0xf9001fe9U, 0xf94013e8U, 0xb8697908U, 0x34000ba8U, 0xd2800019U, 0xf9400be9U,
-  0x8b080133U, 0x79400e68U, 0x79402a6aU, 0x91005a69U, 0xa904abe9U, 0x121d7909U,
-  0xb90047e9U, 0x7100311fU, 0x529fffe9U, 0x12bfe00aU, 0x9a890155U, 0x7100051fU,
-  0xf9400feaU, 0x9a9f0149U, 0xcb0902d8U, 0x7100191fU, 0x9a8a03e8U, 0xcb0802dbU,
-  0xf9402be8U, 0xeb08033fU, 0x540008c0U, 0xf94027e8U, 0x78797908U, 0x529fffe9U,
-  0xeb09011fU, 0x540007e0U, 0xf9400669U, 0x8b0902c9U, 0x79400a6aU, 0x9b0a2729U,
-  0x8b080137U, 0xb94047e8U, 0x7100091fU, 0x54000241U, 0xf94002e8U, 0xb7f800e8U,
-  0xd36cad09U, 0x92481d29U, 0x92408d0aU, 0x8b0a036aU, 0x8b090149U, 0x14000005U,
-  0x92405d09U, 0xf8697b49U, 0xd358fd0aU, 0x8b2a0129U, 0xf90002e9U, 0xd373f908U,
-  0x8b080af7U, 0xb5fffe28U, 0x14000026U, 0xf94002fcU, 0xd37eff90U, 0xd360bf82U,
-  0xd370c383U, 0xd371cb81U, 0xf1000e1fU, 0x9a9f9210U, 0x100009f1U, 0xd503201fU,
-  0xb8b07a30U, 0x10000011U, 0x8b100230U, 0xd61f0200U, 0xd373cb88U, 0x92481d08U,
-  0x9240ab89U, 0x8b090309U, 0x8b080120U, 0x1400000fU, 0x8b3c42c0U, 0x14000003U,
-  0x8a150388U, 0xf8687b40U, 0xaa1703e4U, 0x94000076U, 0x14000008U, 0x8a150388U,
-  0xf8687b48U, 0xd360cb89U, 0xf141013fU, 0x9a9433e9U, 0xb360cb89U, 0x8b090100U,
-  0xf90002e0U, 0xd373f788U, 0x8b080ef7U, 0xb5fffb88U, 0x91000739U, 0x17ffffb9U,
-  0xf9401fe9U, 0x91000529U, 0x17ffff9bU, 0xf9401be8U, 0xf9400908U, 0xf9402fe1U,
-  0xb9400fe0U, 0x52a00022U, 0xd63f0100U, 0xa94b7bfdU, 0xa94a4ff4U, 0xa94957f6U,
-  0xa9485ff8U, 0xa94767faU, 0xa9466ffcU, 0x910303ffU, 0xd65f03c0U, 0xb9400ae8U,
-  0x8b170108U, 0x91002114U, 0xaa1a03f5U, 0xb4fff033U, 0xb85fc283U, 0x785f8281U,
-  0x9400006bU, 0xf8410688U, 0x8b080008U, 0xf80086a8U, 0xd1000673U, 0xb5ffff33U,
-  0x17ffff78U, 0xb9400ae8U, 0x8b170108U, 0x91001114U, 0xaa1a03f5U, 0xb4ffee73U,
-  0xb85fc288U, 0x12001d01U, 0x53097d03U, 0x9400005cU, 0xb9800288U, 0x8b080008U,
-  0xf80086a8U, 0x91002294U, 0xd1000673U, 0xb5fffef3U, 0x17ffff68U, 0x0000000cU,
-  0x00000040U, 0x00000024U, 0x0000002cU, 0xa9bd57f6U, 0xa9014ff4U, 0xa9027bfdU,
-  0x910083fdU, 0x71000436U, 0x5400054bU, 0xaa0403f3U, 0xaa0003f4U, 0x8b234048U,
-  0xaa0803e9U, 0x3840152aU, 0x71017d5fU, 0x9a891115U, 0xf9401488U, 0x10000901U,
-  0xd503201fU, 0x94000044U, 0x34000340U, 0xf9401668U, 0x100008a1U, 0xd503201fU,
-  0x9400003fU, 0x340002a0U, 0xf9401668U, 0x50000841U, 0xd503201fU, 0x9400003aU,
-  0x34000200U, 0xf9401668U, 0x10000821U, 0xd503201fU, 0x94000035U, 0x34000160U,
-  0xf9401668U, 0x30000821U, 0xd503201fU, 0x94000030U, 0x340000c0U, 0xf9401268U,
-  0xf8765a80U, 0xaa1503e1U, 0xd63f0100U, 0x14000003U, 0x10000460U, 0xd503201fU,
-  0xdac143e0U, 0x14000002U, 0xd2800000U, 0xa9427bfdU, 0xa9414ff4U, 0xa8c357f6U,
-  0xd65f03c0U, 0xb3503c44U, 0x7100007fU, 0x9a840048U, 0x71000c3fU, 0x54000228U,
-  0x2a0103f0U, 0xf1000e1fU, 0x9a9f9210U, 0x100001d1U, 0xd503201fU, 0xb8b07a30U,
-  0x10000011U, 0x8b100230U, 0xd61f0200U, 0xdac10100U, 0xd65f03c0U, 0xdac10500U,
-  0xd65f03c0U, 0xdac10900U, 0xd65f03c0U, 0xdac10d00U, 0xd65f03c0U, 0x0000000cU,
-  0x00000014U, 0x0000001cU, 0x00000024U, 0x52800000U, 0xd65f03c0U, 0xaa1803e0U,
-  0xaa1903e2U, 0xf9401be4U, 0x17ffffadU, 0xaa1503e0U, 0xd61f0100U, 0x6574615fU,
-  0x00746978U, 0x6574615fU, 0x5f746978U, 0x5f5f0062U, 0x6178635fU, 0x6574615fU,
-  0x00746978U, 0x635f5f5fU, 0x745f6178U, 0x61657268U, 0x74615f64U, 0x74697865U,
-  0x745f5f00U, 0x615f766cU, 0x69786574U, 0x00000074U
+  0xd10283ffU, 0xa9046ffcU, 0xa90567faU, 0xa9065ff8U, 0xa90757f6U, 0xa9084ff4U,
+  0xa9097bfdU, 0x910243fdU, 0xaa0303f3U, 0xaa0103f5U, 0xd2800009U, 0xb9400408U,
+  0x8b080008U, 0xa9000be8U, 0xb840450aU, 0xa9012be8U, 0xb26db3fcU, 0xf9400fe8U,
+  0xeb08013fU, 0x54000c80U, 0xf90013e9U, 0xf9400be8U, 0xb8697908U, 0x34000ba8U,
+  0xd2800018U, 0xf94003e9U, 0x8b08013aU, 0x79400f48U, 0x79402b4aU, 0x91005b49U,
+  0xa9032be9U, 0x121d7909U, 0xb9002fe9U, 0x7100311fU, 0x529fffe9U, 0x12bfe00aU,
+  0x9a89015bU, 0x7100051fU, 0xf94007eaU, 0x9a9f0149U, 0xcb0902b7U, 0x7100191fU,
+  0x9a8a03e8U, 0xcb0802b4U, 0xf9401fe8U, 0xeb08031fU, 0x540008c0U, 0xf9401be8U,
+  0x78787908U, 0x529fffe9U, 0xeb09011fU, 0x540007e0U, 0xf9400749U, 0x8b0902a9U,
+  0x79400b4aU, 0x9b0a2709U, 0x8b080136U, 0xb9402fe8U, 0x7100091fU, 0x54000241U,
+  0xf94002c8U, 0xb7f800e8U, 0xd36cad09U, 0x92481d29U, 0x92408d0aU, 0x8b0a028aU,
+  0x8b090149U, 0x14000005U, 0x92405d09U, 0xf8697a69U, 0xd358fd0aU, 0x8b2a0129U,
+  0xf90002c9U, 0xd373f908U, 0x8b080ad6U, 0xb5fffe28U, 0x14000026U, 0xf94002d9U,
+  0xd37eff30U, 0xd360bf22U, 0xd370c323U, 0xd371cb21U, 0xf1000e1fU, 0x9a9f9210U,
+  0x10000571U, 0xd503201fU, 0xb8b07a30U, 0x10000011U, 0x8b100230U, 0xd61f0200U,
+  0xd373cb28U, 0x92481d08U, 0x9240ab29U, 0x8b0902e9U, 0x8b080120U, 0x1400000fU,
+  0x8a1b0328U, 0xf8687a68U, 0xd360cb29U, 0xf141013fU, 0x9a9c33e9U, 0xb360cb29U,
+  0x8b090100U, 0x14000007U, 0x8b3942a0U, 0x14000003U, 0x8a1b0328U, 0xf8687a60U,
+  0xaa1603e4U, 0x94000016U, 0xf90002c0U, 0xd373f728U, 0x8b080ed6U, 0xb5fffb88U,
+  0x91000718U, 0x17ffffb9U, 0xf94013e9U, 0x91000529U, 0x17ffff9bU, 0xa9497bfdU,
+  0xa9484ff4U, 0xa94757f6U, 0xa9465ff8U, 0xa94567faU, 0xa9446ffcU, 0x910283ffU,
+  0xd65f03c0U, 0x0000000cU, 0x00000024U, 0x00000044U, 0x0000004cU, 0xb3503c44U,
+  0x7100007fU, 0x9a840048U, 0x71000c3fU, 0x54000228U, 0x2a0103f0U, 0xf1000e1fU,
+  0x9a9f9210U, 0x100001d1U, 0xd503201fU, 0xb8b07a30U, 0x10000011U, 0x8b100230U,
+  0xd61f0200U, 0xdac10100U, 0xd65f03c0U, 0xdac10500U, 0xd65f03c0U, 0xdac10900U,
+  0xd65f03c0U, 0xdac10d00U, 0xd65f03c0U, 0x0000000cU, 0x00000014U, 0x0000001cU,
+  0x00000024U
 };
+#else
+const guint8 gum_fixup_chain_processor_code[] = {
+  0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x53,
+  0x48, 0x89, 0x55, 0xd0, 0x8b, 0x47, 0x04, 0x4c, 0x8d, 0x14, 0x07, 0x8b, 0x04,
+  0x07, 0x48, 0x89, 0x45, 0xc8, 0x49, 0xbd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0xff, 0x48, 0xb8, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x00, 0x00, 0x00, 0x45,
+  0x31, 0xdb, 0x4c, 0x3b, 0x5d, 0xc8, 0x0f, 0x84, 0xb4, 0x00, 0x00, 0x00, 0x43,
+  0x8b, 0x7c, 0x9a, 0x04, 0x48, 0x85, 0xff, 0x0f, 0x84, 0x9e, 0x00, 0x00, 0x00,
+  0x4d, 0x8d, 0x3c, 0x3a, 0x45, 0x0f, 0xb7, 0x74, 0x3a, 0x14, 0x66, 0x41, 0x83,
+  0x7c, 0x3a, 0x06, 0x06, 0x48, 0x8b, 0x7d, 0xd0, 0xba, 0x00, 0x00, 0x00, 0x00,
+  0x48, 0x0f, 0x44, 0xfa, 0x48, 0x89, 0xf3, 0x48, 0x29, 0xfb, 0x45, 0x31, 0xe4,
+  0x4d, 0x39, 0xf4, 0x74, 0x72, 0x43, 0x0f, 0xb7, 0x7c, 0x67, 0x16, 0x48, 0x81,
+  0xff, 0xff, 0xff, 0x00, 0x00, 0x74, 0x5e, 0x41, 0x0f, 0xb7, 0x57, 0x04, 0x49,
+  0x0f, 0xaf, 0xd4, 0x49, 0x03, 0x7f, 0x08, 0x48, 0x01, 0xd7, 0x48, 0x01, 0xf7,
+  0x4c, 0x8b, 0x0f, 0x4d, 0x85, 0xc9, 0x78, 0x18, 0x4c, 0x89, 0xca, 0x48, 0xc1,
+  0xe2, 0x14, 0x4c, 0x21, 0xea, 0x4d, 0x89, 0xc8, 0x49, 0x21, 0xc0, 0x49, 0x01,
+  0xd8, 0x49, 0x01, 0xd0, 0xeb, 0x14, 0x44, 0x89, 0xca, 0x81, 0xe2, 0xff, 0xff,
+  0xff, 0x00, 0x45, 0x89, 0xc8, 0x41, 0xc1, 0xe8, 0x18, 0x4c, 0x03, 0x04, 0xd1,
+  0x4c, 0x89, 0x07, 0x49, 0xc1, 0xe9, 0x33, 0x41, 0x81, 0xe1, 0xff, 0x0f, 0x00,
+  0x00, 0x4a, 0x8d, 0x3c, 0x8f, 0x4d, 0x85, 0xc9, 0x75, 0xb5, 0x49, 0xff, 0xc4,
+  0xeb, 0x89, 0x49, 0xff, 0xc3, 0xe9, 0x42, 0xff, 0xff, 0xff, 0x5b, 0x41, 0x5c,
+  0x41, 0x5d, 0x41, 0x5e, 0x41, 0x5f, 0x5d, 0xc3
+};
+#endif
 
 static void
 gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
@@ -315,6 +327,7 @@ gum_darwin_mapper_finalize (GObject * object)
 
   g_clear_pointer (&self->threaded_regions, g_array_unref);
   g_clear_pointer (&self->threaded_symbols, g_array_unref);
+  g_clear_pointer (&self->chained_symbols, g_array_unref);
 
   g_free (self->runtime);
 
@@ -557,12 +570,15 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
 {
   GumDarwinModule * module = self->module;
   GumDarwinModuleImage * image = self->image;
+  gsize pointer_size = self->module->pointer_size;
   guint page_size = self->resolver->page_size;
   gsize segments_size;
   guint i;
   GumAccumulateFootprintContext runtime;
   gsize header_size;
   GPtrArray * params;
+  const gsize rounded_alignment_padding_for_code = 4;
+  const gsize rounded_alignment_padding_for_pointers = pointer_size;
 
   if (image->shared_segments->len == 0)
   {
@@ -585,17 +601,18 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
   runtime.mapper = self;
   runtime.total = 0;
   runtime.chained_fixups_count = 0;
+  runtime.chained_imports_count = 0;
+  runtime.threaded_regions_count = 0;
 
   header_size = GUM_MAPPER_HEADER_BASE_SIZE;
   params = self->apple_parameters;
-  header_size += params->len * self->module->pointer_size;
+  header_size += params->len * pointer_size;
   for (i = 0; i != params->len; i++)
   {
     const gchar * param = g_ptr_array_index (params, i);
     header_size += strlen (param) + 1;
   }
   header_size = GUM_ALIGN_SIZE (header_size, 16);
-  runtime.total += header_size;
 
   gum_darwin_module_enumerate_chained_fixups (module,
       gum_accumulate_chained_fixups_size, &runtime);
@@ -610,8 +627,23 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
   gum_darwin_module_enumerate_term_pointers (module,
       gum_accumulate_term_footprint_size, &runtime);
 
+  if (runtime.chained_fixups_count != 0)
+  {
+    header_size += rounded_alignment_padding_for_code;
+    header_size += sizeof (gum_fixup_chain_processor_code);
+  }
+
+  if (runtime.chained_imports_count != 0)
+  {
+    header_size += rounded_alignment_padding_for_pointers;
+    header_size += runtime.chained_imports_count * pointer_size;
+  }
+
+  runtime.total += header_size;
   runtime.total += g_slist_length (self->children) * GUM_MAPPER_DEPENDENCY_SIZE;
   runtime.total += GUM_MAPPER_CODE_BASE_SIZE;
+  if (runtime.threaded_regions_count != 0)
+    runtime.total += GUM_MAPPER_THREADED_BINDS_CALL_SIZE;
 
   self->runtime_vm_size = runtime.total;
   if (runtime.total % page_size != 0)
@@ -665,6 +697,11 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   }
 
   g_object_set (module, "base-address", macho_base_address, NULL);
+
+  gum_darwin_module_enumerate_chained_fixups (module,
+      gum_darwin_mapper_resolve_chained_imports, &ctx);
+  if (!ctx.success)
+    goto beach;
 
   gum_darwin_module_enumerate_rebases (module, gum_darwin_mapper_rebase, &ctx);
   if (!ctx.success)
@@ -873,6 +910,8 @@ gum_darwin_mapper_alloc_and_emit_runtime (GumDarwinMapper * self,
   gint * strv_offsets;
   GString * strv_blob;
   guint i;
+  gpointer cursor;
+  GumAddress pc, alignment_offset;
   gsize code_size;
 
   runtime = g_malloc0 (self->runtime_file_size);
@@ -895,27 +934,72 @@ gum_darwin_mapper_alloc_and_emit_runtime (GumDarwinMapper * self,
     g_string_append (strv_blob, g_ptr_array_index (params, i));
   }
 
+  cursor = runtime;
+  pc = base_address;
+
+#define GUM_ADVANCE_BY(n) \
+    cursor += n; \
+    pc += n
+
+  self->apple_strv = pc;
+
   for (i = 0; i != strv_length; i++)
   {
     gint offset = strv_offsets[i];
     GumAddress str_address;
-    gpointer slot;
 
     str_address = base_address + strv_size + offset;
 
-    slot = runtime + (i * pointer_size);
     if (pointer_size == 4)
-      *((guint32 *) slot) = str_address;
+      *((guint32 *) cursor) = str_address;
     else
-      *((guint64 *) slot) = str_address;
+      *((guint64 *) cursor) = str_address;
+
+    GUM_ADVANCE_BY (pointer_size);
   }
 
-  memcpy (runtime + strv_size, strv_blob->str, strv_blob->len);
+  /* String vector terminator goes here. */
+  self->empty_strv = pc;
+  GUM_ADVANCE_BY (pointer_size);
+
+  memcpy (cursor, strv_blob->str, strv_blob->len);
+  GUM_ADVANCE_BY (strv_blob->len + 1);
 
   g_string_free (strv_blob, TRUE);
 
-  self->empty_strv_address = base_address + strv_size - pointer_size;
-  self->apple_strv_address = base_address;
+  if (self->chained_fixups_count != 0)
+  {
+    alignment_offset = pc % 4;
+    if (alignment_offset != 0)
+      GUM_ADVANCE_BY (4 - alignment_offset);
+
+    self->process_chained_fixups = pc;
+    memcpy (cursor, gum_fixup_chain_processor_code,
+        sizeof (gum_fixup_chain_processor_code));
+    GUM_ADVANCE_BY (sizeof (gum_fixup_chain_processor_code));
+  }
+  else
+  {
+    self->process_chained_fixups = 0;
+  }
+
+  if (self->chained_symbols != NULL && self->chained_symbols->len != 0)
+  {
+    alignment_offset = pc % pointer_size;
+    if (alignment_offset != 0)
+      GUM_ADVANCE_BY (pointer_size - alignment_offset);
+
+    self->chained_symbols_vector = pc;
+    memcpy (cursor, self->chained_symbols->data,
+        self->chained_symbols->len * pointer_size);
+    GUM_ADVANCE_BY (self->chained_symbols->len * pointer_size);
+  }
+  else
+  {
+    self->chained_symbols_vector = 0;
+  }
+
+#undef GUM_ADVANCE_BY
 
   gum_emit_runtime (self, runtime + header_size,
       self->runtime_address + header_size, &code_size);
@@ -939,6 +1023,8 @@ static void gum_emit_child_constructor_call (GumDarwinMapper * child,
     GumEmitX86Context * ctx);
 static void gum_emit_child_destructor_call (GumDarwinMapper * child,
     GumEmitX86Context * ctx);
+static gboolean gum_emit_chained_fixup_call (
+    const GumDarwinChainedFixupsDetails * details, GumEmitX86Context * ctx);
 static gboolean gum_emit_resolve_if_needed (
     const GumDarwinBindDetails * details, GumEmitX86Context * ctx);
 static gboolean gum_emit_init_calls (
@@ -978,6 +1064,8 @@ gum_emit_runtime (GumDarwinMapper * self,
 
   g_slist_foreach (self->children, (GFunc) gum_emit_child_constructor_call,
       &ctx);
+  gum_darwin_module_enumerate_chained_fixups (module,
+      (GumFoundDarwinChainedFixupsFunc) gum_emit_chained_fixup_call, &ctx);
   gum_darwin_module_enumerate_binds (module,
       (GumFoundDarwinBindFunc) gum_emit_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_lazy_binds (module,
@@ -1035,6 +1123,23 @@ gum_emit_child_destructor_call (GumDarwinMapper * child,
 }
 
 static gboolean
+gum_emit_chained_fixup_call (const GumDarwinChainedFixupsDetails * details,
+                             GumEmitX86Context * ctx)
+{
+  GumDarwinMapper * mapper = ctx->mapper;
+  GumDarwinModule * module = mapper->module;
+
+  gum_x86_writer_put_call_address_with_aligned_arguments (ctx->cw,
+      GUM_CALL_CAPI, mapper->process_chained_fixups, 4,
+      GUM_ARG_ADDRESS, details->vm_address,
+      GUM_ARG_ADDRESS, module->base_address,
+      GUM_ARG_ADDRESS, module->preferred_address,
+      GUM_ARG_ADDRESS, mapper->chained_symbols_vector);
+
+  return TRUE;
+}
+
+static gboolean
 gum_emit_resolve_if_needed (const GumDarwinBindDetails * details,
                             GumEmitX86Context * ctx)
 {
@@ -1088,9 +1193,9 @@ gum_emit_init_calls (const GumDarwinInitPointersDetails * details,
   gum_x86_writer_put_call_reg_with_aligned_arguments (cw, GUM_CALL_CAPI,
       GUM_X86_XAX, 5,
       /*   argc */ GUM_ARG_ADDRESS, GUM_ADDRESS (0),
-      /*   argv */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
-      /*   envp */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
-      /*  apple */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->apple_strv_address),
+      /*   argv */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv),
+      /*   envp */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv),
+      /*  apple */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->apple_strv),
       /* result */ GUM_ARG_ADDRESS, GUM_ADDRESS (0));
 
   gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XBP, self->module->pointer_size);
@@ -1139,9 +1244,6 @@ struct _GumEmitArm64Context
 {
   GumDarwinMapper * mapper;
   GumArm64Writer * aw;
-
-  GumAddress process_chained_fixups;
-  GumAddress fixup_chain_processor_api;
 };
 
 static void gum_emit_arm_runtime (GumDarwinMapper * self,
@@ -1159,7 +1261,6 @@ static gboolean gum_emit_arm_term_calls (
 
 static void gum_emit_arm64_runtime (GumDarwinMapper * self,
     gpointer output_buffer, GumAddress pc, gsize * size);
-static gpointer gum_resolve_api (gpointer module, const gchar * name);
 static void gum_emit_arm64_child_constructor_call (GumDarwinMapper * child,
     GumEmitArm64Context * ctx);
 static void gum_emit_arm64_child_destructor_call (GumDarwinMapper * child,
@@ -1321,9 +1422,9 @@ gum_emit_arm_init_calls (const GumDarwinInitPointersDetails * details,
   gum_thumb_writer_put_ldr_reg_reg (tw, ARM_REG_R6, ARM_REG_R4);
   gum_thumb_writer_put_call_reg_with_arguments (tw, ARM_REG_R6, 5,
       /*   argc */ GUM_ARG_ADDRESS, GUM_ADDRESS (0),
-      /*   argv */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
-      /*   envp */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv_address),
-      /*  apple */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->apple_strv_address),
+      /*   argv */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv),
+      /*   envp */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->empty_strv),
+      /*  apple */ GUM_ARG_ADDRESS, GUM_ADDRESS (self->apple_strv),
       /* result */ GUM_ARG_ADDRESS, GUM_ADDRESS (0));
 
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R4, ARM_REG_R4, 4);
@@ -1375,8 +1476,6 @@ gum_emit_arm64_runtime (GumDarwinMapper * self,
 
   ctx.mapper = self;
   ctx.aw = &aw;
-  ctx.process_chained_fixups = 0;
-  ctx.fixup_chain_processor_api = 0;
 
   if (self->parent == NULL)
   {
@@ -1401,28 +1500,6 @@ gum_emit_arm64_runtime (GumDarwinMapper * self,
     gum_arm64_writer_put_bytes (&aw,
         (const guint8 *) self->threaded_regions->data,
         self->threaded_regions->len * sizeof (GumAddress));
-  }
-
-  if (self->chained_fixups_count > 0)
-  {
-    gpointer libsystem;
-    GumFixupChainProcessorApi api;
-
-    ctx.process_chained_fixups = aw.pc;
-    gum_arm64_writer_put_bytes (&aw,
-        (const guint8 *) gum_fixup_chain_processor_code,
-        sizeof (gum_fixup_chain_processor_code));
-
-    ctx.fixup_chain_processor_api = aw.pc;
-    libsystem = dlopen ("/usr/lib/libSystem.B.dylib", RTLD_LAZY | RTLD_GLOBAL);
-    api._mach_task_self = gum_resolve_api (libsystem, "mach_task_self");
-    api.mach_vm_allocate = gum_resolve_api (libsystem, "mach_vm_allocate");
-    api.mach_vm_deallocate = gum_resolve_api (libsystem, "mach_vm_deallocate");
-    api.dlopen = gum_resolve_api (libsystem, "dlopen");
-    api.dlsym = gum_resolve_api (libsystem, "dlsym");
-    api.strcmp = gum_resolve_api (libsystem, "strcmp");
-    dlclose (libsystem);
-    gum_arm64_writer_put_bytes (&aw, (const guint8 *) &api, sizeof (api));
   }
 
   self->constructor_offset = gum_arm64_writer_offset (&aw);
@@ -1485,13 +1562,6 @@ gum_emit_arm64_runtime (GumDarwinMapper * self,
   gum_arm64_writer_clear (&aw);
 }
 
-static gpointer
-gum_resolve_api (gpointer module,
-                 const gchar * name)
-{
-  return gum_strip_code_pointer (dlsym (module, name));
-}
-
 static void
 gum_emit_arm64_child_constructor_call (GumDarwinMapper * child,
                                        GumEmitArm64Context * ctx)
@@ -1519,15 +1589,15 @@ gum_emit_arm64_chained_fixup_call (
     const GumDarwinChainedFixupsDetails * details,
     GumEmitArm64Context * ctx)
 {
-  GumDarwinModule * module = ctx->mapper->module;
+  GumDarwinMapper * mapper = ctx->mapper;
+  GumDarwinModule * module = mapper->module;
 
   gum_arm64_writer_put_call_address_with_arguments (ctx->aw,
-      ctx->process_chained_fixups,
-      4,
+      mapper->process_chained_fixups, 4,
       GUM_ARG_ADDRESS, details->vm_address,
       GUM_ARG_ADDRESS, module->base_address,
       GUM_ARG_ADDRESS, module->preferred_address,
-      GUM_ARG_ADDRESS, ctx->fixup_chain_processor_api);
+      GUM_ARG_ADDRESS, mapper->chained_symbols_vector);
 
   return TRUE;
 }
@@ -1580,10 +1650,8 @@ gum_emit_arm64_init_pointer_calls (const GumDarwinInitPointersDetails * details,
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X19, details->address);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X20, details->count);
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X21,
-      self->empty_strv_address);
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X22,
-      self->apple_strv_address);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X21, self->empty_strv);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X22, self->apple_strv);
 
   gum_arm64_writer_put_label (aw, next_label);
 
@@ -1613,10 +1681,8 @@ gum_emit_arm64_init_offset_calls (const GumDarwinInitOffsetsDetails * details,
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X19, details->address);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X20, details->count);
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X21,
-      self->empty_strv_address);
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X22,
-      self->apple_strv_address);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X21, self->empty_strv);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X22, self->apple_strv);
 
   gum_arm64_writer_put_label (aw, next_label);
 
@@ -1672,12 +1738,17 @@ gum_accumulate_chained_fixups_size (
     gpointer user_data)
 {
   GumAccumulateFootprintContext * ctx = user_data;
+  GumDarwinMapper * self = ctx->mapper;
+  gsize pointer_size = self->module->pointer_size;
+  const GumChainedFixupsHeader * fixups_header;
 
-  if (ctx->chained_fixups_count++ == 0)
-  {
-    ctx->total += sizeof (gum_fixup_chain_processor_code);
-    ctx->total += sizeof (GumFixupChainProcessorApi);
-  }
+  fixups_header = gum_darwin_mapper_data_from_offset (self,
+      details->file_offset, pointer_size);
+  if (fixups_header == NULL)
+    return TRUE;
+
+  ctx->chained_fixups_count++;
+  ctx->chained_imports_count += fixups_header->imports_count;
 
   ctx->total += GUM_MAPPER_CHAINED_FIXUP_CALL_SIZE;
 
@@ -1735,8 +1806,10 @@ gum_accumulate_bind_threaded_table_footprint_size (
     GumAccumulateFootprintContext * ctx,
     const GumDarwinBindDetails * details)
 {
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
   ctx->total += sizeof (gum_threaded_bind_processor_code);
   ctx->total += details->threaded_table_size * sizeof (GumAddress);
+#endif
 }
 
 static void
@@ -1744,6 +1817,8 @@ gum_accumulate_bind_threaded_items_footprint_size (
     GumAccumulateFootprintContext * ctx,
     const GumDarwinBindDetails * details)
 {
+  ctx->threaded_regions_count++;
+
   ctx->total += sizeof (GumAddress);
 }
 
@@ -1894,6 +1969,76 @@ gum_darwin_mapper_get_dependency_by_name (GumDarwinMapper * self,
   }
 
   return mapping;
+}
+
+static gboolean
+gum_darwin_mapper_resolve_import (GumDarwinMapper * self,
+                                  gint library_ordinal,
+                                  const gchar * symbol_name,
+                                  gboolean is_weak,
+                                  GumDarwinSymbolValue * value,
+                                  GError ** error)
+{
+  gboolean success;
+  GumDarwinMapping * dependency;
+
+  if (library_ordinal == GUM_DARWIN_BIND_FLAT_LOOKUP)
+  {
+    dependency = NULL;
+
+    value->address = gum_darwin_module_resolver_find_dynamic_address (
+        self->resolver, gum_symbol_name_from_darwin (symbol_name));
+    value->resolver = 0;
+
+    success = value->address != 0;
+  }
+  else
+  {
+    dependency = gum_darwin_mapper_get_dependency_by_ordinal (self,
+        library_ordinal, error);
+    if (dependency == NULL)
+      goto module_not_found;
+
+    success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
+        symbol_name, value);
+    if (!success && !is_weak && self->resolver->sysroot != NULL &&
+        g_str_has_suffix (symbol_name, "$INODE64"))
+    {
+      gchar * plain_name;
+
+      plain_name = g_strndup (symbol_name, strlen (symbol_name) - 8);
+      success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
+          plain_name, value);
+      g_free (plain_name);
+    }
+  }
+
+  if (!success && !is_weak)
+    goto symbol_not_found;
+
+  return TRUE;
+
+module_not_found:
+  {
+    return FALSE;
+  }
+symbol_not_found:
+  {
+    if (dependency != NULL)
+    {
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
+          "Unable to bind, “%s” not found in “%s”",
+          gum_symbol_name_from_darwin (symbol_name),
+          dependency->module->name);
+    }
+    else
+    {
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
+          "Unable to bind, “%s” cannot be resolved through flat lookup",
+          gum_symbol_name_from_darwin (symbol_name));
+    }
+    return FALSE;
+  }
 }
 
 static gboolean
@@ -2053,6 +2198,133 @@ gum_darwin_mapper_add_alias_mapping (GumDarwinMapper * self,
 }
 
 static gboolean
+gum_darwin_mapper_resolve_chained_imports (
+    const GumDarwinChainedFixupsDetails * details,
+    gpointer user_data)
+{
+  GumMapContext * ctx = user_data;
+  GumDarwinMapper * self = ctx->mapper;
+  gsize pointer_size = self->module->pointer_size;
+  const GumChainedFixupsHeader * fixups_header;
+  const gchar * symbols;
+  uint32_t count, i;
+
+  fixups_header = gum_darwin_mapper_data_from_offset (self,
+      details->file_offset, pointer_size);
+  if (fixups_header == NULL)
+    goto invalid_data;
+
+  symbols = (const gchar *) fixups_header + fixups_header->symbols_offset;
+  count = fixups_header->imports_count;
+
+  g_clear_pointer (&self->chained_symbols, g_array_unref);
+  self->chained_symbols = g_array_sized_new (FALSE, FALSE, pointer_size, count);
+
+  switch (fixups_header->imports_format)
+  {
+    case GUM_CHAINED_IMPORT:
+    {
+      const GumChainedImport * imports =
+          ((const void *) fixups_header + fixups_header->imports_offset);
+
+      for (i = 0; i != count; i++)
+      {
+        const GumChainedImport * import = &imports[i];
+        gint library_ordinal = (gint8) import->lib_ordinal;
+
+        if (!gum_darwin_mapper_append_chained_symbol (self, library_ordinal,
+              symbols + import->name_offset, import->weak_import, 0,
+              ctx->error))
+        {
+          goto propagate_error;
+        }
+      }
+
+      break;
+    }
+    case GUM_CHAINED_IMPORT_ADDEND:
+    {
+      const GumChainedImportAddend * imports =
+          ((const void *) fixups_header + fixups_header->imports_offset);
+
+      for (i = 0; i != count; i++)
+      {
+        const GumChainedImportAddend * import = &imports[i];
+        gint library_ordinal = (gint8) import->lib_ordinal;
+
+        if (!gum_darwin_mapper_append_chained_symbol (self, library_ordinal,
+              symbols + import->name_offset, import->weak_import,
+              import->addend, ctx->error))
+        {
+          goto propagate_error;
+        }
+      }
+
+      break;
+    }
+    case GUM_CHAINED_IMPORT_ADDEND64:
+    {
+      const GumChainedImportAddend64 * imports =
+          ((const void *) fixups_header + fixups_header->imports_offset);
+
+      for (i = 0; i != count; i++)
+      {
+        const GumChainedImportAddend64 * import = &imports[i];
+        gint library_ordinal = (gint16) import->lib_ordinal;
+
+        if (!gum_darwin_mapper_append_chained_symbol (self, library_ordinal,
+              symbols + import->name_offset, import->weak_import,
+              import->addend, ctx->error))
+        {
+          goto propagate_error;
+        }
+      }
+
+      break;
+    }
+  }
+
+  return TRUE;
+
+invalid_data:
+  {
+    ctx->success = FALSE;
+    g_set_error (ctx->error, GUM_ERROR, GUM_ERROR_INVALID_DATA,
+        "Malformed chained fixups");
+    return FALSE;
+  }
+propagate_error:
+  {
+    ctx->success = FALSE;
+    return FALSE;
+  }
+}
+
+static gboolean
+gum_darwin_mapper_append_chained_symbol (GumDarwinMapper * self,
+                                         gint library_ordinal,
+                                         const gchar * symbol_name,
+                                         gboolean is_weak,
+                                         gint64 addend,
+                                         GError ** error)
+{
+  GumDarwinSymbolValue value;
+
+  if (!gum_darwin_mapper_resolve_import (self, library_ordinal, symbol_name,
+        is_weak, &value, error))
+  {
+    return FALSE;
+  }
+
+  if (value.address != 0)
+    value.address += addend;
+
+  g_array_append_val (self->chained_symbols, value.address);
+
+  return TRUE;
+}
+
+static gboolean
 gum_darwin_mapper_rebase (const GumDarwinRebaseDetails * details,
                           gpointer user_data)
 {
@@ -2133,47 +2405,16 @@ gum_darwin_mapper_bind_pointer (GumDarwinMapper * self,
                                 GError ** error)
 {
   GumDarwinSymbolValue value;
-  gboolean is_weak_import, success;
-  GumDarwinMapping * dependency;
 
-  is_weak_import = (bind->symbol_flags & GUM_DARWIN_BIND_WEAK_IMPORT) != 0;
-
-  if (bind->library_ordinal == GUM_DARWIN_BIND_FLAT_LOOKUP)
+  if (!gum_darwin_mapper_resolve_import (self, bind->library_ordinal,
+        bind->symbol_name,
+        (bind->symbol_flags & GUM_DARWIN_BIND_WEAK_IMPORT) != 0,
+        &value, error))
   {
-    dependency = NULL;
-
-    value.address = gum_darwin_module_resolver_find_dynamic_address (
-        self->resolver, gum_symbol_name_from_darwin (bind->symbol_name));
-    value.resolver = 0;
-
-    success = value.address != 0;
-  }
-  else
-  {
-    dependency = gum_darwin_mapper_get_dependency_by_ordinal (self,
-        bind->library_ordinal, error);
-    if (dependency == NULL)
-      goto module_not_found;
-
-    success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
-        bind->symbol_name, &value);
-    if (!success && !is_weak_import && self->resolver->sysroot != NULL &&
-        g_str_has_suffix (bind->symbol_name, "$INODE64"))
-    {
-      gchar * plain_name;
-
-      plain_name = g_strndup (bind->symbol_name,
-          strlen (bind->symbol_name) - 8);
-      success = gum_darwin_mapper_resolve_symbol (self, dependency->module,
-          plain_name, &value);
-      g_free (plain_name);
-    }
+    return FALSE;
   }
 
-  if (!success && !is_weak_import)
-    goto symbol_not_found;
-
-  if (success)
+  if (value.address != 0)
     value.address += bind->addend;
 
   if (self->threaded_symbols != NULL)
@@ -2202,27 +2443,6 @@ invalid_data:
   {
     g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_DATA,
         "Malformed bind entry");
-    return FALSE;
-  }
-module_not_found:
-  {
-    return FALSE;
-  }
-symbol_not_found:
-  {
-    if (dependency != NULL)
-    {
-      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
-          "Unable to bind, “%s” not found in “%s”",
-          gum_symbol_name_from_darwin (bind->symbol_name),
-          dependency->module->name);
-    }
-    else
-    {
-      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
-          "Unable to bind, “%s” cannot be resolved through flat lookup",
-          gum_symbol_name_from_darwin (bind->symbol_name));
-    }
     return FALSE;
   }
 }
