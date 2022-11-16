@@ -546,7 +546,7 @@ gum_darwin_symbolicator_synthesize_details_from_address (
   gum_darwin_module_enumerate_function_starts (module, gum_collect_functions,
       &op);
 
-  key.address = address;
+  key.address = gum_strip_code_address (address);
   key.size = 0;
 
   match = bsearch (&key, op.functions->data, op.functions->len,
