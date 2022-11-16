@@ -1108,15 +1108,23 @@ gboolean
 gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
                                               GumAddress address)
 {
+  gboolean metadata_is_offline;
+  GumAddress normalized_address;
   guint i;
 
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return FALSE;
 
+  metadata_is_offline = self->source_path != NULL || self->source_blob != NULL;
+
+  normalized_address = metadata_is_offline
+      ? address - self->base_address
+      : address;
+
   for (i = 0; i != self->text_ranges->len; i++)
   {
     GumMemoryRange * r = &g_array_index (self->text_ranges, GumMemoryRange, i);
-    if (GUM_MEMORY_RANGE_INCLUDES (r, address))
+    if (GUM_MEMORY_RANGE_INCLUDES (r, normalized_address))
       return TRUE;
   }
 
