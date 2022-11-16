@@ -258,6 +258,7 @@ jobs:
           upload: /tmp/runner.tar.gz
           run: |
             cd /usr/local
+            rm -rf opt/frida
             mkdir -p opt/frida
             cd opt/frida
             tar xf $ASSET_PATH
