@@ -1110,6 +1110,9 @@ gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
 {
   guint i;
 
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+    return FALSE;
+
   for (i = 0; i != self->text_ranges->len; i++)
   {
     GumMemoryRange * r = &g_array_index (self->text_ranges, GumMemoryRange, i);
