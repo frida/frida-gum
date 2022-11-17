@@ -452,6 +452,38 @@ gum_thread_set_system_error (gint value)
 }
 
 gboolean
+gum_thread_suspend (GumThreadId thread_id,
+                    GError ** error)
+{
+  if (ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, GSIZE_TO_POINTER (thread_id)) == -1)
+    goto failure;
+
+  return TRUE;
+
+failure:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
+    return FALSE;
+  }
+}
+
+gboolean
+gum_thread_resume (GumThreadId thread_id,
+                   GError ** error)
+{
+  if (ThreadCtl (_NTO_TCTL_ONE_THREAD_CONT, GSIZE_TO_POINTER (thread_id)) == -1)
+    goto failure;
+
+  return TRUE;
+
+failure:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
+    return FALSE;
+  }
+}
+
+gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {

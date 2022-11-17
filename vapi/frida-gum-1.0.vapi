@@ -276,6 +276,8 @@ namespace Gum {
 
 	namespace Thread {
 		public uint try_get_ranges (Gum.MemoryRange[] ranges);
+		public bool suspend (Gum.ThreadId thread_id) throws Gum.Error;
+		public bool resume (Gum.ThreadId thread_id) throws Gum.Error;
 	}
 
 	namespace Module {
