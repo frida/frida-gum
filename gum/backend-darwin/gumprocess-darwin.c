@@ -668,6 +668,68 @@ gum_thread_set_system_error (gint value)
 }
 
 gboolean
+gum_thread_suspend (GumThreadId thread_id,
+                    GError ** error)
+{
+#ifdef HAVE_WATCHOS
+  g_set_error (error,
+      GUM_ERROR,
+      GUM_ERROR_NOT_SUPPORTED,
+      "Not supported");
+  return FALSE;
+#else
+  kern_return_t kr;
+
+  kr = thread_suspend (thread_id);
+  if (kr != KERN_SUCCESS)
+    goto failure;
+
+  return TRUE;
+
+failure:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_NOT_FOUND,
+        "%s",
+        mach_error_string (kr));
+    return FALSE;
+  }
+#endif
+}
+
+gboolean
+gum_thread_resume (GumThreadId thread_id,
+                   GError ** error)
+{
+#ifdef HAVE_WATCHOS
+  g_set_error (error,
+      GUM_ERROR,
+      GUM_ERROR_NOT_SUPPORTED,
+      "Not supported");
+  return FALSE;
+#else
+  kern_return_t kr;
+
+  kr = thread_resume (thread_id);
+  if (kr != KERN_SUCCESS)
+    goto failure;
+
+  return TRUE;
+
+failure:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_NOT_FOUND,
+        "%s",
+        mach_error_string (kr));
+    return FALSE;
+  }
+#endif
+}
+
+gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {

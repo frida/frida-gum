@@ -1308,6 +1308,38 @@ gum_thread_set_system_error (gint value)
 }
 
 gboolean
+gum_thread_suspend (GumThreadId thread_id,
+                    GError ** error)
+{
+  if (syscall (__NR_tgkill, getpid (), thread_id, SIGSTOP) != 0)
+    goto failure;
+
+  return TRUE;
+
+failure:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
+    return FALSE;
+  }
+}
+
+gboolean
+gum_thread_resume (GumThreadId thread_id,
+                   GError ** error)
+{
+  if (syscall (__NR_tgkill, getpid (), thread_id, SIGCONT) != 0)
+    goto failure;
+
+  return TRUE;
+
+failure:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
+    return FALSE;
+  }
+}
+
+gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {

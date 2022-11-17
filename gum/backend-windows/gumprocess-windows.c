@@ -502,6 +502,74 @@ gum_thread_set_system_error (gint value)
 #endif
 
 gboolean
+gum_thread_suspend (GumThreadId thread_id,
+                    GError ** error)
+{
+  gboolean success = FALSE;
+  HANDLE thread;
+
+  thread = OpenThread (THREAD_SUSPEND_RESUME, FALSE, thread_id);
+  if (thread == NULL)
+    goto failure;
+
+  if (SuspendThread (thread) == (DWORD) -1)
+    goto failure;
+
+  success = TRUE;
+  goto beach;
+
+failure:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
+        "Unable to suspend thread: 0x%08lx", GetLastError ());
+    goto beach;
+  }
+beach:
+  {
+    if (thread != NULL)
+      CloseHandle (thread);
+
+    return success;
+  }
+}
+
+gboolean
+gum_thread_resume (GumThreadId thread_id,
+                   GError ** error)
+{
+  gboolean success = FALSE;
+  HANDLE thread;
+
+  thread = OpenThread (THREAD_SUSPEND_RESUME, FALSE, thread_id);
+  if (thread == NULL)
+    goto failure;
+
+  if (ResumeThread (thread) == (DWORD) -1)
+    goto failure;
+
+  success = TRUE;
+  goto beach;
+
+failure:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
+        "Unable to resume thread: 0x%08lx", GetLastError ());
+    goto beach;
+  }
+beach:
+  {
+    if (thread != NULL)
+      CloseHandle (thread);
+
+    return success;
+  }
+}
+
+gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {
