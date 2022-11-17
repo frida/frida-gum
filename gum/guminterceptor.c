@@ -29,6 +29,7 @@ typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
 typedef guint GumInstrumentationError;
 typedef struct _GumDestroyTask GumDestroyTask;
 typedef struct _GumUpdateTask GumUpdateTask;
+typedef struct _GumSuspendOperation GumSuspendOperation;
 typedef struct _ListenerEntry ListenerEntry;
 typedef struct _InterceptorThreadContext InterceptorThreadContext;
 typedef struct _GumInvocationStackEntry GumInvocationStackEntry;
@@ -86,6 +87,12 @@ struct _GumUpdateTask
 {
   GumFunctionContext * ctx;
   GumUpdateTaskFunc func;
+};
+
+struct _GumSuspendOperation
+{
+  GumThreadId current_thread_id;
+  GQueue suspended_threads;
 };
 
 struct _ListenerEntry
@@ -163,6 +170,8 @@ static void gum_interceptor_transaction_destroy (
 static void gum_interceptor_transaction_begin (
     GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
+static gboolean gum_maybe_suspend_thread (const GumThreadDetails * details,
+    gpointer user_data);
 static void gum_interceptor_transaction_schedule_destroy (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
     GDestroyNotify notify, gpointer data);
@@ -981,8 +990,15 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     if (rwx_supported || !code_segment_supported)
     {
       GumPageProtection protection;
+      GumSuspendOperation suspend_op = { 0, G_QUEUE_INIT };
 
       protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
+
+      if (!rwx_supported)
+      {
+        suspend_op.current_thread_id = gum_process_get_current_thread_id ();
+        gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op);
+      }
 
       for (cur = addresses; cur != NULL; cur = cur->next)
       {
@@ -1027,6 +1043,17 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
         gpointer target_page = cur->data;
 
         gum_clear_cache (target_page, page_size);
+      }
+
+      if (!rwx_supported)
+      {
+        gpointer raw_id;
+
+        while (
+            (raw_id = g_queue_pop_tail (&suspend_op.suspended_threads)) != NULL)
+        {
+          gum_thread_resume (GPOINTER_TO_SIZE (raw_id), NULL);
+        }
       }
     }
     else
@@ -1121,6 +1148,24 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
 no_changes:
   gum_interceptor_unignore_current_thread (interceptor);
+}
+
+static gboolean
+gum_maybe_suspend_thread (const GumThreadDetails * details,
+                          gpointer user_data)
+{
+  GumSuspendOperation * op = user_data;
+
+  if (details->id == op->current_thread_id)
+    goto skip;
+
+  if (!gum_thread_suspend (details->id, NULL))
+    goto skip;
+
+  g_queue_push_tail (&op->suspended_threads, GSIZE_TO_POINTER (details->id));
+
+skip:
+  return TRUE;
 }
 
 static void
