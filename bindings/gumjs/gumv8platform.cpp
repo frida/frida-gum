@@ -1328,7 +1328,10 @@ GumV8JobState::Join ()
   GumV8JobState::JobDelegate delegate (this, true);
   while (can_run)
   {
-    job_task->Run (&delegate);
+    {
+      Locker locker (isolate);
+      job_task->Run (&delegate);
+    }
 
     GumMutexLocker locker (&mutex);
     can_run = WaitForParticipationOpportunityLocked ();
@@ -1459,7 +1462,11 @@ GumV8JobState::CallOnWorkerThread (TaskPriority with_priority,
                                    std::unique_ptr<Task> task)
 {
   std::shared_ptr<Task> t (std::move (task));
-  auto op = platform->ScheduleOnThreadPool ([=]() { t->Run (); });
+  auto op = platform->ScheduleOnThreadPool ([=]()
+      {
+        Locker locker (isolate);
+        t->Run ();
+      });
 
   {
     GumV8PlatformLocker locker (platform);
