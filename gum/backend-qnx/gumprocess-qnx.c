@@ -167,7 +167,7 @@ gum_process_modify_thread (GumThreadId thread_id,
   pid_t child;
   int status;
 
-  if (ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, (void *) thread_id) == -1)
+  if (ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, GSIZE_TO_POINTER (thread_id)) == -1)
     goto beach;
   holding = TRUE;
 
@@ -211,7 +211,7 @@ gum_process_modify_thread (GumThreadId thread_id,
 
 beach:
   if (holding)
-    ThreadCtl (_NTO_TCTL_ONE_THREAD_CONT, (void *) thread_id);
+    ThreadCtl (_NTO_TCTL_ONE_THREAD_CONT, GSIZE_TO_POINTER (thread_id));
 
   return success;
 }
