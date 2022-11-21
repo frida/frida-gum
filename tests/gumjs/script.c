@@ -7094,7 +7094,7 @@ TESTCASE (fopen_can_be_intercepted)
       "        send('fopen called')"
       "      }"
       "    });"
-      "    send('fopen intercepted');",
+      "    send('fopen intercepted');"
       "  }, 0);"
       "} else {"
       "  Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
