@@ -383,6 +383,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (file_position_can_be_updated_to_relative_position_from_current)
     TESTENTRY (file_position_can_be_updated_to_relative_position_from_end)
     TESTENTRY (file_can_be_written_to)
+#ifndef HAVE_QNX
+    TESTENTRY (file_apis_can_not_trigger_interceptor)
+#endif
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Checksum")
@@ -401,6 +404,11 @@ TESTLIST_BEGIN (script)
     TESTENTRY (inline_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
+# ifndef HAVE_WINDOWS
+#  ifndef HAVE_QNX
+    TESTENTRY (sqlite_apis_can_not_trigger_interceptor)
+#  endif
+# endif
   TESTGROUP_END ()
 #endif
 
@@ -3345,6 +3353,58 @@ TESTCASE (file_can_be_written_to)
   g_free (contents);
 }
 
+TESTCASE (file_apis_can_not_trigger_interceptor)
+{
+  const gchar * path;
+  GThread * worker_thread;
+  GumInvokeTargetContext ctx;
+
+#if defined (HAVE_ANDROID) && defined (HAVE_ARM64)
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) && !g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
+  path = MAKE_TEMPFILE_CONTAINING ("abc");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const referencePath = '%s';"
+      "Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
+      "  onEnter(args) {"
+      "    const path = args[0].readUtf8String();"
+      "    if (path === referencePath) {"
+      "      send('intercepted');"
+      "    }"
+      "  }"
+      "});"
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback((arg) => {"
+      "  const log = new File(referencePath, 'wb');"
+      "  log.write('Hello!\\n');"
+      "  log.close();"
+      "  send('File written');"
+      "  return arg;"
+      "}, 'int', ['int']));",
+      ESCAPE_PATH (path),
+      target_function_int);
+
+  ctx.script = fixture->script;
+  ctx.repeat_duration = 0;
+  ctx.started = 0;
+  ctx.finished = 0;
+  worker_thread = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
+  while (ctx.started == 0)
+    g_usleep (G_USEC_PER_SEC / 200);
+
+  g_usleep (G_USEC_PER_SEC / 25);
+  EXPECT_SEND_MESSAGE_WITH ("\"File written\"");
+  g_thread_join (worker_thread);
+  g_assert_cmpint (ctx.finished, ==, 1);
+  EXPECT_NO_MESSAGES ();
+}
+
 TESTCASE (md5_can_be_computed_for_stream)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -3613,6 +3673,87 @@ TESTCASE (external_sqlite_database_can_be_opened_with_flags)
   EXPECT_SEND_MESSAGE_WITH ("\"not exists again\"");
   EXPECT_SEND_MESSAGE_WITH ("\"invalid flags\"");
   EXPECT_SEND_MESSAGE_WITH ("\"can write\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (sqlite_apis_can_not_trigger_interceptor)
+{
+  gchar * path;
+  gint fd;
+  GThread * worker_thread;
+  GumInvokeTargetContext ctx;
+
+  fd = g_file_open_tmp ("gum-tests.XXXXXX", &path, NULL);
+  g_assert_cmpint (fd, !=, -1);
+  close (fd);
+  g_queue_push_tail (&fixture->tempfiles, path);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const referencePath = '%s';"
+      "let stat = Module.findExportByName(null, 'stat');"
+      "if (stat === null) {"
+      "  stat = Module.findExportByName(null, '__xstat64');"
+      "}"
+      "if (stat === null) {"
+      "  stat = Module.findExportByName(null, '__xstat');"
+      "}"
+      "Interceptor.attach(stat, {"
+      "  onEnter(args) {"
+      "    const path = args[0].readUtf8String();"
+      "    if (path.includes(referencePath)) {"
+      "      send('intercepted stat');"
+      "    }"
+      "  }"
+      "});"
+      "Interceptor.attach(Module.getExportByName(null, 'open'), {"
+      "  onEnter(args) {"
+      "    const path = args[0].readUtf8String();"
+      "    if (path.includes(referencePath)) {"
+      "      send('intercepted open');"
+      "    }"
+      "  }"
+      "});"
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback((arg) => {"
+      "  const db = SqliteDatabase.open(referencePath);"
+      "  send('Database created');"
+      "  db.exec(`"
+      "  CREATE TABLE IF NOT EXISTS test ("
+      "     id TEXT PRIMARY KEY,"
+      "     stuff TEXT"
+      "  );`);"
+      "  send('Table created');"
+      "  const statement = db"
+      "    .prepare('INSERT INTO test (id, stuff) VALUES (?, ?);');"
+      "  send('Statement prepared');"
+      "  statement.bindText(1, 'i am primary ' + Date.now());"
+      "  statement.bindText(2, 'i am stuff');"
+      "  statement.step();"
+      "  statement.reset();"
+      "  send('Query done');"
+      "  db.close();"
+      "  send('Database closed');"
+      "  return arg;"
+      "}, 'int', ['int']));",
+      ESCAPE_PATH (path),
+      target_function_int);
+
+  ctx.script = fixture->script;
+  ctx.repeat_duration = 0;
+  ctx.started = 0;
+  ctx.finished = 0;
+  worker_thread = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
+  while (ctx.started == 0)
+    g_usleep (G_USEC_PER_SEC / 200);
+
+  g_usleep (G_USEC_PER_SEC / 25);
+  EXPECT_SEND_MESSAGE_WITH ("\"Database created\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"Table created\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"Statement prepared\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"Query done\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"Database closed\"");
+  g_thread_join (worker_thread);
+  g_assert_cmpint (ctx.finished, ==, 1);
   EXPECT_NO_MESSAGES ();
 }
 

@@ -6,7 +6,9 @@
 
 #include "gumv8file.h"
 
+#include "gumv8interceptor.h"
 #include "gumv8macros.h"
+#include "gumv8script-priv.h"
 
 #include <errno.h>
 #include <string.h>
@@ -233,7 +235,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   if (!_gum_v8_args_parse (args, "ss", &filename, &mode))
     return;
 
+  auto interceptor = core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   auto handle = fopen (filename, mode);
+
+  gum_interceptor_unignore_current_thread (interceptor);
 
   g_free (filename);
   g_free (mode);
@@ -266,7 +273,13 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_seek, GumFile)
   if (!_gum_v8_args_parse (args, "z|i", &offset, &whence))
     return;
 
+  auto interceptor = core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   int result = fseek (self->handle, offset, whence);
+
+  gum_interceptor_unignore_current_thread (interceptor);
+
   if (result == -1)
   {
     _gum_v8_throw_literal (isolate, strerror (errno));
@@ -297,7 +310,12 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_read_bytes, GumFile)
   auto result = ArrayBuffer::New (isolate, n);
   auto store = result.As<ArrayBuffer> ()->GetBackingStore ();
 
+  auto interceptor = core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   size_t num_bytes_read = fread (store->Data (), 1, n, self->handle);
+
+  gum_interceptor_unignore_current_thread (interceptor);
 
   if (num_bytes_read < n)
   {
@@ -328,8 +346,13 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_read_text, GumFile)
     return;
   }
 
+  auto interceptor = core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   gchar * data = (gchar *) g_malloc (n);
   size_t num_bytes_read = fread (data, 1, n, self->handle);
+
+  gum_interceptor_unignore_current_thread (interceptor);
 
   const gchar * end;
   if (g_utf8_validate (data, num_bytes_read, &end))
@@ -343,7 +366,11 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_read_text, GumFile)
     _gum_v8_throw (isolate, "can't decode byte 0x%02x in position %u",
         (guint8) *end, (guint) (end - data));
 
+    gum_interceptor_ignore_current_thread (interceptor);
+
     fseek (self->handle, -((long) num_bytes_read), SEEK_CUR);
+
+    gum_interceptor_unignore_current_thread (interceptor);
   }
 
   g_free (data);
@@ -357,6 +384,10 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_read_line, GumFile)
   gsize offset = 0;
   gsize capacity = 256;
   GString * buffer = g_string_sized_new (capacity);
+
+  auto interceptor = core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   while (TRUE)
   {
     g_string_set_size (buffer, capacity);
@@ -375,6 +406,9 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_read_line, GumFile)
     else
       break;
   }
+
+  gum_interceptor_unignore_current_thread (interceptor);
+
   g_string_set_size (buffer, offset);
 
   const gchar * end;
@@ -389,7 +423,11 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_read_line, GumFile)
     _gum_v8_throw (isolate, "can't decode byte 0x%02x in position %u",
         (guint8) *end, (guint) (end - buffer->str));
 
+    gum_interceptor_ignore_current_thread (interceptor);
+
     fseek (self->handle, -((long) buffer->len), SEEK_CUR);
+
+    gum_interceptor_unignore_current_thread (interceptor);
   }
 
   g_string_free (buffer, TRUE);
@@ -404,9 +442,14 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_write, GumFile)
   if (!_gum_v8_args_parse (args, "B~", &bytes))
     return;
 
+  auto interceptor = core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   gsize size;
   auto data = g_bytes_get_data (bytes, &size);
   fwrite (data, size, 1, self->handle);
+
+  gum_interceptor_unignore_current_thread (interceptor);
 
   g_bytes_unref (bytes);
 }
@@ -416,7 +459,12 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_flush, GumFile)
   if (!gum_file_check_open (self, isolate))
     return;
 
+  auto interceptor = core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   fflush (self->handle);
+
+  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_file_close, GumFile)
@@ -447,7 +495,12 @@ gum_file_new (Local<Object> wrapper,
 static void
 gum_file_free (GumFile * self)
 {
+  auto interceptor = self->module->core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   gum_file_close (self);
+
+  gum_interceptor_unignore_current_thread (interceptor);
 
   delete self->wrapper;
 
@@ -480,10 +533,15 @@ gum_file_query_num_bytes_available (GumFile * self)
 
   long offset = ftell (handle);
 
+  auto interceptor = self->module->core->script->interceptor.interceptor;
+  gum_interceptor_ignore_current_thread (interceptor);
+
   fseek (handle, 0, SEEK_END);
   long size = ftell (handle);
 
   fseek (handle, offset, SEEK_SET);
+
+  gum_interceptor_unignore_current_thread (interceptor);
 
   return size - offset;
 }
