@@ -82,6 +82,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (interceptor_should_support_native_pointer_values)
     TESTENTRY (interceptor_should_handle_bad_pointers)
     TESTENTRY (interceptor_should_refuse_to_attach_without_any_callbacks)
+    TESTENTRY (fopen_can_be_intercepted)
   TESTGROUP_END ()
   TESTGROUP_BEGIN ("Interceptor/Performance")
     TESTENTRY (interceptor_on_enter_performance)
@@ -7079,6 +7080,20 @@ TESTCASE (interceptor_should_refuse_to_attach_without_any_callbacks)
       target_function_int);
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: expected at least one callback");
+}
+
+TESTCASE (fopen_can_be_intercepted)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
+      "  onEnter(args) {"
+      "    send('fopen called')"
+      "  }"
+      "});"
+      "send('fopen intercepted')"
+      );
+
+  EXPECT_SEND_MESSAGE_WITH ("\"fopen intercepted\"");
 }
 
 TESTCASE (interceptor_on_enter_performance)
