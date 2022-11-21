@@ -7088,22 +7088,16 @@ TESTCASE (fopen_can_be_intercepted)
       "const is_qjs = %d === 1;"
       "if (!is_qjs && Process.arch === 'arm64' &&"
       "    Process.platform === 'linux') {"
-      "  setTimeout(() => {"
-      "    Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
-      "      onEnter(args) {"
-      "        send('fopen called')"
-      "      }"
-      "    });"
-      "    send('fopen intercepted');"
-      "  }, 0);"
+      "  send(Thread.backtrace(this.context, Backtracer.ACCURATE)"
+      "    .map(DebugSymbol.fromAddress));"
       "} else {"
       "  Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
       "    onEnter(args) {"
       "      send('fopen called')"
       "    }"
       "  });"
-      "  send('fopen intercepted');"
-      "}",
+      "}"
+      "send('fopen intercepted')",
        GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend));
 
   EXPECT_SEND_MESSAGE_WITH ("\"fopen intercepted\"");

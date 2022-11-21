@@ -397,7 +397,7 @@ enum _GumRelocationScenario
 
 #define GUM_MAX_THREADS              768
 #define GUM_MAX_CALL_DEPTH            32
-#define GUM_MAX_BACKTRACE_DEPTH       16
+#define GUM_MAX_BACKTRACE_DEPTH       64
 #define GUM_MAX_WORST_CASE_INFO_SIZE 128
 
 #define GUM_MAX_LISTENERS_PER_FUNCTION 2
