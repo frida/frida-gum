@@ -7085,11 +7085,29 @@ TESTCASE (interceptor_should_refuse_to_attach_without_any_callbacks)
 TESTCASE (fopen_can_be_intercepted)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.attach(Module.getExportByName(null, 'fopen'),"
-      "  function(args) {"
+
+      "if (Process.arch === 'arm64') {"
+      "  const fopen = Module.getExportByName(null, 'fopen');"
+      "  const disasm = [];"
+      "  let cursor = fopen;"
+      "  const end = cursor.add(1024);"
+      "  while (cursor.compare(end) < 0) {"
+      "    try {"
+      "      const ins = Instruction.parse(cursor);"
+      "      disasm.push(`${cursor}    ${ins.toString()}`);"
+      "    } catch (e) {"
+      "      disasm.push(`${cursor}    invalid`);"
+      "    }"
+      "    cursor = cursor.add(4);"
+      "  }"
+      "  send(disasm.join('\\n'));"
+      "}"
+
+      /*"Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
+      "  onEnter(args) {"
       "    send('fopen called')"
       "  }"
-      ");"
+      "});"*/
       "send('fopen intercepted')"
       );
 
