@@ -7085,11 +7085,11 @@ TESTCASE (interceptor_should_refuse_to_attach_without_any_callbacks)
 TESTCASE (fopen_can_be_intercepted)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
-      "  onEnter(args) {"
+      "Interceptor.attach(Module.getExportByName(null, 'fopen'),"
+      "  function(args) {"
       "    send('fopen called')"
       "  }"
-      "});"
+      ");"
       "send('fopen intercepted')"
       );
 
