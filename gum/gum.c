@@ -227,7 +227,6 @@ gum_init_embedded (void)
     gum_free,
     gum_on_ffi_allocate,
     gum_on_ffi_deallocate
-
   };
 #endif
 #ifdef HAVE_FRIDA_GLIB

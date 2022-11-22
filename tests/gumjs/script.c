@@ -7084,23 +7084,40 @@ TESTCASE (interceptor_should_refuse_to_attach_without_any_callbacks)
 
 TESTCASE (fopen_can_be_intercepted)
 {
+  GumInterceptor * interceptor;
+  GMainContext * js_context;
+  GSource * source;
+
+  interceptor = gum_interceptor_obtain ();
+
+  js_context = gum_script_scheduler_get_js_context (
+      gum_script_backend_get_scheduler ());
+
+  source = g_idle_source_new ();
+  g_source_set_callback (source, (GSourceFunc) ignore_thread,
+      g_object_ref (interceptor), g_object_unref);
+  g_source_attach (source, js_context);
+  g_source_unref (source);
+
   COMPILE_AND_LOAD_SCRIPT (
-      "const is_qjs = %d === 1;"
-      "if (!is_qjs && Process.arch === 'arm64' &&"
-      "    Process.platform === 'linux') {"
-      "  send(Thread.backtrace(this.context, Backtracer.ACCURATE)"
-      "    .map(DebugSymbol.fromAddress));"
-      "} else {"
-      "  Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
-      "    onEnter(args) {"
-      "      send('fopen called')"
-      "    }"
-      "  });"
-      "}"
-      "send('fopen intercepted')",
-       GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend));
+      "Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
+      "  onEnter(args) {"
+      "    send('fopen called')"
+      "  }"
+      "});"
+      "send('fopen intercepted')"
+      );
 
   EXPECT_SEND_MESSAGE_WITH ("\"fopen intercepted\"");
+  EXPECT_NO_MESSAGES ();
+
+  source = g_idle_source_new ();
+  g_source_set_callback (source, (GSourceFunc) unignore_thread,
+      g_object_ref (interceptor), g_object_unref);
+  g_source_attach (source, js_context);
+  g_source_unref (source);
+
+  g_object_unref (interceptor);
 }
 
 TESTCASE (interceptor_on_enter_performance)
