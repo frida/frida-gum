@@ -404,10 +404,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (inline_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
-# ifndef HAVE_WINDOWS
-#  ifndef HAVE_QNX
+# if !defined (HAVE_WINDOWS) && !defined (HAVE_QNX)
     TESTENTRY (sqlite_apis_can_not_trigger_interceptor)
-#  endif
 # endif
   TESTGROUP_END ()
 #endif
