@@ -3351,6 +3351,8 @@ TESTCASE (file_can_be_written_to)
   g_free (contents);
 }
 
+#ifndef HAVE_QNX
+
 TESTCASE (file_apis_can_not_trigger_interceptor)
 {
   const gchar * path;
@@ -3398,6 +3400,8 @@ TESTCASE (file_apis_can_not_trigger_interceptor)
   g_assert_cmpint (ctx.finished, ==, 1);
   EXPECT_NO_MESSAGES ();
 }
+
+#endif
 
 TESTCASE (md5_can_be_computed_for_stream)
 {
@@ -3670,6 +3674,8 @@ TESTCASE (external_sqlite_database_can_be_opened_with_flags)
   EXPECT_NO_MESSAGES ();
 }
 
+# if !defined (HAVE_WINDOWS) && !defined (HAVE_QNX)
+
 TESTCASE (sqlite_apis_can_not_trigger_interceptor)
 {
   gchar * path;
@@ -3750,6 +3756,8 @@ TESTCASE (sqlite_apis_can_not_trigger_interceptor)
   g_assert_cmpint (ctx.finished, ==, 1);
   EXPECT_NO_MESSAGES ();
 }
+
+# endif
 
 #endif
 
