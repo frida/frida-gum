@@ -7,6 +7,7 @@
 
 #include "gumv8scope.h"
 
+#include "gumv8interceptor.h"
 #include "gumv8script-priv.h"
 
 using namespace v8;
@@ -222,4 +223,16 @@ ScriptUnlocker::ExitInterceptorScope::ExitInterceptorScope (
 ScriptUnlocker::ExitInterceptorScope::~ExitInterceptorScope ()
 {
   gum_interceptor_begin_transaction (interceptor);
+}
+
+GumV8InterceptorIgnoreScope::GumV8InterceptorIgnoreScope ()
+{
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_current_thread (interceptor);
+}
+
+GumV8InterceptorIgnoreScope::~GumV8InterceptorIgnoreScope ()
+{
+  gum_interceptor_unignore_current_thread (interceptor);
+  g_object_unref (interceptor);
 }

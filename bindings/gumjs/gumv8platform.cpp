@@ -7,6 +7,7 @@
 #include "gumv8platform.h"
 
 #include "gumscriptbackend.h"
+#include "gumv8scope.h"
 
 #include <algorithm>
 #include <gum/gumcloak.h>
@@ -413,26 +414,6 @@ public:
 
 private:
   GumMutexUnlocker unlocker;
-};
-
-class GumV8InterceptorIgnoreScope
-{
-public:
-  GumV8InterceptorIgnoreScope ()
-  {
-    interceptor = gum_interceptor_obtain ();
-    gum_interceptor_ignore_current_thread (interceptor);
-  }
-
-
-  ~GumV8InterceptorIgnoreScope ()
-  {
-    gum_interceptor_unignore_current_thread (interceptor);
-    g_object_unref (interceptor);
-  }
-
-private:
-  GumInterceptor * interceptor;
 };
 
 GumV8Platform::GumV8Platform ()

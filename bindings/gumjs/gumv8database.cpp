@@ -7,6 +7,7 @@
 #include "gumv8database.h"
 
 #include "gumv8macros.h"
+#include "gumv8scope.h"
 
 #define GUMJS_MODULE_NAME Database
 
@@ -163,6 +164,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
   if (!_gum_v8_args_parse (args, "si", &path, &flags))
     return;
 
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   handle = NULL;
   status = sqlite3_open_v2 (path, &handle, flags, NULL);
   if (status != SQLITE_OK)
@@ -198,6 +201,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
 
   if (!_gum_v8_args_parse (args, "s", &encoded_contents))
     return;
+
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   valid =
       gum_memory_vfs_contents_from_string (encoded_contents, &contents, &size);
@@ -249,6 +254,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_exec, GumDatabase)
   if (!_gum_v8_args_parse (args, "s", &sql))
     return;
 
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   status = sqlite3_exec (self->handle, sql, NULL, NULL, &error_message);
   g_free (sql);
   if (status != SQLITE_OK)
@@ -276,6 +283,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_prepare, GumDatabase)
 
   if (!_gum_v8_args_parse (args, "s", &sql))
     return;
+
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   statement = NULL;
   status = sqlite3_prepare_v2 (self->handle, sql, -1, &statement, NULL);
@@ -383,6 +392,8 @@ gum_database_close (GumDatabase * self)
   if (self->handle == NULL)
     return;
 
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   sqlite3_close_v2 (self->handle);
   self->handle = NULL;
 
@@ -420,6 +431,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_integer, GumStatement)
   if (!_gum_v8_args_parse (args, "ii", &index, &value))
     return;
 
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   auto status = sqlite3_bind_int64 (self->handle, index, value);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
@@ -432,6 +445,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_float, GumStatement)
   if (!_gum_v8_args_parse (args, "in", &index, &value))
     return;
 
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   auto status = sqlite3_bind_double (self->handle, index, value);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
@@ -443,6 +458,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_text, GumStatement)
   gchar * value;
   if (!_gum_v8_args_parse (args, "is", &index, &value))
     return;
+
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   auto status = sqlite3_bind_text (self->handle, index, value, -1, g_free);
   if (status != SQLITE_OK)
@@ -459,6 +476,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_blob, GumStatement)
   gsize size;
   auto data = g_bytes_unref_to_data (bytes, &size);
 
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   auto status = sqlite3_bind_blob64 (self->handle, index, data, size, g_free);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
@@ -470,6 +489,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_null, GumStatement)
   if (!_gum_v8_args_parse (args, "i", &index))
     return;
 
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   auto status = sqlite3_bind_null (self->handle, index);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
@@ -477,6 +498,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_null, GumStatement)
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_step, GumStatement)
 {
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   auto status = sqlite3_step (self->handle);
   switch (status)
   {
@@ -494,6 +517,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_step, GumStatement)
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_reset, GumStatement)
 {
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   auto status = sqlite3_reset (self->handle);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
@@ -528,6 +553,8 @@ gum_statement_new (sqlite3_stmt * handle,
 static void
 gum_statement_free (GumStatement * self)
 {
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   delete self->wrapper;
 
   sqlite3_finalize (self->handle);
