@@ -7,7 +7,7 @@
 #include "gumv8file.h"
 
 #include "gumv8macros.h"
-#include "gumv8script-priv.h"
+#include "gumv8scope.h"
 
 #include <errno.h>
 #include <string.h>
@@ -272,7 +272,6 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_seek, GumFile)
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   int result = fseek (self->handle, offset, whence);
-
   if (result == -1)
   {
     _gum_v8_throw_literal (isolate, strerror (errno));
@@ -386,7 +385,6 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_read_line, GumFile)
     else
       break;
   }
-
   g_string_set_size (buffer, offset);
 
   const gchar * end;

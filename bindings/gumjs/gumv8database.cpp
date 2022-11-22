@@ -8,7 +8,6 @@
 
 #include "gumv8macros.h"
 #include "gumv8scope.h"
-#include "gumv8script-priv.h"
 
 #define GUMJS_MODULE_NAME Database
 
@@ -166,8 +165,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
     return;
 
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
-  handle = NULL;
 
+  handle = NULL;
   status = sqlite3_open_v2 (path, &handle, flags, NULL);
   if (status != SQLITE_OK)
     goto invalid_database;
@@ -183,10 +182,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
 invalid_database:
   {
     sqlite3_close_v2 (handle);
-
     g_free (path);
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
-
     return;
   }
 }
@@ -216,7 +213,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
   path = gum_memory_vfs_add_file (module->memory_vfs, contents, size);
 
   handle = NULL;
-
   status = sqlite3_open_v2 (path, &handle, SQLITE_OPEN_READWRITE,
       module->memory_vfs->name);
   if (status != SQLITE_OK)
@@ -236,10 +232,8 @@ invalid_data:
 invalid_database:
   {
     sqlite3_close_v2 (handle);
-
     gum_memory_vfs_remove_file (module->memory_vfs, path);
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
-
     return;
   }
 }
@@ -263,7 +257,6 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_exec, GumDatabase)
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   status = sqlite3_exec (self->handle, sql, NULL, NULL, &error_message);
-
   g_free (sql);
   if (status != SQLITE_OK)
     goto error;
@@ -273,9 +266,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_exec, GumDatabase)
 error:
   {
     _gum_v8_throw (isolate, "%s", error_message);
-
     sqlite3_free (error_message);
-
     return;
   }
 }
@@ -294,10 +285,9 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_prepare, GumDatabase)
     return;
 
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   statement = NULL;
-
   status = sqlite3_prepare_v2 (self->handle, sql, -1, &statement, NULL);
-
   g_free (sql);
   if (statement == NULL)
     goto invalid_sql;
@@ -405,7 +395,6 @@ gum_database_close (GumDatabase * self)
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   sqlite3_close_v2 (self->handle);
-
   self->handle = NULL;
 
   if (self->is_virtual)
