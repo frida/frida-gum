@@ -115,4 +115,14 @@ private:
   v8::Unlocker unlocker;
 };
 
+class GumV8InterceptorIgnoreScope
+{
+public:
+  GumV8InterceptorIgnoreScope ();
+  ~GumV8InterceptorIgnoreScope ();
+
+private:
+  GumInterceptor * interceptor;
+};
+
 #endif

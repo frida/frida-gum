@@ -6,8 +6,8 @@
 
 #include "gumv8database.h"
 
-#include "gumv8interceptor.h"
 #include "gumv8macros.h"
+#include "gumv8scope.h"
 #include "gumv8script-priv.h"
 
 #define GUMJS_MODULE_NAME Database
@@ -165,15 +165,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
   if (!_gum_v8_args_parse (args, "si", &path, &flags))
     return;
 
-  auto interceptor = core->script->interceptor.interceptor;
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
   handle = NULL;
 
-  gum_interceptor_ignore_current_thread (interceptor);
-
   status = sqlite3_open_v2 (path, &handle, flags, NULL);
-
-  gum_interceptor_unignore_current_thread (interceptor);
-
   if (status != SQLITE_OK)
     goto invalid_database;
 
@@ -187,14 +182,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
 
 invalid_database:
   {
-    gum_interceptor_ignore_current_thread (interceptor);
-
     sqlite3_close_v2 (handle);
 
     g_free (path);
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 
-    gum_interceptor_unignore_current_thread (interceptor);
     return;
   }
 }
@@ -213,7 +205,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
   if (!_gum_v8_args_parse (args, "s", &encoded_contents))
     return;
 
-  auto interceptor = core->script->interceptor.interceptor;
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   valid =
       gum_memory_vfs_contents_from_string (encoded_contents, &contents, &size);
@@ -225,13 +217,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
 
   handle = NULL;
 
-  gum_interceptor_ignore_current_thread (interceptor);
-
   status = sqlite3_open_v2 (path, &handle, SQLITE_OPEN_READWRITE,
       module->memory_vfs->name);
-
-  gum_interceptor_unignore_current_thread (interceptor);
-
   if (status != SQLITE_OK)
     goto invalid_database;
 
@@ -248,14 +235,11 @@ invalid_data:
   }
 invalid_database:
   {
-    gum_interceptor_ignore_current_thread (interceptor);
-
     sqlite3_close_v2 (handle);
 
     gum_memory_vfs_remove_file (module->memory_vfs, path);
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
 
-    gum_interceptor_unignore_current_thread (interceptor);
     return;
   }
 }
@@ -276,12 +260,9 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_exec, GumDatabase)
   if (!_gum_v8_args_parse (args, "s", &sql))
     return;
 
-  auto interceptor = core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   status = sqlite3_exec (self->handle, sql, NULL, NULL, &error_message);
-
-  gum_interceptor_unignore_current_thread (interceptor);
 
   g_free (sql);
   if (status != SQLITE_OK)
@@ -292,11 +273,9 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_exec, GumDatabase)
 error:
   {
     _gum_v8_throw (isolate, "%s", error_message);
-    gum_interceptor_ignore_current_thread (interceptor);
 
     sqlite3_free (error_message);
 
-    gum_interceptor_unignore_current_thread (interceptor);
     return;
   }
 }
@@ -314,14 +293,10 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_database_prepare, GumDatabase)
   if (!_gum_v8_args_parse (args, "s", &sql))
     return;
 
-  auto interceptor = core->script->interceptor.interceptor;
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
   statement = NULL;
 
-  gum_interceptor_ignore_current_thread (interceptor);
-
   status = sqlite3_prepare_v2 (self->handle, sql, -1, &statement, NULL);
-
-  gum_interceptor_unignore_current_thread (interceptor);
 
   g_free (sql);
   if (statement == NULL)
@@ -427,12 +402,9 @@ gum_database_close (GumDatabase * self)
   if (self->handle == NULL)
     return;
 
-  auto interceptor = self->module->core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   sqlite3_close_v2 (self->handle);
-
-  gum_interceptor_unignore_current_thread (interceptor);
 
   self->handle = NULL;
 
@@ -470,14 +442,11 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_integer, GumStatement)
   if (!_gum_v8_args_parse (args, "ii", &index, &value))
     return;
 
-  auto interceptor = core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   auto status = sqlite3_bind_int64 (self->handle, index, value);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
-
-  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_float, GumStatement)
@@ -487,14 +456,11 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_float, GumStatement)
   if (!_gum_v8_args_parse (args, "in", &index, &value))
     return;
 
-  auto interceptor = core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   auto status = sqlite3_bind_double (self->handle, index, value);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
-
-  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_text, GumStatement)
@@ -504,14 +470,11 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_text, GumStatement)
   if (!_gum_v8_args_parse (args, "is", &index, &value))
     return;
 
-  auto interceptor = core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   auto status = sqlite3_bind_text (self->handle, index, value, -1, g_free);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
-
-  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_blob, GumStatement)
@@ -524,14 +487,11 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_blob, GumStatement)
   gsize size;
   auto data = g_bytes_unref_to_data (bytes, &size);
 
-  auto interceptor = core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   auto status = sqlite3_bind_blob64 (self->handle, index, data, size, g_free);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
-
-  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_null, GumStatement)
@@ -540,20 +500,16 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_null, GumStatement)
   if (!_gum_v8_args_parse (args, "i", &index))
     return;
 
-  auto interceptor = core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   auto status = sqlite3_bind_null (self->handle, index);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
-
-  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_step, GumStatement)
 {
-  auto interceptor = core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   auto status = sqlite3_step (self->handle);
   switch (status)
@@ -568,20 +524,15 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_step, GumStatement)
       _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
       break;
   }
-
-  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_reset, GumStatement)
 {
-  auto interceptor = core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   auto status = sqlite3_reset (self->handle);
   if (status != SQLITE_OK)
     _gum_v8_throw (isolate, "%s", sqlite3_errstr (status));
-
-  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 static Local<Object>
@@ -613,14 +564,11 @@ gum_statement_new (sqlite3_stmt * handle,
 static void
 gum_statement_free (GumStatement * self)
 {
+  GumV8InterceptorIgnoreScope interceptor_ignore_scope;
+
   delete self->wrapper;
 
-  auto interceptor = self->module->core->script->interceptor.interceptor;
-  gum_interceptor_ignore_current_thread (interceptor);
-
   sqlite3_finalize (self->handle);
-
-  gum_interceptor_unignore_current_thread (interceptor);
 
   g_slice_free (GumStatement, self);
 }
