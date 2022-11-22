@@ -82,7 +82,6 @@ TESTLIST_BEGIN (script)
     TESTENTRY (interceptor_should_support_native_pointer_values)
     TESTENTRY (interceptor_should_handle_bad_pointers)
     TESTENTRY (interceptor_should_refuse_to_attach_without_any_callbacks)
-    TESTENTRY (fopen_can_be_intercepted)
   TESTGROUP_END ()
   TESTGROUP_BEGIN ("Interceptor/Performance")
     TESTENTRY (interceptor_on_enter_performance)
@@ -3360,36 +3359,31 @@ TESTCASE (file_apis_can_not_trigger_interceptor)
   GThread * worker_thread;
   GumInvokeTargetContext ctx;
 
-#if defined (HAVE_ANDROID) && defined (HAVE_ARM64)
-  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend) && !g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-#endif
-
   path = MAKE_TEMPFILE_CONTAINING ("abc");
 
   COMPILE_AND_LOAD_SCRIPT (
       "const referencePath = '%s';"
-      "Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
-      "  onEnter(args) {"
-      "    const path = args[0].readUtf8String();"
-      "    if (path === referencePath) {"
-      "      send('intercepted');"
+      "setTimeout(() => {"
+      "  Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
+      "    onEnter(args) {"
+      "      const path = args[0].readUtf8String();"
+      "      if (path === referencePath) {"
+      "        send('intercepted');"
+      "      }"
       "    }"
-      "  }"
-      "});"
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback((arg) => {"
-      "  const log = new File(referencePath, 'wb');"
-      "  log.write('Hello!\\n');"
-      "  log.close();"
-      "  send('File written');"
-      "  return arg;"
-      "}, 'int', ['int']));",
+      "  });"
+      "  Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback((arg) => {"
+      "    const log = new File(referencePath, 'wb');"
+      "    log.write('Hello!\\n');"
+      "    log.close();"
+      "    send('File written');"
+      "    return arg;"
+      "  }, 'int', ['int']));"
+      "}, 0);",
       ESCAPE_PATH (path),
       target_function_int);
 
+  EXPECT_NO_MESSAGES ();
   ctx.script = fixture->script;
   ctx.repeat_duration = 0;
   ctx.started = 0;
@@ -7080,27 +7074,6 @@ TESTCASE (interceptor_should_refuse_to_attach_without_any_callbacks)
       target_function_int);
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: expected at least one callback");
-}
-
-TESTCASE (fopen_can_be_intercepted)
-{
-  COMPILE_AND_LOAD_SCRIPT (
-      "if (%d === 0) {"
-      "  send(Thread.backtrace(null, Backtracer.ACCURATE)"
-      "    .map(DebugSymbol.fromAddress).join('\\n') + '\\n');"
-      "} else {"
-      "  Interceptor.attach(Module.getExportByName(null, 'fopen'), {"
-      "    onEnter(args) {"
-      "      send('fopen called')"
-      "    }"
-      "  });"
-      "  send('fopen intercepted')"
-      "}",
-      GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
-      );
-
-  EXPECT_SEND_MESSAGE_WITH ("\"fopen intercepted\"");
-  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (interceptor_on_enter_performance)
