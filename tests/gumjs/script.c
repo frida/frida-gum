@@ -3379,11 +3379,12 @@ TESTCASE (file_apis_can_not_trigger_interceptor)
       "    send('File written');"
       "    return arg;"
       "  }, 'int', ['int']));"
+      "  send('Test scheduled');"
       "}, 0);",
       ESCAPE_PATH (path),
       target_function_int);
 
-  EXPECT_NO_MESSAGES ();
+  EXPECT_SEND_MESSAGE_WITH ("\"Test scheduled\"");
   ctx.script = fixture->script;
   ctx.repeat_duration = 0;
   ctx.started = 0;
