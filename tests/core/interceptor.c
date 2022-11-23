@@ -1019,7 +1019,7 @@ TESTCASE (fast_interceptor_performance)
       target_function, replacement_target_function_fast,
       (gpointer) &target_function_fast), ==, GUM_REPLACE_OK);
   g_timer_reset (timer);
-  for (gsize i = 0; i != 1000; i++)
+  for (gsize i = 0; i != 1000000; i++)
   {
     g_string_truncate (fixture->result, 0);
     result = target_function (fixture->result);
