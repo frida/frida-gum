@@ -927,10 +927,8 @@ TESTCASE (replace_fast_then_attach)
   g_object_unref (listener);
 }
 
-
 TESTCASE (replace_fast_then_replace_fast)
 {
-
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
       target_function, replacement_target_function, NULL), ==, GUM_REPLACE_OK);
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
@@ -946,7 +944,7 @@ TESTCASE (i_can_has_replaceability_fast)
 
   unsupported_functions = unsupported_function_list_new (&count);
 
-  for (i = 0; i < count; i++)
+  for (i = 0; i != count; i++)
   {
     UnsupportedFunction * func = &unsupported_functions[i];
 
@@ -978,7 +976,6 @@ TESTCASE (replace_one_fast)
   result = target_function (fixture->result);
   g_assert_cmphex (GPOINTER_TO_SIZE (result), ==, 0);
   g_assert_cmpstr (fixture->result->str, ==, "|");
-
 }
 
 static gpointer
@@ -993,7 +990,6 @@ replacement_target_function_fast (GString * str)
   return result;
 }
 
-
 TESTCASE (fast_interceptor_performance)
 {
   GTimer * timer;
@@ -1005,10 +1001,10 @@ TESTCASE (fast_interceptor_performance)
   /* Normal Interceptor */
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
       target_function, replacement_target_function_fast, NULL,
-      (void *)&target_function_fast), ==, GUM_REPLACE_OK);
+      (gpointer) &target_function_fast), ==, GUM_REPLACE_OK);
   g_timer_reset (timer);
 
-  for (gsize i = 0; i < 1000000; i++)
+  for (gsize i = 0; i != 1000000; i++)
   {
     g_string_truncate (fixture->result, 0);
     result = target_function (fixture->result);
@@ -1021,9 +1017,9 @@ TESTCASE (fast_interceptor_performance)
   /* Fast Interceptor */
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
       target_function, replacement_target_function_fast,
-      (void *)&target_function_fast), ==, GUM_REPLACE_OK);
+      (gpointer) &target_function_fast), ==, GUM_REPLACE_OK);
   g_timer_reset (timer);
-    for (gsize i = 0; i < 1000; i++)
+  for (gsize i = 0; i != 1000; i++)
   {
     g_string_truncate (fixture->result, 0);
     result = target_function (fixture->result);

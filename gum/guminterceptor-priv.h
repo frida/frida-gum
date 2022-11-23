@@ -24,7 +24,7 @@ enum _GumInterceptorType
 {
   GUM_INTERCEPTOR_TYPE_DEFAULT = 0,
   GUM_INTERCEPTOR_TYPE_FAST    = 1
-} ;
+};
 
 union _GumFunctionContextBackendData
 {
