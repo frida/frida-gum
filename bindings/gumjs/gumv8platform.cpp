@@ -1443,9 +1443,10 @@ GumV8JobState::CallOnWorkerThread (TaskPriority with_priority,
                                    std::unique_ptr<Task> task)
 {
   std::shared_ptr<Task> t (std::move (task));
+  Isolate * job_isolate = this->isolate;
   auto op = platform->ScheduleOnThreadPool ([=]()
       {
-        Locker locker (isolate);
+        Locker locker (job_isolate);
         t->Run ();
       });
 
