@@ -20,6 +20,7 @@ struct _GumReturnAddressDetails
   gchar function_name[GUM_MAX_SYMBOL_NAME + 1];
   gchar file_name[GUM_MAX_PATH + 1];
   guint line_number;
+  guint column;
 };
 
 struct _GumReturnAddressArray

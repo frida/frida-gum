@@ -35,6 +35,7 @@ GUMJS_DECLARE_GETTER (gumjs_symbol_get_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_module_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_line_number)
+GUMJS_DECLARE_GETTER (gumjs_symbol_get_column)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_json)
 
@@ -65,6 +66,7 @@ static const JSCFunctionListEntry gumjs_symbol_entries[] =
   JS_CGETSET_DEF ("moduleName", gumjs_symbol_get_module_name, NULL),
   JS_CGETSET_DEF ("fileName", gumjs_symbol_get_file_name, NULL),
   JS_CGETSET_DEF ("lineNumber", gumjs_symbol_get_line_number, NULL),
+  JS_CGETSET_DEF ("column", gumjs_symbol_get_column, NULL),
   JS_CFUNC_DEF ("toString", 0, gumjs_symbol_to_string),
   JS_CFUNC_DEF ("toJSON", 0, gumjs_symbol_to_json),
 };
@@ -346,6 +348,19 @@ GUMJS_DEFINE_GETTER (gumjs_symbol_get_line_number)
   return JS_NewInt32 (ctx, self->details.line_number);
 }
 
+GUMJS_DEFINE_GETTER (gumjs_symbol_get_column)
+{
+  GumSymbol * self;
+
+  if (!gum_symbol_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  if (!self->resolved)
+    return JS_NULL;
+
+  return JS_NewInt32 (ctx, self->details.column);
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
 {
   JSValue result;
@@ -366,7 +381,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
         d->module_name, d->symbol_name);
     if (d->file_name[0] != '\0')
     {
-      g_string_append_printf (s, " %s:%u", d->file_name, d->line_number);
+      if (d->column != 0)
+      {
+        g_string_append_printf (s, " %s:%u:%u", d->file_name, d->line_number,
+            d->column);
+      }
+      else
+      {
+        g_string_append_printf (s, " %s:%u", d->file_name, d->line_number);
+      }
     }
   }
   else if (d->address != 0)
