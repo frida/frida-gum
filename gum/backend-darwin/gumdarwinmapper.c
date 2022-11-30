@@ -933,8 +933,12 @@ gum_darwin_mapper_alloc_and_emit_runtime (GumDarwinMapper * self,
   pc = base_address;
 
 #define GUM_ADVANCE_BY(n) \
-    cursor += n; \
-    pc += n
+    G_STMT_START \
+    { \
+      cursor += n; \
+      pc += n; \
+    } \
+    G_STMT_END
 
   self->apple_strv = pc;
 
