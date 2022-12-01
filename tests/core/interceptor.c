@@ -868,8 +868,8 @@ replacement_malloc (gsize size)
 TESTCASE (replace_then_replace_fast)
 {
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
-      target_function, replacement_target_function, NULL, NULL), ==,
-      GUM_REPLACE_OK);
+      target_function, replacement_target_function, NULL, NULL),
+      ==, GUM_REPLACE_OK);
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
       target_function, replacement_target_function, NULL), ==,
       GUM_REPLACE_WRONG_TYPE);
