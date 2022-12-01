@@ -78,7 +78,7 @@ static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
 static gpointer replacement_malloc (gsize size);
 static gpointer replacement_target_function (GString * str);
-static gpointer (*target_function_fast) (GString * str) = NULL;
+static gpointer (* target_function_fast) (GString * str) = NULL;
 static gpointer replacement_target_function_fast (GString * str);
 
 TESTCASE (attach_one)
