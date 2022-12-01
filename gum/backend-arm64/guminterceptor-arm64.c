@@ -870,13 +870,9 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   GumAddress on_enter;
 
   if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
-  {
     on_enter = GUM_ADDRESS (ctx->replacement_function);
-  }
   else
-  {
     on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
-  }
 
 #ifdef HAVE_DARWIN
   if (ctx->grafted_hook != NULL)
