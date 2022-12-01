@@ -571,8 +571,8 @@ gum_interceptor_replace_with_type (GumInterceptor * self,
 
   function_address = gum_interceptor_resolve (self, function_address);
 
-  function_ctx = gum_interceptor_instrument (self, type,
-      function_address, &error);
+  function_ctx =
+      gum_interceptor_instrument (self, type, function_address, &error);
 
   if (function_ctx == NULL)
     goto instrumentation_error;
