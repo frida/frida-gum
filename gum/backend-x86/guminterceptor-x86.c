@@ -147,7 +147,6 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   {
     data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
   }
-
 #endif
 
   if (!gum_x86_relocator_can_relocate (ctx->function_address,
