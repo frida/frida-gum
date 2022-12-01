@@ -345,8 +345,7 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
         data->redirect_code_size == GUM_INTERCEPTOR_THUMB_TINY_REDIRECT_SIZE;
 
     ctx->trampoline_deflector = gum_code_allocator_alloc_deflector (
-        self->allocator, &caller, return_address, deflector_target,
-        dedicated);
+        self->allocator, &caller, return_address, deflector_target, dedicated);
     if (ctx->trampoline_deflector == NULL)
     {
       gum_code_slice_unref (ctx->trampoline_slice);
