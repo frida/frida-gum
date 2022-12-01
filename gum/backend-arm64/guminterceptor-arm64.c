@@ -666,7 +666,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
 
-   if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
   {
     deflector_target = ctx->replacement_function;
   }
