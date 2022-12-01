@@ -181,7 +181,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
   {
     function_ctx_ptr = GUM_ADDRESS (gum_x86_writer_cur (cw));
-    gum_x86_writer_put_bytes (cw, (guint8 *) &ctx, sizeof (GumFunctionContext *));
+    gum_x86_writer_put_bytes (cw, (guint8 *) &ctx,
+        sizeof (GumFunctionContext *));
 
     ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
 
