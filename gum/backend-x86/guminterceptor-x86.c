@@ -244,9 +244,15 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
 
   if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
-    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->replacement_function));
+  {
+    gum_x86_writer_put_jmp_address (cw,
+        GUM_ADDRESS (ctx->replacement_function));
+  }
   else
-    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->on_enter_trampoline));
+  {
+    gum_x86_writer_put_jmp_address (cw,
+        GUM_ADDRESS (ctx->on_enter_trampoline));
+  }
 
   gum_x86_writer_flush (cw);
   g_assert (gum_x86_writer_offset (cw) <= GUM_FCDATA (ctx)->redirect_code_size);
