@@ -134,7 +134,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   if (ctx->type == GUM_INTERCEPTOR_TYPE_DEFAULT)
   {
     ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
-      self->allocator, &spec, default_alignment);
+        self->allocator, &spec, default_alignment);
   }
 
   if (ctx->trampoline_slice == NULL)
