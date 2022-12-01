@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1050,6 +1051,28 @@ gum_darwin_query_sysroot (void)
 }
 
 #endif
+
+gboolean
+gum_darwin_query_hardened (void)
+{
+  static gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    const gchar * program_path;
+    gboolean is_hardened;
+
+    program_path = _dyld_get_image_name (0);
+
+    is_hardened = g_str_has_prefix (program_path, "/usr/libexec/") ||
+        g_str_has_prefix (program_path, "/System/") ||
+        g_str_has_prefix (program_path, "/Developer/");
+
+    g_once_init_leave (&cached_result, is_hardened + 1);
+  }
+
+  return cached_result - 1;
+}
 
 gboolean
 gum_darwin_query_all_image_infos (mach_port_t task,
