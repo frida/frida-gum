@@ -63,6 +63,14 @@ TESTLIST_BEGIN (interceptor)
 #endif
   TESTENTRY (replace_then_attach)
   TESTENTRY (replace_keep_original)
+
+  TESTENTRY (replace_then_replace_fast)
+  TESTENTRY (attach_then_replace_fast)
+  TESTENTRY (replace_fast_then_replace)
+  TESTENTRY (replace_fast_then_attach)
+  TESTENTRY (i_can_has_replaceability_fast)
+  TESTENTRY (replace_one_fast)
+  TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
 
 #ifdef HAVE_WINDOWS
@@ -70,6 +78,8 @@ static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
 static gpointer replacement_malloc (gsize size);
 static gpointer replacement_target_function (GString * str);
+static gpointer (* target_function_fast) (GString * str) = NULL;
+static gpointer replacement_target_function_fast (GString * str);
 
 TESTCASE (attach_one)
 {
@@ -853,4 +863,180 @@ replacement_malloc (gsize size)
       ==, size);
 
   return GSIZE_TO_POINTER (size);
+}
+
+TESTCASE (replace_then_replace_fast)
+{
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
+        target_function, replacement_target_function, NULL, NULL),
+      ==, GUM_REPLACE_OK);
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function, NULL),
+      ==, GUM_REPLACE_WRONG_TYPE);
+  gum_interceptor_revert (fixture->interceptor, target_function);
+}
+
+TESTCASE (attach_then_replace_fast)
+{
+  TestCallbackListener * listener;
+
+  listener = test_callback_listener_new ();
+  listener->on_enter = (TestCallbackListenerFunc) target_function;
+  listener->on_leave = (TestCallbackListenerFunc) target_function;
+  listener->user_data = fixture->result;
+
+  g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
+        target_function, GUM_INVOCATION_LISTENER (listener), NULL),
+      ==, GUM_ATTACH_OK);
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function, NULL),
+      ==, GUM_REPLACE_WRONG_TYPE);
+  gum_interceptor_detach (fixture->interceptor,
+      GUM_INVOCATION_LISTENER (listener));
+
+  g_object_unref (listener);
+}
+
+TESTCASE (replace_fast_then_replace)
+{
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function, NULL),
+      ==, GUM_REPLACE_OK);
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
+        target_function, replacement_target_function, NULL, NULL),
+      ==, GUM_REPLACE_WRONG_TYPE);
+  gum_interceptor_revert (fixture->interceptor, target_function);
+}
+
+TESTCASE (replace_fast_then_attach)
+{
+  TestCallbackListener * listener;
+
+  listener = test_callback_listener_new ();
+  listener->on_enter = (TestCallbackListenerFunc) target_function;
+  listener->on_leave = (TestCallbackListenerFunc) target_function;
+  listener->user_data = fixture->result;
+
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function, NULL),
+      ==, GUM_REPLACE_OK);
+
+  g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
+        target_function, GUM_INVOCATION_LISTENER (listener), NULL),
+      ==, GUM_ATTACH_WRONG_TYPE);
+
+  gum_interceptor_revert (fixture->interceptor, target_function);
+  g_object_unref (listener);
+}
+
+TESTCASE (replace_fast_then_replace_fast)
+{
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function, NULL),
+      ==, GUM_REPLACE_OK);
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function, NULL),
+      ==, GUM_REPLACE_ALREADY_REPLACED);
+  gum_interceptor_revert (fixture->interceptor, target_function);
+}
+
+TESTCASE (i_can_has_replaceability_fast)
+{
+  UnsupportedFunction * unsupported_functions;
+  guint count, i;
+
+  unsupported_functions = unsupported_function_list_new (&count);
+
+  for (i = 0; i != count; i++)
+  {
+    UnsupportedFunction * func = &unsupported_functions[i];
+
+    g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+          func->code + func->code_offset, replacement_malloc, NULL),
+        ==, GUM_REPLACE_WRONG_SIGNATURE);
+  }
+
+  unsupported_function_list_free (unsupported_functions);
+}
+
+TESTCASE (replace_one_fast)
+{
+  gpointer result;
+
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function_fast,
+        (gpointer *) &target_function_fast),
+      ==, GUM_REPLACE_OK);
+
+  result = target_function (fixture->result);
+
+  gum_interceptor_revert (fixture->interceptor, target_function);
+  g_assert_cmphex (GPOINTER_TO_SIZE (result), ==, 0);
+  g_assert_cmpstr (fixture->result->str, ==, "/|\\");
+
+  g_string_free (fixture->result, TRUE);
+  fixture->result = g_string_sized_new (4096);
+
+  result = target_function (fixture->result);
+  g_assert_cmphex (GPOINTER_TO_SIZE (result), ==, 0);
+  g_assert_cmpstr (fixture->result->str, ==, "|");
+}
+
+static gpointer
+replacement_target_function_fast (GString * str)
+{
+  gpointer result;
+
+  g_string_append_c (str, '/');
+  result = target_function_fast (str);
+  g_string_append_c (str, '\\');
+
+  return result;
+}
+
+TESTCASE (fast_interceptor_performance)
+{
+  GTimer * timer;
+  gpointer result;
+  gdouble duration_default, duration_fast;
+
+  timer = g_timer_new ();
+
+  /* Normal Interceptor */
+  g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
+        target_function, replacement_target_function_fast, NULL,
+        (gpointer *) &target_function_fast),
+      ==, GUM_REPLACE_OK);
+  g_timer_reset (timer);
+
+  for (gsize i = 0; i != 1000000; i++)
+  {
+    g_string_truncate (fixture->result, 0);
+    result = target_function (fixture->result);
+    g_assert_cmphex (GPOINTER_TO_SIZE (result), ==, 0);
+    g_assert_cmpstr (fixture->result->str, ==, "/|\\");
+  }
+  duration_default = g_timer_elapsed (timer, NULL);
+  gum_interceptor_revert (fixture->interceptor, target_function);
+
+  /* Fast Interceptor */
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function_fast,
+        (gpointer *) &target_function_fast),
+      ==, GUM_REPLACE_OK);
+  g_timer_reset (timer);
+  for (gsize i = 0; i != 1000000; i++)
+  {
+    g_string_truncate (fixture->result, 0);
+    result = target_function (fixture->result);
+    g_assert_cmphex (GPOINTER_TO_SIZE (result), ==, 0);
+    g_assert_cmpstr (fixture->result->str, ==, "/|\\");
+  }
+  duration_fast = g_timer_elapsed (timer, NULL);
+  gum_interceptor_revert (fixture->interceptor, target_function);
+
+  g_timer_destroy (timer);
+
+  g_print ("<duration_fast=%f duration_default=%f ratio=%f> ",
+      duration_fast, duration_default, duration_fast / duration_default);
 }

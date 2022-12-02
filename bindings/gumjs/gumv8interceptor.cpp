@@ -662,6 +662,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       _gum_v8_throw_ascii_literal (isolate,
           "not permitted by code-signing policy");
       break;
+    case GUM_ATTACH_WRONG_TYPE:
+      _gum_v8_throw_ascii_literal (isolate, "wrong type");
+      break;
     default:
       g_assert_not_reached ();
   }
@@ -739,6 +742,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
     case GUM_REPLACE_POLICY_VIOLATION:
       _gum_v8_throw_ascii_literal (isolate,
           "not permitted by code-signing policy");
+      break;
+    case GUM_REPLACE_WRONG_TYPE:
+      _gum_v8_throw_ascii_literal (isolate, "wrong type");
       break;
     default:
       g_assert_not_reached ();

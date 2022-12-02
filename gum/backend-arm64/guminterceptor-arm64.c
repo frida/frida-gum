@@ -656,6 +656,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gpointer function_address = ctx->function_address;
   GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
   gboolean need_deflector;
+  gpointer deflector_target;
   GString * signature;
   gboolean is_eligible_for_lr_rewriting;
   guint reloc_bytes;
@@ -665,7 +666,15 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
 
-  ctx->on_enter_trampoline = gum_sign_code_pointer (gum_arm64_writer_cur (aw));
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    deflector_target = ctx->replacement_function;
+  }
+  else
+  {
+    ctx->on_enter_trampoline = gum_sign_code_pointer (gum_arm64_writer_cur (aw));
+    deflector_target = ctx->on_enter_trampoline;
+  }
 
   if (need_deflector)
   {
@@ -681,8 +690,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     dedicated = data->redirect_code_size == 4;
 
     ctx->trampoline_deflector = gum_code_allocator_alloc_deflector (
-        self->allocator, &caller, return_address, ctx->on_enter_trampoline,
-        dedicated);
+        self->allocator, &caller, return_address, deflector_target, dedicated);
     if (ctx->trampoline_deflector == NULL)
     {
       gum_code_slice_unref (ctx->trampoline_slice);
@@ -693,20 +701,23 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X0, ARM64_REG_LR);
   }
 
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
-      GUM_ADDRESS (gum_sign_code_pointer (self->enter_thunk)));
-  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
+  if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
+    gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
+        GUM_ADDRESS (gum_sign_code_pointer (self->enter_thunk)));
+    gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
-  ctx->on_leave_trampoline = gum_arm64_writer_cur (aw);
+    ctx->on_leave_trampoline = gum_arm64_writer_cur (aw);
 
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
-      GUM_ADDRESS (gum_sign_code_pointer (self->leave_thunk)));
-  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
+    gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
+    gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
+        GUM_ADDRESS (gum_sign_code_pointer (self->leave_thunk)));
+    gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
-  gum_arm64_writer_flush (aw);
-  g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
+    gum_arm64_writer_flush (aw);
+    g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
+  }
 
   ctx->on_invoke_trampoline = gum_sign_code_pointer (gum_arm64_writer_cur (aw));
 
@@ -856,7 +867,12 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 {
   GumArm64Writer * aw = &self->writer;
   GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
-  GumAddress on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
+  GumAddress on_enter;
+
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+    on_enter = GUM_ADDRESS (ctx->replacement_function);
+  else
+    on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
 
 #ifdef HAVE_DARWIN
   if (ctx->grafted_hook != NULL)

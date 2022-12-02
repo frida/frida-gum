@@ -113,17 +113,39 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
   spec.near_address = ctx->function_address;
   spec.max_distance = GUM_X86_JMP_MAX_DISTANCE;
-  ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
-      self->allocator, &spec, default_alignment);
-  if (ctx->trampoline_slice != NULL)
+
+  /*
+   * When creating a fast interceptor, we won't be vectoring from the target
+   * function to the trampoline slice, we will instead be re-directing direct to
+   * the target replacement function and therefore must consider the worst case
+   * scenario of a JMP with RIP-relative immediate embedded in the code stream.
+   * We will still use the trampoline slice for writing the trampoline for the
+   * original function in the event that the patched function wishes to call the
+   * original. Thus it isn't important where the trampoline slice is located.
+   *
+   * When creating a normal interceptor, the patch to the target function
+   * re-directs first to the on_enter trampoline written to the trampoline
+   * slice. If we are able to allocate the slice nearby the target function,
+   * then we are able to use a near rather than far jump and hence a shorter
+   * op-code. This reduces the amount of the target function prologue which
+   * needs to be over-written. If we cannot allocate nearby, however, we
+   * just revert to assuming the worst case scenario.
+   */
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_DEFAULT)
   {
-    data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
+    ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
+        self->allocator, &spec, default_alignment);
   }
-  else
+
+  if (ctx->trampoline_slice == NULL)
   {
     data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
 
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+  }
+  else
+  {
+    data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
   }
 #endif
 
@@ -156,21 +178,25 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   gum_x86_writer_reset (cw, ctx->trampoline_slice->data);
 
-  function_ctx_ptr = GUM_ADDRESS (gum_x86_writer_cur (cw));
-  gum_x86_writer_put_bytes (cw, (guint8 *) &ctx, sizeof (GumFunctionContext *));
+  if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    function_ctx_ptr = GUM_ADDRESS (gum_x86_writer_cur (cw));
+    gum_x86_writer_put_bytes (cw, (guint8 *) &ctx,
+        sizeof (GumFunctionContext *));
 
-  ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
+    ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
 
-  gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->data));
+    gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->data));
 
-  ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
+    ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
-  gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->data));
+    gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->data));
 
-  gum_x86_writer_flush (cw);
-  g_assert (gum_x86_writer_offset (cw) <= ctx->trampoline_slice->size);
+    gum_x86_writer_flush (cw);
+    g_assert (gum_x86_writer_offset (cw) <= ctx->trampoline_slice->size);
+  }
 
   ctx->on_invoke_trampoline = gum_x86_writer_cur (cw);
   gum_x86_relocator_reset (rl, (guint8 *) ctx->function_address, cw);
@@ -216,9 +242,21 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
   gum_x86_writer_reset (cw, prologue);
   cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
-  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (ctx->on_enter_trampoline));
+
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    gum_x86_writer_put_jmp_address (cw,
+        GUM_ADDRESS (ctx->replacement_function));
+  }
+  else
+  {
+    gum_x86_writer_put_jmp_address (cw,
+        GUM_ADDRESS (ctx->on_enter_trampoline));
+  }
+
   gum_x86_writer_flush (cw);
   g_assert (gum_x86_writer_offset (cw) <= GUM_FCDATA (ctx)->redirect_code_size);
+  g_assert (gum_x86_writer_offset (cw) <= ctx->overwritten_prologue_len);
 
   padding = ctx->overwritten_prologue_len - gum_x86_writer_offset (cw);
   gum_x86_writer_put_nop_padding (cw, padding);

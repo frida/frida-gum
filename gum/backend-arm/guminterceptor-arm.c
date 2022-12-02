@@ -218,11 +218,20 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
   GumArmFunctionContextData * data = GUM_FCDATA (ctx);
   GumArmWriter * aw = &self->arm_writer;
   GumArmRelocator * ar = &self->arm_relocator;
+  gpointer deflector_target;
   guint reloc_bytes;
 
   gum_arm_writer_reset (aw, ctx->trampoline_slice->data);
 
-  ctx->on_enter_trampoline = gum_arm_writer_cur (aw);
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    deflector_target = ctx->replacement_function;
+  }
+  else
+  {
+    ctx->on_enter_trampoline = gum_arm_writer_cur (aw);
+    deflector_target = ctx->on_enter_trampoline;
+  }
 
   if (data->redirect_code_size != data->full_redirect_size)
   {
@@ -238,8 +247,7 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
     dedicated = TRUE;
 
     ctx->trampoline_deflector = gum_code_allocator_alloc_deflector (
-        self->allocator, &caller, return_address, ctx->on_enter_trampoline,
-        dedicated);
+        self->allocator, &caller, return_address, deflector_target, dedicated);
     if (ctx->trampoline_deflector == NULL)
     {
       gum_code_slice_unref (ctx->trampoline_slice);
@@ -248,20 +256,23 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
     }
   }
 
-  gum_emit_arm_push_cpu_context_high_part (aw);
-  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R6, GUM_ADDRESS (ctx));
-  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
-      GUM_ADDRESS (self->enter_thunk_arm));
+  if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    gum_emit_arm_push_cpu_context_high_part (aw);
+    gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R6, GUM_ADDRESS (ctx));
+    gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
+        GUM_ADDRESS (self->enter_thunk_arm));
 
-  ctx->on_leave_trampoline = gum_arm_writer_cur (aw);
+    ctx->on_leave_trampoline = gum_arm_writer_cur (aw);
 
-  gum_emit_arm_push_cpu_context_high_part (aw);
-  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R6, GUM_ADDRESS (ctx));
-  gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
-      GUM_ADDRESS (self->leave_thunk_arm));
+    gum_emit_arm_push_cpu_context_high_part (aw);
+    gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R6, GUM_ADDRESS (ctx));
+    gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
+        GUM_ADDRESS (self->leave_thunk_arm));
 
-  gum_arm_writer_flush (aw);
-  g_assert (gum_arm_writer_offset (aw) <= ctx->trampoline_slice->size);
+    gum_arm_writer_flush (aw);
+    g_assert (gum_arm_writer_offset (aw) <= ctx->trampoline_slice->size);
+  }
 
   ctx->on_invoke_trampoline = gum_arm_writer_cur (aw);
 
@@ -300,6 +311,7 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
   GumArmFunctionContextData * data = GUM_FCDATA (ctx);
   GumThumbWriter * tw = &self->thumb_writer;
   GumThumbRelocator * tr = &self->thumb_relocator;
+  gpointer deflector_target;
   GString * signature;
   const cs_insn * insn, * trailing_bl;
   guint reloc_bytes;
@@ -308,7 +320,15 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
 
   gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
 
-  ctx->on_enter_trampoline = gum_thumb_writer_cur (tw) + 1;
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    deflector_target = ctx->replacement_function;
+  }
+  else
+  {
+    ctx->on_enter_trampoline = gum_thumb_writer_cur (tw) + 1;
+    deflector_target = ctx->on_enter_trampoline;
+  }
 
   if (data->redirect_code_size != data->full_redirect_size)
   {
@@ -325,8 +345,7 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
         data->redirect_code_size == GUM_INTERCEPTOR_THUMB_TINY_REDIRECT_SIZE;
 
     ctx->trampoline_deflector = gum_code_allocator_alloc_deflector (
-        self->allocator, &caller, return_address, ctx->on_enter_trampoline,
-        dedicated);
+        self->allocator, &caller, return_address, deflector_target, dedicated);
     if (ctx->trampoline_deflector == NULL)
     {
       gum_code_slice_unref (ctx->trampoline_slice);
@@ -335,24 +354,27 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
     }
   }
 
-  if (data->redirect_code_size != GUM_INTERCEPTOR_THUMB_LINK_REDIRECT_SIZE)
+  if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
   {
+    if (data->redirect_code_size != GUM_INTERCEPTOR_THUMB_LINK_REDIRECT_SIZE)
+    {
+      gum_emit_thumb_push_cpu_context_high_part (tw);
+    }
+
+    gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R6, GUM_ADDRESS (ctx));
+    gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
+        GUM_ADDRESS (self->enter_thunk_thumb));
+
+    ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
+
     gum_emit_thumb_push_cpu_context_high_part (tw);
+    gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R6, GUM_ADDRESS (ctx));
+    gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
+        GUM_ADDRESS (self->leave_thunk_thumb));
+
+    gum_thumb_writer_flush (tw);
+    g_assert (gum_thumb_writer_offset (tw) <= ctx->trampoline_slice->size);
   }
-
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R6, GUM_ADDRESS (ctx));
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
-      GUM_ADDRESS (self->enter_thunk_thumb));
-
-  ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
-
-  gum_emit_thumb_push_cpu_context_high_part (tw);
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R6, GUM_ADDRESS (ctx));
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
-      GUM_ADDRESS (self->leave_thunk_thumb));
-
-  gum_thumb_writer_flush (tw);
-  g_assert (gum_thumb_writer_offset (tw) <= ctx->trampoline_slice->size);
 
   ctx->on_invoke_trampoline = gum_thumb_writer_cur (tw) + 1;
 
@@ -554,6 +576,11 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
             GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
       }
     }
+    else if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+    {
+      gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
+          GUM_ADDRESS (ctx->replacement_function));
+    }
     else
     {
       gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
@@ -576,6 +603,11 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
           GUM_INTERCEPTOR_ARM_TINY_REDIRECT_SIZE);
       gum_arm_writer_put_b_imm (aw,
           GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
+    }
+    else if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+    {
+      gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
+          GUM_ADDRESS (ctx->replacement_function));
     }
     else
     {

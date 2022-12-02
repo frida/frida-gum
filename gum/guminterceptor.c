@@ -74,6 +74,7 @@ enum _GumInstrumentationError
   GUM_INSTRUMENTATION_ERROR_NONE,
   GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE,
   GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION,
+  GUM_INSTRUMENTATION_ERROR_WRONG_TYPE,
 };
 
 struct _GumDestroyTask
@@ -155,9 +156,13 @@ static void gum_interceptor_finalize (GObject * object);
 static void the_interceptor_weak_notify (gpointer data,
     GObject * where_the_object_was);
 #endif
-
+static GumReplaceReturn gum_interceptor_replace_with_type (
+    GumInterceptor * self, GumInterceptorType type, gpointer function_address,
+    gpointer replacement_function, gpointer replacement_data,
+    gpointer * original_function);
 static GumFunctionContext * gum_interceptor_instrument (GumInterceptor * self,
-    gpointer function_address, GumInstrumentationError * error);
+    GumInterceptorType type, gpointer function_address,
+    GumInstrumentationError * error);
 static void gum_interceptor_activate (GumInterceptor * self,
     GumFunctionContext * ctx, gpointer prologue);
 static void gum_interceptor_deactivate (GumInterceptor * self,
@@ -180,7 +185,8 @@ static void gum_interceptor_transaction_schedule_update (
     GumUpdateTaskFunc func);
 
 static GumFunctionContext * gum_function_context_new (
-    GumInterceptor * interceptor, gpointer function_address);
+    GumInterceptor * interceptor, gpointer function_address,
+    GumInterceptorType type);
 static void gum_function_context_finalize (GumFunctionContext * function_ctx);
 static void gum_function_context_destroy (GumFunctionContext * function_ctx);
 static void gum_function_context_perform_destroy (
@@ -425,7 +431,9 @@ gum_interceptor_attach (GumInterceptor * self,
 
   function_address = gum_interceptor_resolve (self, function_address);
 
-  function_ctx = gum_interceptor_instrument (self, function_address, &error);
+  function_ctx = gum_interceptor_instrument (self, GUM_INTERCEPTOR_TYPE_DEFAULT,
+      function_address, &error);
+
   if (function_ctx == NULL)
     goto instrumentation_error;
 
@@ -446,6 +454,9 @@ instrumentation_error:
         break;
       case GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION:
         result = GUM_ATTACH_POLICY_VIOLATION;
+        break;
+      case GUM_INSTRUMENTATION_ERROR_WRONG_TYPE:
+        result = GUM_ATTACH_WRONG_TYPE;
         break;
       default:
         g_assert_not_reached ();
@@ -526,6 +537,30 @@ gum_interceptor_replace (GumInterceptor * self,
                          gpointer replacement_data,
                          gpointer * original_function)
 {
+  return gum_interceptor_replace_with_type (self, GUM_INTERCEPTOR_TYPE_DEFAULT,
+      function_address, replacement_function, replacement_data,
+      original_function);
+}
+
+GumReplaceReturn
+gum_interceptor_replace_fast (GumInterceptor * self,
+                              gpointer function_address,
+                              gpointer replacement_function,
+                              gpointer * original_function)
+{
+  return gum_interceptor_replace_with_type (self, GUM_INTERCEPTOR_TYPE_FAST,
+      function_address, replacement_function, NULL,
+      original_function);
+}
+
+static GumReplaceReturn
+gum_interceptor_replace_with_type (GumInterceptor * self,
+                                   GumInterceptorType type,
+                                   gpointer function_address,
+                                   gpointer replacement_function,
+                                   gpointer replacement_data,
+                                   gpointer * original_function)
+{
   GumReplaceReturn result = GUM_REPLACE_OK;
   GumFunctionContext * function_ctx;
   GumInstrumentationError error;
@@ -536,7 +571,9 @@ gum_interceptor_replace (GumInterceptor * self,
 
   function_address = gum_interceptor_resolve (self, function_address);
 
-  function_ctx = gum_interceptor_instrument (self, function_address, &error);
+  function_ctx =
+      gum_interceptor_instrument (self, type, function_address, &error);
+
   if (function_ctx == NULL)
     goto instrumentation_error;
 
@@ -560,6 +597,9 @@ instrumentation_error:
         break;
       case GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION:
         result = GUM_REPLACE_POLICY_VIOLATION;
+        break;
+      case GUM_INSTRUMENTATION_ERROR_WRONG_TYPE:
+        result = GUM_REPLACE_WRONG_TYPE;
         break;
       default:
         g_assert_not_reached ();
@@ -803,6 +843,7 @@ fallback:
 
 static GumFunctionContext *
 gum_interceptor_instrument (GumInterceptor * self,
+                            GumInterceptorType type,
                             gpointer function_address,
                             GumInstrumentationError * error)
 {
@@ -812,8 +853,16 @@ gum_interceptor_instrument (GumInterceptor * self,
 
   ctx = (GumFunctionContext *) g_hash_table_lookup (self->function_by_address,
       function_address);
+
   if (ctx != NULL)
+  {
+    if (ctx->type != type)
+    {
+      *error = GUM_INSTRUMENTATION_ERROR_WRONG_TYPE;
+      return NULL;
+    }
     return ctx;
+  }
 
   if (self->backend == NULL)
   {
@@ -821,7 +870,7 @@ gum_interceptor_instrument (GumInterceptor * self,
         _gum_interceptor_backend_create (&self->mutex, &self->allocator);
   }
 
-  ctx = gum_function_context_new (self, function_address);
+  ctx = gum_function_context_new (self, function_address, type);
 
   if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
   {
@@ -1224,7 +1273,8 @@ gum_interceptor_transaction_schedule_update (GumInterceptorTransaction * self,
 
 static GumFunctionContext *
 gum_function_context_new (GumInterceptor * interceptor,
-                          gpointer function_address)
+                          gpointer function_address,
+                          GumInterceptorType type)
 {
   GumFunctionContext * ctx;
 
@@ -1235,6 +1285,7 @@ gum_function_context_new (GumInterceptor * interceptor,
       g_ptr_array_new_full (1, (GDestroyNotify) listener_entry_free);
 
   ctx->interceptor = interceptor;
+  ctx->type = type;
 
   return ctx;
 }

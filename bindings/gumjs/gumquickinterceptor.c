@@ -592,6 +592,9 @@ unable_to_attach:
       case GUM_ATTACH_POLICY_VIOLATION:
         _gum_quick_throw_literal (ctx, "not permitted by code-signing policy");
         break;
+      case GUM_ATTACH_WRONG_TYPE:
+        _gum_quick_throw_literal (ctx, "wrong type");
+        break;
       default:
         g_assert_not_reached ();
     }
@@ -687,6 +690,9 @@ unable_to_replace:
         break;
       case GUM_REPLACE_POLICY_VIOLATION:
         _gum_quick_throw_literal (ctx, "not permitted by code-signing policy");
+        break;
+      case GUM_REPLACE_WRONG_TYPE:
+        _gum_quick_throw_literal (ctx, "wrong type");
         break;
       default:
         g_assert_not_reached ();
