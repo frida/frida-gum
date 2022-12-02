@@ -152,6 +152,7 @@ namespace Gum
     char function_name[GUMPP_MAX_SYMBOL_NAME + 1];
     char file_name[GUMPP_MAX_PATH + 1];
     unsigned int line_number;
+    unsigned int column;
   };
 
   GUMPP_CAPI bool ReturnAddressDetails_from_address (ReturnAddress address, ReturnAddressDetails & details);
