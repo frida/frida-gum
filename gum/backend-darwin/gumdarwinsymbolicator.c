@@ -152,9 +152,11 @@ GUM_DECLARE_CS_FUNC (SymbolOwnerGetName, const char *,
 GUM_DECLARE_CS_FUNC (SymbolOwnerGetBaseAddress, unsigned long long,
     (CSSymbolOwnerRef owner));
 
-GUM_DECLARE_CS_FUNC (SourceInfoGetFilename, const char *,
+GUM_DECLARE_CS_FUNC (SourceInfoGetPath, const char *,
     (CSSourceInfoRef info));
 GUM_DECLARE_CS_FUNC (SourceInfoGetLineNumber, int,
+    (CSSourceInfoRef info));
+GUM_DECLARE_CS_FUNC (SourceInfoGetColumn, int,
     (CSSourceInfoRef info));
 
 #undef GUM_DECLARE_CS_FUNC
@@ -386,14 +388,19 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
       GPOINTER_TO_SIZE (address), kCSNow);
   if (!CSIsNull (info))
   {
-    g_strlcpy (details->file_name, CSSourceInfoGetFilename (info),
-        sizeof (details->file_name));
+    gchar * canonicalized;
+
+    canonicalized = g_canonicalize_filename (CSSourceInfoGetPath (info), "/");
+    g_strlcpy (details->file_name, canonicalized, sizeof (details->file_name));
+    g_free (canonicalized);
     details->line_number = CSSourceInfoGetLineNumber (info);
+    details->column = CSSourceInfoGetColumn (info);
   }
   else
   {
     details->file_name[0] = '\0';
     details->line_number = 0;
+    details->column = 0;
   }
 
   return TRUE;
@@ -755,8 +762,9 @@ gum_cs_load_library (gpointer data)
   GUM_TRY_ASSIGN (SymbolOwnerGetName);
   GUM_TRY_ASSIGN (SymbolOwnerGetBaseAddress);
 
-  GUM_TRY_ASSIGN (SourceInfoGetFilename);
+  GUM_TRY_ASSIGN (SourceInfoGetPath);
   GUM_TRY_ASSIGN (SourceInfoGetLineNumber);
+  GUM_TRY_ASSIGN (SourceInfoGetColumn);
 
 #undef GUM_TRY_ASSIGN
 

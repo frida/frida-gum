@@ -20,6 +20,7 @@ struct _GumDebugSymbolDetails
   gchar symbol_name[GUM_MAX_SYMBOL_NAME + 1];
   gchar file_name[GUM_MAX_PATH + 1];
   guint line_number;
+  guint column;
 };
 
 G_BEGIN_DECLS

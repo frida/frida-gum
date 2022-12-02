@@ -63,6 +63,7 @@ struct _GumDwarfSourceDetails
 {
   gchar * path;
   guint line_number;
+  guint column;
 };
 
 struct _GumFindCuDieOperation
@@ -163,6 +164,7 @@ gum_symbol_details_from_address (gpointer address,
   Dwarf_Die cu_die;
   GumDwarfSymbolDetails symbol;
   GumDwarfSourceDetails source;
+  gchar * canonicalized;
 
   success = FALSE;
 
@@ -195,11 +197,14 @@ gum_symbol_details_from_address (gpointer address,
       sizeof (details->module_name));
   g_strlcpy (details->symbol_name, symbol.name, sizeof (details->symbol_name));
 
-  g_strlcpy (details->file_name, source.path, sizeof (details->file_name));
+  canonicalized = g_canonicalize_filename (source.path, "/");
+  g_strlcpy (details->file_name, canonicalized, sizeof (details->file_name));
   details->line_number = source.line_number;
+  details->column = source.column;
 
   success = TRUE;
 
+  g_free (canonicalized);
   g_free (source.path);
 
 line_not_found:
@@ -918,7 +923,7 @@ gum_find_line_by_virtual_address (Dwarf_Debug dbg,
 
     if (line_address >= address)
     {
-      Dwarf_Unsigned line_number;
+      Dwarf_Unsigned line_number, column;
       char * path;
 
       if (dwarf_lineno (line, &line_number, NULL) != DW_DLV_OK)
@@ -927,11 +932,15 @@ gum_find_line_by_virtual_address (Dwarf_Debug dbg,
       if (line_number < symbol_line_number)
         continue;
 
+      if (dwarf_lineoff_b (line, &column, NULL) != DW_DLV_OK)
+        continue;
+
       if (dwarf_linesrc (line, &path, NULL) != DW_DLV_OK)
         continue;
 
       details->path = g_strdup (path);
       details->line_number = line_number;
+      details->column = column;
 
       success = TRUE;
 

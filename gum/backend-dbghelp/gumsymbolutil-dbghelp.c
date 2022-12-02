@@ -75,6 +75,7 @@ gum_symbol_details_from_address (gpointer address,
   {
     strcpy_s (details->file_name, sizeof (details->file_name), li.FileName);
     details->line_number = li.LineNumber;
+    details->column = displacement_dw;
   }
 
   dbghelp->Unlock ();

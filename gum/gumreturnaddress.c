@@ -23,6 +23,7 @@ gum_return_address_details_from_address (GumReturnAddress address,
     strcpy (details->function_name, sd.symbol_name);
     strcpy (details->file_name, sd.file_name);
     details->line_number = sd.line_number;
+    details->column = sd.column;
 
     return TRUE;
   }
