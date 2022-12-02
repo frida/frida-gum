@@ -55,7 +55,7 @@ TESTCASE (basics)
   g_assert_true (g_str_has_suffix (rad.file_name, "backtracer.c"));
   g_assert_true (rad.line_number == expected_line_number ||
       rad.line_number == expected_line_number + 1);
-  g_assert_true (rad.column == 3);
+  g_assert_cmpuint (rad.column, ==, 3);
 #endif
 }
 
