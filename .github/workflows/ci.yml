@@ -72,6 +72,7 @@ jobs:
             -Doptimization=s `
             -Dgumpp=enabled `
             -Dgumjs=enabled `
+            --force-fallback-for=zlib `
             build
           meson compile -C build
       - name: Test
