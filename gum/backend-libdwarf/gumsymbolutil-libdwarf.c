@@ -204,8 +204,8 @@ gum_symbol_details_from_address (gpointer address,
 
   success = TRUE;
 
-  g_free (source.path);
   g_free (canonicalized);
+  g_free (source.path);
 
 line_not_found:
   g_free (symbol.name);
