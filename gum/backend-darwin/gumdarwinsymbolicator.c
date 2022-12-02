@@ -388,7 +388,7 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
       GPOINTER_TO_SIZE (address), kCSNow);
   if (!CSIsNull (info))
   {
-    gchar * canonicalized = NULL;
+    gchar * canonicalized;
 
     canonicalized = g_canonicalize_filename (CSSourceInfoGetPath (info), "/");
     g_strlcpy (details->file_name, canonicalized, sizeof (details->file_name));
