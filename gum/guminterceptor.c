@@ -1280,12 +1280,10 @@ gum_function_context_new (GumInterceptor * interceptor,
 
   ctx = g_slice_new0 (GumFunctionContext);
   ctx->function_address = function_address;
-
+  ctx->type = type;
   ctx->listener_entries =
       g_ptr_array_new_full (1, (GDestroyNotify) listener_entry_free);
-
   ctx->interceptor = interceptor;
-  ctx->type = type;
 
   return ctx;
 }
