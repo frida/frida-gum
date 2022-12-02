@@ -164,7 +164,7 @@ gum_symbol_details_from_address (gpointer address,
   Dwarf_Die cu_die;
   GumDwarfSymbolDetails symbol;
   GumDwarfSourceDetails source;
-  gchar * canonicalized = NULL;
+  gchar * canonicalized;
 
   success = FALSE;
 
