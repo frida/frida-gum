@@ -15,10 +15,9 @@
 #include "gumtls.h"
 
 typedef struct _GumInterceptorBackend GumInterceptorBackend;
+typedef guint GumInterceptorType;
 typedef struct _GumFunctionContext GumFunctionContext;
 typedef union _GumFunctionContextBackendData GumFunctionContextBackendData;
-
-typedef guint GumInterceptorType;
 
 enum _GumInterceptorType
 {
