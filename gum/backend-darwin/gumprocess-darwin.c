@@ -1064,7 +1064,8 @@ gum_darwin_query_hardened (void)
 
     program_path = _dyld_get_image_name (0);
 
-    is_hardened = g_str_has_prefix (program_path, "/usr/libexec/") ||
+    is_hardened = strcmp (program_path, "/sbin/launchd") == 0 ||
+        g_str_has_prefix (program_path, "/usr/libexec/") ||
         g_str_has_prefix (program_path, "/System/") ||
         g_str_has_prefix (program_path, "/Developer/");
 
