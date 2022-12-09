@@ -561,7 +561,7 @@ gum_do_modify_thread (gpointer data)
     goto failed_to_stop;
 
   /*
-   * Although ptrace injects SIGSTOP into our process, it is possible that our 
+   * Although ptrace injects SIGSTOP into our process, it is possible that our
    * target is stopped by another stop signal (e.g. SIGTTIN). The man pages for
    * ptrace mention the possible race condition. For our purposes, however, we
    * only require that the target is stopped so that we can read it's registers.
@@ -578,7 +578,9 @@ gum_do_modify_thread (gpointer data)
   if (res == -1)
     goto failed_to_write;
 
-  res = gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL, (void *) SIGCONT);
+  res = gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL,
+      GINT_TO_POINTER (SIGCONT));
+
   attached = FALSE;
   if (res == -1)
     goto failed_to_detach;
@@ -620,7 +622,10 @@ failed_to_detach:
 beach:
   {
     if (attached)
-      gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL, (void *) SIGCONT);
+    {
+      gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL,
+          GINT_TO_POINTER (SIGCONT));
+    }
 
     return 0;
   }
