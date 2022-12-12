@@ -712,6 +712,7 @@ GUM_DECLARE_HELPER (memset)
 GUM_DECLARE_HELPER_FALLBACK (memmove, void *, const void *, size_t)
 GUM_DECLARE_HELPER_FALLBACK (memset, void *, size_t, int)
 #endif
+#ifndef HAVE_DARWIN
 GUM_DECLARE_HELPER (f2ulz)
 GUM_DECLARE_HELPER (f2lz)
 GUM_DECLARE_HELPER (d2ulz)
@@ -729,6 +730,7 @@ GUM_DECLARE_HELPER (idiv)
 GUM_DECLARE_HELPER (uidiv)
 GUM_DECLARE_HELPER (idivmod)
 GUM_DECLARE_HELPER (uidivmod)
+#endif
 
 static void
 gum_add_abi_symbols (TCCState * state)
@@ -744,6 +746,7 @@ gum_add_abi_symbols (TCCState * state)
   GUM_REGISTER_HELPER_FALLBACK_ALIASED (memmove8, memmove);
   GUM_REGISTER_HELPER_FALLBACK (memset);
 #endif
+#ifndef HAVE_DARWIN
   GUM_REGISTER_HELPER (f2ulz);
   GUM_REGISTER_HELPER (f2lz);
   GUM_REGISTER_HELPER (d2ulz);
@@ -761,6 +764,7 @@ gum_add_abi_symbols (TCCState * state)
   GUM_REGISTER_HELPER (uidiv);
   GUM_REGISTER_HELPER (idivmod);
   GUM_REGISTER_HELPER (uidivmod);
+#endif
 }
 
 #ifndef HAVE_AEABI_MEMORY_BUILTINS
