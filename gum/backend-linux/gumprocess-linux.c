@@ -564,7 +564,7 @@ gum_do_modify_thread (gpointer data)
    * Although ptrace injects SIGSTOP into our process, it is possible that our
    * target is stopped by another stop signal (e.g. SIGTTIN). The man pages for
    * ptrace mention the possible race condition. For our purposes, however, we
-   * only require that the target is stopped so that we can read it's registers.
+   * only require that the target is stopped so that we can read its registers.
    */
   res = gum_get_regs (ctx->thread_id, &regs);
   if (res == -1)
