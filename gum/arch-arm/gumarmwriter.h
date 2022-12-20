@@ -111,6 +111,8 @@ GUM_API gboolean gum_arm_writer_put_ldr_cond_reg_reg_offset (
     gssize src_offset);
 GUM_API void gum_arm_writer_put_ldmia_reg_mask (GumArmWriter * self,
     arm_reg reg, guint16 mask);
+GUM_API void gum_arm_writer_put_ldmia_reg_mask_wb (GumArmWriter * self,
+    arm_reg reg, guint16 mask);
 GUM_API gboolean gum_arm_writer_put_str_reg_reg (GumArmWriter * self,
     arm_reg src_reg, arm_reg dst_reg);
 GUM_API gboolean gum_arm_writer_put_str_reg_reg_offset (GumArmWriter * self,
