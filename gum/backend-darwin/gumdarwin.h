@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -163,6 +164,8 @@ GUM_API gboolean gum_darwin_query_all_image_infos (mach_port_t task,
     GumDarwinAllImageInfos * infos);
 GUM_API gboolean gum_darwin_query_mapped_address (mach_port_t task,
     GumAddress address, GumDarwinMappingDetails * details);
+GUM_API gboolean gum_darwin_query_protection (mach_port_t task,
+    GumAddress address, GumPageProtection * prot);
 GUM_API gboolean gum_darwin_query_shared_cache_range (mach_port_t task,
     GumMemoryRange * range);
 GUM_API GumAddress gum_darwin_find_entrypoint (mach_port_t task);

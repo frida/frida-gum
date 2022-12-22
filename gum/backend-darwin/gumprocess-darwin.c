@@ -223,6 +223,7 @@ struct _DyldImageInfo64
 #ifndef PROC_INFO_CALL_PIDINFO
 
 # define PROC_INFO_CALL_PIDINFO 0x2
+# define PROC_PIDREGIONINFO     7
 # define PROC_PIDREGIONPATHINFO 8
 
 struct vinfo_stat
@@ -1151,6 +1152,29 @@ gum_darwin_query_mapped_address (mach_port_t task,
   mapping_offset = address - region.prp_prinfo.pri_address;
   details->offset = mapping_offset;
   details->size = region.prp_prinfo.pri_size - mapping_offset;
+
+  return TRUE;
+}
+
+gboolean
+gum_darwin_query_protection (mach_port_t task,
+                             GumAddress address,
+                             GumPageProtection * prot)
+{
+  kern_return_t kr;
+  gint pid, retval;
+  struct proc_regioninfo region;
+
+  kr = pid_for_task (task, &pid);
+  if (kr != KERN_SUCCESS)
+    return FALSE;
+
+  retval = __proc_info (PROC_INFO_CALL_PIDINFO, pid, PROC_PIDREGIONINFO,
+      address, &region, sizeof (struct proc_regioninfo));
+  if (retval == -1)
+    return FALSE;
+
+  *prot = gum_page_protection_from_mach (region.pri_protection);
 
   return TRUE;
 }
