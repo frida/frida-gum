@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +13,7 @@
 #include "gumlibc.h"
 #include "gummemory.h"
 #ifdef HAVE_DARWIN
+# include "gumdarwin.h"
 # include "gumdarwingrafter-priv.h"
 #endif
 
@@ -444,6 +446,9 @@ gum_import_target_activate (GumImportTarget * self,
   GumGraftedImport * import = entry->import;
   gpointer * slot;
   guint8 * trampoline;
+  mach_port_t self_task;
+  GumPageProtection prot;
+  gboolean flip_needed;
 
   import->user_data = GPOINTER_TO_SIZE (ctx);
 
@@ -456,19 +461,50 @@ gum_import_target_activate (GumImportTarget * self,
       trampoline + GUM_GRAFTED_IMPORT_ON_LEAVE_OFFSET (import);
   ctx->on_invoke_trampoline = self->implementation;
 
-  /* TODO: flip page protection when needed */
+  self_task = mach_task_self ();
+
+  if (!gum_darwin_query_protection (self_task, GUM_ADDRESS (slot), &prot))
+    return;
+
+  flip_needed = (prot & GUM_PAGE_WRITE) == 0;
+  if (flip_needed)
+  {
+    if (!gum_try_mprotect (slot, 4, prot | GUM_PAGE_WRITE))
+      return;
+  }
+
   *slot = ctx->on_enter_trampoline;
+
+  if (flip_needed)
+    gum_try_mprotect (slot, 4, prot);
 }
 
 static void
 gum_import_target_deactivate (GumImportTarget * self,
                               const GumImportEntry * entry)
 {
+  mach_port_t self_task;
+  GumPageProtection prot;
+  gboolean flip_needed;
   gpointer * slot =
       (gpointer *) ((guint8 *) entry->mach_header + entry->import->slot_offset);
 
-  /* TODO: flip page protection when needed */
+  self_task = mach_task_self ();
+
+  if (!gum_darwin_query_protection (self_task, GUM_ADDRESS (slot), &prot))
+    return;
+
+  flip_needed = (prot & GUM_PAGE_WRITE) == 0;
+  if (flip_needed)
+  {
+    if (!gum_try_mprotect (slot, 4, prot | GUM_PAGE_WRITE))
+      return;
+  }
+
   *slot = self->implementation;
+
+  if (flip_needed)
+    gum_try_mprotect (slot, 4, prot);
 }
 
 static void
