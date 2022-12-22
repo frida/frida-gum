@@ -202,3 +202,18 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
                                   GDestroyNotify data_destroy)
 {
 }
+
+gboolean
+gum_stalker_is_run_on_thread_supported (void)
+{
+  return FALSE;
+}
+
+void
+gum_stalker_run_on_thread_async (GumStalker * self,
+                                 GumThreadId thread_id,
+                                 GumStalkerRunOnThreadFunc func,
+                                 gpointer user_data)
+{
+  g_warning ("Stalker Run-On-Thread Unsupported");
+}

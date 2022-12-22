@@ -123,7 +123,29 @@ TESTLIST_BEGIN (stalker)
 #ifdef HAVE_LINUX
   TESTENTRY (prefetch)
 #endif
+  TESTENTRY (run_on_thread_support)
+  TESTENTRY (run_on_thread_current_async)
+  TESTENTRY (run_on_thread_current_sync)
+  TESTENTRY (run_on_thread_other_async)
+  TESTENTRY (run_on_thread_other_sync)
 TESTLIST_END ()
+
+typedef struct _RunOnThreadCtx RunOnThreadCtx;
+typedef struct _TestThreadSyncData TestThreadSyncData;
+
+struct _RunOnThreadCtx
+{
+  GumThreadId thread_id;
+};
+
+struct _TestThreadSyncData
+{
+  GMutex mutex;
+  GCond cond;
+  volatile gboolean started;
+  volatile GumThreadId thread_id;
+  volatile gboolean * volatile done;
+};
 
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
@@ -185,6 +207,12 @@ static void prefetch_read_blocks (int fd, GHashTable * table);
 static GHashTable * prefetch_compiled = NULL;
 static GHashTable * prefetch_executed = NULL;
 #endif
+static void run_on_thread (const GumCpuContext * cpu_context,
+    gpointer user_data);
+static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done,
+    GumThreadId * thread_id);
+static gpointer sleeping_dummy (gpointer data);
+
 
 TESTCASE (trust_should_be_one_by_default)
 {
@@ -3678,3 +3706,124 @@ prefetch_read_blocks (int fd,
 }
 
 #endif
+
+TESTCASE (run_on_thread_support)
+{
+  gboolean supported = gum_stalker_is_run_on_thread_supported ();
+  g_assert_false (supported);
+}
+
+TESTCASE (run_on_thread_current_async)
+{
+  GumThreadId thread_id = gum_process_get_current_thread_id ();
+  RunOnThreadCtx ctx;
+#if !defined (HAVE_I386)
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+      "Stalker Run-On-Thread Unsupported");
+#endif
+  gum_stalker_run_on_thread_async (fixture->stalker, thread_id, run_on_thread,
+    &ctx);
+}
+
+TESTCASE (run_on_thread_current_sync)
+{
+  GumThreadId thread_id = gum_process_get_current_thread_id ();
+  RunOnThreadCtx ctx;
+#if !defined (HAVE_I386)
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+      "Stalker Run-On-Thread Unsupported");
+#endif
+  gum_stalker_run_on_thread_sync (fixture->stalker, thread_id, run_on_thread,
+    &ctx);
+}
+
+static void
+run_on_thread (const GumCpuContext * cpu_context, gpointer user_data)
+{
+  RunOnThreadCtx * ctx = (RunOnThreadCtx *) user_data;
+  g_usleep (250000);
+  ctx->thread_id = gum_process_get_current_thread_id ();
+}
+
+TESTCASE (run_on_thread_other_async)
+{
+  GumThreadId other_id;
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  RunOnThreadCtx ctx;
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+      "Stalker Run-On-Thread Unsupported");
+
+  thread = create_sleeping_dummy_thread_sync (&done, &other_id);
+  gum_stalker_run_on_thread_async (fixture->stalker, other_id, run_on_thread,
+    &ctx);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+TESTCASE (run_on_thread_other_sync)
+{
+  GumThreadId other_id;
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  RunOnThreadCtx ctx;
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
+      "Stalker Run-On-Thread Unsupported");
+
+  thread = create_sleeping_dummy_thread_sync (&done, &other_id);
+  gum_stalker_run_on_thread_sync (fixture->stalker, other_id, run_on_thread,
+    &ctx);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+static GThread *
+create_sleeping_dummy_thread_sync (volatile gboolean * done,
+                                   GumThreadId * thread_id)
+{
+  TestThreadSyncData sync_data;
+  GThread * thread;
+
+  g_mutex_init (&sync_data.mutex);
+  g_cond_init (&sync_data.cond);
+  sync_data.started = FALSE;
+  sync_data.thread_id = 0;
+  sync_data.done = done;
+
+  g_mutex_lock (&sync_data.mutex);
+
+  thread = g_thread_new ("sleepy", sleeping_dummy, &sync_data);
+
+  while (!sync_data.started)
+    g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  if (thread_id != NULL)
+    *thread_id = sync_data.thread_id;
+
+  g_mutex_unlock (&sync_data.mutex);
+
+  g_cond_clear (&sync_data.cond);
+  g_mutex_clear (&sync_data.mutex);
+
+  return thread;
+}
+
+static gpointer
+sleeping_dummy (gpointer data)
+{
+  TestThreadSyncData * sync_data = data;
+  volatile gboolean * done = sync_data->done;
+
+  g_mutex_lock (&sync_data->mutex);
+  sync_data->started = TRUE;
+  sync_data->thread_id = gum_process_get_current_thread_id ();
+  g_cond_signal (&sync_data->cond);
+  g_mutex_unlock (&sync_data->mutex);
+
+  while (!(*done))
+    g_thread_yield ();
+
+  return NULL;
+}

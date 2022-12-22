@@ -42,6 +42,7 @@ typedef struct _GumQuickMatchContext GumQuickMatchContext;
 typedef struct _GumQuickFindModuleByNameContext GumQuickFindModuleByNameContext;
 typedef struct _GumQuickFindRangeByAddressContext
     GumQuickFindRangeByAddressContext;
+typedef struct _GumQuickRunOnThreadContext GumQuickRunOnThreadContext;
 
 struct _GumQuickExceptionHandler
 {
@@ -78,6 +79,15 @@ struct _GumQuickFindRangeByAddressContext
   GumQuickCore * core;
 };
 
+struct _GumQuickRunOnThreadContext
+{
+  GumQuickCore * core;
+  GumQuickScope scope;
+  JSValue user_func;
+  JSValue ret;
+  gboolean sync;
+};
+
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
@@ -101,6 +111,8 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_system_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
+GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread_sync)
+GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread_async)
 
 static GumQuickExceptionHandler * gum_quick_exception_handler_new (
     JSValue callback, GumQuickCore * core);
@@ -108,6 +120,8 @@ static void gum_quick_exception_handler_free (
     GumQuickExceptionHandler * handler);
 static gboolean gum_quick_exception_handler_on_exception (
     GumExceptionDetails * details, GumQuickExceptionHandler * handler);
+static void gum_js_process_run_cb (const GumCpuContext * cpu_context,
+    gpointer user_data);
 
 static const JSCFunctionListEntry gumjs_process_entries[] =
 {
@@ -129,6 +143,8 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("_enumerateMallocRanges", 0,
       gumjs_process_enumerate_malloc_ranges),
   JS_CFUNC_DEF ("setExceptionHandler", 0, gumjs_process_set_exception_handler),
+  JS_CFUNC_DEF ("runOnThreadSync", 0, gumjs_process_run_on_thread_sync),
+  JS_CFUNC_DEF ("runOnThreadAsync", 0, gumjs_process_run_on_thread_async),
 };
 
 void
@@ -590,4 +606,80 @@ gum_quick_exception_handler_on_exception (GumExceptionDetails * details,
   _gum_quick_scope_leave (&scope);
 
   return handled;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_sync)
+{
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+  GumThreadId thread_id;
+  JSValue user_func;
+  GumQuickRunOnThreadContext sync_ctx;
+  GumStalker * stalker;
+
+  if (!_gum_quick_args_parse (args, "ZF", &thread_id, &user_func))
+    return JS_EXCEPTION;
+
+  if (thread_id == 0)
+    return JS_UNDEFINED;
+
+  _gum_quick_scope_suspend (&scope);
+
+  sync_ctx.core = core;
+  sync_ctx.scope = scope;
+  sync_ctx.user_func = user_func;
+  sync_ctx.ret = JS_UNDEFINED;
+  sync_ctx.sync = TRUE;
+
+  stalker = gum_stalker_new ();
+
+  gum_stalker_run_on_thread_sync (stalker, thread_id, gum_js_process_run_cb,
+      &sync_ctx);
+  _gum_quick_scope_resume (&scope);
+
+  return sync_ctx.ret;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
+{
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+  GumThreadId thread_id;
+  JSValue user_func;
+  GumQuickRunOnThreadContext sync_ctx;
+  GumStalker * stalker;
+
+  if (!_gum_quick_args_parse (args, "ZF", &thread_id, &user_func))
+    return JS_EXCEPTION;
+
+  if (thread_id == 0)
+    return JS_UNDEFINED;
+
+  _gum_quick_scope_suspend (&scope);
+
+  sync_ctx.core = core;
+  sync_ctx.scope = scope;
+  sync_ctx.user_func = JS_DupValue (core->ctx, user_func);
+  sync_ctx.ret = JS_UNDEFINED;
+  sync_ctx.sync = FALSE;
+
+  stalker = gum_stalker_new ();
+
+  gum_stalker_run_on_thread_async (stalker, thread_id, gum_js_process_run_cb,
+      &sync_ctx);
+  _gum_quick_scope_resume (&scope);
+
+  return JS_UNDEFINED;
+}
+
+static void
+gum_js_process_run_cb (const GumCpuContext * cpu_context,
+                       gpointer user_data)
+{
+  GumQuickRunOnThreadContext * sync_ctx =
+      (GumQuickRunOnThreadContext *) user_data;
+
+  sync_ctx->ret = _gum_quick_scope_call (&sync_ctx->scope, sync_ctx->user_func,
+      JS_UNDEFINED, 0, NULL);
+
+  if (!sync_ctx->sync)
+    JS_FreeValue (sync_ctx->core->ctx, sync_ctx->user_func);
 }
