@@ -194,6 +194,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_malloc_ranges_can_be_enumerated)
     TESTENTRY (process_malloc_ranges_can_be_enumerated_legacy_style)
 #endif
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("RunOnThread")
     TESTENTRY (process_can_run_on_thread_sync)
     TESTENTRY (process_can_run_on_thread_async)
   TESTGROUP_END ()
@@ -5305,10 +5308,8 @@ TESTCASE (process_can_run_on_thread_sync)
       "send (out_val)",
       thread_id);
 
-#if defined (HAVE_I386)
   EXPECT_SEND_MESSAGE_WITH ("1338");
   EXPECT_SEND_MESSAGE_WITH ("1339");
-#endif
 
   done = TRUE;
   g_thread_join (thread);
@@ -5345,9 +5346,7 @@ TESTCASE (process_can_run_on_thread_async)
       "run();",
       thread_id);
 
-#if defined (HAVE_I386)
   EXPECT_SEND_MESSAGE_WITH ("1338");
-#endif
 
   done = TRUE;
   g_thread_join (thread);

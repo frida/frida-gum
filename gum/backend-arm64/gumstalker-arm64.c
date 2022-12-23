@@ -84,6 +84,7 @@ typedef struct _GumBackpatchCall GumBackpatchCall;
 typedef struct _GumBackpatchJmp GumBackpatchJmp;
 typedef struct _GumBackpatchInlineCache GumBackpatchInlineCache;
 typedef struct _GumBackpatchExcludedCall GumBackpatchExcludedCall;
+typedef struct _GumStalkerRunOnThreadCtx GumStalkerRunOnThreadCtx;
 
 #ifdef HAVE_LINUX
 typedef struct _Unwind_Exception _Unwind_Exception;
@@ -476,6 +477,13 @@ struct _GumBackpatch
   };
 };
 
+struct _GumStalkerRunOnThreadCtx
+{
+  GumStalker * stalker;
+  GumStalkerRunOnThreadFunc func;
+  gpointer user_data;
+};
+
 #ifdef HAVE_LINUX
 
 extern _Unwind_Reason_Code __gxx_personality_v0 (int version,
@@ -753,6 +761,9 @@ static gpointer gum_slab_try_reserve (GumSlab * self, gsize size);
 static gpointer gum_find_thread_exit_implementation (void);
 
 static gboolean gum_is_bl_imm (guint32 insn) G_GNUC_UNUSED;
+
+static void gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -5828,7 +5839,7 @@ gum_is_bl_imm (guint32 insn)
 gboolean
 gum_stalker_is_run_on_thread_supported (void)
 {
-  return FALSE;
+  return TRUE;
 }
 
 void
@@ -5837,5 +5848,73 @@ gum_stalker_run_on_thread_async (GumStalker * self,
                                  GumStalkerRunOnThreadFunc func,
                                  gpointer user_data)
 {
-  g_warning ("Stalker Run-On-Thread Unsupported");
+  GumStalkerRunOnThreadCtx ctx;
+  ctx.stalker = self;
+  ctx.func = func;
+  ctx.user_data = user_data;
+  gum_process_modify_thread (thread_id, gum_stalker_do_run_on_thread_async, &ctx);
+}
+
+static void
+gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
+                                    GumCpuContext * cpu_context,
+                                    gpointer user_data)
+{
+  GumStalkerRunOnThreadCtx * run_ctx = (GumStalkerRunOnThreadCtx *) user_data;
+  GumStalker * self = run_ctx->stalker;
+  GumExecCtx * ctx;
+  guint8 * pc;
+  GumArm64Writer * cw;
+  GumAddress cpu_ctx;
+
+  if (gum_process_get_current_thread_id () == thread_id)
+  {
+    run_ctx->func (cpu_context, run_ctx->user_data);
+  }
+  else
+  {
+    ctx = gum_stalker_create_exec_ctx (self, thread_id, NULL, NULL);
+
+    pc = GSIZE_TO_POINTER (gum_strip_code_address (cpu_context->pc));
+
+    gum_spinlock_acquire (&ctx->code_lock);
+
+    gum_stalker_thaw (self, ctx->thunks, self->thunks_size);
+    cw = &ctx->code_writer;
+    gum_arm64_writer_reset (cw, ctx->infect_thunk);
+
+    /* Copy the cpu context for the target thread. */
+    cpu_ctx = GUM_ADDRESS (gum_arm64_writer_cur (cw));
+    gum_arm64_writer_put_bytes (cw, (gpointer) cpu_context,
+        sizeof (GumCpuContext));
+
+    ctx->infect_body = GUM_ADDRESS (gum_arm64_writer_cur (cw));
+
+#ifdef HAVE_PTRAUTH
+    ctx->infect_body = GPOINTER_TO_SIZE (ptrauth_sign_unauthenticated (
+        GSIZE_TO_POINTER (ctx->infect_body), ptrauth_key_process_independent_code,
+        ptrauth_string_discriminator ("pc")));
+#endif
+    gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, cw);
+
+    gum_arm64_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (run_ctx->func), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (cpu_ctx),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (run_ctx->user_data));
+
+    gum_arm64_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (pc));
+
+    gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, cw);
+    gum_arm64_writer_put_b_imm (cw, GUM_ADDRESS (pc));
+
+    gum_arm64_writer_flush (cw);
+    gum_stalker_freeze (self, cw->base, gum_arm64_writer_offset (cw));
+
+    gum_spinlock_release (&ctx->code_lock);
+
+    cpu_context->pc = ctx->infect_body;
+  }
 }

@@ -123,11 +123,13 @@ TESTLIST_BEGIN (stalker)
 #ifdef HAVE_LINUX
   TESTENTRY (prefetch)
 #endif
-  TESTENTRY (run_on_thread_support)
-  TESTENTRY (run_on_thread_current_async)
-  TESTENTRY (run_on_thread_current_sync)
-  TESTENTRY (run_on_thread_other_async)
-  TESTENTRY (run_on_thread_other_sync)
+  TESTGROUP_BEGIN ("RunOnThread")
+    TESTENTRY (run_on_thread_support)
+    TESTENTRY (run_on_thread_current_async)
+    TESTENTRY (run_on_thread_current_sync)
+    TESTENTRY (run_on_thread_other_async)
+    TESTENTRY (run_on_thread_other_sync)
+  TESTGROUP_END ()
 TESTLIST_END ()
 
 typedef struct _RunOnThreadCtx RunOnThreadCtx;
@@ -3710,31 +3712,27 @@ prefetch_read_blocks (int fd,
 TESTCASE (run_on_thread_support)
 {
   gboolean supported = gum_stalker_is_run_on_thread_supported ();
-  g_assert_false (supported);
+  g_assert_true (supported);
 }
 
 TESTCASE (run_on_thread_current_async)
 {
   GumThreadId thread_id = gum_process_get_current_thread_id ();
   RunOnThreadCtx ctx;
-#if !defined (HAVE_I386)
-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-      "Stalker Run-On-Thread Unsupported");
-#endif
   gum_stalker_run_on_thread_async (fixture->stalker, thread_id, run_on_thread,
-    &ctx);
+      &ctx);
+
+  g_assert_cmpuint (thread_id, ==, ctx.thread_id);
 }
 
 TESTCASE (run_on_thread_current_sync)
 {
   GumThreadId thread_id = gum_process_get_current_thread_id ();
   RunOnThreadCtx ctx;
-#if !defined (HAVE_I386)
-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-      "Stalker Run-On-Thread Unsupported");
-#endif
   gum_stalker_run_on_thread_sync (fixture->stalker, thread_id, run_on_thread,
     &ctx);
+
+  g_assert_cmpuint (thread_id, ==, ctx.thread_id);
 }
 
 static void
@@ -3747,29 +3745,31 @@ run_on_thread (const GumCpuContext * cpu_context, gpointer user_data)
 
 TESTCASE (run_on_thread_other_async)
 {
-  GumThreadId other_id;
+  GumThreadId this_id, other_id;
   volatile gboolean done = FALSE;
   GThread * thread;
   RunOnThreadCtx ctx;
-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-      "Stalker Run-On-Thread Unsupported");
+
+  this_id = gum_process_get_current_thread_id ();
 
   thread = create_sleeping_dummy_thread_sync (&done, &other_id);
   gum_stalker_run_on_thread_async (fixture->stalker, other_id, run_on_thread,
-    &ctx);
+      &ctx);
 
   done = TRUE;
   g_thread_join (thread);
+  g_assert_cmpuint (this_id, !=, other_id);
+  g_assert_cmpuint (other_id, ==, ctx.thread_id);
 }
 
 TESTCASE (run_on_thread_other_sync)
 {
-  GumThreadId other_id;
+  GumThreadId this_id, other_id;
   volatile gboolean done = FALSE;
   GThread * thread;
   RunOnThreadCtx ctx;
-  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
-      "Stalker Run-On-Thread Unsupported");
+
+  this_id = gum_process_get_current_thread_id ();
 
   thread = create_sleeping_dummy_thread_sync (&done, &other_id);
   gum_stalker_run_on_thread_sync (fixture->stalker, other_id, run_on_thread,
@@ -3777,6 +3777,8 @@ TESTCASE (run_on_thread_other_sync)
 
   done = TRUE;
   g_thread_join (thread);
+  g_assert_cmpuint (this_id, !=, other_id);
+  g_assert_cmpuint (other_id, ==, ctx.thread_id);
 }
 
 static GThread *

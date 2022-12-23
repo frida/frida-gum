@@ -119,11 +119,13 @@ TESTLIST_BEGIN (stalker)
     TESTENTRY (try_and_dont_catch_excluded)
   TESTGROUP_END ()
 #endif
-  TESTENTRY (run_on_thread_support)
-  TESTENTRY (run_on_thread_current_async)
-  TESTENTRY (run_on_thread_current_sync)
-  TESTENTRY (run_on_thread_other_async)
-  TESTENTRY (run_on_thread_other_sync)
+  TESTGROUP_BEGIN ("RunOnThread")
+    TESTENTRY (run_on_thread_support)
+    TESTENTRY (run_on_thread_current_async)
+    TESTENTRY (run_on_thread_current_sync)
+    TESTENTRY (run_on_thread_other_async)
+    TESTENTRY (run_on_thread_other_sync)
+  TESTGROUP_END ()
 TESTLIST_END ()
 
 #ifdef HAVE_LINUX
