@@ -5908,7 +5908,18 @@ gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
         GUM_ARG_ADDRESS, GUM_ADDRESS (pc));
 
     gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, cw);
-    gum_arm64_writer_put_b_imm (cw, GUM_ADDRESS (pc));
+
+    /*
+    * Here we spoil x17 since this is a necessity of the AARCH64 architecture
+    * when performing long branches. However, the documentation states...
+    *
+    * "Registers r16 (IP0) and r17 (IP1) may be used by a linker as a scratch
+    * register between a routine and any subroutine it calls."
+    *
+    * This same approach is used elsewhere in Stalker for aarch64.
+    */
+    gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X17, GUM_ADDRESS (pc));
+    gum_arm64_writer_put_br_reg_no_auth (cw, ARM64_REG_X17);
 
     gum_arm64_writer_flush (cw);
     gum_stalker_freeze (self, cw->base, gum_arm64_writer_offset (cw));
