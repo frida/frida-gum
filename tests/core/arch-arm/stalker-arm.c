@@ -3719,20 +3719,45 @@ TESTCASE (run_on_thread_current_async)
 {
   GumThreadId thread_id = gum_process_get_current_thread_id ();
   RunOnThreadCtx ctx;
+
+  ctx.thread_id = 0xdeadc0de;
+
   gum_stalker_run_on_thread_async (fixture->stalker, thread_id, run_on_thread,
       &ctx);
 
+#if defined (HAVE_ANDROID)
+  /*
+   * getcontext/setcontext is not supported on the musl C-runtime (or Android),
+   * therefore `gum_process_modify_thread` does not call the callback provided
+   * when the thread_id is that of the current thread. Thus our call above is
+   * inert.
+   */
+  g_assert_cmpuint (0xdeadc0de, ==, ctx.thread_id);
+#else
   g_assert_cmpuint (thread_id, ==, ctx.thread_id);
+#endif
 }
 
 TESTCASE (run_on_thread_current_sync)
 {
   GumThreadId thread_id = gum_process_get_current_thread_id ();
   RunOnThreadCtx ctx;
+
+  ctx.thread_id = 0xdeadc0de;
   gum_stalker_run_on_thread_sync (fixture->stalker, thread_id, run_on_thread,
     &ctx);
 
+#if defined (HAVE_ANDROID)
+  /*
+   * getcontext/setcontext is not supported on the musl C-runtime (or Android),
+   * therefore `gum_process_modify_thread` does not call the callback provided
+   * when the thread_id is that of the current thread. Thus our call above is
+   * inert.
+   */
+  g_assert_cmpuint (0xdeadc0de, ==, ctx.thread_id);
+#else
   g_assert_cmpuint (thread_id, ==, ctx.thread_id);
+#endif
 }
 
 static void
