@@ -6691,6 +6691,16 @@ gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
     gum_x86_writer_put_bytes (cw, (gpointer) cpu_context,
         sizeof (GumCpuContext));
 
+#ifdef HAVE_LINUX
+    /*
+     * In case the thread is in a Linux system call we prefix with a couple of
+     * NOPs so that when we restart, we don't re-attempt the syscall. We will
+     * drop ourselves back to the syscall once we are done.
+     */
+    gum_x86_writer_put_nop_padding (cw, MAX (sizeof (gum_int80_code),
+        sizeof (gum_syscall_code)));
+#endif
+
     ctx->infect_body = GUM_ADDRESS (gum_x86_writer_cur (cw));
     gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, cw);
     gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
@@ -6703,7 +6713,26 @@ gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
         GUM_ARG_ADDRESS, GUM_ADDRESS (pc));
     gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, cw);
 
+#ifdef HAVE_LINUX
+    if (memcmp (&pc[-sizeof (gum_int80_code)], gum_int80_code,
+        sizeof (gum_int80_code)) == 0)
+    {
+      gum_x86_writer_put_jmp_address (cw,
+          GUM_ADDRESS (&pc[-sizeof (gum_int80_code)]));
+    }
+    else if (memcmp (&pc[-sizeof (gum_syscall_code)], gum_syscall_code,
+      sizeof (gum_syscall_code)) == 0)
+    {
+      gum_x86_writer_put_jmp_address (cw,
+          GUM_ADDRESS (&pc[-sizeof (gum_syscall_code)]));
+    }
+    else
+    {
+      gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (pc));
+    }
+#else
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (pc));
+#endif
 
     gum_x86_writer_flush (cw);
     gum_stalker_freeze (self, cw->base, gum_x86_writer_offset (cw));
