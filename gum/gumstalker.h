@@ -275,10 +275,10 @@ GUM_API void gum_stalker_observer_switch_callback (
 
 GUM_API gboolean gum_stalker_is_run_on_thread_supported (void);
 
-GUM_API void gum_stalker_run_on_thread_async (GumStalker * self,
+GUM_API gboolean gum_stalker_run_on_thread_async (GumStalker * self,
     GumThreadId thread_id, GumStalkerRunOnThreadFunc func, gpointer user_data);
 
-GUM_API void gum_stalker_run_on_thread_sync (GumStalker * self,
+GUM_API gboolean gum_stalker_run_on_thread_sync (GumStalker * self,
     GumThreadId thread_id, GumStalkerRunOnThreadFunc func, gpointer user_data);
 
 G_END_DECLS

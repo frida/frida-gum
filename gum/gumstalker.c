@@ -424,7 +424,7 @@ gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
       target);
 }
 
-void
+gboolean
 gum_stalker_run_on_thread_sync (GumStalker * self,
                                 GumThreadId thread_id,
                                 GumStalkerRunOnThreadFunc func,
@@ -434,13 +434,12 @@ gum_stalker_run_on_thread_sync (GumStalker * self,
 
   if (!gum_stalker_is_run_on_thread_supported ())
   {
-    g_warning ("Stalker Run-On-Thread Unsupported");
-    return;
+    return FALSE;
   }
 
   if (gum_process_get_current_thread_id () == thread_id)
   {
-    gum_stalker_run_on_thread_async (self, thread_id, func, user_data);
+    return gum_stalker_run_on_thread_async (self, thread_id, func, user_data);
   }
   else
   {
@@ -451,8 +450,11 @@ gum_stalker_run_on_thread_sync (GumStalker * self,
     ctx.user_data = user_data;
 
     g_mutex_lock (&ctx.mutex);
-    gum_stalker_run_on_thread_async (self, thread_id,
-        gum_stalker_do_run_on_thread_sync, &ctx);
+    if (!gum_stalker_run_on_thread_async (self, thread_id,
+        gum_stalker_do_run_on_thread_sync, &ctx))
+    {
+      return FALSE;
+    }
 
     while (!ctx.done)
       g_cond_wait (&ctx.cond, &ctx.mutex);
@@ -461,6 +463,8 @@ gum_stalker_run_on_thread_sync (GumStalker * self,
 
     g_cond_clear (&ctx.cond);
     g_mutex_clear (&ctx.mutex);
+
+    return TRUE;
   }
 
 }

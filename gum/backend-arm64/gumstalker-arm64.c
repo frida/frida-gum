@@ -5842,7 +5842,7 @@ gum_stalker_is_run_on_thread_supported (void)
   return TRUE;
 }
 
-void
+gboolean
 gum_stalker_run_on_thread_async (GumStalker * self,
                                  GumThreadId thread_id,
                                  GumStalkerRunOnThreadFunc func,
@@ -5852,7 +5852,8 @@ gum_stalker_run_on_thread_async (GumStalker * self,
   ctx.stalker = self;
   ctx.func = func;
   ctx.user_data = user_data;
-  gum_process_modify_thread (thread_id, gum_stalker_do_run_on_thread_async, &ctx);
+  return gum_process_modify_thread (thread_id,
+      gum_stalker_do_run_on_thread_async, &ctx);
 }
 
 static void

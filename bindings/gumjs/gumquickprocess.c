@@ -84,7 +84,6 @@ struct _GumQuickRunOnThreadContext
   GumQuickCore * core;
   GumQuickScope scope;
   JSValue user_func;
-  JSValue ret;
   gboolean sync;
 };
 
@@ -615,6 +614,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_sync)
   JSValue user_func;
   GumQuickRunOnThreadContext sync_ctx;
   GumStalker * stalker;
+  gboolean success;
 
   if (!_gum_quick_args_parse (args, "ZF", &thread_id, &user_func))
     return JS_EXCEPTION;
@@ -627,16 +627,28 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_sync)
   sync_ctx.core = core;
   sync_ctx.scope = scope;
   sync_ctx.user_func = user_func;
-  sync_ctx.ret = JS_UNDEFINED;
   sync_ctx.sync = TRUE;
 
   stalker = gum_stalker_new ();
 
-  gum_stalker_run_on_thread_sync (stalker, thread_id, gum_js_process_run_cb,
-      &sync_ctx);
+  success = gum_stalker_run_on_thread_sync (stalker, thread_id,
+      gum_js_process_run_cb, &sync_ctx);
   _gum_quick_scope_resume (&scope);
 
-  return sync_ctx.ret;
+  while (gum_stalker_garbage_collect (stalker))
+    g_usleep (10000);
+
+  g_object_unref (stalker);
+
+  if (success)
+  {
+    return JS_UNDEFINED;
+  }
+  else
+  {
+    _gum_quick_throw_literal (ctx, "Failed to run on thread");
+    return JS_EXCEPTION;
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
@@ -646,6 +658,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
   JSValue user_func;
   GumQuickRunOnThreadContext sync_ctx;
   GumStalker * stalker;
+  gboolean success;
 
   if (!_gum_quick_args_parse (args, "ZF", &thread_id, &user_func))
     return JS_EXCEPTION;
@@ -658,16 +671,28 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
   sync_ctx.core = core;
   sync_ctx.scope = scope;
   sync_ctx.user_func = JS_DupValue (core->ctx, user_func);
-  sync_ctx.ret = JS_UNDEFINED;
   sync_ctx.sync = FALSE;
 
   stalker = gum_stalker_new ();
 
-  gum_stalker_run_on_thread_async (stalker, thread_id, gum_js_process_run_cb,
-      &sync_ctx);
+  success = gum_stalker_run_on_thread_async (stalker, thread_id,
+      gum_js_process_run_cb, &sync_ctx);
   _gum_quick_scope_resume (&scope);
 
-  return JS_UNDEFINED;
+  while (gum_stalker_garbage_collect (stalker))
+    g_usleep (10000);
+
+  g_object_unref (stalker);
+
+  if (success)
+  {
+    return JS_UNDEFINED;
+  }
+  else
+  {
+    _gum_quick_throw_literal (ctx, "Failed to run on thread");
+    return JS_EXCEPTION;
+  }
 }
 
 static void
@@ -677,8 +702,8 @@ gum_js_process_run_cb (const GumCpuContext * cpu_context,
   GumQuickRunOnThreadContext * sync_ctx =
       (GumQuickRunOnThreadContext *) user_data;
 
-  sync_ctx->ret = _gum_quick_scope_call (&sync_ctx->scope, sync_ctx->user_func,
-      JS_UNDEFINED, 0, NULL);
+  _gum_quick_scope_call (&sync_ctx->scope, sync_ctx->user_func, JS_UNDEFINED, 0,
+      NULL);
 
   if (!sync_ctx->sync)
     JS_FreeValue (sync_ctx->core->ctx, sync_ctx->user_func);

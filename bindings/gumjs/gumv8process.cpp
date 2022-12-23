@@ -504,6 +504,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_sync)
   Local<Function> user_func;
   GumV8RunOnThreadContext sync_ctx;
   GumStalker * stalker;
+  gboolean success;
 
   auto isolate = core->isolate;
   auto context = isolate->GetCurrentContext ();
@@ -523,11 +524,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_sync)
     sync_ctx.context = context;
     sync_ctx.user_func = user_func;
 
-    gum_stalker_run_on_thread_sync (stalker, thread_id, gum_js_process_run_cb,
-        &sync_ctx);
+    success = gum_stalker_run_on_thread_sync (stalker, thread_id,
+        gum_js_process_run_cb, &sync_ctx);
   }
 
-  info.GetReturnValue ().Set (sync_ctx.ret.ToLocalChecked ());
+  while (gum_stalker_garbage_collect (stalker))
+    g_usleep (10000);
+
+  g_object_unref (stalker);
+
+  if (success)
+    info.GetReturnValue ().Set (sync_ctx.ret.ToLocalChecked ());
+  else
+    _gum_v8_throw_ascii_literal (isolate, "Failed to run on thread");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
@@ -536,6 +545,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
   Local<Function> user_func;
   GumV8RunOnThreadContext sync_ctx;
   GumStalker * stalker;
+  gboolean success;
 
   auto isolate = core->isolate;
   auto context = isolate->GetCurrentContext ();
@@ -555,9 +565,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
     sync_ctx.context = context;
     sync_ctx.user_func = Local<Function>::New (isolate, user_func);
 
-    gum_stalker_run_on_thread_async (stalker, thread_id, gum_js_process_run_cb,
-        &sync_ctx);
+    success = gum_stalker_run_on_thread_async (stalker, thread_id,
+        gum_js_process_run_cb, &sync_ctx);
   }
+
+  while (gum_stalker_garbage_collect (stalker))
+    g_usleep (10000);
+
+  g_object_unref (stalker);
+
+  if (!success)
+    _gum_v8_throw_ascii_literal (isolate, "Failed to run on thread");
 }
 
 static void
