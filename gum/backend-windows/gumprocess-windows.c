@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -21,6 +21,8 @@
 # pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
+typedef HRESULT (WINAPI * GumGetThreadDescriptionFunc) (
+    HANDLE thread, WCHAR ** description);
 typedef void (WINAPI * GumGetCurrentThreadStackLimitsFunc) (
     PULONG_PTR low_limit, PULONG_PTR high_limit);
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
@@ -206,6 +208,10 @@ gum_windows_get_thread_details (DWORD thread_id,
                                 GumThreadDetails * details)
 {
   gboolean success = FALSE;
+  static gsize initialized = FALSE;
+  static GumGetThreadDescriptionFunc get_thread_description;
+  static DWORD desired_access;
+  HANDLE thread = NULL;
 #ifdef _MSC_VER
   __declspec (align (64))
 #endif
@@ -215,7 +221,42 @@ gum_windows_get_thread_details (DWORD thread_id,
 #endif
         = { 0, };
 
+  memset (details, 0, sizeof (GumThreadDetails));
+
+  if (g_once_init_enter (&initialized))
+  {
+    get_thread_description = (GumGetThreadDescriptionFunc) GetProcAddress (
+        GetModuleHandle (_T ("kernel32.dll")),
+        "GetThreadDescription");
+
+    desired_access = THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME;
+    if (get_thread_description != NULL)
+      desired_access |= THREAD_QUERY_LIMITED_INFORMATION;
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  thread = OpenThread (desired_access, FALSE, thread_id);
+  if (thread == NULL)
+    goto beach;
+
   details->id = thread_id;
+
+  if (get_thread_description != NULL)
+  {
+    WCHAR * name_utf16;
+
+    if (!SUCCEEDED (get_thread_description (thread, &name_utf16)))
+      goto beach;
+
+    if (name_utf16[0] != L'\0')
+    {
+      details->name = g_utf16_to_utf8 ((const gunichar2 *) name_utf16, -1, NULL,
+          NULL, NULL);
+    }
+
+    LocalFree (name_utf16);
+  }
 
   if (thread_id == GetCurrentThreadId ())
   {
@@ -228,35 +269,33 @@ gum_windows_get_thread_details (DWORD thread_id,
   }
   else
   {
-    HANDLE thread;
+    DWORD previous_suspend_count;
 
-    thread = OpenThread (THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME, FALSE,
-        thread_id);
-    if (thread != NULL)
+    previous_suspend_count = SuspendThread (thread);
+    if (previous_suspend_count == (DWORD) -1)
+      goto beach;
+
+    if (previous_suspend_count == 0)
+      details->state = GUM_THREAD_RUNNING;
+    else
+      details->state = GUM_THREAD_STOPPED;
+
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+    if (GetThreadContext (thread, &context))
     {
-      DWORD previous_suspend_count;
-
-      previous_suspend_count = SuspendThread (thread);
-      if (previous_suspend_count != (DWORD) -1)
-      {
-        if (previous_suspend_count == 0)
-          details->state = GUM_THREAD_RUNNING;
-        else
-          details->state = GUM_THREAD_STOPPED;
-
-        context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-        if (GetThreadContext (thread, &context))
-        {
-          gum_windows_parse_context (&context, &details->cpu_context);
-          success = TRUE;
-        }
-
-        ResumeThread (thread);
-      }
-
-      CloseHandle (thread);
+      gum_windows_parse_context (&context, &details->cpu_context);
+      success = TRUE;
     }
+
+    ResumeThread (thread);
   }
+
+beach:
+  if (thread != NULL)
+    CloseHandle (thread);
+
+  if (!success)
+    g_free ((gpointer) details->name);
 
   return success;
 }

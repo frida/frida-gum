@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -238,8 +238,20 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
       (devctl (fd, DCMD_PROC_TIDSTATUS, &thread, sizeof (thread), NULL) == 0))
   {
     GumThreadDetails details;
+    gchar thread_name[_NTO_THREAD_NAME_MAX];
 
     details.id = thread.tid;
+
+    if (pthread_getname_np (thread.tid, thread_name,
+          sizeof (thread_name)) == 0 && thread_name[0] != '\0')
+    {
+      details.name = thread_name;
+    }
+    else
+    {
+      details.name = NULL;
+    }
+
     details.state = gum_thread_state_from_system_thread_state (thread.state);
 
     if (thread.state != STATE_DEAD &&
