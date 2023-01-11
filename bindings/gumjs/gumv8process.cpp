@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -251,6 +252,8 @@ gum_emit_thread (const GumThreadDetails * details,
 
   auto thread = Object::New (isolate);
   _gum_v8_object_set (thread, "id", Number::New (isolate, details->id), core);
+  if (details->name != NULL)
+    _gum_v8_object_set_utf8 (thread, "name", details->name, core);
   _gum_v8_object_set (thread, "state", _gum_v8_string_new_ascii (isolate,
       _gum_v8_thread_state_to_string (details->state)), core);
   auto cpu_context =

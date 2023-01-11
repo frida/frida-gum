@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -291,6 +292,13 @@ gum_emit_thread (const GumThreadDetails * details,
       GUM_QUICK_CORE_ATOM (core, id),
       JS_NewInt64 (ctx, details->id),
       JS_PROP_C_W_E);
+  if (details->name != NULL)
+  {
+    JS_DefinePropertyValue (ctx, thread,
+        GUM_QUICK_CORE_ATOM (core, name),
+        JS_NewString (ctx, details->name),
+        JS_PROP_C_W_E);
+  }
   JS_DefinePropertyValue (ctx, thread,
       GUM_QUICK_CORE_ATOM (core, state),
       _gum_quick_thread_state_new (ctx, details->state),

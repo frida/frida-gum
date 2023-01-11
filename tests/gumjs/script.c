@@ -4,6 +4,7 @@
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -195,6 +196,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_current_thread_id_is_available)
     TESTENTRY (process_threads_can_be_enumerated)
     TESTENTRY (process_threads_can_be_enumerated_legacy_style)
+    TESTENTRY (process_threads_have_names)
     TESTENTRY (process_modules_can_be_enumerated)
     TESTENTRY (process_modules_can_be_enumerated_legacy_style)
     TESTENTRY (process_module_can_be_looked_up_from_address)
@@ -496,6 +498,7 @@ TESTLIST_END ()
 
 typedef int (* TargetFunctionInt) (int arg);
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
+typedef struct _GumNamedSleeperContext GumNamedSleeperContext;
 typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
 typedef struct _TestTrigger TestTrigger;
 
@@ -505,6 +508,12 @@ struct _GumInvokeTargetContext
   guint repeat_duration;
   volatile gint started;
   volatile gint finished;
+};
+
+struct _GumNamedSleeperContext
+{
+  GAsyncQueue * controller_messages;
+  GAsyncQueue * sleeper_messages;
 };
 
 struct _GumCrashExceptorContext
@@ -559,6 +568,7 @@ static gpointer run_stalked_through_target_function (gpointer data);
 #endif
 
 static gpointer sleeping_dummy (gpointer data);
+static gpointer named_sleeper (gpointer data);
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 static gpointer invoke_target_function_trigger (gpointer data);
@@ -4995,7 +5005,7 @@ TESTCASE (process_threads_can_be_enumerated_legacy_style)
     return;
 #endif
 
-#if defined (HAVE_ANDROID) || defined (HAVE_MIPS)
+#if defined (HAVE_MIPS)
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
@@ -5036,6 +5046,64 @@ sleeping_dummy (gpointer data)
 
   while (!(*done))
     g_thread_yield ();
+
+  return NULL;
+}
+
+TESTCASE (process_threads_have_names)
+{
+  GumNamedSleeperContext ctx;
+  GThread * thread;
+
+#ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+#endif
+
+#ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
+  ctx.controller_messages = g_async_queue_new ();
+  ctx.sleeper_messages = g_async_queue_new ();
+
+  thread = g_thread_new ("named-sleeper", named_sleeper, &ctx);
+  g_assert_cmpstr (g_async_queue_pop (ctx.controller_messages), ==, "ready");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.enumerateThreads().some(t => t.name === 'named-sleeper'));"
+  );
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+  g_async_queue_push (ctx.sleeper_messages, "done");
+  g_thread_join (thread);
+
+  g_async_queue_unref (ctx.sleeper_messages);
+  g_async_queue_unref (ctx.controller_messages);
+}
+
+static gpointer
+named_sleeper (gpointer data)
+{
+  GumNamedSleeperContext * ctx = data;
+
+  /*
+   * On Linux g_thread_new() may not actually set the thread name, which is due
+   * to GLib potentially having been prebuilt against an old libc. Therefore we
+   * set the name manually using pthreads.
+   */
+#ifdef HAVE_LINUX
+  pthread_setname_np (pthread_self (), "named-sleeper");
+#endif
+
+  g_async_queue_push (ctx->controller_messages, "ready");
+
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done");
 
   return NULL;
 }

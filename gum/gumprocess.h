@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2024 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -59,6 +60,7 @@ typedef enum {
 struct _GumThreadDetails
 {
   GumThreadId id;
+  const gchar * name;
   GumThreadState state;
   GumCpuContext cpu_context;
 };

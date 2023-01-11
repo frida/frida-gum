@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -408,6 +408,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
     GumThreadDetails details;
 
     details.id = p->ki_tid;
+    details.name = (p->ki_tdname[0] != '\0') ? p->ki_tdname : NULL;
     details.state = gum_thread_state_from_proc (p);
     if (!gum_process_modify_thread (details.id, gum_store_cpu_context,
           &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))

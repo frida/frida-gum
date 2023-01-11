@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -257,6 +258,7 @@ static void gum_proc_maps_iter_init_for_path (GumProcMapsIter * iter,
 static void gum_acquire_dumpability (void);
 static void gum_release_dumpability (void);
 
+static gchar * gum_thread_read_name (GumThreadId thread_id);
 static gboolean gum_thread_read_state (GumThreadId tid, GumThreadState * state);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static GumPageProtection gum_page_protection_from_proc_perms_string (
@@ -721,7 +723,6 @@ gboolean
 gum_process_has_thread (GumThreadId thread_id)
 {
   gchar path[16 + 20 + 1];
-
   sprintf (path, "/proc/self/task/%" G_GSIZE_MODIFIER "u", thread_id);
 
   return g_file_test (path, G_FILE_TEST_EXISTS);
@@ -1021,8 +1022,13 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   while (carry_on && (name = g_dir_read_name (dir)) != NULL)
   {
     GumThreadDetails details;
+    gchar * thread_name;
 
     details.id = atoi (name);
+
+    thread_name = gum_thread_read_name (details.id);
+    details.name = thread_name;
+
     if (gum_thread_read_state (details.id, &details.state))
     {
       if (gum_process_modify_thread (details.id, gum_store_cpu_context,
@@ -1031,6 +1037,8 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
         carry_on = func (&details, user_data);
       }
     }
+
+    g_free (thread_name);
   }
 
   g_dir_close (dir);
@@ -2669,6 +2677,26 @@ gum_unparse_regs (const GumCpuContext * ctx,
 #else
 # error Unsupported architecture
 #endif
+}
+
+static gchar *
+gum_thread_read_name (GumThreadId thread_id)
+{
+  gchar * name = NULL;
+  gchar * path;
+  gchar * comm = NULL;
+
+  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/comm",
+      thread_id);
+  if (!g_file_get_contents (path, &comm, NULL, NULL))
+    goto beach;
+  name = g_strchomp (g_steal_pointer (&comm));
+
+beach:
+  g_free (comm);
+  g_free (path);
+
+  return name;
 }
 
 static gboolean
