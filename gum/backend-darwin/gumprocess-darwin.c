@@ -429,78 +429,50 @@ gum_process_modify_thread (GumThreadId thread_id,
 #ifdef HAVE_WATCHOS
   return FALSE;
 #else
-  gboolean success = FALSE;
-  mach_port_t task;
-  thread_act_array_t threads;
-  mach_msg_type_number_t count;
   kern_return_t kr;
+  const mach_port_t thread = thread_id;
+  GumDarwinUnifiedThreadState state;
+  mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
+  thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
+  GumCpuContext cpu_context;
+  gboolean state_is_valid = FALSE;
+  guint fail_count = 0;
 
-  task = mach_task_self ();
-
-  kr = task_threads (task, &threads, &count);
-  if (kr == KERN_SUCCESS)
+  do
   {
-    guint i;
+    kr = thread_suspend (thread);
+    if (kr != KERN_SUCCESS)
+      return FALSE;
 
-    for (i = 0; i != count; i++)
+    kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
+        &state_count);
+    if (kr != KERN_SUCCESS)
     {
-      thread_t thread = threads[i];
-
-      if (thread == thread_id)
-      {
-        GumDarwinUnifiedThreadState state;
-        mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
-        thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
-        GumCpuContext cpu_context;
-        gboolean state_is_valid = FALSE;
-        guint fail_count = 0;
-
-        do
-        {
-          kr = thread_suspend (thread);
-          if (kr != KERN_SUCCESS)
-            break;
-
-          kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
-              &state_count);
-          if (kr != KERN_SUCCESS)
-          {
-            thread_resume (thread);
-            break;
-          }
-
-          state_is_valid = gum_darwin_is_unified_thread_state_valid (&state);
-          if (!state_is_valid)
-          {
-            thread_resume (thread);
-            fail_count++;
-            if (fail_count < GUM_MAX_THREAD_POLL)
-              g_usleep (GUM_THREAD_POLL_STEP);
-          }
-        }
-        while (!state_is_valid && fail_count < GUM_MAX_THREAD_POLL);
-
-        if (kr != KERN_SUCCESS || fail_count >= GUM_MAX_THREAD_POLL)
-          break;
-
-        gum_darwin_parse_unified_thread_state (&state, &cpu_context);
-        func (thread_id, &cpu_context, user_data);
-        gum_darwin_unparse_unified_thread_state (&cpu_context, &state);
-
-        kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
-            state_count);
-
-        success =
-            (thread_resume (thread) == KERN_SUCCESS && kr == KERN_SUCCESS);
-      }
+      thread_resume (thread);
+      return FALSE;
     }
 
-    for (i = 0; i != count; i++)
-      mach_port_deallocate (task, threads[i]);
-    vm_deallocate (task, (vm_address_t) threads, count * sizeof (thread_t));
+    state_is_valid = gum_darwin_is_unified_thread_state_valid (&state);
+    if (!state_is_valid)
+    {
+      thread_resume (thread);
+      fail_count++;
+      if (fail_count < GUM_MAX_THREAD_POLL)
+        g_usleep (GUM_THREAD_POLL_STEP);
+      else
+        return FALSE;
+    }
   }
+  while (!state_is_valid);
 
-  return success;
+  gum_darwin_parse_unified_thread_state (&state, &cpu_context);
+  func (thread_id, &cpu_context, user_data);
+  gum_darwin_unparse_unified_thread_state (&cpu_context, &state);
+
+  kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
+      state_count);
+
+  return thread_resume (thread) == KERN_SUCCESS && kr == KERN_SUCCESS;
 #endif
 }
 
