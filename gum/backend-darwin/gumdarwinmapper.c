@@ -10,6 +10,7 @@
 
 #include "gumdarwin.h"
 #include "gumdarwinmodule.h"
+#include "gumdarwinmodule-priv.h"
 #include "helpers/fixupchainprocessor.h"
 
 #include <dlfcn.h>
@@ -65,6 +66,7 @@ struct _GumDarwinMapper
   GumAddress apple_strv;
   GumAddress process_chained_fixups;
   GumAddress chained_symbols_vector;
+  GumAddress tlv_get_addrAddr;
   gsize runtime_vm_size;
   gsize runtime_file_size;
   gsize runtime_header_size;
@@ -658,6 +660,35 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
 }
 
 gboolean
+gum_darwin_mapper_find_tlv_get_addr (const GumDarwinSectionDetails * details,
+                                     gpointer user_data)
+{
+  GumMapContext * ctx = user_data;
+  GumDarwinModule * module = ctx->mapper->module;
+  GumMachHeader32 * header;
+
+  gum_darwin_module_ensure_image_loaded (module, NULL);
+  header = module->image->data;
+
+  if (strcmp (details->section_name, "__dyld4") == 0) {
+    if (header->magic == GUM_MH_MAGIC_32)
+      ctx->mapper->tlv_get_addrAddr = (GumAddress) (
+        (GumFixedSizeLibdyldDyld4Section32 *) details->vm_address
+      )->tlv_get_addrAddr;
+    else if (header->magic == GUM_MH_MAGIC_64)
+      ctx->mapper->tlv_get_addrAddr =(GumAddress) (
+        (GumFixedSizeLibdyldDyld4Section64 *) details->vm_address
+      )->tlv_get_addrAddr;
+    else
+      return FALSE;
+
+    ctx->success = TRUE;
+    return FALSE;
+  }
+  return TRUE;
+}
+
+gboolean
 gum_darwin_mapper_map (GumDarwinMapper * self,
                        GumAddress base_address,
                        GError ** error)
@@ -668,6 +699,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   GSList * cur;
   GumDarwinModule * module = self->module;
   mach_port_t task = self->resolver->task;
+  GumDarwinModule * libdyld;
   guint i;
   mach_vm_address_t mapped_address;
   vm_prot_t cur_protection, max_protection;
@@ -713,6 +745,14 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     goto beach;
 
   gum_darwin_module_enumerate_lazy_binds (module, gum_darwin_mapper_bind, &ctx);
+  if (!ctx.success)
+    goto beach;
+
+  libdyld = gum_darwin_module_resolver_find_module (self->resolver,
+      "libdyld.dylib");
+  ctx.success = FALSE;
+  gum_darwin_module_enumerate_sections(libdyld,
+      gum_darwin_mapper_find_tlv_get_addr, &ctx);
   if (!ctx.success)
     goto beach;
 

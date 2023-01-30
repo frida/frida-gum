@@ -62,6 +62,8 @@ typedef struct _GumNList64 GumNList64;
 typedef struct _GumFindDarwinTLVDescriptorsContext GumFindDarwinTLVDescriptorsContext;
 typedef struct _GumFixedSizeTLVThunk32 GumFixedSizeTLVThunk32;
 typedef struct _GumFixedSizeTLVThunk64 GumFixedSizeTLVThunk64;
+typedef struct _GumFixedSizeLibdyldDyld4Section32 GumFixedSizeLibdyldDyld4Section32;
+typedef struct _GumFixedSizeLibdyldDyld4Section64 GumFixedSizeLibdyldDyld4Section64;
 
 struct _GumFatHeader
 {
@@ -415,6 +417,22 @@ struct _GumFixedSizeTLVThunk64 {
   guint64 thunk;
   guint64 key;
   guint64 offset;
+};
+
+struct _GumFixedSizeLibdyldDyld4Section32 {
+    guint32 apis;
+    guint32 allImageInfos;
+    guint32 defaultVars[5];
+    guint32 dyldLookupFuncAddr;
+    guint32 tlv_get_addrAddr;
+};
+
+struct _GumFixedSizeLibdyldDyld4Section64 {
+    guint64 apis;
+    guint64 allImageInfos;
+    guint64 defaultVars[5];
+    guint64 dyldLookupFuncAddr;
+    guint64 tlv_get_addrAddr;
 };
 
 G_END_DECLS
