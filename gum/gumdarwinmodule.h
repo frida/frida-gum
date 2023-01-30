@@ -39,6 +39,7 @@ typedef struct _GumDarwinFunctionStartsDetails GumDarwinFunctionStartsDetails;
 typedef struct _GumDarwinSegment GumDarwinSegment;
 typedef struct _GumDarwinExportDetails GumDarwinExportDetails;
 typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
+typedef struct _GumDarwinThreadLocalVariableDescriptorDetails GumDarwinThreadLocalVariableDescriptorDetails;
 
 typedef guint8 GumDarwinRebaseType;
 typedef guint8 GumDarwinBindType;
@@ -59,6 +60,8 @@ typedef gboolean (* GumFoundDarwinSectionFunc) (
     const GumDarwinSectionDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinChainedFixupsFunc) (
     const GumDarwinChainedFixupsDetails * details, gpointer user_data);
+typedef gboolean (* GumFoundDarwinTLVDescriptorFunc) (
+    const GumDarwinThreadLocalVariableDescriptorDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinRebaseFunc) (
     const GumDarwinRebaseDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinBindFunc) (
@@ -341,6 +344,14 @@ struct _GumDarwinSymbolDetails
   guint16 description;
 };
 
+struct _GumDarwinThreadLocalVariableDescriptorDetails
+{
+  guint64 file_offset;
+  GumAddress thunk;
+  guint64 key;
+  gsize offset;
+};
+
 enum _GumDarwinRebaseType
 {
   GUM_DARWIN_REBASE_POINTER = 1,
@@ -599,6 +610,13 @@ GUM_API gboolean gum_darwin_module_is_address_in_text_section (
     GumDarwinModule * self, GumAddress address);
 GUM_API void gum_darwin_module_enumerate_chained_fixups (GumDarwinModule * self,
     GumFoundDarwinChainedFixupsFunc func, gpointer user_data);
+GUM_API gboolean gum_darwin_module_has_tlv_descriptors (GumDarwinModule * self);
+GUM_API guint32 gum_darwin_module_get_tlv_descriptors_file_offset (
+  GumDarwinModule * self);
+GUM_API guint gum_darwin_module_count_tlv_descriptors (GumDarwinModule * self);
+GUM_API void gum_darwin_module_enumerate_tlv_descriptors (
+    GumDarwinModule * self, GumFoundDarwinTLVDescriptorFunc func,
+    gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
     GumFoundDarwinRebaseFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_binds (GumDarwinModule * self,

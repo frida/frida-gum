@@ -998,6 +998,131 @@ gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
   return FALSE;
 }
 
+static gboolean
+gum_darwin_module_find_tlv_descriptors (const GumDarwinSectionDetails * section,
+                                        gpointer user_data)
+{
+  GumFindDarwinTLVDescriptorsContext *ctx = user_data;
+
+  if (section->flags != GUM_S_THREAD_LOCAL_VARIABLES)
+    return TRUE;
+
+  ctx->descriptor_sz = ctx->header->magic == GUM_MH_MAGIC_64
+      ? sizeof (GumFixedSizeTLVThunk64)
+      : sizeof (GumFixedSizeTLVThunk32);
+  ctx->n_descriptors = section->size / ctx->descriptor_sz;
+  ctx->section_file_offset = section->file_offset;
+
+  return FALSE;
+}
+
+guint32
+gum_darwin_module_get_tlv_descriptors_file_offset (GumDarwinModule * self)
+{
+  GumFindDarwinTLVDescriptorsContext ctx;
+
+  if (!gum_darwin_module_has_tlv_descriptors (self))
+    return 0;
+
+  ctx.header = self->image->data;
+
+  gum_darwin_module_enumerate_sections (self,
+      gum_darwin_module_find_tlv_descriptors, &ctx);
+
+  return ctx.section_file_offset;
+}
+
+guint
+gum_darwin_module_count_tlv_descriptors (GumDarwinModule * self)
+{
+  GumFindDarwinTLVDescriptorsContext ctx;
+
+  if (!gum_darwin_module_has_tlv_descriptors (self))
+    return 0;
+
+  ctx.header = self->image->data;
+
+  gum_darwin_module_enumerate_sections (self,
+      gum_darwin_module_find_tlv_descriptors, &ctx);
+
+  return ctx.n_descriptors;
+}
+
+gboolean
+gum_darwin_module_has_tlv_descriptors (GumDarwinModule * self)
+{
+  guint32 flags;
+  GumMachHeader32 * header;
+
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+    return FALSE;
+
+  header = self->image->data;
+
+  if (header->magic == GUM_MH_MAGIC_32)
+    flags = ((GumMachHeader32 *) header)->flags;
+  else if (header->magic == GUM_MH_MAGIC_64)
+    flags = ((GumMachHeader64 *) header)->flags;
+  else
+    return FALSE;
+
+  return ((flags & GUM_MH_HAS_TLV_DESCRIPTORS) != 0);
+}
+
+void
+gum_darwin_module_enumerate_tlv_descriptors (GumDarwinModule * self,
+                                             GumFoundDarwinTLVDescriptorFunc func,
+                                             gpointer user_data)
+{
+  GumFindDarwinTLVDescriptorsContext ctx;
+  gpointer descriptors;
+  GumDarwinThreadLocalVariableDescriptorDetails details;
+  gsize descriptor_index;
+  GumFixedSizeTLVThunk32 *descriptor32;
+  GumFixedSizeTLVThunk64 *descriptor64;
+
+
+  if (!gum_darwin_module_has_tlv_descriptors (self))
+    return;
+
+  ctx.header = self->image->data;
+
+  gum_darwin_module_enumerate_sections (self,
+      gum_darwin_module_find_tlv_descriptors, &ctx);
+  descriptors = (guint8 *) ctx.header + ctx.section_file_offset;
+
+  for (descriptor_index = 0; descriptor_index < ctx.n_descriptors;
+      descriptor_index++)
+  {
+    if (ctx.header->magic == GUM_MH_MAGIC_32)
+    {
+      descriptor32 = &((GumFixedSizeTLVThunk32 *) descriptors)
+          [descriptor_index];
+      details.file_offset = ctx.section_file_offset
+          + descriptor_index * sizeof (GumFixedSizeTLVThunk32);
+      details.thunk = descriptor32->thunk;
+      details.key = descriptor32->key;
+      details.offset = descriptor32->offset;
+    }
+    else if (ctx.header->magic == GUM_MH_MAGIC_64)
+    {
+      descriptor64 = &((GumFixedSizeTLVThunk64 *) descriptors)
+          [descriptor_index];
+      details.file_offset = ctx.section_file_offset
+          + descriptor_index * sizeof(GumFixedSizeTLVThunk64);
+      details.thunk = descriptor64->thunk;
+      details.key = descriptor64->key;
+      details.offset = descriptor64->offset;
+    }
+    else
+    {
+      break;
+    }
+   if (!func (&details, user_data))
+      return;
+  }
+}
+
 void
 gum_darwin_module_enumerate_chained_fixups (
     GumDarwinModule * self,
