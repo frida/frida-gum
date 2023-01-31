@@ -7,7 +7,7 @@
 #include "gumdefs.h"
 
 gpointer
-gum_cpu_context_get_nth_argument (GumCpuContext * self,
+gum_cpu_context_get_nth_argument (const GumCpuContext * self,
                                   guint n)
 {
   gpointer * stack_argument;
@@ -72,7 +72,7 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
 }
 
 gpointer
-gum_cpu_context_get_return_value (GumCpuContext * self)
+gum_cpu_context_get_return_value (const GumCpuContext * self)
 {
 #if GLIB_SIZEOF_VOID_P == 4
   return (gpointer) self->eax;
@@ -90,4 +90,10 @@ gum_cpu_context_replace_return_value (GumCpuContext * self,
 #else
   self->rax = (guint64) value;
 #endif
+}
+
+gpointer
+gum_cpu_context_get_stack_pointer (const GumCpuContext * self)
+{
+  return GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (self));
 }

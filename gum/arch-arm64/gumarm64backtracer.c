@@ -99,6 +99,7 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
     start_address = GSIZE_TO_POINTER (cpu_context->sp);
     return_addresses->items[0] = gum_invocation_stack_translate (
         invocation_stack, GSIZE_TO_POINTER (cpu_context->lr));
+    return_addresses->frames[0] = GSIZE_TO_POINTER (cpu_context->sp);
     start_index = 1;
     skips_pending = 0;
   }
@@ -185,7 +186,10 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
     {
       if (skips_pending == 0)
       {
-        return_addresses->items[i++] = GSIZE_TO_POINTER (value);
+        i++;
+        return_addresses->items[i] = GSIZE_TO_POINTER (value);
+        return_addresses->frames[i] = (GumFrameAddress) p;
+
         if (i == depth)
           break;
       }

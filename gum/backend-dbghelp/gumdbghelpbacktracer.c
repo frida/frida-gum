@@ -160,6 +160,8 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
       return_addresses->items[0] = gum_invocation_stack_translate (
           invocation_stack, *((GumReturnAddress *) GSIZE_TO_POINTER (
               GUM_CPU_CONTEXT_XSP (cpu_context))));
+      return_addresses->frames[0] =
+          GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
       start_index = 1;
       n_skip = 0;
 #else
@@ -226,6 +228,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     translated_pc = gum_invocation_stack_translate (invocation_stack, pc);
 
     return_addresses->items[i] = translated_pc;
+    return_addresses->frames[i] = GSIZE_TO_POINTER (frame.AddrFrame.Offset);
 
     if (translated_pc != pc)
     {

@@ -11,6 +11,7 @@
 
 typedef struct _GumReturnAddressDetails GumReturnAddressDetails;
 typedef gpointer GumReturnAddress;
+typedef gpointer GumFrameAddress;
 typedef struct _GumReturnAddressArray GumReturnAddressArray;
 
 struct _GumReturnAddressDetails
@@ -27,6 +28,7 @@ struct _GumReturnAddressArray
 {
   guint len;
   GumReturnAddress items[GUM_MAX_BACKTRACE_DEPTH];
+  GumFrameAddress frames[GUM_MAX_BACKTRACE_DEPTH];
 };
 
 G_BEGIN_DECLS

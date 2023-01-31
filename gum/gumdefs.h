@@ -397,7 +397,7 @@ enum _GumRelocationScenario
 
 #define GUM_MAX_THREADS              768
 #define GUM_MAX_CALL_DEPTH            32
-#define GUM_MAX_BACKTRACE_DEPTH       16
+#define GUM_MAX_BACKTRACE_DEPTH      128
 #define GUM_MAX_WORST_CASE_INFO_SIZE 128
 
 #define GUM_MAX_LISTENERS_PER_FUNCTION 2
@@ -580,13 +580,14 @@ GUM_API GUM_NORETURN void gum_panic (const gchar * format, ...)
 
 GUM_API GumCpuFeatures gum_query_cpu_features (void);
 
-GUM_API gpointer gum_cpu_context_get_nth_argument (GumCpuContext * self,
+GUM_API gpointer gum_cpu_context_get_nth_argument (const GumCpuContext * self,
     guint n);
 GUM_API void gum_cpu_context_replace_nth_argument (GumCpuContext * self,
     guint n, gpointer value);
-GUM_API gpointer gum_cpu_context_get_return_value (GumCpuContext * self);
+GUM_API gpointer gum_cpu_context_get_return_value (const GumCpuContext * self);
 GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
     gpointer value);
+GUM_API gpointer gum_cpu_context_get_stack_pointer (const GumCpuContext * self);
 
 #ifndef GUM_DIET
 GUM_API GType gum_address_get_type (void) G_GNUC_CONST;

@@ -35,6 +35,14 @@ class Console {
       this.warn(`Count for '${label}' does not exist`);
     }
   }
+
+  profile(profileName) {
+    engine._profile(profileName);
+  }
+
+  profileEnd(profileName) {
+    engine._profileEnd(profileName);
+  }
 }
 
 module.exports = Console;

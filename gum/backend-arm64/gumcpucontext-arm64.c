@@ -7,7 +7,7 @@
 #include "gumdefs.h"
 
 gpointer
-gum_cpu_context_get_nth_argument (GumCpuContext * self,
+gum_cpu_context_get_nth_argument (const GumCpuContext * self,
                                   guint n)
 {
   if (n < 8)
@@ -40,7 +40,7 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
 }
 
 gpointer
-gum_cpu_context_get_return_value (GumCpuContext * self)
+gum_cpu_context_get_return_value (const GumCpuContext * self)
 {
   return (gpointer) self->x[0];
 }
@@ -50,4 +50,10 @@ gum_cpu_context_replace_return_value (GumCpuContext * self,
                                       gpointer value)
 {
   self->x[0] = (guint64) value;
+}
+
+gpointer
+gum_cpu_context_get_stack_pointer (const GumCpuContext * self)
+{
+  return GSIZE_TO_POINTER (self->sp);
 }

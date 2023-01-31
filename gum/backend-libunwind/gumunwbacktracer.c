@@ -88,10 +88,14 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
 #if defined (HAVE_I386)
     return_addresses->items[0] = *((GumReturnAddress *) GSIZE_TO_POINTER (
         GUM_CPU_CONTEXT_XSP (cpu_context)));
+    return_addresses->frames[0] =
+        GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64)
     return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
+    return_addresses->frames[0] = GSIZE_TO_POINTER (cpu_context->sp);
 #elif defined (HAVE_MIPS)
     return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->ra);
+    return_addresses->frames[0] = GSIZE_TO_POINTER (cpu_context->fp);
 #else
 # error Unsupported architecture
 #endif
@@ -123,10 +127,13 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
       i < depth && unw_step (&cursor) > 0;
       i++)
   {
-    unw_word_t pc;
+    unw_word_t pc, sp;
 
     unw_get_reg (&cursor, UNW_REG_IP, &pc);
+    unw_get_reg (&cursor, UNW_REG_SP, &sp);
+
     return_addresses->items[i] = GSIZE_TO_POINTER (pc);
+    return_addresses->frames[i] = GSIZE_TO_POINTER (sp);
   }
   return_addresses->len = i;
 

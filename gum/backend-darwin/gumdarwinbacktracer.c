@@ -76,7 +76,7 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
                                 guint limit)
 {
   pthread_t thread;
-  gpointer stack_top, stack_bottom;
+  gpointer stack_top, stack_bottom, stack_starting_point;
   gpointer * cur;
   gint start_index, n_skip, depth, i;
   gboolean has_ffi_frames;
@@ -88,7 +88,17 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
   thread = pthread_self ();
   stack_top = pthread_get_stackaddr_np (thread);
   stack_bottom = stack_top - pthread_get_stacksize_np (thread);
-  stack_top -= (GUM_FP_LINK_OFFSET + 1) * sizeof (gpointer);
+
+  stack_starting_point = gum_cpu_context_get_stack_pointer (cpu_context);
+  if (stack_starting_point >= stack_bottom && stack_starting_point < stack_top)
+  {
+    stack_top -= (GUM_FP_LINK_OFFSET + 1) * sizeof (gpointer);
+  }
+  else
+  {
+    stack_bottom = stack_starting_point;
+    stack_top = stack_bottom + (64 * 1024);
+  }
 
   if (cpu_context != NULL)
   {
@@ -99,18 +109,22 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
 
     return_addresses->items[0] = *((GumReturnAddress *) GSIZE_TO_POINTER (
         GUM_CPU_CONTEXT_XSP (cpu_context)));
+    return_addresses->frames[0] =
+        GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
 #elif defined (HAVE_ARM)
     cur = GSIZE_TO_POINTER (cpu_context->r[7]);
 
     has_ffi_frames = cpu_context->pc == 0;
 
     return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
+    return_addresses->frames[0] = GSIZE_TO_POINTER (cpu_context->sp);
 #elif defined (HAVE_ARM64)
     cur = GSIZE_TO_POINTER (cpu_context->fp);
 
     has_ffi_frames = cpu_context->pc == 0;
 
     return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
+    return_addresses->frames[0] = GSIZE_TO_POINTER (cpu_context->sp);
 #else
 # error Unsupported architecture
 #endif
@@ -152,6 +166,7 @@ gum_darwin_backtracer_generate (GumBacktracer * backtracer,
     if (item == NULL)
       break;
     return_addresses->items[i] = gum_strip_item (item);
+    return_addresses->frames[i] = cur;
 
     next = *cur;
     if (next <= cur)

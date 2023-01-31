@@ -10,7 +10,7 @@
 #if GLIB_SIZEOF_VOID_P == 4
 
 gpointer
-gum_cpu_context_get_nth_argument (GumCpuContext * self,
+gum_cpu_context_get_nth_argument (const GumCpuContext * self,
                                   guint n)
 {
   if (n < 4)
@@ -76,7 +76,7 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
  */
 
 gpointer
-gum_cpu_context_get_nth_argument (GumCpuContext * self,
+gum_cpu_context_get_nth_argument (const GumCpuContext * self,
                                   guint n)
 {
   if (n < 8)
@@ -157,7 +157,7 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
 #endif
 
 gpointer
-gum_cpu_context_get_return_value (GumCpuContext * self)
+gum_cpu_context_get_return_value (const GumCpuContext * self)
 {
   return (gpointer) self->v0;
 }
@@ -167,4 +167,10 @@ gum_cpu_context_replace_return_value (GumCpuContext * self,
                                       gpointer value)
 {
   self->v0 = GPOINTER_TO_SIZE (value);
+}
+
+gpointer
+gum_cpu_context_get_stack_pointer (const GumCpuContext * self)
+{
+  return GSIZE_TO_POINTER (self->sp);
 }

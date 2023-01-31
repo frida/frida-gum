@@ -68,6 +68,8 @@ struct _GumQuickCore
   JSContext * ctx;
   GHashTable * module_data;
   GumQuickScope * current_scope;
+  GPtrArray * suspended_scopes;
+  GMutex suspended_scopes_mutex;
   GumThreadId current_owner;
 
   GRecMutex * mutex;
@@ -80,6 +82,8 @@ struct _GumQuickCore
   GCond event_cond;
   volatile guint event_count;
   volatile gboolean event_source_available;
+
+  GQueue profilers;
 
   GumQuickExceptionSink * unhandled_exception_sink;
   GumQuickMessageSink * incoming_message_sink;

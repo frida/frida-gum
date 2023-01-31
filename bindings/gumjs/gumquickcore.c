@@ -32,6 +32,9 @@
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
+#ifdef HAVE_DARWIN
+# include <mach/mach.h>
+#endif
 
 #define GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY { NULL, }
 
@@ -44,6 +47,9 @@ typedef guint8 GumQuickCodeTraps;
 typedef guint8 GumQuickReturnValueShape;
 typedef struct _GumQuickFFIFunction GumQuickFFIFunction;
 typedef struct _GumQuickCallbackContext GumQuickCallbackContext;
+typedef struct _GumQuickProfiler GumQuickProfiler;
+typedef struct _GumQuickCallstackSnapshot GumQuickCallstackSnapshot;
+typedef struct _GumQuickCallstackFrame GumQuickCallstackFrame;
 
 struct _GumQuickFlushCallback
 {
@@ -151,6 +157,35 @@ struct _GumQuickCallbackContext
   int initial_property_count;
 };
 
+struct _GumQuickProfiler
+{
+  gchar * name;
+  GumThreadId thread_id;
+  gboolean thread_was_cloaked;
+  gboolean running;
+  GHashTable * callstacks;
+  GArray * snapshots;
+  guint total_snapshots;
+  GumBacktracer * backtracer;
+  GThread * worker;
+
+  GumQuickCore * core;
+};
+
+struct _GumQuickCallstackSnapshot
+{
+  GumReturnAddressArray native;
+
+  gboolean has_js;
+  JSCallstackSnapshot js;
+};
+
+struct _GumQuickCallstackFrame
+{
+  gpointer address;
+  gchar * description;
+};
+
 static gboolean gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
     gpointer user_data);
 
@@ -165,6 +200,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_send)
 GUMJS_DECLARE_FUNCTION (gumjs_set_unhandled_exception_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
+GUMJS_DECLARE_FUNCTION (gumjs_profile)
+GUMJS_DECLARE_FUNCTION (gumjs_profile_end)
 
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
 GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
@@ -260,6 +297,17 @@ GUMJS_DECLARE_FINALIZER (gumjs_system_function_finalize)
 GUMJS_DECLARE_CALL_HANDLER (gumjs_system_function_invoke)
 GUMJS_DECLARE_FUNCTION (gumjs_system_function_call)
 GUMJS_DECLARE_FUNCTION (gumjs_system_function_apply)
+
+static void gum_quick_profiler_free (GumQuickProfiler * profiler);
+static gpointer gum_quick_profiler_run (GumQuickProfiler * self);
+static void gum_quick_profiler_process_snapshots (GumQuickProfiler * self);
+static void gum_quick_profiler_process_snapshot (GumQuickProfiler * self,
+    GumQuickCallstackSnapshot * snapshot);
+static gint gum_compare_callstack_frames (const GumQuickCallstackFrame * a,
+    const GumQuickCallstackFrame * b);
+static void gum_quick_profiler_emit_report (GumQuickProfiler * self);
+static void gum_quick_profiler_sample (GumThreadId thread_id,
+    GumCpuContext * cpu_context, GumQuickProfiler * self);
 
 static GumQuickFFIFunction * gumjs_ffi_function_new (JSContext * ctx,
     const GumQuickFFIFunctionParams * params, GumQuickCore * core);
@@ -376,6 +424,8 @@ static const JSCFunctionListEntry gumjs_root_entries[] =
   JS_CFUNC_DEF ("_setIncomingMessageCallback", 0,
       gumjs_set_incoming_message_callback),
   JS_CFUNC_DEF ("_waitForEvent", 0, gumjs_wait_for_event),
+  JS_CFUNC_DEF ("_profile", 0, gumjs_profile),
+  JS_CFUNC_DEF ("_profileEnd", 0, gumjs_profile_end),
 };
 
 static const JSCFunctionListEntry gumjs_frida_entries[] =
@@ -1371,6 +1421,8 @@ _gum_quick_core_init (GumQuickCore * self,
   self->module_data =
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
   self->current_scope = NULL;
+  self->suspended_scopes = g_ptr_array_new ();
+  g_mutex_init (&self->suspended_scopes_mutex);
   self->current_owner = GUM_THREAD_ID_INVALID;
 
   gum_quick_core_setup_atoms (self);
@@ -1386,6 +1438,8 @@ _gum_quick_core_init (GumQuickCore * self,
   g_cond_init (&self->event_cond);
   self->event_count = 0;
   self->event_source_available = TRUE;
+
+  g_queue_init (&self->profilers);
 
   self->on_global_get = JS_NULL;
   self->global_receiver = JS_NULL;
@@ -1655,6 +1709,9 @@ _gum_quick_core_dispose (GumQuickCore * self)
   g_object_unref (self->exceptor);
   self->exceptor = NULL;
 
+  g_queue_clear_full (&self->profilers,
+      (GDestroyNotify) gum_quick_profiler_free);
+
   JS_FreeValue (ctx, self->source_map_ctor);
   JS_FreeValue (ctx, self->native_pointer_proto);
 
@@ -1689,6 +1746,9 @@ _gum_quick_core_finalize (GumQuickCore * self)
   g_mutex_clear (&self->event_mutex);
   g_cond_clear (&self->event_cond);
 
+  g_ptr_array_unref (self->suspended_scopes);
+  self->suspended_scopes = NULL;
+  g_mutex_clear (&self->suspended_scopes_mutex);
   g_assert (self->current_scope == NULL);
   self->ctx = NULL;
 
@@ -1803,6 +1863,8 @@ _gum_quick_scope_suspend (GumQuickScope * self)
   GumQuickCore * core = self->core;
   guint i;
 
+  g_mutex_lock (&core->suspended_scopes_mutex);
+
   JS_Suspend (core->rt, &self->thread_state);
 
   g_assert (core->current_scope != NULL);
@@ -1812,6 +1874,10 @@ _gum_quick_scope_suspend (GumQuickScope * self)
 
   self->previous_mutex_depth = core->mutex_depth;
   core->mutex_depth = 0;
+
+  g_ptr_array_add (core->suspended_scopes, self);
+
+  g_mutex_unlock (&core->suspended_scopes_mutex);
 
   gum_interceptor_end_transaction (core->interceptor->interceptor);
 
@@ -1830,6 +1896,10 @@ _gum_quick_scope_resume (GumQuickScope * self)
 
   gum_interceptor_begin_transaction (core->interceptor->interceptor);
 
+  g_mutex_lock (&core->suspended_scopes_mutex);
+
+  g_ptr_array_remove (core->suspended_scopes, self);
+
   g_assert (core->current_scope == NULL);
   core->current_scope = g_steal_pointer (&self->previous_scope);
   core->current_owner = self->previous_owner;
@@ -1838,6 +1908,8 @@ _gum_quick_scope_resume (GumQuickScope * self)
   self->previous_mutex_depth = 0;
 
   JS_Resume (core->rt, &self->thread_state);
+
+  g_mutex_unlock (&core->suspended_scopes_mutex);
 }
 
 JSValue
@@ -2610,6 +2682,354 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
     return _gum_quick_throw_literal (ctx, "script is unloading");
 
   return JS_UNDEFINED;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_profile)
+{
+  GumQuickCore * self = core;
+  const gchar * name;
+  GumThreadId thread_id;
+  GList * cur;
+  GumQuickProfiler * profiler;
+
+  name = NULL;
+  if (!_gum_quick_args_parse (args, "|s", &name))
+    return JS_EXCEPTION;
+
+  thread_id = gum_process_get_current_thread_id ();
+
+  for (cur = self->profilers.head; cur != NULL; cur = cur->next)
+  {
+    GumQuickProfiler * p = cur->data;
+
+    if (p->thread_id == thread_id)
+      return _gum_quick_throw_literal (ctx, "thread is already being profiled");
+  }
+
+  profiler = g_slice_new (GumQuickProfiler);
+  profiler->name = g_strdup (name);
+  profiler->thread_id = thread_id;
+  profiler->thread_was_cloaked = gum_cloak_has_thread (thread_id);
+  profiler->running = TRUE;
+  profiler->callstacks =
+      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  profiler->snapshots = g_array_sized_new (FALSE, FALSE,
+      sizeof (GumQuickCallstackSnapshot), 10000);
+  profiler->total_snapshots = 0;
+  profiler->backtracer = gum_backtracer_make_accurate ();
+  profiler->core = self;
+  g_queue_push_tail (&self->profilers, profiler);
+
+  if (profiler->thread_was_cloaked)
+    gum_cloak_remove_thread (thread_id);
+
+  profiler->worker = g_thread_new ("gum-quick-profiler",
+      (GThreadFunc) gum_quick_profiler_run, profiler);
+
+  return JS_UNDEFINED;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_profile_end)
+{
+  GumQuickCore * self = core;
+  const gchar * name;
+  GList * profiler_element;
+  GumQuickProfiler * profiler;
+
+  name = NULL;
+  if (!_gum_quick_args_parse (args, "|s", &name))
+    return JS_EXCEPTION;
+
+  if (name != NULL)
+  {
+    GList * cur;
+
+    profiler_element = NULL;
+    for (cur = self->profilers.tail; cur != NULL; cur = cur->prev)
+    {
+      GumQuickProfiler * p = cur->data;
+
+      if (g_strcmp0 (p->name, name) == 0)
+      {
+        profiler_element = cur;
+        break;
+      }
+    }
+  }
+  else
+  {
+    profiler_element = self->profilers.tail;
+  }
+  if (profiler_element == NULL)
+    return JS_UNDEFINED;
+
+  profiler = profiler_element->data;
+  g_queue_delete_link (&self->profilers, profiler_element);
+
+  gum_quick_profiler_free (profiler);
+
+  return JS_UNDEFINED;
+}
+
+static void
+gum_quick_profiler_free (GumQuickProfiler * profiler)
+{
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (profiler->core);
+
+  profiler->running = FALSE;
+
+  _gum_quick_scope_suspend (&scope);
+  g_thread_join (profiler->worker);
+  _gum_quick_scope_resume (&scope);
+
+  if (profiler->thread_was_cloaked)
+    gum_cloak_add_thread (profiler->thread_id);
+
+  g_object_unref (profiler->backtracer);
+  g_array_unref (profiler->snapshots);
+  g_hash_table_unref (profiler->callstacks);
+  g_free (profiler->name);
+
+  g_slice_free (GumQuickProfiler, profiler);
+}
+
+static gpointer
+gum_quick_profiler_run (GumQuickProfiler * self)
+{
+  GTimer * total_timer, * delay_timer;
+
+  total_timer = g_timer_new ();
+  delay_timer = g_timer_new ();
+
+  do
+  {
+#ifdef HAVE_DARWIN
+    g_timer_reset (delay_timer);
+    while (g_timer_elapsed (delay_timer, NULL) < 0.001)
+      thread_switch (MACH_PORT_NULL, SWITCH_OPTION_DEPRESS, 1);
+#else
+    g_usleep (1000);
+#endif
+
+    if (!gum_process_modify_thread (self->thread_id,
+          (GumModifyThreadFunc) gum_quick_profiler_sample, self))
+      break;
+  }
+  while (self->running);
+
+  g_timer_destroy (delay_timer);
+
+  g_info ("Profiler collected %u snapshots in %u ms",
+      self->total_snapshots,
+      (guint) (g_timer_elapsed (total_timer, NULL) * 1000.0));
+  g_timer_destroy (total_timer);
+
+  gum_quick_profiler_process_snapshots (self);
+  gum_quick_profiler_emit_report (self);
+
+  return NULL;
+}
+
+static void
+gum_quick_profiler_process_snapshots (GumQuickProfiler * self)
+{
+  GumQuickCore * core = self->core;
+  GumQuickScope scope;
+  guint i;
+
+  _gum_quick_scope_enter (&scope, core);
+
+  for (i = 0; i != self->snapshots->len; i++)
+  {
+    GumQuickCallstackSnapshot * snapshot =
+        &g_array_index (self->snapshots, GumQuickCallstackSnapshot, i);
+    gum_quick_profiler_process_snapshot (self, snapshot);
+  }
+
+  g_array_set_size (self->snapshots, 0);
+
+  _gum_quick_scope_leave (&scope);
+}
+
+static void
+gum_quick_profiler_process_snapshot (GumQuickProfiler * self,
+                                     GumQuickCallstackSnapshot * snapshot)
+{
+  GArray * frames;
+  guint i;
+  gsize count;
+  GString * summary;
+
+  frames = g_array_new (FALSE, FALSE, sizeof (GumQuickCallstackFrame));
+
+  for (i = 0; i != snapshot->native.len; i++)
+  {
+    GumQuickCallstackFrame f;
+
+    f.address = snapshot->native.frames[i];
+    f.description = g_strdup_printf ("0x%" G_GSIZE_MODIFIER "x",
+        GPOINTER_TO_SIZE (snapshot->native.items[i]));
+    g_array_append_val (frames, f);
+  }
+
+  if (snapshot->has_js)
+  {
+    GumQuickCore * core = self->core;
+    JSContext * ctx = core->ctx;
+    JSCallstackIter iter;
+    char * description;
+    void * frame;
+
+    JS_CallstackIterInit (&iter, &snapshot->js, ctx);
+    while (JS_CallstackIterNext (&iter, &description, &frame))
+    {
+      GumQuickCallstackFrame f;
+
+      f.address = frame;
+      f.description = g_strdup (description);
+      g_array_append_val (frames, f);
+
+      js_free (ctx, description);
+    }
+
+    JS_FreeCallstack (core->rt, &snapshot->js);
+  }
+
+  g_array_sort (frames, (GCompareFunc) gum_compare_callstack_frames);
+
+  summary = g_string_sized_new (512);
+
+  for (i = 0; i != frames->len; i++)
+  {
+    const GumQuickCallstackFrame * frame =
+        &g_array_index (frames, GumQuickCallstackFrame, i);
+
+    if (i != 0)
+      g_string_append_c (summary, ';');
+
+    g_string_append (summary, frame->description);
+  }
+
+  count =
+      GPOINTER_TO_SIZE (g_hash_table_lookup (self->callstacks, summary->str));
+  count++;
+  g_hash_table_insert (self->callstacks, g_string_free (summary, FALSE),
+      GSIZE_TO_POINTER (count));
+
+  for (i = 0; i != frames->len; i++)
+  {
+    const GumQuickCallstackFrame * frame =
+        &g_array_index (frames, GumQuickCallstackFrame, i);
+    g_free (frame->description);
+  }
+  g_array_unref (frames);
+}
+
+static gint
+gum_compare_callstack_frames (const GumQuickCallstackFrame * a,
+                              const GumQuickCallstackFrame * b)
+{
+  if (a->address < b->address)
+    return 1;
+
+  if (a->address > b->address)
+    return -1;
+
+  return 0;
+}
+
+static void
+gum_quick_profiler_emit_report (GumQuickProfiler * self)
+{
+  JsonBuilder * builder;
+  GHashTableIter iter;
+  gpointer key, value;
+  JsonNode * root;
+  gchar * json;
+
+  builder = json_builder_new_immutable ();
+  json_builder_begin_object (builder);
+
+  json_builder_set_member_name (builder, "type");
+  json_builder_add_string_value (builder, "profile");
+
+  json_builder_set_member_name (builder, "payload");
+  json_builder_begin_object (builder);
+
+  g_hash_table_iter_init (&iter, self->callstacks);
+  while (g_hash_table_iter_next (&iter, &key, &value))
+  {
+    const gchar * callstack = key;
+    gsize count = GPOINTER_TO_SIZE (value);
+
+    json_builder_set_member_name (builder, callstack);
+    json_builder_add_int_value (builder, count);
+  }
+
+  json_builder_end_object (builder);
+
+  json_builder_end_object (builder);
+
+  root = json_builder_get_root (builder);
+  json = json_to_string (root, FALSE);
+
+  self->core->message_emitter (self->core->script, json, NULL);
+
+  g_free (json);
+  json_node_unref (root);
+
+  g_object_unref (builder);
+}
+
+static void
+gum_quick_profiler_sample (GumThreadId thread_id,
+                           GumCpuContext * cpu_context,
+                           GumQuickProfiler * self)
+{
+  GumQuickCore * core = self->core;
+  guint i;
+  GumQuickCallstackSnapshot * snapshot;
+
+  if (!g_mutex_trylock (&core->suspended_scopes_mutex))
+    return;
+
+  i = self->snapshots->len;
+  g_array_set_size (self->snapshots, i + 1);
+  snapshot = &g_array_index (self->snapshots, GumQuickCallstackSnapshot, i);
+  self->total_snapshots++;
+
+  gum_backtracer_generate (self->backtracer, cpu_context, &snapshot->native);
+
+  snapshot->has_js = FALSE;
+  if (core->current_owner == thread_id)
+  {
+    JS_CaptureCallstack (core->rt, NULL, &snapshot->js);
+    snapshot->has_js = TRUE;
+  }
+  else
+  {
+    JSRuntimeThreadState * thread_state = NULL;
+    guint i;
+
+    for (i = 0; i != core->suspended_scopes->len; i++)
+    {
+      GumQuickScope * scope = g_ptr_array_index (core->suspended_scopes, i);
+
+      if (scope->previous_owner == thread_id)
+      {
+        thread_state = &scope->thread_state;
+        break;
+      }
+    }
+
+    if (thread_state != NULL)
+    {
+      JS_CaptureCallstack (core->rt, thread_state, &snapshot->js);
+      snapshot->has_js = TRUE;
+    }
+  }
+
+  g_mutex_unlock (&core->suspended_scopes_mutex);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
