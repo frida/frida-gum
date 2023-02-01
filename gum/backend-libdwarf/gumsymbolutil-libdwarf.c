@@ -1133,15 +1133,12 @@ gum_read_attribute_location (Dwarf_Debug dbg,
   if (loclist_count != 1)
     goto invalid_locations;
 
-  if (dwarf_get_location_op_value_d (loclist,
+  if (dwarf_get_location_op_value_c (loclist,
       0,
       &atom,
       &op1,
       &op2,
       &op3,
-      &rawop1,
-      &rawop2,
-      &rawop3,
       &offset_for_branch,
       NULL) != DW_DLV_OK)
   {
@@ -1156,7 +1153,7 @@ gum_read_attribute_location (Dwarf_Debug dbg,
   success = TRUE;
 
 invalid_locations:
-  dwarf_loc_head_c_dealloc (locations);
+  dwarf_dealloc_loc_head_c (locations);
 
 invalid_type:
   dwarf_dealloc (dbg, attribute, DW_DLA_ATTR);
