@@ -433,7 +433,7 @@ gum_process_modify_thread (GumThreadId thread_id,
   GumDarwinUnifiedThreadState state;
   mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
   thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
-  GumCpuContext cpu_context;
+  GumCpuContext cpu_context, original_cpu_context;
 
   kr = thread_suspend (thread);
   if (kr != KERN_SUCCESS)
@@ -451,11 +451,17 @@ gum_process_modify_thread (GumThreadId thread_id,
     goto beach;
 
   gum_darwin_parse_unified_thread_state (&state, &cpu_context);
-  func (thread_id, &cpu_context, user_data);
-  gum_darwin_unparse_unified_thread_state (&cpu_context, &state);
+  memcpy (&original_cpu_context, &cpu_context, sizeof (cpu_context));
 
-  kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
-      state_count);
+  func (thread_id, &cpu_context, user_data);
+
+  if (memcmp (&cpu_context, &original_cpu_context, sizeof (cpu_context)) != 0)
+  {
+    gum_darwin_unparse_unified_thread_state (&cpu_context, &state);
+
+    kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
+        state_count);
+  }
 
 beach:
   if (is_suspended)
