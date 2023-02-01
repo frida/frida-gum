@@ -555,7 +555,7 @@ static void
 gum_module_entry_free (GumModuleEntry * entry)
 {
   if (entry->dbg != NULL)
-    dwarf_finish (entry->dbg, NULL);
+    dwarf_finish (entry->dbg);
 
   if (entry->module != NULL)
     gum_object_unref (entry->module);

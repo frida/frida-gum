@@ -470,7 +470,7 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
     endif
   endif
 
-  libdwarf_dep = dependency('libdwarf', required: false, version: ['>= 0.1', '< 0.2'])
+  libdwarf_dep = dependency('libdwarf', required: false, version: ['>= 0.2', '< 0.3'])
   if not libdwarf_dep.found()
     found = false
     if not meson.is_cross_build()
