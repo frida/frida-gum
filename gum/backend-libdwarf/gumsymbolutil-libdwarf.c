@@ -534,10 +534,7 @@ gum_module_entry_from_path_and_base (const gchar * path,
 
   module = gum_elf_module_new_from_memory (path, base_address, NULL);
 
-  if (module == NULL ||
-      dwarf_elf_init_b (gum_elf_module_get_elf (module), DW_DLC_READ,
-          DW_GROUPNUMBER_ANY, gum_on_dwarf_error, NULL, &dbg, &error)
-      != DW_DLV_OK)
+  if (module == NULL)
   {
     dwarf_dealloc (dbg, error, DW_DLA_ERROR);
     error = NULL;
@@ -728,6 +725,7 @@ gum_symbol_util_deinitialize (void)
   gum_module_entries = NULL;
 }
 
+// unused
 static void
 gum_on_dwarf_error (Dwarf_Error error,
                     Dwarf_Ptr errarg)
@@ -752,7 +750,8 @@ gum_find_cu_die_by_virtual_address (Dwarf_Debug dbg,
     return NULL;
 
   result = NULL;
-  dwarf_offdie (dbg, op.cu_die_offset, &result, NULL);
+  // TODO is_info? TRUE = debug_info, FALSE = debug_types
+  dwarf_offdie_b (dbg, op.cu_die_offset, TRUE, &result, NULL);
 
   return result;
 }
@@ -768,6 +767,8 @@ gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
   Dwarf_Off ranges_offset;
   Dwarf_Ranges * ranges;
   Dwarf_Signed range_count, range_index;
+  Dwarf_Off real_offset; // unused
+  Dwarf_Unsigned byte_count; // unused
 
   if (gum_read_attribute_address (dbg, die, DW_AT_low_pc, &low_pc) &&
       dwarf_attr (die, DW_AT_high_pc, &high_pc_attr, NULL) == DW_DLV_OK)
@@ -800,8 +801,8 @@ gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
   if (!gum_read_attribute_offset (dbg, die, DW_AT_ranges, &ranges_offset))
     goto skip;
 
-  if (dwarf_get_ranges_a (dbg, ranges_offset, die, &ranges, &range_count, NULL,
-      NULL) != DW_DLV_OK)
+  if (dwarf_get_ranges_b (dbg, ranges_offset, die, &real_offset, &ranges, &range_count,
+      &byte_count, NULL) != DW_DLV_OK)
     goto skip;
 
   for (range_index = 0; range_index < range_count; range_index++)
@@ -905,10 +906,14 @@ gum_find_line_by_virtual_address (Dwarf_Debug dbg,
                                   GumDwarfSourceDetails * details)
 {
   gboolean success;
-  Dwarf_Line * lines;
-  Dwarf_Signed line_count, line_index;
+  Dwarf_Line * lines = NULL;
+  Dwarf_Signed line_count = 0, line_index;
+  Dwarf_Line_Context line_context = 0;
+  Dwarf_Small table_count; // unused
+  Dwarf_Unsigned line_version; // unused
 
-  if (dwarf_srclines (cu_die, &lines, &line_count, NULL) != DW_DLV_OK)
+  if (dwarf_srclines_b(cu_die, &line_version, &table_count, &line_context, NULL)
+      != DW_DLV_OK)
     return FALSE;
 
   success = FALSE;
@@ -950,7 +955,7 @@ gum_find_line_by_virtual_address (Dwarf_Debug dbg,
     }
   }
 
-  dwarf_srclines_dealloc (dbg, lines, line_count);
+  dwarf_srclines_dealloc_b (line_context);
 
   return success;
 }
@@ -1035,7 +1040,8 @@ gum_enumerate_dies_recurse (Dwarf_Debug dbg,
   {
     int status;
 
-    status = dwarf_siblingof (dbg, cur, &sibling, NULL);
+    // TODO is_info? TRUE = debug_info, FALSE = debug_types
+    status = dwarf_siblingof_b (dbg, cur, TRUE, &sibling, NULL);
     dwarf_dealloc (dbg, cur, DW_DLA_DIE);
     if (status != DW_DLV_OK)
       break;
@@ -1084,10 +1090,13 @@ gum_read_attribute_location (Dwarf_Debug dbg,
   Dwarf_Unsigned loclist_count;
   Dwarf_Locdesc_c loclist;
   Dwarf_Small loclist_source;
+  Dwarf_Unsigned rawval1, rawval2; // unused
+  Dwarf_Bool debug_addr_unavailable; // unused
   Dwarf_Unsigned expression_offset;
   Dwarf_Unsigned locdesc_offset;
   Dwarf_Small atom;
   Dwarf_Unsigned op1, op2, op3;
+  Dwarf_Unsigned rawop1, rawop2, rawop3; // unused
   Dwarf_Unsigned offset_for_branch;
 
   success = FALSE;
@@ -1101,9 +1110,12 @@ gum_read_attribute_location (Dwarf_Debug dbg,
   if (count != 1)
     goto invalid_locations;
 
-  if (dwarf_get_locdesc_entry_c (locations,
+  if (dwarf_get_locdesc_entry_d (locations,
       0,
       &lle_value,
+      &rawval1,
+      &rawval2,
+      &debug_addr_unavailable,
       &low_pc,
       &high_pc,
       &loclist_count,
@@ -1121,12 +1133,15 @@ gum_read_attribute_location (Dwarf_Debug dbg,
   if (loclist_count != 1)
     goto invalid_locations;
 
-  if (dwarf_get_location_op_value_c (loclist,
+  if (dwarf_get_location_op_value_d (loclist,
       0,
       &atom,
       &op1,
       &op2,
       &op3,
+      &rawop1,
+      &rawop2,
+      &rawop3,
       &offset_for_branch,
       NULL) != DW_DLV_OK)
   {
