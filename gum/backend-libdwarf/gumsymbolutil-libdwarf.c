@@ -821,7 +821,7 @@ gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
     }
   }
 
-  dwarf_ranges_dealloc (dbg, ranges, range_count);
+  dwarf_dealloc_ranges (dbg, ranges, range_count);
 
 skip:
   return !op->found;
