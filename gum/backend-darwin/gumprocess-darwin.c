@@ -424,57 +424,7 @@ gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)
 {
-#ifdef HAVE_WATCHOS
-  return FALSE;
-#else
-  kern_return_t kr;
-  gboolean is_suspended = FALSE;
-  const mach_port_t thread = thread_id;
-  GumDarwinUnifiedThreadState state;
-  mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
-  thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
-  GumCpuContext cpu_context, original_cpu_context;
-
-  kr = thread_suspend (thread);
-  if (kr != KERN_SUCCESS)
-    goto beach;
-
-  is_suspended = TRUE;
-
-  kr = thread_abort_safely (thread);
-  if (kr != KERN_SUCCESS)
-    goto beach;
-
-  kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
-      &state_count);
-  if (kr != KERN_SUCCESS)
-    goto beach;
-
-  gum_darwin_parse_unified_thread_state (&state, &cpu_context);
-  memcpy (&original_cpu_context, &cpu_context, sizeof (cpu_context));
-
-  func (thread_id, &cpu_context, user_data);
-
-  if (memcmp (&cpu_context, &original_cpu_context, sizeof (cpu_context)) != 0)
-  {
-    gum_darwin_unparse_unified_thread_state (&cpu_context, &state);
-
-    kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
-        state_count);
-  }
-
-beach:
-  if (is_suspended)
-  {
-    kern_return_t resume_res;
-
-    resume_res = thread_resume (thread);
-    if (kr == KERN_SUCCESS)
-      kr = resume_res;
-  }
-
-  return kr == KERN_SUCCESS;
-#endif
+  return gum_darwin_modify_thread (thread_id, func, user_data);
 }
 
 void
@@ -1383,6 +1333,63 @@ gum_probe_range_for_entrypoint (const GumRangeDetails * details,
 
   g_free (chunk);
   return carry_on;
+}
+
+gboolean
+gum_darwin_modify_thread (mach_port_t thread,
+                          GumModifyThreadFunc func,
+                          gpointer user_data)
+{
+#ifdef HAVE_WATCHOS
+  return FALSE;
+#else
+  kern_return_t kr;
+  gboolean is_suspended = FALSE;
+  GumDarwinUnifiedThreadState state;
+  mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
+  thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
+  GumCpuContext cpu_context, original_cpu_context;
+
+  kr = thread_suspend (thread);
+  if (kr != KERN_SUCCESS)
+    goto beach;
+
+  is_suspended = TRUE;
+
+  kr = thread_abort_safely (thread);
+  if (kr != KERN_SUCCESS)
+    goto beach;
+
+  kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
+      &state_count);
+  if (kr != KERN_SUCCESS)
+    goto beach;
+
+  gum_darwin_parse_unified_thread_state (&state, &cpu_context);
+  memcpy (&original_cpu_context, &cpu_context, sizeof (cpu_context));
+
+  func (thread, &cpu_context, user_data);
+
+  if (memcmp (&cpu_context, &original_cpu_context, sizeof (cpu_context)) != 0)
+  {
+    gum_darwin_unparse_unified_thread_state (&cpu_context, &state);
+
+    kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
+        state_count);
+  }
+
+beach:
+  if (is_suspended)
+  {
+    kern_return_t resume_res;
+
+    resume_res = thread_resume (thread);
+    if (kr == KERN_SUCCESS)
+      kr = resume_res;
+  }
+
+  return kr == KERN_SUCCESS;
+#endif
 }
 
 void
