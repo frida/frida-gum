@@ -30,6 +30,7 @@
 #define GUM_MAPPER_RESOLVER_SIZE            40
 #define GUM_MAPPER_INIT_SIZE               128
 #define GUM_MAPPER_TERM_SIZE                64
+#define GUM_MAPPER_INIT_TLV_SIZE           196
 
 #define GUM_CHECK_MACH_RESULT(n1, cmp, n2, op) \
     if (!(n1 cmp n2)) \
@@ -67,6 +68,10 @@ struct _GumDarwinMapper
   GumAddress process_chained_fixups;
   GumAddress chained_symbols_vector;
   GumAddress tlv_get_addrAddr;
+  GumDarwinModule * libsystem_pthread;
+  GumAddress pthread_key;
+  GumAddress pthread_key_create;
+  GumAddress pthread_key_delete;
   gsize runtime_vm_size;
   gsize runtime_file_size;
   gsize runtime_header_size;
@@ -630,6 +635,9 @@ gum_darwin_mapper_init_footprint_budget (GumDarwinMapper * self)
   gum_darwin_module_enumerate_term_pointers (module,
       gum_accumulate_term_footprint_size, &runtime);
 
+  if (gum_darwin_module_has_tlv_descriptors (module))
+    runtime.total += GUM_MAPPER_INIT_TLV_SIZE;
+
   if (runtime.chained_fixups_count != 0)
   {
     header_size += rounded_alignment_padding_for_code;
@@ -1042,6 +1050,14 @@ gum_darwin_mapper_alloc_and_emit_runtime (GumDarwinMapper * self,
     self->chained_symbols_vector = 0;
   }
 
+  if (gum_darwin_module_has_tlv_descriptors (self->module)
+      && gum_darwin_module_count_tlv_descriptors (self->module) > 0)
+  {
+    self->pthread_key = self->module->base_address
+        + gum_darwin_module_get_tlv_descriptors_file_offset (self->module)
+        + self->module->pointer_size;
+  }
+
 #undef GUM_ADVANCE_BY
 
   gum_emit_runtime (self, runtime + header_size,
@@ -1074,6 +1090,7 @@ static gboolean gum_emit_init_calls (
     const GumDarwinInitPointersDetails * details, GumEmitX86Context * ctx);
 static gboolean gum_emit_term_calls (
     const GumDarwinTermPointersDetails * details, GumEmitX86Context * ctx);
+static void gum_emit_x86_tlv_init_code (GumEmitX86Context * ctx);
 
 static void
 gum_emit_runtime (GumDarwinMapper * self,
@@ -1116,6 +1133,9 @@ gum_emit_runtime (GumDarwinMapper * self,
   gum_darwin_module_enumerate_init_pointers (module,
       (GumFoundDarwinInitPointersFunc) gum_emit_init_calls, &ctx);
 
+  if (gum_darwin_module_has_tlv_descriptors (self->module))
+    gum_emit_x86_tlv_init_code (&ctx);
+
   gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, self->module->pointer_size);
   gum_x86_writer_put_pop_reg (&cw, GUM_X86_XBX);
   gum_x86_writer_put_pop_reg (&cw, GUM_X86_XBP);
@@ -1132,6 +1152,18 @@ gum_emit_runtime (GumDarwinMapper * self,
   g_slist_foreach (children_reversed, (GFunc) gum_emit_child_destructor_call,
       &ctx);
   g_slist_free (children_reversed);
+
+  if (gum_darwin_module_has_tlv_descriptors (self->module))
+  {
+    self->pthread_key_delete = gum_darwin_module_resolver_find_export_address (
+        self->resolver, self->libsystem_pthread, "pthread_key_delete");
+    gum_x86_writer_put_mov_reg_address (&cw, GUM_X86_XCX,
+        GUM_ADDRESS (self->pthread_key));
+    gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_X86_XAX, GUM_X86_XCX);
+    gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
+        GUM_ADDRESS(self->pthread_key_delete), 1,
+        GUM_ARG_REGISTER, GUM_X86_XAX);
+  }
 
   gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, self->module->pointer_size);
   gum_x86_writer_put_pop_reg (&cw, GUM_X86_XBX);
@@ -1272,6 +1304,58 @@ gum_emit_term_calls (const GumDarwinTermPointersDetails * details,
   return TRUE;
 }
 
+static void
+gum_emit_x86_tlv_init_code (GumEmitX86Context * ctx)
+{
+  GumDarwinMapper * self = ctx->mapper;
+  GumX86Writer * cw = ctx->cw;
+  GumDarwinModule * module = self->module;
+
+  self->libsystem_pthread = gum_darwin_module_resolver_find_module (
+      self->resolver, "/usr/lib/system/libsystem_pthread.dylib");
+  self->pthread_key_create =
+      gum_darwin_module_resolver_find_export_address (self->resolver,
+          self->libsystem_pthread, "pthread_key_create");
+
+  gum_x86_writer_put_call_address_with_arguments (cw, GUM_CALL_CAPI,
+      GUM_ADDRESS (self->pthread_key_create), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (self->pthread_key),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (0) /* destructor */);
+
+  GumAddress tlv_section = self->module->base_address
+      + gum_darwin_module_get_tlv_descriptors_file_offset (module);
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX,
+      gum_darwin_module_count_tlv_descriptors (module));
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XBX,
+      GUM_ADDRESS (tlv_section));
+  gum_x86_writer_put_label (cw, GSIZE_TO_POINTER (tlv_section));
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX,
+      GUM_ADDRESS (self->tlv_get_addrAddr));
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XBX, GUM_X86_XAX);
+
+  gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XBX, self->module->pointer_size);
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XBX);
+  gum_x86_writer_put_cmp_reg_i32 (cw, GUM_X86_XAX, 0);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE,
+      GSIZE_TO_POINTER (tlv_section + 1), GUM_NO_HINT);
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX,
+      GUM_ADDRESS (self->pthread_key));
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XAX);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XBX, GUM_X86_XAX);
+
+  gum_x86_writer_put_label (cw, GSIZE_TO_POINTER (tlv_section + 1));
+
+  gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XBX,
+      2 * self->module->pointer_size);
+
+  gum_x86_writer_put_dec_reg (cw, GUM_X86_XCX);
+  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE,
+      GSIZE_TO_POINTER (tlv_section), GUM_NO_HINT);
+}
+
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64)
 
 typedef struct _GumEmitArmContext GumEmitArmContext;
@@ -1318,6 +1402,7 @@ static gboolean gum_emit_arm64_init_offset_calls (
     const GumDarwinInitOffsetsDetails * details, GumEmitArm64Context * ctx);
 static gboolean gum_emit_arm64_term_calls (
     const GumDarwinTermPointersDetails * details, GumEmitArm64Context * ctx);
+static void gum_emit_arm64_tlv_init_code (GumEmitArm64Context * ctx);
 
 static void
 gum_emit_runtime (GumDarwinMapper * self,
@@ -1341,6 +1426,8 @@ gum_emit_arm_runtime (GumDarwinMapper * self,
   GumThumbWriter tw;
   GumEmitArmContext ctx;
   GSList * children_reversed;
+  GumDarwinModule * libsystem_pthread;
+  GumAddress pthread_key_create_impl, pthread_key_delete_impl;
 
   gum_thumb_writer_init (&tw, output_buffer);
   tw.pc = pc;
@@ -1368,6 +1455,19 @@ gum_emit_arm_runtime (GumDarwinMapper * self,
   gum_darwin_module_enumerate_init_pointers (module,
       (GumFoundDarwinInitPointersFunc) gum_emit_arm_init_calls, &ctx);
 
+  if (gum_darwin_module_has_tlv_descriptors (self->module))
+  {
+    libsystem_pthread = gum_darwin_module_resolver_find_module (self->resolver,
+        "/usr/lib/system/libsystem_pthread.dylib");
+    pthread_key_create_impl = gum_darwin_module_resolver_find_export_address (
+        self->resolver, libsystem_pthread, "pthread_key_create");
+
+    gum_thumb_writer_put_call_address_with_arguments (&tw,
+        GUM_ADDRESS (pthread_key_create_impl), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (self->pthread_key),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (0) /* destructor */);
+  }
+
   gum_thumb_writer_put_pop_regs (&tw, 5, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_PC);
 
@@ -1381,6 +1481,20 @@ gum_emit_arm_runtime (GumDarwinMapper * self,
   g_slist_foreach (children_reversed,
       (GFunc) gum_emit_arm_child_destructor_call, &ctx);
   g_slist_free (children_reversed);
+
+  if (gum_darwin_module_has_tlv_descriptors (self->module))
+  {
+    pthread_key_delete_impl = gum_darwin_module_resolver_find_export_address (
+        self->resolver, libsystem_pthread, "pthread_key_delete");
+
+    gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_R4,
+        GUM_ADDRESS (self->pthread_key));
+    gum_thumb_writer_put_ldr_reg_reg (&tw, ARM_REG_R4, ARM_REG_R4);
+
+    gum_thumb_writer_put_call_address_with_arguments (&tw,
+        GUM_ADDRESS (pthread_key_delete_impl), 1,
+        GUM_ARG_REGISTER, ARM_REG_R4);
+  }
 
   gum_thumb_writer_put_pop_regs (&tw, 5, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_PC);
@@ -1577,6 +1691,9 @@ gum_emit_arm64_runtime (GumDarwinMapper * self,
   gum_darwin_module_enumerate_init_offsets (module,
       (GumFoundDarwinInitOffsetsFunc) gum_emit_arm64_init_offset_calls, &ctx);
 
+  if (gum_darwin_module_has_tlv_descriptors (module))
+    gum_emit_arm64_tlv_init_code (&ctx);
+
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_LR);
@@ -1594,6 +1711,19 @@ gum_emit_arm64_runtime (GumDarwinMapper * self,
   g_slist_foreach (children_reversed,
       (GFunc) gum_emit_arm64_child_destructor_call, &ctx);
   g_slist_free (children_reversed);
+
+  if (gum_darwin_module_has_tlv_descriptors (self->module)) {
+    self->pthread_key_delete = gum_darwin_module_resolver_find_export_address (
+        self->resolver, self->libsystem_pthread, "pthread_key_delete");
+
+    gum_arm64_writer_put_ldr_reg_u64 (&aw, ARM64_REG_X21,
+        GUM_ADDRESS (self->pthread_key));
+    gum_arm64_writer_put_ldr_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X21);
+
+    gum_arm64_writer_put_call_address_with_arguments (&aw,
+        GUM_ADDRESS (self->pthread_key_delete), 1,
+        GUM_ARG_REGISTER, ARM64_REG_X21);
+  }
 
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
@@ -1773,6 +1903,57 @@ gum_emit_arm64_term_calls (const GumDarwinTermPointersDetails * details,
   return TRUE;
 }
 
+static void gum_emit_arm64_tlv_init_code (GumEmitArm64Context * ctx)
+{
+  GumDarwinMapper * self = ctx->mapper;
+  GumArm64Writer * aw = ctx->aw;
+  GumDarwinModule * module = self->module;
+
+  self->libsystem_pthread = gum_darwin_module_resolver_find_module (
+      self->resolver, "/usr/lib/system/libsystem_pthread.dylib");
+  self->pthread_key_create = gum_darwin_module_resolver_find_export_address (
+      self->resolver, self->libsystem_pthread, "pthread_key_create");
+
+  GumAddress tlv_section = self->module->base_address
+      + gum_darwin_module_get_tlv_descriptors_file_offset (module);
+
+  gum_arm64_writer_put_call_address_with_arguments (aw,
+      GUM_ADDRESS (self->pthread_key_create), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (self->pthread_key),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (0) /* destructor */);
+
+  gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X20,
+      GUM_ADDRESS (tlv_section));
+
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X21,
+     gum_darwin_module_count_tlv_descriptors (module));
+
+  gum_arm64_writer_put_label (aw, GSIZE_TO_POINTER (tlv_section));
+
+  gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X19,
+      GUM_ADDRESS (self->tlv_get_addrAddr));
+  gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X20, ARM64_REG_X20,
+      self->module->pointer_size);
+
+  gum_arm64_writer_put_ldr_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_cmp_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X19);
+  gum_arm64_writer_put_cbnz_reg_label (aw, ARM64_REG_X21,
+      GSIZE_TO_POINTER (tlv_section + 1));
+
+  gum_arm64_writer_put_ldr_reg_u64(aw, ARM64_REG_X19,
+      GUM_ADDRESS (self->pthread_key));
+  gum_arm64_writer_put_ldr_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X19);
+  gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
+
+  gum_arm64_writer_put_label (aw, GSIZE_TO_POINTER (tlv_section + 1));
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X20, ARM64_REG_X20,
+      2 * self->module->pointer_size);
+
+  gum_arm64_writer_put_sub_reg_reg_imm (aw, ARM64_REG_X21, ARM64_REG_X21, 1);
+  gum_arm64_writer_put_cbnz_reg_label (aw, ARM64_REG_X21,
+      GSIZE_TO_POINTER (tlv_section));
+}
 #endif
 
 static gboolean
