@@ -3,6 +3,7 @@
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -983,9 +984,14 @@ gum_darwin_query_hardened (void)
   if (g_once_init_enter (&cached_result))
   {
     const gchar * program_path;
+    guint i;
     gboolean is_hardened;
 
-    program_path = _dyld_get_image_name (0);
+    for (program_path = NULL, i = 0; program_path == NULL; i++)
+    {
+      if (_dyld_get_image_header (i)->filetype == MH_EXECUTE)
+        program_path = _dyld_get_image_name (i);
+    }
 
     is_hardened = strcmp (program_path, "/sbin/launchd") == 0 ||
         g_str_has_prefix (program_path, "/usr/libexec/") ||
