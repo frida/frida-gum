@@ -788,7 +788,7 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
 
       for (j = 0; j != layout->segment_pair_descriptors->len; j++)
       {
-        GumSegmentPairDescriptor descriptor;
+        const GumSegmentPairDescriptor * descriptor;
         GumSegmentCommand64 seg;
         GumSection64 sect;
 
