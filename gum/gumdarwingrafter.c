@@ -17,7 +17,7 @@
 #include <string.h>
 
 #define GUM_BIND_STATE_RESET_SIZE 2
-#define GUM_MAX_LDR_OFFSET 262143 * 4
+#define GUM_MAX_LDR_OFFSET (262143 * 4)
 
 #ifndef GUM_DIET
 
