@@ -385,7 +385,7 @@ def to_canonical_source_path(path):
 
 
 def write_bytes(data, sink):
-    "write bytes as signed integers between -128 and 127"
+    "Write bytes as signed integers between -128 and 127."
     sink.write("\n  ")
     line_length = 0
     offset = 0
