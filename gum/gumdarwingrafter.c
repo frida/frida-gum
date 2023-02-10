@@ -1015,7 +1015,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
 
   for (j = 0; j != layout->segment_pair_descriptors->len; j++)
   {
-    GumSegmentPairDescriptor descriptor;
+    const GumSegmentPairDescriptor * descriptor;
     gpointer code, data;
     GumGraftedHookTrampoline * hook_trampolines;
     GumGraftedImportTrampoline * import_trampolines;
