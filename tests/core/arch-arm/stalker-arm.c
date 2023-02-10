@@ -68,6 +68,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (arm_ldr_pc_shift)
   TESTENTRY (arm_sub_pc)
   TESTENTRY (arm_add_pc)
+  TESTENTRY (arm_ldmia_pc)
 
   TESTENTRY (thumb_it_eq)
   TESTENTRY (thumb_it_al)
@@ -1776,6 +1777,25 @@ TESTCASE (arm_add_pc)
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, start, func + 16);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 1, end, func + 24);
+}
+
+TESTCODE (arm_ldmia_pc,
+  0x0d, 0xc0, 0xa0, 0xe1, /* mov r12, sp                                   */
+  0x78, 0xd8, 0x2d, 0xe9, /* stmdb sp!, {r3, r4, r5, r6, r11, r12, lr, pc} */
+  0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0                                */
+  0x78, 0xa8, 0x9d, 0xe8, /* ldmia sp, {r3, r4, r5, r6, r11, sp, pc}       */
+);
+
+TESTCASE (arm_ldmia_pc)
+{
+  GumAddress func;
+
+  func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_ldmia_pc, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT);
+
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, start, func);
+  GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 16);
 }
 
 TESTCODE (thumb_it_eq,

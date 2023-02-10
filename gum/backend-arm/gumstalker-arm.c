@@ -351,6 +351,7 @@ struct _GumBranchIndirectRegOffset
 {
   arm_reg reg;
   gssize offset;
+  gboolean write_back;
 };
 
 struct _GumBranchIndirectRegShift
@@ -3005,6 +3006,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
       value->reg = ARM_REG_SP;
       value->offset = 0;
+      value->write_back = TRUE;
 
       for (i = 0; i != insn->detail->arm.op_count; i++)
       {
@@ -3033,6 +3035,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
 
       value->reg = op1->reg;
       value->offset = 0;
+      value->write_back = insn->detail->arm.writeback;
 
       for (i = 1; i != insn->detail->arm.op_count; i++)
       {
@@ -3066,6 +3069,7 @@ gum_stalker_get_target_address (const cs_insn * insn,
         value->reg = op2->mem.base;
         g_assert (op2->mem.index == ARM_REG_INVALID);
         value->offset = op2->mem.disp;
+        value->write_back = FALSE;
       }
       else
       {
@@ -4586,27 +4590,22 @@ gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
   if (pop)
   {
     const GumBranchIndirectRegOffset * tv = &target->value.indirect_reg_offset;
-    guint displacement = 4;
 
     g_assert (target->type == GUM_TARGET_INDIRECT_REG_OFFSET);
 
     if (mask != 0)
     {
-      if (gum_count_bits_set (mask) == 1)
-      {
-        arm_reg target_register = ARM_REG_R0 + gum_count_trailing_zeros (mask);
-        gum_arm_writer_put_ldr_reg_reg_offset (gc->arm_writer, target_register,
-            tv->reg, 0);
-        displacement += 4;
-      }
+      if (tv->write_back)
+        gum_arm_writer_put_ldmia_reg_mask_wb (gc->arm_writer, tv->reg, mask);
       else
-      {
         gum_arm_writer_put_ldmia_reg_mask (gc->arm_writer, tv->reg, mask);
-      }
     }
 
-    gum_arm_writer_put_add_reg_reg_imm (gc->arm_writer, tv->reg, tv->reg,
-        displacement);
+    if (tv->write_back)
+    {
+      gum_arm_writer_put_add_reg_reg_imm (gc->arm_writer, tv->reg, tv->reg,
+          4);
+    }
   }
 
   gum_exec_block_write_arm_exec_generated_code (gc->arm_writer, block->ctx);
