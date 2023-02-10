@@ -396,7 +396,7 @@ def write_bytes(data, sink):
         if line_length >= 70:
             sink.write("\n  ")
             line_length = 0
-        # convert unsigned to signed for utf8
+        # Convert unsigned to signed for UTF-8.
         if b >= 128:
             b -= 256
         token = str(b)
