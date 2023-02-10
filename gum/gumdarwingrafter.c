@@ -798,10 +798,10 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
         seg.cmd = GUM_LC_SEGMENT_64;
         seg.cmdsize = sizeof (seg) + sizeof (sect);
         g_snprintf (seg.segname, sizeof (seg.segname), "__FRIDA_TEXT%u", j);
-        seg.vmaddr = descriptor.code_address;
-        seg.vmsize = descriptor.code_size;
-        seg.fileoff = descriptor.code_offset;
-        seg.filesize = descriptor.code_size;
+        seg.vmaddr = descriptor->code_address;
+        seg.vmsize = descriptor->code_size;
+        seg.fileoff = descriptor->code_offset;
+        seg.filesize = descriptor->code_size;
         seg.maxprot = GUM_VM_PROT_READ | GUM_VM_PROT_EXECUTE;
         seg.initprot = GUM_VM_PROT_READ | GUM_VM_PROT_EXECUTE;
         seg.nsects = 1;
