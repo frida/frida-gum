@@ -585,7 +585,9 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
           max_code_size - sizeof (GumGraftedRuntime)) /
           sizeof (GumGraftedImportTrampoline);
       used_code_offsets = 0;
-    } else {
+    }
+    else
+    {
       g_assert_not_reached ();
     }
 
