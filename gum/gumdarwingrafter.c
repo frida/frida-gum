@@ -562,9 +562,9 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
     if (pending_code_offsets > 0)
     {
       used_code_offsets =
-        MIN (pending_code_offsets * sizeof (GumGraftedHookTrampoline),
-            max_code_size - sizeof (GumGraftedRuntime)) /
-        sizeof (GumGraftedHookTrampoline);
+          MIN (pending_code_offsets * sizeof (GumGraftedHookTrampoline),
+              max_code_size - sizeof (GumGraftedRuntime)) /
+          sizeof (GumGraftedHookTrampoline);
 
       if (used_code_offsets == pending_code_offsets)
       {
