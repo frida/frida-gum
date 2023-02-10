@@ -157,6 +157,7 @@ def generate_runtime_quick(runtime_name, output_dir, output, inputs, quickcompil
 
                 modules.append((input_bytecode_identifier, bytecode_size, input_source_map_identifier))
             else:
+                output_file.write("\nstatic const gchar {0}[1] = {{ 0 }};\n".format(input_source_map_identifier))
                 modules.append((input_bytecode_identifier, bytecode_size, "NULL"))
 
         output_file.write("\nstatic const GumQuickRuntimeModule gumjs_{0}_modules[] =\n{{".format(runtime_name))
@@ -199,6 +200,7 @@ def generate_runtime_v8(runtime_name, output_dir, output, inputs):
 
                 modules.append((input_name, input_source_code_identifier, input_source_map_identifier))
             else:
+                output_file.write("\nstatic const gchar {0}[1] = {{ 0 }};\n".format(input_source_map_identifier))
                 modules.append((input_name, input_source_code_identifier, "NULL"))
 
         output_file.write("\nstatic const GumV8RuntimeModule gumjs_{0}_modules[] =\n{{".format(runtime_name))
@@ -383,6 +385,7 @@ def to_canonical_source_path(path):
 
 
 def write_bytes(data, sink):
+    "Write bytes as signed integers between -128 and 127."
     sink.write("\n  ")
     line_length = 0
     offset = 0
@@ -393,6 +396,9 @@ def write_bytes(data, sink):
         if line_length >= 70:
             sink.write("\n  ")
             line_length = 0
+        # Convert unsigned to signed for UTF-8.
+        if b >= 128:
+            b -= 256
         token = str(b)
         sink.write(token)
 
