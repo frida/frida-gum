@@ -1027,7 +1027,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
     GumAddress header_addr, begin_invocation_addr, end_invocation_addr;
     GumAddress hook_entries_addr, import_entries_addr;
 
-    descriptor = g_array_index (layout->segment_pair_descriptors,
+    descriptor = &g_array_index (layout->segment_pair_descriptors,
         GumSegmentPairDescriptor, j);
 
     code = (guint8 *) output + descriptor.code_offset;
