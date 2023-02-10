@@ -792,7 +792,7 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
         GumSegmentCommand64 seg;
         GumSection64 sect;
 
-        descriptor = g_array_index (layout->segment_pair_descriptors,
+        descriptor = &g_array_index (layout->segment_pair_descriptors,
             GumSegmentPairDescriptor, j);
 
         seg.cmd = GUM_LC_SEGMENT_64;
