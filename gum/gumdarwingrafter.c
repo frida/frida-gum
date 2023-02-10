@@ -569,10 +569,10 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
       if (used_code_offsets == pending_code_offsets)
       {
         used_imports =
-          MIN (pending_imports * sizeof (GumGraftedImportTrampoline),
-              max_code_size - sizeof (GumGraftedRuntime) -
-              used_code_offsets * sizeof (GumGraftedHookTrampoline)) /
-          sizeof (GumGraftedImportTrampoline);
+            MIN (pending_imports * sizeof (GumGraftedImportTrampoline),
+                max_code_size - sizeof (GumGraftedRuntime) -
+                used_code_offsets * sizeof (GumGraftedHookTrampoline)) /
+            sizeof (GumGraftedImportTrampoline);
       }
       else
       {
