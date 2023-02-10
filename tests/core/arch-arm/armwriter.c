@@ -98,8 +98,6 @@ TESTCASE (ldmia_with_rn_in_reglist)
   mask |= 1 << ri.index;
   gum_arm_reg_describe (ARM_REG_R5, &ri);
   mask |= 1 << ri.index;
-  gum_arm_reg_describe (ARM_REG_R5, &ri);
-  mask |= 1 << ri.index;
   gum_arm_reg_describe (ARM_REG_R6, &ri);
   mask |= 1 << ri.index;
   gum_arm_reg_describe (ARM_REG_R7, &ri);
