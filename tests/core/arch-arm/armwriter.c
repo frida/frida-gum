@@ -14,6 +14,7 @@ TESTLIST_BEGIN (armwriter)
 #endif
   TESTENTRY (nop)
   TESTENTRY (ldmia_with_rn_in_reglist)
+  TESTENTRY (ldmia_with_rn_in_reglist_wb)
   TESTENTRY (vpush_range)
   TESTENTRY (vpop_range)
 TESTLIST_END ()
@@ -118,6 +119,40 @@ TESTCASE (ldmia_with_rn_in_reglist)
   mask |= 1 << ri.index;
 
   gum_arm_writer_put_ldmia_reg_mask (&fixture->aw, ARM_REG_SP, mask);
+  gum_arm_writer_flush (&fixture->aw);
+  /* pop {r4, r5, r6, r7, r8, sb, sl, fp, ip, sp, pc} */
+  assert_output_n_equals (0, 0xe89dbff0);
+}
+
+TESTCASE (ldmia_with_rn_in_reglist_wb)
+{
+  GumArmRegInfo ri;
+  guint16 mask = 0;
+
+  gum_arm_reg_describe (ARM_REG_R4, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_R5, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_R6, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_R7, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_R8, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_R9, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_R10, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_R11, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_R12, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_SP, &ri);
+  mask |= 1 << ri.index;
+  gum_arm_reg_describe (ARM_REG_PC, &ri);
+  mask |= 1 << ri.index;
+
+  gum_arm_writer_put_ldmia_reg_mask_wb (&fixture->aw, ARM_REG_SP, mask);
   gum_arm_writer_flush (&fixture->aw);
   /* pop {r4, r5, r6, r7, r8, sb, sl, fp, ip, sp, pc} */
   assert_output_n_equals (0, 0xe8bdbff0);

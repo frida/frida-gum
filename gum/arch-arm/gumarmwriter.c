@@ -635,7 +635,7 @@ gum_arm_writer_put_pop_regs (GumArmWriter * self,
 
   va_end (args);
 
-  gum_arm_writer_put_ldmia_reg_mask (self, ARM_REG_SP, mask);
+  gum_arm_writer_put_ldmia_reg_mask_wb (self, ARM_REG_SP, mask);
 }
 
 gboolean
@@ -779,6 +779,19 @@ gum_arm_writer_put_ldmia_reg_mask (GumArmWriter * self,
   GumArmRegInfo ri;
 
   gum_arm_reg_describe (reg, &ri);
+
+  gum_arm_writer_put_instruction (self, 0xe8900000 | (ri.index << 16) | mask);
+}
+
+void
+gum_arm_writer_put_ldmia_reg_mask_wb (GumArmWriter * self,
+                                      arm_reg reg,
+                                      guint16 mask)
+{
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
   gum_arm_writer_put_instruction (self, 0xe8b00000 | (ri.index << 16) | mask);
 }
 
