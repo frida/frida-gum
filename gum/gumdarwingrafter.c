@@ -1030,38 +1030,38 @@ gum_darwin_grafter_emit_segments (gpointer output,
     descriptor = &g_array_index (layout->segment_pair_descriptors,
         GumSegmentPairDescriptor, j);
 
-    code = (guint8 *) output + descriptor.code_offset;
-    data = (guint8 *) output + descriptor.data_offset;
+    code = (guint8 *) output + descriptor->code_offset;
+    data = (guint8 *) output + descriptor->data_offset;
 
-    memset (code, 0, descriptor.code_size);
-    memset (data, 0, descriptor.data_size);
+    memset (code, 0, descriptor->code_size);
+    memset (data, 0, descriptor->data_size);
 
     hook_trampolines = code;
     import_trampolines =
         (GumGraftedImportTrampoline *) (hook_trampolines +
-            descriptor.num_code_offsets);
+            descriptor->num_code_offsets);
 
     header = data;
     hook_entries = (GumGraftedHook *) (header + 1);
     import_entries = (GumGraftedImport *) (hook_entries +
-        descriptor.num_code_offsets);
+        descriptor->num_code_offsets);
 
     header->abi_version = GUM_DARWIN_GRAFTER_ABI_VERSION;
-    header->num_hooks = descriptor.num_code_offsets;
-    header->num_imports = descriptor.num_imports;
+    header->num_hooks = descriptor->num_code_offsets;
+    header->num_imports = descriptor->num_imports;
 
-    hook_trampolines_addr = descriptor.code_address;
+    hook_trampolines_addr = descriptor->code_address;
     import_trampolines_addr = hook_trampolines_addr +
-        descriptor.num_code_offsets * sizeof (GumGraftedHookTrampoline);
+        descriptor->num_code_offsets * sizeof (GumGraftedHookTrampoline);
 
     runtime_addr = import_trampolines_addr +
-        descriptor.num_imports * sizeof (GumGraftedImportTrampoline);
+        descriptor->num_imports * sizeof (GumGraftedImportTrampoline);
     do_begin_invocation_addr = runtime_addr +
         G_STRUCT_OFFSET (GumGraftedRuntime, do_begin_invocation);
     do_end_invocation_addr = runtime_addr +
         G_STRUCT_OFFSET (GumGraftedRuntime, do_end_invocation);
 
-    header_addr = descriptor.data_address;
+    header_addr = descriptor->data_address;
     begin_invocation_addr = header_addr +
         G_STRUCT_OFFSET (GumGraftedHeader, begin_invocation);
     end_invocation_addr = header_addr +
@@ -1069,9 +1069,9 @@ gum_darwin_grafter_emit_segments (gpointer output,
 
     hook_entries_addr = header_addr + sizeof (GumGraftedHeader);
     import_entries_addr = hook_entries_addr +
-        descriptor.num_code_offsets * sizeof (GumGraftedHook);
+        descriptor->num_code_offsets * sizeof (GumGraftedHook);
 
-    for (i = 0; i != descriptor.num_code_offsets; i++)
+    for (i = 0; i != descriptor->num_code_offsets; i++)
     {
       guint32 code_offset, * code_instructions, overwritten_insn;
       GumAddress code_addr;
@@ -1082,7 +1082,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
       gconstpointer not_active = trampoline;
 
       code_offset = g_array_index (code_offsets, guint32,
-          i + descriptor.code_offsets_start);
+          i + descriptor->code_offsets_start);
       code_addr = layout->text_address + code_offset;
       code_instructions = (guint32 *) ((guint8 *) output + code_offset);
 
@@ -1150,7 +1150,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
           0x0;
     }
 
-    for (i = 0; i != descriptor.num_imports; i++)
+    for (i = 0; i != descriptor->num_imports; i++)
     {
       const GumImport * import;
       GumGraftedImportTrampoline * trampoline = &import_trampolines[i];
@@ -1159,7 +1159,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
       GumAddress entry_addr, user_data_addr;
 
       import = &g_array_index (imports, GumImport,
-          i + descriptor.imports_start);
+          i + descriptor->imports_start);
 
       trampoline_addr =
           import_trampolines_addr + i * sizeof (GumGraftedImportTrampoline);
@@ -1202,7 +1202,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
           0x0;
     }
 
-    gum_arm64_writer_reset (&cw, import_trampolines + descriptor.num_imports);
+    gum_arm64_writer_reset (&cw, import_trampolines + descriptor->num_imports);
 
     cw.pc = do_begin_invocation_addr;
     if (!gum_arm64_writer_put_ldr_reg_u64_ptr (&cw,
@@ -1226,7 +1226,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
 
 ldr_error:
   g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
-      "LDR target too far, please file a bug");
+      "LDR target too far away; please file a bug");
 
 beach:
   gum_arm64_writer_clear (&cw);
