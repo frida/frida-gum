@@ -433,7 +433,6 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
   goffset offset_cursor;
   guint pending_imports, pending_code_offsets;
 
-
   *code_offsets = NULL;
   *imports = NULL;
 
