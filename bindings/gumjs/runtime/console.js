@@ -10,8 +10,14 @@ class Console {
     this.#counters = new Map();
   }
 
-  log() {
+  info() {
     sendLogMessage('info', slice.call(arguments));
+  }
+
+  log = info;
+
+  debug() {
+    sendLogMessage('debug', slice.call(arguments));
   }
 
   warn() {
