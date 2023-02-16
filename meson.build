@@ -530,9 +530,6 @@ if have_gumjs
     quickjs_dep_native = dependency('quickjs', native: true)
   endif
 
-  # https://github.com/frida/v8 exports v8-10.0
-  # vanilla nodejs exports v8
-  # frida-gum fails to build with vanilla v8
   v8_dep = dependency('v8-10.0',
     version: '>=10.6.122',
     required: get_option('v8'),
