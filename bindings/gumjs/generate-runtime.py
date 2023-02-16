@@ -260,10 +260,14 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
 
         return "typedef int cs_{0};".format(name)
 
+    def libtcc_is_header(name):
+        """Ignore symbols from the TinyCC standard library: dlclose() etc."""
+        return is_header(name) and name != "tcclib.h"
+
     inputs = [
         (input_dir / "runtime" / "cmodule", None, is_header, identity_transform, 'GUM_CHEADER_FRIDA'),
         (input_dir / "runtime" / "cmodule-tcc", None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
-        (libtcc_incdir, None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
+        (libtcc_incdir, None, libtcc_is_header, identity_transform, 'GUM_CHEADER_TCC'),
         (gum_dir / ("arch-" + writer_arch), gum_dir.parent, gum_header_matches_writer, optimize_gum_header, 'GUM_CHEADER_FRIDA'),
         (capstone_incdir, None, capstone_header_matches_arch, optimize_capstone_header, 'GUM_CHEADER_FRIDA'),
     ]
