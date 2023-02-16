@@ -14,7 +14,9 @@ class Console {
     sendLogMessage('info', slice.call(arguments));
   }
 
-  log = info;
+  log() {
+    sendLogMessage('info', slice.call(arguments));
+  }
 
   debug() {
     sendLogMessage('debug', slice.call(arguments));
