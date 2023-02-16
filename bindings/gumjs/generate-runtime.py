@@ -261,7 +261,7 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
         return "typedef int cs_{0};".format(name)
 
     def libtcc_is_header(name):
-        "ignore symbols from the tinycc standard library: dlclose etc."
+        """Ignore symbols from the TinyCC standard library: dlclose() etc."""
         return is_header(name) and name != "tcclib.h"
 
     inputs = [
