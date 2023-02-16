@@ -539,7 +539,7 @@ if have_gumjs
   if v8_dep.found()
     assert(
       cppc.has_header_symbol('v8-platform.h', 'v8::ThreadingBackend', dependencies: [v8_dep]),
-      'please use v8 from https://github.com/frida/v8'
+      'Please use V8 from https://github.com/frida/v8'
     )
     gumjs_extra_requires += 'v8-10.0'
   endif
