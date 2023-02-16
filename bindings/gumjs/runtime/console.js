@@ -1,8 +1,5 @@
 const hexdump = require('./hexdump');
 
-const engine = global;
-const slice = Array.prototype.slice;
-
 class Console {
   #counters;
 
@@ -10,24 +7,24 @@ class Console {
     this.#counters = new Map();
   }
 
-  info() {
-    sendLogMessage('info', slice.call(arguments));
+  info(...args) {
+    sendLogMessage('info', args);
   }
 
-  log() {
-    sendLogMessage('info', slice.call(arguments));
+  log(...args) {
+    sendLogMessage('info', args);
   }
 
-  debug() {
-    sendLogMessage('debug', slice.call(arguments));
+  debug(...args) {
+    sendLogMessage('debug', args);
   }
 
-  warn() {
-    sendLogMessage('warning', slice.call(arguments));
+  warn(...args) {
+    sendLogMessage('warning', args);
   }
 
-  error() {
-    sendLogMessage('error', slice.call(arguments));
+  error(...args) {
+    sendLogMessage('error', args);
   }
 
   count(label = 'default') {
@@ -54,7 +51,7 @@ function sendLogMessage(level, values) {
     level: level,
     payload: text
   };
-  engine._send(JSON.stringify(message), null);
+  _send(JSON.stringify(message), null);
 }
 
 function parseLogArgument(value) {
