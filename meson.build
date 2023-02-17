@@ -47,7 +47,6 @@ if host_os_family == 'darwin'
 endif
 
 cc = meson.get_compiler('c')
-cppc = meson.get_compiler('cpp')
 
 frida_component_cflags = []
 ndebug = get_option('b_ndebug')
@@ -533,14 +532,9 @@ if have_gumjs
   v8_dep = dependency('v8-10.0',
     version: '>=10.6.122',
     required: get_option('v8'),
-    not_found_message: 'Please use V8 from https://github.com/frida/v8',
   )
   cdata.set('HAVE_V8', v8_dep.found())
   if v8_dep.found()
-    assert(
-      cppc.has_header_symbol('v8-platform.h', 'v8::ThreadingBackend', dependencies: [v8_dep]),
-      'Please use V8 from https://github.com/frida/v8'
-    )
     gumjs_extra_requires += 'v8-10.0'
   endif
 
