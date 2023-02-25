@@ -94,11 +94,9 @@ static HMODULE
 load_dbghelp (void)
 {
   HMODULE mod;
-#ifdef GUM_STATIC
   // never load other one when the process loaded dll
   if (GetModuleHandleExW(0, L"dbghelp.dll", &mod))
       return mod;
-#endif
   BOOL success G_GNUC_UNUSED;
   DWORD length G_GNUC_UNUSED;
   WCHAR path[MAX_PATH + 1] = { 0, };
