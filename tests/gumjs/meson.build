@@ -1,6 +1,7 @@
 gumjs_sources = [
   'script.c',
   'kscript.c',
+  '../core/interceptor-callbacklistener.c'
 ]
 
 gum_tests_gumjs = static_library('gum-tests-gumjs', gumjs_sources,

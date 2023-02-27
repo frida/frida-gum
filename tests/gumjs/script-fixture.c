@@ -14,6 +14,7 @@
 #include "gumquickscriptbackend.h"
 #include "gumscriptbackend.h"
 #include "valgrind.h"
+#include "../core/interceptor-callbacklistener.h"
 
 #include <limits.h>
 #include <stdarg.h>
