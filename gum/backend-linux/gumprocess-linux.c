@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -45,6 +46,9 @@
 #ifdef HAVE_SYS_USER_H
 # include <sys/user.h>
 #endif
+
+#define GUM_PAGE_START(value, page_size) \
+    ((GumAddress) (value) & ~((GumAddress) ((page_size) - 1)))
 
 #ifndef O_CLOEXEC
 # define O_CLOEXEC 0x80000
@@ -92,11 +96,15 @@
       __result; \
     })
 
+typedef struct _GumProgramModules GumProgramModules;
+typedef guint GumProgramRuntimeLinker;
+typedef struct _GumProgramRanges GumProgramRanges;
+typedef ElfW(auxv_t) * (* GumReadAuxvFunc) (void);
+
 typedef struct _GumModifyThreadContext GumModifyThreadContext;
 typedef guint8 GumModifyThreadAck;
 
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
-typedef struct _GumEmitExecutableModuleContext GumEmitExecutableModuleContext;
 typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
 
 typedef gint (* GumFoundDlPhdrFunc) (struct dl_phdr_info * info,
@@ -107,6 +115,27 @@ typedef struct _GumUserDesc GumUserDesc;
 typedef struct _GumTcbHead GumTcbHead;
 
 typedef gint (* GumCloneFunc) (gpointer arg);
+
+struct _GumProgramModules
+{
+  GumModuleDetails program;
+  GumModuleDetails interpreter;
+  GumModuleDetails vdso;
+  GumProgramRuntimeLinker rtld;
+};
+
+enum _GumProgramRuntimeLinker
+{
+  GUM_PROGRAM_RTLD_NONE,
+  GUM_PROGRAM_RTLD_SHARED,
+};
+
+struct _GumProgramRanges
+{
+  GumMemoryRange program;
+  GumMemoryRange interpreter;
+  GumMemoryRange vdso;
+};
 
 enum _GumModifyThreadAck
 {
@@ -181,6 +210,18 @@ struct _GumTcbHead
 #endif
 };
 
+static void gum_deinit_program_modules (void);
+static gboolean gum_query_program_ranges (GumReadAuxvFunc read_auxv,
+    GumProgramRanges * ranges);
+static ElfW(auxv_t) * gum_read_auxv_from_proc (void);
+static ElfW(auxv_t) * gum_read_auxv_from_stack (void);
+static gboolean gum_query_main_thread_stack_range (GumMemoryRange * range);
+static void gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
+    GumMemoryRange * range);
+static void gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
+    ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress base_address,
+    GumMemoryRange * range);
+
 static gchar * gum_try_init_libc_name (void);
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
     Dl_info * info);
@@ -202,14 +243,6 @@ static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
 static GumAddress gum_resolve_base_address_from_phdr (
     struct dl_phdr_info * info);
-static gboolean gum_emit_executable_module (const GumModuleDetails * details,
-    gpointer user_data);
-static gboolean gum_maybe_emit_interpreter (const GumModuleDetails * details,
-    GumEmitExecutableModuleContext * ctx);
-#ifndef GUM_DIET
-static gboolean gum_emit_executable_module_by_name (
-    const GumModuleDetails * details, gpointer user_data);
-#endif
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static gboolean gum_try_translate_vdso_name (gchar * name);
@@ -247,9 +280,328 @@ static gssize gum_libc_ptrace (gsize request, pid_t pid, gpointer address,
 #define gum_libc_syscall_3(n, a, b, c) gum_libc_syscall_4 (n, a, b, c, 0)
 static gssize gum_libc_syscall_4 (gsize n, gsize a, gsize b, gsize c, gsize d);
 
+static GumProgramModules gum_program_modules;
 static gchar * gum_libc_name;
 
 static gboolean gum_is_regset_supported = TRUE;
+
+static const GumProgramModules *
+gum_query_program_modules (void)
+{
+  static gsize modules_value = 0;
+
+  if (g_once_init_enter (&modules_value))
+  {
+    static GumProgramRanges ranges;
+    GumProgramRanges kern, user;
+    GumProcMapsIter iter;
+    gchar * path;
+    const gchar * line;
+
+    if (gum_query_program_ranges (gum_read_auxv_from_proc, &kern) &&
+        gum_query_program_ranges (gum_read_auxv_from_stack, &user) &&
+        user.program.base_address != kern.program.base_address)
+    {
+      ranges = user;
+      ranges.interpreter = kern.program;
+    }
+    else
+    {
+      ranges = kern;
+    }
+
+    gum_program_modules.program.range = &ranges.program;
+    gum_program_modules.interpreter.range = &ranges.interpreter;
+    gum_program_modules.vdso.range = &ranges.vdso;
+    gum_program_modules.rtld = (ranges.interpreter.base_address == 0)
+        ? GUM_PROGRAM_RTLD_NONE
+        : GUM_PROGRAM_RTLD_SHARED;
+
+    gum_proc_maps_iter_init_for_self (&iter);
+    path = g_malloc (PATH_MAX);
+
+    while (gum_proc_maps_iter_next (&iter, &line))
+    {
+      GumAddress start;
+      GumModuleDetails * m;
+
+      sscanf (line, "%" G_GINT64_MODIFIER "x-", &start);
+
+      if (start == ranges.program.base_address)
+        m = &gum_program_modules.program;
+      else if (start == ranges.interpreter.base_address)
+        m = &gum_program_modules.interpreter;
+      else
+        continue;
+
+      sscanf (line, "%*x-%*x %*c%*c%*c%*c %*x %*s %*d %[^\n]", path);
+
+      m->path = g_strdup (path);
+      m->name = strrchr (m->path, '/');
+      if (m->name != NULL)
+        m->name++;
+      else
+        m->name = m->path;
+    }
+
+    g_free (path);
+    gum_proc_maps_iter_destroy (&iter);
+
+    if (ranges.vdso.base_address != 0)
+    {
+      GumModuleDetails * m = &gum_program_modules.vdso;
+      /* FIXME: Parse soname instead of hardcoding: */
+      m->path = g_strdup ("linux-vdso.so.1");
+      m->name = m->path;
+    }
+
+    _gum_register_destructor (gum_deinit_program_modules);
+
+    g_once_init_leave (&modules_value, GPOINTER_TO_SIZE (&gum_program_modules));
+  }
+
+   return GSIZE_TO_POINTER (modules_value);
+}
+
+static void
+gum_deinit_program_modules (void)
+{
+  GumProgramModules * m = &gum_program_modules;
+
+  g_free ((gchar *) m->program.path);
+  g_free ((gchar *) m->interpreter.path);
+  g_free ((gchar *) m->vdso.path);
+}
+
+static gboolean
+gum_query_program_ranges (GumReadAuxvFunc read_auxv,
+                          GumProgramRanges * ranges)
+{
+  gboolean success = FALSE;
+  ElfW(auxv_t) * auxv;
+  const ElfW(Phdr) * phdrs;
+  ElfW(Half) phdr_size, phdr_count;
+  const ElfW(Ehdr) * interpreter, * vdso;
+  ElfW(auxv_t) * entry;
+
+  bzero (ranges, sizeof (GumProgramRanges));
+
+  auxv = read_auxv ();
+  if (auxv == NULL)
+    goto beach;
+
+  phdrs = NULL;
+  phdr_size = 0;
+  phdr_count = 0;
+  interpreter = NULL;
+  vdso = NULL;
+  for (entry = auxv; entry->a_type != AT_NULL; entry++)
+  {
+    switch (entry->a_type)
+    {
+      case AT_PHDR:
+        phdrs = (ElfW(Phdr) *) entry->a_un.a_val;
+        break;
+      case AT_PHENT:
+        phdr_size = entry->a_un.a_val;
+        break;
+      case AT_PHNUM:
+        phdr_count = entry->a_un.a_val;
+        break;
+      case AT_BASE:
+        interpreter = (const ElfW(Ehdr) *) entry->a_un.a_val;
+        break;
+      case AT_SYSINFO_EHDR:
+        vdso = (const ElfW(Ehdr) *) entry->a_un.a_val;
+        break;
+    }
+  }
+  if (phdrs == NULL || phdr_size == 0 || phdr_count == 0)
+    goto beach;
+
+  gum_compute_elf_range_from_phdrs (phdrs, phdr_size, phdr_count, 0,
+      &ranges->program);
+  gum_compute_elf_range_from_ehdr (interpreter, &ranges->interpreter);
+  gum_compute_elf_range_from_ehdr (vdso, &ranges->vdso);
+
+  success = TRUE;
+
+beach:
+  g_free (auxv);
+
+  return success;
+}
+
+static ElfW(auxv_t) *
+gum_read_auxv_from_proc (void)
+{
+  ElfW(auxv_t) * auxv = NULL;
+
+  g_file_get_contents ("/proc/self/auxv", (gchar **) &auxv, NULL, NULL);
+
+  return auxv;
+}
+
+static ElfW(auxv_t) *
+gum_read_auxv_from_stack (void)
+{
+  GumMemoryRange stack;
+  gpointer stack_start, stack_end;
+  ElfW(auxv_t) needle;
+  const ElfW(auxv_t) * match, * last_match;
+  gsize offset;
+  const ElfW(auxv_t) * cursor, * auxv_start, * auxv_end;
+  gsize page_size;
+
+  if (!gum_query_main_thread_stack_range (&stack))
+    return NULL;
+  stack_start = GSIZE_TO_POINTER (stack.base_address);
+  stack_end = stack_start + stack.size;
+
+  needle.a_type = AT_PHENT;
+  needle.a_un.a_val = sizeof (ElfW(Phdr));
+
+  match = NULL;
+  last_match = NULL;
+  offset = 0;
+  while (offset != stack.size)
+  {
+    match = memmem (GSIZE_TO_POINTER (stack.base_address) + offset,
+        stack.size - offset, &needle, sizeof (needle));
+    if (match == NULL)
+      break;
+
+    last_match = match;
+    offset = (GUM_ADDRESS (match) - stack.base_address) + 1;
+  }
+  if (last_match == NULL)
+    return NULL;
+
+  auxv_start = NULL;
+  page_size = gum_query_page_size ();
+  for (cursor = last_match - 1;
+      (gpointer) cursor >= stack_start;
+      cursor--)
+  {
+    gboolean probably_an_invalid_type = cursor->a_type >= page_size;
+    if (probably_an_invalid_type)
+    {
+      auxv_start = cursor + 1;
+      break;
+    }
+  }
+
+  auxv_end = NULL;
+  for (cursor = last_match + 1;
+      (gpointer) cursor <= stack_end - sizeof (ElfW(auxv_t));
+      cursor++)
+  {
+    if (cursor->a_type == AT_NULL)
+    {
+      auxv_end = cursor + 1;
+      break;
+    }
+  }
+  if (auxv_end == NULL)
+    return NULL;
+
+  return g_memdup (auxv_start, (guint8 *) auxv_end - (guint8 *) auxv_start);
+}
+
+static gboolean
+gum_query_main_thread_stack_range (GumMemoryRange * range)
+{
+  GumProcMapsIter iter;
+  GumAddress stack_bottom, stack_top;
+  const gchar * line;
+
+  gum_proc_maps_iter_init_for_self (&iter);
+
+  stack_bottom = 0;
+  stack_top = 0;
+
+  while (gum_proc_maps_iter_next (&iter, &line))
+  {
+    if (g_str_has_suffix (line, " [stack]"))
+    {
+      sscanf (line,
+          "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x ",
+          &stack_bottom,
+          &stack_top);
+      break;
+    }
+  }
+
+  range->base_address = stack_bottom;
+  range->size = stack_top - stack_bottom;
+
+  gum_proc_maps_iter_destroy (&iter);
+
+  return range->size != 0;
+}
+
+static void
+gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
+                                 GumMemoryRange * range)
+{
+  if (ehdr == NULL)
+  {
+    range->base_address = 0;
+    range->size = 0;
+    return;
+  }
+
+  gum_compute_elf_range_from_phdrs ((gconstpointer) ehdr + ehdr->e_phoff,
+      ehdr->e_phentsize, ehdr->e_phnum, GUM_ADDRESS (ehdr), range);
+}
+
+static void
+gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
+                                  ElfW(Half) phdr_size,
+                                  ElfW(Half) phdr_count,
+                                  GumAddress base_address,
+                                  GumMemoryRange * range)
+{
+  GumAddress lowest, highest;
+  gsize page_size;
+  ElfW(Half) i;
+  const ElfW(Phdr) * phdr;
+
+  range->base_address = 0;
+
+  lowest = ~0;
+  highest = 0;
+  page_size = gum_query_page_size ();
+
+  for (i = 0, phdr = phdrs;
+      i != phdr_count;
+      i++, phdr = (gconstpointer) phdr + phdr_size)
+  {
+    if (phdr->p_type == PT_PHDR)
+      range->base_address = GPOINTER_TO_SIZE (phdrs) - phdr->p_offset;
+
+    if (phdr->p_type == PT_LOAD && phdr->p_offset == 0)
+    {
+      if (range->base_address == 0)
+        range->base_address = phdr->p_vaddr;
+    }
+
+    if (phdr->p_type == PT_LOAD)
+    {
+      lowest = MIN (GUM_PAGE_START (phdr->p_vaddr, page_size), lowest);
+      highest = MAX (phdr->p_vaddr + phdr->p_memsz, highest);
+    }
+  }
+
+  if (range->base_address == 0)
+  {
+    range->base_address = (base_address != 0)
+        ? base_address
+        : GUM_PAGE_START (phdrs, page_size);
+  }
+
+  range->size = highest - lowest;
+}
 
 const gchar *
 gum_process_query_libc_name (void)
@@ -704,8 +1056,22 @@ gum_do_enumerate_modules (const gchar * libc_name,
                           GumFoundModuleFunc func,
                           gpointer user_data)
 {
+  const GumProgramModules * pm;
   static gsize iterate_phdr_value = 0;
   GumDlIteratePhdrImpl iterate_phdr;
+
+  pm = gum_query_program_modules ();
+
+  if (pm->rtld == GUM_PROGRAM_RTLD_NONE)
+  {
+    if (!func (&pm->program, user_data))
+      return;
+
+    if (pm->vdso.range->base_address != 0)
+      func (&pm->vdso, user_data);
+
+    return;
+  }
 
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
@@ -767,7 +1133,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   gchar * name;
   GumModuleDetails details;
   GumMemoryRange range;
-  gboolean carry_on;
+  gboolean carry_on, emitted;
 
   is_special_module = info->dlpi_addr == 0 || info->dlpi_name == NULL ||
       info->dlpi_name[0] == '\0';
@@ -795,6 +1161,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   range.size = (named_range != NULL) ? named_range->size : 0;
 
   carry_on = TRUE;
+  emitted = FALSE;
 
   if (ctx->index == 0)
   {
@@ -804,24 +1171,16 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
     if (executable_path != NULL &&
         strcmp (details.path, executable_path) != 0)
     {
-      GumEmitExecutableModuleContext emc;
+      const GumProgramModules * pm = gum_query_program_modules ();
 
-      emc.executable_path = executable_path;
-      emc.func = ctx->func;
-      emc.user_data = ctx->user_data;
-
-      emc.carry_on = TRUE;
-
-      gum_linux_enumerate_modules_using_proc_maps (gum_emit_executable_module,
-          &emc);
-
-      carry_on = emc.carry_on;
+      carry_on = ctx->func (&pm->program, ctx->user_data);
+      emitted = TRUE;
     }
 
     g_free (executable_path);
   }
 
-  if (carry_on)
+  if (carry_on && !emitted)
   {
     carry_on = ctx->func (&details, ctx->user_data);
   }
@@ -855,131 +1214,6 @@ gum_resolve_base_address_from_phdr (struct dl_phdr_info * info)
 
   return base_address;
 }
-
-static gboolean
-gum_emit_executable_module (const GumModuleDetails * details,
-                            gpointer user_data)
-{
-  GumEmitExecutableModuleContext * ctx = user_data;
-
-  if (gum_maybe_emit_interpreter (details, ctx))
-    return FALSE;
-
-  if (strcmp (details->path, ctx->executable_path) != 0)
-    return TRUE;
-
-  ctx->carry_on = ctx->func (details, ctx->user_data);
-
-  return FALSE;
-}
-
-#ifndef GUM_DIET
-
-/*
- * Loading an executable by passing it as an argument to a loader is often used
- * to run 32-bit binaries on 64-bit kernels, e.g.
- *
- * /usr/arm-linux-gnueabi/lib/ld-2.27.so ./myexe
- *
- * We detect this scenario by the absence of a '.interp' section in the binary
- * referenced by /proc/self/exe. If this is the case, then we use
- * /proc/self/cmdline to determine the process command line and extract argv[1]
- * to determine the name of the main executable which the loader was used to
- * load.
- *
- * We then search the list of modules from /proc/self/maps to find a match for
- * the name using the basename from both argv[1] and the entry in the map. We
- * then emit the module described by this name as the main application
- * executable.
- *
- * Returns TRUE if the use of an interpreter is detected and handled, FALSE
- * otherwise.
- */
-static gboolean
-gum_maybe_emit_interpreter (const GumModuleDetails * details,
-                            GumEmitExecutableModuleContext * ctx)
-{
-  gboolean handled = TRUE;
-  GumElfModule * module;
-  gboolean has_interp;
-  gchar * contents;
-  gsize length, i;
-
-  if (strcmp (details->path, ctx->executable_path) != 0)
-    return FALSE;
-
-  module = gum_elf_module_new_from_memory (ctx->executable_path,
-      details->range->base_address, NULL);
-  if (module == NULL)
-    return FALSE;
-  has_interp = gum_elf_module_has_interp (module);
-  g_object_unref (module);
-  if (has_interp)
-    return FALSE;
-
-  if (!g_file_get_contents ("/proc/self/cmdline", &contents, &length, NULL))
-    return FALSE;
-
-  for (i = 0; i != length - 1; i++)
-  {
-    if (contents[i] == '\0')
-    {
-      GumEmitExecutableModuleContext emc;
-
-      emc.executable_path = &contents[i + 1];
-      emc.func = ctx->func;
-      emc.user_data = ctx->user_data;
-      emc.carry_on = TRUE;
-
-      gum_linux_enumerate_modules_using_proc_maps (
-          gum_emit_executable_module_by_name, &emc);
-
-      ctx->carry_on = emc.carry_on;
-
-      handled = TRUE;
-      break;
-    }
-  }
-
-  g_free (contents);
-
-  return handled;
-}
-
-static gboolean
-gum_emit_executable_module_by_name (const GumModuleDetails * details,
-                                    gpointer user_data)
-{
-  GumEmitExecutableModuleContext * ctx = user_data;
-  gchar * mod_basename, * exe_basename;
-  gboolean is_match;
-
-  mod_basename = g_path_get_basename (details->path);
-  exe_basename = g_path_get_basename (ctx->executable_path);
-
-  is_match = strcmp (mod_basename, exe_basename) == 0;
-
-  g_free (mod_basename);
-  g_free (exe_basename);
-
-  if (!is_match)
-    return TRUE;
-
-  ctx->carry_on = ctx->func (details, ctx->user_data);
-
-  return FALSE;
-}
-
-#else
-
-static gboolean
-gum_maybe_emit_interpreter (const GumModuleDetails * details,
-                            GumEmitExecutableModuleContext * ctx)
-{
-  return FALSE;
-}
-
-#endif
 
 void
 gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
@@ -1693,8 +1927,17 @@ gum_do_resolve_module_name (const gchar * name,
   ctx.path = NULL;
   ctx.base = 0;
 
-  gum_do_enumerate_modules (libc_name, gum_store_module_path_and_base_if_match,
-      &ctx);
+  if (name == libc_name &&
+      gum_query_program_modules ()->rtld == GUM_PROGRAM_RTLD_NONE)
+  {
+    gum_linux_enumerate_modules_using_proc_maps (
+        gum_store_module_path_and_base_if_match, &ctx);
+  }
+  else
+  {
+    gum_do_enumerate_modules (libc_name,
+        gum_store_module_path_and_base_if_match, &ctx);
+  }
 
   success = ctx.path != NULL;
 
