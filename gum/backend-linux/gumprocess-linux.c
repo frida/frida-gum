@@ -1710,17 +1710,17 @@ gum_linux_cpu_type_from_file (const gchar * path,
 
   file = fopen (path, "rb");
   if (file == NULL)
-    goto beach;
+    goto fopen_failed;
 
   if (fseek (file, EI_DATA, SEEK_SET) != 0)
-    goto beach;
+    goto unsupported_executable;
   if (fread (&ei_data, sizeof (ei_data), 1, file) != 1)
-    goto beach;
+    goto unsupported_executable;
 
   if (fseek (file, 0x12, SEEK_SET) != 0)
-    goto beach;
+    goto unsupported_executable;
   if (fread (&e_machine, sizeof (e_machine), 1, file) != 1)
-    goto beach;
+    goto unsupported_executable;
 
   if (ei_data == ELFDATA2LSB)
     e_machine = GUINT16_FROM_LE (e_machine);
@@ -1752,6 +1752,25 @@ gum_linux_cpu_type_from_file (const gchar * path,
 
   goto beach;
 
+fopen_failed:
+  {
+    if (errno == ENOENT)
+    {
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
+          "File not found");
+    }
+    else if (errno == EACCES)
+    {
+      g_set_error (error, GUM_ERROR, GUM_ERROR_PERMISSION_DENIED,
+          "Permission denied");
+    }
+    else
+    {
+      g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
+          "Unable to open file: %s", g_strerror (errno));
+    }
+    goto beach;
+  }
 unsupported_ei_data:
   {
     g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
