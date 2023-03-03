@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -348,7 +348,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_seek)
 
 seek_failed:
   {
-    return _gum_quick_throw_literal (ctx, strerror (errno));
+    return _gum_quick_throw_literal (ctx, g_strerror (errno));
   }
 }
 

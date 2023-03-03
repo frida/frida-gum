@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2013-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -274,7 +274,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_file_seek, GumFile)
   int result = fseek (self->handle, offset, whence);
   if (result == -1)
   {
-    _gum_v8_throw_literal (isolate, strerror (errno));
+    _gum_v8_throw_literal (isolate, g_strerror (errno));
     return;
   }
 
