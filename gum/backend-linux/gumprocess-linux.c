@@ -1797,22 +1797,41 @@ gum_linux_cpu_type_from_pid (pid_t pid,
                              GError ** error)
 {
   GumCpuType result = -1;
+  GError * err;
   gchar * auxv_path, * auxv;
   gsize auxv_size;
 
   auxv_path = g_strdup_printf ("/proc/%d/auxv", pid);
 
   auxv = NULL;
-  if (!g_file_get_contents (auxv_path, &auxv, &auxv_size, NULL))
-    goto not_found;
+  err = NULL;
+  if (!g_file_get_contents (auxv_path, &auxv, &auxv_size, &err))
+    goto read_failed;
 
   result = gum_linux_cpu_type_from_auxv (auxv, auxv_size);
 
   goto beach;
 
-not_found:
+read_failed:
   {
-    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND, "Process not found");
+    if (g_error_matches (err, G_FILE_ERROR, G_FILE_ERROR_NOENT))
+    {
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
+          "Process not found");
+    }
+    else if (g_error_matches (err, G_FILE_ERROR, G_FILE_ERROR_ACCES))
+    {
+      g_set_error (error, GUM_ERROR, GUM_ERROR_PERMISSION_DENIED,
+          "Permission denied");
+    }
+    else
+    {
+      g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
+          "%s", err->message);
+    }
+
+    g_error_free (err);
+
     goto beach;
   }
 beach:
