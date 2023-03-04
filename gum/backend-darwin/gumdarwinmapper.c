@@ -724,6 +724,9 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
     GumAddress segment_address;
     guint64 file_offset;
 
+    if (s->file_size == 0)
+      continue;
+
     segment_address =
         macho_base_address + s->vm_address - module->preferred_address;
     file_offset =
