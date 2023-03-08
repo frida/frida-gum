@@ -48,7 +48,7 @@
 #endif
 
 #define GUM_PAGE_START(value, page_size) \
-    ((GumAddress) (value) & ~((GumAddress) ((page_size) - 1)))
+    (GUM_ADDRESS (value) & ~GUM_ADDRESS (page_size - 1))
 
 #ifndef O_CLOEXEC
 # define O_CLOEXEC 0x80000
