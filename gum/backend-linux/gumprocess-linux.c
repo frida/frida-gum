@@ -293,22 +293,24 @@ gum_query_program_modules (void)
   if (g_once_init_enter (&modules_value))
   {
     static GumProgramRanges ranges;
+    gboolean got_kern, got_user;
     GumProgramRanges kern, user;
     GumProcMapsIter iter;
     gchar * path;
     const gchar * line;
 
-    if (gum_query_program_ranges (gum_read_auxv_from_proc, &kern) &&
-        gum_query_program_ranges (gum_read_auxv_from_stack, &user) &&
+    got_kern = gum_query_program_ranges (gum_read_auxv_from_proc, &kern);
+    got_user = gum_query_program_ranges (gum_read_auxv_from_stack, &user);
+    if (got_kern && got_user &&
         user.program.base_address != kern.program.base_address)
     {
       ranges = user;
       ranges.interpreter = kern.program;
     }
-    else
-    {
+    else if (got_kern)
       ranges = kern;
-    }
+    else
+      ranges = user;
 
     gum_program_modules.program.range = &ranges.program;
     gum_program_modules.interpreter.range = &ranges.interpreter;
