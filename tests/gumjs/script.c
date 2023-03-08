@@ -569,6 +569,8 @@ static void on_outgoing_debug_message (const gchar * message,
 
 #ifdef HAVE_DARWIN
 static gpointer interceptor_attacher_worker (gpointer data);
+void empty_invocation_callback (GumInvocationContext * context,
+    gpointer user_data);
 #endif
 
 static int target_function_int (int arg);
@@ -7142,13 +7144,14 @@ interceptor_attacher_worker (gpointer data)
   int * state = data;
   guint i;
   GumInterceptor * interceptor;
-  TestCallbackListener * listener;
+  GumInvocationListener * listener;
   GumAttachReturn result;
 
   *state = 1;
 
   interceptor = gum_interceptor_obtain ();
-  listener = test_callback_listener_new ();
+  listener = gum_make_call_listener (empty_invocation_callback,
+      empty_invocation_callback, NULL, NULL);
 
   for (i = 0; i != 300; i++)
   {
@@ -7166,6 +7169,12 @@ interceptor_attacher_worker (gpointer data)
   *state = 2;
 
   return NULL;
+}
+
+void
+empty_invocation_callback (GumInvocationContext * context,
+                           gpointer user_data)
+{
 }
 
 #endif
