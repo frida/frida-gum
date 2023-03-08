@@ -257,6 +257,9 @@ static gboolean gum_store_module_path_and_base_if_match (
 static void gum_proc_maps_iter_init_for_path (GumProcMapsIter * iter,
     const gchar * path);
 
+static void gum_acquire_dumpability (void);
+static void gum_release_dumpability (void);
+
 static gboolean gum_thread_read_state (GumThreadId tid, GumThreadState * state);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static GumPageProtection gum_page_protection_from_proc_perms_string (
@@ -284,6 +287,10 @@ static GumProgramModules gum_program_modules;
 static gchar * gum_libc_name;
 
 static gboolean gum_is_regset_supported = TRUE;
+
+G_LOCK_DEFINE_STATIC (gum_dumpable);
+static gint gum_dumpable_refcount = 0;
+static gint gum_dumpable_previous = 0;
 
 static const GumProgramModules *
 gum_query_program_modules (void)
@@ -439,7 +446,11 @@ gum_read_auxv_from_proc (void)
 {
   ElfW(auxv_t) * auxv = NULL;
 
+  gum_acquire_dumpability ();
+
   g_file_get_contents ("/proc/self/auxv", (gchar **) &auxv, NULL, NULL);
+
+  gum_release_dumpability ();
 
   return auxv;
 }
@@ -764,7 +775,6 @@ gum_process_modify_thread (GumThreadId thread_id,
     gssize child;
     gpointer stack, tls;
     GumUserDesc * desc;
-    int prev_dumpable;
 
     if (socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd) != 0)
       return FALSE;
@@ -847,16 +857,7 @@ gum_process_modify_thread (GumThreadId thread_id,
     if (child == -1)
       goto beach;
 
-    /*
-     * Some systems (notably Android on release applications) spawn processes as
-     * not dumpable by default, disabling ptrace() on that process for anyone
-     * other than root.
-     *
-     * To allow our child to ptrace() this process, we enable this temporarily.
-     */
-    prev_dumpable = prctl (PR_GET_DUMPABLE);
-    if (prev_dumpable != -1 && prev_dumpable != 1)
-      prctl (PR_SET_DUMPABLE, 1);
+    gum_acquire_dumpability ();
 
     prctl (PR_SET_PTRACER, child);
 
@@ -870,8 +871,7 @@ gum_process_modify_thread (GumThreadId thread_id,
       success = gum_await_ack (fd, GUM_ACK_WROTE_CONTEXT);
     }
 
-    if (prev_dumpable != -1 && prev_dumpable != 1)
-      prctl (PR_SET_DUMPABLE, prev_dumpable);
+    gum_release_dumpability ();
 
     waitpid (child, NULL, __WCLONE);
 
@@ -2123,6 +2123,40 @@ gum_proc_maps_iter_next (GumProcMapsIter * iter,
   iter->read_cursor = next_newline + 1;
 
   return TRUE;
+}
+
+static void
+gum_acquire_dumpability (void)
+{
+  G_LOCK (gum_dumpable);
+
+  if (++gum_dumpable_refcount == 1)
+  {
+    /*
+     * Some systems (notably Android on release applications) spawn processes as
+     * not dumpable by default, disabling ptrace() and some other things on that
+     * process for anyone other than root.
+     */
+    gum_dumpable_previous = prctl (PR_GET_DUMPABLE);
+    if (gum_dumpable_previous != -1 && gum_dumpable_previous != 1)
+      prctl (PR_SET_DUMPABLE, 1);
+  }
+
+  G_UNLOCK (gum_dumpable);
+}
+
+static void
+gum_release_dumpability (void)
+{
+  G_LOCK (gum_dumpable);
+
+  if (--gum_dumpable_refcount == 0)
+  {
+    if (gum_dumpable_previous != -1 && gum_dumpable_previous != 1)
+      prctl (PR_SET_DUMPABLE, gum_dumpable_previous);
+  }
+
+  G_UNLOCK (gum_dumpable);
 }
 
 void
