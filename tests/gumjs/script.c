@@ -7122,9 +7122,8 @@ TESTCASE (interceptor_and_js_should_not_deadlock)
       "}, 'int', ['int']));"
       "Interceptor.flush();"
       "setTimeout(() => {"
-      "  for (let i = 0; i !== iterations; i++) {"
+      "  for (let i = 0; i !== iterations; i++)"
       "    Thread.sleep(0.1);"
-      "  }"
       "  Interceptor.revert(threadSuspend);"
       "  send('The end');"
       "}, 0);");
