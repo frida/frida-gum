@@ -569,7 +569,7 @@ static void on_outgoing_debug_message (const gchar * message,
 
 #ifdef HAVE_DARWIN
 static gpointer interceptor_attacher_worker (gpointer data);
-void empty_invocation_callback (GumInvocationContext * context,
+static void empty_invocation_callback (GumInvocationContext * context,
     gpointer user_data);
 #endif
 
@@ -7170,7 +7170,7 @@ interceptor_attacher_worker (gpointer data)
   return NULL;
 }
 
-void
+static void
 empty_invocation_callback (GumInvocationContext * context,
                            gpointer user_data)
 {
