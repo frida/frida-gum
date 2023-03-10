@@ -55,13 +55,13 @@ public:
   ScriptStalkerScope stalker_scope;
 
 private:
+  ScriptInterceptorScope interceptor_scope;
   v8::Locker locker;
   v8::Isolate::Scope isolate_scope;
   v8::HandleScope handle_scope;
   v8::Local<v8::Context> context;
   v8::Context::Scope context_scope;
   v8::TryCatch trycatch;
-  ScriptInterceptorScope interceptor_scope;
   ScriptScope * root_scope;
   ScriptScope * next_scope;
   GumThreadId next_owner;
@@ -111,8 +111,8 @@ private:
 
   ExitCurrentScope exit_current_scope;
   ExitIsolateScope exit_isolate_scope;
-  ExitInterceptorScope exit_interceptor_scope;
   v8::Unlocker unlocker;
+  ExitInterceptorScope exit_interceptor_scope;
 };
 
 class GumV8InterceptorIgnoreScope

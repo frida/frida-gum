@@ -82,6 +82,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (interceptor_should_support_native_pointer_values)
     TESTENTRY (interceptor_should_handle_bad_pointers)
     TESTENTRY (interceptor_should_refuse_to_attach_without_any_callbacks)
+#ifdef HAVE_DARWIN
+    TESTENTRY (interceptor_and_js_should_not_deadlock)
+#endif
   TESTGROUP_END ()
   TESTGROUP_BEGIN ("Interceptor/Performance")
     TESTENTRY (interceptor_on_enter_performance)
@@ -563,6 +566,12 @@ static void on_incoming_debug_message (GumInspectorServer * server,
     const gchar * message, gpointer user_data);
 static void on_outgoing_debug_message (const gchar * message,
     gpointer user_data);
+
+#ifdef HAVE_DARWIN
+static gpointer interceptor_attacher_worker (gpointer data);
+static void empty_invocation_callback (GumInvocationContext * context,
+    gpointer user_data);
+#endif
 
 static int target_function_int (int arg);
 G_GNUC_UNUSED static float target_function_float (float arg);
@@ -7082,6 +7091,92 @@ TESTCASE (interceptor_should_refuse_to_attach_without_any_callbacks)
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: expected at least one callback");
 }
+
+#ifdef HAVE_DARWIN
+
+TESTCASE (interceptor_and_js_should_not_deadlock)
+{
+  GThread * worker_thread;
+  int state = 0;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  worker_thread = g_thread_new ("script-test-worker-thread",
+      interceptor_attacher_worker, &state);
+  while (state == 0)
+    g_usleep (G_USEC_PER_SEC / 200);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const iterations = 100;"
+      "send('Start loop');"
+      "const threadSuspend = new NativeFunction("
+      "  Module.getExportByName(null, 'thread_suspend'),"
+      "  'int', ['int'], { scheduling: 'exclusive' }"
+      ");"
+      "Interceptor.replace(threadSuspend, new NativeCallback((threadId) => {"
+      "  return threadSuspend(threadId);"
+      "}, 'int', ['int']));"
+      "Interceptor.flush();"
+      "setTimeout(() => {"
+      "  for (let i = 0; i !== iterations; i++)"
+      "    Thread.sleep(0.1);"
+      "  Interceptor.revert(threadSuspend);"
+      "  send('The end');"
+      "}, 0);");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"Start loop\"");
+
+  g_usleep (G_USEC_PER_SEC / 25);
+  g_thread_join (worker_thread);
+  g_assert_cmpint (state, ==, 2);
+  EXPECT_SEND_MESSAGE_WITH ("\"The end\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+static gpointer
+interceptor_attacher_worker (gpointer data)
+{
+  int * state = data;
+  guint i;
+  GumInterceptor * interceptor;
+  GumInvocationListener * listener;
+  GumAttachReturn result;
+
+  *state = 1;
+
+  interceptor = gum_interceptor_obtain ();
+  listener = gum_make_call_listener (empty_invocation_callback,
+      empty_invocation_callback, NULL, NULL);
+
+  for (i = 0; i != 300; i++)
+  {
+    result = gum_interceptor_attach (interceptor, target_function_int,
+        GUM_INVOCATION_LISTENER (listener), NULL);
+    if (result == GUM_ATTACH_OK)
+    {
+      g_usleep (G_USEC_PER_SEC / 25);
+      gum_interceptor_detach (interceptor, GUM_INVOCATION_LISTENER (listener));
+    }
+  }
+
+  g_object_unref (listener);
+
+  *state = 2;
+
+  return NULL;
+}
+
+static void
+empty_invocation_callback (GumInvocationContext * context,
+                           gpointer user_data)
+{
+}
+
+#endif
 
 TESTCASE (interceptor_on_enter_performance)
 {

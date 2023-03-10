@@ -15,13 +15,13 @@ using namespace v8;
 ScriptScope::ScriptScope (GumV8Script * parent)
   : parent (parent),
     stalker_scope (parent),
+    interceptor_scope (parent),
     locker (parent->isolate),
     isolate_scope (parent->isolate),
     handle_scope (parent->isolate),
     context (Local<Context>::New (parent->isolate, *parent->context)),
     context_scope (context),
-    trycatch (parent->isolate),
-    interceptor_scope (parent)
+    trycatch (parent->isolate)
 {
   auto core = &parent->core;
 
@@ -178,8 +178,8 @@ ScriptStalkerScope::~ScriptStalkerScope ()
 ScriptUnlocker::ScriptUnlocker (GumV8Core * core)
   : exit_current_scope (core),
     exit_isolate_scope (core->isolate),
-    exit_interceptor_scope (core),
-    unlocker (core->isolate)
+    unlocker (core->isolate),
+    exit_interceptor_scope (core)
 {
 }
 

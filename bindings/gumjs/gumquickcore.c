@@ -1773,9 +1773,9 @@ _gum_quick_scope_enter (GumQuickScope * self,
 {
   self->core = core;
 
-  g_rec_mutex_lock (core->mutex);
-
   gum_interceptor_begin_transaction (core->interceptor->interceptor);
+
+  g_rec_mutex_lock (core->mutex);
 
   _gum_quick_core_pin (core);
   core->mutex_depth++;
@@ -1813,10 +1813,10 @@ _gum_quick_scope_suspend (GumQuickScope * self)
   self->previous_mutex_depth = core->mutex_depth;
   core->mutex_depth = 0;
 
-  gum_interceptor_end_transaction (core->interceptor->interceptor);
-
   for (i = 0; i != self->previous_mutex_depth; i++)
     g_rec_mutex_unlock (core->mutex);
+
+  gum_interceptor_end_transaction (core->interceptor->interceptor);
 }
 
 void
@@ -1825,10 +1825,10 @@ _gum_quick_scope_resume (GumQuickScope * self)
   GumQuickCore * core = self->core;
   guint i;
 
+  gum_interceptor_begin_transaction (core->interceptor->interceptor);
+
   for (i = 0; i != self->previous_mutex_depth; i++)
     g_rec_mutex_lock (core->mutex);
-
-  gum_interceptor_begin_transaction (core->interceptor->interceptor);
 
   g_assert (core->current_scope == NULL);
   core->current_scope = g_steal_pointer (&self->previous_scope);
@@ -1971,9 +1971,9 @@ _gum_quick_scope_leave (GumQuickScope * self)
     core->flush_notify = NULL;
   }
 
-  gum_interceptor_end_transaction (self->core->interceptor->interceptor);
-
   g_rec_mutex_unlock (core->mutex);
+
+  gum_interceptor_end_transaction (self->core->interceptor->interceptor);
 
   if (pending_flush_notify != NULL)
     gum_quick_core_notify_flushed (core, pending_flush_notify);
