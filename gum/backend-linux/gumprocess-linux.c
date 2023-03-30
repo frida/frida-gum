@@ -1626,10 +1626,12 @@ gum_module_ensure_initialized (const gchar * module_name)
     return FALSE;
   dlclose (module);
 
+#ifndef HAVE_MUSL
   module = dlopen (module_name, RTLD_LAZY);
   if (module == NULL)
     return FALSE;
   dlclose (module);
+#endif
 
   return TRUE;
 }
