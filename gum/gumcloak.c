@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -388,6 +388,38 @@ gum_cloak_remove_range_unlocked (const GumMemoryRange * range)
     }
   }
   while (found_match);
+}
+
+/**
+ * gum_cloak_has_range_containing:
+ * @address: the address to look for
+ *
+ * Determines whether a memory range containing `address` is currently cloaked.
+ *
+ * Returns: true if cloaked; false otherwise
+ */
+gboolean
+gum_cloak_has_range_containing (GumAddress address)
+{
+  gboolean is_cloaked = FALSE;
+  guint i;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  for (i = 0; i != cloaked_ranges.length; i++)
+  {
+    GumCloakedRange * cr = gum_metal_array_element_at (&cloaked_ranges, i);
+
+    if (address >= GUM_ADDRESS (cr->start) && address < GUM_ADDRESS (cr->end))
+    {
+      is_cloaked = TRUE;
+      break;
+    }
+  }
+
+  gum_spinlock_release (&cloak_lock);
+
+  return is_cloaked;
 }
 
 /**
