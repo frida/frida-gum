@@ -259,7 +259,8 @@ foreach t : types
   endif
 endforeach
 
-glibc_src = '''
+if host_os == 'linux'
+  glibc_src = '''
 #include <features.h>
 
 #if defined (__GLIBC__) && !defined (__UCLIBC__)
@@ -267,8 +268,20 @@ glibc_src = '''
 # error Not glibc
 #endif
 '''
-if cc.compiles(glibc_src, name: 'compiling for glibc')
-  cdata.set('HAVE_GLIBC', 1)
+  uclibc_src = '''
+#include <features.h>
+
+#if !defined (__UCLIBC__)
+# error Not uClibc
+#endif
+'''
+  if cc.compiles(glibc_src, name: 'compiling for glibc')
+    cdata.set('HAVE_GLIBC', 1)
+  elif cc.compiles(uclibc_src, name: 'compiling for uClibc')
+    cdata.set('HAVE_UCLIBC', 1)
+  else
+    cdata.set('HAVE_MUSL', 1)
+  endif
 endif
 
 if cc.has_member('struct mallinfo', 'arena', prefix: '#include <malloc.h>')

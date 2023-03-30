@@ -1886,7 +1886,7 @@ gum_do_resolve_module_name (const gchar * name,
 
   ctx.name = name;
   ctx.known_address = 0;
-#if defined (HAVE_GLIBC)
+#if defined (HAVE_GLIBC) || defined (HAVE_MUSL)
   {
     struct link_map * map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
     if (map != NULL)
