@@ -164,8 +164,6 @@ struct _GumEnumerateModulesContext
   gpointer user_data;
 
   GHashTable * named_ranges;
-
-  guint index;
 };
 
 struct _GumEmitExecutableModuleContext
@@ -241,8 +239,6 @@ static void gum_process_enumerate_modules_by_using_libc (
     gpointer user_data);
 static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
-static GumAddress gum_resolve_base_address_from_phdr (
-    struct dl_phdr_info * info);
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static gboolean gum_try_translate_vdso_name (gchar * name);
@@ -1115,8 +1111,6 @@ gum_process_enumerate_modules_by_using_libc (GumDlIteratePhdrImpl iterate_phdr,
 
   ctx.named_ranges = gum_linux_collect_named_ranges ();
 
-  ctx.index = 0;
-
   iterate_phdr (gum_emit_module_from_phdr, &ctx);
 
   g_hash_table_unref (ctx.named_ranges);
@@ -1128,93 +1122,31 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
                            gpointer user_data)
 {
   GumEnumerateModulesContext * ctx = user_data;
-  gboolean is_special_module;
-  GumAddress base_address;
+  GumMemoryRange range;
   GumLinuxNamedRange * named_range;
   const gchar * path;
   gchar * name;
   GumModuleDetails details;
-  GumMemoryRange range;
-  gboolean carry_on, emitted;
+  gboolean carry_on;
 
-  is_special_module = info->dlpi_addr == 0 || info->dlpi_name == NULL ||
-      info->dlpi_name[0] == '\0';
-  if (is_special_module)
-    return 0;
+  gum_compute_elf_range_from_phdrs (info->dlpi_phdr, sizeof (ElfW(Phdr)),
+      info->dlpi_phnum, 0, &range);
 
-  base_address = gum_resolve_base_address_from_phdr (info);
-
-  named_range =
-      g_hash_table_lookup (ctx->named_ranges, GSIZE_TO_POINTER (base_address));
+  named_range = g_hash_table_lookup (ctx->named_ranges,
+      GSIZE_TO_POINTER (range.base_address));
 
   path = (named_range != NULL) ? named_range->name : info->dlpi_name;
-
-  is_special_module = path[0] == '[';
-  if (is_special_module)
-    return 0;
-
   name = g_path_get_basename (path);
 
   details.name = name;
   details.range = &range;
   details.path = path;
 
-  range.base_address = base_address;
-  range.size = (named_range != NULL) ? named_range->size : 0;
-
-  carry_on = TRUE;
-  emitted = FALSE;
-
-  if (ctx->index == 0)
-  {
-    gchar * executable_path;
-
-    executable_path = g_file_read_link ("/proc/self/exe", NULL);
-    if (executable_path != NULL &&
-        strcmp (details.path, executable_path) != 0)
-    {
-      const GumProgramModules * pm = gum_query_program_modules ();
-
-      carry_on = ctx->func (&pm->program, ctx->user_data);
-      emitted = TRUE;
-    }
-
-    g_free (executable_path);
-  }
-
-  if (carry_on && !emitted)
-  {
-    carry_on = ctx->func (&details, ctx->user_data);
-  }
-
-  ctx->index++;
+  carry_on = ctx->func (&details, ctx->user_data);
 
   g_free (name);
 
   return carry_on ? 0 : 1;
-}
-
-static GumAddress
-gum_resolve_base_address_from_phdr (struct dl_phdr_info * info)
-{
-  GumAddress base_address;
-  ElfW(Half) header_count, header_index;
-
-  base_address = info->dlpi_addr;
-
-  header_count = info->dlpi_phnum;
-  for (header_index = 0; header_index != header_count; header_index++)
-  {
-    const ElfW(Phdr) * phdr = &info->dlpi_phdr[header_index];
-
-    if (phdr->p_type == PT_LOAD && phdr->p_offset == 0)
-    {
-      base_address += phdr->p_vaddr;
-      break;
-    }
-  }
-
-  return base_address;
 }
 
 void
