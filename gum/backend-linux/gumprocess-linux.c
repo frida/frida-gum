@@ -1556,12 +1556,45 @@ not_found:
 static void *
 gum_module_get_handle (const gchar * module_name)
 {
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+#if defined (HAVE_MUSL)
+  struct link_map * cur;
+
+  for (cur = dlopen (NULL, 0); cur != NULL; cur = cur->l_next)
+  {
+    if (gum_linux_module_path_matches (cur->l_name, module_name))
+      return cur;
+  }
+
+  for (cur = dlopen (NULL, 0); cur != NULL; cur = cur->l_next)
+  {
+    gchar * target, * parent_dir, * canonical_path;
+    gboolean is_match;
+
+    target = g_file_read_link (cur->l_name, NULL);
+    if (target == NULL)
+      continue;
+    parent_dir = g_path_get_dirname (cur->l_name);
+    canonical_path = g_canonicalize_filename (target, parent_dir);
+
+    is_match = gum_linux_module_path_matches (canonical_path, module_name);
+
+    g_free (canonical_path);
+    g_free (parent_dir);
+    g_free (target);
+
+    if (is_match)
+      return cur;
+  }
+
+  return NULL;
+#else
+# if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
     return gum_android_get_module_handle (module_name);
-#endif
+# endif
 
   return dlopen (module_name, RTLD_LAZY | RTLD_NOLOAD);
+#endif
 }
 
 static void *
