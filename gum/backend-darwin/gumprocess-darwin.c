@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
@@ -437,8 +437,8 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
 }
 
 void
-gum_process_enumerate_modules (GumFoundModuleFunc func,
-                               gpointer user_data)
+_gum_process_enumerate_modules (GumFoundModuleFunc func,
+                                gpointer user_data)
 {
   gum_darwin_enumerate_modules (mach_task_self (), func, user_data);
 }

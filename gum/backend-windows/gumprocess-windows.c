@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -244,8 +244,8 @@ gum_windows_get_thread_details (DWORD thread_id,
 }
 
 void
-gum_process_enumerate_modules (GumFoundModuleFunc func,
-                               gpointer user_data)
+_gum_process_enumerate_modules (GumFoundModuleFunc func,
+                                gpointer user_data)
 {
   HANDLE this_process;
   HMODULE first_module;

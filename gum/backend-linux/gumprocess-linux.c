@@ -1043,8 +1043,8 @@ gum_store_cpu_context (GumThreadId thread_id,
 }
 
 void
-gum_process_enumerate_modules (GumFoundModuleFunc func,
-                               gpointer user_data)
+_gum_process_enumerate_modules (GumFoundModuleFunc func,
+                                gpointer user_data)
 {
   gum_do_enumerate_modules (gum_process_query_libc_name (), func, user_data);
 }

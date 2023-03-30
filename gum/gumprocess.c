@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +10,7 @@
 
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
 typedef struct _GumResolveModulePointerContext GumResolveModulePointerContext;
+typedef struct _GumEmitModulesContext GumEmitModulesContext;
 typedef struct _GumEmitRangesContext GumEmitRangesContext;
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
@@ -27,6 +28,12 @@ struct _GumResolveModulePointerContext
   GumMemoryRange * range;
 };
 
+struct _GumEmitModulesContext
+{
+  GumFoundModuleFunc func;
+  gpointer user_data;
+};
+
 struct _GumEmitRangesContext
 {
   GumFoundRangeFunc func;
@@ -42,6 +49,8 @@ struct _GumResolveSymbolContext
 static gboolean gum_emit_thread_if_not_cloaked (
     const GumThreadDetails * details, gpointer user_data);
 static gboolean gum_try_resolve_module_pointer_from (
+    const GumModuleDetails * details, gpointer user_data);
+static gboolean gum_emit_module_if_not_cloaked (
     const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     gpointer user_data);
@@ -193,6 +202,28 @@ gum_try_resolve_module_pointer_from (const GumModuleDetails * details,
  * Enumerates modules loaded right now, calling @func with #GumModuleDetails
  * about each module found.
  */
+void
+gum_process_enumerate_modules (GumFoundModuleFunc func,
+                               gpointer user_data)
+{
+  GumEmitModulesContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+  _gum_process_enumerate_modules (gum_emit_module_if_not_cloaked, &ctx);
+}
+
+static gboolean
+gum_emit_module_if_not_cloaked (const GumModuleDetails * details,
+                                gpointer user_data)
+{
+  GumEmitModulesContext * ctx = user_data;
+
+  if (gum_cloak_has_range_containing (details->range->base_address))
+    return TRUE;
+
+  return ctx->func (details, ctx->user_data);
+}
 
 /**
  * gum_process_enumerate_ranges:

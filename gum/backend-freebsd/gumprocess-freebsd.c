@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -475,8 +475,8 @@ failure:
 }
 
 void
-gum_process_enumerate_modules (GumFoundModuleFunc func,
-                               gpointer user_data)
+_gum_process_enumerate_modules (GumFoundModuleFunc func,
+                                gpointer user_data)
 {
   GumEnumerateModulesContext ctx;
 
