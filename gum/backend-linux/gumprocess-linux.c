@@ -365,7 +365,7 @@ gum_query_program_modules (void)
     g_once_init_leave (&modules_value, GPOINTER_TO_SIZE (&gum_program_modules));
   }
 
-   return GSIZE_TO_POINTER (modules_value);
+  return GSIZE_TO_POINTER (modules_value);
 }
 
 static void
