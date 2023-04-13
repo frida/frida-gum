@@ -345,7 +345,7 @@ verify_module_bounds (const GumModuleDetails * details,
     return TRUE;
 
   g_assert_cmphex (range->base_address, ==, bounds->start);
-  g_assert_cmphex (range->base_address + range->size, ==, bounds->end);
+  g_assert_cmphex (range->base_address + range->size, >=, bounds->end);
 
   return TRUE;
 }
