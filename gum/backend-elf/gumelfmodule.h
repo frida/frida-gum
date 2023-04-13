@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -265,7 +265,7 @@ GUM_API GumAddress gum_elf_module_get_preferred_address (GumElfModule * self);
 GUM_API GumAddress gum_elf_module_get_entrypoint (GumElfModule * self);
 GUM_API gpointer gum_elf_module_get_elf (GumElfModule * self);
 GUM_API gconstpointer gum_elf_module_get_file_data (GumElfModule * self);
-GUM_API gboolean gum_elf_module_has_interp (GumElfModule * self);
+GUM_API const gchar * gum_elf_module_get_interpreter (GumElfModule * self);
 
 GUM_API void gum_elf_module_enumerate_dependencies (GumElfModule * self,
     GumFoundElfDependencyFunc func, gpointer user_data);

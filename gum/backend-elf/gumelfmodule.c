@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C)      2021 Paul Schmidt <p.schmidt@tu-bs.de>
  *
@@ -496,8 +496,8 @@ gum_elf_module_get_file_data (GumElfModule * self)
   return self->file_data;
 }
 
-gboolean
-gum_elf_module_has_interp (GumElfModule * self)
+const gchar *
+gum_elf_module_get_interpreter (GumElfModule * self)
 {
   GElf_Half header_count, header_index;
 
@@ -509,10 +509,10 @@ gum_elf_module_has_interp (GumElfModule * self)
     gelf_getphdr (self->elf, header_index, &phdr);
 
     if (phdr.p_type == PT_INTERP)
-      return TRUE;
+      return self->file_data + phdr.p_offset;
   }
 
-  return FALSE;
+  return NULL;
 }
 
 void

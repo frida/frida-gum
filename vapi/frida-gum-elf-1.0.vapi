@@ -12,7 +12,7 @@ namespace Gum {
 		public Gum.Address preferred_address { get; }
 		public Gum.Address entrypoint { get; }
 		public void * elf { get; }
-		public bool has_interp { get; }
+		public string interpreter { get; }
 
 		public void enumerate_dependencies (Gum.FoundElfDependencyFunc func);
 		public void enumerate_imports (Gum.FoundImportFunc func);
