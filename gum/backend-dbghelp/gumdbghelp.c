@@ -94,13 +94,13 @@ static HMODULE
 load_dbghelp (void)
 {
   HMODULE mod;
-  // never load other one when the process loaded dll
-  if (GetModuleHandleExW(0, L"dbghelp.dll", &mod))
-      return mod;
   BOOL success G_GNUC_UNUSED;
   DWORD length G_GNUC_UNUSED;
   WCHAR path[MAX_PATH + 1] = { 0, };
   WCHAR * filename;
+
+  if (GetModuleHandleExW (0, L"dbghelp.dll", &mod))
+    return mod;
 
   success = GetModuleHandleExW (
       GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
