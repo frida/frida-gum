@@ -140,7 +140,7 @@ def generate_runtime_quick(runtime_name, output_dir, output, inputs, quickcompil
             input_source_map_identifier = "gumjs_{0}_source_map".format(stem_cname)
 
             output_file.write("\nstatic const guint8 {0}[{1}] =\n{{".format(input_bytecode_identifier, bytecode_size))
-            write_bytes(bytecode, output_file)
+            write_bytes(bytecode, output_file, 'unsigned')
             output_file.write("\n};\n")
 
             source_code = input_path.read_text(encoding='utf-8')
@@ -152,7 +152,7 @@ def generate_runtime_quick(runtime_name, output_dir, output, inputs, quickcompil
                 source_map_size = len(source_map_bytes)
 
                 output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_map_identifier, source_map_size))
-                write_bytes(source_map_bytes, output_file)
+                write_bytes(source_map_bytes, output_file, 'signed')
                 output_file.write("\n};\n")
 
                 modules.append((input_bytecode_identifier, bytecode_size, input_source_map_identifier))
@@ -186,7 +186,7 @@ def generate_runtime_v8(runtime_name, output_dir, output, inputs):
             source_code_size = len(source_code_bytes)
 
             output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_code_identifier, source_code_size))
-            write_bytes(source_code_bytes, output_file)
+            write_bytes(source_code_bytes, output_file, 'signed')
             output_file.write("\n};\n")
 
             if source_map is not None:
@@ -195,7 +195,7 @@ def generate_runtime_v8(runtime_name, output_dir, output, inputs):
                 source_map_size = len(source_map_bytes)
 
                 output_file.write("\nstatic const gchar {0}[{1}] =\n{{".format(input_source_map_identifier, source_map_size))
-                write_bytes(source_map_bytes, output_file)
+                write_bytes(source_map_bytes, output_file, 'signed')
                 output_file.write("\n};\n")
 
                 modules.append((input_name, input_source_code_identifier, input_source_map_identifier))
@@ -290,7 +290,7 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
                 source_size = len(source_bytes)
 
                 output_file.write("static const gchar {0}[{1}] =\n{{".format(input_identifier, source_size))
-                write_bytes(source_bytes, output_file)
+                write_bytes(source_bytes, output_file, 'signed')
                 output_file.write("\n};\n\n")
 
                 modules.append((header_name, input_identifier, source_size - 1, header_kind))
@@ -388,8 +388,7 @@ def to_canonical_source_path(path):
     return "frida/" + path
 
 
-def write_bytes(data, sink):
-    "Write bytes as signed integers between -128 and 127."
+def write_bytes(data, sink, encoding):
     sink.write("\n  ")
     line_length = 0
     offset = 0
@@ -400,8 +399,7 @@ def write_bytes(data, sink):
         if line_length >= 70:
             sink.write("\n  ")
             line_length = 0
-        # Convert unsigned to signed for UTF-8.
-        if b >= 128:
+        if encoding == 'signed' and b >= 128:
             b -= 256
         token = str(b)
         sink.write(token)
