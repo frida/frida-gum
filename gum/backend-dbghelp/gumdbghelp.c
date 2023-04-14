@@ -99,6 +99,9 @@ load_dbghelp (void)
   WCHAR path[MAX_PATH + 1] = { 0, };
   WCHAR * filename;
 
+  if (GetModuleHandleExW (0, L"dbghelp.dll", &mod))
+    return mod;
+
   success = GetModuleHandleExW (
       GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
       GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
