@@ -728,10 +728,12 @@ gum_module_enumerate_ranges (const gchar * module_name,
                              GumFoundRangeFunc func,
                              gpointer user_data)
 {
-  HANDLE this_process = GetCurrentProcess ();
+  HANDLE this_process;
   HMODULE module;
   MODULEINFO mi;
   guint8 * cur_base_address, * end_address;
+
+  this_process = GetCurrentProcess ();
 
   module = get_module_handle_utf8 (module_name);
   if (module == NULL)
