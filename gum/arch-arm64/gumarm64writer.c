@@ -673,6 +673,22 @@ gum_arm64_writer_put_ret (GumArm64Writer * self)
 }
 
 gboolean
+gum_arm64_writer_put_ret_reg (GumArm64Writer * self,
+                              arm64_reg reg)
+{
+  GumArm64RegInfo ri;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  if (ri.width != 64)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, 0xd65f0000 | (ri.index << 5));
+
+  return TRUE;
+}
+
+gboolean
 gum_arm64_writer_put_cbz_reg_imm (GumArm64Writer * self,
                                   arm64_reg reg,
                                   GumAddress target)

@@ -103,6 +103,8 @@ GUM_API gboolean gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
 GUM_API gboolean gum_arm64_writer_put_blr_reg_no_auth (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API void gum_arm64_writer_put_ret (GumArm64Writer * self);
+GUM_API gboolean gum_arm64_writer_put_ret_reg (GumArm64Writer * self,
+    arm64_reg reg);
 GUM_API gboolean gum_arm64_writer_put_cbz_reg_imm (GumArm64Writer * self,
     arm64_reg reg, GumAddress target);
 GUM_API gboolean gum_arm64_writer_put_cbnz_reg_imm (GumArm64Writer * self,
