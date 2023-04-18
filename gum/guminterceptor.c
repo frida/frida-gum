@@ -15,6 +15,9 @@
 #include "gumtls.h"
 
 #include <string.h>
+#ifdef HAVE_DARWIN
+# include <mach/mach.h>
+#endif
 
 #ifdef HAVE_MIPS
 # define GUM_INTERCEPTOR_CODE_SLICE_SIZE 1024
@@ -1102,6 +1105,10 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
             (raw_id = g_queue_pop_tail (&suspend_op.suspended_threads)) != NULL)
         {
           gum_thread_resume (GPOINTER_TO_SIZE (raw_id), NULL);
+#ifdef HAVE_DARWIN
+          mach_port_mod_refs (mach_task_self (), GPOINTER_TO_SIZE (raw_id),
+              MACH_PORT_RIGHT_SEND, -1);
+#endif
         }
       }
     }
@@ -1211,6 +1218,9 @@ gum_maybe_suspend_thread (const GumThreadDetails * details,
   if (!gum_thread_suspend (details->id, NULL))
     goto skip;
 
+#ifdef HAVE_DARWIN
+  mach_port_mod_refs (mach_task_self (), details->id, MACH_PORT_RIGHT_SEND, 1);
+#endif
   g_queue_push_tail (&op->suspended_threads, GSIZE_TO_POINTER (details->id));
 
 skip:
