@@ -97,9 +97,6 @@ struct _GumSuspendOperation
 {
   GumThreadId current_thread_id;
   GQueue suspended_threads;
-#ifdef HAVE_DARWIN
-  task_t self_task;
-#endif
 };
 
 struct _ListenerEntry
@@ -1045,14 +1042,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     if (rwx_supported || !code_segment_supported)
     {
       GumPageProtection protection;
-#ifdef HAVE_DARWIN
-      GumSuspendOperation suspend_op = { 0, G_QUEUE_INIT, MACH_PORT_NULL };
-      task_t self_task = mach_task_self ();
-
-      suspend_op.self_task = self_task;
-#else
       GumSuspendOperation suspend_op = { 0, G_QUEUE_INIT };
-#endif
 
       protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
 
@@ -1116,7 +1106,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
         {
           gum_thread_resume (GPOINTER_TO_SIZE (raw_id), NULL);
 #ifdef HAVE_DARWIN
-          mach_port_mod_refs (self_task, GPOINTER_TO_SIZE (raw_id),
+          mach_port_mod_refs (mach_task_self (), GPOINTER_TO_SIZE (raw_id),
               MACH_PORT_RIGHT_SEND, -1);
 #endif
         }
@@ -1229,7 +1219,7 @@ gum_maybe_suspend_thread (const GumThreadDetails * details,
     goto skip;
 
 #ifdef HAVE_DARWIN
-  mach_port_mod_refs (op->self_task, details->id, MACH_PORT_RIGHT_SEND, 1);
+  mach_port_mod_refs (mach_task_self (), details->id, MACH_PORT_RIGHT_SEND, 1);
 #endif
   g_queue_push_tail (&op->suspended_threads, GSIZE_TO_POINTER (details->id));
 
