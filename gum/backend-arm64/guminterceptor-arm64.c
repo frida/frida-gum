@@ -1145,5 +1145,9 @@ gum_emit_epilog (GumArm64Writer * aw)
     gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_Q0 + i, ARM64_REG_Q1 + i);
 
   gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X16, ARM64_REG_X17);
+#ifndef HAVE_PTRAUTH
   gum_arm64_writer_put_ret_reg (aw, ARM64_REG_X16);
+#else
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
+#endif
 }
