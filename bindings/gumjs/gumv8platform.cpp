@@ -1003,8 +1003,24 @@ void
 GumV8MainContextOperation::Await ()
 {
   GumV8PlatformLocker locker (platform);
+
+  GMainContext * context =
+      gum_script_scheduler_get_js_context (platform->scheduler);
+  gboolean called_from_js_thread = g_main_context_is_owner (context);
+
   while (state != kCompleted && state != kCanceled)
-    g_cond_wait (&cond, &platform->mutex);
+  {
+    if (called_from_js_thread)
+    {
+      g_mutex_unlock (&platform->mutex);
+      g_main_context_iteration (context, TRUE);
+      g_mutex_lock (&platform->mutex);
+    }
+    else
+    {
+      g_cond_wait (&cond, &platform->mutex);
+    }
+  }
 }
 
 GumV8ThreadPoolOperation::GumV8ThreadPoolOperation (
