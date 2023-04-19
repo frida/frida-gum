@@ -650,23 +650,28 @@ gum_create_snapshot (const gchar * embed_script,
                      GError ** error)
 {
   SnapshotCreator creator;
-  auto isolate = creator.GetIsolate ();
-
-  bool success = false;
-  {
-    HandleScope handle_scope (isolate);
-    auto context = Context::New (isolate);
-
-    if (gum_run_code (isolate, context, embed_script, "embedded", error))
-    {
-      creator.SetDefaultContext (context);
-      success = true;
-    }
-  }
 
   StartupData blob = {};
-  if (success)
-    blob = creator.CreateBlob (SnapshotCreator::FunctionCodeHandling::kKeep);
+  auto isolate = creator.GetIsolate ();
+  {
+    Isolate::Scope isolate_scope (isolate);
+    Locker locker (isolate);
+
+    bool success = false;
+    {
+      HandleScope handle_scope (isolate);
+      auto context = Context::New (isolate);
+
+      if (gum_run_code (isolate, context, embed_script, "embedded", error))
+      {
+        creator.SetDefaultContext (context);
+        success = true;
+      }
+    }
+
+    if (success)
+      blob = creator.CreateBlob (SnapshotCreator::FunctionCodeHandling::kKeep);
+  }
 
   platform->ForgetIsolate (isolate);
 
@@ -680,27 +685,32 @@ gum_warm_up_snapshot (StartupData cold,
                       GError ** error)
 {
   SnapshotCreator creator (nullptr, &cold);
-  auto isolate = creator.GetIsolate ();
-
-  bool success = false;
-  {
-    HandleScope handle_scope (isolate);
-    auto context = Context::New (isolate);
-
-    success = gum_run_code (isolate, context, warmup_script, "warmup", error);
-  }
 
   StartupData blob = {};
-  if (success)
+  auto isolate = creator.GetIsolate ();
   {
+    Isolate::Scope isolate_scope (isolate);
+    Locker locker (isolate);
+
+    bool success = false;
     {
       HandleScope handle_scope (isolate);
-      isolate->ContextDisposedNotification (false);
       auto context = Context::New (isolate);
-      creator.SetDefaultContext (context);
+
+      success = gum_run_code (isolate, context, warmup_script, "warmup", error);
     }
 
-    blob = creator.CreateBlob (SnapshotCreator::FunctionCodeHandling::kKeep);
+    if (success)
+    {
+      {
+        HandleScope handle_scope (isolate);
+        isolate->ContextDisposedNotification (false);
+        auto context = Context::New (isolate);
+        creator.SetDefaultContext (context);
+      }
+
+      blob = creator.CreateBlob (SnapshotCreator::FunctionCodeHandling::kKeep);
+    }
   }
 
   platform->ForgetIsolate (isolate);
