@@ -5,6 +5,7 @@
  */
 
 #include "gumcodesegment.h"
+#include "frida-tvos.h"
 
 #include "gum-init.h"
 #include "gumcloak.h"

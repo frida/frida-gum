@@ -628,6 +628,10 @@ if host_os_family == 'qnx'
   add_project_arguments('-D_QNX_SOURCE=1', language: languages)
 endif
 
+if host_os == 'tvos'
+  add_project_arguments('-I' + meson.current_build_dir(), language: languages)
+endif
+
 gum_incdirs = [
   include_directories('.'),
   include_directories('gum'),
