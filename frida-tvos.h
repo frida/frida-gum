@@ -7,6 +7,11 @@
 #define __TVOS_PROHIBITED
 #undef __API_UNAVAILABLE
 #define __API_UNAVAILABLE(...)
+#include <spawn.h>
+#include <mach/mach.h>
+#include <mach/task.h>
+#undef __TVOS_PROHIBITED
+#define __TVOS_PROHIBITED __OS_AVAILABILITY(tvos,unavailable)
 #endif
 
 #endif
