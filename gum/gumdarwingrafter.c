@@ -715,8 +715,8 @@ gum_collect_chained_imports (GumDarwinModule * self,
       const GumChainedStartsInImage * image_starts;
       guint seg_index;
 
-      fixups_header = (const GumChainedFixupsHeader *) (image->linkedit +
-          fixups->dataoff);
+      fixups_header = (const GumChainedFixupsHeader *)
+          ((const guint8 *) image->linkedit + fixups->dataoff);
 
       image_starts = (const GumChainedStartsInImage *)
           ((const guint8 *) fixups_header + fixups_header->starts_offset);
