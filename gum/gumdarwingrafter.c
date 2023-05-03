@@ -146,6 +146,10 @@ static void gum_darwin_grafter_set_property (GObject * object,
 static gboolean gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
     GumDarwinModule * module, GumGraftedLayout * layout, GArray ** code_offsets,
     GArray ** imports, GError ** error);
+static void gum_collect_chained_imports (GumDarwinModule * self,
+    GumCollectImportsOperation * op);
+static const GumDarwinSegment * gum_find_segment_by_offset (
+    GumDarwinModule * self, gsize offset);
 static gboolean gum_collect_functions (
     const GumDarwinFunctionStartsDetails * details, gpointer user_data);
 static gboolean gum_collect_import (const GumDarwinBindDetails * details,
@@ -539,6 +543,7 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
 
     gum_darwin_module_enumerate_binds (module, gum_collect_import, &op);
     gum_darwin_module_enumerate_lazy_binds (module, gum_collect_import, &op);
+    gum_collect_chained_imports (module, &op);
   }
 
   layout->segment_pair_descriptors = g_array_new (FALSE, FALSE,
@@ -664,6 +669,219 @@ beach:
 
     return success;
   }
+}
+
+static void
+gum_collect_chained_imports (GumDarwinModule * self,
+                             GumCollectImportsOperation * op)
+{
+  GumDarwinModuleImage * image;
+  const GumMachHeader64 * mach_header;
+  gconstpointer command, linkedit;
+  gsize command_index, segment_index;
+  const GumDarwinSegment * segment, * linkedit_segment;
+
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+    return;
+
+  segment_index = 0;
+  linkedit_segment = NULL;
+
+  while ((segment = gum_darwin_module_get_nth_segment (self, segment_index++))
+      != NULL)
+  {
+    if (strcmp (segment->name, "__LINKEDIT") == 0)
+    {
+      linkedit_segment = segment;
+      break;
+    }
+  }
+
+  if (linkedit_segment == NULL)
+    return;
+
+  image = self->image;
+  mach_header = image->data;
+  linkedit = image->linkedit;
+
+  command = mach_header + 1;
+  for (command_index = 0; command_index != mach_header->ncmds; command_index++)
+  {
+    const GumLoadCommand * lc = command;
+
+    if (lc->cmd == GUM_LC_DYLD_CHAINED_FIXUPS)
+    {
+      const GumLinkeditDataCommand * fixups = command;
+      const GumChainedFixupsHeader * fixups_header;
+      const GumChainedStartsInImage * image_starts;
+      uint32_t seg_index;
+
+      fixups_header = (const GumChainedFixupsHeader *) (linkedit +
+          fixups->dataoff);
+
+      image_starts = (const GumChainedStartsInImage *)
+          ((const void *) fixups_header + fixups_header->starts_offset);
+
+      for (seg_index = 0; seg_index != image_starts->seg_count; seg_index++)
+      {
+        const uint32_t seg_offset = image_starts->seg_info_offset[seg_index];
+        const GumChainedStartsInSegment * seg_starts;
+        GumChainedPtrFormat format;
+        uint16_t page_index;
+
+        if (seg_offset == 0)
+          continue;
+
+        seg_starts = (const GumChainedStartsInSegment *)
+            ((const void *) image_starts + seg_offset);
+        format = seg_starts->pointer_format;
+
+        segment = gum_find_segment_by_offset (self,
+            seg_starts->segment_offset);
+
+        if (segment == NULL)
+          continue;
+
+        for (page_index = 0; page_index != seg_starts->page_count; page_index++)
+        {
+          uint16_t start;
+          void * cursor;
+
+          start = seg_starts->page_start[page_index];
+          if (start == GUM_CHAINED_PTR_START_NONE)
+            continue;
+
+          cursor = (void *) mach_header + seg_starts->segment_offset +
+              (page_index * seg_starts->page_size) +
+              start;
+
+          if (format == GUM_CHAINED_PTR_64 ||
+                format == GUM_CHAINED_PTR_64_OFFSET)
+          {
+            const size_t stride = 4;
+
+            while (TRUE)
+            {
+              uint64_t * slot = cursor;
+              size_t delta;
+
+              if ((*slot >> 63) == 0)
+              {
+                GumChainedPtr64Rebase * item = cursor;
+
+                delta = item->next;
+              }
+              else
+              {
+                GumChainedPtr64Bind * item = cursor;
+                GumImport import;
+
+                delta = item->next;
+
+                import.slot_offset = (const guint8 *) slot -
+                    (const guint8 *) mach_header;
+                import.protection = segment->protection;
+
+                g_array_append_val (op->imports, import);
+              }
+
+              if (delta == 0)
+                break;
+
+              cursor += delta * stride;
+            }
+          }
+          else
+          {
+            const size_t stride = 8;
+
+            while (TRUE)
+            {
+              uint64_t * slot = cursor;
+              size_t delta;
+
+              switch (*slot >> 62)
+              {
+                case 0b00:
+                {
+                  GumChainedPtrArm64eRebase * item = cursor;
+
+                  delta = item->next;
+
+                  break;
+                }
+                case 0b01:
+                {
+                  GumChainedPtrArm64eBind * item = cursor;
+                  GumImport import;
+
+                  delta = item->next;
+
+                  import.slot_offset = (const guint8 *) slot -
+                      (const guint8 *) mach_header;
+                  import.protection = segment->protection;
+
+                  g_array_append_val (op->imports, import);
+
+                  break;
+                }
+                case 0b10:
+                {
+                  GumChainedPtrArm64eAuthRebase * item = cursor;
+
+                  delta = item->next;
+
+                  break;
+                }
+                case 0b11:
+                {
+                  GumChainedPtrArm64eAuthBind * item = cursor;
+                  GumImport import;
+
+                  delta = item->next;
+
+                  import.slot_offset = (const guint8 *) slot -
+                      (const guint8 *) mach_header;
+                  import.protection = segment->protection;
+
+                  g_array_append_val (op->imports, import);
+
+                  break;
+                }
+              }
+
+              if (delta == 0)
+                break;
+
+              cursor += delta * stride;
+            }
+          }
+        }
+      }
+    }
+
+    command = (const guint8 *) command + lc->cmdsize;
+  }
+}
+
+static const GumDarwinSegment *
+gum_find_segment_by_offset (GumDarwinModule * self,
+                            gsize offset)
+{
+  const GumDarwinSegment * segment;
+  gsize segment_index = 0;
+
+  while ((segment = gum_darwin_module_get_nth_segment (self, segment_index++))
+      != NULL)
+  {
+    if (offset >= segment->file_offset &&
+        offset < segment->file_offset + segment->file_size)
+    {
+      return segment;
+    }
+  }
+
+  return NULL;
 }
 
 static gboolean
@@ -981,6 +1199,8 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
       case GUM_LC_DATA_IN_CODE:
       case GUM_LC_DYLIB_CODE_SIGN_DRS:
       case GUM_LC_LINKER_OPTIMIZATION_HINT:
+      case GUM_LC_DYLD_CHAINED_FIXUPS:
+      case GUM_LC_DYLD_EXPORTS_TRIE:
       {
         GumLinkeditDataCommand * dc = command_out;
 
