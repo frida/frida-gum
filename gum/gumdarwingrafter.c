@@ -677,7 +677,7 @@ gum_collect_chained_imports (GumDarwinModule * self,
 {
   GumDarwinModuleImage * image;
   const GumMachHeader64 * mach_header;
-  gconstpointer command, linkedit;
+  gconstpointer command;
   gsize command_index, segment_index;
   const GumDarwinSegment * segment, * linkedit_segment;
 
@@ -702,7 +702,6 @@ gum_collect_chained_imports (GumDarwinModule * self,
 
   image = self->image;
   mach_header = image->data;
-  linkedit = image->linkedit;
 
   command = mach_header + 1;
   for (command_index = 0; command_index != mach_header->ncmds; command_index++)
@@ -716,7 +715,7 @@ gum_collect_chained_imports (GumDarwinModule * self,
       const GumChainedStartsInImage * image_starts;
       uint32_t seg_index;
 
-      fixups_header = (const GumChainedFixupsHeader *) (linkedit +
+      fixups_header = (const GumChainedFixupsHeader *) (image->linkedit +
           fixups->dataoff);
 
       image_starts = (const GumChainedStartsInImage *)
@@ -751,7 +750,7 @@ gum_collect_chained_imports (GumDarwinModule * self,
           if (start == GUM_CHAINED_PTR_START_NONE)
             continue;
 
-          cursor = (void *) mach_header + seg_starts->segment_offset +
+          cursor = (const guint8 *) mach_header + seg_starts->segment_offset +
               (page_index * seg_starts->page_size) +
               start;
 
