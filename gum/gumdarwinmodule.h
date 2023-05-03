@@ -483,20 +483,20 @@ enum _GumChainedPtrFormat
 
 struct _GumChainedPtr64Rebase
 {
-  uint64_t target   : 36,
-           high8    :  8,
-           reserved :  7,
-           next     : 12,
-           bind     :  1;
+  guint64 target   : 36,
+          high8    :  8,
+          reserved :  7,
+          next     : 12,
+          bind     :  1;
 };
 
 struct _GumChainedPtr64Bind
 {
-  uint64_t ordinal  : 24,
-           addend   :  8,
-           reserved : 19,
-           next     : 12,
-           bind     :  1;
+  guint64 ordinal  : 24,
+          addend   :  8,
+          reserved : 19,
+          next     : 12,
+          bind     :  1;
 };
 
 struct _GumChainedPtrArm64eRebase
@@ -520,12 +520,12 @@ struct _GumChainedPtrArm64eBind
 
 struct _GumChainedPtrArm64eBind24
 {
-  uint64_t ordinal : 24,
-           zero    :  8,
-           addend  : 19,
-           next    : 11,
-           bind    :  1,
-           auth    :  1;
+  guint64 ordinal : 24,
+          zero    :  8,
+          addend  : 19,
+          next    : 11,
+          bind    :  1,
+          auth    :  1;
 };
 
 struct _GumChainedPtrArm64eAuthRebase
@@ -553,14 +553,14 @@ struct _GumChainedPtrArm64eAuthBind
 
 struct _GumChainedPtrArm64eAuthBind24
 {
-  uint64_t ordinal   : 24,
-           zero      :  8,
-           diversity : 16,
-           addr_div  :  1,
-           key       :  2,
-           next      : 11,
-           bind      :  1,
-           auth      :  1;
+  guint64 ordinal   : 24,
+          zero      :  8,
+          diversity : 16,
+          addr_div  :  1,
+          key       :  2,
+          next      : 11,
+          bind      :  1,
+          auth      :  1;
 };
 
 #ifdef _MSC_VER
