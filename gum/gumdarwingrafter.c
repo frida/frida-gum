@@ -713,26 +713,26 @@ gum_collect_chained_imports (GumDarwinModule * self,
       const GumLinkeditDataCommand * fixups = command;
       const GumChainedFixupsHeader * fixups_header;
       const GumChainedStartsInImage * image_starts;
-      uint32_t seg_index;
+      guint seg_index;
 
       fixups_header = (const GumChainedFixupsHeader *) (image->linkedit +
           fixups->dataoff);
 
       image_starts = (const GumChainedStartsInImage *)
-          ((const void *) fixups_header + fixups_header->starts_offset);
+          ((const guint8 *) fixups_header + fixups_header->starts_offset);
 
       for (seg_index = 0; seg_index != image_starts->seg_count; seg_index++)
       {
-        const uint32_t seg_offset = image_starts->seg_info_offset[seg_index];
+        const guint seg_offset = image_starts->seg_info_offset[seg_index];
         const GumChainedStartsInSegment * seg_starts;
         GumChainedPtrFormat format;
-        uint16_t page_index;
+        guint16 page_index;
 
         if (seg_offset == 0)
           continue;
 
         seg_starts = (const GumChainedStartsInSegment *)
-            ((const void *) image_starts + seg_offset);
+            ((const guint8 *) image_starts + seg_offset);
         format = seg_starts->pointer_format;
 
         segment = gum_find_segment_by_offset (self,
@@ -743,8 +743,8 @@ gum_collect_chained_imports (GumDarwinModule * self,
 
         for (page_index = 0; page_index != seg_starts->page_count; page_index++)
         {
-          uint16_t start;
-          void * cursor;
+          guint16 start;
+          const guint8 * cursor;
 
           start = seg_starts->page_start[page_index];
           if (start == GUM_CHAINED_PTR_START_NONE)
@@ -757,22 +757,22 @@ gum_collect_chained_imports (GumDarwinModule * self,
           if (format == GUM_CHAINED_PTR_64 ||
                 format == GUM_CHAINED_PTR_64_OFFSET)
           {
-            const size_t stride = 4;
+            const gsize stride = 4;
 
             while (TRUE)
             {
-              uint64_t * slot = cursor;
-              size_t delta;
+              const guint64 * slot = (const guint64 *) cursor;
+              gsize delta;
 
               if ((*slot >> 63) == 0)
               {
-                GumChainedPtr64Rebase * item = cursor;
+                GumChainedPtr64Rebase * item = (GumChainedPtr64Rebase *) cursor;
 
                 delta = item->next;
               }
               else
               {
-                GumChainedPtr64Bind * item = cursor;
+                GumChainedPtr64Bind * item = (GumChainedPtr64Bind *) cursor;
                 GumImport import;
 
                 delta = item->next;
@@ -792,18 +792,19 @@ gum_collect_chained_imports (GumDarwinModule * self,
           }
           else
           {
-            const size_t stride = 8;
+            const gsize stride = 8;
 
             while (TRUE)
             {
-              uint64_t * slot = cursor;
-              size_t delta;
+              const guint64 * slot = (const guint64 *) cursor;
+              gsize delta;
 
               switch (*slot >> 62)
               {
                 case 0b00:
                 {
-                  GumChainedPtrArm64eRebase * item = cursor;
+                  GumChainedPtrArm64eRebase * item =
+                      (GumChainedPtrArm64eRebase *) cursor;
 
                   delta = item->next;
 
@@ -811,7 +812,8 @@ gum_collect_chained_imports (GumDarwinModule * self,
                 }
                 case 0b01:
                 {
-                  GumChainedPtrArm64eBind * item = cursor;
+                  GumChainedPtrArm64eBind * item =
+                      (GumChainedPtrArm64eBind *) cursor;
                   GumImport import;
 
                   delta = item->next;
@@ -826,7 +828,8 @@ gum_collect_chained_imports (GumDarwinModule * self,
                 }
                 case 0b10:
                 {
-                  GumChainedPtrArm64eAuthRebase * item = cursor;
+                  GumChainedPtrArm64eAuthRebase * item =
+                      (GumChainedPtrArm64eAuthRebase *) cursor;
 
                   delta = item->next;
 
@@ -834,7 +837,8 @@ gum_collect_chained_imports (GumDarwinModule * self,
                 }
                 case 0b11:
                 {
-                  GumChainedPtrArm64eAuthBind * item = cursor;
+                  GumChainedPtrArm64eAuthBind * item =
+                      (GumChainedPtrArm64eAuthBind *) cursor;
                   GumImport import;
 
                   delta = item->next;
