@@ -1,5 +1,5 @@
-#ifndef __FRIDA_TVOS_H__
-#define __FRIDA_TVOS_H__
+#ifndef __GUMTVOS_H__
+#define __GUMTVOS_H__
 
 #ifdef HAVE_TVOS
 #include <Availability.h>
