@@ -27,4 +27,7 @@ case $host_os in
   ios)
     "$CODESIGN" -f -s "$IOS_CERTID" --entitlements "$runner_entitlements" "$signed_runner_binary" || exit 1
     ;;
+  tvos)
+    "$CODESIGN" -f -s "$TVOS_CERTID" --entitlements "$runner_entitlements" "$signed_runner_binary" || exit 1
+    ;;
 esac
