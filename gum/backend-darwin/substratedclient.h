@@ -3,7 +3,8 @@
 
 /* Module substrated */
 
-#include "frida-tvos.h"
+#include "gumtvos.h"
+
 #include <string.h>
 #include <mach/ndr.h>
 #include <mach/boolean.h>

@@ -5,7 +5,7 @@
  */
 
 #include "gumcodesegment.h"
-#include "frida-tvos.h"
+#include "gumtvos.h"
 
 #include "gum-init.h"
 #include "gumcloak.h"
@@ -145,7 +145,8 @@ kern_return_t bootstrap_look_up (mach_port_t bp, const char * service_name,
 gboolean
 gum_code_segment_is_supported (void)
 {
-#if (defined (HAVE_MACOS) && defined (HAVE_ARM64)) || defined (HAVE_IOS) || defined (HAVE_TVOS)
+#if (defined (HAVE_MACOS) && defined (HAVE_ARM64)) || \
+    defined (HAVE_IOS) || defined (HAVE_TVOS)
   /* Not going to work on newer kernels, such as on iOS >= 15.6.1. */
   return !gum_darwin_check_xnu_version (8020, 142, 0);
 #else
