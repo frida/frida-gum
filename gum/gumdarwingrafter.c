@@ -672,7 +672,7 @@ beach:
 }
 
 static void
-gum_collect_chained_imports (GumDarwinModule * self,
+gum_collect_chained_imports (GumDarwinModule * module,
                              GumCollectImportsOperation * op)
 {
   GumDarwinModuleImage * image;
@@ -681,13 +681,13 @@ gum_collect_chained_imports (GumDarwinModule * self,
   gsize command_index, segment_index;
   const GumDarwinSegment * segment, * linkedit_segment;
 
-  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+  if (!gum_darwin_module_ensure_image_loaded (module, NULL))
     return;
 
   segment_index = 0;
   linkedit_segment = NULL;
 
-  while ((segment = gum_darwin_module_get_nth_segment (self, segment_index++))
+  while ((segment = gum_darwin_module_get_nth_segment (module, segment_index++))
       != NULL)
   {
     if (strcmp (segment->name, "__LINKEDIT") == 0)
@@ -700,7 +700,7 @@ gum_collect_chained_imports (GumDarwinModule * self,
   if (linkedit_segment == NULL)
     return;
 
-  image = self->image;
+  image = module->image;
   mach_header = image->data;
 
   command = mach_header + 1;
@@ -735,9 +735,8 @@ gum_collect_chained_imports (GumDarwinModule * self,
             ((const guint8 *) image_starts + seg_offset);
         format = seg_starts->pointer_format;
 
-        segment = gum_find_segment_by_offset (self,
+        segment = gum_find_segment_by_offset (module,
             seg_starts->segment_offset);
-
         if (segment == NULL)
           continue;
 
@@ -755,7 +754,7 @@ gum_collect_chained_imports (GumDarwinModule * self,
               start;
 
           if (format == GUM_CHAINED_PTR_64 ||
-                format == GUM_CHAINED_PTR_64_OFFSET)
+              format == GUM_CHAINED_PTR_64_OFFSET)
           {
             const gsize stride = 4;
 
@@ -868,13 +867,13 @@ gum_collect_chained_imports (GumDarwinModule * self,
 }
 
 static const GumDarwinSegment *
-gum_find_segment_by_offset (GumDarwinModule * self,
+gum_find_segment_by_offset (GumDarwinModule * module,
                             gsize offset)
 {
   const GumDarwinSegment * segment;
   gsize segment_index = 0;
 
-  while ((segment = gum_darwin_module_get_nth_segment (self, segment_index++))
+  while ((segment = gum_darwin_module_get_nth_segment (module, segment_index++))
       != NULL)
   {
     if (offset >= segment->file_offset &&
