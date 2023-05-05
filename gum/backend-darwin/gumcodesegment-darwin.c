@@ -5,8 +5,8 @@
  */
 
 #include "gumcodesegment.h"
-#include "gumtvos.h"
 
+#include "gumtvos.h"
 #include "gum-init.h"
 #include "gumcloak.h"
 #include "gumdarwin.h"
