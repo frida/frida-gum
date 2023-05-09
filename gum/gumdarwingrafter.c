@@ -146,10 +146,10 @@ static void gum_darwin_grafter_set_property (GObject * object,
 static gboolean gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
     GumDarwinModule * module, GumGraftedLayout * layout, GArray ** code_offsets,
     GArray ** imports, GError ** error);
-static void gum_collect_chained_imports (GumDarwinModule * self,
+static void gum_collect_chained_imports (GumDarwinModule * module,
     GumCollectImportsOperation * op);
 static const GumDarwinSegment * gum_find_segment_by_offset (
-    GumDarwinModule * self, gsize offset);
+    GumDarwinModule * module, gsize offset);
 static gboolean gum_collect_functions (
     const GumDarwinFunctionStartsDetails * details, gpointer user_data);
 static gboolean gum_collect_import (const GumDarwinBindDetails * details,
