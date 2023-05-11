@@ -10,6 +10,8 @@
 #include <mach-o/loader.h>
 #include <stddef.h>
 
+# ifndef __GUM_DARWIN_MODULE_H__
+
 typedef struct _GumChainedFixupsHeader GumChainedFixupsHeader;
 
 typedef struct _GumChainedStartsInImage GumChainedStartsInImage;
@@ -202,6 +204,8 @@ struct _GumChainedImportAddend64
            name_offset : 32;
   uint64_t addend;
 };
+
+# endif
 
 void gum_process_chained_fixups (const GumChainedFixupsHeader * fixups_header,
     struct mach_header_64 * mach_header, size_t preferred_base_address,

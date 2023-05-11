@@ -83,6 +83,27 @@ typedef enum {
   GUM_DARWIN_MODULE_FLAGS_HEADER_ONLY = (1 << 0),
 } GumDarwinModuleFlags;
 
+typedef struct _GumChainedFixupsHeader GumChainedFixupsHeader;
+typedef struct _GumChainedStartsInImage GumChainedStartsInImage;
+typedef struct _GumChainedStartsInSegment GumChainedStartsInSegment;
+
+typedef guint32 GumChainedImportFormat;
+typedef guint32 GumChainedSymbolFormat;
+typedef guint16 GumChainedPtrFormat;
+
+typedef struct _GumChainedImport GumChainedImport;
+typedef struct _GumChainedImportAddend GumChainedImportAddend;
+typedef struct _GumChainedImportAddend64 GumChainedImportAddend64;
+
+typedef struct _GumChainedPtr64Rebase GumChainedPtr64Rebase;
+typedef struct _GumChainedPtr64Bind GumChainedPtr64Bind;
+typedef struct _GumChainedPtrArm64eRebase GumChainedPtrArm64eRebase;
+typedef struct _GumChainedPtrArm64eBind GumChainedPtrArm64eBind;
+typedef struct _GumChainedPtrArm64eBind24 GumChainedPtrArm64eBind24;
+typedef struct _GumChainedPtrArm64eAuthRebase GumChainedPtrArm64eAuthRebase;
+typedef struct _GumChainedPtrArm64eAuthBind GumChainedPtrArm64eAuthBind;
+typedef struct _GumChainedPtrArm64eAuthBind24 GumChainedPtrArm64eAuthBind24;
+
 struct _GumDarwinModule
 {
 #ifndef GUM_DIET
@@ -371,6 +392,180 @@ enum _GumDarwinExportSymbolFlags
   GUM_DARWIN_EXPORT_REEXPORT          = 0x08,
   GUM_DARWIN_EXPORT_STUB_AND_RESOLVER = 0x10,
 };
+
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4214)
+#endif
+
+struct _GumChainedFixupsHeader
+{
+  guint32 fixups_version;
+  guint32 starts_offset;
+  guint32 imports_offset;
+  guint32 symbols_offset;
+  guint32 imports_count;
+  GumChainedImportFormat imports_format;
+  GumChainedSymbolFormat symbols_format;
+};
+
+enum _GumChainedImportFormat
+{
+  GUM_CHAINED_IMPORT          = 1,
+  GUM_CHAINED_IMPORT_ADDEND   = 2,
+  GUM_CHAINED_IMPORT_ADDEND64 = 3,
+};
+
+struct _GumChainedImport
+{
+  guint32 lib_ordinal :  8,
+          weak_import :  1,
+          name_offset : 23;
+};
+
+struct _GumChainedImportAddend
+{
+  guint32 lib_ordinal :  8,
+          weak_import :  1,
+          name_offset : 23;
+  gint32 addend;
+};
+
+struct _GumChainedImportAddend64
+{
+  guint64 lib_ordinal : 16,
+          weak_import :  1,
+          reserved    : 15,
+          name_offset : 32;
+  guint64 addend;
+};
+
+struct _GumChainedStartsInImage
+{
+  guint32 seg_count;
+  guint32 seg_info_offset[1];
+};
+
+struct _GumChainedStartsInSegment
+{
+  guint32 size;
+  guint16 page_size;
+  GumChainedPtrFormat pointer_format;
+  guint64 segment_offset;
+  guint32 max_valid_pointer;
+  guint16 page_count;
+  guint16 page_start[1];
+};
+
+enum _GumChainedPtrStart
+{
+  GUM_CHAINED_PTR_START_NONE  = 0xffff,
+  GUM_CHAINED_PTR_START_MULTI = 0x8000,
+  GUM_CHAINED_PTR_START_LAST  = 0x8000,
+};
+
+enum _GumChainedPtrFormat
+{
+  GUM_CHAINED_PTR_ARM64E              =  1,
+  GUM_CHAINED_PTR_64                  =  2,
+  GUM_CHAINED_PTR_32                  =  3,
+  GUM_CHAINED_PTR_32_CACHE            =  4,
+  GUM_CHAINED_PTR_32_FIRMWARE         =  5,
+  GUM_CHAINED_PTR_64_OFFSET           =  6,
+  GUM_CHAINED_PTR_ARM64E_OFFSET       =  7,
+  GUM_CHAINED_PTR_ARM64E_KERNEL       =  7,
+  GUM_CHAINED_PTR_64_KERNEL_CACHE     =  8,
+  GUM_CHAINED_PTR_ARM64E_USERLAND     =  9,
+  GUM_CHAINED_PTR_ARM64E_FIRMWARE     = 10,
+  GUM_CHAINED_PTR_X86_64_KERNEL_CACHE = 11,
+  GUM_CHAINED_PTR_ARM64E_USERLAND24   = 12,
+};
+
+struct _GumChainedPtr64Rebase
+{
+  guint64 target   : 36,
+          high8    :  8,
+          reserved :  7,
+          next     : 12,
+          bind     :  1;
+};
+
+struct _GumChainedPtr64Bind
+{
+  guint64 ordinal  : 24,
+          addend   :  8,
+          reserved : 19,
+          next     : 12,
+          bind     :  1;
+};
+
+struct _GumChainedPtrArm64eRebase
+{
+  guint64 target : 43,
+          high8  :  8,
+          next   : 11,
+          bind   :  1,
+          auth   :  1;
+};
+
+struct _GumChainedPtrArm64eBind
+{
+  guint64 ordinal : 16,
+          zero    : 16,
+          addend  : 19,
+          next    : 11,
+          bind    :  1,
+          auth    :  1;
+};
+
+struct _GumChainedPtrArm64eBind24
+{
+  guint64 ordinal : 24,
+          zero    :  8,
+          addend  : 19,
+          next    : 11,
+          bind    :  1,
+          auth    :  1;
+};
+
+struct _GumChainedPtrArm64eAuthRebase
+{
+  guint64 target    : 32,
+          diversity : 16,
+          addr_div  :  1,
+          key       :  2,
+          next      : 11,
+          bind      :  1,
+          auth      :  1;
+};
+
+struct _GumChainedPtrArm64eAuthBind
+{
+  guint64 ordinal   : 16,
+          zero      : 16,
+          diversity : 16,
+          addr_div  :  1,
+          key       :  2,
+          next      : 11,
+          bind      :  1,
+          auth      :  1;
+};
+
+struct _GumChainedPtrArm64eAuthBind24
+{
+  guint64 ordinal   : 24,
+          zero      :  8,
+          diversity : 16,
+          addr_div  :  1,
+          key       :  2,
+          next      : 11,
+          bind      :  1,
+          auth      :  1;
+};
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 
 GUM_API GumDarwinModule * gum_darwin_module_new_from_file (const gchar * path,
     GumCpuType cpu_type, GumPtrauthSupport ptrauth_support,
