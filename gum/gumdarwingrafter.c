@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2021-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -541,9 +541,9 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
     op.imports = *imports;
     op.text_address = layout->text_address;
 
+    gum_collect_chained_imports (module, &op);
     gum_darwin_module_enumerate_binds (module, gum_collect_import, &op);
     gum_darwin_module_enumerate_lazy_binds (module, gum_collect_import, &op);
-    gum_collect_chained_imports (module, &op);
   }
 
   layout->segment_pair_descriptors = g_array_new (FALSE, FALSE,
@@ -675,20 +675,19 @@ static void
 gum_collect_chained_imports (GumDarwinModule * module,
                              GumCollectImportsOperation * op)
 {
+  const GumDarwinSegment * linkedit_segment, * segment;
+  gsize i;
   GumDarwinModuleImage * image;
   const GumMachHeader64 * mach_header;
   gconstpointer command;
-  gsize command_index, segment_index;
-  const GumDarwinSegment * segment, * linkedit_segment;
+  gsize command_index;
 
   if (!gum_darwin_module_ensure_image_loaded (module, NULL))
     return;
 
-  segment_index = 0;
   linkedit_segment = NULL;
-
-  while ((segment = gum_darwin_module_get_nth_segment (module, segment_index++))
-      != NULL)
+  i = 0;
+  while ((segment = gum_darwin_module_get_nth_segment (module, i++)) != NULL)
   {
     if (strcmp (segment->name, "__LINKEDIT") == 0)
     {
@@ -696,7 +695,6 @@ gum_collect_chained_imports (GumDarwinModule * module,
       break;
     }
   }
-
   if (linkedit_segment == NULL)
     return;
 
@@ -871,10 +869,9 @@ gum_find_segment_by_offset (GumDarwinModule * module,
                             gsize offset)
 {
   const GumDarwinSegment * segment;
-  gsize segment_index = 0;
+  gsize i = 0;
 
-  while ((segment = gum_darwin_module_get_nth_segment (module, segment_index++))
-      != NULL)
+  while ((segment = gum_darwin_module_get_nth_segment (module, i++)) != NULL)
   {
     if (offset >= segment->file_offset &&
         offset < segment->file_offset + segment->file_size)
