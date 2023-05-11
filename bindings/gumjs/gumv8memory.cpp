@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -83,6 +84,7 @@ static void gum_v8_memory_read (GumMemoryValueType type,
     const GumV8Args * args, ReturnValue<Value> return_value);
 static void gum_v8_memory_write (GumMemoryValueType type,
     const GumV8Args * args);
+GUMJS_DECLARE_FUNCTION (gum_v8_memory_read_volatile)
 
 #ifdef HAVE_WINDOWS
 static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
@@ -179,6 +181,7 @@ static const GumV8Function gumjs_memory_functions[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
+  { "readVolatile", gum_v8_memory_read_volatile },
 
   { "allocAnsiString", gumjs_memory_alloc_ansi_string },
   { "allocUtf8String", gumjs_memory_alloc_utf8_string },
@@ -645,6 +648,34 @@ gum_v8_memory_read (GumMemoryValueType type,
     if (!result.IsEmpty ())
       return_value.Set (result);
   }
+}
+
+GUMJS_DEFINE_FUNCTION (gum_v8_memory_read_volatile)
+{
+  gpointer address;
+  gsize length;
+  if (!_gum_v8_args_parse (args, "pz", &address, &length))
+    return;
+
+  if (length == 0)
+  {
+    info.GetReturnValue ().SetNull ();
+    return;
+  }
+
+  gsize n_bytes_read;
+  guint8 * data = gum_memory_read (address, length, &n_bytes_read);
+  if (data == NULL)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "memory read failed");
+    return;
+  }
+
+  Local<Value> result = ArrayBuffer::New (isolate, n_bytes_read);
+  memcpy (result.As<ArrayBuffer> ()->GetBackingStore ()->Data (), data, length);
+  info.GetReturnValue ().Set (result);
+
+  g_free (data);
 }
 
 static void
