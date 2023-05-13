@@ -483,13 +483,13 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
     endif
   endif
 
-  libdwarf_dep = dependency('libdwarf', required: false)
+  libdwarf_dep = dependency('libdwarf', required: false, version: '>= 0.4')
   if not libdwarf_dep.found()
     found = false
     if not meson.is_cross_build()
       foreach idir : ['/usr/include/libdwarf', '/usr/local/include/libdwarf']
         inc_arg = '-I' + idir
-        if not found and cc.has_header_symbol('libdwarf.h', 'dwarf_elf_init_b', args: inc_arg)
+        if not found and cc.has_header_symbol('libdwarf.h', 'dwarf_srclines_b', args: inc_arg)
           libdwarf_dep = declare_dependency(compile_args: [inc_arg])
           extra_libs_private += '-ldwarf'
           extra_gir_args_private += '--extra-library=dwarf'
