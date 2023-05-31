@@ -680,7 +680,7 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
     address_symbol->section_header_index = details->section_header_index;
     g_hash_table_insert (gum_address_symbols, address, address_symbol);
   }
-    
+
   return TRUE;
 }
 
