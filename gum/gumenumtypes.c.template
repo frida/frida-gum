@@ -4,9 +4,6 @@
 #include "gumenumtypes.h"
 
 #include "gum.h"
-#ifdef HAVE_ELF
-# include "backend-elf/gumelfmodule.h"
-#endif
 
 /*** END file-header ***/
 

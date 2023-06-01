@@ -7,10 +7,10 @@
 
 #include "gumprocess-priv.h"
 
-#include "backend-elf/gumelfmodule.h"
 #include "backend-elf/gumprocess-elf.h"
 #include "gum-init.h"
 #include "gumandroid.h"
+#include "gumelfmodule.h"
 #include "gumlinux.h"
 #include "gumlinux-priv.h"
 #include "gummodulemap.h"

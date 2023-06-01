@@ -17,6 +17,7 @@
     <ClInclude Include="gum\gumcodesegment.h" />
     <ClInclude Include="gum\gumdarwinmodule.h" />
     <ClInclude Include="gum\gumdefs.h" />
+    <ClInclude Include="gum\gumelfmodule.h" />
     <ClInclude Include="gum\gumexceptor.h" />
     <ClInclude Include="gum\gumevent.h" />
     <ClInclude Include="gum\gumeventsink.h" />
@@ -88,6 +89,7 @@ $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClIn
     <ClCompile Include="gum\gumcodeallocator.c" />
     <ClCompile Include="gum\gumcodesegment.c" />
     <ClCompile Include="gum\gumdarwinmodule.c" />
+    <ClCompile Include="gum\gumelfmodule.c" />
     <ClCompile Include="gum\gumexceptor.c" />
     <ClCompile Include="gum\gumeventsink.c" />
     <ClCompile Include="gum\gumheapapi.c" />

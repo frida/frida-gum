@@ -237,6 +237,9 @@
     <ClCompile Include="gum\gumdarwinmodule.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumelfmodule.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gum\arch-x86\gumx86reader.h">
@@ -273,6 +276,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumdefs.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumelfmodule.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gum.h">

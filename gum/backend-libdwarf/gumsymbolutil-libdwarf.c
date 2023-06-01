@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,8 +7,8 @@
 
 #include "gumsymbolutil.h"
 
-#include "backend-elf/gumelfmodule.h"
 #include "gum-init.h"
+#include "gumelfmodule.h"
 
 #include <dlfcn.h>
 #include <dwarf.h>
@@ -43,6 +43,7 @@ typedef gboolean (* GumFoundDieFunc) (const GumDieDetails * details,
 struct _GumModuleEntry
 {
   GumElfModule * module;
+  Elf * elf;
   Dwarf_Debug dbg;
   gboolean collected;
 };
@@ -164,7 +165,7 @@ gum_symbol_details_from_address (gpointer address,
   Dwarf_Die cu_die;
   GumDwarfSymbolDetails symbol;
   GumDwarfSourceDetails source;
-  gchar * canonicalized;
+  gchar * str, * canonicalized;
 
   success = FALSE;
 
@@ -193,8 +194,9 @@ gum_symbol_details_from_address (gpointer address,
 
   details->address = GUM_ADDRESS (address);
 
-  g_strlcpy (details->module_name, gum_elf_module_get_name (entry->module),
-      sizeof (details->module_name));
+  str = g_path_get_basename (gum_elf_module_get_source_path (entry->module));
+  g_strlcpy (details->module_name, str, sizeof (details->module_name));
+  g_free (str);
   g_strlcpy (details->symbol_name, symbol.name, sizeof (details->symbol_name));
 
   canonicalized = g_canonicalize_filename (source.path, "/");
@@ -228,8 +230,9 @@ no_debug_info:
 
     details->address = GUM_ADDRESS (address);
 
-    g_strlcpy (details->module_name, gum_elf_module_get_name (entry->module),
-        sizeof (details->module_name));
+    str = g_path_get_basename (gum_elf_module_get_source_path (entry->module));
+    g_strlcpy (details->module_name, str, sizeof (details->module_name));
+    g_free (str);
 
     if (nearest.name == NULL)
       gum_find_nearest_symbol_by_address (address, &nearest);
@@ -523,8 +526,8 @@ gum_module_entry_from_path_and_base (const gchar * path,
 {
   GumModuleEntry * entry;
   GumElfModule * module;
-  Dwarf_Debug dbg = NULL;
-  Dwarf_Error error = NULL;
+  Elf * elf;
+  Dwarf_Debug dbg;
 
   gum_symbol_util_ensure_initialized ();
 
@@ -533,18 +536,36 @@ gum_module_entry_from_path_and_base (const gchar * path,
     goto have_entry;
 
   module = gum_elf_module_new_from_memory (path, base_address, NULL);
-
-  if (module == NULL ||
-      dwarf_elf_init_b (gum_elf_module_get_elf (module), DW_DLC_READ,
-          DW_GROUPNUMBER_ANY, gum_on_dwarf_error, NULL, &dbg, &error)
-      != DW_DLV_OK)
+  if (module != NULL)
   {
-    dwarf_dealloc (dbg, error, DW_DLA_ERROR);
-    error = NULL;
+    gconstpointer file_data;
+    gsize file_size;
+
+    file_data = gum_elf_module_get_file_data (module, &file_size);
+
+    elf = elf_memory ((char *) file_data, file_size);
+  }
+  else
+  {
+    elf = NULL;
+  }
+
+  dbg = NULL;
+  if (elf != NULL)
+  {
+    Dwarf_Error error = NULL;
+
+    if (dwarf_elf_init_b (elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
+          gum_on_dwarf_error, NULL, &dbg, &error) != DW_DLV_OK)
+    {
+      dwarf_dealloc (dbg, error, DW_DLA_ERROR);
+      error = NULL;
+    }
   }
 
   entry = g_slice_new (GumModuleEntry);
   entry->module = module;
+  entry->elf = elf;
   entry->dbg = dbg;
   entry->collected = FALSE;
 
@@ -559,6 +580,9 @@ gum_module_entry_free (GumModuleEntry * entry)
 {
   if (entry->dbg != NULL)
     dwarf_finish (entry->dbg, NULL);
+
+  if (entry->elf != NULL)
+    elf_end (entry->elf);
 
   if (entry->module != NULL)
     gum_object_unref (entry->module);
@@ -636,8 +660,7 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
   gboolean already_collected;
   GumElfSymbolDetails * address_symbol;
 
-  if (details->section_header_index == GUM_ELF_SECTION_HEADER_INDEX_NONE ||
-      details->type != GUM_ELF_SYMBOL_FUNC)
+  if (details->section == NULL || details->type != GUM_ELF_SYMBOL_FUNC)
     return TRUE;
 
   name = details->name;
@@ -677,7 +700,7 @@ gum_collect_symbol_if_function (const GumElfSymbolDetails * details,
     address_symbol->size = details->size;
     address_symbol->type = details->type;
     address_symbol->bind = details->bind;
-    address_symbol->section_header_index = details->section_header_index;
+    address_symbol->section = NULL;
     g_hash_table_insert (gum_address_symbols, address, address_symbol);
   }
 
