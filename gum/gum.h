@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +16,7 @@
 #include <gum/gumcodesegment.h>
 #include <gum/gumdarwingrafter.h>
 #include <gum/gumdarwinmodule.h>
+#include <gum/gumelfmodule.h>
 #include <gum/gumevent.h>
 #include <gum/gumeventsink.h>
 #include <gum/gumexceptor.h>
