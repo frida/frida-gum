@@ -635,7 +635,6 @@ gum_kernel_kext_by_name (GumDarwinModule * module,
   return !ctx->found;
 }
 
-
 static gboolean
 gum_kernel_emit_module_range (const GumDarwinSectionDetails * section,
                               gpointer user_data)
