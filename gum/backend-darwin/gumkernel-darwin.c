@@ -569,7 +569,7 @@ gum_kernel_store_kext_name (GumAddress address,
 
   /* Reference: osfmk/mach/kmod.h */
   buf = gum_kernel_read (address + 0x8c, 8, NULL);
-  kext = g_hash_table_lookup (ctx->kexts, *((GumAddress**)buf));
+  kext = g_hash_table_lookup (ctx->kexts, *((GumAddress **) buf));
   g_free (buf);
 
   if (kext == NULL)
