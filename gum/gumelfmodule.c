@@ -1905,7 +1905,7 @@ gum_elf_module_find_address_file_offset (GumElfModule * self,
   if (delta >= phdr->filesz)
     return FALSE;
 
-  *offset = delta;
+  *offset = phdr->offset + delta;
 
   return TRUE;
 }
