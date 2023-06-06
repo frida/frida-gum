@@ -674,6 +674,9 @@ namespace Gum {
 		public unowned GLib.Bytes? source_blob { get; }
 		public Gum.ElfSourceMode source_mode { get; }
 
+		[CCode (array_length_type = "size_t")]
+		public unowned uint8[] get_file_data ();
+
 		public void enumerate_segments (Gum.FoundElfSegmentFunc func);
 		public void enumerate_sections (Gum.FoundElfSectionFunc func);
 		public void enumerate_relocations (Gum.FoundElfRelocationFunc func);
