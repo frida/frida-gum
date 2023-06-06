@@ -954,6 +954,7 @@ namespace Gum {
 		public uint32 type;
 		public Gum.ElfSymbolDetails? symbol;
 		public int64 addend;
+		public Gum.ElfSectionDetails? parent;
 	}
 
 	public struct ElfDynamicEntryDetails {

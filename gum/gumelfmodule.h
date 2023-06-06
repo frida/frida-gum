@@ -923,6 +923,7 @@ struct _GumElfRelocationDetails
   guint32 type;
   const GumElfSymbolDetails * symbol;
   gint64 addend;
+  const GumElfSectionDetails * parent;
 };
 
 struct _GumElfDynamicEntryDetails

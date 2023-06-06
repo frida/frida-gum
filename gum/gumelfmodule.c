@@ -22,6 +22,8 @@
 # endif
 #endif
 
+#include <string.h>
+
 #define GUM_ELF_DEFAULT_MAPPED_SIZE (64 * 1024)
 #define GUM_ELF_PAGE_START(value, page_size) \
     (GUM_ADDRESS (value) & ~GUM_ADDRESS (page_size - 1))
@@ -44,6 +46,7 @@
     dst = G_PASTE (gum_elf_module_read_, type) (self, &src);
 
 typedef guint GumElfDynamicAddressState;
+typedef struct _GumElfRelocationGroup GumElfRelocationGroup;
 typedef struct _GumElfEnumerateDepsContext GumElfEnumerateDepsContext;
 typedef struct _GumElfEnumerateImportsContext GumElfEnumerateImportsContext;
 typedef struct _GumElfEnumerateExportsContext GumElfEnumerateExportsContext;
@@ -100,6 +103,23 @@ enum _GumElfDynamicAddressState
   GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED,
 };
 
+struct _GumElfRelocationGroup
+{
+  guint64 offset;
+  guint64 size;
+  guint64 entsize;
+  gboolean relocs_have_addend;
+
+  guint64 symtab_offset;
+  guint64 symtab_entsize;
+
+  const gchar * strings;
+  const gchar * strings_base;
+  gsize strings_size;
+
+  const GumElfSectionDetails * parent;
+};
+
 struct _GumElfEnumerateDepsContext
 {
   GumFoundElfDependencyFunc func;
@@ -152,6 +172,9 @@ static gboolean gum_elf_module_load_dynamic_entries (GumElfModule * self,
 static gconstpointer gum_elf_module_get_live_data (GumElfModule * self,
     gsize * size);
 static void gum_elf_module_unload (GumElfModule * self);
+static gboolean gum_elf_module_emit_relocations (GumElfModule * self,
+    const GumElfRelocationGroup * g, GumFoundElfRelocationFunc func,
+    gpointer user_data);
 static gboolean gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
     gpointer user_data);
 static gboolean gum_emit_elf_import (const GumElfSymbolDetails * details,
@@ -1173,30 +1196,64 @@ gum_elf_module_enumerate_relocations (GumElfModule * self,
                                       GumFoundElfRelocationFunc func,
                                       gpointer user_data)
 {
-  guint64 relocs_offset, relocs_size, relocs_entsize, minimum_entsize;
-  gboolean relocs_have_addend;
-  guint64 symtab_offset, symtab_entsize;
-  const gchar * strings, * strings_base;
-  gsize strings_size;
   gconstpointer data;
   gsize size;
-  guint i, n;
-  gconstpointer start, end, cursor;
-  GError ** error = NULL;
-
-  relocs_offset = 0;
-  relocs_size = 0;
-  relocs_entsize = 0;
-  relocs_have_addend = FALSE;
-
-  symtab_offset = 0;
-  symtab_entsize = 0;
-
-  strings = NULL;
-  strings_base = NULL;
-  strings_size = 0;
+  guint i;
+  GumElfRelocationGroup g = { 0, };
 
   data = gum_elf_module_get_file_data (self, &size);
+
+  for (i = 0; i != self->shdrs->len; i++)
+  {
+    const GumElfShdr * shdr = &g_array_index (self->shdrs, GumElfShdr, i);
+
+    switch (shdr->type)
+    {
+      case GUM_ELF_SECTION_REL:
+      case GUM_ELF_SECTION_RELA:
+      {
+        const GumElfShdr * symtab_shdr;
+
+        memset (&g, 0, sizeof (g));
+
+        g.offset = shdr->offset;
+        g.size = shdr->size;
+        g.entsize = shdr->entsize;
+        g.relocs_have_addend = shdr->type == GUM_ELF_SECTION_RELA;
+
+        symtab_shdr =
+            gum_elf_module_find_section_header_by_index (self, shdr->link);
+        if (symtab_shdr != NULL)
+        {
+          const GumElfShdr * strings_shdr;
+
+          g.symtab_offset = symtab_shdr->offset;
+          g.symtab_entsize = symtab_shdr->entsize;
+
+          strings_shdr = gum_elf_module_find_section_header_by_index (self,
+              symtab_shdr->link);
+          if (strings_shdr != NULL)
+          {
+            g.strings = (const gchar *) data + strings_shdr->offset;
+            g.strings_base = data;
+            g.strings_size = size;
+          }
+        }
+
+        g.parent = &g_array_index (self->sections, GumElfSectionDetails, i);
+
+        if (!gum_elf_module_emit_relocations (self, &g, func, user_data))
+          return;
+
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  if (g.offset != 0)
+    return;
 
   for (i = 0; i != self->dyns->len; i++)
   {
@@ -1206,103 +1263,75 @@ gum_elf_module_enumerate_relocations (GumElfModule * self,
     {
       case GUM_ELF_DYNAMIC_REL:
       case GUM_ELF_DYNAMIC_RELA:
-        relocs_offset = dyn->val;
-        relocs_have_addend = dyn->tag == GUM_ELF_DYNAMIC_RELA;
+        g.offset = dyn->val;
+        g.relocs_have_addend = dyn->tag == GUM_ELF_DYNAMIC_RELA;
         break;
       case GUM_ELF_DYNAMIC_RELSZ:
       case GUM_ELF_DYNAMIC_RELASZ:
-        relocs_size = dyn->val;
+        g.size = dyn->val;
         break;
       case GUM_ELF_DYNAMIC_RELENT:
       case GUM_ELF_DYNAMIC_RELAENT:
-        relocs_entsize = dyn->val;
+        g.entsize = dyn->val;
         break;
       case GUM_ELF_DYNAMIC_SYMTAB:
-        symtab_offset = dyn->val;
+        g.symtab_offset = dyn->val;
         break;
       case GUM_ELF_DYNAMIC_SYMENT:
-        symtab_entsize = dyn->val;
+        g.symtab_entsize = dyn->val;
         break;
       default:
         break;
     }
   }
 
-  if (relocs_offset == 0)
-  {
-    for (i = 0; i != self->shdrs->len; i++)
-    {
-      const GumElfShdr * shdr = &g_array_index (self->shdrs, GumElfShdr, i);
+  g.strings = self->dynamic_strings;
+  g.strings_base = gum_elf_module_get_live_data (self, &g.strings_size);
 
-      switch (shdr->type)
-      {
-        case GUM_ELF_SECTION_REL:
-        case GUM_ELF_SECTION_RELA:
-        {
-          const GumElfShdr * symtab_shdr;
+  gum_elf_module_emit_relocations (self, &g, func, user_data);
+}
 
-          relocs_offset = shdr->offset;
-          relocs_size = shdr->size;
-          relocs_entsize = shdr->entsize;
-          relocs_have_addend = shdr->type == GUM_ELF_SECTION_RELA;
+static gboolean
+gum_elf_module_emit_relocations (GumElfModule * self,
+                                 const GumElfRelocationGroup * g,
+                                 GumFoundElfRelocationFunc func,
+                                 gpointer user_data)
+{
+  guint64 minimum_entsize;
+  gconstpointer data;
+  gsize size;
+  guint n, i;
+  gconstpointer start, end, cursor;
 
-          symtab_shdr =
-              gum_elf_module_find_section_header_by_index (self, shdr->link);
-          if (symtab_shdr != NULL)
-          {
-            const GumElfShdr * strings_shdr;
+  GError ** error = NULL;
 
-            symtab_offset = symtab_shdr->offset;
-            symtab_entsize = symtab_shdr->entsize;
-
-            strings_shdr = gum_elf_module_find_section_header_by_index (self,
-                symtab_shdr->link);
-            if (strings_shdr != NULL)
-            {
-              strings = (const gchar *) data + strings_shdr->offset;
-              strings_base = data;
-              strings_size = size;
-            }
-          }
-
-          break;
-        }
-        default:
-          break;
-      }
-    }
-  }
-  else
-  {
-    strings = self->dynamic_strings;
-    strings_base = gum_elf_module_get_live_data (self, &strings_size);
-  }
-
-  if (relocs_offset == 0 || relocs_size == 0 || relocs_entsize == 0)
-    return;
-  if (symtab_offset == 0 || symtab_entsize == 0)
-    return;
-  if (strings == NULL)
-    return;
+  if (g->offset == 0 || g->size == 0 || g->entsize == 0)
+    goto invalid_group;
+  if (g->symtab_offset == 0 || g->symtab_entsize == 0)
+    goto invalid_group;
+  if (g->strings == NULL)
+    goto invalid_group;
 
   switch (self->ehdr.identity.klass)
   {
     case GUM_ELF_CLASS_64:
-      minimum_entsize = relocs_have_addend ? 24 : 16;
+      minimum_entsize = g->relocs_have_addend ? 24 : 16;
       break;
     case GUM_ELF_CLASS_32:
-      minimum_entsize = relocs_have_addend ? 12 : 8;
+      minimum_entsize = g->relocs_have_addend ? 12 : 8;
       break;
     default:
       g_assert_not_reached ();
   }
-  if (relocs_entsize < minimum_entsize)
-    return;
+  if (g->entsize < minimum_entsize)
+    goto invalid_group;
 
-  n = relocs_size / relocs_entsize;
+  data = gum_elf_module_get_file_data (self, &size);
 
-  start = (const guint8 *) data + relocs_offset;
-  end = (const guint8 *) start + relocs_size;
+  n = g->size / g->entsize;
+
+  start = (const guint8 *) data + g->offset;
+  end = (const guint8 *) start + g->size;
   GUM_CHECK_BOUNDS (start, end, "relocations");
 
   cursor = start;
@@ -1327,7 +1356,7 @@ gum_elf_module_enumerate_relocations (GumElfModule * self,
         d.type = info & GUM_INT32_MASK;
         sym_index = info >> 32;
 
-        if (relocs_have_addend)
+        if (g->relocs_have_addend)
         {
           d.addend = gum_elf_module_read_int64 (self,
               (const gint64 *) ((const guint8 *) cursor + 16));
@@ -1346,7 +1375,7 @@ gum_elf_module_enumerate_relocations (GumElfModule * self,
         d.type = info & GUM_INT8_MASK;
         sym_index = info >> 8;
 
-        if (relocs_have_addend)
+        if (g->relocs_have_addend)
         {
           d.addend = gum_elf_module_read_int32 (self,
               (const gint32 *) ((const guint8 *) cursor + 8));
@@ -1363,17 +1392,17 @@ gum_elf_module_enumerate_relocations (GumElfModule * self,
       gconstpointer sym_start, sym_end;
       GumElfSym sym_val;
 
-      sym_start =
-          (const guint8 *) data + symtab_offset + (sym_index * symtab_entsize);
-      sym_end = (const guint8 *) sym_start + symtab_entsize;
+      sym_start = (const guint8 *) data + g->symtab_offset +
+          (sym_index * g->symtab_entsize);
+      sym_end = (const guint8 *) sym_start + g->symtab_entsize;
       GUM_CHECK_BOUNDS (sym_start, sym_end, "relocation symbol");
 
       gum_elf_module_read_symbol (self, sym_start, &sym_val);
 
-      gum_elf_module_parse_symbol (self, &sym_val, strings, &sym_details);
+      gum_elf_module_parse_symbol (self, &sym_val, g->strings, &sym_details);
       if (!gum_elf_module_check_str_bounds (self, sym_details.name,
-            strings_base, strings_size, "relocation symbol name", NULL))
-        return;
+            g->strings_base, g->strings_size, "relocation symbol name", NULL))
+        goto invalid_group;
 
       d.symbol = &sym_details;
     }
@@ -1382,14 +1411,19 @@ gum_elf_module_enumerate_relocations (GumElfModule * self,
       d.symbol = NULL;
     }
 
-    if (!func (&d, user_data))
-      return;
+    d.parent = g->parent;
 
-    cursor = (const guint8 *) cursor + relocs_entsize;
+    if (!func (&d, user_data))
+      return FALSE;
+
+    cursor = (const guint8 *) cursor + g->entsize;
   }
 
+  return TRUE;
+
+invalid_group:
 propagate_error:
-  return;
+  return TRUE;
 }
 
 void
