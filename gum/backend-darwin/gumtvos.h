@@ -1,5 +1,5 @@
-#ifndef __GUMTVOS_H__
-#define __GUMTVOS_H__
+#ifndef __GUM_TVOS_H__
+#define __GUM_TVOS_H__
 
 #ifdef HAVE_TVOS
 # include <Availability.h>
