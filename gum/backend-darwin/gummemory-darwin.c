@@ -298,7 +298,7 @@ gum_darwin_read (mach_port_t task,
     page_offset = chunk_address - page_address;
     chunk_size = MIN (len - offset, page_size - page_offset);
 
-#ifdef HAVE_IOS
+#if defined (HAVE_IOS) || defined (HAVE_TVOS)
     mach_vm_size_t n_bytes_read;
 
     /* mach_vm_read corrupts memory on iOS */
@@ -572,7 +572,7 @@ gum_allocate_page_aligned (gpointer address,
   if (result == MAP_FAILED)
     return NULL;
 
-#if defined (HAVE_IOS) && !defined (HAVE_I386)
+#if (defined (HAVE_IOS) || defined (HAVE_TVOS)) && !defined (HAVE_I386)
   {
     gboolean need_checkra1n_quirk;
 

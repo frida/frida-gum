@@ -906,7 +906,7 @@ gum_kernel_get_task (void)
 static mach_port_t
 gum_kernel_do_init (void)
 {
-#ifdef HAVE_IOS
+#if defined (HAVE_IOS) || defined (HAVE_TVOS)
   mach_port_t task;
 
   if (gum_darwin_query_hardened ())

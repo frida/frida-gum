@@ -3,6 +3,8 @@
 
 /* Module substrated */
 
+#include "gumtvos.h"
+
 #include <string.h>
 #include <mach/ndr.h>
 #include <mach/boolean.h>

@@ -127,7 +127,7 @@ if host_os_family == 'darwin'
     'backend-darwin/gumdarwinmapper.c',
     'backend-darwin/gumdarwinmoduleresolver.c',
   ]
-  if host_os in ['macos', 'ios']
+  if host_os in ['macos', 'ios', 'tvos']
     gum_sources += 'backend-darwin/gumexceptor-darwin.c'
     if have_jailbreak
       gum_sources += [

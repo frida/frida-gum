@@ -6,6 +6,7 @@
 
 #include "gumcodesegment.h"
 
+#include "gumtvos.h"
 #include "gum-init.h"
 #include "gumcloak.h"
 #include "gumdarwin.h"
@@ -144,7 +145,8 @@ kern_return_t bootstrap_look_up (mach_port_t bp, const char * service_name,
 gboolean
 gum_code_segment_is_supported (void)
 {
-#if (defined (HAVE_MACOS) && defined (HAVE_ARM64)) || defined (HAVE_IOS)
+#if (defined (HAVE_MACOS) && defined (HAVE_ARM64)) || \
+    defined (HAVE_IOS) || defined (HAVE_TVOS)
   /* Not going to work on newer kernels, such as on iOS >= 15.6.1. */
   return !gum_darwin_check_xnu_version (8020, 142, 0);
 #else
@@ -258,7 +260,7 @@ gum_code_segment_get_virtual_size (GumCodeSegment * self)
 void
 gum_code_segment_realize (GumCodeSegment * self)
 {
-#ifdef HAVE_IOS
+#if defined (HAVE_IOS) || defined (HAVE_TVOS)
   if (gum_code_segment_is_realize_supported ())
   {
     gum_code_segment_try_realize (self);
@@ -269,7 +271,7 @@ gum_code_segment_realize (GumCodeSegment * self)
 static gboolean
 gum_code_segment_is_realize_supported (void)
 {
-#ifdef HAVE_IOS
+#if defined (HAVE_IOS) || defined (HAVE_TVOS)
   static gsize realize_supported = 0;
 
   if (g_once_init_enter (&realize_supported))
@@ -306,7 +308,7 @@ gum_code_segment_map (GumCodeSegment * self,
 {
   G_GNUC_UNUSED gboolean mapped_successfully;
 
-#ifdef HAVE_IOS
+#if defined (HAVE_IOS) || defined (HAVE_TVOS)
   if (self->fd != -1)
   {
     mapped_successfully = gum_code_segment_try_map (self, source_offset,
@@ -335,7 +337,7 @@ gum_code_segment_mark (gpointer code,
                        gsize size,
                        GError ** error)
 {
-#ifdef HAVE_IOS
+#if defined (HAVE_IOS) || defined (HAVE_TVOS)
   if (gum_process_is_debugger_attached ())
     goto fallback;
 

@@ -179,7 +179,7 @@ if allocator == 'system'
   cdata.set('GUM_USE_SYSTEM_ALLOC', 1)
 endif
 
-have_jailbreak = get_option('jailbreak').allowed() and host_os in ['macos', 'ios']
+have_jailbreak = get_option('jailbreak').allowed() and host_os in ['macos', 'ios', 'tvos']
 if have_jailbreak
   cdata.set('HAVE_JAILBREAK', 1)
 endif
