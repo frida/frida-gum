@@ -1921,7 +1921,7 @@ namespace Gum {
 	}
 
 	[Compact]
-	[CCode (ref_function = "gum_arm64_writer_ref", unref_function = "gum_arm64_writer_unref", has_type_id = false)]
+	[CCode (cheader_filename = "gum/arch-arm64/gumarm64writer.h", ref_function = "gum_arm64_writer_ref", unref_function = "gum_arm64_writer_unref", has_type_id = false)]
 	public class Arm64Writer {
 		public int ref_count;
 		public bool flush_on_destroy;
@@ -2023,7 +2023,7 @@ namespace Gum {
 	}
 
 	[Compact]
-	[CCode (ref_function = "gum_arm64_relocator_ref", unref_function = "gum_arm64_relocator_unref", has_type_id = false)]
+	[CCode (cheader_filename = "gum/arch-arm64/gumarm64relocator.h", ref_function = "gum_arm64_relocator_ref", unref_function = "gum_arm64_relocator_unref", has_type_id = false)]
 	public class Arm64Relocator {
 		public int ref_count;
 
