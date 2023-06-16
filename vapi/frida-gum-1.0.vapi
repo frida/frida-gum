@@ -61,6 +61,18 @@ namespace Gum {
 		REQUIRED
 	}
 
+	public enum OS {
+		WINDOWS,
+		MACOS,
+		LINUX,
+		IOS,
+		WATCHOS,
+		TVOS,
+		ANDROID,
+		FREEBSD,
+		QNX,
+	}
+
 	[CCode (cprefix = "GUM_CALL_")]
 	public enum CallingConvention {
 		CAPI,
@@ -77,12 +89,31 @@ namespace Gum {
 		MIPS,
 	}
 
+	public struct Argument {
+		public Gum.ArgType type;
+		public Gum.ArgValue value;
+	}
+
+	[CCode (cprefix = "GUM_ARG_")]
+	public enum ArgType {
+		ADDRESS,
+		REGISTER
+	}
+
+	public struct ArgValue {
+		Gum.Address address;
+		int reg;
+	}
+
 	[CCode (cprefix = "GUM_PTRAUTH_")]
 	public enum PtrauthSupport {
 		INVALID,
 		UNSUPPORTED,
 		SUPPORTED
 	}
+
+	[CCode (has_target = false)]
+	public delegate Gum.Address PtrauthSignFunc (Gum.Address val);
 
 	[CCode (cprefix = "GUM_RWX_")]
 	public enum RwxSupport {
@@ -452,6 +483,12 @@ namespace Gum {
 
 		public uint32 k0;
 		public uint32 k1;
+	}
+
+	[CCode (cprefix = "GUM_SCENARIO_")]
+	public enum RelocationScenario {
+		OFFLINE,
+		ONLINE
 	}
 
 	public delegate void ModifyThreadFunc (Gum.ThreadId thread_id, CpuContext * cpu_context);
@@ -1881,5 +1918,520 @@ namespace Gum {
 
 	[CCode (has_type_id = false)]
 	public struct DarwinPageProtection : int {
+	}
+
+	[Compact]
+	[CCode (ref_function = "gum_arm64_writer_ref", unref_function = "gum_arm64_writer_unref", has_type_id = false)]
+	public class Arm64Writer {
+		public int ref_count;
+		public bool flush_on_destroy;
+
+		public Gum.OS target_os;
+		public Gum.PtrauthSupport ptrauth_support;
+		[CCode (cname = "sign")]
+		public Gum.PtrauthSignFunc sign_impl;
+
+		public uint32 * base;
+		public uint32 * code;
+		public Gum.Address pc;
+
+		public Arm64Writer (void * code_address);
+
+		public void reset (void * code_address);
+
+		public void * cur ();
+		public uint offset ();
+		public void skip (uint n_bytes);
+
+		public bool flush ();
+
+		public bool put_label (void * id);
+
+		public void put_call_address_with_arguments (Gum.Address func, uint n_args, ...);
+		public void put_call_address_with_arguments_array (Gum.Address func, [CCode (array_length_pos = 1.1, array_length_type = "guint")] Gum.Argument[] args);
+		public void put_call_reg_with_arguments (Gum.Arm64Reg reg, uint n_args, ...);
+		public void put_call_reg_with_arguments_array (Gum.Arm64Reg reg, [CCode (array_length_pos = 1.1, array_length_type = "guint")] Gum.Argument[] args);
+
+		public void put_branch_address (Gum.Address address);
+
+		public bool can_branch_directly_between (Gum.Address from, Gum.Address to);
+		public bool put_b_imm (Gum.Address address);
+		public void put_b_label (void * label_id);
+		public void put_b_cond_label (Gum.Arm64ConditionCode cc, void * label_id);
+		public bool put_bl_imm (Gum.Address address);
+		public void put_bl_label (void * label_id);
+		public bool put_br_reg (Gum.Arm64Reg reg);
+		public bool put_br_reg_no_auth (Gum.Arm64Reg reg);
+		public bool put_blr_reg (Gum.Arm64Reg reg);
+		public bool put_blr_reg_no_auth (Gum.Arm64Reg reg);
+		public void put_ret ();
+		public bool put_ret_reg (Gum.Arm64Reg reg);
+		public bool put_cbz_reg_imm (Gum.Arm64Reg reg, Gum.Address target);
+		public bool put_cbnz_reg_imm (Gum.Arm64Reg reg, Gum.Address target);
+		public void put_cbz_reg_label (Gum.Arm64Reg reg, void * label_id);
+		public void put_cbnz_reg_label (Gum.Arm64Reg reg, void * label_id);
+		public bool put_tbz_reg_imm_imm (Gum.Arm64Reg reg, uint bit, Gum.Address target);
+		public bool put_tbnz_reg_imm_imm (Gum.Arm64Reg reg, uint bit, Gum.Address target);
+		public void put_tbz_reg_imm_label (Gum.Arm64Reg reg, uint bit, void * label_id);
+		public void put_tbnz_reg_imm_label (Gum.Arm64Reg reg, uint bit, void * label_id);
+
+		public bool put_push_reg_reg (Gum.Arm64Reg reg_a, Gum.Arm64Reg reg_b);
+		public bool put_pop_reg_reg (Gum.Arm64Reg reg_a, Gum.Arm64Reg reg_b);
+		public void put_push_all_x_registers ();
+		public void put_pop_all_x_registers ();
+		public void put_push_all_q_registers ();
+		public void put_pop_all_q_registers ();
+
+		public bool put_ldr_reg_address (Gum.Arm64Reg reg, Gum.Address address);
+		public bool put_ldr_reg_u32 (Gum.Arm64Reg reg, uint32 val);
+		public bool put_ldr_reg_u64 (Gum.Arm64Reg reg, uint64 val);
+		public bool put_ldr_reg_u32_ptr (Gum.Arm64Reg reg, Gum.Address src_address);
+		public bool put_ldr_reg_u64_ptr (Gum.Arm64Reg reg, Gum.Address src_address);
+		public uint put_ldr_reg_ref (Gum.Arm64Reg reg);
+		public void put_ldr_reg_value (uint ref, Gum.Address value);
+		public bool put_ldr_reg_reg (Gum.Arm64Reg dst_reg, Gum.Arm64Reg src_reg);
+		public bool put_ldr_reg_reg_offset (Gum.Arm64Reg dst_reg, Gum.Arm64Reg src_reg, size_t src_offset);
+		public bool put_ldr_reg_reg_offset_mode (Gum.Arm64Reg dst_reg, Gum.Arm64Reg src_reg, ssize_t src_offset, Gum.Arm64IndexMode mode);
+		public bool put_ldrsw_reg_reg_offset (Gum.Arm64Reg dst_reg, Gum.Arm64Reg src_reg, size_t src_offset);
+		public bool put_adrp_reg_address (Gum.Arm64Reg reg, Gum.Address address);
+		public bool put_str_reg_reg (Gum.Arm64Reg src_reg, Gum.Arm64Reg dst_reg);
+		public bool put_str_reg_reg_offset (Gum.Arm64Reg src_reg, Gum.Arm64Reg dst_reg, size_t dst_offset);
+		public bool put_str_reg_reg_offset_mode (Gum.Arm64Reg src_reg, Gum.Arm64Reg dst_reg, ssize_t dst_offset, Gum.Arm64IndexMode mode);
+		public bool put_ldp_reg_reg_reg_offset (Gum.Arm64Reg reg_a, Gum.Arm64Reg reg_b, Gum.Arm64Reg reg_src, ssize_t src_offset, Gum.Arm64IndexMode mode);
+		public bool put_stp_reg_reg_reg_offset (Gum.Arm64Reg reg_a, Gum.Arm64Reg reg_b, Gum.Arm64Reg reg_dst, ssize_t dst_offset, Gum.Arm64IndexMode mode);
+		public bool put_mov_reg_reg (Gum.Arm64Reg dst_reg, Gum.Arm64Reg src_reg);
+		public void put_mov_reg_nzcv (Gum.Arm64Reg reg);
+		public void put_mov_nzcv_reg (Gum.Arm64Reg reg);
+		public bool put_uxtw_reg_reg (Gum.Arm64Reg dst_reg, Gum.Arm64Reg src_reg);
+		public bool put_add_reg_reg_imm (Gum.Arm64Reg dst_reg, Gum.Arm64Reg left_reg, size_t right_value);
+		public bool put_add_reg_reg_reg (Gum.Arm64Reg dst_reg, Gum.Arm64Reg left_reg, Gum.Arm64Reg right_reg);
+		public bool put_sub_reg_reg_imm (Gum.Arm64Reg dst_reg, Gum.Arm64Reg left_reg, size_t right_value);
+		public bool put_sub_reg_reg_reg (Gum.Arm64Reg dst_reg, Gum.Arm64Reg left_reg, Gum.Arm64Reg right_reg);
+		public bool put_and_reg_reg_imm (Gum.Arm64Reg dst_reg, Gum.Arm64Reg left_reg, uint64 right_value);
+		public bool put_tst_reg_imm (Gum.Arm64Reg reg, uint64 imm_value);
+		public bool put_cmp_reg_reg (Gum.Arm64Reg reg_a, Gum.Arm64Reg reg_b);
+
+		public bool put_xpaci_reg (Gum.Arm64Reg reg);
+
+		public void put_nop ();
+		public void put_brk_imm (uint16 imm);
+
+		public void put_instruction (uint32 insn);
+		public bool put_bytes ([CCode (array_length_type = "guint")] uint8[] data);
+
+		public Gum.Address sign (Gum.Address value);
+	}
+
+	[Compact]
+	[CCode (ref_function = "gum_arm64_relocator_ref", unref_function = "gum_arm64_relocator_unref", has_type_id = false)]
+	public class Arm64Relocator {
+		public int ref_count;
+
+		public void * capstone;
+
+		public uint8 * input_start;
+		public uint8 * input_cur;
+		public Gum.Address input_pc;
+		public void ** input_insns;
+		public Gum.Arm64Writer output;
+
+		public uint inpos;
+		public uint outpos;
+
+		public bool eob;
+		public bool eoi;
+
+		public Arm64Relocator (void * input_code, Gum.Arm64Writer output);
+
+		public void reset (void * input_code, Gum.Arm64Writer output);
+
+		public uint read_one (out void * instruction = null);
+
+		public void * peek_next_write_insn ();
+		public void * peek_next_write_source ();
+		public void skip_one ();
+		public bool write_one ();
+		public void write_all ();
+
+		public static bool can_relocate (void * address, uint min_bytes, Gum.RelocationScenario scenario, out uint maximum = null, out Gum.Arm64Reg available_scratch_reg = null);
+		public static uint relocate (void * from, uint min_bytes, void * to);
+	}
+
+	[CCode (cname = "arm64_reg", cprefix = "ARM64_REG_")]
+	public enum Arm64Reg {
+		INVALID,
+		FFR,
+		FP,
+		LR,
+		NZCV,
+		SP,
+		VG,
+		WSP,
+		WZR,
+		XZR,
+		ZA,
+		B0,
+		B1,
+		B2,
+		B3,
+		B4,
+		B5,
+		B6,
+		B7,
+		B8,
+		B9,
+		B10,
+		B11,
+		B12,
+		B13,
+		B14,
+		B15,
+		B16,
+		B17,
+		B18,
+		B19,
+		B20,
+		B21,
+		B22,
+		B23,
+		B24,
+		B25,
+		B26,
+		B27,
+		B28,
+		B29,
+		B30,
+		B31,
+		D0,
+		D1,
+		D2,
+		D3,
+		D4,
+		D5,
+		D6,
+		D7,
+		D8,
+		D9,
+		D10,
+		D11,
+		D12,
+		D13,
+		D14,
+		D15,
+		D16,
+		D17,
+		D18,
+		D19,
+		D20,
+		D21,
+		D22,
+		D23,
+		D24,
+		D25,
+		D26,
+		D27,
+		D28,
+		D29,
+		D30,
+		D31,
+		H0,
+		H1,
+		H2,
+		H3,
+		H4,
+		H5,
+		H6,
+		H7,
+		H8,
+		H9,
+		H10,
+		H11,
+		H12,
+		H13,
+		H14,
+		H15,
+		H16,
+		H17,
+		H18,
+		H19,
+		H20,
+		H21,
+		H22,
+		H23,
+		H24,
+		H25,
+		H26,
+		H27,
+		H28,
+		H29,
+		H30,
+		H31,
+		P0,
+		P1,
+		P2,
+		P3,
+		P4,
+		P5,
+		P6,
+		P7,
+		P8,
+		P9,
+		P10,
+		P11,
+		P12,
+		P13,
+		P14,
+		P15,
+		Q0,
+		Q1,
+		Q2,
+		Q3,
+		Q4,
+		Q5,
+		Q6,
+		Q7,
+		Q8,
+		Q9,
+		Q10,
+		Q11,
+		Q12,
+		Q13,
+		Q14,
+		Q15,
+		Q16,
+		Q17,
+		Q18,
+		Q19,
+		Q20,
+		Q21,
+		Q22,
+		Q23,
+		Q24,
+		Q25,
+		Q26,
+		Q27,
+		Q28,
+		Q29,
+		Q30,
+		Q31,
+		S0,
+		S1,
+		S2,
+		S3,
+		S4,
+		S5,
+		S6,
+		S7,
+		S8,
+		S9,
+		S10,
+		S11,
+		S12,
+		S13,
+		S14,
+		S15,
+		S16,
+		S17,
+		S18,
+		S19,
+		S20,
+		S21,
+		S22,
+		S23,
+		S24,
+		S25,
+		S26,
+		S27,
+		S28,
+		S29,
+		S30,
+		S31,
+		W0,
+		W1,
+		W2,
+		W3,
+		W4,
+		W5,
+		W6,
+		W7,
+		W8,
+		W9,
+		W10,
+		W11,
+		W12,
+		W13,
+		W14,
+		W15,
+		W16,
+		W17,
+		W18,
+		W19,
+		W20,
+		W21,
+		W22,
+		W23,
+		W24,
+		W25,
+		W26,
+		W27,
+		W28,
+		W29,
+		W30,
+		X0,
+		X1,
+		X2,
+		X3,
+		X4,
+		X5,
+		X6,
+		X7,
+		X8,
+		X9,
+		X10,
+		X11,
+		X12,
+		X13,
+		X14,
+		X15,
+		X16,
+		X17,
+		X18,
+		X19,
+		X20,
+		X21,
+		X22,
+		X23,
+		X24,
+		X25,
+		X26,
+		X27,
+		X28,
+		Z0,
+		Z1,
+		Z2,
+		Z3,
+		Z4,
+		Z5,
+		Z6,
+		Z7,
+		Z8,
+		Z9,
+		Z10,
+		Z11,
+		Z12,
+		Z13,
+		Z14,
+		Z15,
+		Z16,
+		Z17,
+		Z18,
+		Z19,
+		Z20,
+		Z21,
+		Z22,
+		Z23,
+		Z24,
+		Z25,
+		Z26,
+		Z27,
+		Z28,
+		Z29,
+		Z30,
+		Z31,
+		ZAB0,
+		ZAD0,
+		ZAD1,
+		ZAD2,
+		ZAD3,
+		ZAD4,
+		ZAD5,
+		ZAD6,
+		ZAD7,
+		ZAH0,
+		ZAH1,
+		ZAQ0,
+		ZAQ1,
+		ZAQ2,
+		ZAQ3,
+		ZAQ4,
+		ZAQ5,
+		ZAQ6,
+		ZAQ7,
+		ZAQ8,
+		ZAQ9,
+		ZAQ10,
+		ZAQ11,
+		ZAQ12,
+		ZAQ13,
+		ZAQ14,
+		ZAQ15,
+		ZAS0,
+		ZAS1,
+		ZAS2,
+		ZAS3,
+		V0,
+		V1,
+		V2,
+		V3,
+		V4,
+		V5,
+		V6,
+		V7,
+		V8,
+		V9,
+		V10,
+		V11,
+		V12,
+		V13,
+		V14,
+		V15,
+		V16,
+		V17,
+		V18,
+		V19,
+		V20,
+		V21,
+		V22,
+		V23,
+		V24,
+		V25,
+		V26,
+		V27,
+		V28,
+		V29,
+		V30,
+		V31,
+		IP0,
+		IP1,
+		X29,
+		X30,
+	}
+
+	[CCode (cname = "arm64_cc", cprefix = "ARM64_CC_")]
+	public enum Arm64ConditionCode {
+		INVALID,
+		EQ,
+		NE,
+		HS,
+		LO,
+		MI,
+		PL,
+		VS,
+		VC,
+		HI,
+		LS,
+		GE,
+		LT,
+		GT,
+		LE,
+		AL,
+		NV,
+	}
+
+	[CCode (cprefix = "GUM_INDEX_")]
+	public enum Arm64IndexMode {
+		POST_ADJUST,
+		SIGNED_OFFSET,
+		PRE_ADJUST,
 	}
 }
