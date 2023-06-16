@@ -389,14 +389,24 @@ namespace Gum {
 		public uint32 lr;
 	}
 
+	public struct Arm64VectorReg {
+		public uint8 q[16];
+		public double d;
+		public float s;
+		public uint16 h;
+		public uint8 b;
+	}
+
 	public struct Arm64CpuContext {
 		public uint64 pc;
 		public uint64 sp;
+		public uint64 nzcv;
 
 		public uint64 x[29];
 		public uint64 fp;
 		public uint64 lr;
-		public uint8 q[128];
+
+		public Gum.Arm64VectorReg v[32];
 	}
 
 	public struct MipsCpuContext {
