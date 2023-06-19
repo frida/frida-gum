@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -37,6 +37,7 @@ gum_thumb_reader_disassemble_instruction_at (gconstpointer address)
   csh capstone;
   cs_insn * insn = NULL;
 
+  cs_arch_register_arm ();
   cs_open (CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_V8, &capstone);
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 

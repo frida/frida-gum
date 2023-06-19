@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -123,6 +123,7 @@ gum_x86_reader_disassemble_instruction_at (gconstpointer address)
   csh capstone;
   cs_insn * insn = NULL;
 
+  cs_arch_register_x86 ();
   cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 

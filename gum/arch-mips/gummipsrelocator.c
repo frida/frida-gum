@@ -70,6 +70,7 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
 {
   relocator->ref_count = 1;
 
+  cs_arch_register_mips ();
   cs_open (CS_ARCH_MIPS, GUM_DEFAULT_MIPS_MODE | GUM_DEFAULT_CS_ENDIAN,
       &relocator->capstone);
   cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);

@@ -86,6 +86,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
       GetProcAddress (ntdll_mod, "KiUserExceptionDispatcher"));
   g_assert (self->dispatcher_impl != NULL);
 
+  gum_cs_arch_register_native ();
   err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
   g_assert (err == CS_ERR_OK);
   err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);

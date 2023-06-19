@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -79,6 +79,7 @@ gum_x86_relocator_init (GumX86Relocator * relocator,
 {
   relocator->ref_count = 1;
 
+  cs_arch_register_x86 ();
   cs_open (CS_ARCH_X86,
       (output->target_cpu == GUM_CPU_AMD64) ? CS_MODE_64 : CS_MODE_32,
       &relocator->capstone);

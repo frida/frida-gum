@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,6 +34,7 @@ gum_arm64_reader_disassemble_instruction_at (gconstpointer address)
   csh capstone;
   cs_insn * insn = NULL;
 
+  cs_arch_register_arm64 ();
   cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 

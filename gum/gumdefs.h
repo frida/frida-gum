@@ -57,6 +57,7 @@ typedef guint GumRelocationScenario;
 #if defined (_M_IX86) || defined (__i386__)
 # define GUM_NATIVE_CPU GUM_CPU_IA32
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
+# define gum_cs_arch_register_native cs_arch_register_x86
 /**
  * GUM_DEFAULT_CS_MODE: (skip)
  */
@@ -65,6 +66,7 @@ typedef GumIA32CpuContext GumCpuContext;
 #elif defined (_M_X64) || defined (__x86_64__)
 # define GUM_NATIVE_CPU GUM_CPU_AMD64
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
+# define gum_cs_arch_register_native cs_arch_register_x86
 /**
  * GUM_DEFAULT_CS_MODE: (skip)
  */
@@ -73,6 +75,7 @@ typedef GumX64CpuContext GumCpuContext;
 #elif defined (_M_ARM) || defined (__arm__)
 # define GUM_NATIVE_CPU GUM_CPU_ARM
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
+# define gum_cs_arch_register_native cs_arch_register_arm
 /**
  * GUM_DEFAULT_CS_MODE: (skip)
  */
@@ -83,6 +86,7 @@ typedef GumArmCpuContext GumCpuContext;
 #elif defined (_M_ARM64) || defined (__aarch64__)
 # define GUM_NATIVE_CPU GUM_CPU_ARM64
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
+# define gum_cs_arch_register_native cs_arch_register_arm64
 /**
  * GUM_DEFAULT_CS_MODE: (skip)
  */
@@ -91,6 +95,7 @@ typedef GumArm64CpuContext GumCpuContext;
 #elif defined (__mips__)
 # define GUM_NATIVE_CPU GUM_CPU_MIPS
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
+# define gum_cs_arch_register_native cs_arch_register_mips
 # if GLIB_SIZEOF_VOID_P == 4
 /**
  * GUM_DEFAULT_CS_MODE: (skip)

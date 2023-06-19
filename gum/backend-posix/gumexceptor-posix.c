@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -641,6 +641,7 @@ gum_disassemble_instruction_at (gconstpointer address,
   csh capstone;
   cs_err err;
 
+  gum_cs_arch_register_native ();
 #if defined (HAVE_I386)
   err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
 #elif defined (HAVE_ARM)

@@ -117,6 +117,7 @@ gum_arm_reader_disassemble_instruction_at (gconstpointer address)
   csh capstone;
   cs_insn * insn = NULL;
 
+  cs_arch_register_arm ();
   cs_open (CS_ARCH_ARM, CS_MODE_ARM | CS_MODE_V8, &capstone);
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 

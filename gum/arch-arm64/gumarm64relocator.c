@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -78,6 +78,7 @@ gum_arm64_relocator_init (GumArm64Relocator * relocator,
 {
   relocator->ref_count = 1;
 
+  cs_arch_register_arm64 ();
   cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &relocator->capstone);
   cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
