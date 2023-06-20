@@ -263,6 +263,7 @@ no_debug_info:
 
     details->file_name[0] = '\0';
     details->line_number = 0;
+    details->column = 0;
 
     G_UNLOCK (gum_symbol_util);
 
