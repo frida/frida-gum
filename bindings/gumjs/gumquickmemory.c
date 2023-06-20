@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -86,6 +87,7 @@ static JSValue gum_quick_memory_read (JSContext * ctx, GumMemoryValueType type,
     GumQuickArgs * args, GumQuickCore * core);
 static JSValue gum_quick_memory_write (JSContext * ctx, GumMemoryValueType type,
     GumQuickArgs * args, GumQuickCore * core);
+GUMJS_DECLARE_FUNCTION (gum_quick_memory_read_volatile)
 
 static void gum_quick_memory_on_access (GumMemoryAccessMonitor * monitor,
     const GumMemoryAccessDetails * details, GumQuickMemory * self);
@@ -192,6 +194,7 @@ static const JSCFunctionListEntry gumjs_memory_entries[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
+  JS_CFUNC_DEF ("readVolatile", 0, gum_quick_memory_read_volatile),
 
   JS_CFUNC_DEF ("allocAnsiString", 0, gumjs_memory_alloc_ansi_string),
   JS_CFUNC_DEF ("allocUtf8String", 0, gumjs_memory_alloc_utf8_string),
@@ -832,6 +835,27 @@ gum_quick_memory_write (JSContext * ctx,
 #endif
 
   return result;
+}
+
+GUMJS_DEFINE_FUNCTION (gum_quick_memory_read_volatile)
+{
+  gpointer address;
+  gsize length;
+  gsize n_bytes_read;
+  guint8 * data;
+
+  if (!_gum_quick_args_parse (args, "pz", &address, &length))
+    return JS_EXCEPTION;
+
+  if (length == 0)
+    return JS_NULL;
+
+  data = gum_memory_read (address, length, &n_bytes_read);
+  if (data == NULL)
+    return _gum_quick_throw_literal (ctx, "memory read failed");
+
+  return JS_NewArrayBuffer (ctx, data, n_bytes_read,
+      _gum_quick_array_buffer_free, data, FALSE);
 }
 
 #ifdef HAVE_WINDOWS
