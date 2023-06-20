@@ -944,6 +944,7 @@ struct _GumElfSymbolDetails
   gsize size;
   GumElfSymbolType type;
   GumElfSymbolBind bind;
+  guint16 shdr_index;
   const GumElfSectionDetails * section;
 };
 

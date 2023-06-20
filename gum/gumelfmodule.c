@@ -1511,7 +1511,7 @@ gum_emit_elf_import (const GumElfSymbolDetails * details,
 {
   GumElfEnumerateImportsContext * ctx = user_data;
 
-  if (details->section == NULL &&
+  if (details->shdr_index == GUM_ELF_SHDR_INDEX_UNDEF &&
       (details->type == GUM_ELF_SYMBOL_FUNC ||
        details->type == GUM_ELF_SYMBOL_OBJECT))
   {
@@ -1576,7 +1576,7 @@ gum_emit_elf_export (const GumElfSymbolDetails * details,
 {
   GumElfEnumerateExportsContext * ctx = user_data;
 
-  if (details->section != NULL &&
+  if (details->shdr_index != GUM_ELF_SHDR_INDEX_UNDEF &&
       (details->type == GUM_ELF_SYMBOL_FUNC ||
        details->type == GUM_ELF_SYMBOL_OBJECT) &&
       (details->bind == GUM_ELF_BIND_GLOBAL ||
@@ -1675,6 +1675,7 @@ gum_elf_module_parse_symbol (GumElfModule * self,
   d->size = sym->size;
   d->type = type;
   d->bind = GUM_ELF_ST_BIND (sym->info);
+  d->shdr_index = sym->shndx;
   d->section = section;
 }
 
