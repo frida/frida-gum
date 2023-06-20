@@ -1533,7 +1533,8 @@ gum_elf_module_enumerate_exports (GumElfModule * self,
   GumElfEnumerateExportsContext ctx;
 
 #ifdef HAVE_ANDROID
-  if (gum_android_is_linker_module_name (self->path))
+  if (self->source_path != NULL &&
+      gum_android_is_linker_module_name (self->source_path))
   {
     const gchar ** magic_exports;
     guint i;
@@ -1547,7 +1548,7 @@ gum_elf_module_enumerate_exports (GumElfModule * self,
 
       d.type = GUM_EXPORT_FUNCTION;
       d.name = name;
-      d.address = gum_module_find_export_by_name (self->path, name);
+      d.address = gum_module_find_export_by_name (self->source_path, name);
       g_assert (d.address != 0);
 
       if (!func (&d, user_data))

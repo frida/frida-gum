@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1427,7 +1427,7 @@ gum_store_dl_mutex_pointer_if_found_in_section (
     return TRUE;
 
   range.base_address = GUM_ADDRESS (
-      gum_elf_module_get_file_data (ctx->linker)) + details->offset;
+      gum_elf_module_get_file_data (ctx->linker, NULL)) + details->offset;
   range.size = details->size;
 
   pattern = gum_match_pattern_new_from_string ("00 40 00 00");
