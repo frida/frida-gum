@@ -544,6 +544,8 @@ gum_module_entry_from_path_and_base (const gchar * path,
 
     file_data = gum_elf_module_get_file_data (module, &file_size);
 
+    elf_version (EV_CURRENT);
+
     elf = elf_memory ((char *) file_data, file_size);
   }
   else
