@@ -378,10 +378,6 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
       - name: Install dependencies
         run: |
           pip install meson==${{ env.MESON_VERSION }}
