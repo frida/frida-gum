@@ -20,6 +20,7 @@
 #ifdef __clang__
 # pragma clang diagnostic pop
 #endif
+#include <libelf.h>
 #include <strings.h>
 
 #define GUM_MAX_CACHE_AGE (0.5)
