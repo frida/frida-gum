@@ -116,7 +116,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install gcc-multilib lib32stdc++-9-dev
+          sudo apt-get install gcc-multilib lib32stdc++-11-dev
           pip install meson==${{ env.MESON_VERSION }}
           .github/env/bootstrap.sh linux-x86_64 linux-x86
       - name: Build
