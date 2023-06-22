@@ -283,6 +283,8 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
                 for pattern in (cmodule_function_pattern, cmodule_variable_pattern):
                     for m in pattern.finditer(header_source):
                         name = m.group(2)
+                        if name.startswith("cs_arch_register_"):
+                            continue
                         symbols.append(name)
 
                 source_bytes = bytearray(header_source.encode('utf-8'))
