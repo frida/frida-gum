@@ -136,5 +136,6 @@ gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
 void gum_stalker_iterator_keep (GumStalkerIterator * self);
 void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
+csh gum_stalker_iterator_get_capstone (GumStalkerIterator * self);
 
 #endif

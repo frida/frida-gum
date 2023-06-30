@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -3353,6 +3353,16 @@ gum_stalker_invoke_callout (GumCalloutEntry * entry,
   ec->pending_calls++;
   entry->callout (cpu_context, entry->data);
   ec->pending_calls--;
+}
+
+csh
+gum_stalker_iterator_get_capstone (GumStalkerIterator * self)
+{
+  const GumGeneratorContext * gc = self->generator_context;
+
+  return gc->is_thumb
+      ? gc->thumb_relocator->capstone
+      : gc->arm_relocator->capstone;
 }
 
 static void

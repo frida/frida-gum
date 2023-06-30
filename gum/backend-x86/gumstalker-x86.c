@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020      Duy Phan Thanh <phanthanhduypr@gmail.com>
  *
@@ -3280,6 +3280,12 @@ gum_stalker_invoke_callout (GumCalloutEntry * entry,
   ec->pending_calls++;
   entry->callout (cpu_context, entry->data);
   ec->pending_calls--;
+}
+
+csh
+gum_stalker_iterator_get_capstone (GumStalkerIterator * self)
+{
+  return self->exec_context->relocator.capstone;
 }
 
 static void

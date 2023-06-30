@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -201,4 +201,10 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
                                   gpointer data,
                                   GDestroyNotify data_destroy)
 {
+}
+
+csh
+gum_stalker_iterator_get_capstone (GumStalkerIterator * self)
+{
+  return 0;
 }
