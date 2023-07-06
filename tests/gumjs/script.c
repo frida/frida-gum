@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
@@ -42,6 +42,7 @@ TESTLIST_BEGIN (script)
 #endif
 
   TESTGROUP_BEGIN ("WeakRef")
+    TESTENTRY (weak_ref_api_should_be_supported)
     TESTENTRY (weak_callback_is_triggered_on_gc)
     TESTENTRY (weak_callback_is_triggered_on_unload)
     TESTENTRY (weak_callback_is_triggered_on_unbind)
@@ -10506,6 +10507,24 @@ TESTCASE (types_handle_invalid_construction)
   EXPECT_SEND_MESSAGE_WITH (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend)
       ? "\"must be called with new\""
       : "\"use `new File()` to create a new instance\"");
+}
+
+TESTCASE (weak_ref_api_should_be_supported)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "let r = null;"
+      "(() => {"
+      "  const val = { name: 'Joe' };"
+      "  r = new WeakRef(val);"
+      "  send(r.deref() === val);"
+      "})();"
+      "setImmediate(() => {"
+      "  gc();"
+      "  send(typeof r.deref());"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (weak_callback_is_triggered_on_gc)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
@@ -182,6 +182,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_bind_weak)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unbind_weak)
+GUMJS_DECLARE_FUNCTION (gumjs_script_deref_weak)
 GUMJS_DECLARE_FINALIZER (gumjs_weak_ref_finalize)
 static gboolean gum_quick_core_invoke_pending_weak_callbacks_in_idle (
     GumQuickCore * self);
@@ -399,6 +400,7 @@ static const JSCFunctionListEntry gumjs_script_entries[] =
   JS_CFUNC_DEF ("unpin", 0, gumjs_script_unpin),
   JS_CFUNC_DEF ("bindWeak", 0, gumjs_script_bind_weak),
   JS_CFUNC_DEF ("unbindWeak", 0, gumjs_script_unbind_weak),
+  JS_CFUNC_DEF ("_derefWeak", 0, gumjs_script_deref_weak),
   JS_CFUNC_DEF ("setGlobalAccessHandler", 1,
       gumjs_script_set_global_access_handler),
 };
@@ -2322,6 +2324,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_unbind_weak)
   return JS_TRUE;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_script_deref_weak)
+{
+  guint id;
+  GumQuickWeakRef * ref;
+
+  if (!_gum_quick_args_parse (args, "u", &id))
+    return JS_EXCEPTION;
+
+  ref = g_hash_table_lookup (core->weak_callbacks, GUINT_TO_POINTER (id));
+  if (ref == NULL)
+    return JS_UNDEFINED;
+
+  return JS_DupValue (ctx, ref->target);
+}
+
 GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
 {
   GumQuickWeakRef * ref;
@@ -2329,8 +2346,10 @@ GUMJS_DEFINE_FINALIZER (gumjs_weak_ref_finalize)
   guint i;
 
   ref = JS_GetOpaque (val, core->weak_ref_class);
-  callbacks = ref->callbacks;
 
+  ref->target = JS_UNDEFINED;
+
+  callbacks = ref->callbacks;
   for (i = 0; i != callbacks->len; i++)
   {
     GumQuickWeakCallback * entry =
