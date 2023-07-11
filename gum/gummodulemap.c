@@ -135,7 +135,7 @@ gum_module_map_clear (GumModuleMap * self)
 {
   guint i;
 
-  for (i = 0; i < self->modules->len; i++)
+  for (i = 0; i != self->modules->len; i++)
   {
     GumModuleDetails * d = &g_array_index (self->modules, GumModuleDetails, i);
     g_free ((gchar *) d->name);

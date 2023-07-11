@@ -5265,7 +5265,7 @@ gum_exec_block_write_inline_cache_code (GumExecBlock * block,
 
   gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X0, ARM64_REG_X1);
 
-  if (ARM64_REG_X16 != target_reg)
+  if (target_reg != ARM64_REG_X16)
     gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X16, target_reg);
 
   if ((stalker->cpu_features & GUM_CPU_PTRAUTH) != 0)
