@@ -105,6 +105,7 @@ gum_process_set_code_signing_policy (GumCodeSigningPolicy policy)
  * @thread_id: ID of thread to modify
  * @func: (scope call): function to apply the modifications
  * @user_data: data to pass to @func
+ * @flags: flags to customize behavior
  *
  * Modifies a given thread by first pausing it, reading its state, and then
  * passing that to @func, followed by writing back the new state and then

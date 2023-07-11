@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -35,6 +35,11 @@ typedef enum {
   GUM_CODE_SIGNING_OPTIONAL,
   GUM_CODE_SIGNING_REQUIRED
 } GumCodeSigningPolicy;
+
+typedef enum {
+  GUM_MODIFY_THREAD_FLAGS_NONE         = 0,
+  GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY = (1 << 0),
+} GumModifyThreadFlags;
 
 typedef enum {
   GUM_THREAD_RUNNING = 1,
@@ -170,7 +175,7 @@ GUM_API GumProcessId gum_process_get_id (void);
 GUM_API GumThreadId gum_process_get_current_thread_id (void);
 GUM_API gboolean gum_process_has_thread (GumThreadId thread_id);
 GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
-    GumModifyThreadFunc func, gpointer user_data);
+    GumModifyThreadFunc func, gpointer user_data, GumModifyThreadFlags flags);
 GUM_API void gum_process_enumerate_threads (GumFoundThreadFunc func,
     gpointer user_data);
 GUM_API gboolean gum_process_resolve_module_pointer (gconstpointer ptr,

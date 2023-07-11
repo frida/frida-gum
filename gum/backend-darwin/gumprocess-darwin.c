@@ -424,9 +424,10 @@ beach:
 gboolean
 gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
-                           gpointer user_data)
+                           gpointer user_data,
+                           GumModifyThreadFlags flags)
 {
-  return gum_darwin_modify_thread (thread_id, func, user_data);
+  return gum_darwin_modify_thread (thread_id, func, user_data, flags);
 }
 
 void
@@ -1368,7 +1369,8 @@ gum_probe_range_for_entrypoint (const GumRangeDetails * details,
 gboolean
 gum_darwin_modify_thread (mach_port_t thread,
                           GumModifyThreadFunc func,
-                          gpointer user_data)
+                          gpointer user_data,
+                          GumModifyThreadFlags flags)
 {
 #ifdef HAVE_WATCHOS
   return FALSE;
@@ -1386,9 +1388,12 @@ gum_darwin_modify_thread (mach_port_t thread,
 
   is_suspended = TRUE;
 
-  kr = thread_abort_safely (thread);
-  if (kr != KERN_SUCCESS)
-    goto beach;
+  if ((flags & GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY) != 0)
+  {
+    kr = thread_abort_safely (thread);
+    if (kr != KERN_SUCCESS)
+      goto beach;
+  }
 
   kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
       &state_count);

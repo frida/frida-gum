@@ -1329,7 +1329,8 @@ gum_stalker_follow (GumStalker * self,
     ctx.transformer = transformer;
     ctx.sink = sink;
 
-    gum_process_modify_thread (thread_id, gum_stalker_infect, &ctx);
+    gum_process_modify_thread (thread_id, gum_stalker_infect, &ctx,
+        GUM_MODIFY_THREAD_FLAGS_NONE);
   }
 }
 
@@ -1360,7 +1361,8 @@ gum_stalker_unfollow (GumStalker * self,
       dc.exec_ctx = ctx;
       dc.success = FALSE;
 
-      gum_process_modify_thread (thread_id, gum_stalker_disinfect, &dc);
+      gum_process_modify_thread (thread_id, gum_stalker_disinfect, &dc,
+          GUM_MODIFY_THREAD_FLAGS_NONE);
 
       if (dc.success)
         gum_stalker_destroy_exec_ctx (self, ctx);
@@ -1752,7 +1754,8 @@ gum_stalker_do_invalidate (GumExecCtx * ctx,
     else
     {
       gum_process_modify_thread (ctx->thread_id,
-          gum_stalker_try_invalidate_block_owned_by_thread, &ic);
+          gum_stalker_try_invalidate_block_owned_by_thread, &ic,
+          GUM_MODIFY_THREAD_FLAGS_NONE);
     }
   }
 

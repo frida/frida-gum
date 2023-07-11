@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -170,7 +170,7 @@ GUM_API gboolean gum_darwin_query_shared_cache_range (mach_port_t task,
     GumMemoryRange * range);
 GUM_API GumAddress gum_darwin_find_entrypoint (mach_port_t task);
 GUM_API gboolean gum_darwin_modify_thread (mach_port_t thread,
-    GumModifyThreadFunc func, gpointer user_data);
+    GumModifyThreadFunc func, gpointer user_data, GumModifyThreadFlags flags);
 GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
     GumFoundThreadFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_modules (mach_port_t task,

@@ -729,7 +729,8 @@ gum_process_has_thread (GumThreadId thread_id)
 gboolean
 gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
-                           gpointer user_data)
+                           gpointer user_data,
+                           GumModifyThreadFlags flags)
 {
   gboolean success = FALSE;
 
@@ -1024,7 +1025,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
     if (gum_thread_read_state (details.id, &details.state))
     {
       if (gum_process_modify_thread (details.id, gum_store_cpu_context,
-            &details.cpu_context))
+            &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
       {
         carry_on = func (&details, user_data);
       }

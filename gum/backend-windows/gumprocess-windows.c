@@ -108,7 +108,8 @@ gum_process_has_thread (GumThreadId thread_id)
 gboolean
 gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
-                           gpointer user_data)
+                           gpointer user_data,
+                           GumModifyThreadFlags flags)
 {
   gboolean success = FALSE;
   HANDLE thread;

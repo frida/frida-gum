@@ -61,6 +61,11 @@ namespace Gum {
 		REQUIRED
 	}
 
+	public enum ModifyThreadFlags {
+		NONE,
+		ABORT_SAFELY,
+	}
+
 	public enum OS {
 		WINDOWS,
 		MACOS,
@@ -276,7 +281,7 @@ namespace Gum {
 		public Gum.ProcessId get_id ();
 		public Gum.ThreadId get_current_thread_id ();
 		public bool has_thread (Gum.ThreadId thread_id);
-		public bool modify_thread (Gum.ThreadId thread_id, Gum.ModifyThreadFunc func);
+		public bool modify_thread (Gum.ThreadId thread_id, Gum.ModifyThreadFunc func, Gum.ModifyThreadFlags flags = NONE);
 		public void enumerate_threads (Gum.FoundThreadFunc func);
 		public void enumerate_modules (Gum.FoundModuleFunc func);
 		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
