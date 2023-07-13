@@ -195,6 +195,12 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
 }
 
+GumMemoryAccess
+gum_stalker_iterator_get_memory_access (GumStalkerIterator * self)
+{
+  return GUM_MEMORY_ACCESS_OPEN;
+}
+
 void
 gum_stalker_iterator_put_callout (GumStalkerIterator * self,
                                   GumStalkerCallout callout,

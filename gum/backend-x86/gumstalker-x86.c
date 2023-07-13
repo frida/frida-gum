@@ -3167,6 +3167,12 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   self->requirements = requirements;
 }
 
+GumMemoryAccess
+gum_stalker_iterator_get_memory_access (GumStalkerIterator * self)
+{
+  return GUM_MEMORY_ACCESS_OPEN;
+}
+
 static void
 gum_exec_ctx_emit_call_event (GumExecCtx * ctx,
                               gpointer location,
