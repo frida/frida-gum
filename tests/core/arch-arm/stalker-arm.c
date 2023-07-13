@@ -1,6 +1,7 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -83,7 +84,6 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_it_flags2)
   TESTENTRY (thumb_tbb)
   TESTENTRY (thumb_tbh)
-  TESTENTRY (thumb_strex_no_exec_events)
 
   TESTENTRY (arm_call_probe)
   TESTENTRY (thumb_call_probe)
@@ -113,6 +113,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (thumb_invalidation_for_specific_thread_should_be_supported)
   TESTENTRY (arm_invalidation_should_allow_block_to_grow)
   TESTENTRY (thumb_invalidation_should_allow_block_to_grow)
+
+  TESTENTRY (arm_exclusive_load_store_should_not_be_disturbed)
+  TESTENTRY (thumb_exclusive_load_store_should_not_be_disturbed)
 
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
@@ -166,6 +169,10 @@ static void test_invalidation_block_growth_with_target (GumAddress target,
     TestArmStalkerFixture * fixture);
 static void add_n_return_value_increments (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
+static void insert_callout_after_cmp (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void bump_num_cmp_callouts (GumCpuContext * cpu_context,
+    gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
 static gpointer increment_integer (gpointer data);
@@ -2186,44 +2193,6 @@ TESTCASE (thumb_tbh)
   GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 24 + 1);
 }
 
-TESTCODE (thumb_strex_no_exec_events,
-  0x00, 0xb5,             /* push {lr}          */
-  0x00, 0x20,             /* movs r0, 0         */
-
-  0x02, 0xb4,             /* push {r1}          */
-
-  0x5d, 0xe8, 0x00, 0x1f, /* ldrex r1, [sp]     */
-  0x01, 0x31,             /* adds r1, #1        */
-  0x01, 0x31,             /* adds r1, #1        */
-  0x01, 0x31,             /* adds r1, #1        */
-  0x01, 0x31,             /* adds r1, #1        */
-
-  0x5d, 0xe8, 0x00, 0x1f, /* ldrex r1, [sp]     */
-  0x01, 0x31,             /* adds r1, #1        */
-  0x4d, 0xe8, 0x00, 0x12, /* strex r2, r1, [sp] */
-  0x01, 0x31,             /* adds r1, #1        */
-
-  0x02, 0xbc,             /* pop {r1}           */
-  0x00, 0xbd,             /* pop {pc}           */
-);
-
-TESTCASE (thumb_strex_no_exec_events)
-{
-  GumAddress func;
-
-  func = INVOKE_THUMB_EXPECTING (GUM_EXEC, thumb_strex_no_exec_events, 0);
-
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 7);
-
-  GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
-  GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
-  GUM_ASSERT_EVENT_ADDR (exec, 4, location, func +  4 + 1);
-  GUM_ASSERT_EVENT_ADDR (exec, 5, location, func + 16 + 1);
-  GUM_ASSERT_EVENT_ADDR (exec, 6, location, func + 28 + 1);
-  GUM_ASSERT_EVENT_ADDR (exec, 7, location, func + 30 + 1);
-  GUM_ASSERT_EVENT_ADDR (exec, 8, location, func + 32 + 1);
-}
-
 TESTCODE (self_modifying_code_should_be_detected,
   0x00, 0x00, 0x40, 0xe0, /* sub r0, r0, r0 */
   0x01, 0x00, 0x80, 0xe2, /* add r0, r0, 1  */
@@ -3247,6 +3216,131 @@ add_n_return_value_increments (GumStalkerIterator * iterator,
 
     gum_stalker_iterator_keep (iterator);
   }
+}
+
+TESTCODE (arm_ldrex_strex,
+  0x44, 0x00, 0x9f, 0xe5, /* ldr r0, [pointer_to_value] */
+  /* retry:                                             */
+  0x9f, 0x1f, 0x90, 0xe1, /* ldrex r1, [r0]             */
+  0x01, 0x00, 0x51, 0xe3, /* cmp r1, 1                  */
+  0x0b, 0x00, 0x00, 0x0a, /* beq nope                   */
+  0x02, 0x00, 0x51, 0xe3, /* cmp r1, 2                  */
+  0x09, 0x00, 0x00, 0x0a, /* beq nope                   */
+  0x03, 0x00, 0x51, 0xe3, /* cmp r1, 3                  */
+  0x07, 0x00, 0x00, 0x0a, /* beq nope                   */
+  0x04, 0x00, 0x51, 0xe3, /* cmp r1, 4                  */
+  0x05, 0x00, 0x00, 0x0a, /* beq nope                   */
+  0x01, 0x10, 0x81, 0xe2, /* add r1, r1, 1              */
+  0x91, 0x2f, 0x80, 0xe1, /* strex r2, r1, [r0]         */
+  0x00, 0x00, 0x52, 0xe3, /* cmp r2, 0                  */
+  0xf2, 0xff, 0xff, 0x1a, /* bne retry                  */
+  0x01, 0x00, 0xa0, 0xe3, /* mov r0, 1                  */
+  0x1e, 0xff, 0x2f, 0xe1, /* bx lr                      */
+  /* nope:                                              */
+  0x1f, 0xf0, 0x7f, 0xf5, /* clrex                      */
+  0x00, 0x00, 0xa0, 0xe3, /* mov r0, 0                  */
+  0x1e, 0xff, 0x2f, 0xe1, /* bx lr                      */
+  /* pointer_to_value:                                  */
+  0x11, 0x22, 0x33, 0x44,
+);
+
+TESTCASE (arm_exclusive_load_store_should_not_be_disturbed)
+{
+  guint32 code[CODE_SIZE (arm_ldrex_strex) / sizeof (guint32)], val;
+  gint num_cmp_callouts;
+
+  memcpy (code, arm_ldrex_strex, CODE_SIZE (arm_ldrex_strex));
+  code[G_N_ELEMENTS (code) - 1] = GPOINTER_TO_SIZE (&val);
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      insert_callout_after_cmp, &num_cmp_callouts, NULL);
+
+  val = 5;
+  num_cmp_callouts = 0;
+  INVOKE_ARM_EXPECTING (GUM_EXEC, code, 1);
+  g_assert_cmpint (val, ==, 6);
+  g_assert_cmpint (num_cmp_callouts, ==, 4);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 19);
+}
+
+TESTCODE (thumb_ldrex_strex,
+  0x0c, 0x48,             /* ldr r0, [pointer_to_value] */
+  /* retry:                                             */
+  0x50, 0xe8, 0x00, 0x1f, /* ldrex r1, [r0]             */
+  0x01, 0x29,             /* cmp r1, 1                  */
+  0x0e, 0xd0,             /* beq nope                   */
+  0x02, 0x29,             /* cmp r1, 2                  */
+  0x0c, 0xd0,             /* beq nope                   */
+  0x03, 0x29,             /* cmp r1, 3                  */
+  0x0a, 0xd0,             /* beq nope                   */
+  0x04, 0x29,             /* cmp r1, 4                  */
+  0x08, 0xd0,             /* beq nope                   */
+  0x01, 0xf1, 0x01, 0x01, /* add.w r1, r1, 1            */
+  0x40, 0xe8, 0x00, 0x12, /* strex r2, r1, [r0]         */
+  0x00, 0x2a,             /* cmp r2, 0                  */
+  0xef, 0xd1,             /* bne retry                  */
+  0x4f, 0xf0, 0x01, 0x00, /* mov.w r0, 1                */
+  0x70, 0x47,             /* bx lr                      */
+  /* nope:                                              */
+  0xbf, 0xf3, 0x2f, 0x8f, /* clrex                      */
+  0x4f, 0xf0, 0x00, 0x00, /* mov.w r0, 0                */
+  0x70, 0x47,             /* bx lr                      */
+  0x00, 0x00,             /* <alignment padding>        */
+  /* pointer_to_value:                                  */
+  0x11, 0x22, 0x33, 0x44,
+);
+
+TESTCASE (thumb_exclusive_load_store_should_not_be_disturbed)
+{
+  guint32 code[CODE_SIZE (thumb_ldrex_strex) / sizeof (guint32)], val;
+  gint num_cmp_callouts;
+
+  memcpy (code, thumb_ldrex_strex, CODE_SIZE (thumb_ldrex_strex));
+  code[G_N_ELEMENTS (code) - 1] = GPOINTER_TO_SIZE (&val);
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      insert_callout_after_cmp, &num_cmp_callouts, NULL);
+
+  val = 5;
+  num_cmp_callouts = 0;
+  INVOKE_THUMB_EXPECTING (GUM_EXEC, code, 1);
+  g_assert_cmpint (val, ==, 6);
+  g_assert_cmpint (num_cmp_callouts, ==, 4);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 19);
+}
+
+static void
+insert_callout_after_cmp (GumStalkerIterator * iterator,
+                          GumStalkerOutput * output,
+                          gpointer user_data)
+{
+  gint * num_cmp_callouts = user_data;
+  GumMemoryAccess access;
+  const cs_insn * insn;
+
+  access = gum_stalker_iterator_get_memory_access (iterator);
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gum_stalker_iterator_keep (iterator);
+
+    if (insn->id == ARM_INS_CMP && access == GUM_MEMORY_ACCESS_OPEN)
+    {
+      gum_stalker_iterator_put_callout (iterator, bump_num_cmp_callouts,
+          num_cmp_callouts, NULL);
+    }
+  }
+}
+
+static void
+bump_num_cmp_callouts (GumCpuContext * cpu_context,
+                       gpointer user_data)
+{
+  gint * num_cmp_callouts = user_data;
+
+  g_atomic_int_inc (num_cmp_callouts);
 }
 
 TESTCASE (follow_syscall)
