@@ -117,7 +117,8 @@ static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
 static void insert_callout_after_cmp (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
-static void do_atomic_stuff (GumCpuContext * cpu_context, gpointer user_data);
+static void bump_num_cmp_callouts (GumCpuContext * cpu_context,
+    gpointer user_data);
 static void patch_instruction (gpointer code, guint offset, guint32 insn);
 static void do_patch_instruction (gpointer mem, gpointer user_data);
 static gpointer increment_integer (gpointer data);
@@ -1753,7 +1754,7 @@ TESTCASE (exclusive_load_store_should_not_be_disturbed)
   };
   StalkerTestFunc func;
   guint64 val;
-  guint num_cmp_callouts;
+  gint num_cmp_callouts;
 
   fixture->sink->mask = GUM_EXEC;
 
@@ -1769,7 +1770,7 @@ TESTCASE (exclusive_load_store_should_not_be_disturbed)
   val = 5;
   num_cmp_callouts = 0;
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
-  g_assert_cmpint (val, ==, 6);
+  g_assert_cmpuint (val, ==, 6);
   g_assert_cmpint (num_cmp_callouts, ==, 4);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 17);
@@ -1780,7 +1781,7 @@ insert_callout_after_cmp (GumStalkerIterator * iterator,
                           GumStalkerOutput * output,
                           gpointer user_data)
 {
-  guint * num_cmp_callouts = user_data;
+  gint * num_cmp_callouts = user_data;
   GumMemoryAccess access;
   const cs_insn * insn;
 
@@ -1792,18 +1793,19 @@ insert_callout_after_cmp (GumStalkerIterator * iterator,
 
     if (insn->id == ARM64_INS_CMP && access == GUM_MEMORY_ACCESS_OPEN)
     {
-      gum_stalker_iterator_put_callout (iterator, do_atomic_stuff,
+      gum_stalker_iterator_put_callout (iterator, bump_num_cmp_callouts,
           num_cmp_callouts, NULL);
     }
   }
 }
 
 static void
-do_atomic_stuff (GumCpuContext * cpu_context,
-                 gpointer user_data)
+bump_num_cmp_callouts (GumCpuContext * cpu_context,
+                       gpointer user_data)
 {
-  guint * num_cmp_callouts = user_data;
-  (*num_cmp_callouts)++;
+  gint * num_cmp_callouts = user_data;
+
+  g_atomic_int_inc (num_cmp_callouts);
 }
 
 static void
