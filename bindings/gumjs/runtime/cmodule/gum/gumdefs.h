@@ -10,6 +10,7 @@ typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
+typedef guint GumCpuFeatures;
 typedef guint GumInstructionEncoding;
 typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
@@ -23,6 +24,16 @@ enum _GumCallingConvention
 {
   GUM_CALL_CAPI,
   GUM_CALL_SYSAPI
+};
+
+enum _GumCpuFeatures
+{
+  GUM_CPU_AVX2            = 1 << 0,
+  GUM_CPU_THUMB_INTERWORK = 1 << 1,
+  GUM_CPU_VFP2            = 1 << 2,
+  GUM_CPU_VFP3            = 1 << 3,
+  GUM_CPU_VFPD32          = 1 << 4,
+  GUM_CPU_PTRAUTH         = 1 << 5,
 };
 
 typedef enum {
