@@ -1,6 +1,7 @@
 /*
- * Copyright (C) 2009-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -65,6 +66,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (self_modifying_code_should_not_be_detected_with_threshold_zero)
   TESTENTRY (self_modifying_code_should_be_detected_with_threshold_one)
 
+  /* EXCLUSIVE LOADS/STORES */
+  TESTENTRY (exclusive_load_store_should_not_be_disturbed)
+
   /* EXTRA */
   TESTENTRY (pthread_create)
   TESTENTRY (heap_api)
@@ -111,6 +115,9 @@ static void add_n_return_value_increments (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
+static void insert_callout_after_cmp (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void do_atomic_stuff (GumCpuContext * cpu_context, gpointer user_data);
 static void patch_instruction (gpointer code, guint offset, guint32 insn);
 static void do_patch_instruction (gpointer mem, gpointer user_data);
 static gpointer increment_integer (gpointer data);
@@ -1717,6 +1724,86 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
   gum_stalker_unfollow_me (fixture->stalker);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+TESTCASE (exclusive_load_store_should_not_be_disturbed)
+{
+  guint32 code_template[] =
+  {
+    0x58000200, /* ldr x0, [pointer_to_value] */
+    /* retry:                                 */
+    0xc85f7c01, /* ldxr x1, [x0]              */
+    0xf100043f, /* cmp x1, #1                 */
+    0x54000160, /* b.eq nope                  */
+    0xf100083f, /* cmp x1, #2                 */
+    0x54000120, /* b.eq nope                  */
+    0xf1000c3f, /* cmp x1, #3                 */
+    0x540000e0, /* b.eq nope                  */
+    0xf100103f, /* cmp x1, #4                 */
+    0x540000a0, /* b.eq nope                  */
+    0x91000421, /* add x1, x1, #1             */
+    0xc8027c01, /* stxr w2, x1, [x0]          */
+    0x35fffea2, /* cbnz w2, retry             */
+    0xd65f03c0, /* ret                        */
+    /* nope:                                  */
+    0xd5033f5f, /* clrex                      */
+    0xd65f03c0, /* ret                        */
+    /* pointer_to_value:                      */
+    0x44332211, 0x88776655,
+  };
+  StalkerTestFunc func;
+  guint64 val;
+  guint num_cmp_callouts;
+
+  fixture->sink->mask = GUM_EXEC;
+
+  *((guint64 **) (code_template + G_N_ELEMENTS (code_template) - 2)) = &val;
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
+      code_template, sizeof (code_template));
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      insert_callout_after_cmp, &num_cmp_callouts, NULL);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+
+  val = 5;
+  num_cmp_callouts = 0;
+  test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpint (val, ==, 6);
+  g_assert_cmpint (num_cmp_callouts, ==, 4);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 17);
+}
+
+static void
+insert_callout_after_cmp (GumStalkerIterator * iterator,
+                          GumStalkerOutput * output,
+                          gpointer user_data)
+{
+  guint * num_cmp_callouts = user_data;
+  GumMemoryAccess access;
+  const cs_insn * insn;
+
+  access = gum_stalker_iterator_get_memory_access (iterator);
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gum_stalker_iterator_keep (iterator);
+
+    if (insn->id == ARM64_INS_CMP && access == GUM_MEMORY_ACCESS_OPEN)
+    {
+      gum_stalker_iterator_put_callout (iterator, do_atomic_stuff,
+          num_cmp_callouts, NULL);
+    }
+  }
+}
+
+static void
+do_atomic_stuff (GumCpuContext * cpu_context,
+                 gpointer user_data)
+{
+  guint * num_cmp_callouts = user_data;
+  (*num_cmp_callouts)++;
 }
 
 static void

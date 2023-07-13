@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2010 Karl Trygve Kalleberg <karltk@boblycat.org>
+ * Copyright (C)      2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -222,6 +223,8 @@ GUM_API void gum_stalker_transformer_transform_block (
 GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);
 GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
+GUM_API GumMemoryAccess gum_stalker_iterator_get_memory_access (
+    GumStalkerIterator * self);
 GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
 GUM_API csh gum_stalker_iterator_get_capstone (GumStalkerIterator * self);

@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -177,6 +178,11 @@ enum _GumCpuFeatures
   GUM_CPU_VFPD32          = 1 << 4,
   GUM_CPU_PTRAUTH         = 1 << 5,
 };
+
+typedef enum {
+  GUM_MEMORY_ACCESS_OPEN,
+  GUM_MEMORY_ACCESS_EXCLUSIVE,
+} GumMemoryAccess;
 
 enum _GumInstructionEncoding
 {

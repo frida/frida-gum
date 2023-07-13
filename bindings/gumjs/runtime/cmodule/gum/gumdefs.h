@@ -25,6 +25,11 @@ enum _GumCallingConvention
   GUM_CALL_SYSAPI
 };
 
+typedef enum {
+  GUM_MEMORY_ACCESS_OPEN,
+  GUM_MEMORY_ACCESS_EXCLUSIVE,
+} GumMemoryAccess;
+
 enum _GumInstructionEncoding
 {
   GUM_INSTRUCTION_DEFAULT,
