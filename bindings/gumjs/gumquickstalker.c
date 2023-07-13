@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -111,6 +111,7 @@ static JSValue gum_quick_default_iterator_new (GumQuickStalker * parent,
 static void gum_quick_default_iterator_reset (GumQuickDefaultIterator * self,
     GumStalkerIterator * handle, GumStalkerOutput * output);
 GUMJS_DECLARE_FINALIZER (gumjs_default_iterator_finalize)
+GUMJS_DECLARE_GETTER (gumjs_default_iterator_get_memory_access)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_put_callout)
@@ -120,6 +121,7 @@ static JSValue gum_quick_special_iterator_new (GumQuickStalker * parent,
 static void gum_quick_special_iterator_reset (GumQuickSpecialIterator * self,
     GumStalkerIterator * handle, GumStalkerOutput * output);
 GUMJS_DECLARE_FINALIZER (gumjs_special_iterator_finalize)
+GUMJS_DECLARE_GETTER (gumjs_special_iterator_get_memory_access)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_put_callout)
@@ -193,6 +195,8 @@ static const JSClassDef gumjs_default_iterator_def =
 
 static const JSCFunctionListEntry gumjs_default_iterator_entries[] =
 {
+  JS_CGETSET_DEF ("memoryAccess", gumjs_default_iterator_get_memory_access,
+      NULL),
   JS_CFUNC_DEF ("next", 0, gumjs_default_iterator_next),
   JS_CFUNC_DEF ("keep", 0, gumjs_default_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_default_iterator_put_callout),
@@ -206,6 +210,8 @@ static const JSClassDef gumjs_special_iterator_def =
 
 static const JSCFunctionListEntry gumjs_special_iterator_entries[] =
 {
+  JS_CGETSET_DEF ("memoryAccess", gumjs_special_iterator_get_memory_access,
+      NULL),
   JS_CFUNC_DEF ("next", 0, gumjs_special_iterator_next),
   JS_CFUNC_DEF ("keep", 0, gumjs_special_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_special_iterator_put_callout),
@@ -940,6 +946,23 @@ gum_quick_stalker_iterator_reset (GumQuickIterator * self,
 }
 
 static JSValue
+gum_quick_stalker_iterator_get_memory_access (GumQuickIterator * self,
+                                              JSContext * ctx)
+{
+  switch (gum_stalker_iterator_get_memory_access (self->handle))
+  {
+    case GUM_MEMORY_ACCESS_OPEN:
+      return JS_NewString (ctx, "open");
+    case GUM_MEMORY_ACCESS_EXCLUSIVE:
+      return JS_NewString (ctx, "exclusive");
+    default:
+      g_assert_not_reached ();
+  }
+
+  return JS_NULL;
+}
+
+static JSValue
 gum_quick_stalker_iterator_next (GumQuickIterator * self,
                                  JSContext * ctx)
 {
@@ -1072,6 +1095,16 @@ GUMJS_DEFINE_FINALIZER (gumjs_default_iterator_finalize)
   g_slice_free (GumQuickDefaultIterator, it);
 }
 
+GUMJS_DEFINE_GETTER (gumjs_default_iterator_get_memory_access)
+{
+  GumQuickDefaultIterator * self;
+
+  if (!gum_quick_default_iterator_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  return gum_quick_stalker_iterator_get_memory_access (&self->iterator, ctx);
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_default_iterator_next)
 {
   GumQuickDefaultIterator * self;
@@ -1179,6 +1212,16 @@ GUMJS_DEFINE_FINALIZER (gumjs_special_iterator_finalize)
   _gum_quick_special_writer_finalize (&it->writer);
 
   g_slice_free (GumQuickSpecialIterator, it);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_special_iterator_get_memory_access)
+{
+  GumQuickSpecialIterator * self;
+
+  if (!gum_quick_special_iterator_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  return gum_quick_stalker_iterator_get_memory_access (&self->iterator, ctx);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_special_iterator_next)

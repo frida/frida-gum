@@ -4290,6 +4290,7 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
 
       "    while ((instruction = iterator.next()) !== null) {"
       "      if (instructionsSeen === 0) {"
+      "        send(typeof iterator.memoryAccess);"
       "        iterator.putCallout(onBeforeFirstInstruction);"
       "      }"
 
@@ -4313,6 +4314,7 @@ TESTCASE (execution_can_be_traced_with_custom_transformer)
       test_thread_id,
       test_thread_id);
   g_usleep (1);
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
   EXPECT_NO_MESSAGES ();
 
   POST_MESSAGE ("{\"type\":\"stop\"}");
