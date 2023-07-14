@@ -1,7 +1,8 @@
 /*
- * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1592,6 +1593,31 @@ gum_arm64_writer_put_and_reg_reg_imm (GumArm64Writer * self,
 
   gum_arm64_writer_put_instruction (self, rd.sf | 0x12000000 | rd.index |
       (rl.index << 5) | (right_value_encoded << 10));
+
+  return TRUE;
+}
+
+gboolean
+gum_arm64_writer_put_eor_reg_reg_reg (GumArm64Writer * self,
+                                      arm64_reg dst_reg,
+                                      arm64_reg left_reg,
+                                      arm64_reg right_reg)
+{
+  GumArm64RegInfo rd, rl, rr;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+  gum_arm64_writer_describe_reg (self, left_reg, &rl);
+  gum_arm64_writer_describe_reg (self, right_reg, &rr);
+
+  if (rl.width != rd.width || rr.width != rd.width)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self,
+      (rd.width == 64 ? 0x80000000 : 0x00000000) |
+      0x4a000000 |
+      (rr.index << 16) |
+      (rl.index << 5) |
+      rd.index);
 
   return TRUE;
 }

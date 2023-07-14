@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -39,6 +40,7 @@ TESTLIST_BEGIN (arm64writer)
   TESTENTRY (sub_reg_reg_reg)
   TESTENTRY (and_reg_reg_imm)
   TESTENTRY (and_reg_reg_neg_imm)
+  TESTENTRY (eor_reg_reg_reg)
   TESTENTRY (tst_reg_imm)
   TESTENTRY (cmp_reg_reg)
 
@@ -426,6 +428,17 @@ TESTCASE (and_reg_reg_neg_imm)
   gum_arm64_writer_put_and_reg_reg_imm (&fixture->aw, ARM64_REG_X0,
       ARM64_REG_X0, (guint64) -0x10);
   assert_output_n_equals (0, 0x927cec00);
+}
+
+TESTCASE (eor_reg_reg_reg)
+{
+  gum_arm64_writer_put_eor_reg_reg_reg (&fixture->aw, ARM64_REG_X3,
+      ARM64_REG_X5, ARM64_REG_X7);
+  assert_output_n_equals (0, 0xca0700a3);
+
+  gum_arm64_writer_put_eor_reg_reg_reg (&fixture->aw, ARM64_REG_W3,
+      ARM64_REG_W5, ARM64_REG_W7);
+  assert_output_n_equals (1, 0x4a0700a3);
 }
 
 TESTCASE (tst_reg_imm)
