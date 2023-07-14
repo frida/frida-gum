@@ -1762,9 +1762,6 @@ gum_exec_ctx_new (GumStalker * stalker,
 
   gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
 
-  code_slab->arm_invalidator = ctx->last_arm_invalidator;
-  code_slab->thumb_invalidator = ctx->last_thumb_invalidator;
-
   return ctx;
 }
 
@@ -2162,6 +2159,8 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
   slab = block->code_slab;
   block->code_slab = ctx->scratch_slab;
   scratch_base = ctx->scratch_slab->slab.data;
+  ctx->scratch_slab->arm_invalidator = slab->arm_invalidator;
+  ctx->scratch_slab->thumb_invalidator = slab->thumb_invalidator;
 
   gum_exec_ctx_compile_block (ctx, block, block->real_start, scratch_base,
       GUM_ADDRESS (internal_code), &input_size, &output_size);
@@ -3641,6 +3640,8 @@ gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx)
       gum_exec_ctx_write_arm_invalidator);
   gum_exec_ctx_ensure_thumb_helper_reachable (ctx, &ctx->last_thumb_invalidator,
       gum_exec_ctx_write_thumb_invalidator);
+  ctx->code_slab->arm_invalidator = ctx->last_arm_invalidator;
+  ctx->code_slab->thumb_invalidator = ctx->last_thumb_invalidator;
 }
 
 static void

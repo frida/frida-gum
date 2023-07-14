@@ -2367,8 +2367,6 @@ gum_exec_ctx_new (GumStalker * stalker,
 
   gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
 
-  code_slab->invalidator = ctx->last_invalidator;
-
   ctx->depth = 0;
 
 #ifdef HAVE_LINUX
@@ -2888,6 +2886,7 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
   block->code_slab = ctx->scratch_slab;
   block->slow_slab = ctx->slow_slab;
   scratch_base = ctx->scratch_slab->slab.data;
+  ctx->scratch_slab->invalidator = slab->invalidator;
 
   gum_exec_ctx_compile_block (ctx, block, block->real_start, scratch_base,
       GUM_ADDRESS (internal_code), &input_size, &output_size, &slow_size);
@@ -3404,6 +3403,7 @@ gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx)
 
   gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_invalidator,
       gum_exec_ctx_write_invalidator);
+  ctx->code_slab->invalidator = ctx->last_invalidator;
 
 #ifdef HAVE_LINUX
   gum_exec_ctx_ensure_helper_reachable (ctx, &ctx->last_int80,
