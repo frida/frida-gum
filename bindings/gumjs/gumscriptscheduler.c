@@ -255,7 +255,6 @@ gum_script_job_start_on_js_thread (GumScriptJob * job)
     GSource * source;
 
     source = g_idle_source_new ();
-    g_source_set_priority (source, G_PRIORITY_DEFAULT);
     g_source_set_callback (source,
         (GSourceFunc) gum_script_scheduler_perform_js_job,
         job,
