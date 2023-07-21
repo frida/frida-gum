@@ -461,6 +461,12 @@ TESTLIST_BEGIN (script)
     TESTENTRY (dynamic_script_loaded_should_support_separate_source_map)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("Worker")
+    TESTENTRY (worker_basics_should_be_supported)
+    TESTENTRY (worker_rpc_should_be_supported)
+    TESTENTRY (worker_termination_should_be_supported)
+  TESTGROUP_END ()
+
   TESTENTRY (script_can_be_compiled_to_bytecode)
   TESTENTRY (script_should_not_leak_if_destroyed_before_load)
   TESTENTRY (script_memory_usage)
@@ -10331,6 +10337,118 @@ TESTCASE (dynamic_script_loaded_should_support_separate_source_map)
         "    at agent/index.ts:4:10"));
   }
   test_script_message_item_free (item);
+}
+
+TESTCASE (worker_basics_should_be_supported)
+{
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<only available on QuickJS for now> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "202 /main.js\n"
+      "126 /worker.js\n"
+      "92 /wrangler.js\n"
+      "✄\n"
+      "import { url as workerUrl } from './worker.js';\n"
+      "const w = new Worker(workerUrl, {\n"
+      "    onMessage(message) {\n"
+      "        send(`onMessage got: ${JSON.stringify(message)}`);\n"
+      "    }\n"
+      "});\n"
+      "w.post({ type: 'ping' });\n"
+      "\n"
+      "✄\n"
+      "import * as wrangler from './wrangler.js';\n"
+      "export const url = import.meta.url;\n"
+      "export function run() {\n"
+      "    wrangler.init();\n"
+      "}\n"
+      "\n"
+      "✄\n"
+      "export function init() {\n"
+      "    recv('ping', () => {\n"
+      "        send({ type: 'pong' });\n"
+      "    });\n"
+      "}\n");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMessage got: {\\\"type\\\":\\\"pong\\\"}\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (worker_rpc_should_be_supported)
+{
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<only available on QuickJS for now> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "247 /main.js\n"
+      "101 /worker.js\n"
+      "✄\n"
+      "import { url as workerUrl } from './worker.js';\n"
+      "async function main() {\n"
+      "    try {\n"
+      "        const w = new Worker(workerUrl);\n"
+      "        send(await w.exports.add(2, 3));\n"
+      "    }\n"
+      "    catch (e) {\n"
+      "        Script.nextTick(() => { throw e; });\n"
+      "    }\n"
+      "}\n"
+      "main();\n"
+      "\n"
+      "✄\n"
+      "export const url = import.meta.url;\n"
+      "export function run() {\n"
+      "    rpc.exports.add = (a, b) => a + b;\n"
+      "}\n");
+  EXPECT_SEND_MESSAGE_WITH ("5");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (worker_termination_should_be_supported)
+{
+  if (!GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<only available on QuickJS for now> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "📦\n"
+      "290 /main.js\n"
+      "221 /worker.js\n"
+      "✄\n"
+      "import { url as workerUrl } from './worker.js';\n"
+      "async function main() {\n"
+      "    try {\n"
+      "        const w = new Worker(workerUrl);\n"
+      "        setTimeout(() => { w.terminate(); }, 100);\n"
+      "        send(await w.exports.simulateSlowRequest());\n"
+      "    }\n"
+      "    catch (e) {\n"
+      "        send(e.message);\n"
+      "    }\n"
+      "}\n"
+      "main();\n"
+      "\n"
+      "✄\n"
+      "export const url = import.meta.url;\n"
+      "export function run() {\n"
+      "    rpc.exports.simulateSlowRequest = () => {\n"
+      "        return new Promise(resolve => {\n"
+      "            setTimeout(() => { resolve(42); }, 5000);\n"
+      "        });\n"
+      "    };\n"
+      "}\n");
+  EXPECT_SEND_MESSAGE_WITH ("\"worker terminated\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (source_maps_should_be_supported_for_our_runtime)

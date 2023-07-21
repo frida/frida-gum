@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -56,8 +56,12 @@ G_GNUC_INTERNAL void gum_quick_script_backend_mark_scope_mutex_trapped (
 
 G_GNUC_INTERNAL void gum_es_program_free (GumESProgram * program,
     JSContext * ctx);
+G_GNUC_INTERNAL JSValue gum_es_program_compile_worker (GumESProgram * program,
+    JSContext * ctx, const GumESAsset * asset);
 G_GNUC_INTERNAL GumESAsset * gum_es_asset_new_take (const gchar * name,
     gpointer data, gsize data_size);
+G_GNUC_INTERNAL GumESAsset * gum_es_asset_ref (GumESAsset * asset);
+G_GNUC_INTERNAL void gum_es_asset_unref (GumESAsset * asset);
 
 G_END_DECLS
 

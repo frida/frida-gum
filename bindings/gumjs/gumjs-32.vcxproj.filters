@@ -442,6 +442,9 @@
     <None Include="runtime\hexdump.js">
       <Filter>runtime</Filter>
     </None>
+    <None Include="runtime\worker.js">
+      <Filter>runtime</Filter>
+    </None>
     <None Include="runtime\objc.js">
       <Filter>runtime</Filter>
     </None>

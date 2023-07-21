@@ -166,6 +166,7 @@
     <None Include="runtime\error-handler-v8.js" />
     <None Include="runtime\console.js" />
     <None Include="runtime\hexdump.js" />
+    <None Include="runtime\worker.js" />
     <None Include="runtime\objc.js" />
     <None Include="runtime\swift.js" />
     <None Include="runtime\java.js" />
@@ -212,7 +213,7 @@ $(Python) generate-runtime.py qjs,v8 $(PlatformShortName) little $(ProjectDir) .
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>runtime\entrypoint-quickjs.js;runtime\entrypoint-v8.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-quickjs.js;runtime\error-handler-v8.js;runtime\console.js;runtime\hexdump.js;runtime\objc.js;runtime\swift.js;runtime\java.js;runtime\cmodule-tcc\inttypes.h;runtime\cmodule-tcc\stdint.h;runtime\cmodule-tcc\stdio.h;runtime\cmodule-tcc\stdlib.h;runtime\cmodule-tcc\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\gumprocess.h;runtime\cmodule\gum\gummodulemap.h;runtime\cmodule\gum\gummemory.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;runtime\cmodule\gum\gummetalarray.h;runtime\cmodule\gum\gummetalhash.h;runtime\cmodule\gum\gumspinlock.h;runtime\cmodule\gum\gumtls.h;runtime\cmodule\json-glib\json-glib.h;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>runtime\entrypoint-quickjs.js;runtime\entrypoint-v8.js;runtime\core.js;runtime\message-dispatcher.js;runtime\error-handler-quickjs.js;runtime\error-handler-v8.js;runtime\console.js;runtime\hexdump.js;runtime\worker.js;runtime\objc.js;runtime\swift.js;runtime\java.js;runtime\cmodule-tcc\inttypes.h;runtime\cmodule-tcc\stdint.h;runtime\cmodule-tcc\stdio.h;runtime\cmodule-tcc\stdlib.h;runtime\cmodule-tcc\string.h;runtime\cmodule\glib.h;runtime\cmodule\gum\gumdefs.h;runtime\cmodule\gum\gumprocess.h;runtime\cmodule\gum\gummodulemap.h;runtime\cmodule\gum\gummemory.h;runtime\cmodule\gum\guminterceptor.h;runtime\cmodule\gum\gumstalker.h;runtime\cmodule\gum\gummetalarray.h;runtime\cmodule\gum\gummetalhash.h;runtime\cmodule\gum\gumspinlock.h;runtime\cmodule\gum\gumtls.h;runtime\cmodule\json-glib\json-glib.h;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 

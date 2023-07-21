@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -71,10 +71,11 @@ static char * gum_normalize_module_name_during_compilation (JSContext * ctx,
     const char * base_name, const char * name, void * opaque);
 static char * gum_normalize_module_name_during_runtime (JSContext * ctx,
     const char * base_name, const char * name, void * opaque);
-static JSModuleDef * gum_load_module (JSContext * ctx, const char * module_name,
-    void * opaque);
-static JSValue gum_compile_module (JSContext * ctx, GumESAsset * asset,
-    GumCompileProgramOperation * op);
+static JSModuleDef * gum_load_module_during_compilation (JSContext * ctx,
+    const char * module_name, void * opaque);
+static JSModuleDef * gum_load_module_during_runtime (JSContext * ctx,
+    const char * module_name, void * opaque);
+static JSValue gum_compile_module (JSContext * ctx, const GumESAsset * asset);
 
 static void gum_quick_script_backend_create (GumScriptBackend * backend,
     const gchar * name, const gchar * source, GBytes * snapshot,
@@ -154,8 +155,8 @@ static GumESProgram * gum_es_program_new (void);
 static char * gum_es_program_normalize_module_name (GumESProgram * self,
     JSContext * ctx, const char * base_name, const char * name);
 
-static GumESAsset * gum_es_asset_ref (GumESAsset * asset);
-static void gum_es_asset_unref (GumESAsset * asset);
+static GError * gum_capture_parse_error (JSContext * ctx,
+    const gchar * filename);
 
 #ifndef HAVE_ASAN
 static void * gum_quick_malloc (JSMallocState * state, size_t size);
@@ -281,8 +282,10 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
   {
     const gchar * source_end, * header_cursor;
 
-    JS_SetModuleLoaderFunc (rt, gum_normalize_module_name_during_compilation,
-        gum_load_module, &op);
+    JS_SetModuleLoaderFunc (rt,
+        gum_normalize_module_name_during_compilation,
+        gum_load_module_during_compilation,
+        &op);
 
     source_end = source + strlen (source);
     header_cursor = source + strlen (package_marker);
@@ -363,9 +366,9 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
       if (entrypoint == NULL)
         goto malformed_package;
 
-      val = gum_compile_module (ctx, entrypoint, &op);
+      val = gum_compile_module (ctx, entrypoint);
       if (JS_IsException (val))
-        goto propagate_error;
+        goto malformed_entrypoint;
 
       g_array_append_val (program->entrypoints, val);
 
@@ -402,6 +405,12 @@ malformed_package:
         GUM_ERROR,
         GUM_ERROR_INVALID_DATA,
         "Malformed package");
+
+    goto propagate_error;
+  }
+malformed_entrypoint:
+  {
+    op.error = gum_capture_parse_error (ctx, entrypoint->name);
 
     goto propagate_error;
   }
@@ -444,8 +453,10 @@ beach:
   {
     if (program != NULL)
     {
-      JS_SetModuleLoaderFunc (rt, gum_normalize_module_name_during_runtime,
-          NULL, program);
+      JS_SetModuleLoaderFunc (rt,
+          gum_normalize_module_name_during_runtime,
+          gum_load_module_during_runtime,
+          program);
     }
     else
     {
@@ -480,9 +491,9 @@ gum_normalize_module_name_during_runtime (JSContext * ctx,
 }
 
 static JSModuleDef *
-gum_load_module (JSContext * ctx,
-                 const char * module_name,
-                 void * opaque)
+gum_load_module_during_compilation (JSContext * ctx,
+                                    const char * module_name,
+                                    void * opaque)
 {
   GumCompileProgramOperation * op = opaque;
   GumESAsset * asset;
@@ -492,9 +503,9 @@ gum_load_module (JSContext * ctx,
   if (asset == NULL)
     goto not_found;
 
-  val = gum_compile_module (ctx, asset, op);
+  val = gum_compile_module (ctx, asset);
   if (JS_IsException (val))
-    return NULL;
+    goto malformed_module;
 
   JS_FreeValue (ctx, val);
 
@@ -513,56 +524,80 @@ not_found:
 
     return NULL;
   }
+malformed_module:
+  {
+    if (op->error == NULL)
+      op->error = gum_capture_parse_error (ctx, asset->name);
+
+    return NULL;
+  }
+}
+
+static JSModuleDef *
+gum_load_module_during_runtime (JSContext * ctx,
+                                const char * module_name,
+                                void * opaque)
+{
+  GumESProgram * program = opaque;
+  GumESAsset * asset;
+  JSValue val;
+
+  asset = g_hash_table_lookup (program->es_assets, module_name);
+  if (asset == NULL)
+    goto not_found;
+
+  val = gum_compile_module (ctx, asset);
+  if (JS_IsException (val))
+    return NULL;
+
+  JS_FreeValue (ctx, val);
+
+  return JS_VALUE_GET_PTR (val);
+
+not_found:
+  {
+    gchar * message;
+    JSValue error;
+
+    message = g_strdup_printf ("could not load module '%s'", module_name);
+
+    error = JS_NewError (ctx);
+    JS_SetPropertyStr (ctx, error, "message", JS_NewString (ctx, message));
+
+    g_free (message);
+
+    JS_Throw (ctx, error);
+
+    return NULL;
+  }
 }
 
 static JSValue
 gum_compile_module (JSContext * ctx,
-                    GumESAsset * asset,
-                    GumCompileProgramOperation * op)
+                    const GumESAsset * asset)
 {
   JSValue val;
+  JSModuleDef * mod;
+  JSValue meta;
+  gchar * url;
 
   val = JS_Eval (ctx, asset->data, asset->data_size, asset->name,
       JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_STRICT | JS_EVAL_FLAG_COMPILE_ONLY);
   if (JS_IsException (val))
-    goto malformed_module;
+    return JS_EXCEPTION;
 
-  g_free (asset->data);
-  asset->data = NULL;
+  mod = JS_VALUE_GET_PTR (val);
+
+  meta = JS_GetImportMeta (ctx, mod);
+
+  url = g_strconcat ("file://", asset->name, NULL);
+  JS_DefinePropertyValueStr (ctx, meta, "url", JS_NewString (ctx, url),
+      JS_PROP_C_W_E);
+  g_free (url);
+
+  JS_FreeValue (ctx, meta);
 
   return val;
-
-malformed_module:
-  {
-    JSValue exception_val, message_val, line_val;
-    const char * message;
-    uint32_t line;
-
-    if (op->error != NULL)
-      return JS_EXCEPTION;
-
-    exception_val = JS_GetException (ctx);
-    message_val = JS_GetPropertyStr (ctx, exception_val, "message");
-    line_val = JS_GetPropertyStr (ctx, exception_val, "lineNumber");
-
-    message = JS_ToCString (ctx, message_val);
-    JS_ToUint32 (ctx, &line, line_val);
-
-    op->error = g_error_new (
-        GUM_ERROR,
-        GUM_ERROR_FAILED,
-        "Could not parse '%s' line %u: %s",
-        asset->name,
-        line,
-        message);
-
-    JS_FreeCString (ctx, message);
-    JS_FreeValue (ctx, line_val);
-    JS_FreeValue (ctx, message_val);
-    JS_FreeValue (ctx, exception_val);
-
-    return JS_EXCEPTION;
-  }
 }
 
 GumESProgram *
@@ -1164,6 +1199,19 @@ gum_es_program_free (GumESProgram * program,
   g_slice_free (GumESProgram, program);
 }
 
+JSValue
+gum_es_program_compile_worker (GumESProgram * program,
+                               JSContext * ctx,
+                               const GumESAsset * asset)
+{
+  JS_SetModuleLoaderFunc (JS_GetRuntime (ctx),
+      gum_normalize_module_name_during_runtime,
+      gum_load_module_during_runtime,
+      program);
+
+  return gum_compile_module (ctx, asset);
+}
+
 static char *
 gum_es_program_normalize_module_name (GumESProgram * self,
                                       JSContext * ctx,
@@ -1259,7 +1307,7 @@ gum_es_asset_new_take (const gchar * name,
   return asset;
 }
 
-static GumESAsset *
+GumESAsset *
 gum_es_asset_ref (GumESAsset * asset)
 {
   g_atomic_int_inc (&asset->ref_count);
@@ -1267,7 +1315,7 @@ gum_es_asset_ref (GumESAsset * asset)
   return asset;
 }
 
-static void
+void
 gum_es_asset_unref (GumESAsset * asset)
 {
   if (asset == NULL)
@@ -1279,6 +1327,39 @@ gum_es_asset_unref (GumESAsset * asset)
   g_free (asset->data);
 
   g_slice_free (GumESAsset, asset);
+}
+
+static GError *
+gum_capture_parse_error (JSContext * ctx,
+                         const gchar * filename)
+{
+  GError * error;
+  JSValue exception_val, message_val, line_val;
+  const char * message;
+  uint32_t line;
+
+  exception_val = JS_GetException (ctx);
+  message_val = JS_GetPropertyStr (ctx, exception_val, "message");
+  line_val = JS_GetPropertyStr (ctx, exception_val, "lineNumber");
+
+  message = JS_ToCString (ctx, message_val);
+  JS_ToUint32 (ctx, &line, line_val);
+
+  error = g_error_new (
+      GUM_ERROR,
+      GUM_ERROR_FAILED,
+      "Could not parse '%s' line %u: %s",
+      filename,
+      line,
+      message);
+
+  JS_FreeCString (ctx, message);
+  JS_FreeValue (ctx, line_val);
+  JS_FreeValue (ctx, message_val);
+
+  JS_Throw (ctx, exception_val);
+
+  return error;
 }
 
 #ifndef HAVE_ASAN

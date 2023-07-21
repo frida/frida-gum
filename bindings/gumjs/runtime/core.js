@@ -1,6 +1,7 @@
 const Console = require('./console');
 const hexdump = require('./hexdump');
 const MessageDispatcher = require('./message-dispatcher');
+const Worker = require('./worker');
 
 const engine = global;
 let messageDispatcher;
@@ -105,6 +106,10 @@ Object.defineProperties(engine, {
   hexdump: {
     enumerable: true,
     value: hexdump
+  },
+  Worker: {
+    enumerable: true,
+    value: Worker
   },
   ObjC: {
     enumerable: true,
@@ -457,99 +462,103 @@ if (Process.findRangeByAddress === undefined) {
   });
 }
 
-Object.defineProperties(Interceptor, {
-  attach: {
-    enumerable: true,
-    value: function (target, callbacks, data) {
-      Memory._checkCodePointer(target);
-      return Interceptor._attach(target, callbacks, data);
-    }
-  },
-  replace: {
-    enumerable: true,
-    value: function (target, replacement, data) {
-      Memory._checkCodePointer(target);
-      Interceptor._replace(target, replacement, data);
-    }
-  },
-});
-
-const stalkerEventType = {
-  call: 1,
-  ret: 2,
-  exec: 4,
-  block: 8,
-  compile: 16,
-};
-
-Object.defineProperties(Stalker, {
-  exclude: {
-    enumerable: true,
-    value: function (range) {
-      Stalker._exclude(range.base, range.size);
-    }
-  },
-  follow: {
-    enumerable: true,
-    value: function (first, second) {
-      let threadId = first;
-      let options = second;
-
-      if (typeof first === 'object') {
-        threadId = undefined;
-        options = first;
+if (globalThis.Interceptor !== undefined) {
+  Object.defineProperties(Interceptor, {
+    attach: {
+      enumerable: true,
+      value: function (target, callbacks, data) {
+        Memory._checkCodePointer(target);
+        return Interceptor._attach(target, callbacks, data);
       }
+    },
+    replace: {
+      enumerable: true,
+      value: function (target, replacement, data) {
+        Memory._checkCodePointer(target);
+        Interceptor._replace(target, replacement, data);
+      }
+    },
+  });
+}
 
-      if (threadId === undefined)
-        threadId = Process.getCurrentThreadId();
-      if (options === undefined)
-        options = {};
+if (globalThis.Stalker !== undefined) {
+  const stalkerEventType = {
+    call: 1,
+    ret: 2,
+    exec: 4,
+    block: 8,
+    compile: 16,
+  };
 
-      if (typeof threadId !== 'number' || (options === null || typeof options !== 'object'))
-        throw new Error('invalid argument');
+  Object.defineProperties(Stalker, {
+    exclude: {
+      enumerable: true,
+      value: function (range) {
+        Stalker._exclude(range.base, range.size);
+      }
+    },
+    follow: {
+      enumerable: true,
+      value: function (first, second) {
+        let threadId = first;
+        let options = second;
 
-      const {
-        transform = null,
-        events = {},
-        onReceive = null,
-        onCallSummary = null,
-        onEvent = NULL,
-        data = NULL,
-      } = options;
+        if (typeof first === 'object') {
+          threadId = undefined;
+          options = first;
+        }
 
-      if (events === null || typeof events !== 'object')
-        throw new Error('events must be an object');
+        if (threadId === undefined)
+          threadId = Process.getCurrentThreadId();
+        if (options === undefined)
+          options = {};
 
-      if (!data.isNull() && (onReceive !== null || onCallSummary !== null))
-        throw new Error('onEvent precludes passing onReceive/onCallSummary');
+        if (typeof threadId !== 'number' || (options === null || typeof options !== 'object'))
+          throw new Error('invalid argument');
 
-      const eventMask = Object.keys(events).reduce((result, name) => {
-        const value = stalkerEventType[name];
-        if (value === undefined)
-          throw new Error(`unknown event type: ${name}`);
+        const {
+          transform = null,
+          events = {},
+          onReceive = null,
+          onCallSummary = null,
+          onEvent = NULL,
+          data = NULL,
+        } = options;
 
-        const enabled = events[name];
-        if (typeof enabled !== 'boolean')
-          throw new Error('desired events must be specified as boolean values');
+        if (events === null || typeof events !== 'object')
+          throw new Error('events must be an object');
 
-        return enabled ? (result | value) : result;
-      }, 0);
+        if (!data.isNull() && (onReceive !== null || onCallSummary !== null))
+          throw new Error('onEvent precludes passing onReceive/onCallSummary');
 
-      Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary, onEvent, data);
+        const eventMask = Object.keys(events).reduce((result, name) => {
+          const value = stalkerEventType[name];
+          if (value === undefined)
+            throw new Error(`unknown event type: ${name}`);
+
+          const enabled = events[name];
+          if (typeof enabled !== 'boolean')
+            throw new Error('desired events must be specified as boolean values');
+
+          return enabled ? (result | value) : result;
+        }, 0);
+
+        Stalker._follow(threadId, transform, eventMask, onReceive, onCallSummary, onEvent, data);
+      }
+    },
+    parse: {
+      enumerable: true,
+      value: function (events, options = {}) {
+        const {
+          annotate = true,
+          stringify = false
+        } = options;
+
+        return Stalker._parse(events, annotate, stringify);
+      }
     }
-  },
-  parse: {
-    enumerable: true,
-    value: function (events, options = {}) {
-      const {
-        annotate = true,
-        stringify = false
-      } = options;
-
-      return Stalker._parse(events, annotate, stringify);
-    }
-  }
-});
+  });
+}
 
 Object.defineProperty(Instruction, 'parse', {
   enumerable: true,

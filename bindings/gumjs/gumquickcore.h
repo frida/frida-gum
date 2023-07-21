@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -48,9 +48,9 @@ typedef struct _GumQuickKernelResource GumQuickKernelResource;
 typedef struct _GumQuickNativeCallback GumQuickNativeCallback;
 
 typedef void (* GumQuickWeakNotify) (gpointer data);
-typedef void (* GumQuickFlushNotify) (GumQuickScript * script);
-typedef void (* GumQuickMessageEmitter) (GumQuickScript * script,
-    const gchar * message, GBytes * data);
+typedef void (* GumQuickFlushNotify) (gpointer data);
+typedef void (* GumQuickMessageEmitter) (const gchar * message, GBytes * data,
+    gpointer user_data);
 typedef void (* GumQuickKernelDestroyNotify) (GumAddress data);
 
 struct _GumQuickCore
@@ -62,6 +62,7 @@ struct _GumQuickCore
   GumQuickInterceptor * interceptor;
   GumQuickStalker * stalker;
   GumQuickMessageEmitter message_emitter;
+  gpointer message_emitter_data;
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   JSRuntime * rt;
@@ -71,15 +72,17 @@ struct _GumQuickCore
   GumThreadId current_owner;
 
   GRecMutex * mutex;
-  volatile guint usage_count;
-  volatile guint mutex_depth;
-  volatile GumQuickFlushNotify flush_notify;
+  guint usage_count;
+  guint mutex_depth;
+  GumQuickFlushNotify flush_notify;
+  gpointer flush_data;
+  GDestroyNotify flush_data_destroy;
 
   GMainLoop * event_loop;
   GMutex event_mutex;
   GCond event_cond;
-  volatile guint event_count;
-  volatile gboolean event_source_available;
+  guint event_count;
+  gboolean event_source_available;
 
   GumQuickExceptionSink * unhandled_exception_sink;
   GumQuickMessageSink * incoming_message_sink;
@@ -100,6 +103,8 @@ struct _GumQuickCore
   GHashTable * scheduled_callbacks;
   guint next_callback_id;
 
+  GHashTable * workers;
+
   GHashTable * subclasses;
 
   JSClassID weak_ref_class;
@@ -117,6 +122,7 @@ struct _GumQuickCore
   JSClassID match_pattern_class;
   JSClassID source_map_class;
   JSValue source_map_ctor;
+  JSClassID worker_class;
 
 #define GUM_DECLARE_ATOM(id) \
     JSAtom G_PASTE (atom_for_, id)
@@ -269,9 +275,11 @@ G_GNUC_INTERNAL void _gum_quick_core_init (GumQuickCore * self,
     GumQuickScript * script, JSContext * ctx, JSValue ns, GRecMutex * mutex,
     GumESProgram * program, const gchar * runtime_source_map,
     GumQuickInterceptor * interceptor, GumQuickStalker * stalker,
-    GumQuickMessageEmitter message_emitter, GumScriptScheduler * scheduler);
+    GumQuickMessageEmitter message_emitter, gpointer message_emitter_data,
+    GumScriptScheduler * scheduler);
 G_GNUC_INTERNAL gboolean _gum_quick_core_flush (GumQuickCore * self,
-    GumQuickFlushNotify flush_notify);
+    GumQuickFlushNotify flush_notify, gpointer flush_data,
+    GDestroyNotify flush_data_destroy);
 G_GNUC_INTERNAL void _gum_quick_core_dispose (GumQuickCore * self);
 G_GNUC_INTERNAL void _gum_quick_core_finalize (GumQuickCore * self);
 
