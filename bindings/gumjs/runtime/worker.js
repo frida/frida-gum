@@ -22,7 +22,7 @@ class Worker {
     const message = JSON.parse(rawMessage);
 
     if (message.type !== 'send') {
-      engine._send(rawMessage, data);
+      _send(rawMessage, data);
       return;
     }
 
