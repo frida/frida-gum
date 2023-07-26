@@ -972,7 +972,7 @@ _gum_quick_script_make_worker (GumQuickScript * self,
     GumQuickScope scope = { core, NULL, };
 
     _gum_quick_core_init (core, self, ctx, global_obj, &worker->scope_mutex,
-        NULL, gumjs_frida_source_map, NULL, NULL,
+        self->program, gumjs_frida_source_map, NULL, NULL,
         (GumQuickMessageEmitter) gum_quick_worker_emit, worker,
         worker->scheduler);
 
