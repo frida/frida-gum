@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -16,6 +16,7 @@
 #include "gummemory.h"
 #include "gummetalhash.h"
 #include "gumspinlock.h"
+#include "gumstalker-priv.h"
 #include "gumthumbreader.h"
 #include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
@@ -1586,6 +1587,64 @@ gum_call_probe_unref (GumCallProbe * probe)
   {
     gum_call_probe_finalize (probe);
   }
+}
+
+void
+_gum_stalker_modify_to_run_on_thread (GumStalker * self,
+                                      GumThreadId thread_id,
+                                      GumCpuContext * cpu_context,
+                                      GumStalkerRunOnThreadFunc func,
+                                      gpointer data)
+{
+  GumExecCtx * ctx;
+  guint32 pc;
+  GumArmWriter * cw;
+  GumAddress cpu_context_copy, infect_body;
+
+  ctx = gum_stalker_create_exec_ctx (self, thread_id, NULL, NULL);
+
+  if ((cpu_context->cpsr & GUM_PSR_T_BIT) == 0)
+    pc = cpu_context->pc;
+  else
+    pc = cpu_context->pc + 1;
+
+  gum_spinlock_acquire (&ctx->code_lock);
+
+  gum_stalker_thaw (self, ctx->thunks, self->thunks_size);
+  cw = &ctx->arm_writer;
+  gum_arm_writer_reset (cw, ctx->infect_thunk);
+
+  cpu_context_copy = GUM_ADDRESS (gum_arm_writer_cur (cw));
+  gum_arm_writer_put_bytes (cw, (guint8 *) cpu_context, sizeof (GumCpuContext));
+
+  infect_body = GUM_ADDRESS (gum_arm_writer_cur (cw));
+
+  gum_exec_ctx_write_arm_prolog (ctx, cw);
+
+  gum_arm_writer_put_call_address_with_arguments (cw,
+      GUM_ADDRESS (func), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (cpu_context_copy),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (data));
+
+  gum_arm_writer_put_call_address_with_arguments (cw,
+      GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (pc));
+
+  gum_exec_ctx_write_arm_epilog (ctx, cw);
+
+  gum_arm_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0, pc);
+  gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
+  gum_arm_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+
+  gum_arm_writer_flush (cw);
+  gum_stalker_freeze (self, cw->base, gum_arm_writer_offset (cw));
+
+  gum_spinlock_release (&ctx->code_lock);
+
+  cpu_context->cpsr &= ~GUM_PSR_T_BIT;
+  cpu_context->pc = infect_body;
 }
 
 static GumExecCtx *

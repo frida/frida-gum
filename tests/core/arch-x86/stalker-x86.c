@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -120,6 +120,13 @@ TESTLIST_BEGIN (stalker)
     TESTENTRY (try_and_dont_catch_excluded)
   TESTGROUP_END ()
 #endif
+
+  TESTGROUP_BEGIN ("RunOnThread")
+    TESTENTRY (run_on_thread_current)
+    TESTENTRY (run_on_thread_current_sync)
+    TESTENTRY (run_on_thread_other)
+    TESTENTRY (run_on_thread_other_sync)
+  TESTGROUP_END ()
 TESTLIST_END ()
 
 #ifdef HAVE_LINUX
@@ -149,6 +156,24 @@ struct _PrefetchBackpatchContext
 };
 
 #endif
+
+typedef struct _RunOnThreadCtx RunOnThreadCtx;
+typedef struct _TestThreadSyncData TestThreadSyncData;
+
+struct _RunOnThreadCtx
+{
+  GumThreadId caller_id;
+  GumThreadId thread_id;
+};
+
+struct _TestThreadSyncData
+{
+  GMutex mutex;
+  GCond cond;
+  gboolean started;
+  GumThreadId thread_id;
+  gboolean * done;
+};
 
 static gpointer run_stalked_briefly (gpointer data);
 #ifdef HAVE_LINUX
@@ -238,6 +263,12 @@ void test_check_bit (guint32 * val, guint8 bit);
 void test_try_and_catch (guint32 * val);
 void test_try_and_dont_catch (guint32 * val);
 #endif
+
+static void run_on_thread (const GumCpuContext * cpu_context,
+    gpointer user_data);
+static GThread * create_sleeping_dummy_thread_sync (gboolean * done,
+    GumThreadId * thread_id);
+static gpointer sleeping_dummy (gpointer data);
 
 static const guint8 flat_code[] = {
   0x33, 0xc0, /* xor eax, eax */
@@ -3482,3 +3513,144 @@ test_check_followed (void)
 }
 
 #endif
+
+TESTCASE (run_on_thread_current)
+{
+  GumThreadId thread_id;
+  RunOnThreadCtx ctx;
+  gboolean accepted;
+
+  thread_id = gum_process_get_current_thread_id ();
+  ctx.caller_id = thread_id;
+  ctx.thread_id = G_MAXSIZE;
+
+  accepted = gum_stalker_run_on_thread (fixture->stalker, thread_id,
+      run_on_thread, &ctx, NULL);
+  g_assert_true (accepted);
+  g_assert_cmpuint (ctx.thread_id, ==, thread_id);
+}
+
+TESTCASE (run_on_thread_current_sync)
+{
+  GumThreadId thread_id;
+  RunOnThreadCtx ctx;
+  gboolean accepted;
+
+  thread_id = gum_process_get_current_thread_id ();
+  ctx.caller_id = thread_id;
+  ctx.thread_id = G_MAXSIZE;
+
+  accepted = gum_stalker_run_on_thread_sync (fixture->stalker, thread_id,
+      run_on_thread, &ctx);
+  g_assert_true (accepted);
+  g_assert_cmpuint (thread_id, ==, ctx.thread_id);
+}
+
+static void
+run_on_thread (const GumCpuContext * cpu_context,
+               gpointer user_data)
+{
+  RunOnThreadCtx * ctx = user_data;
+
+  g_usleep (250000);
+  ctx->thread_id = gum_process_get_current_thread_id ();
+
+  if (ctx->thread_id == ctx->caller_id)
+    g_assert_null (cpu_context);
+  else
+    g_assert_nonnull (cpu_context);
+}
+
+TESTCASE (run_on_thread_other)
+{
+  GThread * thread;
+  gboolean done = FALSE;
+  GumThreadId other_id, this_id;
+  RunOnThreadCtx ctx;
+  gboolean accepted;
+
+  thread = create_sleeping_dummy_thread_sync (&done, &other_id);
+
+  this_id = gum_process_get_current_thread_id ();
+  g_assert_cmphex (this_id, !=, other_id);
+  ctx.caller_id = this_id;
+  ctx.thread_id = G_MAXSIZE;
+
+  accepted = gum_stalker_run_on_thread (fixture->stalker, other_id,
+      run_on_thread, &ctx, NULL);
+  g_assert_true (accepted);
+  done = TRUE;
+  g_thread_join (thread);
+  g_assert_cmphex (ctx.thread_id, ==, other_id);
+}
+
+TESTCASE (run_on_thread_other_sync)
+{
+  GThread * thread;
+  gboolean done = FALSE;
+  GumThreadId other_id, this_id;
+  RunOnThreadCtx ctx;
+  gboolean accepted;
+
+  thread = create_sleeping_dummy_thread_sync (&done, &other_id);
+
+  this_id = gum_process_get_current_thread_id ();
+  g_assert_cmphex (this_id, !=, other_id);
+  ctx.caller_id = this_id;
+  ctx.thread_id = G_MAXSIZE;
+
+  accepted = gum_stalker_run_on_thread_sync (fixture->stalker, other_id,
+      run_on_thread, &ctx);
+  g_assert_true (accepted);
+  done = TRUE;
+  g_thread_join (thread);
+  g_assert_cmpuint (ctx.thread_id, ==, other_id);
+}
+
+static GThread *
+create_sleeping_dummy_thread_sync (gboolean * done,
+                                   GumThreadId * thread_id)
+{
+  GThread * thread;
+  TestThreadSyncData sync_data;
+
+  g_mutex_init (&sync_data.mutex);
+  g_cond_init (&sync_data.cond);
+  sync_data.started = FALSE;
+  sync_data.thread_id = 0;
+  sync_data.done = done;
+
+  g_mutex_lock (&sync_data.mutex);
+
+  thread = g_thread_new ("sleepy", sleeping_dummy, &sync_data);
+
+  while (!sync_data.started)
+    g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  *thread_id = sync_data.thread_id;
+
+  g_mutex_unlock (&sync_data.mutex);
+
+  g_cond_clear (&sync_data.cond);
+  g_mutex_clear (&sync_data.mutex);
+
+  return thread;
+}
+
+static gpointer
+sleeping_dummy (gpointer data)
+{
+  TestThreadSyncData * sync_data = data;
+  gboolean * done = sync_data->done;
+
+  g_mutex_lock (&sync_data->mutex);
+  sync_data->started = TRUE;
+  sync_data->thread_id = gum_process_get_current_thread_id ();
+  g_cond_signal (&sync_data->cond);
+  g_mutex_unlock (&sync_data->mutex);
+
+  while (!(*done))
+    g_thread_yield ();
+
+  return NULL;
+}

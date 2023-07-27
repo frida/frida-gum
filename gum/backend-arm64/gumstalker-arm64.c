@@ -20,6 +20,7 @@
 #include "gummemory.h"
 #include "gummetalhash.h"
 #include "gumspinlock.h"
+#include "gumstalker-priv.h"
 #ifdef HAVE_LINUX
 # include "gum-init.h"
 # include "guminterceptor.h"
@@ -1926,6 +1927,74 @@ gum_call_probe_unref (GumCallProbe * probe)
   {
     gum_call_probe_finalize (probe);
   }
+}
+
+void
+_gum_stalker_modify_to_run_on_thread (GumStalker * self,
+                                      GumThreadId thread_id,
+                                      GumCpuContext * cpu_context,
+                                      GumStalkerRunOnThreadFunc func,
+                                      gpointer data)
+{
+  GumExecCtx * ctx;
+  GumAddress pc;
+  GumArm64Writer * cw;
+  GumAddress cpu_context_copy;
+
+  ctx = gum_stalker_create_exec_ctx (self, thread_id, NULL, NULL);
+
+  pc = gum_strip_code_address (cpu_context->pc);
+
+  gum_spinlock_acquire (&ctx->code_lock);
+
+  gum_stalker_thaw (self, ctx->thunks, self->thunks_size);
+  cw = &ctx->code_writer;
+  gum_arm64_writer_reset (cw, ctx->infect_thunk);
+
+  cpu_context_copy = GUM_ADDRESS (gum_arm64_writer_cur (cw));
+  gum_arm64_writer_put_bytes (cw, (guint8 *) cpu_context,
+      sizeof (GumCpuContext));
+
+  ctx->infect_body = GUM_ADDRESS (gum_arm64_writer_cur (cw));
+
+#ifdef HAVE_PTRAUTH
+  ctx->infect_body = GPOINTER_TO_SIZE (ptrauth_sign_unauthenticated (
+      GSIZE_TO_POINTER (ctx->infect_body),
+      ptrauth_key_process_independent_code,
+      ptrauth_string_discriminator ("pc")));
+#endif
+  gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, cw);
+
+  gum_arm64_writer_put_call_address_with_arguments (cw,
+      GUM_ADDRESS (func), 2,
+      GUM_ARG_ADDRESS, cpu_context_copy,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (data));
+
+  gum_arm64_writer_put_call_address_with_arguments (cw,
+      GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+      GUM_ARG_ADDRESS, pc);
+
+  gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, cw);
+
+  /*
+   * Here we spoil x17 since this is a necessity of the AARCH64 architecture
+   * when performing long branches. However, the documentation states...
+   *
+   * "Registers r16 (IP0) and r17 (IP1) may be used by a linker as a scratch
+   *  register between a routine and any subroutine it calls."
+   *
+   * This same approach is used elsewhere in Stalker for arm64.
+   */
+  gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X17, pc);
+  gum_arm64_writer_put_br_reg_no_auth (cw, ARM64_REG_X17);
+
+  gum_arm64_writer_flush (cw);
+  gum_stalker_freeze (self, cw->base, gum_arm64_writer_offset (cw));
+
+  gum_spinlock_release (&ctx->code_lock);
+
+  cpu_context->pc = ctx->infect_body;
 }
 
 static GumExecCtx *

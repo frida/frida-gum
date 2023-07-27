@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumstalker.h"
+
+#include "gumstalker-priv.h"
 
 struct _GumStalker
 {
@@ -180,6 +182,15 @@ gum_stalker_add_call_probe (GumStalker * self,
 void
 gum_stalker_remove_call_probe (GumStalker * self,
                                GumProbeId id)
+{
+}
+
+void
+_gum_stalker_modify_to_run_on_thread (GumStalker * self,
+                                      GumThreadId thread_id,
+                                      GumCpuContext * cpu_context,
+                                      GumStalkerRunOnThreadFunc func,
+                                      gpointer data)
 {
 }
 

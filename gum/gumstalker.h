@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2010 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C)      2023 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -65,6 +65,8 @@ typedef void (* GumStalkerCallout) (GumCpuContext * cpu_context,
 typedef guint GumProbeId;
 typedef struct _GumCallDetails GumCallDetails;
 typedef void (* GumCallProbeCallback) (GumCallDetails * details,
+    gpointer user_data);
+typedef void (* GumStalkerRunOnThreadFunc) (const GumCpuContext * cpu_context,
     gpointer user_data);
 
 #ifndef GUM_DIET
@@ -210,6 +212,12 @@ GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
     GDestroyNotify notify);
 GUM_API void gum_stalker_remove_call_probe (GumStalker * self,
     GumProbeId id);
+
+GUM_API gboolean gum_stalker_run_on_thread (GumStalker * self,
+    GumThreadId thread_id, GumStalkerRunOnThreadFunc func, gpointer data,
+    GDestroyNotify data_destroy);
+GUM_API gboolean gum_stalker_run_on_thread_sync (GumStalker * self,
+    GumThreadId thread_id, GumStalkerRunOnThreadFunc func, gpointer data);
 
 GUM_API GumStalkerTransformer * gum_stalker_transformer_make_default (void);
 GUM_API GumStalkerTransformer * gum_stalker_transformer_make_from_callback (
