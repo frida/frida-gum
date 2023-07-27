@@ -68,6 +68,8 @@ do_init (gpointer data)
   impl->Lock = gum_dbghelp_impl_lock;
   impl->Unlock = gum_dbghelp_impl_unlock;
 
+  impl->SymSetOptions (SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+
   impl->SymInitialize (GetCurrentProcess (), NULL, TRUE);
 
   _gum_register_destructor (do_deinit);
