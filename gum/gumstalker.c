@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,28 @@
 #ifndef GUM_DIET
 
 #include "gumstalker.h"
+
+#include "gumstalker-priv.h"
+
+typedef struct _GumRunOnThreadCtx GumRunOnThreadCtx;
+typedef struct _GumRunOnThreadSyncCtx GumRunOnThreadSyncCtx;
+
+struct _GumRunOnThreadCtx
+{
+  GumStalker * stalker;
+  GumStalkerRunOnThreadFunc func;
+  gpointer data;
+  GDestroyNotify data_destroy;
+};
+
+struct _GumRunOnThreadSyncCtx
+{
+  GMutex mutex;
+  GCond cond;
+  gboolean done;
+  GumStalkerRunOnThreadFunc func;
+  gpointer data;
+};
 
 struct _GumDefaultStalkerTransformer
 {
@@ -21,6 +43,13 @@ struct _GumCallbackStalkerTransformer
   gpointer data;
   GDestroyNotify data_destroy;
 };
+
+static void gum_modify_to_run_on_thread (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
+static void gum_do_run_on_thread (const GumCpuContext * cpu_context,
+    gpointer user_data);
+static void gum_do_run_on_thread_sync (const GumCpuContext * cpu_context,
+    gpointer user_data);
 
 static void gum_default_stalker_transformer_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -169,6 +198,126 @@ G_DEFINE_INTERFACE (GumStalkerObserver, gum_stalker_observer, G_TYPE_OBJECT)
  *
  *    END LOOP:
  */
+
+gboolean
+gum_stalker_run_on_thread (GumStalker * self,
+                           GumThreadId thread_id,
+                           GumStalkerRunOnThreadFunc func,
+                           gpointer data,
+                           GDestroyNotify data_destroy)
+{
+  gboolean accepted = TRUE;
+  gboolean finished = TRUE;
+
+  if (thread_id == gum_process_get_current_thread_id ())
+  {
+    func (NULL, data);
+  }
+  else
+  {
+    GumRunOnThreadCtx * rc;
+
+    rc = g_slice_new (GumRunOnThreadCtx);
+    rc->stalker = self;
+    rc->func = func;
+    rc->data = data;
+    rc->data_destroy = data_destroy;
+
+    accepted = gum_process_modify_thread (thread_id,
+        gum_modify_to_run_on_thread, rc, GUM_MODIFY_THREAD_FLAGS_NONE);
+    if (accepted)
+      finished = FALSE;
+    else
+      g_slice_free (GumRunOnThreadCtx, rc);
+  }
+
+  if (finished && data_destroy != NULL)
+    data_destroy (data);
+
+  return accepted;
+}
+
+static void
+gum_modify_to_run_on_thread (GumThreadId thread_id,
+                             GumCpuContext * cpu_context,
+                             gpointer user_data)
+{
+  GumRunOnThreadCtx * rc = user_data;
+
+  _gum_stalker_modify_to_run_on_thread (rc->stalker, thread_id, cpu_context,
+      gum_do_run_on_thread, rc);
+}
+
+static void
+gum_do_run_on_thread (const GumCpuContext * cpu_context,
+                      gpointer user_data)
+{
+  GumRunOnThreadCtx * rc = user_data;
+
+  rc->func (cpu_context, rc->data);
+
+  if (rc->data_destroy != NULL)
+    rc->data_destroy (rc->data);
+  g_slice_free (GumRunOnThreadCtx, rc);
+}
+
+gboolean
+gum_stalker_run_on_thread_sync (GumStalker * self,
+                                GumThreadId thread_id,
+                                GumStalkerRunOnThreadFunc func,
+                                gpointer data)
+{
+  gboolean success = TRUE;
+
+  if (thread_id == gum_process_get_current_thread_id ())
+  {
+    func (NULL, data);
+  }
+  else
+  {
+    GumRunOnThreadSyncCtx rc;
+
+    g_mutex_init (&rc.mutex);
+    g_cond_init (&rc.cond);
+    rc.done = FALSE;
+    rc.func = func;
+    rc.data = data;
+
+    g_mutex_lock (&rc.mutex);
+
+    if (gum_stalker_run_on_thread (self, thread_id, gum_do_run_on_thread_sync,
+          &rc, NULL))
+    {
+      while (!rc.done)
+        g_cond_wait (&rc.cond, &rc.mutex);
+    }
+    else
+    {
+      success = FALSE;
+    }
+
+    g_mutex_unlock (&rc.mutex);
+
+    g_cond_clear (&rc.cond);
+    g_mutex_clear (&rc.mutex);
+  }
+
+  return success;
+}
+
+static void
+gum_do_run_on_thread_sync (const GumCpuContext * cpu_context,
+                           gpointer user_data)
+{
+  GumRunOnThreadSyncCtx * rc = user_data;
+
+  rc->func (cpu_context, rc->data);
+
+  g_mutex_lock (&rc->mutex);
+  rc->done = TRUE;
+  g_cond_signal (&rc->cond);
+  g_mutex_unlock (&rc->mutex);
+}
 
 static void
 gum_stalker_transformer_default_init (GumStalkerTransformerInterface * iface)

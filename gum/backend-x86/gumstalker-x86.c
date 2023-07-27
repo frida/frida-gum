@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020      Duy Phan Thanh <phanthanhduypr@gmail.com>
  *
@@ -16,6 +16,7 @@
 #include "gummemory.h"
 #include "gumx86relocator.h"
 #include "gumspinlock.h"
+#include "gumstalker-priv.h"
 #ifdef HAVE_WINDOWS
 # include "gumexceptor.h"
 #endif
@@ -2170,6 +2171,82 @@ gum_call_probe_unref (GumCallProbe * probe)
   {
     gum_call_probe_finalize (probe);
   }
+}
+
+void
+_gum_stalker_modify_to_run_on_thread (GumStalker * self,
+                                      GumThreadId thread_id,
+                                      GumCpuContext * cpu_context,
+                                      GumStalkerRunOnThreadFunc func,
+                                      gpointer data)
+{
+  GumExecCtx * ctx;
+  guint8 * pc;
+  GumX86Writer * cw;
+  GumAddress cpu_context_copy;
+
+  ctx = gum_stalker_create_exec_ctx (self, thread_id, NULL, NULL);
+
+  pc = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
+
+  gum_spinlock_acquire (&ctx->code_lock);
+
+  gum_stalker_thaw (self, ctx->thunks, self->thunks_size);
+  cw = &ctx->code_writer;
+  gum_x86_writer_reset (cw, ctx->infect_thunk);
+
+  cpu_context_copy = GUM_ADDRESS (gum_x86_writer_cur (cw));
+  gum_x86_writer_put_bytes (cw, (guint8 *) cpu_context, sizeof (GumCpuContext));
+
+#ifdef HAVE_LINUX
+  /*
+   * In case the thread is in a Linux system call we prefix with a couple of
+   * NOPs so that when we restart, we don't re-attempt the syscall. We will
+   * drop ourselves back to the syscall once we are done.
+   */
+  gum_x86_writer_put_nop_padding (cw, MAX (sizeof (gum_int80_code),
+      sizeof (gum_syscall_code)));
+#endif
+
+  ctx->infect_body = GUM_ADDRESS (gum_x86_writer_cur (cw));
+  gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, cw);
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
+      GUM_ADDRESS (func), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (cpu_context_copy),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (data));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
+      GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (pc));
+  gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, cw);
+
+#ifdef HAVE_LINUX
+  if (memcmp (&pc[-sizeof (gum_int80_code)], gum_int80_code,
+        sizeof (gum_int80_code)) == 0)
+  {
+    gum_x86_writer_put_jmp_address (cw,
+        GUM_ADDRESS (&pc[-sizeof (gum_int80_code)]));
+  }
+  else if (memcmp (&pc[-sizeof (gum_syscall_code)], gum_syscall_code,
+        sizeof (gum_syscall_code)) == 0)
+  {
+    gum_x86_writer_put_jmp_address (cw,
+        GUM_ADDRESS (&pc[-sizeof (gum_syscall_code)]));
+  }
+  else
+  {
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (pc));
+  }
+#else
+  gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (pc));
+#endif
+
+  gum_x86_writer_flush (cw);
+  gum_stalker_freeze (self, cw->base, gum_x86_writer_offset (cw));
+
+  gum_spinlock_release (&ctx->code_lock);
+
+  GUM_CPU_CONTEXT_XIP (cpu_context) = ctx->infect_body;
 }
 
 static GumExecCtx *
