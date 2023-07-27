@@ -66,6 +66,8 @@ typedef guint GumProbeId;
 typedef struct _GumCallDetails GumCallDetails;
 typedef void (* GumCallProbeCallback) (GumCallDetails * details,
     gpointer user_data);
+typedef void (* GumStalkerRunOnThreadFunc) (const GumCpuContext * cpu_context,
+    gpointer user_data);
 
 #ifndef GUM_DIET
 
@@ -274,6 +276,14 @@ GUM_API void gum_stalker_observer_notify_backpatch (
 GUM_API void gum_stalker_observer_switch_callback (
     GumStalkerObserver * observer, gpointer from_address,
     gpointer start_address, gpointer from_insn, gpointer * target);
+
+GUM_API gboolean gum_stalker_is_run_on_thread_supported (void);
+
+GUM_API gboolean gum_stalker_run_on_thread_async (GumStalker * self,
+    GumThreadId thread_id, GumStalkerRunOnThreadFunc func, gpointer user_data);
+
+GUM_API gboolean gum_stalker_run_on_thread_sync (GumStalker * self,
+    GumThreadId thread_id, GumStalkerRunOnThreadFunc func, gpointer user_data);
 
 G_END_DECLS
 

@@ -8,6 +8,8 @@
 
 #include "gumstalker.h"
 
+typedef struct _RunOnThreadSyncCtx RunOnThreadSyncCtx;
+
 struct _GumDefaultStalkerTransformer
 {
   GObject parent;
@@ -20,6 +22,15 @@ struct _GumCallbackStalkerTransformer
   GumStalkerTransformerCallback callback;
   gpointer data;
   GDestroyNotify data_destroy;
+};
+
+struct _RunOnThreadSyncCtx
+{
+  GMutex mutex;
+  GCond cond;
+  volatile gboolean done;
+  GumStalkerRunOnThreadFunc func;
+  gpointer user_data;
 };
 
 static void gum_default_stalker_transformer_iface_init (gpointer g_iface,
@@ -37,6 +48,9 @@ static void gum_callback_stalker_transformer_transform_block (
 
 static void gum_stalker_observer_default_init (
     GumStalkerObserverInterface * iface);
+
+static void gum_stalker_do_run_on_thread_sync (
+    const GumCpuContext * cpu_context, gpointer user_data);
 
 G_DEFINE_INTERFACE (GumStalkerTransformer, gum_stalker_transformer,
                     G_TYPE_OBJECT)
@@ -410,4 +424,64 @@ gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
       target);
 }
 
+gboolean
+gum_stalker_run_on_thread_sync (GumStalker * self,
+                                GumThreadId thread_id,
+                                GumStalkerRunOnThreadFunc func,
+                                gpointer user_data)
+{
+  RunOnThreadSyncCtx ctx;
+
+  if (!gum_stalker_is_run_on_thread_supported ())
+  {
+    return FALSE;
+  }
+
+  if (gum_process_get_current_thread_id () == thread_id)
+  {
+    return gum_stalker_run_on_thread_async (self, thread_id, func, user_data);
+  }
+  else
+  {
+    g_mutex_init (&ctx.mutex);
+    g_cond_init (&ctx.cond);
+    ctx.done = FALSE;
+    ctx.func = func;
+    ctx.user_data = user_data;
+
+    g_mutex_lock (&ctx.mutex);
+    if (!gum_stalker_run_on_thread_async (self, thread_id,
+        gum_stalker_do_run_on_thread_sync, &ctx))
+    {
+      return FALSE;
+    }
+
+    while (!ctx.done)
+      g_cond_wait (&ctx.cond, &ctx.mutex);
+
+    g_mutex_unlock (&ctx.mutex);
+
+    g_cond_clear (&ctx.cond);
+    g_mutex_clear (&ctx.mutex);
+
+    return TRUE;
+  }
+
+}
+
+static void
+gum_stalker_do_run_on_thread_sync (const GumCpuContext * cpu_context,
+                                   gpointer user_data)
+{
+  RunOnThreadSyncCtx * ctx = (RunOnThreadSyncCtx *) user_data;
+
+  ctx->func (cpu_context, ctx->user_data);
+
+  g_mutex_lock (&ctx->mutex);
+  ctx->done = TRUE;
+  g_cond_signal (&ctx->cond);
+  g_mutex_unlock (&ctx->mutex);
+}
+
 #endif
+

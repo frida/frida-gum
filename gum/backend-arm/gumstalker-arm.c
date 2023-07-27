@@ -82,6 +82,8 @@ typedef guint GumBackpatchType;
 typedef gboolean (* GumCheckExcludedFunc) (GumExecCtx * ctx,
     gconstpointer address);
 
+typedef struct _GumStalkerRunOnThreadCtx GumStalkerRunOnThreadCtx;
+
 struct _GumStalker
 {
   GObject parent;
@@ -414,6 +416,13 @@ struct _GumBackpatch
   GumPrologState opened_prolog;
 };
 
+struct _GumStalkerRunOnThreadCtx
+{
+  GumStalker * stalker;
+  GumStalkerRunOnThreadFunc func;
+  gpointer user_data;
+};
+
 static void gum_stalker_finalize (GObject * object);
 
 G_GNUC_INTERNAL gpointer _gum_stalker_do_follow_me (GumStalker * self,
@@ -704,6 +713,9 @@ static gboolean gum_is_exclusive_store_insn (const cs_insn * insn);
 
 static guint gum_count_bits_set (guint16 value);
 static guint gum_count_trailing_zeros (guint16 value);
+
+static void gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -6200,3 +6212,91 @@ gum_count_trailing_zeros (guint16 value)
 }
 
 #endif
+
+
+gboolean
+gum_stalker_is_run_on_thread_supported (void)
+{
+  return TRUE;
+}
+
+gboolean
+gum_stalker_run_on_thread_async (GumStalker * self,
+                                 GumThreadId thread_id,
+                                 GumStalkerRunOnThreadFunc func,
+                                 gpointer user_data)
+{
+  GumStalkerRunOnThreadCtx ctx;
+  ctx.stalker = self;
+  ctx.func = func;
+  ctx.user_data = user_data;
+  return gum_process_modify_thread (thread_id,
+      gum_stalker_do_run_on_thread_async, &ctx, GUM_MODIFY_THREAD_FLAGS_NONE);
+}
+
+static void
+gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
+                                    GumCpuContext * cpu_context,
+                                    gpointer user_data)
+{
+  GumStalkerRunOnThreadCtx * run_ctx = (GumStalkerRunOnThreadCtx *) user_data;
+  GumStalker * self = run_ctx->stalker;
+  GumExecCtx * ctx;
+  guint32 pc;
+  GumArmWriter * cw;
+  GumAddress cpu_ctx;
+  guint32 infect_body;
+
+  if (gum_process_get_current_thread_id () == thread_id)
+  {
+    run_ctx->func (cpu_context, run_ctx->user_data);
+  }
+  else
+  {
+    ctx = gum_stalker_create_exec_ctx (self, thread_id, NULL, NULL);
+    if ((cpu_context->cpsr & GUM_PSR_T_BIT) == 0)
+      pc = cpu_context->pc;
+    else
+      pc = cpu_context->pc + 1;
+
+    gum_spinlock_acquire (&ctx->code_lock);
+
+    gum_stalker_thaw (self, ctx->thunks, self->thunks_size);
+    cw = &ctx->arm_writer;
+    gum_arm_writer_reset (cw, ctx->infect_thunk);
+
+    /* Copy the cpu context for the target thread. */
+    cpu_ctx = GUM_ADDRESS (gum_arm_writer_cur (cw));
+    gum_arm_writer_put_bytes (cw, (gpointer) cpu_context,
+        sizeof (GumCpuContext));
+
+    infect_body = GPOINTER_TO_SIZE (gum_arm_writer_cur (cw));
+
+    gum_exec_ctx_write_arm_prolog (ctx, cw);
+
+    gum_arm_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (run_ctx->func), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (cpu_ctx),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (run_ctx->user_data));
+
+    gum_arm_writer_put_call_address_with_arguments (cw,
+        GUM_ADDRESS (gum_exec_ctx_unfollow), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+        GUM_ARG_ADDRESS, GUM_ADDRESS (pc));
+
+    gum_exec_ctx_write_arm_epilog (ctx, cw);
+
+    gum_arm_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0, GUM_ADDRESS (pc));
+    gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
+    gum_arm_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+
+    gum_arm_writer_flush (cw);
+    gum_stalker_freeze (self, cw->base, gum_arm_writer_offset (cw));
+
+    gum_spinlock_release (&ctx->code_lock);
+
+    cpu_context->cpsr &= ~GUM_PSR_T_BIT;
+    cpu_context->pc = infect_body;
+  }
+}
