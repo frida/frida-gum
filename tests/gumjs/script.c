@@ -185,6 +185,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_current_thread_id_is_available)
     TESTENTRY (process_threads_can_be_enumerated)
     TESTENTRY (process_threads_can_be_enumerated_legacy_style)
+    TESTENTRY (process_threads_have_names)
     TESTENTRY (process_modules_can_be_enumerated)
     TESTENTRY (process_modules_can_be_enumerated_legacy_style)
     TESTENTRY (process_module_can_be_looked_up_from_address)
@@ -5003,6 +5004,36 @@ TESTCASE (process_threads_can_be_enumerated_legacy_style)
   done = TRUE;
   g_thread_join (thread_b);
   g_thread_join (thread_a);
+}
+
+TESTCASE (process_threads_have_names)
+{
+#ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+#endif
+
+#ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  COMPILE_AND_LOAD_SCRIPT (
+    "const thread = Process.enumerateThreads()[0];"
+    "send(thread.name == \"gum-tests\");"
+  );
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+    "const thread = Process.enumerateThreads()[0];"
+    "send(thread.name == \"Unknown\");"
+  );
+#endif
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 static gpointer

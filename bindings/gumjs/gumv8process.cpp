@@ -219,6 +219,7 @@ gum_emit_thread (const GumThreadDetails * details,
 
   auto thread = Object::New (isolate);
   _gum_v8_object_set (thread, "id", Number::New (isolate, details->id), core);
+  _gum_v8_object_set_ascii (thread, "name", details->name, core);
   _gum_v8_object_set (thread, "state", _gum_v8_string_new_ascii (isolate,
       _gum_v8_thread_state_to_string (details->state)), core);
   auto cpu_context =

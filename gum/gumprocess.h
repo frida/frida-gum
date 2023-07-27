@@ -52,6 +52,7 @@ typedef enum {
 struct _GumThreadDetails
 {
   GumThreadId id;
+  const gchar * name;
   GumThreadState state;
   GumCpuContext cpu_context;
 };

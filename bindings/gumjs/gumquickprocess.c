@@ -261,6 +261,10 @@ gum_emit_thread (const GumThreadDetails * details,
       JS_NewInt64 (ctx, details->id),
       JS_PROP_C_W_E);
   JS_DefinePropertyValue (ctx, thread,
+      GUM_QUICK_CORE_ATOM (core, name),
+      JS_NewString (ctx, details->name),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, thread,
       GUM_QUICK_CORE_ATOM (core, state),
       _gum_quick_thread_state_new (ctx, details->state),
       JS_PROP_C_W_E);

@@ -239,6 +239,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
     GumThreadDetails details;
 
     details.id = thread.tid;
+    details.name = "Unknown";
     details.state = gum_thread_state_from_system_thread_state (thread.state);
 
     if (thread.state != STATE_DEAD &&

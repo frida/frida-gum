@@ -1472,6 +1472,7 @@ gum_darwin_enumerate_threads (mach_port_t task,
 #endif
 
       details.id = (GumThreadId) thread;
+      details.name = "Unknown";
       details.state = gum_thread_state_from_darwin (info.run_state);
       gum_darwin_parse_unified_thread_state (&state, &details.cpu_context);
 

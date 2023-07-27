@@ -407,6 +407,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
     GumThreadDetails details;
 
     details.id = p->ki_tid;
+    details.name = "Unknown";
     details.state = gum_thread_state_from_proc (p);
     if (!gum_process_modify_thread (details.id, gum_store_cpu_context,
           &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))

@@ -229,6 +229,7 @@ static gint gum_do_modify_thread (gpointer data);
 static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack);
 static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 
+static gchar * gum_get_thread_name (GumThreadId thread_id);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
@@ -1020,8 +1021,13 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   while (carry_on && (name = g_dir_read_name (dir)) != NULL)
   {
     GumThreadDetails details;
+    gchar * thread_name;
 
     details.id = atoi (name);
+
+    thread_name = gum_get_thread_name (details.id);
+    details.name = thread_name;
+
     if (gum_thread_read_state (details.id, &details.state))
     {
       if (gum_process_modify_thread (details.id, gum_store_cpu_context,
@@ -1030,9 +1036,32 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
         carry_on = func (&details, user_data);
       }
     }
+
+    g_free (thread_name);
   }
 
   g_dir_close (dir);
+}
+
+gchar *
+gum_get_thread_name (GumThreadId thread_id)
+{
+  gchar * result = NULL;
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  gchar * file_name;
+
+  file_name = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/comm",
+      thread_id);
+  if (file_name != NULL)
+    g_file_get_contents (file_name, &result, NULL, NULL);
+
+  g_free (file_name);
+#endif
+
+  if (result == NULL)
+    return g_strdup ("Unknown");
+  else
+    return g_strchomp (result);
 }
 
 static void

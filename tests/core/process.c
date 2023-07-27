@@ -33,6 +33,7 @@
 
 TESTLIST_BEGIN (process)
   TESTENTRY (process_threads)
+  TESTENTRY (process_thread_name)
   TESTENTRY (process_threads_exclude_cloaked)
   TESTENTRY (process_modules)
   TESTENTRY (process_ranges)
@@ -104,6 +105,7 @@ struct _TestThreadSyncData
 {
   GMutex mutex;
   GCond cond;
+  const gchar * name;
   volatile gboolean started;
   volatile GumThreadId thread_id;
   volatile gboolean * volatile done;
@@ -123,6 +125,8 @@ struct _ExportSearch
 #endif
 
 static gboolean check_thread_enumeration_testable (void);
+static gboolean thread_name_cb (const GumThreadDetails * details,
+    gpointer user_data);
 
 static gpointer probe_thread (gpointer data);
 static void inspect_thread_ranges (void);
@@ -142,8 +146,8 @@ static gboolean process_potential_export_search_result (
     const GumExportDetails * details, gpointer user_data);
 #endif
 
-static GThread * create_sleeping_dummy_thread_sync (volatile gboolean * done,
-    GumThreadId * thread_id);
+static GThread * create_sleeping_dummy_thread_sync (const gchar * name,
+    volatile gboolean * done, GumThreadId * thread_id);
 static gpointer sleeping_dummy (gpointer data);
 static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
@@ -179,8 +183,10 @@ TESTCASE (process_threads)
   if (!check_thread_enumeration_testable ())
     return;
 
-  thread_a = create_sleeping_dummy_thread_sync (&done, NULL);
-  thread_b = create_sleeping_dummy_thread_sync (&done, NULL);
+  thread_a = create_sleeping_dummy_thread_sync ("process-test-sleeping-dummy",
+      &done, NULL);
+  thread_b = create_sleeping_dummy_thread_sync ("process-test-sleeping-dummy",
+      &done, NULL);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -206,7 +212,8 @@ TESTCASE (process_threads_exclude_cloaked)
   if (!check_thread_enumeration_testable ())
     return;
 
-  thread = create_sleeping_dummy_thread_sync (&done, &ctx.needle);
+  thread = create_sleeping_dummy_thread_sync ("process-test-sleeping-dummy",
+      &done, &ctx.needle);
 
   ctx.found = FALSE;
   gum_process_enumerate_threads (thread_check_cb, &ctx);
@@ -222,6 +229,30 @@ TESTCASE (process_threads_exclude_cloaked)
 
   done = TRUE;
   g_thread_join (thread);
+}
+
+TESTCASE (process_thread_name)
+{
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  GumThreadDetails ctx = {0};
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  thread = create_sleeping_dummy_thread_sync ("named", &done, &ctx.id);
+  gum_process_enumerate_threads (thread_name_cb, &ctx);
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  g_assert_cmpstr (ctx.name, ==, "named");
+#else
+  g_assert_cmpstr (ctx.name, ==, "Unknown");
+#endif
+
+  done = TRUE;
+  g_thread_join (thread);
+
+  g_free ((gpointer) ctx.name);
 }
 
 static gboolean
@@ -250,6 +281,22 @@ check_thread_enumeration_testable (void)
   }
 
   return TRUE;
+}
+
+static gboolean
+thread_name_cb (const GumThreadDetails * details,
+                gpointer user_data)
+{
+  GumThreadDetails * ctx = user_data;
+
+  if (details->id != ctx->id)
+    return TRUE;
+
+  ctx->id = details->id;
+  ctx->name = g_strdup (details->name);
+  ctx->state = details->state;
+  ctx->cpu_context = details->cpu_context;
+  return FALSE;
 }
 
 TESTCASE (process_modules)
@@ -1031,7 +1078,8 @@ process_potential_export_search_result (const GumExportDetails * details,
 #endif
 
 static GThread *
-create_sleeping_dummy_thread_sync (volatile gboolean * done,
+create_sleeping_dummy_thread_sync (const gchar * name,
+                                   volatile gboolean * done,
                                    GumThreadId * thread_id)
 {
   TestThreadSyncData sync_data;
@@ -1041,12 +1089,12 @@ create_sleeping_dummy_thread_sync (volatile gboolean * done,
   g_cond_init (&sync_data.cond);
   sync_data.started = FALSE;
   sync_data.thread_id = 0;
+  sync_data.name = name;
   sync_data.done = done;
 
   g_mutex_lock (&sync_data.mutex);
 
-  thread = g_thread_new ("process-test-sleeping-dummy", sleeping_dummy,
-      &sync_data);
+  thread = g_thread_new (name, sleeping_dummy, &sync_data);
 
   while (!sync_data.started)
     g_cond_wait (&sync_data.cond, &sync_data.mutex);
@@ -1067,6 +1115,15 @@ sleeping_dummy (gpointer data)
 {
   TestThreadSyncData * sync_data = data;
   volatile gboolean * done = sync_data->done;
+
+/*
+ * On Linux g_thread_new does not appear to set the thread name as would be
+ * expected. The name visible to the kernel in /proc/self/task/<tid>/comm is
+ * unchanged. Therefore we set the name manually using pthreads.
+ */
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  pthread_setname_np (pthread_self(), sync_data->name);
+#endif
 
   g_mutex_lock (&sync_data->mutex);
   sync_data->started = TRUE;

@@ -210,6 +210,7 @@ gum_windows_get_thread_details (DWORD thread_id,
         = { 0, };
 
   details->id = thread_id;
+  details->name = "Unknown";
 
   if (thread_id == GetCurrentThreadId ())
   {
