@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024 DaVinci <nstefanclaudel13@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -17,7 +18,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
 
 static const GumV8Function gumjs_thread_functions[] =
 {
-  { "backtrace", gumjs_thread_backtrace },
+  { "_backtrace", gumjs_thread_backtrace },
   { "sleep", gumjs_thread_sleep },
 
   { NULL, NULL }
@@ -87,22 +88,28 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   auto context = isolate->GetCurrentContext ();
 
   GumCpuContext * cpu_context = NULL;
-  Local<Value> selector;
-  if (!_gum_v8_args_parse (args, "|C?V", &cpu_context, &selector))
+  Local<Value> raw_type;
+  guint limit;
+  if (!_gum_v8_args_parse (args, "C?Vu", &cpu_context, &raw_type, &limit))
     return;
 
-  gboolean accurate = TRUE;
-  if (!selector.IsEmpty ())
+  if (!raw_type->IsSymbol ())
   {
-    if ((*module->fuzzy_enum_value) == selector)
-    {
-      accurate = FALSE;
-    }
-    else if ((*module->accurate_enum_value) != selector)
-    {
-      _gum_v8_throw_ascii_literal (isolate, "invalid backtracer enum value");
-      return;
-    }
+    _gum_v8_throw_ascii_literal (isolate, "invalid backtracer value");
+    return;
+  }
+  Local<Symbol> type = raw_type.As<Symbol> ();
+  gboolean accurate = TRUE;
+  if (type->StrictEquals (
+        Local<Symbol>::New (isolate, *module->fuzzy_enum_value)))
+  {
+    accurate = FALSE;
+  }
+  else if (!type->StrictEquals (
+        Local<Symbol>::New (isolate, *module->accurate_enum_value)))
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid backtracer enum value");
+    return;
   }
 
   GumBacktracer * backtracer;
@@ -129,7 +136,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   }
 
   GumReturnAddressArray ret_addrs;
-  gum_backtracer_generate (backtracer, cpu_context, &ret_addrs);
+  if (limit != 0)
+  {
+    gum_backtracer_generate_with_limit (backtracer, cpu_context, &ret_addrs,
+        limit);
+  }
+  else
+  {
+    gum_backtracer_generate (backtracer, cpu_context, &ret_addrs);
+  }
 
   auto result = Array::New (isolate, ret_addrs.len);
   for (guint i = 0; i != ret_addrs.len; i++)

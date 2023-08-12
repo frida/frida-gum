@@ -485,6 +485,24 @@ if (Process.findRangeByAddress === undefined) {
   });
 }
 
+Object.defineProperties(Thread, {
+  backtrace: {
+    enumerable: true,
+    value: function (cpuContext = null, backtracerOrOptions = {}) {
+      const options = (typeof backtracerOrOptions === 'object')
+          ? backtracerOrOptions
+          : { backtracer: backtracerOrOptions };
+
+      const {
+        backtracer = Backtracer.ACCURATE,
+        limit = 0,
+      } = options;
+
+      return Thread._backtrace(cpuContext, backtracer, limit);
+    }
+  },
+});
+
 if (globalThis.Interceptor !== undefined) {
   Object.defineProperties(Interceptor, {
     attach: {
