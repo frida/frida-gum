@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024 DaVinci <nstefanclaudel13@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,7 +20,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
 
 static const JSCFunctionListEntry gumjs_thread_entries[] =
 {
-  JS_CFUNC_DEF ("backtrace", 0, gumjs_thread_backtrace),
+  JS_CFUNC_DEF ("_backtrace", 0, gumjs_thread_backtrace),
   JS_CFUNC_DEF ("sleep", 0, gumjs_thread_sleep),
 };
 
@@ -74,21 +75,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 {
   JSValue result;
   GumQuickThread * self;
-  GumCpuContext * cpu_context = NULL;
-  gint selector = GUM_BACKTRACER_ACCURATE;
+  GumCpuContext * cpu_context;
+  gint type;
+  guint limit;
   GumBacktracer * backtracer;
   GumReturnAddressArray ret_addrs;
   guint i;
 
   self = gumjs_get_parent_module (core);
 
-  if (!_gum_quick_args_parse (args, "|C?i", &cpu_context, &selector))
+  if (!_gum_quick_args_parse (args, "C?iu", &cpu_context, &type, &limit))
     return JS_EXCEPTION;
 
-  if (selector != GUM_BACKTRACER_ACCURATE && selector != GUM_BACKTRACER_FUZZY)
-    goto invalid_selector;
+  if (type != GUM_BACKTRACER_ACCURATE && type != GUM_BACKTRACER_FUZZY)
+    goto invalid_type;
 
-  if (selector == GUM_BACKTRACER_ACCURATE)
+  if (type == GUM_BACKTRACER_ACCURATE)
   {
     if (self->accurate_backtracer == NULL)
       self->accurate_backtracer = gum_backtracer_make_accurate ();
@@ -103,7 +105,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   if (backtracer == NULL)
     goto not_available;
 
-  gum_backtracer_generate (backtracer, cpu_context, &ret_addrs);
+  if (limit != 0)
+  {
+    gum_backtracer_generate_with_limit (backtracer, cpu_context, &ret_addrs,
+        limit);
+  }
+  else
+  {
+    gum_backtracer_generate (backtracer, cpu_context, &ret_addrs);
+  }
 
   result = JS_NewArray (ctx);
 
@@ -116,13 +126,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 
   return result;
 
-invalid_selector:
+invalid_type:
   {
     return _gum_quick_throw_literal (ctx, "invalid backtracer enum value");
   }
 not_available:
   {
-    return _gum_quick_throw_literal (ctx, (selector == GUM_BACKTRACER_ACCURATE)
+    return _gum_quick_throw_literal (ctx, (type == GUM_BACKTRACER_ACCURATE)
         ? "backtracer not yet available for this platform; "
         "please try Thread.backtrace(context, Backtracer.FUZZY)"
         : "backtracer not yet available for this platform; "

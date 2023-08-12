@@ -29,6 +29,7 @@ TESTLIST_BEGIN (script)
   TESTENTRY (rpc_can_be_performed)
   TESTENTRY (message_can_be_logged)
   TESTENTRY (thread_can_be_forced_to_sleep)
+  TESTENTRY (thread_backtrace_can_be_captured_with_limit)
   TESTENTRY (timeout_can_be_scheduled)
   TESTENTRY (timeout_can_be_cancelled)
   TESTENTRY (interval_can_be_scheduled)
@@ -6353,6 +6354,14 @@ TESTCASE (thread_can_be_forced_to_sleep)
   g_assert_cmpfloat (g_timer_elapsed (timer, NULL), >=, 0.2f);
   EXPECT_NO_MESSAGES ();
   g_timer_destroy (timer);
+}
+
+TESTCASE (thread_backtrace_can_be_captured_with_limit)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Thread.backtrace(null, { limit: 2 }).length);");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (timeout_can_be_scheduled)
