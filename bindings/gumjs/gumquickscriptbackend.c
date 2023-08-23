@@ -410,7 +410,8 @@ malformed_package:
   }
 malformed_entrypoint:
   {
-    op.error = gum_capture_parse_error (ctx, entrypoint->name);
+    if (op.error == NULL)
+      op.error = gum_capture_parse_error (ctx, entrypoint->name);
 
     goto propagate_error;
   }
