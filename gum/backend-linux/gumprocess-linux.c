@@ -1777,6 +1777,8 @@ gum_linux_cpu_type_from_pid (pid_t pid,
   err = NULL;
   if (!g_file_get_contents (auxv_path, &auxv, &auxv_size, &err))
     goto read_failed;
+  if (auxv_size == 0)
+    goto nearly_dead;
 
   result = gum_linux_cpu_type_from_auxv (auxv, auxv_size);
 
@@ -1802,6 +1804,12 @@ read_failed:
 
     g_error_free (err);
 
+    goto beach;
+  }
+nearly_dead:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
+        "Process not found");
     goto beach;
   }
 beach:
