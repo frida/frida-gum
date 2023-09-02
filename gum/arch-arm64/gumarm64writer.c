@@ -3,6 +3,7 @@
  * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1620,6 +1621,69 @@ gum_arm64_writer_put_eor_reg_reg_reg (GumArm64Writer * self,
       rd.index);
 
   return TRUE;
+}
+
+gboolean
+gum_arm64_writer_put_ubfm (GumArm64Writer * self,
+                           arm64_reg dst_reg,
+                           arm64_reg src_reg,
+                           guint8 imms,
+                           guint8 immr)
+{
+  GumArm64RegInfo rd, rn;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+  gum_arm64_writer_describe_reg (self, src_reg, &rn);
+
+  if (rn.width != rd.width)
+    return FALSE;
+
+  if (((imms | immr) & 0xc0) != 0)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self,
+      (rd.width == 64 ? 0x80400000 : 0x00000000) |
+      0x53000000 |
+      (immr << 16) |
+      (imms << 9) |
+      (rn.index << 5) |
+      rd.index);
+
+  return TRUE;
+}
+
+gboolean
+gum_arm64_writer_put_lsl_reg_imm (GumArm64Writer * self,
+                                  arm64_reg dst_reg,
+                                  arm64_reg src_reg,
+                                  guint8 shift)
+{
+  GumArm64RegInfo rd;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+
+  if (rd.width == 32 && (shift & 0xe0) != 0)
+    return FALSE;
+
+  return gum_arm64_writer_put_ubfm (self, dst_reg, src_reg,
+      -shift % rd.width, rd.width - 1 - shift);
+}
+
+gboolean
+gum_arm64_writer_put_lsr_reg_imm (GumArm64Writer * self,
+                                  arm64_reg dst_reg,
+                                  arm64_reg src_reg,
+                                  guint8 shift)
+{
+  GumArm64RegInfo rd;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+
+  if (rd.width == 32 && (shift & 0xe0) != 0)
+    return FALSE;
+
+  return gum_arm64_writer_put_ubfm (self, dst_reg, src_reg,
+      shift, rd.width - 1);
 }
 
 gboolean
