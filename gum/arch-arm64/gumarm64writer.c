@@ -1808,6 +1808,26 @@ gum_arm64_writer_put_load_store_pair (GumArm64Writer * self,
       (rt2 << 10) | (rn << 5) | rt);
 }
 
+gboolean
+gum_arm64_writer_put_mrs (GumArm64Writer * self,
+                          arm64_reg dst_reg,
+                          guint16 systemreg)
+{
+  GumArm64RegInfo rt;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rt);
+
+  if ((rt.width != 64) || (systemreg & 0x8000))
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self,
+      0xd5300000 |
+      (systemreg << 5) |
+      rt.index);
+
+  return TRUE;
+}
+
 void
 gum_arm64_writer_put_instruction (GumArm64Writer * self,
                                   guint32 insn)
