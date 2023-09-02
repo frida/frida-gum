@@ -191,6 +191,12 @@ GUM_API gboolean gum_arm64_writer_put_and_reg_reg_imm (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg left_reg, guint64 right_value);
 GUM_API gboolean gum_arm64_writer_put_eor_reg_reg_reg (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg left_reg, arm64_reg right_reg);
+GUM_API gboolean gum_arm64_writer_put_ubfm (GumArm64Writer * self,
+    arm64_reg dst_reg, arm64_reg src_reg, guint8 imms, guint8 immr);
+GUM_API gboolean gum_arm64_writer_put_lsl_reg_imm(GumArm64Writer * self,
+    arm64_reg dst_reg, arm64_reg src_reg, guint8 shift);
+GUM_API gboolean gum_arm64_writer_put_lsr_reg_imm(GumArm64Writer * self,
+    arm64_reg dst_reg, arm64_reg src_reg, guint8 shift);
 GUM_API gboolean gum_arm64_writer_put_tst_reg_imm (GumArm64Writer * self,
     arm64_reg reg, guint64 imm_value);
 GUM_API gboolean gum_arm64_writer_put_cmp_reg_reg (GumArm64Writer * self,
