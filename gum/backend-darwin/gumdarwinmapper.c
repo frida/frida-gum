@@ -69,6 +69,7 @@ struct _GumDarwinMapper
   GumAddress chained_symbols_vector;
   GumAddress tlv_get_addrAddr;
   GumDarwinModule * libsystem_pthread;
+  GumAddress tlv_address;
   GumAddress pthread_key;
   GumAddress pthread_key_create;
   GumAddress pthread_key_delete;
@@ -708,6 +709,8 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   GumDarwinModule * module = self->module;
   mach_port_t task = self->resolver->task;
   GumDarwinModule * libdyld;
+  guint32 tlv_data_offset;
+  guint64 tlv_data_size, tlv_bss_size;
   guint i;
   mach_vm_address_t mapped_address;
   vm_prot_t cur_protection, max_protection;
@@ -763,6 +766,22 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
       gum_darwin_mapper_find_tlv_get_addr, &ctx);
   if (!ctx.success)
     goto beach;
+
+  gum_darwin_module_get_tlv_init (module, &tlv_data_offset, &tlv_data_size,
+      &tlv_bss_size);
+  self->tlv_address = (GumAddress) 0;
+
+  kr = mach_vm_allocate (task, &self->tlv_address,
+      tlv_data_size + tlv_bss_size, VM_FLAGS_ANYWHERE);
+  GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_allocate(tlv)");
+
+  kr = mach_vm_protect (task, self->tlv_address, tlv_data_size + tlv_bss_size,
+      FALSE, VM_PROT_READ | VM_PROT_WRITE);
+  GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_protect(tlv)");
+
+  kr = mach_vm_write (task, self->tlv_address,
+      (vm_offset_t) self->image->data + tlv_data_offset, tlv_data_size);
+  GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_write(tlv)");
 
   gum_darwin_mapper_alloc_and_emit_runtime (self, base_address, total_vm_size);
 
@@ -1321,6 +1340,15 @@ gum_emit_x86_tlv_init_code (GumEmitX86Context * ctx)
       GUM_ADDRESS (self->pthread_key_create), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (self->pthread_key),
       GUM_ARG_ADDRESS, GUM_ADDRESS (0) /* destructor */);
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX,
+      GUM_ADDRESS (self->pthread_key));
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XAX);
+  gum_x86_writer_put_shl_reg_u8 (cw, GUM_X86_XAX,
+      self->module->pointer_size == 8 ? 3 : 2);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XBX,
+      GUM_ADDRESS (self->tlv_address));
+  gum_x86_writer_put_mov_gs_reg_ptr_reg (cw, GUM_X86_XAX, GUM_X86_XBX);
 
   GumAddress tlv_section = self->module->base_address
       + gum_darwin_module_get_tlv_descriptors_file_offset (module);
@@ -1921,6 +1949,20 @@ static void gum_emit_arm64_tlv_init_code (GumEmitArm64Context * ctx)
       GUM_ADDRESS (self->pthread_key_create), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (self->pthread_key),
       GUM_ARG_ADDRESS, GUM_ADDRESS (0) /* destructor */);
+
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X19,
+      GUM_ADDRESS (self->pthread_key));
+  gum_arm64_writer_put_ldr_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X19);
+  gum_arm64_writer_put_lsl_reg_imm (aw, ARM64_REG_X19, ARM64_REG_X19,
+      self->module->pointer_size == 8 ? 3 : 2);
+  gum_arm64_writer_put_mrs (aw, ARM64_REG_X20, GUM_ARM64_SYSREG_TPIDRRO_EL0);
+  gum_arm64_writer_put_and_reg_reg_imm (aw, ARM64_REG_X20, ARM64_REG_X20,
+      (guint64) -8);
+  gum_arm64_writer_put_add_reg_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X19,
+      ARM64_REG_X20);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X20,
+      GUM_ADDRESS (self->tlv_address));
+  gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
 
   gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X20,
       GUM_ADDRESS (tlv_section));
