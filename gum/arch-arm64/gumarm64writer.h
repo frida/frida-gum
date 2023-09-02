@@ -19,6 +19,16 @@
 #define GUM_ARM64_ADRP_MAX_DISTANCE 0xfffff000
 #define GUM_ARM64_B_MAX_DISTANCE 0x07fffffc
 
+#define GUM_ARM64_SYSREG(op0, op1, crn, crm, op2) \
+    ( \
+      (((op0 == 2) ? 0 : 1) << 14) | \
+      (op1 << 11) | \
+      (crn << 7) | \
+      (crm << 3) | \
+      op2 \
+    )
+#define GUM_ARM64_SYSREG_TPIDRRO_EL0 GUM_ARM64_SYSREG (3, 3, 13, 0, 3)
+
 G_BEGIN_DECLS
 
 typedef struct _GumArm64Writer GumArm64Writer;
@@ -208,6 +218,8 @@ GUM_API gboolean gum_arm64_writer_put_xpaci_reg (GumArm64Writer * self,
 
 GUM_API void gum_arm64_writer_put_nop (GumArm64Writer * self);
 GUM_API void gum_arm64_writer_put_brk_imm (GumArm64Writer * self, guint16 imm);
+GUM_API gboolean gum_arm64_writer_put_mrs (GumArm64Writer * self,
+    arm64_reg dst_reg, guint16 system_reg);
 
 GUM_API void gum_arm64_writer_put_instruction (GumArm64Writer * self,
     guint32 insn);
