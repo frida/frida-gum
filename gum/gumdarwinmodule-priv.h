@@ -21,6 +21,8 @@
 
 #define GUM_SECTION_TYPE_MASK          0x000000ff
 
+#define GUM_S_THREAD_LOCAL_REGULAR           0x11
+#define GUM_S_THREAD_LOCAL_ZEROFILL          0x12
 #define GUM_S_THREAD_LOCAL_VARIABLES         0x13
 
 #define GUM_N_EXT                            0x01
@@ -60,6 +62,7 @@ typedef struct _GumSection64 GumSection64;
 typedef struct _GumNList32 GumNList32;
 typedef struct _GumNList64 GumNList64;
 typedef struct _GumFindDarwinTLVDescriptorsContext GumFindDarwinTLVDescriptorsContext;
+typedef struct _GumFindDarwinTLVInitContext GumFindDarwinTLVInitContext;
 typedef struct _GumFixedSizeTLVThunk32 GumFixedSizeTLVThunk32;
 typedef struct _GumFixedSizeTLVThunk64 GumFixedSizeTLVThunk64;
 typedef struct _GumFixedSizeLibdyldDyld4Section32 GumFixedSizeLibdyldDyld4Section32;
@@ -405,6 +408,12 @@ struct _GumFindDarwinTLVDescriptorsContext {
   guint n_descriptors;
   guint32 section_file_offset;
   gsize descriptor_sz;
+};
+
+struct _GumFindDarwinTLVInitContext {
+  guint32 data_offset;
+  guint64 data_size;
+  guint64 bss_size;
 };
 
 struct _GumFixedSizeTLVThunk32 {

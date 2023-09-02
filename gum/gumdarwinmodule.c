@@ -1123,6 +1123,38 @@ gum_darwin_module_enumerate_tlv_descriptors (GumDarwinModule * self,
   }
 }
 
+gboolean
+gum_darwin_module_find_tlv_init (const GumDarwinSectionDetails * section,
+                                 gpointer user_data)
+{
+  GumFindDarwinTLVInitContext *ctx = user_data;
+
+  if (section->flags == GUM_S_THREAD_LOCAL_REGULAR)
+  {
+    ctx->data_offset = section->file_offset;
+    ctx->data_size = section->size;
+  }
+
+  if (section->flags == GUM_S_THREAD_LOCAL_ZEROFILL)
+    ctx->bss_size = section->size;
+
+  return TRUE;
+}
+
+void
+gum_darwin_module_get_tlv_init (GumDarwinModule * self, guint32 * data_offset,
+                                guint64 * data_size, guint64 * bss_size)
+{
+  GumFindDarwinTLVInitContext ctx = { 0 };
+
+  gum_darwin_module_enumerate_sections (self,
+      gum_darwin_module_find_tlv_init, &ctx);
+
+  *data_offset = ctx.data_offset;
+  *data_size = ctx.data_size;
+  *bss_size = ctx.bss_size;
+}
+
 void
 gum_darwin_module_enumerate_chained_fixups (
     GumDarwinModule * self,

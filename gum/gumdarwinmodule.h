@@ -617,6 +617,8 @@ GUM_API guint gum_darwin_module_count_tlv_descriptors (GumDarwinModule * self);
 GUM_API void gum_darwin_module_enumerate_tlv_descriptors (
     GumDarwinModule * self, GumFoundDarwinTLVDescriptorFunc func,
     gpointer user_data);
+GUM_API void gum_darwin_module_get_tlv_init (GumDarwinModule * self,
+    guint32 * data_offset, guint64 * data_size, guint64 * bss_size);
 GUM_API void gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
     GumFoundDarwinRebaseFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_binds (GumDarwinModule * self,
