@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -278,10 +279,18 @@ GUM_API gboolean gum_x86_writer_put_mov_fs_u32_ptr_reg (GumX86Writer * self,
     guint32 fs_offset, GumX86Reg src_reg);
 GUM_API gboolean gum_x86_writer_put_mov_reg_fs_u32_ptr (GumX86Writer * self,
     GumX86Reg dst_reg, guint32 fs_offset);
+GUM_API void gum_x86_writer_put_mov_fs_reg_ptr_reg (GumX86Writer * self,
+    GumX86Reg fs_offset, GumX86Reg src_reg);
+GUM_API void gum_x86_writer_put_mov_reg_fs_reg_ptr (GumX86Writer * self,
+    GumX86Reg dst_reg, GumX86Reg fs_offset);
 GUM_API gboolean gum_x86_writer_put_mov_gs_u32_ptr_reg (GumX86Writer * self,
     guint32 fs_offset, GumX86Reg src_reg);
 GUM_API gboolean gum_x86_writer_put_mov_reg_gs_u32_ptr (GumX86Writer * self,
     GumX86Reg dst_reg, guint32 fs_offset);
+GUM_API void gum_x86_writer_put_mov_gs_reg_ptr_reg (GumX86Writer * self,
+    GumX86Reg gs_offset, GumX86Reg src_reg);
+GUM_API void gum_x86_writer_put_mov_reg_gs_reg_ptr (GumX86Writer * self,
+    GumX86Reg dst_reg, GumX86Reg gs_offset);
 
 GUM_API void gum_x86_writer_put_movq_xmm0_esp_offset_ptr (GumX86Writer * self,
     gint8 offset);
