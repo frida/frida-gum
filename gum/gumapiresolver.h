@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -36,6 +36,7 @@ struct _GumApiDetails
 {
   const gchar * name;
   GumAddress address;
+  gsize size;
 };
 
 GUM_API GumApiResolver * gum_api_resolver_make (const gchar * type);

@@ -5627,9 +5627,16 @@ TESTCASE (api_resolver_can_be_used_to_find_functions)
   COMPILE_AND_LOAD_SCRIPT (
       "const resolver = new ApiResolver('module');"
       "const matches = resolver.enumerateMatches('%s');"
-      "send(matches.length > 0);",
+      "send(matches.length > 0);"
+      "const m = matches[0];"
+      "send(typeof m.name);"
+      "send(m.address instanceof NativePointer);"
+      "send(typeof m.size);",
       API_RESOLVER_TEST_QUERY);
   EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 }
 
 TESTCASE (api_resolver_can_be_used_to_find_functions_legacy_style)

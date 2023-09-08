@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -242,6 +242,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
         details.address =
             gum_module_find_export_by_name (module->path, function_query);
+        details.size = 0;
 
 #ifndef HAVE_WINDOWS
         if (details.address != 0)
@@ -302,6 +303,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
               function->name,
               NULL);
           details.address = function->address;
+          details.size = 0;
 
           carry_on = func (&details, user_data);
 

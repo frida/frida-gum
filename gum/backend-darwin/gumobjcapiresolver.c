@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C)      2021 Francesco Tamagni <mrmacete@protonmail.ch>
@@ -332,6 +332,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
             canonical_method_name, suffix, NULL);
         details.address = GUM_ADDRESS (
             self->method_getImplementation (method_handle));
+        details.size = 0;
 
         carry_on = func (&details, user_data);
 
