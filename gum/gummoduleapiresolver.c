@@ -8,7 +8,8 @@
 /**
  * GumModuleApiResolver:
  *
- * Resolves APIs by searching exports and imports of currently loaded modules.
+ * Resolves APIs by searching exports, imports, and sections of currently loaded
+ * modules.
  *
  * See [iface@Gum.ApiResolver] for more information.
  */
@@ -44,6 +45,7 @@ struct _GumModuleMetadata
 
   GHashTable * import_by_name;
   GHashTable * export_by_name;
+  GArray * sections;
 };
 
 struct _GumFunctionMetadata
@@ -63,14 +65,19 @@ static void gum_module_api_resolver_enumerate_matches (
 static void gum_module_metadata_unref (GumModuleMetadata * module);
 static GHashTable * gum_module_metadata_get_imports (GumModuleMetadata * self);
 static GHashTable * gum_module_metadata_get_exports (GumModuleMetadata * self);
+static GArray * gum_module_metadata_get_sections (GumModuleMetadata * self);
 static gboolean gum_module_metadata_collect_import (
     const GumImportDetails * details, gpointer user_data);
 static gboolean gum_module_metadata_collect_export (
     const GumExportDetails * details, gpointer user_data);
+static gboolean gum_module_metadata_collect_section (
+    const GumSectionDetails * details, gpointer user_data);
 
 static GumFunctionMetadata * gum_function_metadata_new (const gchar * name,
     GumAddress address, const gchar * module);
 static void gum_function_metadata_free (GumFunctionMetadata * function);
+
+static void gum_section_details_free (GumSectionDetails * self);
 
 G_DEFINE_TYPE_EXTENDED (GumModuleApiResolver,
                         gum_module_api_resolver,
@@ -103,7 +110,8 @@ gum_module_api_resolver_init (GumModuleApiResolver * self)
   guint i;
 
   self->query_pattern =
-      g_regex_new ("(imports|exports):(.+)!([^\\n\\r\\/]+)(\\/i)?", 0, 0, NULL);
+      g_regex_new ("(imports|exports|sections):(.+)!([^\\n\\r\\/]+)(\\/i)?",
+          0, 0, NULL);
 
   self->all_modules = gum_module_map_new ();
   self->module_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
@@ -120,6 +128,7 @@ gum_module_api_resolver_init (GumModuleApiResolver * self)
     module->path = d->path;
     module->import_by_name = NULL;
     module->export_by_name = NULL;
+    module->sections = NULL;
 
     g_hash_table_insert (self->module_by_name, g_strdup (module->name), module);
     g_hash_table_insert (self->module_by_name, g_strdup (module->path), module);
@@ -163,9 +172,9 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   GumModuleApiResolver * self = GUM_MODULE_API_RESOLVER (resolver);
   GMatchInfo * query_info;
   gboolean ignore_case;
-  gchar * collection, * module_query, * function_query;
-  gboolean no_wildcards_in_function_query;
-  GPatternSpec * module_spec, * function_spec;
+  gchar * collection, * module_query, * item_query;
+  gboolean no_patterns_in_item_query;
+  GPatternSpec * module_spec, * item_spec;
   GHashTableIter module_iter;
   GHashTable * seen_modules;
   gboolean carry_on;
@@ -179,7 +188,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
   collection = g_match_info_fetch (query_info, 1);
   module_query = g_match_info_fetch (query_info, 2);
-  function_query = g_match_info_fetch (query_info, 3);
+  item_query = g_match_info_fetch (query_info, 3);
 
   g_match_info_free (query_info);
 
@@ -191,18 +200,18 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
     g_free (module_query);
     module_query = str;
 
-    str = g_utf8_strdown (function_query, -1);
-    g_free (function_query);
-    function_query = str;
+    str = g_utf8_strdown (item_query, -1);
+    g_free (item_query);
+    item_query = str;
   }
 
-  no_wildcards_in_function_query =
+  no_patterns_in_item_query =
       !ignore_case &&
-      strchr (function_query, '*') == NULL &&
-      strchr (function_query, '?') == NULL;
+      strchr (item_query, '*') == NULL &&
+      strchr (item_query, '?') == NULL;
 
   module_spec = g_pattern_spec_new (module_query);
-  function_spec = g_pattern_spec_new (function_query);
+  item_spec = g_pattern_spec_new (item_query);
 
   g_hash_table_iter_init (&module_iter, self->module_by_name);
   seen_modules = g_hash_table_new (NULL, NULL);
@@ -236,12 +245,44 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       GHashTableIter function_iter;
       GumFunctionMetadata * function;
 
-      if (collection[0] == 'e' && no_wildcards_in_function_query)
+      if (collection[0] == 's')
+      {
+        GArray * sections;
+        guint i;
+
+        sections = gum_module_metadata_get_sections (module);
+        for (i = 0; i != sections->len; i++)
+        {
+          const GumSectionDetails * section = &g_array_index (sections,
+              GumSectionDetails, i);
+
+          if (g_pattern_match_string (item_spec, section->name))
+          {
+            GumApiDetails details;
+
+            details.name = g_strconcat (
+                module->path,
+                "!",
+                section->id,
+                NULL);
+            details.address = section->address;
+            details.size = section->size;
+
+            carry_on = func (&details, user_data);
+
+            g_free ((gpointer) details.name);
+          }
+        }
+
+        continue;
+      }
+
+      if (collection[0] == 'e' && no_patterns_in_item_query)
       {
         GumApiDetails details;
 
         details.address =
-            gum_module_find_export_by_name (module->path, function_query);
+            gum_module_find_export_by_name (module->path, item_query);
         details.size = 0;
 
 #ifndef HAVE_WINDOWS
@@ -264,7 +305,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
         if (details.address != 0)
         {
-          details.name = g_strconcat (module->path, "!", function_query, NULL);
+          details.name = g_strconcat (module->path, "!", item_query, NULL);
 
           carry_on = func (&details, user_data);
 
@@ -293,7 +334,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
           function_name = function_name_copy;
         }
 
-        if (g_pattern_match_string (function_spec, function_name))
+        if (g_pattern_match_string (item_spec, function_name))
         {
           GumApiDetails details;
 
@@ -320,10 +361,10 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
   g_hash_table_unref (seen_modules);
 
-  g_pattern_spec_free (function_spec);
+  g_pattern_spec_free (item_spec);
   g_pattern_spec_free (module_spec);
 
-  g_free (function_query);
+  g_free (item_query);
   g_free (module_query);
   g_free (collection);
 
@@ -333,7 +374,8 @@ invalid_query:
   {
     g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "invalid query; format is: "
-        "exports:*!open*, exports:libc.so!* or imports:notepad.exe!*");
+        "exports:*!open*, exports:libc.so!*, imports:notepad.exe!*, "
+        "or sections:libc.so!*data*");
   }
 }
 
@@ -343,6 +385,9 @@ gum_module_metadata_unref (GumModuleMetadata * module)
   module->ref_count--;
   if (module->ref_count == 0)
   {
+    if (module->sections != NULL)
+      g_array_unref (module->sections);
+
     if (module->export_by_name != NULL)
       g_hash_table_unref (module->export_by_name);
 
@@ -381,6 +426,21 @@ gum_module_metadata_get_exports (GumModuleMetadata * self)
   return self->export_by_name;
 }
 
+static GArray *
+gum_module_metadata_get_sections (GumModuleMetadata * self)
+{
+  if (self->sections == NULL)
+  {
+    self->sections = g_array_new (FALSE, FALSE, sizeof (GumSectionDetails));
+    g_array_set_clear_func (self->sections,
+        (GDestroyNotify) gum_section_details_free);
+    gum_module_enumerate_sections (self->path,
+        gum_module_metadata_collect_section, self->sections);
+  }
+
+  return self->sections;
+}
+
 static gboolean
 gum_module_metadata_collect_import (const GumImportDetails * details,
                                     gpointer user_data)
@@ -417,6 +477,21 @@ gum_module_metadata_collect_export (const GumExportDetails * details,
   return TRUE;
 }
 
+static gboolean
+gum_module_metadata_collect_section (const GumSectionDetails * details,
+                                     gpointer user_data)
+{
+  GArray * sections = user_data;
+  GumSectionDetails d;
+
+  d = *details;
+  d.id = g_strdup (d.id);
+  d.name = g_strdup (d.name);
+  g_array_append_val (sections, d);
+
+  return TRUE;
+}
+
 static GumFunctionMetadata *
 gum_function_metadata_new (const gchar * name,
                            GumAddress address,
@@ -439,6 +514,13 @@ gum_function_metadata_free (GumFunctionMetadata * function)
   g_free (function->name);
 
   g_slice_free (GumFunctionMetadata, function);
+}
+
+static void
+gum_section_details_free (GumSectionDetails * self)
+{
+  g_free ((gpointer) self->id);
+  g_free ((gpointer) self->name);
 }
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +10,7 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (module_exports_can_be_resolved_case_sensitively)
   TESTENTRY (module_exports_can_be_resolved_case_insensitively)
   TESTENTRY (module_imports_can_be_resolved)
+  TESTENTRY (module_sections_can_be_resolved)
   TESTENTRY (objc_methods_can_be_resolved_case_sensitively)
   TESTENTRY (objc_methods_can_be_resolved_case_insensitively)
 #ifdef HAVE_DARWIN
@@ -97,6 +98,38 @@ check_module_import (const GumApiDetails * details,
   g_assert_null (strstr (details->name, "gum-tests"));
 
   (*number_of_imports_seen)++;
+
+  return TRUE;
+}
+
+TESTCASE (module_sections_can_be_resolved)
+{
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  GError * error = NULL;
+  const gchar * query = "sections:gum-tests!*data*";
+  guint number_of_sections_seen = 0;
+
+  fixture->resolver = gum_api_resolver_make ("module");
+  g_assert_nonnull (fixture->resolver);
+
+  gum_api_resolver_enumerate_matches (fixture->resolver, query, check_section,
+      &number_of_sections_seen, &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (number_of_sections_seen, >, 1);
+#else
+  (void) check_section;
+#endif
+}
+
+static gboolean
+check_section (const GumApiDetails * details,
+               gpointer user_data)
+{
+  guint * number_of_sections_seen = user_data;
+
+  g_assert_nonnull (strstr (details->name, "data"));
+
+  (*number_of_sections_seen)++;
 
   return TRUE;
 }

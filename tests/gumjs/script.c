@@ -224,6 +224,7 @@ TESTLIST_BEGIN (script)
   TESTGROUP_BEGIN ("ApiResolver")
     TESTENTRY (api_resolver_can_be_used_to_find_functions)
     TESTENTRY (api_resolver_can_be_used_to_find_functions_legacy_style)
+    TESTENTRY (api_resolver_can_be_used_to_find_sections)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Socket")
@@ -5662,6 +5663,25 @@ TESTCASE (api_resolver_can_be_used_to_find_functions_legacy_style)
       "send(matches.length > 0);",
       API_RESOLVER_TEST_QUERY);
   EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (api_resolver_can_be_used_to_find_sections)
+{
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const resolver = new ApiResolver('module');"
+      "const matches = resolver.enumerateMatches('sections:*!*data*');"
+      "send(matches.length > 0);"
+      "const m = matches[0];"
+      "send(typeof m.name);"
+      "send(m.address instanceof NativePointer);"
+      "send(typeof m.size);",
+      API_RESOLVER_TEST_QUERY);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"number\"");
+#endif
 }
 
 TESTCASE (invalid_script_should_return_null)
