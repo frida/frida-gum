@@ -332,7 +332,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
             canonical_method_name, suffix, NULL);
         details.address = GUM_ADDRESS (
             self->method_getImplementation (method_handle));
-        details.size = 0;
+        details.size = GUM_API_SIZE_NONE;
 
         carry_on = func (&details, user_data);
 

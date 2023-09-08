@@ -183,7 +183,7 @@ gum_emit_match (const GumApiDetails * details,
       _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
           core),
       JS_PROP_C_W_E);
-  if (details->size != 0)
+  if (details->size != GUM_API_SIZE_NONE)
   {
     JS_DefinePropertyValue (ctx, match,
         GUM_QUICK_CORE_ATOM (core, size),

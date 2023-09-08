@@ -283,7 +283,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
         details.address =
             gum_module_find_export_by_name (module->path, item_query);
-        details.size = 0;
+        details.size = GUM_API_SIZE_NONE;
 
 #ifndef HAVE_WINDOWS
         if (details.address != 0)
@@ -344,7 +344,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
               function->name,
               NULL);
           details.address = function->address;
-          details.size = 0;
+          details.size = GUM_API_SIZE_NONE;
 
           carry_on = func (&details, user_data);
 

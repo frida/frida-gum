@@ -11,6 +11,8 @@
 
 G_BEGIN_DECLS
 
+#define GUM_API_SIZE_NONE -1
+
 #define GUM_TYPE_API_RESOLVER (gum_api_resolver_get_type ())
 GUM_DECLARE_INTERFACE (GumApiResolver, gum_api_resolver, GUM, API_RESOLVER,
                        GObject)
@@ -36,7 +38,7 @@ struct _GumApiDetails
 {
   const gchar * name;
   GumAddress address;
-  gsize size;
+  gssize size;
 };
 
 GUM_API GumApiResolver * gum_api_resolver_make (const gchar * type);

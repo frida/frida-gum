@@ -122,7 +122,7 @@ gum_emit_match (const GumApiDetails * details,
   auto match = Object::New (core->isolate);
   _gum_v8_object_set_utf8 (match, "name", details->name, core);
   _gum_v8_object_set_pointer (match, "address", details->address, core);
-  if (details->size != 0)
+  if (details->size != GUM_API_SIZE_NONE)
     _gum_v8_object_set_uint (match, "size", details->size, core);
 
   return mc->OnMatch (match);

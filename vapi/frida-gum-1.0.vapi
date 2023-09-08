@@ -596,7 +596,7 @@ namespace Gum {
 		public string id;
 		public string name;
 		public Gum.Address address;
-		public size_t size;
+		public ssize_t size;
 	}
 
 	public struct Address : uint64 {
