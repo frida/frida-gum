@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
@@ -44,6 +44,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (module_exports)
   TESTENTRY (module_symbols)
   TESTENTRY (module_ranges_can_be_enumerated)
+  TESTENTRY (module_sections_can_be_enumerated)
   TESTENTRY (module_base)
   TESTENTRY (module_export_can_be_found)
 #ifndef HAVE_ASAN
@@ -169,6 +170,8 @@ static gboolean malloc_range_found_cb (
 static gboolean malloc_range_check_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 #endif
+static gboolean section_found_cb (const GumSectionDetails * details,
+    gpointer user_data);
 
 TESTCASE (process_threads)
 {
@@ -765,6 +768,25 @@ TESTCASE (module_ranges_can_be_enumerated)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
+TESTCASE (module_sections_can_be_enumerated)
+{
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_module_enumerate_sections (SYSTEM_MODULE_NAME, section_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_module_enumerate_sections (SYSTEM_MODULE_NAME, section_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+#else
+  (void) section_found_cb;
+#endif
+}
+
 TESTCASE (module_base)
 {
   g_assert_true (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
@@ -1250,3 +1272,14 @@ malloc_range_check_cb (const GumMallocRangeDetails * details,
 }
 
 #endif
+
+static gboolean
+section_found_cb (const GumSectionDetails * details,
+                  gpointer user_data)
+{
+  TestForEachContext * ctx = user_data;
+
+  ctx->number_of_calls++;
+
+  return ctx->value_to_return;
+}

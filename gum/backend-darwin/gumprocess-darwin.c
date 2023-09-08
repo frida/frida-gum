@@ -64,6 +64,7 @@
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
+typedef struct _GumEnumerateSectionsContext GumEnumerateSectionsContext;
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
@@ -99,6 +100,14 @@ struct _GumEnumerateSymbolsContext
   gpointer user_data;
 
   GArray * sections;
+};
+
+struct _GumEnumerateSectionsContext
+{
+  GumFoundSectionFunc func;
+  gpointer user_data;
+
+  guint next_section_id;
 };
 
 struct _GumFindEntrypointContext
@@ -325,6 +334,8 @@ static gboolean gum_emit_symbol (const GumDarwinSymbolDetails * details,
 static gboolean gum_append_symbol_section (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static void gum_symbol_section_destroy (GumSymbolSection * self);
+static gboolean gum_emit_section (const GumDarwinSectionDetails * details,
+    gpointer user_data);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
@@ -801,6 +812,15 @@ gum_module_enumerate_ranges (const gchar * module_name,
 
     p += lc->cmdsize;
   }
+}
+
+void
+gum_module_enumerate_sections (const gchar * module_name,
+                               GumFoundSectionFunc func,
+                               gpointer user_data)
+{
+  gum_darwin_enumerate_sections (mach_task_self (), module_name, func,
+      user_data);
 }
 
 GumAddress
@@ -2239,6 +2259,57 @@ static void
 gum_symbol_section_destroy (GumSymbolSection * self)
 {
   g_free ((gpointer) self->id);
+}
+
+void
+gum_darwin_enumerate_sections (mach_port_t task,
+                               const gchar * module_name,
+                               GumFoundSectionFunc func,
+                               gpointer user_data)
+{
+  GumDarwinModuleResolver * resolver;
+  GumDarwinModule * module;
+
+  resolver = gum_darwin_module_resolver_new (task, NULL);
+  if (resolver == NULL)
+    return;
+
+  module = gum_darwin_module_resolver_find_module (resolver, module_name);
+  if (module != NULL)
+  {
+    GumEnumerateSectionsContext ctx;
+
+    ctx.func = func;
+    ctx.user_data = user_data;
+    ctx.next_section_id = 0;
+
+    gum_darwin_module_enumerate_sections (module, gum_emit_section, &ctx);
+  }
+
+  gum_object_unref (resolver);
+}
+
+static gboolean
+gum_emit_section (const GumDarwinSectionDetails * details,
+                  gpointer user_data)
+{
+  GumEnumerateSectionsContext * ctx = user_data;
+  gboolean carry_on;
+  GumSectionDetails section;
+
+  section.id = g_strdup_printf ("%u.%s.%s", ctx->next_section_id,
+      details->segment_name, details->section_name);
+  section.name = details->section_name;
+  section.address = details->vm_address;
+  section.size = details->size;
+
+  carry_on = ctx->func (&section, ctx->user_data);
+
+  g_free ((gpointer) section.id);
+
+  ctx->next_section_id++;
+
+  return carry_on;
 }
 
 gboolean

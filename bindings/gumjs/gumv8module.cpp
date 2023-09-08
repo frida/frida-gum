@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -77,6 +77,9 @@ static gboolean gum_emit_symbol (const GumSymbolDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumV8MatchContext<GumV8Module> * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_sections)
+static gboolean gum_emit_section (const GumSectionDetails * details,
+    GumV8MatchContext<GumV8Module> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
@@ -107,6 +110,7 @@ static const GumV8Function gumjs_module_static_functions[] =
   { "_enumerateExports", gumjs_module_enumerate_exports },
   { "_enumerateSymbols", gumjs_module_enumerate_symbols },
   { "_enumerateRanges", gumjs_module_enumerate_ranges },
+  { "_enumerateSections", gumjs_module_enumerate_sections },
   { "findBaseAddress", gumjs_module_find_base_address },
   { "findExportByName", gumjs_module_find_export_by_name },
 
@@ -510,6 +514,38 @@ gum_emit_range (const GumRangeDetails * details,
       core);
 
   return mc->OnMatch (range);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_sections)
+{
+  gchar * name;
+  GumV8MatchContext<GumV8Module> mc (isolate, module);
+  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name,
+      &mc.on_match, &mc.on_complete))
+    return;
+
+  gum_module_enumerate_sections (name, (GumFoundSectionFunc) gum_emit_section,
+      &mc);
+
+  mc.OnComplete ();
+
+  g_free (name);
+}
+
+static gboolean
+gum_emit_section (const GumSectionDetails * details,
+                  GumV8MatchContext<GumV8Module> * mc)
+{
+  auto core = mc->parent->core;
+  auto isolate = mc->isolate;
+
+  auto section = Object::New (isolate);
+  _gum_v8_object_set_utf8 (section, "id", details->id, core);
+  _gum_v8_object_set_utf8 (section, "name", details->name, core);
+  _gum_v8_object_set_pointer (section, "address", details->address, core);
+  _gum_v8_object_set_uint (section, "size", details->size, core);
+
+  return mc->OnMatch (section);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)

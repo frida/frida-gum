@@ -185,6 +185,8 @@ GUM_API void gum_darwin_enumerate_exports (mach_port_t task,
     const gchar * module_name, GumFoundExportFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_symbols (mach_port_t task,
     const gchar * module_name, GumFoundSymbolFunc func, gpointer user_data);
+GUM_API void gum_darwin_enumerate_sections (mach_port_t task,
+    const gchar * module_name, GumFoundSectionFunc func, gpointer user_data);
 
 GUM_API gboolean gum_darwin_find_slide (GumAddress module_address,
     const guint8 * module, gsize module_size, gint64 * slide);

@@ -842,6 +842,13 @@ gum_module_enumerate_ranges (const gchar * module_name,
   while (cur_base_address < end_address);
 }
 
+void
+gum_module_enumerate_sections (const gchar * module_name,
+                               GumFoundSectionFunc func,
+                               gpointer user_data)
+{
+}
+
 GumAddress
 gum_module_find_base_address (const gchar * module_name)
 {

@@ -14,6 +14,7 @@ typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumEnumerateRangesContext GumEnumerateRangesContext;
+typedef struct _GumEnumerateSectionsContext GumEnumerateSectionsContext;
 
 struct _GumEnumerateImportsContext
 {
@@ -44,6 +45,12 @@ struct _GumEnumerateRangesContext
   gpointer user_data;
 };
 
+struct _GumEnumerateSectionsContext
+{
+  GumFoundSectionFunc func;
+  gpointer user_data;
+};
+
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
 static gboolean gum_collect_dependency_exports (
@@ -57,6 +64,8 @@ static gboolean gum_emit_symbol (const GumElfSymbolDetails * details,
     gpointer user_data);
 static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
+static gboolean gum_emit_section (const GumElfSectionDetails * details,
+    gpointer user_data);
 
 static GumElfModule * gum_open_elf_module (const gchar * name);
 
@@ -290,6 +299,41 @@ gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
     return TRUE;
 
   return ctx->func (details, ctx->user_data);
+}
+
+void
+gum_module_enumerate_sections (const gchar * module_name,
+                               GumFoundSectionFunc func,
+                               gpointer user_data)
+{
+  GumElfModule * module;
+  GumEnumerateSectionsContext ctx;
+
+  module = gum_open_elf_module (module_name);
+  if (module == NULL)
+    return;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  gum_elf_module_enumerate_sections (module, gum_emit_section, &ctx);
+
+  gum_object_unref (module);
+}
+
+static gboolean
+gum_emit_section (const GumElfSectionDetails * details,
+                  gpointer user_data)
+{
+  GumEnumerateSectionsContext * ctx = user_data;
+  GumSectionDetails section;
+
+  section.id = details->id;
+  section.name = details->name;
+  section.address = details->address;
+  section.size = details->size;
+
+  return ctx->func (&section, ctx->user_data);
 }
 
 GumAddress

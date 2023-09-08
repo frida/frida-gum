@@ -323,6 +323,7 @@ namespace Gum {
 		public void enumerate_exports (string module_name, Gum.FoundExportFunc func);
 		public void enumerate_symbols (string module_name, Gum.FoundSymbolFunc func);
 		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
+		public void enumerate_sections (string module_name, Gum.FoundSectionFunc func);
 		public void * find_base_address (string module_name);
 		public void * find_export_by_name (string? module_name, string symbol_name);
 	}
@@ -503,6 +504,7 @@ namespace Gum {
 	public delegate bool FoundImportFunc (Gum.ImportDetails details);
 	public delegate bool FoundExportFunc (Gum.ExportDetails details);
 	public delegate bool FoundSymbolFunc (Gum.SymbolDetails details);
+	public delegate bool FoundSectionFunc (Gum.SectionDetails details);
 
 	public struct ProcessId : uint {
 	}
@@ -588,6 +590,13 @@ namespace Gum {
 	public struct FileMapping {
 		public string path;
 		public uint64 offset;
+	}
+
+	public struct SectionDetails {
+		public string id;
+		public string name;
+		public Gum.Address address;
+		public size_t size;
 	}
 
 	public struct Address : uint64 {

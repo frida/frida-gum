@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -43,6 +43,9 @@ static gboolean gum_emit_symbol (const GumSymbolDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumQuickMatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_sections)
+static gboolean gum_emit_section (const GumSectionDetails * details,
+    GumQuickMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
@@ -73,6 +76,7 @@ static const JSCFunctionListEntry gumjs_module_entries[] =
   JS_CFUNC_DEF ("_enumerateExports", 0, gumjs_module_enumerate_exports),
   JS_CFUNC_DEF ("_enumerateSymbols", 0, gumjs_module_enumerate_symbols),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_module_enumerate_ranges),
+  JS_CFUNC_DEF ("_enumerateSections", 0, gumjs_module_enumerate_sections),
   JS_CFUNC_DEF ("findBaseAddress", 0, gumjs_module_find_base_address),
   JS_CFUNC_DEF ("findExportByName", 0, gumjs_module_find_export_by_name),
 };
@@ -454,6 +458,58 @@ gum_emit_range (const GumRangeDetails * details,
   result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &d);
 
   JS_FreeValue (ctx, d);
+
+  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_sections)
+{
+  GumQuickMatchContext mc;
+  gchar * name;
+
+  if (!_gum_quick_args_parse (args, "sF{onMatch,onComplete}", &name,
+      &mc.on_match, &mc.on_complete))
+    return JS_EXCEPTION;
+  mc.result = GUM_QUICK_MATCH_CONTINUE;
+  mc.ctx = ctx;
+  mc.core = core;
+
+  gum_module_enumerate_sections (name, (GumFoundSectionFunc) gum_emit_section,
+      &mc);
+
+  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+}
+
+static gboolean
+gum_emit_section (const GumSectionDetails * details,
+                  GumQuickMatchContext * mc)
+{
+  JSContext * ctx = mc->ctx;
+  GumQuickCore * core = mc->core;
+  JSValue section, result;
+
+  section = JS_NewObject (ctx);
+  JS_DefinePropertyValue (ctx, section,
+      GUM_QUICK_CORE_ATOM (core, id),
+      JS_NewString (ctx, details->id),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, section,
+      GUM_QUICK_CORE_ATOM (core, name),
+      JS_NewString (ctx, details->name),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, section,
+      GUM_QUICK_CORE_ATOM (core, address),
+      _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
+          core),
+      JS_PROP_C_W_E);
+  JS_DefinePropertyValue (ctx, section,
+      GUM_QUICK_CORE_ATOM (core, size),
+      JS_NewUint32 (ctx, details->size),
+      JS_PROP_C_W_E);
+
+  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &section);
+
+  JS_FreeValue (ctx, section);
 
   return _gum_quick_process_match_result (ctx, &result, &mc->result);
 }
