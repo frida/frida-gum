@@ -866,7 +866,17 @@ gum_elf_module_load_section_details (GumElfModule * self,
 
     GUM_CHECK_STR_BOUNDS (name, "section name");
 
-    d->id = g_strdup_printf ("%u%s", 1 + i, name);
+    if (name[0] != '\0')
+    {
+      d->id = g_strdup_printf ("%u%s%s",
+          i,
+          (name[0] != '.') ? "." : "",
+          name);
+    }
+    else
+    {
+      d->id = g_strdup_printf ("%u", i);
+    }
     d->name = name;
     d->type = shdr->type;
     d->flags = shdr->flags;
