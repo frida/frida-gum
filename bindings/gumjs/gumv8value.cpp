@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1144,6 +1144,25 @@ _gum_v8_ssize_get (Local<Value> value,
   return FALSE;
 }
 
+Local<String>
+_gum_v8_enum_new (Isolate * isolate,
+                  gint value,
+                  GType type)
+{
+  auto enum_class = (GEnumClass *) g_type_class_ref (type);
+
+  GEnumValue * enum_value = g_enum_get_value (enum_class, value);
+  g_assert (enum_value != NULL);
+
+  auto result = String::NewFromOneByte (isolate,
+      (const uint8_t *) enum_value->value_nick,
+      NewStringType::kNormal).ToLocalChecked ();
+
+  g_type_class_unref (enum_class);
+
+  return result;
+}
+
 Local<Object>
 _gum_v8_native_pointer_new (gpointer address,
                             GumV8Core * core)
@@ -1650,6 +1669,19 @@ _gum_v8_object_set_uint64 (Local<Object> object,
   return _gum_v8_object_set (object,
       key,
       _gum_v8_uint64_new (value, core),
+      core);
+}
+
+gboolean
+_gum_v8_object_set_enum (Local<Object> object,
+                         const gchar * key,
+                         gint value,
+                         GType type,
+                         GumV8Core * core)
+{
+  return _gum_v8_object_set (object,
+      key,
+      _gum_v8_enum_new (core->isolate, value, type),
       core);
 }
 

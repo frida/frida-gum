@@ -221,7 +221,8 @@ gum_darwin_module_init (GumDarwinModule * self)
 {
   self->segments = g_array_new (FALSE, FALSE, sizeof (GumDarwinSegment));
   self->text_ranges = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
-  self->dependencies = g_ptr_array_sized_new (5);
+  self->dependencies =
+      g_array_new (FALSE, FALSE, sizeof (GumDependencyDetails));
   self->reexports = g_ptr_array_sized_new (5);
 }
 
@@ -244,7 +245,7 @@ gum_darwin_module_finalize (GObject * object)
 {
   GumDarwinModule * self = GUM_DARWIN_MODULE (object);
 
-  g_ptr_array_unref (self->dependencies);
+  g_array_unref (self->dependencies);
   g_ptr_array_unref (self->reexports);
 
   g_free (self->rebases_malloc_data);
@@ -1701,7 +1702,7 @@ gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
 
 void
 gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
-                                          GumFoundDarwinDependencyFunc func,
+                                          GumFoundDependencyFunc func,
                                           gpointer user_data)
 {
   guint i;
@@ -1709,15 +1710,12 @@ gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self, NULL))
     return;
 
-  for (i = 0; i < self->dependencies->len; i++)
+  for (i = 0; i != self->dependencies->len; i++)
   {
-    const gchar * path;
+    const GumDependencyDetails * d =
+        &g_array_index (self->dependencies, GumDependencyDetails, i);
 
-    path = g_ptr_array_index (self->dependencies, i);
-    if (path == NULL)
-      continue;
-
-    if (!func (path, user_data))
+    if (!func (d, user_data))
       return;
   }
 }
@@ -1794,7 +1792,7 @@ gum_darwin_module_get_dependency_by_ordinal (GumDarwinModule * self,
   if (i < 0 || i >= (gint) self->dependencies->len)
     return NULL;
 
-  return g_ptr_array_index (self->dependencies, i);
+  return g_array_index (self->dependencies, GumDependencyDetails, i).name;
 }
 
 gboolean
@@ -2414,13 +2412,30 @@ gum_darwin_module_take_image (GumDarwinModule * self,
       case GUM_LC_LOAD_UPWARD_DYLIB:
       {
         const GumDylibCommand * dc = command;
-        const gchar * name;
+        GumDependencyDetails dep;
 
-        name = (const gchar *) command + dc->dylib.name.offset;
-        g_ptr_array_add (self->dependencies, (gpointer) name);
+        dep.name = (const gchar *) command + dc->dylib.name.offset;
+        switch (lc->cmd)
+        {
+          case GUM_LC_LOAD_DYLIB:
+            dep.type = GUM_DEPENDENCY_REGULAR;
+            break;
+          case GUM_LC_LOAD_WEAK_DYLIB:
+            dep.type = GUM_DEPENDENCY_WEAK;
+            break;
+          case GUM_LC_REEXPORT_DYLIB:
+            dep.type = GUM_DEPENDENCY_REEXPORT;
+            break;
+          case GUM_LC_LOAD_UPWARD_DYLIB:
+            dep.type = GUM_DEPENDENCY_UPWARD;
+            break;
+          default:
+            g_assert_not_reached ();
+        }
+        g_array_append_val (self->dependencies, dep);
 
         if (lc->cmd == GUM_LC_REEXPORT_DYLIB)
-          g_ptr_array_add (self->reexports, (gpointer) name);
+          g_ptr_array_add (self->reexports, (gpointer) dep.name);
 
         break;
       }

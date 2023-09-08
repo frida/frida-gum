@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -85,6 +85,9 @@ G_GNUC_INTERNAL gboolean _gum_v8_size_get (v8::Local<v8::Value> value,
 G_GNUC_INTERNAL gboolean _gum_v8_ssize_get (v8::Local<v8::Value> value,
     gssize * size, GumV8Core * core);
 
+G_GNUC_INTERNAL v8::Local<v8::String> _gum_v8_enum_new (v8::Isolate * isolate,
+    gint value, GType type);
+
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_native_pointer_new (
     gpointer address, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_native_pointer_get (
@@ -143,6 +146,8 @@ G_GNUC_INTERNAL gboolean _gum_v8_object_set_pointer (
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_uint64 (
     v8::Local<v8::Object> object, const gchar * key, GumAddress value,
     GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_object_set_enum (v8::Local<v8::Object> object,
+    const gchar * key, gint value, GType type, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_ascii (
     v8::Local<v8::Object> object, const gchar * key, const gchar * value,
     GumV8Core * core);

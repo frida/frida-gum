@@ -823,6 +823,15 @@ gum_module_enumerate_sections (const gchar * module_name,
       user_data);
 }
 
+void
+gum_module_enumerate_dependencies (const gchar * module_name,
+                                   GumFoundDependencyFunc func,
+                                   gpointer user_data)
+{
+  gum_darwin_enumerate_dependencies (mach_task_self (), module_name, func,
+      user_data);
+}
+
 GumAddress
 gum_module_find_base_address (const gchar * module_name)
 {
@@ -2310,6 +2319,26 @@ gum_emit_section (const GumDarwinSectionDetails * details,
   ctx->next_section_id++;
 
   return carry_on;
+}
+
+void
+gum_darwin_enumerate_dependencies (mach_port_t task,
+                                   const gchar * module_name,
+                                   GumFoundDependencyFunc func,
+                                   gpointer user_data)
+{
+  GumDarwinModuleResolver * resolver;
+  GumDarwinModule * module;
+
+  resolver = gum_darwin_module_resolver_new (task, NULL);
+  if (resolver == NULL)
+    return;
+
+  module = gum_darwin_module_resolver_find_module (resolver, module_name);
+  if (module != NULL)
+    gum_darwin_module_enumerate_dependencies (module, func, user_data);
+
+  gum_object_unref (resolver);
 }
 
 gboolean

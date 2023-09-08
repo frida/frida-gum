@@ -289,6 +289,7 @@ makeEnumerateApi(Module, 'enumerateExports', 1);
 makeEnumerateApi(Module, 'enumerateSymbols', 1);
 makeEnumerateApi(Module, 'enumerateRanges', 2);
 makeEnumerateApi(Module, 'enumerateSections', 1);
+makeEnumerateApi(Module, 'enumerateDependencies', 1);
 
 Object.defineProperties(Module, {
   load: {
@@ -349,6 +350,12 @@ Object.defineProperties(Module.prototype, {
     enumerable: true,
     value: function () {
       return Module.enumerateSections(this.path);
+    }
+  },
+  enumerateDependencies: {
+    enumerable: true,
+    value: function () {
+      return Module.enumerateDependencies(this.path);
     }
   },
   findExportByName: {

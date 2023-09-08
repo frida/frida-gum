@@ -849,6 +849,13 @@ gum_module_enumerate_sections (const gchar * module_name,
 {
 }
 
+void
+gum_module_enumerate_dependencies (const gchar * module_name,
+                                   GumFoundDependencyFunc func,
+                                   gpointer user_data)
+{
+}
+
 GumAddress
 gum_module_find_base_address (const gchar * module_name)
 {

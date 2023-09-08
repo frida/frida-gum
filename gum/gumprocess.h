@@ -30,6 +30,7 @@ typedef struct _GumSymbolSection GumSymbolSection;
 typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumSectionDetails GumSectionDetails;
+typedef struct _GumDependencyDetails GumDependencyDetails;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
 
 typedef enum {
@@ -151,6 +152,19 @@ struct _GumSectionDetails
   gsize size;
 };
 
+typedef enum {
+  GUM_DEPENDENCY_REGULAR,
+  GUM_DEPENDENCY_WEAK,
+  GUM_DEPENDENCY_REEXPORT,
+  GUM_DEPENDENCY_UPWARD,
+} GumDependencyType;
+
+struct _GumDependencyDetails
+{
+  const gchar * name;
+  GumDependencyType type;
+};
+
 struct _GumMallocRangeDetails
 {
   const GumMemoryRange * range;
@@ -172,6 +186,8 @@ typedef gboolean (* GumFoundRangeFunc) (const GumRangeDetails * details,
     gpointer user_data);
 typedef gboolean (* GumFoundSectionFunc) (const GumSectionDetails * details,
     gpointer user_data);
+typedef gboolean (* GumFoundDependencyFunc) (
+    const GumDependencyDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundMallocRangeFunc) (
     const GumMallocRangeDetails * details, gpointer user_data);
 typedef GumAddress (* GumResolveExportFunc) (const char * module_name,
@@ -215,6 +231,8 @@ GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_sections (const gchar * module_name,
     GumFoundSectionFunc func, gpointer user_data);
+GUM_API void gum_module_enumerate_dependencies (const gchar * module_name,
+    GumFoundDependencyFunc func, gpointer user_data);
 GUM_API GumAddress gum_module_find_base_address (const gchar * module_name);
 GUM_API GumAddress gum_module_find_export_by_name (const gchar * module_name,
     const gchar * symbol_name);

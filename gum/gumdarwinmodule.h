@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -69,8 +69,6 @@ typedef gboolean (* GumFoundDarwinInitOffsetsFunc) (
     const GumDarwinInitOffsetsDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundDarwinTermPointersFunc) (
     const GumDarwinTermPointersDetails * details, gpointer user_data);
-typedef gboolean (* GumFoundDarwinDependencyFunc) (const gchar * path,
-    gpointer user_data);
 typedef gboolean (* GumFoundDarwinFunctionStartsFunc) (
     const GumDarwinFunctionStartsDetails * details, gpointer user_data);
 
@@ -154,7 +152,7 @@ struct _GumDarwinModule
   const guint8 * exports_end;
   gpointer exports_malloc_data;
 
-  GPtrArray * dependencies;
+  GArray * dependencies;
   GPtrArray * reexports;
 };
 
@@ -614,7 +612,7 @@ GUM_API void gum_darwin_module_enumerate_init_offsets (GumDarwinModule * self,
 GUM_API void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
     GumFoundDarwinTermPointersFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
-    GumFoundDarwinDependencyFunc func, gpointer user_data);
+    GumFoundDependencyFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_function_starts (
     GumDarwinModule * self, GumFoundDarwinFunctionStartsFunc func,
     gpointer user_data);

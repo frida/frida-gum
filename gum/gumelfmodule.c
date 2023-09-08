@@ -47,10 +47,10 @@
 
 typedef guint GumElfDynamicAddressState;
 typedef struct _GumElfRelocationGroup GumElfRelocationGroup;
-typedef struct _GumElfEnumerateDepsContext GumElfEnumerateDepsContext;
 typedef struct _GumElfEnumerateImportsContext GumElfEnumerateImportsContext;
 typedef struct _GumElfEnumerateExportsContext GumElfEnumerateExportsContext;
 typedef struct _GumElfStoreSymtabParamsContext GumElfStoreSymtabParamsContext;
+typedef struct _GumElfEnumerateDepsContext GumElfEnumerateDepsContext;
 
 enum
 {
@@ -120,14 +120,6 @@ struct _GumElfRelocationGroup
   const GumElfSectionDetails * parent;
 };
 
-struct _GumElfEnumerateDepsContext
-{
-  GumFoundElfDependencyFunc func;
-  gpointer user_data;
-
-  GumElfModule * module;
-};
-
 struct _GumElfEnumerateImportsContext
 {
   GumFoundImportFunc func;
@@ -148,6 +140,14 @@ struct _GumElfStoreSymtabParamsContext
   gpointer entries;
   gsize entry_size;
   gsize entry_count;
+
+  GumElfModule * module;
+};
+
+struct _GumElfEnumerateDepsContext
+{
+  GumFoundDependencyFunc func;
+  gpointer user_data;
 
   GumElfModule * module;
 };
@@ -175,8 +175,6 @@ static void gum_elf_module_unload (GumElfModule * self);
 static gboolean gum_elf_module_emit_relocations (GumElfModule * self,
     const GumElfRelocationGroup * g, GumFoundElfRelocationFunc func,
     gpointer user_data);
-static gboolean gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
-    gpointer user_data);
 static gboolean gum_emit_elf_import (const GumElfSymbolDetails * details,
     gpointer user_data);
 static gboolean gum_emit_elf_export (const GumElfSymbolDetails * details,
@@ -191,6 +189,8 @@ static gboolean gum_adjust_symtab_params (const GumElfSectionDetails * details,
     gpointer user_data);
 static void gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
     GumElfSectionType section, GumFoundElfSymbolFunc func, gpointer user_data);
+static gboolean gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
+    gpointer user_data);
 static gboolean gum_elf_module_find_address_protection (GumElfModule * self,
     GumAddress address, GumPageProtection * prot);
 static GumPageProtection gum_parse_phdr_protection (const GumElfPhdr * phdr);
@@ -1464,45 +1464,6 @@ gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
 }
 
 void
-gum_elf_module_enumerate_dependencies (GumElfModule * self,
-                                       GumFoundElfDependencyFunc func,
-                                       gpointer user_data)
-{
-  GumElfEnumerateDepsContext ctx;
-
-  ctx.func = func;
-  ctx.user_data = user_data;
-
-  ctx.module = self;
-
-  gum_elf_module_enumerate_dynamic_entries (self, gum_emit_each_needed, &ctx);
-}
-
-static gboolean
-gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
-                      gpointer user_data)
-{
-  GumElfEnumerateDepsContext * ctx = user_data;
-  gconstpointer data;
-  gsize size;
-  GumElfDependencyDetails d;
-
-  if (details->tag != GUM_ELF_DYNAMIC_NEEDED)
-    return TRUE;
-
-  data = gum_elf_module_get_live_data (ctx->module, &size);
-
-  d.name = ctx->module->dynamic_strings + details->val;
-  if (!gum_elf_module_check_str_bounds (ctx->module, d.name, data, size,
-        "dependencies", NULL))
-  {
-    return TRUE;
-  }
-
-  return ctx->func (&d, ctx->user_data);
-}
-
-void
 gum_elf_module_enumerate_imports (GumElfModule * self,
                                   GumFoundImportFunc func,
                                   gpointer user_data)
@@ -1912,6 +1873,46 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
 
 propagate_error:
   return;
+}
+
+void
+gum_elf_module_enumerate_dependencies (GumElfModule * self,
+                                       GumFoundDependencyFunc func,
+                                       gpointer user_data)
+{
+  GumElfEnumerateDepsContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  ctx.module = self;
+
+  gum_elf_module_enumerate_dynamic_entries (self, gum_emit_each_needed, &ctx);
+}
+
+static gboolean
+gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
+                      gpointer user_data)
+{
+  GumElfEnumerateDepsContext * ctx = user_data;
+  gconstpointer data;
+  gsize size;
+  GumDependencyDetails d;
+
+  if (details->tag != GUM_ELF_DYNAMIC_NEEDED)
+    return TRUE;
+
+  data = gum_elf_module_get_live_data (ctx->module, &size);
+
+  d.name = ctx->module->dynamic_strings + details->val;
+  if (!gum_elf_module_check_str_bounds (ctx->module, d.name, data, size,
+        "dependencies", NULL))
+  {
+    return TRUE;
+  }
+  d.type = GUM_DEPENDENCY_REGULAR;
+
+  return ctx->func (&d, ctx->user_data);
 }
 
 static gboolean

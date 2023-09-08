@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -490,7 +490,7 @@ gum_darwin_mapper_load (GumDarwinMapper * self,
                         GError ** error)
 {
   GumDarwinModule * module = self->module;
-  GPtrArray * dependencies;
+  GArray * dependencies;
   guint i;
 
   if (self->dependencies != NULL)
@@ -511,7 +511,8 @@ gum_darwin_mapper_load (GumDarwinMapper * self,
     GumDarwinMapping * dependency;
 
     dependency = gum_darwin_mapper_get_dependency_by_name (self,
-        g_ptr_array_index (dependencies, i), error);
+        g_array_index (dependencies, GumDependencyDetails, i).name,
+        error);
     if (dependency == NULL)
       return FALSE;
     g_ptr_array_add (self->dependencies, dependency);

@@ -324,6 +324,7 @@ namespace Gum {
 		public void enumerate_symbols (string module_name, Gum.FoundSymbolFunc func);
 		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 		public void enumerate_sections (string module_name, Gum.FoundSectionFunc func);
+		public void enumerate_dependencies (string module_name, Gum.FoundDependencyFunc func);
 		public void * find_base_address (string module_name);
 		public void * find_export_by_name (string? module_name, string symbol_name);
 	}
@@ -505,6 +506,7 @@ namespace Gum {
 	public delegate bool FoundExportFunc (Gum.ExportDetails details);
 	public delegate bool FoundSymbolFunc (Gum.SymbolDetails details);
 	public delegate bool FoundSectionFunc (Gum.SectionDetails details);
+	public delegate bool FoundDependencyFunc (Gum.DependencyDetails details);
 
 	public struct ProcessId : uint {
 	}
@@ -597,6 +599,19 @@ namespace Gum {
 		public string name;
 		public Gum.Address address;
 		public ssize_t size;
+	}
+
+	[CCode (cprefix = "GUM_DEPENDENCY_")]
+	public enum DependencyType {
+		REGULAR,
+		WEAK,
+		REEXPORT,
+		UPWARD,
+	}
+
+	public struct DependencyDetails {
+		public string name;
+		public Gum.DependencyType type;
 	}
 
 	public struct Address : uint64 {
@@ -742,7 +757,7 @@ namespace Gum {
 		public void enumerate_sections (Gum.FoundElfSectionFunc func);
 		public void enumerate_relocations (Gum.FoundElfRelocationFunc func);
 		public void enumerate_dynamic_entries (Gum.FoundElfDynamicEntryFunc func);
-		public void enumerate_dependencies (Gum.FoundElfDependencyFunc func);
+		public void enumerate_dependencies (Gum.FoundDependencyFunc func);
 		public void enumerate_imports (Gum.FoundImportFunc func);
 		public void enumerate_exports (Gum.FoundExportFunc func);
 		public void enumerate_dynamic_symbols (Gum.FoundElfSymbolFunc func);
@@ -984,7 +999,6 @@ namespace Gum {
 	public delegate bool FoundElfSectionFunc (Gum.ElfSectionDetails details);
 	public delegate bool FoundElfRelocationFunc (Gum.ElfRelocationDetails details);
 	public delegate bool FoundElfDynamicEntryFunc (Gum.ElfDynamicEntryDetails details);
-	public delegate bool FoundElfDependencyFunc (Gum.ElfDependencyDetails details);
 	public delegate bool FoundElfSymbolFunc (Gum.ElfSymbolDetails details);
 
 	public struct ElfSegmentDetails {
@@ -1021,10 +1035,6 @@ namespace Gum {
 	public struct ElfDynamicEntryDetails {
 		public Gum.ElfDynamicTag tag;
 		public uint64 val;
-	}
-
-	public struct ElfDependencyDetails {
-		public string name;
 	}
 
 	public struct ElfSymbolDetails {
@@ -1739,7 +1749,7 @@ namespace Gum {
 		public void enumerate_init_pointers (Gum.FoundDarwinInitPointersFunc func);
 		public void enumerate_init_offsets (Gum.FoundDarwinInitOffsetsFunc func);
 		public void enumerate_term_pointers (Gum.FoundDarwinTermPointersFunc func);
-		public void enumerate_dependencies (Gum.FoundDarwinDependencyFunc func);
+		public void enumerate_dependencies (Gum.FoundDependencyFunc func);
 		public unowned string? get_dependency_by_ordinal (int ordinal);
 	}
 
@@ -1752,7 +1762,6 @@ namespace Gum {
 	public delegate bool FoundDarwinInitPointersFunc (Gum.DarwinInitPointersDetails details);
 	public delegate bool FoundDarwinInitOffsetsFunc (Gum.DarwinInitOffsetsDetails details);
 	public delegate bool FoundDarwinTermPointersFunc (Gum.DarwinTermPointersDetails details);
-	public delegate bool FoundDarwinDependencyFunc (string path);
 
 	[Compact]
 	public class DarwinModuleImage {

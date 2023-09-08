@@ -211,6 +211,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (module_ranges_can_be_enumerated)
     TESTENTRY (module_ranges_can_be_enumerated_legacy_style)
     TESTENTRY (module_sections_can_be_enumerated)
+    TESTENTRY (module_dependencies_can_be_enumerated)
     TESTENTRY (module_base_address_can_be_found)
     TESTENTRY (module_export_can_be_found_by_name)
     TESTENTRY (module_can_be_loaded)
@@ -5497,6 +5498,17 @@ TESTCASE (module_sections_can_be_enumerated)
       "const sections = Process.getModuleByName('%s').enumerateSections();"
       "send(sections.length > 0);",
       SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#endif
+}
+
+TESTCASE (module_dependencies_can_be_enumerated)
+{
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const deps = Process.getModuleByName('%s').enumerateDependencies();"
+      "send(deps.length > 0);",
+      GUM_TESTS_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
 }

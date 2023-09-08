@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1216,6 +1216,27 @@ expected_number:
     _gum_quick_throw_literal (ctx, "expected a number");
     return FALSE;
   }
+}
+
+JSValue
+_gum_quick_enum_new (JSContext * ctx,
+                     gint value,
+                     GType type)
+{
+  JSValue result;
+  GEnumClass * enum_class;
+  GEnumValue * enum_value;
+
+  enum_class = g_type_class_ref (type);
+
+  enum_value = g_enum_get_value (enum_class, value);
+  g_assert (enum_value != NULL);
+
+  result = JS_NewString (ctx, enum_value->value_nick);
+
+  g_type_class_unref (enum_class);
+
+  return result;
 }
 
 JSValue

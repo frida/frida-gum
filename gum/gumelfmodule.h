@@ -876,7 +876,6 @@ typedef struct _GumElfSegmentDetails GumElfSegmentDetails;
 typedef struct _GumElfSectionDetails GumElfSectionDetails;
 typedef struct _GumElfRelocationDetails GumElfRelocationDetails;
 typedef struct _GumElfDynamicEntryDetails GumElfDynamicEntryDetails;
-typedef struct _GumElfDependencyDetails GumElfDependencyDetails;
 typedef struct _GumElfSymbolDetails GumElfSymbolDetails;
 
 typedef gboolean (* GumFoundElfSegmentFunc) (
@@ -887,8 +886,6 @@ typedef gboolean (* GumFoundElfRelocationFunc) (
     const GumElfRelocationDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundElfDynamicEntryFunc) (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
-typedef gboolean (* GumFoundElfDependencyFunc) (
-    const GumElfDependencyDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundElfSymbolFunc) (const GumElfSymbolDetails * details,
     gpointer user_data);
 
@@ -930,11 +927,6 @@ struct _GumElfDynamicEntryDetails
 {
   GumElfDynamicTag tag;
   guint64 val;
-};
-
-struct _GumElfDependencyDetails
-{
-  const gchar * name;
 };
 
 struct _GumElfSymbolDetails
@@ -982,8 +974,6 @@ GUM_API void gum_elf_module_enumerate_relocations (GumElfModule * self,
     GumFoundElfRelocationFunc func, gpointer user_data);
 GUM_API void gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
     GumFoundElfDynamicEntryFunc func, gpointer user_data);
-GUM_API void gum_elf_module_enumerate_dependencies (GumElfModule * self,
-    GumFoundElfDependencyFunc func, gpointer user_data);
 GUM_API void gum_elf_module_enumerate_imports (GumElfModule * self,
     GumFoundImportFunc func, gpointer user_data);
 GUM_API void gum_elf_module_enumerate_exports (GumElfModule * self,
@@ -992,6 +982,8 @@ GUM_API void gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     GumFoundElfSymbolFunc func, gpointer user_data);
 GUM_API void gum_elf_module_enumerate_symbols (GumElfModule * self,
     GumFoundElfSymbolFunc func, gpointer user_data);
+GUM_API void gum_elf_module_enumerate_dependencies (GumElfModule * self,
+    GumFoundDependencyFunc func, gpointer user_data);
 
 GUM_API GumAddress gum_elf_module_translate_to_offline (GumElfModule * self,
     GumAddress online_address);

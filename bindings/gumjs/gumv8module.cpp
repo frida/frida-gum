@@ -80,6 +80,9 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_sections)
 static gboolean gum_emit_section (const GumSectionDetails * details,
     GumV8MatchContext<GumV8Module> * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_dependencies)
+static gboolean gum_emit_dependency (const GumDependencyDetails * details,
+    GumV8MatchContext<GumV8Module> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
@@ -111,6 +114,7 @@ static const GumV8Function gumjs_module_static_functions[] =
   { "_enumerateSymbols", gumjs_module_enumerate_symbols },
   { "_enumerateRanges", gumjs_module_enumerate_ranges },
   { "_enumerateSections", gumjs_module_enumerate_sections },
+  { "_enumerateDependencies", gumjs_module_enumerate_dependencies },
   { "findBaseAddress", gumjs_module_find_base_address },
   { "findExportByName", gumjs_module_find_export_by_name },
 
@@ -546,6 +550,37 @@ gum_emit_section (const GumSectionDetails * details,
   _gum_v8_object_set_uint (section, "size", details->size, core);
 
   return mc->OnMatch (section);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_dependencies)
+{
+  gchar * name;
+  GumV8MatchContext<GumV8Module> mc (isolate, module);
+  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name,
+      &mc.on_match, &mc.on_complete))
+    return;
+
+  gum_module_enumerate_dependencies (name,
+      (GumFoundDependencyFunc) gum_emit_dependency, &mc);
+
+  mc.OnComplete ();
+
+  g_free (name);
+}
+
+static gboolean
+gum_emit_dependency (const GumDependencyDetails * details,
+                     GumV8MatchContext<GumV8Module> * mc)
+{
+  auto core = mc->parent->core;
+  auto isolate = mc->isolate;
+
+  auto dependency = Object::New (isolate);
+  _gum_v8_object_set_utf8 (dependency, "name", details->name, core);
+  _gum_v8_object_set_enum (dependency, "type", details->type,
+      GUM_TYPE_DEPENDENCY_TYPE, core);
+
+  return mc->OnMatch (dependency);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)

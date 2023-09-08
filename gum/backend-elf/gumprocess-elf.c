@@ -54,7 +54,7 @@ struct _GumEnumerateSectionsContext
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
 static gboolean gum_collect_dependency_exports (
-    const GumElfDependencyDetails * details, gpointer user_data);
+    const GumDependencyDetails * details, gpointer user_data);
 static gboolean gum_collect_dependency_export (const GumExportDetails * details,
     gpointer user_data);
 static GumDependencyExport * gum_dependency_export_new (const gchar * module,
@@ -140,7 +140,7 @@ gum_emit_import (const GumImportDetails * details,
 }
 
 static gboolean
-gum_collect_dependency_exports (const GumElfDependencyDetails * details,
+gum_collect_dependency_exports (const GumDependencyDetails * details,
                                 gpointer user_data)
 {
   GumEnumerateImportsContext * ctx = user_data;
@@ -334,6 +334,20 @@ gum_emit_section (const GumElfSectionDetails * details,
   section.size = details->size;
 
   return ctx->func (&section, ctx->user_data);
+}
+
+void
+gum_module_enumerate_dependencies (const gchar * module_name,
+                                   GumFoundDependencyFunc func,
+                                   gpointer user_data)
+{
+  GumElfModule * module = gum_open_elf_module (module_name);
+  if (module == NULL)
+    return;
+
+  gum_elf_module_enumerate_dependencies (module, func, user_data);
+
+  gum_object_unref (module);
 }
 
 GumAddress
