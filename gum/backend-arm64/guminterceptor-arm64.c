@@ -1,6 +1,7 @@
 /*
- * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -53,6 +54,7 @@ struct _GumInterceptorBackend
 struct _GumArm64FunctionContextData
 {
   guint redirect_code_size;
+  guint reloc_code_size;
   arm64_reg scratch_reg;
 };
 
@@ -630,6 +632,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
       GUM_SCENARIO_ONLINE, &redirect_limit, &data->scratch_reg))
   {
     data->redirect_code_size = 16;
+    data->reloc_code_size = redirect_limit;
 
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
   }
@@ -660,6 +663,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     {
       return FALSE;
     }
+
+    data->reloc_code_size = data->redirect_code_size;
 
     ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
         self->allocator, &spec, alignment);
@@ -695,7 +700,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gpointer deflector_target;
   GString * signature;
   gboolean is_eligible_for_lr_rewriting;
-  guint reloc_bytes;
+  guint reloc_bytes, overwritten_bytes;
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx, &need_deflector))
     return FALSE;
@@ -761,6 +766,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   signature = g_string_sized_new (16);
 
+  overwritten_bytes = 0;
   do
   {
     const cs_insn * insn;
@@ -768,11 +774,17 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     reloc_bytes = gum_arm64_relocator_read_one (ar, &insn);
     g_assert (reloc_bytes != 0);
 
+    if (overwritten_bytes == 0 &&
+        reloc_bytes >= data->redirect_code_size)
+    {
+      overwritten_bytes = reloc_bytes;
+    }
+
     if (signature->len != 0)
       g_string_append_c (signature, ';');
     g_string_append (signature, insn->mnemonic);
   }
-  while (reloc_bytes < data->redirect_code_size);
+  while (reloc_bytes < data->reloc_code_size);
 
   /*
    * Try to deal with minimal thunks that determine their caller and pass
@@ -865,8 +877,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_arm64_writer_flush (aw);
   g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
 
-  ctx->overwritten_prologue_len = reloc_bytes;
-  gum_memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
+  ctx->overwritten_prologue_len = overwritten_bytes;
+  gum_memcpy (ctx->overwritten_prologue, function_address, overwritten_bytes);
 
   return TRUE;
 }
