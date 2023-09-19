@@ -950,12 +950,12 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
         gum_arm64_writer_put_b_imm (aw, on_enter);
         break;
       case 8:
-        gum_arm64_writer_put_adrp_reg_address (aw, ARM64_REG_X16, on_enter);
-        gum_arm64_writer_put_br_reg_no_auth (aw, ARM64_REG_X16);
+        gum_arm64_writer_put_adrp_reg_address (aw, data->scratch_reg, on_enter);
+        gum_arm64_writer_put_br_reg_no_auth (aw, data->scratch_reg);
         break;
       case 16:
-        gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16, on_enter);
-        gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
+        gum_arm64_writer_put_ldr_reg_address (aw, data->scratch_reg, on_enter);
+        gum_arm64_writer_put_br_reg (aw, data->scratch_reg);
         break;
       default:
         g_assert_not_reached ();
