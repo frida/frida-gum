@@ -2860,7 +2860,7 @@ gum_exports_trie_foreach (const guint8 * exports,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  ctx.prefix = g_string_new ("");
+  ctx.prefix = g_string_sized_new (1024);
   ctx.exports = exports;
   ctx.exports_end = exports_end;
 
