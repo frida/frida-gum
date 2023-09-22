@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -73,6 +74,7 @@
 #include "gumapiresolver.h"
 
 #include "gummoduleapiresolver.h"
+#include "gumswiftapiresolver.h"
 #ifdef HAVE_DARWIN
 # include "backend-darwin/gumobjcapiresolver.h"
 #endif
@@ -113,6 +115,9 @@ gum_api_resolver_make (const gchar * type)
 {
   if (strcmp (type, "module") == 0)
     return gum_module_api_resolver_new ();
+
+  if (strcmp (type, "swift") == 0)
+    return gum_swift_api_resolver_new ();
 
 #ifdef HAVE_DARWIN
   if (strcmp (type, "objc") == 0)

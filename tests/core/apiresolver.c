@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +17,7 @@ TESTLIST_BEGIN (api_resolver)
 #ifdef HAVE_DARWIN
   TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
   TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
+  TESTENTRY (swift_method_can_be_resolved)
 #endif
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
@@ -196,6 +198,8 @@ match_found_cb (const GumApiDetails * details,
 
 static gboolean resolve_method_impl (const GumApiDetails * details,
     gpointer user_data);
+static gboolean accumulate_matches (const GumApiDetails * details,
+    gpointer user_data);
 
 TESTCASE (objc_method_can_be_resolved_from_class_method_address)
 {
@@ -243,6 +247,31 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
   g_free (method);
 }
 
+TESTCASE (swift_method_can_be_resolved)
+{
+  guint num_matches;
+  GError * error = NULL;
+
+  fixture->resolver = gum_api_resolver_make ("swift");
+
+  num_matches = 0;
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "functions:*!*", accumulate_matches, &num_matches, &error);
+  if (g_error_matches (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED))
+    goto not_supported;
+  g_assert_no_error (error);
+  g_assert_cmpuint (num_matches, >, 0);
+
+  return;
+
+not_supported:
+  {
+    g_print ("<skipping, not available> ");
+
+    g_error_free (error);
+  }
+}
+
 static gboolean
 resolve_method_impl (const GumApiDetails * details,
                      gpointer user_data)
@@ -252,6 +281,17 @@ resolve_method_impl (const GumApiDetails * details,
   *address = details->address;
 
   return FALSE;
+}
+
+static gboolean
+accumulate_matches (const GumApiDetails * details,
+                    gpointer user_data)
+{
+  guint * total = user_data;
+
+  (*total)++;
+
+  return TRUE;
 }
 
 #endif
