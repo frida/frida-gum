@@ -371,7 +371,8 @@ gum_arm64_relocator_can_relocate (gpointer address,
                                   arm64_reg * available_scratch_reg)
 {
   guint n = 0;
-  gboolean fully_relocated = FALSE;
+  gboolean can_be_fully_relocated = FALSE;
+  gsize first_basic_block_size = 0;
   guint8 * buf;
   GumArm64Writer cw;
   GumArm64Relocator rl;
@@ -427,7 +428,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
     GHashTable * checked_targets, * targets_to_check;
     csh capstone;
     guint basic_block_index;
-    gsize first_basic_block_size;
     cs_insn * insn;
     const guint8 * current_code;
     uint64_t current_address;
@@ -550,25 +550,19 @@ gum_arm64_relocator_can_relocate (gpointer address,
     }
     while (current_code != NULL);
 
-    fully_relocated =
+    can_be_fully_relocated =
         g_hash_table_size (checked_targets) == 1 &&
-        first_basic_block_size <= 128;
-    if (fully_relocated)
+        first_basic_block_size <= 48;
+
+    g_hash_table_iter_init (&iter, checked_targets);
+    while (g_hash_table_iter_next (&iter, &target, NULL))
     {
-      n = first_basic_block_size;
-    }
-    else
-    {
-      g_hash_table_iter_init (&iter, checked_targets);
-      while (g_hash_table_iter_next (&iter, &target, NULL))
+      gssize offset = (gssize) target - (gssize) address;
+      if (offset > 0 && offset < (gssize) n)
       {
-        gssize offset = (gssize) target - (gssize) address;
-        if (offset > 0 && offset < (gssize) n)
-        {
-          n = offset;
-          if (n == 4)
-            break;
-        }
+        n = offset;
+        if (n == 4)
+          break;
       }
     }
 
@@ -591,7 +585,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
       const GumRegState * state = &reg_map.states[i];
 
       if (state->access == GUM_REG_ACCESS_CLOBBERED &&
-          (fully_relocated || state->address >= rl.input_pc))
+          state->address >= rl.input_pc)
       {
         *available_scratch_reg = ARM64_REG_X0 + i;
         break;
@@ -604,19 +598,22 @@ gum_arm64_relocator_can_relocate (gpointer address,
       const GumRegState * x17 = &reg_map.states[17];
 
       if (x16->access == GUM_REG_ACCESS_UNKNOWN ||
-          (fully_relocated || x16->address >= rl.input_pc))
+          x16->address >= rl.input_pc)
       {
         *available_scratch_reg = ARM64_REG_X16;
       }
       else if (x17->access == GUM_REG_ACCESS_UNKNOWN ||
-          (fully_relocated || x17->address >= rl.input_pc))
+          x17->address >= rl.input_pc)
       {
         *available_scratch_reg = ARM64_REG_X17;
       }
     }
 
-    if (*available_scratch_reg == ARM64_REG_INVALID && fully_relocated)
+    if (*available_scratch_reg == ARM64_REG_INVALID && can_be_fully_relocated)
+    {
+      n = first_basic_block_size;
       *available_scratch_reg = ARM64_REG_X16;
+    }
   }
 
   gum_arm64_relocator_clear (&rl);
