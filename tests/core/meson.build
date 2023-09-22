@@ -1,4 +1,6 @@
-subdir('swiftapiresolver')
+if host_os == 'macos'
+  subdir('swiftapiresolver')
+endif
 
 core_sources = [
   'tls.c',
