@@ -1,3 +1,5 @@
+subdir('swiftapiresolver')
+
 core_sources = [
   'tls.c',
   'cloak.c',
