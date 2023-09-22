@@ -887,7 +887,7 @@ gum_module_metadata_maybe_ingest_thunk (GumModuleMetadata * self,
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
   code = GSIZE_TO_POINTER (address);
-  size = 256;
+  size = 1024;
 
   insn = cs_malloc (capstone);
 
