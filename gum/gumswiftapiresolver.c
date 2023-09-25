@@ -828,6 +828,7 @@ gum_module_metadata_collect_class (GumModuleMetadata * self,
     GumClass parent_class;
     const GumMethodDescriptor * parent_method;
     guint vtable_index;
+    gconstpointer impl;
     GPtrArray * parent_vtable;
     GumFunctionMetadata func;
 
@@ -835,6 +836,10 @@ gum_module_metadata_collect_class (GumModuleMetadata * self,
         gum_resolve_relative_indirectable_ptr (&od->class));
     parent_method = gum_resolve_relative_indirectable_ptr (&od->method);
     vtable_index = parent_method - parent_class.methods;
+
+    impl = gum_resolve_method_implementation (&od->impl, parent_method);
+    if (impl == NULL)
+      continue;
 
     parent_vtable = g_hash_table_lookup (self->vtables, parent_class.name);
 
@@ -853,8 +858,7 @@ gum_module_metadata_collect_class (GumModuleMetadata * self,
     if (func.name == NULL)
       func.name = g_strdup_printf ("%s.overrides[%u]", klass.name, i);
 
-    func.address = GUM_ADDRESS (
-        gum_resolve_method_implementation (&od->impl, parent_method));
+    func.address = GUM_ADDRESS (impl);
 
     g_array_append_val (self->functions, func);
 
