@@ -149,7 +149,6 @@ gumjs_get_parent_module (GumQuickCore * core)
 
 GUMJS_DEFINE_FUNCTION (gumjs_database_open)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumQuickDatabase * self;
   const gchar * path;
   gint flags;
@@ -163,11 +162,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
 
   handle = NULL;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_open_v2 (path, &handle, flags, NULL);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     goto invalid_database;
@@ -176,11 +175,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open)
 
 invalid_database:
   {
-    gum_interceptor_ignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_IGNORE ();
 
     sqlite3_close_v2 (handle);
 
-    gum_interceptor_unignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_UNIGNORE ();
 
     return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
   }
@@ -188,7 +187,6 @@ invalid_database:
 
 GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumQuickDatabase * self;
   const gchar * encoded_contents;
   gpointer contents;
@@ -212,12 +210,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_open_inline)
 
   handle = NULL;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_open_v2 (path, &handle, SQLITE_OPEN_READWRITE,
       self->memory_vfs->name);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     goto invalid_database;
@@ -230,11 +228,11 @@ invalid_data:
   }
 invalid_database:
   {
-    gum_interceptor_ignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_IGNORE ();
 
     sqlite3_close_v2 (handle);
 
-    gum_interceptor_unignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_UNIGNORE ();
 
     gum_memory_vfs_remove_file (self->memory_vfs, path);
 
@@ -281,40 +279,37 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_database_construct)
 
 GUMJS_DEFINE_FINALIZER (gumjs_database_finalize)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumDatabase * db;
 
   db = JS_GetOpaque (val, gumjs_get_parent_module (core)->database_class);
   if (db == NULL)
     return;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   gum_database_free (db);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_database_close)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumDatabase * self;
 
   if (!gum_database_get_unchecked (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   gum_database_close (self);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_database_exec)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumDatabase * self;
   const gchar * sql;
   gchar * error_message;
@@ -326,11 +321,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_exec)
   if (!_gum_quick_args_parse (args, "s", &sql))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_exec (self->handle, sql, NULL, NULL, &error_message);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     goto error;
@@ -341,11 +336,11 @@ error:
   {
     _gum_quick_throw_literal (ctx, error_message);
 
-    gum_interceptor_ignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_IGNORE ();
 
     sqlite3_free (error_message);
 
-    gum_interceptor_unignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_UNIGNORE ();
 
     return JS_EXCEPTION;
   }
@@ -353,7 +348,6 @@ error:
 
 GUMJS_DEFINE_FUNCTION (gumjs_database_prepare)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumDatabase * self;
   const gchar * sql;
   sqlite3_stmt * statement;
@@ -367,11 +361,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_database_prepare)
 
   statement = NULL;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_prepare_v2 (self->handle, sql, -1, &statement, NULL);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (statement == NULL)
     goto invalid_sql;
@@ -485,23 +479,21 @@ gum_statement_get (JSContext * ctx,
 
 GUMJS_DEFINE_FINALIZER (gumjs_statement_finalize)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   sqlite3_stmt * s;
 
   s = JS_GetOpaque (val, gumjs_get_parent_module (core)->statement_class);
   if (s == NULL)
     return;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   sqlite3_finalize (s);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   sqlite3_stmt * self;
   gint index, value, status;
 
@@ -511,11 +503,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
   if (!_gum_quick_args_parse (args, "ii", &index, &value))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_bind_int64 (self, index, value);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
@@ -525,7 +517,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_float)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   sqlite3_stmt * self;
   gint index;
   gdouble value;
@@ -537,11 +528,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_float)
   if (!_gum_quick_args_parse (args, "in", &index, &value))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_bind_double (self, index, value);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
@@ -551,7 +542,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_float)
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_text)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   sqlite3_stmt * self;
   gint index;
   const gchar * value;
@@ -563,11 +553,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_text)
   if (!_gum_quick_args_parse (args, "is", &index, &value))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_bind_text (self, index, value, -1, SQLITE_TRANSIENT);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
@@ -577,7 +567,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_text)
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_blob)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   sqlite3_stmt * self;
   gint index;
   GBytes * bytes;
@@ -594,11 +583,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_blob)
   data = g_bytes_unref_to_data (_gum_quick_args_steal_bytes (args, bytes),
       &size);
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_bind_blob64 (self, index, data, size, g_free);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
@@ -608,7 +597,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_blob)
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_null)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   sqlite3_stmt * self;
   gint index, status;
 
@@ -618,11 +606,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_null)
   if (!_gum_quick_args_parse (args, "i", &index))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_bind_null (self, index);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
@@ -632,18 +620,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_null)
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_step)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   sqlite3_stmt * self;
   gint status;
 
   if (!gum_statement_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_step (self);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   switch (status)
   {
@@ -658,18 +645,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_statement_step)
 
 GUMJS_DEFINE_FUNCTION (gumjs_statement_reset)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   sqlite3_stmt * self;
   gint status;
 
   if (!gum_statement_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   status = sqlite3_reset (self);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (status != SQLITE_OK)
     return _gum_quick_throw_literal (ctx, sqlite3_errstr (status));
