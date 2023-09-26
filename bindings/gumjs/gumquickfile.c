@@ -253,7 +253,6 @@ gum_file_get (JSContext * ctx,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   JSValue wrapper = JS_NULL;
   const gchar * filename, * mode;
   JSValue proto;
@@ -271,11 +270,11 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   if (JS_IsException (wrapper))
     goto propagate_exception;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   handle = fopen (filename, mode);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (handle == NULL)
     goto fopen_failed;
@@ -322,7 +321,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_tell)
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_seek)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumFile * self;
   gssize offset;
   gint whence;
@@ -335,11 +333,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_seek)
   if (!_gum_quick_args_parse (args, "z|i", &offset, &whence))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   result = fseek (self->handle, offset, whence);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (result == -1)
     goto seek_failed;
@@ -354,7 +352,6 @@ seek_failed:
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_read_bytes)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   JSValue result;
   GumFile * self;
   gsize n;
@@ -368,14 +365,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_bytes)
   if (!_gum_quick_args_parse (args, "|Z", &n))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   if (n == G_MAXSIZE)
     n = gum_file_query_num_bytes_available (self);
 
   if (n == 0)
   {
-    gum_interceptor_unignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_UNIGNORE ();
     return JS_NewArrayBufferCopy (ctx, NULL, 0);
   }
 
@@ -385,7 +382,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_bytes)
 
   num_bytes_read = fread (data, 1, n, self->handle);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (num_bytes_read < n)
   {
@@ -401,7 +398,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_bytes)
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_read_text)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   JSValue result;
   GumFile * self;
   gsize n;
@@ -416,21 +412,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_text)
   if (!_gum_quick_args_parse (args, "|Z", &n))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   if (n == G_MAXSIZE)
     n = gum_file_query_num_bytes_available (self);
 
   if (n == 0)
   {
-    gum_interceptor_unignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_UNIGNORE ();
     return JS_NewString (ctx, "");
   }
 
   data = g_malloc (n);
   num_bytes_read = fread (data, 1, n, self->handle);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   if (g_utf8_validate (data, num_bytes_read, &end))
   {
@@ -441,11 +437,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_text)
     result = _gum_quick_throw (ctx, "can't decode byte 0x%02x in position %u",
         (guint8) *end, (guint) (end - data));
 
-    gum_interceptor_ignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_IGNORE ();
 
     fseek (self->handle, -((long) num_bytes_read), SEEK_CUR);
 
-    gum_interceptor_unignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_UNIGNORE ();
   }
 
   g_free (data);
@@ -455,7 +451,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_text)
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_read_line)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   JSValue result;
   GumFile * self;
   gsize offset, capacity;
@@ -469,7 +464,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_line)
   capacity = 256;
   buffer = g_string_sized_new (capacity);
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   while (TRUE)
   {
@@ -492,7 +487,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_line)
       break;
   }
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   g_string_set_size (buffer, offset);
 
@@ -505,11 +500,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_line)
     result = _gum_quick_throw (ctx, "can't decode byte 0x%02x in position %u",
         (guint8) *end, (guint) (end - buffer->str));
 
-    gum_interceptor_ignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_IGNORE ();
 
     fseek (self->handle, -((long) buffer->len), SEEK_CUR);
 
-    gum_interceptor_unignore_current_thread (interceptor);
+    GUMJS_INTERCEPTOR_UNIGNORE ();
   }
 
   g_string_free (buffer, TRUE);
@@ -519,7 +514,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_read_line)
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_write)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumFile * self;
   GBytes * bytes;
   gconstpointer data;
@@ -533,28 +527,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
 
   data = g_bytes_get_data (bytes, &size);
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   fwrite (data, size, 1, self->handle);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_flush)
 {
-  GumInterceptor * interceptor = core->interceptor->interceptor;
   GumFile * self;
 
   if (!gum_file_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  gum_interceptor_ignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_IGNORE ();
 
   fflush (self->handle);
 
-  gum_interceptor_unignore_current_thread (interceptor);
+  GUMJS_INTERCEPTOR_UNIGNORE ();
 
   return JS_UNDEFINED;
 }
