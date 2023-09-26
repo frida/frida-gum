@@ -193,7 +193,7 @@
       if (core->interceptor != NULL) \
       { \
         gum_interceptor_ignore_current_thread ( \
-              core->interceptor->interceptor); \
+            core->interceptor->interceptor); \
       } \
     }
 #define GUMJS_INTERCEPTOR_UNIGNORE() \
@@ -201,7 +201,7 @@
       if (core->interceptor != NULL) \
       { \
         gum_interceptor_unignore_current_thread ( \
-                core->interceptor->interceptor); \
+            core->interceptor->interceptor); \
       } \
     }
 
