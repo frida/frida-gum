@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,10 +16,15 @@
 #define GUM_MH_MAGIC_64                0xfeedfacf
 #define GUM_MH_EXECUTE                        0x2
 #define GUM_MH_PREBOUND                      0x10
+#define GUM_MH_HAS_TLV_DESCRIPTORS       0x800000
 
 #define GUM_LC_REQ_DYLD                0x80000000
 
 #define GUM_SECTION_TYPE_MASK          0x000000ff
+
+#define GUM_S_THREAD_LOCAL_REGULAR           0x11
+#define GUM_S_THREAD_LOCAL_ZEROFILL          0x12
+#define GUM_S_THREAD_LOCAL_VARIABLES         0x13
 
 #define GUM_N_EXT                            0x01
 #define GUM_N_TYPE                           0x0e
@@ -56,6 +62,8 @@ typedef struct _GumSection32 GumSection32;
 typedef struct _GumSection64 GumSection64;
 typedef struct _GumNList32 GumNList32;
 typedef struct _GumNList64 GumNList64;
+typedef struct _GumTlvThunk32 GumTlvThunk32;
+typedef struct _GumTlvThunk64 GumTlvThunk64;
 
 struct _GumFatHeader
 {
@@ -390,6 +398,20 @@ enum _GumExportSymbolFlags
 {
   GUM_EXPORT_SYMBOL_FLAGS_REEXPORT                     = 0x08,
   GUM_EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER            = 0x10,
+};
+
+struct _GumTlvThunk32
+{
+  guint32 thunk;
+  guint32 key;
+  guint32 offset;
+};
+
+struct _GumTlvThunk64
+{
+  guint64 thunk;
+  guint64 key;
+  guint64 offset;
 };
 
 G_END_DECLS

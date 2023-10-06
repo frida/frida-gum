@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,6 +26,7 @@ typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
 
 typedef struct _GumEmitImportContext GumEmitImportContext;
 typedef struct _GumEmitExportFromSymbolContext GumEmitExportFromSymbolContext;
+typedef struct _GumQueryTlvParamsContext GumQueryTlvParamsContext;
 typedef struct _GumEmitInitPointersContext GumEmitInitPointersContext;
 typedef struct _GumEmitInitOffsetsContext GumEmitInitOffsetsContext;
 typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
@@ -71,6 +73,12 @@ struct _GumEmitExportFromSymbolContext
   gpointer user_data;
 };
 
+struct _GumQueryTlvParamsContext
+{
+  GumMachHeader32 * header;
+  GumDarwinTlvParameters * params;
+};
+
 struct _GumEmitInitPointersContext
 {
   GumFoundDarwinInitPointersFunc func;
@@ -114,6 +122,8 @@ static gboolean gum_emit_import (const GumDarwinBindDetails * details,
     gpointer user_data);
 static gboolean gum_emit_export_from_symbol (
     const GumDarwinSymbolDetails * details, gpointer user_data);
+static gboolean gum_collect_tlv_params (const GumDarwinSectionDetails * section,
+    gpointer user_data);
 static gboolean gum_emit_section_init_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_emit_section_init_offsets (
@@ -1585,6 +1595,116 @@ skip:
   g_free (malloc_data);
 
   return ctx->carry_on;
+}
+
+void
+gum_darwin_module_query_tlv_parameters (GumDarwinModule * self,
+                                        GumDarwinTlvParameters * params)
+{
+  GumMachHeader32 * header;
+  guint32 flags;
+  GumQueryTlvParamsContext ctx;
+
+  params->num_descriptors = 0;
+  params->descriptors_offset = 0;
+  params->data_offset = 0;
+  params->data_size = 0;
+  params->bss_size = 0;
+
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+    return;
+
+  header = self->image->data;
+
+  if (header->magic == GUM_MH_MAGIC_32)
+    flags = header->flags;
+  else
+    flags = ((GumMachHeader64 *) header)->flags;
+  if ((flags & GUM_MH_HAS_TLV_DESCRIPTORS) == 0)
+    return;
+
+  ctx.header = header;
+  ctx.params = params;
+  gum_darwin_module_enumerate_sections (self, gum_collect_tlv_params, &ctx);
+}
+
+static gboolean
+gum_collect_tlv_params (const GumDarwinSectionDetails * section,
+                        gpointer user_data)
+{
+  GumQueryTlvParamsContext * ctx = user_data;
+  GumDarwinTlvParameters * params = ctx->params;
+
+  switch (section->flags & GUM_SECTION_TYPE_MASK)
+  {
+    case GUM_S_THREAD_LOCAL_VARIABLES:
+    {
+      gsize descriptor_size = (ctx->header->magic == GUM_MH_MAGIC_64)
+          ? sizeof (GumTlvThunk64)
+          : sizeof (GumTlvThunk32);
+      params->num_descriptors = section->size / descriptor_size;
+      params->descriptors_offset = section->file_offset;
+      break;
+    }
+    case GUM_S_THREAD_LOCAL_REGULAR:
+      params->data_offset = section->file_offset;
+      params->data_size = section->size;
+      break;
+    case GUM_S_THREAD_LOCAL_ZEROFILL:
+      params->bss_size = section->size;
+      break;
+    default:
+      break;
+  }
+
+  return TRUE;
+}
+
+void
+gum_darwin_module_enumerate_tlv_descriptors (
+    GumDarwinModule * self,
+    GumFoundDarwinTlvDescriptorFunc func,
+    gpointer user_data)
+{
+  GumDarwinTlvParameters tlv;
+  gconstpointer descriptors;
+  gsize i;
+  guint32 format;
+
+  gum_darwin_module_query_tlv_parameters (self, &tlv);
+  if (tlv.num_descriptors == 0)
+    return;
+
+  descriptors =
+      (const guint8 *) self->image->data + tlv.descriptors_offset;
+  format = ((GumMachHeader32 *) self->image->data)->magic;
+
+  for (i = 0; i != tlv.num_descriptors; i++)
+  {
+    GumDarwinTlvDescriptorDetails details;
+
+    if (format == GUM_MH_MAGIC_32)
+    {
+      const GumTlvThunk32 * d = &((const GumTlvThunk32 *) descriptors)[i];
+      details.file_offset =
+          tlv.descriptors_offset + (i * sizeof (GumTlvThunk32));
+      details.thunk = d->thunk;
+      details.key = d->key;
+      details.offset = d->offset;
+    }
+    else
+    {
+      const GumTlvThunk64 * d = &((const GumTlvThunk64 *) descriptors)[i];
+      details.file_offset =
+          tlv.descriptors_offset + (i * sizeof (GumTlvThunk64));
+      details.thunk = d->thunk;
+      details.key = d->key;
+      details.offset = d->offset;
+    }
+
+    if (!func (&details, user_data))
+      return;
+  }
 }
 
 void
