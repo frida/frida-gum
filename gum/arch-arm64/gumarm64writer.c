@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C)      2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
- * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
+ * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
+ * Copyright (C) 2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
