@@ -1361,11 +1361,23 @@ _gum_quick_native_pointer_parse (JSContext * ctx,
   }
   else if (JS_IsNumber (val))
   {
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN || GLIB_SIZEOF_VOID_P == 8
     union
     {
       gpointer p;
       int64_t i;
     } v;
+#else
+    union
+    {
+      struct
+      {
+        gpointer _pad;
+        gpointer p;
+      };
+      int64_t i;
+    } v;
+#endif
 
     JS_ToInt64 (ctx, &v.i, val);
 
