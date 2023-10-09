@@ -1370,11 +1370,12 @@ _gum_quick_native_pointer_parse (JSContext * ctx,
 #else
     union
     {
-        struct {
-            gpointer _pad;
-            gpointer p;
-        };
-        int64_t i;
+      struct
+      {
+        gpointer _pad;
+        gpointer p;
+      };
+      int64_t i;
     } v;
 #endif
 
