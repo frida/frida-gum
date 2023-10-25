@@ -40,6 +40,7 @@
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
+    <ClInclude Include="gum\gumswiftapiresolver.h" />
     <ClInclude Include="gum\gumsymbolutil.h" />
     <ClInclude Include="gum\gumsysinternals.h" />
     <ClInclude Include="gum\gumtls.h" />
@@ -109,6 +110,7 @@ $(GLibMkenums) --output "$(IntDir)gum\%(Filename)" --template %(Identity) @(ClIn
     <ClCompile Include="gum\gumprocess.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumstalker.c" />
+    <ClCompile Include="gum\gumswiftapiresolver.c" />
   </ItemGroup>
 
   <ItemGroup>
