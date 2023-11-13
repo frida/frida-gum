@@ -372,7 +372,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
 {
   guint n = 0;
   gboolean can_be_fully_relocated = FALSE;
-  GumAddress first_basic_block_end = 0;
   gsize first_basic_block_size = 0;
   guint8 * buf;
   GumArm64Writer cw;
@@ -442,7 +441,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
     cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
-    basic_block_index = rl.eob ? 1 : 0;
+    basic_block_index = 0;
     first_basic_block_size = 0;
     insn = cs_malloc (capstone);
     current_code = rl.input_cur;
@@ -502,56 +501,35 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
             break;
           }
+          case ARM64_INS_RET:
+          case ARM64_INS_RETAA:
+          case ARM64_INS_RETAB:
+          {
+            carry_on = FALSE;
+            break;
+          }
           case ARM64_INS_BR:
           case ARM64_INS_BRAA:
           case ARM64_INS_BRAAZ:
           case ARM64_INS_BRAB:
           case ARM64_INS_BRABZ:
-          case ARM64_INS_RET:
-          case ARM64_INS_RETAA:
-          case ARM64_INS_RETAB:
+          {
             carry_on = FALSE;
             break;
+          }
           default:
             break;
         }
 
         if (basic_block_index == 0)
           gum_reg_map_apply_instruction (&reg_map, insn);
-
-        switch (insn->id)
-        {
-          case ARM64_INS_B:
-          case ARM64_INS_BL:
-          case ARM64_INS_BLR:
-          case ARM64_INS_BLRAA:
-          case ARM64_INS_BLRAAZ:
-          case ARM64_INS_BLRAB:
-          case ARM64_INS_BLRABZ:
-          case ARM64_INS_BR:
-          case ARM64_INS_BRAA:
-          case ARM64_INS_BRAAZ:
-          case ARM64_INS_BRAB:
-          case ARM64_INS_BRABZ:
-          case ARM64_INS_CBNZ:
-          case ARM64_INS_CBZ:
-          case ARM64_INS_RET:
-          case ARM64_INS_RETAA:
-          case ARM64_INS_RETAB:
-          case ARM64_INS_SVC:
-          case ARM64_INS_TBNZ:
-          case ARM64_INS_TBZ:
-            if (basic_block_index == 0)
-              first_basic_block_end = insn->address + insn->size;
-            basic_block_index++;
-            break;
-          default:
-            break;
-        }
       }
 
       if (basic_block_index == 0)
-        first_basic_block_end = insn->address + insn->size;
+      {
+        first_basic_block_size =
+            (insn->address + insn->size) - GPOINTER_TO_SIZE (address);
+      }
 
       g_hash_table_iter_init (&iter, targets_to_check);
       if (g_hash_table_iter_next (&iter, &target, NULL))
@@ -571,9 +549,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
       basic_block_index++;
     }
     while (current_code != NULL);
-
-    first_basic_block_size =
-        first_basic_block_end - GPOINTER_TO_SIZE (address);
 
     can_be_fully_relocated =
         g_hash_table_size (checked_targets) == 1 &&
