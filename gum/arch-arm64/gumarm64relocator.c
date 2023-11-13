@@ -10,14 +10,9 @@
 
 #include "gummemory.h"
 
-#include <string.h>
-
 #define GUM_MAX_INPUT_INSN_COUNT (100)
 
 typedef struct _GumCodeGenCtx GumCodeGenCtx;
-typedef struct _GumRegMap GumRegMap;
-typedef struct _GumRegState GumRegState;
-typedef guint GumRegAccess;
 
 struct _GumCodeGenCtx
 {
@@ -25,25 +20,6 @@ struct _GumCodeGenCtx
   cs_arm64 * detail;
 
   GumArm64Writer * output;
-};
-
-struct _GumRegState
-{
-  GumRegAccess access;
-  GumAddress address;
-};
-
-struct _GumRegMap
-{
-  csh capstone;
-  GumRegState states[18];
-};
-
-enum _GumRegAccess
-{
-  GUM_REG_ACCESS_UNKNOWN,
-  GUM_REG_ACCESS_READ,
-  GUM_REG_ACCESS_CLOBBERED,
 };
 
 static gboolean gum_arm64_branch_is_unconditional (const cs_insn * insn);
@@ -62,11 +38,6 @@ static gboolean gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
-
-static void gum_reg_map_init (GumRegMap * map, csh capstone);
-static void gum_reg_map_apply_instruction (GumRegMap * self,
-    const cs_insn * insn);
-static gint gum_reg_map_resolve_register (arm64_reg reg);
 
 GumArm64Relocator *
 gum_arm64_relocator_new (gconstpointer input_code,
@@ -374,14 +345,11 @@ gum_arm64_relocator_can_relocate (gpointer address,
   GumArm64Writer cw;
   GumArm64Relocator rl;
   guint reloc_bytes;
-  GumRegMap reg_map;
 
   buf = g_alloca (3 * min_bytes);
   gum_arm64_writer_init (&cw, buf);
 
   gum_arm64_relocator_init (&rl, address, &cw);
-
-  gum_reg_map_init (&reg_map, rl.capstone);
 
   do
   {
@@ -393,8 +361,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
       break;
 
     n = reloc_bytes;
-
-    gum_reg_map_apply_instruction (&reg_map, insn);
 
     if (scenario == GUM_SCENARIO_ONLINE)
     {
@@ -424,7 +390,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
   {
     GHashTable * checked_targets, * targets_to_check;
     csh capstone;
-    guint basic_block_index;
     cs_insn * insn;
     const guint8 * current_code;
     uint64_t current_address;
@@ -438,7 +403,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
     cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
-    basic_block_index = 0;
     insn = cs_malloc (capstone);
     current_code = rl.input_cur;
     current_address = rl.input_pc;
@@ -516,9 +480,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
           default:
             break;
         }
-
-        if (basic_block_index == 0)
-          gum_reg_map_apply_instruction (&reg_map, insn);
       }
 
       g_hash_table_iter_init (&iter, targets_to_check);
@@ -535,8 +496,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
       {
         current_code = NULL;
       }
-
-      basic_block_index++;
     }
     while (current_code != NULL);
 
@@ -562,38 +521,36 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
   if (available_scratch_reg != NULL)
   {
-    guint i;
+    gboolean x16_used, x17_used;
+    guint insn_index;
 
-    *available_scratch_reg = ARM64_REG_INVALID;
+    x16_used = FALSE;
+    x17_used = FALSE;
 
-    for (i = 0; i != G_N_ELEMENTS (reg_map.states); i++)
+    for (insn_index = 0; insn_index != n / 4; insn_index++)
     {
-      const GumRegState * state = &reg_map.states[i];
+      const cs_insn * insn = rl.input_insns[insn_index];
+      const cs_arm64 * info = &insn->detail->arm64;
+      uint8_t op_index;
 
-      if (state->access == GUM_REG_ACCESS_CLOBBERED &&
-          state->address >= rl.input_pc)
+      for (op_index = 0; op_index != info->op_count; op_index++)
       {
-        *available_scratch_reg = ARM64_REG_X0 + i;
-        break;
+        const cs_arm64_op * op = &info->operands[op_index];
+
+        if (op->type == ARM64_OP_REG)
+        {
+          x16_used |= op->reg == ARM64_REG_X16;
+          x17_used |= op->reg == ARM64_REG_X17;
+        }
       }
     }
 
-    if (*available_scratch_reg == ARM64_REG_INVALID)
-    {
-      const GumRegState * x16 = &reg_map.states[16];
-      const GumRegState * x17 = &reg_map.states[17];
-
-      if (x16->access == GUM_REG_ACCESS_UNKNOWN ||
-          x16->address >= rl.input_pc)
-      {
-        *available_scratch_reg = ARM64_REG_X16;
-      }
-      else if (x17->access == GUM_REG_ACCESS_UNKNOWN ||
-          x17->address >= rl.input_pc)
-      {
-        *available_scratch_reg = ARM64_REG_X17;
-      }
-    }
+    if (!x16_used)
+      *available_scratch_reg = ARM64_REG_X16;
+    else if (!x17_used)
+      *available_scratch_reg = ARM64_REG_X17;
+    else
+      *available_scratch_reg = ARM64_REG_INVALID;
   }
 
   gum_arm64_relocator_clear (&rl);
@@ -820,69 +777,4 @@ gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
   gum_arm64_writer_put_label (ctx->output, is_false);
 
   return TRUE;
-}
-
-static void
-gum_reg_map_init (GumRegMap * map,
-                  csh capstone)
-{
-  map->capstone = capstone;
-  memset (map->states, 0, sizeof (map->states));
-}
-
-static void
-gum_reg_map_apply_instruction (GumRegMap * self,
-                               const cs_insn * insn)
-{
-  cs_regs regs_read, regs_write;
-  uint8_t read_count, write_count, i;
-
-  cs_regs_access (self->capstone, insn, regs_read, &read_count,
-      regs_write, &write_count);
-
-  for (i = 0; i != read_count; i++)
-  {
-    gint reg_index;
-    GumRegState * state;
-
-    reg_index = gum_reg_map_resolve_register (regs_read[i]);
-    if (reg_index == -1)
-      continue;
-    state = &self->states[reg_index];
-
-    if (state->access == GUM_REG_ACCESS_UNKNOWN)
-    {
-      state->access = GUM_REG_ACCESS_READ;
-      state->address = insn->address;
-    }
-  }
-
-  for (i = 0; i != write_count; i++)
-  {
-    gint reg_index;
-    GumRegState * state;
-
-    reg_index = gum_reg_map_resolve_register (regs_write[i]);
-    if (reg_index == -1)
-      continue;
-    state = &self->states[reg_index];
-
-    if (state->access == GUM_REG_ACCESS_UNKNOWN)
-    {
-      state->access = GUM_REG_ACCESS_CLOBBERED;
-      state->address = insn->address;
-    }
-  }
-}
-
-static gint
-gum_reg_map_resolve_register (arm64_reg reg)
-{
-  if (reg >= ARM64_REG_X0 && reg <= ARM64_REG_X17)
-    return reg - ARM64_REG_X0;
-
-  if (reg >= ARM64_REG_W0 && reg <= ARM64_REG_W17)
-    return reg - ARM64_REG_W0;
-
-  return -1;
 }
