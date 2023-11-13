@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -371,7 +370,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
                                   arm64_reg * available_scratch_reg)
 {
   guint n = 0;
-  gboolean fully_relocated = FALSE;
   guint8 * buf;
   GumArm64Writer cw;
   GumArm64Relocator rl;
@@ -427,7 +425,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
     GHashTable * checked_targets, * targets_to_check;
     csh capstone;
     guint basic_block_index;
-    gsize first_basic_block_size;
     cs_insn * insn;
     const guint8 * current_code;
     uint64_t current_address;
@@ -442,7 +439,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
     basic_block_index = 0;
-    first_basic_block_size = 0;
     insn = cs_malloc (capstone);
     current_code = rl.input_cur;
     current_address = rl.input_pc;
@@ -525,12 +521,6 @@ gum_arm64_relocator_can_relocate (gpointer address,
           gum_reg_map_apply_instruction (&reg_map, insn);
       }
 
-      if (basic_block_index == 0)
-      {
-        first_basic_block_size =
-            (insn->address + insn->size) - GPOINTER_TO_SIZE (address);
-      }
-
       g_hash_table_iter_init (&iter, targets_to_check);
       if (g_hash_table_iter_next (&iter, &target, NULL))
       {
@@ -550,25 +540,15 @@ gum_arm64_relocator_can_relocate (gpointer address,
     }
     while (current_code != NULL);
 
-    fully_relocated =
-        g_hash_table_size (checked_targets) == 1 &&
-        first_basic_block_size <= 128;
-    if (fully_relocated)
+    g_hash_table_iter_init (&iter, checked_targets);
+    while (g_hash_table_iter_next (&iter, &target, NULL))
     {
-      n = first_basic_block_size;
-    }
-    else
-    {
-      g_hash_table_iter_init (&iter, checked_targets);
-      while (g_hash_table_iter_next (&iter, &target, NULL))
+      gssize offset = (gssize) target - (gssize) address;
+      if (offset > 0 && offset < (gssize) n)
       {
-        gssize offset = (gssize) target - (gssize) address;
-        if (offset > 0 && offset < (gssize) n)
-        {
-          n = offset;
-          if (n == 4)
-            break;
-        }
+        n = offset;
+        if (n == 4)
+          break;
       }
     }
 
@@ -591,7 +571,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
       const GumRegState * state = &reg_map.states[i];
 
       if (state->access == GUM_REG_ACCESS_CLOBBERED &&
-          (fully_relocated || state->address >= rl.input_pc))
+          state->address >= rl.input_pc)
       {
         *available_scratch_reg = ARM64_REG_X0 + i;
         break;
@@ -604,19 +584,16 @@ gum_arm64_relocator_can_relocate (gpointer address,
       const GumRegState * x17 = &reg_map.states[17];
 
       if (x16->access == GUM_REG_ACCESS_UNKNOWN ||
-          (fully_relocated || x16->address >= rl.input_pc))
+          x16->address >= rl.input_pc)
       {
         *available_scratch_reg = ARM64_REG_X16;
       }
       else if (x17->access == GUM_REG_ACCESS_UNKNOWN ||
-          (fully_relocated || x17->address >= rl.input_pc))
+          x17->address >= rl.input_pc)
       {
         *available_scratch_reg = ARM64_REG_X17;
       }
     }
-
-    if (*available_scratch_reg == ARM64_REG_INVALID && fully_relocated)
-      *available_scratch_reg = ARM64_REG_X16;
   }
 
   gum_arm64_relocator_clear (&rl);
