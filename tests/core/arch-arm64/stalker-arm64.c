@@ -31,6 +31,7 @@ TESTLIST_BEGIN (stalker)
 
   /* TRANSFORMERS */
   TESTENTRY (custom_transformer)
+  TESTENTRY (transformer_should_be_able_to_skip_call)
   TESTENTRY (unfollow_should_be_allowed_before_first_transform)
   TESTENTRY (unfollow_should_be_allowed_mid_first_transform)
   TESTENTRY (unfollow_should_be_allowed_after_first_transform)
@@ -95,6 +96,8 @@ struct _GumTestStalkerObserver
 static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
+static void skip_call (GumStalkerIterator * iterator, GumStalkerOutput * output,
+    gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static gboolean test_is_finished (void);
@@ -465,6 +468,49 @@ store_x0 (GumCpuContext * cpu_context,
   guint64 * last_x0 = user_data;
 
   *last_x0 = cpu_context->x[0];
+}
+
+TESTCASE (transformer_should_be_able_to_skip_call)
+{
+  guint32 code_template[] =
+  {
+    0xa9bf7bfd, /* push {x29, x30} */
+    0xd280a280, /* mov x0, #1300   */
+    0x94000003, /* bl bump_number  */
+    0xa8c17bfd, /* pop {x29, x30}  */
+    0xd65f03c0, /* ret             */
+    /* bump_number:                */
+    0x91009400, /* add x0, x0, #37 */
+    0xd65f03c0, /* ret             */
+  };
+  StalkerTestFunc func;
+  gint ret;
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
+      code_template, sizeof (code_template));
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (skip_call,
+      func, NULL);
+
+  ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (ret, ==, 1300);
+}
+
+static void
+skip_call (GumStalkerIterator * iterator,
+           GumStalkerOutput * output,
+           gpointer user_data)
+{
+  const guint32 * func_start = user_data;
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    if (insn->address == GPOINTER_TO_SIZE (func_start + 2))
+      continue;
+
+    gum_stalker_iterator_keep (iterator);
+  }
 }
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)
