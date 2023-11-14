@@ -614,8 +614,6 @@ add_project_arguments(
 
 if host_os_family == 'windows'
   add_project_arguments(
-    '-DWINVER=0x0501',
-    '-D_WIN32_WINNT=0x0501',
     '-DPSAPI_VERSION=1',
     language: languages)
 endif
