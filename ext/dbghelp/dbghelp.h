@@ -3905,7 +3905,9 @@ RangeMapWrite(
 #include <poppack.h>
 
 
+#ifndef __MINGW32__
 #include <minidumpapiset.h>
+#endif
 
 
 #endif /* WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_PKG_WER) */

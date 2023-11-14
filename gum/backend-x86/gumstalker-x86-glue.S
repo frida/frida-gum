@@ -1,12 +1,13 @@
 .text
 
-#ifdef __APPLE__
-.globl _gum_stalker_follow_me
-_gum_stalker_follow_me:
+#if (defined (HAVE_WINDOWS) && defined (__i386__)) || defined (__APPLE__)
+# define GUM_CSYM(x) _ ## x
 #else
-.globl gum_stalker_follow_me
-gum_stalker_follow_me:
+# define GUM_CSYM(x) x
 #endif
+
+.globl GUM_CSYM (gum_stalker_follow_me)
+GUM_CSYM (gum_stalker_follow_me):
 #ifdef i386
 movl %esp, %eax
 subl $12, %esp
@@ -14,74 +15,40 @@ pushl %eax
 pushl (4 + 8)(%eax)
 pushl (4 + 4)(%eax)
 pushl (4 + 0)(%eax)
-#ifdef __APPLE__
-call __gum_stalker_do_follow_me
-#else
-call _gum_stalker_do_follow_me
-#endif
+call GUM_CSYM (_gum_stalker_do_follow_me)
 addl $28, %esp
 ret
 #else
 mov %rsp, %rcx
-#ifdef __APPLE__
-jmp __gum_stalker_do_follow_me
-#else
-jmp _gum_stalker_do_follow_me
-#endif
+jmp GUM_CSYM (_gum_stalker_do_follow_me)
 #endif
 
-#ifdef __APPLE__
-.globl _gum_stalker_activate
-_gum_stalker_activate:
-#else
-.globl gum_stalker_activate
-gum_stalker_activate:
-#endif
+.globl GUM_CSYM (gum_stalker_activate)
+GUM_CSYM (gum_stalker_activate):
 #ifdef i386
 movl %esp, %eax
 pushl %eax
 pushl (4 + 4)(%eax)
 pushl (4 + 0)(%eax)
-#ifdef __APPLE__
-call __gum_stalker_do_activate
-#else
-call _gum_stalker_do_activate
-#endif
+call GUM_CSYM (_gum_stalker_do_activate)
 addl $12, %esp
 ret
 #else
 mov %rsp, %rdx
-#ifdef __APPLE__
-jmp __gum_stalker_do_activate
-#else
-jmp _gum_stalker_do_activate
-#endif
+jmp GUM_CSYM (_gum_stalker_do_activate)
 #endif
 
-#ifdef __APPLE__
-.globl _gum_stalker_deactivate
-_gum_stalker_deactivate:
-#else
-.globl gum_stalker_deactivate
-gum_stalker_deactivate:
-#endif
+.globl GUM_CSYM (gum_stalker_deactivate)
+GUM_CSYM (gum_stalker_deactivate):
 #ifdef i386
 movl %esp, %eax
 subl $4, %esp
 pushl %eax
 pushl (4 + 0)(%eax)
-#ifdef __APPLE__
-call __gum_stalker_do_deactivate
-#else
-call _gum_stalker_do_deactivate
-#endif
+call GUM_CSYM (_gum_stalker_do_deactivate)
 addl $12, %esp
 ret
 #else
 mov %rsp, %rsi
-#ifdef __APPLE__
-jmp __gum_stalker_do_deactivate
-#else
-jmp _gum_stalker_do_deactivate
-#endif
+jmp GUM_CSYM (_gum_stalker_do_deactivate)
 #endif

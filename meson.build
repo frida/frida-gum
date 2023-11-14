@@ -640,6 +640,12 @@ gum_incdirs = [
   include_directories('libs/gum/prof'),
 ]
 
+if host_os_family == 'windows'
+  gum_incdirs += [
+    include_directories('ext/dbghelp'),
+  ]
+endif
+
 if host_os_family == 'darwin'
   gum_incdirs += [
     include_directories('gum/backend-darwin'),

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -680,7 +680,8 @@ gum_fixdfdi (double value)
   return value;
 }
 
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && !defined (_MSC_VER)
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && \
+    !defined (_MSC_VER) && !defined (__MINGW32__)
 
 extern void * __va_arg (void * ap, int arg_type, int size, int align);
 

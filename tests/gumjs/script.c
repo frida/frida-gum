@@ -2246,7 +2246,11 @@ TESTCASE (native_callback_should_support_stdcall)
 GUM_NOINLINE static void *
 sample_return_address (void)
 {
+# ifdef MSC_VER
   return _ReturnAddress ();
+# else
+  return __builtin_return_address (0);
+# endif
 }
 
 TESTCASE (native_callback_should_get_accurate_backtraces)
@@ -2273,6 +2277,7 @@ TESTCASE (native_callback_should_get_accurate_backtraces)
   EXPECT_SEND_MESSAGE_WITH ("\"return address ok\"");
   EXPECT_NO_MESSAGES ();
 }
+
 #endif
 
 #ifdef HAVE_DARWIN
