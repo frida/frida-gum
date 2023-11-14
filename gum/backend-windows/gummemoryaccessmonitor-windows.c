@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Eloi Vanderbeken <eloi.vanderbeken@synacktiv.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -35,7 +35,7 @@ struct _GumMemoryAccessMonitor
 
   GumMemoryRange * ranges;
   guint num_ranges;
-  volatile gint pages_remaining;
+  gint pages_remaining;
   gint pages_total;
 
   GumPageProtection access_mask;
@@ -54,7 +54,7 @@ struct _GumPageDetails
   gpointer address;
   gboolean is_guarded;
   DWORD original_protection;
-  volatile guint completed;
+  guint completed;
 };
 
 struct _GumLiveRangeDetails
@@ -343,7 +343,7 @@ gum_set_guard_flag (const GumLiveRangeDetails * details,
   self->pages_details[num_pages].range_index = details->range_index;
   self->pages_details[num_pages].original_protection = details->protection;
   self->pages_details[num_pages].address =
-      (gpointer) details->range->base_address;
+      GSIZE_TO_POINTER (details->range->base_address);
   self->pages_details[num_pages].is_guarded = is_guarded;
   self->pages_details[num_pages].completed = 0;
 
@@ -372,7 +372,7 @@ gum_clear_guard_flag (const GumLiveRangeDetails * details,
 
     if (GUM_MEMORY_RANGE_INCLUDES (r, details->range->base_address))
     {
-      return VirtualProtect ((void *) details->range->base_address,
+      return VirtualProtect (GSIZE_TO_POINTER (details->range->base_address),
           details->range->size, page->original_protection, &old_prot);
     }
   }
@@ -439,7 +439,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
 
   for (i = 0; i != self->num_pages; i++)
   {
-    const GumPageDetails * page = &self->pages_details[i];
+    GumPageDetails * page = &self->pages_details[i];
     const GumMemoryRange * r = &self->ranges[page->range_index];
     guint operation_mask;
     guint operations_reported;
@@ -496,7 +496,6 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
       if ((operations_reported != 0) && self->auto_reset)
         return FALSE;
 
-      pages_remaining;
       if (!operations_reported)
         pages_remaining = g_atomic_int_add (&self->pages_remaining, -1) - 1;
       else
@@ -504,7 +503,8 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
       d.pages_completed = self->pages_total - pages_remaining;
 
       d.range_index = page->range_index;
-      d.page_index = ((guint8 *) d.address - (guint8 *) r->base_address) /
+      d.page_index = ((guint8 *) d.address -
+            (guint8 *) GSIZE_TO_POINTER (r->base_address)) /
           self->page_size;
       d.pages_total = self->pages_total;
 

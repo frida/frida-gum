@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,7 +8,9 @@
 #include "gumbusycyclesampler.h"
 
 #define _WIN32_LEAN_AND_MEAN
+#undef WINVER
 #undef _WIN32_WINNT
+#define WINVER 0x0600
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
 #include <tchar.h>

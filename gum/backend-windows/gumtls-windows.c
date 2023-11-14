@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2015-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+* Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
 * Copyright (C) 2015 Eloi Vanderbeken <eloi.vanderbeken@synacktiv.com>
 *
 * Licence: wxWindows Library Licence, Version 3.1
@@ -149,6 +149,11 @@ gum_tls_key_del_tmp_value (GumTlsKey key)
   gum_spinlock_release (&gum_tls_tmp_keys_lock);
 }
 
+# ifndef _MSC_VER
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Warray-bounds"
+# endif
+
 # if GLIB_SIZEOF_VOID_P == 4
 
 gpointer
@@ -248,6 +253,10 @@ gum_tls_key_set_value (GumTlsKey key,
 
 # else
 #  error Unknown architecture
+# endif
+
+# ifndef _MSC_VER
+#  pragma GCC diagnostic pop
 # endif
 
 #else

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -16,6 +16,12 @@
 # define GUM_FFI_STACK_SKIP 44
 #else
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_AMD64
+#endif
+
+#ifdef _MSC_VER
+# define GUM_ALIGNED(n) __declspec (align (n))
+#else
+# define GUM_ALIGNED(n) __attribute__ ((aligned (n)))
 #endif
 
 struct _GumDbghelpBacktracer
@@ -79,9 +85,9 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   GumDbghelpBacktracer * self;
   GumDbghelpImpl * dbghelp;
   GumInvocationStack * invocation_stack;
-  __declspec (align (64)) CONTEXT context = { 0, };
+  GUM_ALIGNED (64) CONTEXT context = { 0, };
 #if GLIB_SIZEOF_VOID_P == 4
-  __declspec (align (64)) CONTEXT context_next = { 0, };
+  GUM_ALIGNED (64) CONTEXT context_next = { 0, };
 #endif
   STACKFRAME64 frame = { 0, };
   gboolean has_ffi_frames;

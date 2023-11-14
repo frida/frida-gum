@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -337,9 +337,7 @@ deep_recursive_caller (gint count)
     deep_recursive_function (count);
 }
 
-#ifdef HAVE_WINDOWS
-
-static void
+G_GNUC_UNUSED static void
 spin_for_one_tenth_second (void)
 {
   GTimer * timer;
@@ -357,8 +355,6 @@ spin_for_one_tenth_second (void)
 
   g_timer_destroy (timer);
 }
-
-#endif
 
 static void GUM_NOINLINE
 example_a_calls_b_thrice (GumFakeSampler * sampler)

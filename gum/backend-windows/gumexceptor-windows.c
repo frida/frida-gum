@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -74,7 +74,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
 {
   HMODULE ntdll_mod;
   csh capstone;
-  cs_err err;
+  G_GNUC_UNUSED cs_err err;
   guint offset;
 
   the_backend = self;
@@ -113,7 +113,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
         guint8 * call_start, * call_end;
         gssize distance;
 
-        call_start = (guint8 *) insn->address;
+        call_start = GSIZE_TO_POINTER (insn->address);
         call_end = call_start + insn->size;
 
         self->system_handler = GUM_POINTER_TO_FUNCPTR (

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -2660,12 +2660,16 @@ create_test_window (GumStalker * stalker)
   window->klass = (LPTSTR) GSIZE_TO_POINTER (RegisterClass (&wc));
   g_assert_nonnull (window->klass);
 
-#pragma warning (push)
-#pragma warning (disable: 4306)
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4306)
+#endif
   window->handle = CreateWindow (window->klass, _T ("GumTestWindow"),
       WS_CAPTION, 10, 10, 320, 240, HWND_MESSAGE, NULL,
       GetModuleHandle (NULL), NULL);
-#pragma warning (pop)
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
   g_assert_nonnull (window->handle);
 
   SetWindowLongPtr (window->handle, GWLP_USERDATA, (LONG_PTR) window);

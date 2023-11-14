@@ -15,6 +15,11 @@
 #include <tchar.h>
 #include <tlhelp32.h>
 
+#ifndef _MSC_VER
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
+
 typedef void (WINAPI * GumGetCurrentThreadStackLimitsFunc) (
     PULONG_PTR low_limit, PULONG_PTR high_limit);
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
@@ -745,8 +750,8 @@ gum_module_enumerate_symbols (const gchar * module_name,
 
   ctx.func = func;
   ctx.user_data = user_data;
-  dbghelp->SymEnumSymbols (GetCurrentProcess (), (ULONG64) module, NULL,
-      gum_emit_symbol, &ctx);
+  dbghelp->SymEnumSymbols (GetCurrentProcess (), GPOINTER_TO_SIZE (module),
+      NULL, gum_emit_symbol, &ctx);
 }
 
 static BOOL CALLBACK
@@ -1005,3 +1010,7 @@ gum_windows_unparse_context (const GumCpuContext * cpu_context,
   context->Rax = cpu_context->rax;
 #endif
 }
+
+#ifndef _MSC_VER
+# pragma GCC diagnostic pop
+#endif
