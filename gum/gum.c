@@ -727,18 +727,18 @@ static GumCpuFeatures
 gum_do_query_cpu_features (void)
 {
   GumCpuFeatures features = 0;
+  gboolean cpu_supports_avx2 = FALSE;
+  gboolean os_enabled_xsave = FALSE;
   guint a, b, c, d;
 
-  if (gum_get_cpuid (1, &a, &b, &c, &d))
-  {
-    gboolean cpu_supports_avx2, os_enabled_xsave;
+  if (gum_get_cpuid (7, &a, &b, &c, &d))
+    cpu_supports_avx2 = (b & (1 << 5)) != 0;
 
-    cpu_supports_avx2 = (c & (1 << 28)) != 0;
+  if (gum_get_cpuid (1, &a, &b, &c, &d))
     os_enabled_xsave = (c & (1 << 27)) != 0;
 
-    if (cpu_supports_avx2 && os_enabled_xsave)
-      features |= GUM_CPU_AVX2;
-  }
+  if (cpu_supports_avx2 && os_enabled_xsave)
+    features |= GUM_CPU_AVX2;
 
   return features;
 }
