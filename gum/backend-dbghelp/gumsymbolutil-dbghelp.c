@@ -65,15 +65,15 @@ gum_symbol_details_from_address (gpointer address,
 
     GetModuleBaseNameA (GetCurrentProcess (), mod, details->module_name,
         sizeof (details->module_name) - 1);
-    strcpy_s (details->symbol_name, sizeof (details->symbol_name),
-        si.sym_info.Name);
+    g_strlcpy (details->symbol_name, si.sym_info.Name,
+        sizeof (details->symbol_name));
   }
 
   has_file_info = dbghelp->SymGetLineFromAddr64 (GetCurrentProcess (),
       GPOINTER_TO_SIZE (address), &displacement_dw, &li);
   if (has_file_info)
   {
-    strcpy_s (details->file_name, sizeof (details->file_name), li.FileName);
+    g_strlcpy (details->file_name, li.FileName, sizeof (details->file_name));
     details->line_number = li.LineNumber;
     details->column = displacement_dw;
   }
