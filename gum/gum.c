@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Stefano Moioli <smxdev4@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -729,15 +729,14 @@ gum_do_query_cpu_features (void)
   GumCpuFeatures features = 0;
   guint a, b, c, d;
 
-  if (gum_get_cpuid (7, &a, &b, &c, &d))
+  if (gum_get_cpuid (1, &a, &b, &c, &d))
   {
-    gboolean cpu_has_avx2, cpu_has_xsave, os_enabled_xsave;
+    gboolean cpu_supports_avx2, os_enabled_xsave;
 
-    cpu_has_avx2 = (b & (1 << 5)) != 0;
-    cpu_has_xsave = (c & (1 << 27)) != 0;
-    os_enabled_xsave = (c & (1 << 28)) != 0;
+    cpu_supports_avx2 = (c & (1 << 28)) != 0;
+    os_enabled_xsave = (c & (1 << 27)) != 0;
 
-    if (cpu_has_avx2 && cpu_has_xsave && os_enabled_xsave)
+    if (cpu_supports_avx2 && os_enabled_xsave)
       features |= GUM_CPU_AVX2;
   }
 
