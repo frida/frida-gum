@@ -937,12 +937,12 @@ TESTCASE (transformer_should_be_able_to_skip_call)
 {
   guint8 code_template[] =
   {
-    0xb8, 0x14, 0x05, 0x00, 0x00, //        mov    eax,0x514
-    0xe8, 0x01, 0x00, 0x00, 0x00, //        call   b <bump_number>
-    0xc3,                         //        ret
-                                  //  0000000b <bump_number>:
-    0x83, 0xc0, 0x25,             //        add    eax,0x25
-    0xc3                          //        ret
+    0xb8, 0x14, 0x05, 0x00, 0x00, /* mov eax, 1300    */
+    0xe8, 0x01, 0x00, 0x00, 0x00, /* call bump_number */
+    0xc3,                         /* ret              */
+    /* bump_number:                                   */
+    0x83, 0xc0, 0x25,             /* add eax, 37      */
+    0xc3,                         /* ret              */
   };
   StalkerTestFunc func;
   gint ret;
