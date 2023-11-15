@@ -972,7 +972,6 @@ skip_call (GumStalkerIterator * iterator,
 
     gum_stalker_iterator_keep (iterator);
   }
-
 }
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)
