@@ -470,7 +470,7 @@ _gum_process_match_main_module (const GumModuleDetails * details,
   GumModuleDetails ** out = user_data;
   gum_mach_header_t * header;
 
-  header = details->range->base_address;
+  header = GSIZE_TO_POINTER (details->range->base_address);
   if (header->filetype == MH_EXECUTE)
   {
     *out = gum_module_details_copy (details);
