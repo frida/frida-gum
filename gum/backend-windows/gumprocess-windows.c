@@ -370,6 +370,17 @@ _gum_process_enumerate_ranges (GumPageProtection prot,
   }
 }
 
+gboolean
+_gum_process_match_main_module (const GumModuleDetails * details,
+                                gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+
+  *out = gum_module_details_copy (details);
+
+  return FALSE;
+}
+
 void
 gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
                                      gpointer user_data)

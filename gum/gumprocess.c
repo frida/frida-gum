@@ -214,6 +214,22 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   _gum_process_enumerate_modules (gum_emit_module_if_not_cloaked, &ctx);
 }
 
+/**
+ * gum_process_get_main_module:
+ *
+ * Returns a copy of the details of the module representing the main executable
+ * of the process. Result must be freed with gum_module_details_free ();
+ */
+GumModuleDetails *
+gum_process_get_main_module (void)
+{
+  GumModuleDetails * result;
+
+  gum_process_enumerate_modules (_gum_process_match_main_module, &result);
+
+  return result;
+}
+
 static gboolean
 gum_emit_module_if_not_cloaked (const GumModuleDetails * details,
                                 gpointer user_data)

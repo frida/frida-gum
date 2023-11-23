@@ -532,6 +532,17 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   return carry_on ? 0 : 1;
 }
 
+gboolean
+_gum_process_match_main_module (const GumModuleDetails * details,
+                                gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+
+  *out = gum_module_details_copy (details);
+
+  return FALSE;
+}
+
 void
 _gum_process_enumerate_ranges (GumPageProtection prot,
                                GumFoundRangeFunc func,

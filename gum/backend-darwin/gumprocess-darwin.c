@@ -463,6 +463,24 @@ _gum_process_enumerate_ranges (GumPageProtection prot,
   gum_darwin_enumerate_ranges (mach_task_self (), prot, func, user_data);
 }
 
+gboolean
+_gum_process_match_main_module (const GumModuleDetails * details,
+                                gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+  gum_mach_header_t * header;
+
+  header = details->range->base_address;
+  if (header->filetype == MH_EXECUTE)
+  {
+    *out = gum_module_details_copy (details);
+
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
 void
 gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
                                      gpointer user_data)

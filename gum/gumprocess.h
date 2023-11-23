@@ -209,6 +209,7 @@ GUM_API gboolean gum_process_resolve_module_pointer (gconstpointer ptr,
     gchar ** path, GumMemoryRange * range);
 GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
+GUM_API GumModuleDetails * gum_process_get_main_module (void);
 GUM_API void gum_process_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 GUM_API void gum_process_enumerate_malloc_ranges (

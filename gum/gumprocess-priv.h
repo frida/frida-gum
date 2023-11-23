@@ -17,6 +17,8 @@ G_GNUC_INTERNAL void _gum_process_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
 G_GNUC_INTERNAL void _gum_process_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
+G_GNUC_INTERNAL gboolean _gum_process_match_main_module (
+    const GumModuleDetails * details, gpointer user_data);
 
 G_END_DECLS
 

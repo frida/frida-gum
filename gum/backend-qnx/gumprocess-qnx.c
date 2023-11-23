@@ -323,6 +323,17 @@ _gum_process_enumerate_modules (GumFoundModuleFunc func,
   dlclose (handle);
 }
 
+gboolean
+_gum_process_match_main_module (const GumModuleDetails * details,
+                                gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+
+  *out = gum_module_details_copy (details);
+
+  return FALSE;
+}
+
 void
 gum_qnx_enumerate_ranges (pid_t pid,
                           GumPageProtection prot,

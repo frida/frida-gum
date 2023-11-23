@@ -10,6 +10,8 @@
 #include "gumv8core.h"
 #include "gumv8module.h"
 
+#include <gum/gumprocess.h>
+
 struct GumV8ExceptionHandler;
 
 struct GumV8Process
@@ -18,6 +20,7 @@ struct GumV8Process
   GumV8Core * core;
 
   GumV8ExceptionHandler * exception_handler;
+  GumModuleDetails * main_module;
 };
 
 G_GNUC_INTERNAL void _gum_v8_process_init (GumV8Process * self,

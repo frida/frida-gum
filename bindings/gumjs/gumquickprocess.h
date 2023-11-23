@@ -10,6 +10,8 @@
 #include "gumquickcore.h"
 #include "gumquickmodule.h"
 
+#include <gum/gumprocess.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GumQuickProcess GumQuickProcess;
@@ -21,6 +23,7 @@ struct _GumQuickProcess
   GumQuickCore * core;
 
   GumQuickExceptionHandler * exception_handler;
+  GumModuleDetails * main_module;
 };
 
 G_GNUC_INTERNAL void _gum_quick_process_init (GumQuickProcess * self,

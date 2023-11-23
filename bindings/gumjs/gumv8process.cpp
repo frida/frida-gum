@@ -63,6 +63,7 @@ struct GumV8FindModuleByNameContext
   GumV8Process * parent;
 };
 
+GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
@@ -92,6 +93,13 @@ static gboolean gum_v8_exception_handler_on_exception (
     GumExceptionDetails * details, GumV8ExceptionHandler * handler);
 
 const gchar * gum_v8_script_exception_type_to_string (GumExceptionType type);
+
+static const GumV8Property gumjs_process_values[] =
+{
+  { "mainModule", gumjs_process_get_main_module, NULL },
+
+  { NULL, NULL }
+};
 
 static const GumV8Function gumjs_process_functions[] =
 {
@@ -136,7 +144,11 @@ _gum_v8_process_init (GumV8Process * self,
   process->Set (_gum_v8_string_new_ascii (isolate, "codeSigningPolicy"),
       String::NewFromUtf8 (isolate, gum_code_signing_policy_to_string (
       gum_process_get_code_signing_policy ())).ToLocalChecked (), ReadOnly);
-  _gum_v8_module_add (External::New (isolate, self), process,
+
+  auto process_module = External::New (isolate, self);
+
+  _gum_v8_module_add (process_module, process, gumjs_process_values, isolate);
+  _gum_v8_module_add (process_module, process,
       gumjs_process_functions, isolate);
 }
 
@@ -148,18 +160,31 @@ _gum_v8_process_realize (GumV8Process * self)
 void
 _gum_v8_process_flush (GumV8Process * self)
 {
+  g_clear_pointer (&self->main_module, gum_module_details_free);
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 }
 
 void
 _gum_v8_process_dispose (GumV8Process * self)
 {
+  g_clear_pointer (&self->main_module, gum_module_details_free);
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 }
 
 void
 _gum_v8_process_finalize (GumV8Process * self)
 {
+}
+
+GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
+{
+  auto self = module;
+
+  if (self->main_module == NULL)
+    self->main_module = gum_process_get_main_module ();
+
+  info.GetReturnValue ().Set (_gum_v8_module_value_new (self->main_module,
+      self->module));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_dir)
