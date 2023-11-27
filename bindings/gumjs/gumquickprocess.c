@@ -110,6 +110,8 @@ static void gum_quick_exception_handler_free (
 static gboolean gum_quick_exception_handler_on_exception (
     GumExceptionDetails * details, GumQuickExceptionHandler * handler);
 
+static void gumjs_free_main_module (GumQuickProcess * self);
+
 static const JSCFunctionListEntry gumjs_process_entries[] =
 {
   JS_PROP_STRING_DEF ("arch", GUM_SCRIPT_ARCH, JS_PROP_C_W_E),
@@ -144,6 +146,7 @@ _gum_quick_process_init (GumQuickProcess * self,
 
   self->module = module;
   self->core = core;
+  self->main_module = JS_UNINITIALIZED;
 
   _gum_quick_core_store_module_data (core, "process", self);
 
@@ -164,15 +167,25 @@ _gum_quick_process_init (GumQuickProcess * self,
 void
 _gum_quick_process_flush (GumQuickProcess * self)
 {
-  g_clear_pointer (&self->main_module, gum_module_details_free);
+  gumjs_free_main_module (self);
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
 }
 
 void
 _gum_quick_process_dispose (GumQuickProcess * self)
 {
-  g_clear_pointer (&self->main_module, gum_module_details_free);
+  gumjs_free_main_module (self);
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
+}
+
+static void
+gumjs_free_main_module (GumQuickProcess * self)
+{
+  if (JS_IsUninitialized (self->main_module))
+    return;
+
+  JS_FreeValue (self->core->ctx, self->main_module);
+  self->main_module = JS_UNINITIALIZED;
 }
 
 void
@@ -192,10 +205,13 @@ GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
 
   self = gumjs_get_parent_module (core);
 
-  if (self->main_module == NULL)
-    self->main_module = gum_process_get_main_module ();
+  if (JS_IsUninitialized (self->main_module))
+  {
+    const GumModuleDetails * main_details  = gum_process_get_main_module ();
+    self->main_module = _gum_quick_module_new (ctx, main_details, self->module);
+  }
 
-  return _gum_quick_module_new (ctx, self->main_module, self->module);
+  return JS_DupValue (ctx, self->main_module);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_dir)

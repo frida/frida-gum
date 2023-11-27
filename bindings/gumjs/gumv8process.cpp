@@ -160,14 +160,12 @@ _gum_v8_process_realize (GumV8Process * self)
 void
 _gum_v8_process_flush (GumV8Process * self)
 {
-  g_clear_pointer (&self->main_module, gum_module_details_free);
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 }
 
 void
 _gum_v8_process_dispose (GumV8Process * self)
 {
-  g_clear_pointer (&self->main_module, gum_module_details_free);
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 }
 
@@ -179,11 +177,11 @@ _gum_v8_process_finalize (GumV8Process * self)
 GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
 {
   auto self = module;
+  const GumModuleDetails * main_module;
 
-  if (self->main_module == NULL)
-    self->main_module = gum_process_get_main_module ();
+  main_module = gum_process_get_main_module ();
 
-  info.GetReturnValue ().Set (_gum_v8_module_value_new (self->main_module,
+  info.GetReturnValue ().Set (_gum_v8_module_value_new (main_module,
       self->module));
 }
 
