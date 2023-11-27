@@ -23,7 +23,7 @@ struct _GumQuickProcess
   GumQuickCore * core;
 
   GumQuickExceptionHandler * exception_handler;
-  JSValue main_module;
+  JSValue main_module_value;
 };
 
 G_GNUC_INTERNAL void _gum_quick_process_init (GumQuickProcess * self,

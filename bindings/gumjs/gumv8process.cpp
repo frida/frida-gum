@@ -160,12 +160,16 @@ _gum_v8_process_realize (GumV8Process * self)
 void
 _gum_v8_process_flush (GumV8Process * self)
 {
+  delete self->main_module_value;
+  self->main_module_value = nullptr;
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 }
 
 void
 _gum_v8_process_dispose (GumV8Process * self)
 {
+  delete self->main_module_value;
+  self->main_module_value = nullptr;
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 }
 
@@ -177,12 +181,21 @@ _gum_v8_process_finalize (GumV8Process * self)
 GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
 {
   auto self = module;
-  const GumModuleDetails * main_module;
 
-  main_module = gum_process_get_main_module ();
+  if (self->main_module_value == nullptr)
+  {
+    const GumModuleDetails * main_module = gum_process_get_main_module ();
+    auto main_module_value = _gum_v8_module_value_new (main_module,
+        self->module);
+    self->main_module_value = new Global<Object> (self->core->isolate,
+        main_module_value);
+  }
 
-  info.GetReturnValue ().Set (_gum_v8_module_value_new (main_module,
-      self->module));
+  auto main_module_template_value = (Local<Object>::New (isolate,
+        *module->main_module_value));
+  auto main_module_value (main_module_template_value->Clone ());
+
+  info.GetReturnValue ().Set (main_module_value);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_dir)

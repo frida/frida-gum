@@ -18,6 +18,7 @@ struct GumV8Process
   GumV8Core * core;
 
   GumV8ExceptionHandler * exception_handler;
+  v8::Global<v8::Object> * main_module_value;
 };
 
 G_GNUC_INTERNAL void _gum_v8_process_init (GumV8Process * self,

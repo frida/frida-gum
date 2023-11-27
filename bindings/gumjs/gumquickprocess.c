@@ -110,7 +110,7 @@ static void gum_quick_exception_handler_free (
 static gboolean gum_quick_exception_handler_on_exception (
     GumExceptionDetails * details, GumQuickExceptionHandler * handler);
 
-static void gumjs_free_main_module (GumQuickProcess * self);
+static void gumjs_free_main_module_value (GumQuickProcess * self);
 
 static const JSCFunctionListEntry gumjs_process_entries[] =
 {
@@ -146,7 +146,7 @@ _gum_quick_process_init (GumQuickProcess * self,
 
   self->module = module;
   self->core = core;
-  self->main_module = JS_UNINITIALIZED;
+  self->main_module_value = JS_UNINITIALIZED;
 
   _gum_quick_core_store_module_data (core, "process", self);
 
@@ -167,25 +167,25 @@ _gum_quick_process_init (GumQuickProcess * self,
 void
 _gum_quick_process_flush (GumQuickProcess * self)
 {
-  gumjs_free_main_module (self);
+  gumjs_free_main_module_value (self);
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
 }
 
 void
 _gum_quick_process_dispose (GumQuickProcess * self)
 {
-  gumjs_free_main_module (self);
+  gumjs_free_main_module_value (self);
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
 }
 
 static void
-gumjs_free_main_module (GumQuickProcess * self)
+gumjs_free_main_module_value (GumQuickProcess * self)
 {
-  if (JS_IsUninitialized (self->main_module))
+  if (JS_IsUninitialized (self->main_module_value))
     return;
 
-  JS_FreeValue (self->core->ctx, self->main_module);
-  self->main_module = JS_UNINITIALIZED;
+  JS_FreeValue (self->core->ctx, self->main_module_value);
+  self->main_module_value = JS_UNINITIALIZED;
 }
 
 void
@@ -205,13 +205,14 @@ GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
 
   self = gumjs_get_parent_module (core);
 
-  if (JS_IsUninitialized (self->main_module))
+  if (JS_IsUninitialized (self->main_module_value))
   {
-    const GumModuleDetails * main_details  = gum_process_get_main_module ();
-    self->main_module = _gum_quick_module_new (ctx, main_details, self->module);
+    const GumModuleDetails * main_module  = gum_process_get_main_module ();
+    self->main_module_value = _gum_quick_module_new (ctx, main_module,
+        self->module);
   }
 
-  return JS_DupValue (ctx, self->main_module);
+  return JS_DupValue (ctx, self->main_module_value);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_dir)
