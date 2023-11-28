@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,8 +21,8 @@ struct _GumQuickProcess
   GumQuickModule * module;
   GumQuickCore * core;
 
-  GumQuickExceptionHandler * exception_handler;
   JSValue main_module_value;
+  GumQuickExceptionHandler * exception_handler;
 };
 
 G_GNUC_INTERNAL void _gum_quick_process_init (GumQuickProcess * self,

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -78,6 +78,7 @@ struct _GumQuickFindRangeByAddressContext
   GumQuickCore * core;
 };
 
+static void gumjs_free_main_module_value (GumQuickProcess * self);
 GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
@@ -109,8 +110,6 @@ static void gum_quick_exception_handler_free (
     GumQuickExceptionHandler * handler);
 static gboolean gum_quick_exception_handler_on_exception (
     GumExceptionDetails * details, GumQuickExceptionHandler * handler);
-
-static void gumjs_free_main_module_value (GumQuickProcess * self);
 
 static const JSCFunctionListEntry gumjs_process_entries[] =
 {
@@ -167,15 +166,15 @@ _gum_quick_process_init (GumQuickProcess * self,
 void
 _gum_quick_process_flush (GumQuickProcess * self)
 {
-  gumjs_free_main_module_value (self);
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
+  gumjs_free_main_module_value (self);
 }
 
 void
 _gum_quick_process_dispose (GumQuickProcess * self)
 {
-  gumjs_free_main_module_value (self);
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
+  gumjs_free_main_module_value (self);
 }
 
 static void
@@ -207,9 +206,8 @@ GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
 
   if (JS_IsUninitialized (self->main_module_value))
   {
-    const GumModuleDetails * main_module  = gum_process_get_main_module ();
-    self->main_module_value = _gum_quick_module_new (ctx, main_module,
-        self->module);
+    self->main_module_value = _gum_quick_module_new (ctx,
+        gum_process_get_main_module (), self->module);
   }
 
   return JS_DupValue (ctx, self->main_module_value);

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -163,7 +164,7 @@ gum_process_get_main_module (void)
   {
     GumModuleDetails * result;
 
-    gum_process_enumerate_modules (_gum_process_match_main_module, &result);
+    gum_process_enumerate_modules (_gum_process_collect_main_module, &result);
 
     _gum_register_destructor (gum_deinit_main_module);
 

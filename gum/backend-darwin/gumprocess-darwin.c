@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
- * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
  *
@@ -448,24 +448,9 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   gum_darwin_enumerate_threads (mach_task_self (), func, user_data);
 }
 
-void
-_gum_process_enumerate_modules (GumFoundModuleFunc func,
-                                gpointer user_data)
-{
-  gum_darwin_enumerate_modules (mach_task_self (), func, user_data);
-}
-
-void
-_gum_process_enumerate_ranges (GumPageProtection prot,
-                               GumFoundRangeFunc func,
-                               gpointer user_data)
-{
-  gum_darwin_enumerate_ranges (mach_task_self (), prot, func, user_data);
-}
-
 gboolean
-_gum_process_match_main_module (const GumModuleDetails * details,
-                                gpointer user_data)
+_gum_process_collect_main_module (const GumModuleDetails * details,
+                                  gpointer user_data)
 {
   GumModuleDetails ** out = user_data;
   gum_mach_header_t * header;
@@ -479,6 +464,21 @@ _gum_process_match_main_module (const GumModuleDetails * details,
   }
 
   return TRUE;
+}
+
+void
+_gum_process_enumerate_modules (GumFoundModuleFunc func,
+                                gpointer user_data)
+{
+  gum_darwin_enumerate_modules (mach_task_self (), func, user_data);
+}
+
+void
+_gum_process_enumerate_ranges (GumPageProtection prot,
+                               GumFoundRangeFunc func,
+                               gpointer user_data)
+{
+  gum_darwin_enumerate_ranges (mach_task_self (), prot, func, user_data);
 }
 
 void

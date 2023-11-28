@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1043,6 +1044,17 @@ gum_store_cpu_context (GumThreadId thread_id,
   memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
 
+gboolean
+_gum_process_collect_main_module (const GumModuleDetails * details,
+                                  gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+
+  *out = gum_module_details_copy (details);
+
+  return FALSE;
+}
+
 void
 _gum_process_enumerate_modules (GumFoundModuleFunc func,
                                 gpointer user_data)
@@ -1257,17 +1269,6 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
   g_free (next_path);
 
   gum_proc_maps_iter_destroy (&iter);
-}
-
-gboolean
-_gum_process_match_main_module (const GumModuleDetails * details,
-                                gpointer user_data)
-{
-  GumModuleDetails ** out = user_data;
-
-  *out = gum_module_details_copy (details);
-
-  return FALSE;
 }
 
 GHashTable *

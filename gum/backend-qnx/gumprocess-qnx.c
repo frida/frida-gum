@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -262,6 +263,17 @@ gum_store_cpu_context (GumThreadId thread_id,
   memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
 
+gboolean
+_gum_process_collect_main_module (const GumModuleDetails * details,
+                                  gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+
+  *out = gum_module_details_copy (details);
+
+  return FALSE;
+}
+
 void
 _gum_process_enumerate_modules (GumFoundModuleFunc func,
                                 gpointer user_data)
@@ -321,17 +333,6 @@ _gum_process_enumerate_modules (GumFoundModuleFunc func,
   }
 
   dlclose (handle);
-}
-
-gboolean
-_gum_process_match_main_module (const GumModuleDetails * details,
-                                gpointer user_data)
-{
-  GumModuleDetails ** out = user_data;
-
-  *out = gum_module_details_copy (details);
-
-  return FALSE;
 }
 
 void
