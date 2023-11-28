@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -258,6 +259,17 @@ gum_windows_get_thread_details (DWORD thread_id,
   }
 
   return success;
+}
+
+gboolean
+_gum_process_collect_main_module (const GumModuleDetails * details,
+                                  gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+
+  *out = gum_module_details_copy (details);
+
+  return FALSE;
 }
 
 void

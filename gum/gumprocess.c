@@ -1,11 +1,13 @@
 /*
  * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumprocess-priv.h"
 
+#include "gum-init.h"
 #include "gumcloak.h"
 
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
@@ -48,6 +50,7 @@ struct _GumResolveSymbolContext
 
 static gboolean gum_emit_thread_if_not_cloaked (
     const GumThreadDetails * details, gpointer user_data);
+static void gum_deinit_main_module (void);
 static gboolean gum_try_resolve_module_pointer_from (
     const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_emit_module_if_not_cloaked (
@@ -144,6 +147,37 @@ gum_emit_thread_if_not_cloaked (const GumThreadDetails * details,
     return TRUE;
 
   return ctx->func (details, ctx->user_data);
+}
+
+/**
+ * gum_process_get_main_module:
+ *
+ * Returns the details of the module representing the main executable
+ * of the process.
+ */
+const GumModuleDetails *
+gum_process_get_main_module (void)
+{
+  static gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    GumModuleDetails * result;
+
+    gum_process_enumerate_modules (_gum_process_collect_main_module, &result);
+
+    _gum_register_destructor (gum_deinit_main_module);
+
+    g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (result) + 1);
+  }
+
+  return GSIZE_TO_POINTER (cached_result) - 1;
+}
+
+static void
+gum_deinit_main_module (void)
+{
+  gum_module_details_free ((GumModuleDetails *) gum_process_get_main_module ());
 }
 
 /**

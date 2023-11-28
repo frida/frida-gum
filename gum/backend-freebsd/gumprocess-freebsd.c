@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2022-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -473,6 +474,17 @@ failure:
     g_free (path);
     return NULL;
   }
+}
+
+gboolean
+_gum_process_collect_main_module (const GumModuleDetails * details,
+                                  gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+
+  *out = gum_module_details_copy (details);
+
+  return FALSE;
 }
 
 void

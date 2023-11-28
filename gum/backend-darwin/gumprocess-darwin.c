@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
- * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
  *
@@ -446,6 +446,24 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
                                 gpointer user_data)
 {
   gum_darwin_enumerate_threads (mach_task_self (), func, user_data);
+}
+
+gboolean
+_gum_process_collect_main_module (const GumModuleDetails * details,
+                                  gpointer user_data)
+{
+  GumModuleDetails ** out = user_data;
+  gum_mach_header_t * header;
+
+  header = GSIZE_TO_POINTER (details->range->base_address);
+  if (header->filetype == MH_EXECUTE)
+  {
+    *out = gum_module_details_copy (details);
+
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 void

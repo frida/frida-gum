@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -63,6 +63,7 @@ struct GumV8FindModuleByNameContext
   GumV8Process * parent;
 };
 
+GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
@@ -93,6 +94,13 @@ static gboolean gum_v8_exception_handler_on_exception (
 
 const gchar * gum_v8_script_exception_type_to_string (GumExceptionType type);
 
+static const GumV8Property gumjs_process_values[] =
+{
+  { "mainModule", gumjs_process_get_main_module, NULL },
+
+  { NULL, NULL }
+};
+
 static const GumV8Function gumjs_process_functions[] =
 {
   { "getCurrentDir", gumjs_process_get_current_dir },
@@ -122,6 +130,8 @@ _gum_v8_process_init (GumV8Process * self,
   self->module = module;
   self->core = core;
 
+  auto process_module = External::New (isolate, self);
+
   auto process = _gum_v8_create_module ("Process", scope, isolate);
   process->Set (_gum_v8_string_new_ascii (isolate, "id"),
       Number::New (isolate, gum_process_get_id ()), ReadOnly);
@@ -136,7 +146,8 @@ _gum_v8_process_init (GumV8Process * self,
   process->Set (_gum_v8_string_new_ascii (isolate, "codeSigningPolicy"),
       String::NewFromUtf8 (isolate, gum_code_signing_policy_to_string (
       gum_process_get_code_signing_policy ())).ToLocalChecked (), ReadOnly);
-  _gum_v8_module_add (External::New (isolate, self), process,
+  _gum_v8_module_add (process_module, process, gumjs_process_values, isolate);
+  _gum_v8_module_add (process_module, process,
       gumjs_process_functions, isolate);
 }
 
@@ -149,17 +160,38 @@ void
 _gum_v8_process_flush (GumV8Process * self)
 {
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
+
+  delete self->main_module_value;
+  self->main_module_value = nullptr;
 }
 
 void
 _gum_v8_process_dispose (GumV8Process * self)
 {
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
+
+  delete self->main_module_value;
+  self->main_module_value = nullptr;
 }
 
 void
 _gum_v8_process_finalize (GumV8Process * self)
 {
+}
+
+GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
+{
+  auto self = module;
+
+  if (self->main_module_value == nullptr)
+  {
+    self->main_module_value = new Global<Object> (isolate,
+        _gum_v8_module_value_new (gum_process_get_main_module (),
+          self->module));
+  }
+
+  info.GetReturnValue ().Set (
+      Local<Object>::New (isolate, *module->main_module_value));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_dir)

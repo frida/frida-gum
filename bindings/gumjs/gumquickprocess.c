@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -78,6 +78,8 @@ struct _GumQuickFindRangeByAddressContext
   GumQuickCore * core;
 };
 
+static void gumjs_free_main_module_value (GumQuickProcess * self);
+GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
@@ -114,6 +116,7 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_PROP_STRING_DEF ("arch", GUM_SCRIPT_ARCH, JS_PROP_C_W_E),
   JS_PROP_STRING_DEF ("platform", GUM_SCRIPT_PLATFORM, JS_PROP_C_W_E),
   JS_PROP_INT32_DEF ("pointerSize", GLIB_SIZEOF_VOID_P, JS_PROP_C_W_E),
+  JS_CGETSET_DEF ("mainModule", gumjs_process_get_main_module, NULL),
   JS_CFUNC_DEF ("getCurrentDir", 0, gumjs_process_get_current_dir),
   JS_CFUNC_DEF ("getHomeDir", 0, gumjs_process_get_home_dir),
   JS_CFUNC_DEF ("getTmpDir", 0, gumjs_process_get_tmp_dir),
@@ -142,6 +145,7 @@ _gum_quick_process_init (GumQuickProcess * self,
 
   self->module = module;
   self->core = core;
+  self->main_module_value = JS_UNINITIALIZED;
 
   _gum_quick_core_store_module_data (core, "process", self);
 
@@ -163,12 +167,24 @@ void
 _gum_quick_process_flush (GumQuickProcess * self)
 {
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
+  gumjs_free_main_module_value (self);
 }
 
 void
 _gum_quick_process_dispose (GumQuickProcess * self)
 {
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
+  gumjs_free_main_module_value (self);
+}
+
+static void
+gumjs_free_main_module_value (GumQuickProcess * self)
+{
+  if (JS_IsUninitialized (self->main_module_value))
+    return;
+
+  JS_FreeValue (self->core->ctx, self->main_module_value);
+  self->main_module_value = JS_UNINITIALIZED;
 }
 
 void
@@ -180,6 +196,21 @@ static GumQuickProcess *
 gumjs_get_parent_module (GumQuickCore * core)
 {
   return _gum_quick_core_load_module_data (core, "process");
+}
+
+GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
+{
+  GumQuickProcess * self;
+
+  self = gumjs_get_parent_module (core);
+
+  if (JS_IsUninitialized (self->main_module_value))
+  {
+    self->main_module_value = _gum_quick_module_new (ctx,
+        gum_process_get_main_module (), self->module);
+  }
+
+  return JS_DupValue (ctx, self->main_module_value);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_dir)
