@@ -10,8 +10,6 @@
 #include "gumquickcore.h"
 #include "gumquickmodule.h"
 
-#include <gum/gumprocess.h>
-
 G_BEGIN_DECLS
 
 typedef struct _GumQuickProcess GumQuickProcess;
