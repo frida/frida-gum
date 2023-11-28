@@ -171,7 +171,7 @@ gum_process_get_main_module (void)
     g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (result) + 1);
   }
 
-  return GSIZE_TO_POINTER (cached_result) - 1;
+  return GSIZE_TO_POINTER (cached_result - 1);
 }
 
 static void
