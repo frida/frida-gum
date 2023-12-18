@@ -93,8 +93,7 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_system_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
-GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread_sync)
-GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread_async)
+GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread)
 
 static GumV8ExceptionHandler * gum_v8_exception_handler_new (
     Local<Function> callback, GumV8Core * core);
@@ -128,9 +127,7 @@ static const GumV8Function gumjs_process_functions[] =
   { "enumerateSystemRanges", gumjs_process_enumerate_system_ranges },
   { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
   { "setExceptionHandler", gumjs_process_set_exception_handler },
-  { "runOnThreadSync", gumjs_process_run_on_thread_sync },
-  { "runOnThreadAsync", gumjs_process_run_on_thread_async },
-
+  { "_runOnThread", gumjs_process_run_on_thread },
   { NULL, NULL }
 };
 
@@ -529,49 +526,7 @@ gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
   return handled;
 }
 
-
-GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_sync)
-{
-  GumThreadId thread_id;
-  Local<Function> user_func;
-  GumV8RunOnThreadContext sync_ctx;
-  GumStalker * stalker;
-  gboolean success;
-
-  auto isolate = core->isolate;
-  auto context = isolate->GetCurrentContext ();
-
-  if (!_gum_v8_args_parse (args, "ZF", &thread_id, &user_func))
-    return;
-
-  if (thread_id == 0)
-    return;
-
-  stalker = gum_stalker_new ();
-
-  {
-    ScriptUnlocker unlocker (core);
-    sync_ctx.core = core;
-    sync_ctx.isolate = isolate;
-    sync_ctx.context = context;
-    sync_ctx.user_func = user_func;
-
-    success = gum_stalker_run_on_thread_sync (stalker, thread_id,
-        gum_js_process_run_cb, &sync_ctx);
-  }
-
-  while (gum_stalker_garbage_collect (stalker))
-    g_usleep (10000);
-
-  g_object_unref (stalker);
-
-  if (success)
-    info.GetReturnValue ().Set (sync_ctx.ret.ToLocalChecked ());
-  else
-    _gum_v8_throw_ascii_literal (isolate, "Failed to run on thread");
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread_async)
+GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
 {
   GumThreadId thread_id;
   Local<Function> user_func;

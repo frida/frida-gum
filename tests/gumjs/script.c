@@ -5325,13 +5325,10 @@ TESTCASE (process_can_run_on_thread_sync)
   COMPILE_AND_LOAD_SCRIPT (
       "const threads = Process.enumerateThreads();"
       "const thread = threads.find(t => t.id == " GUM_PTR_CONST ");"
-      "const data = 1338;"
-      "var out_val = 0;"
-      "const ret = Process.runOnThreadSync(thread.id, function (ctx) {"
-      "  send (data);"
-      "  out_val = 1339;"
-      "});"
-      "send (out_val)",
+      "Process.runOnThread(thread.id, function (ctx) {"
+      "  send (ctx);"
+      "  return 1339;"
+      "}, 1338).then((r) => send(r));",
       thread_id);
 
   EXPECT_SEND_MESSAGE_WITH ("1338");
@@ -5358,21 +5355,27 @@ TESTCASE (process_can_run_on_thread_async)
       "async function run () {"
       "  const threads = Process.enumerateThreads();"
       "  const thread = threads.find(t => t.id == " GUM_PTR_CONST ");"
-      "  const data = 1338;"
-      "  let res;"
-      "  const prom = new Promise (function (resolve, reject) {"
-      "    res = resolve;"
+      "  let resolve;"
+      "  const promise = new Promise ((r) => {"
+      "    resolve = r;"
       "  });"
-      "  const ret = Process.runOnThreadAsync(thread.id, function (ctx) {"
-      "    send (data);"
-      "    res();"
-      "  });"
-      "  await prom;"
+      "  let ret = Process.runOnThread(thread.id, function (ctx) {"
+      "    send(ctx);"
+      "    promise.then((r) => {send(r);});"
+      "    return 1340;"
+      "  }, 1337);"
+      "  Thread.sleep(0.2);"
+      "  send(1338);"
+      "  resolve(1339);"
+      "  send(await ret);"
       "};"
       "run();",
       thread_id);
 
+  EXPECT_SEND_MESSAGE_WITH ("1337");
   EXPECT_SEND_MESSAGE_WITH ("1338");
+  EXPECT_SEND_MESSAGE_WITH ("1339");
+  EXPECT_SEND_MESSAGE_WITH ("1340");
 
   done = TRUE;
   g_thread_join (thread);

@@ -448,6 +448,16 @@ Object.defineProperties(Process, {
       return range;
     }
   },
+  runOnThread: {
+    enumerable: true,
+    value: function (threadId, callback, data) {
+      return new Promise((resolve) => {
+        Process._runOnThread(threadId, function () {
+          resolve(callback(data));
+        });
+      });
+    },
+  },
 });
 
 if (Process.findRangeByAddress === undefined) {
