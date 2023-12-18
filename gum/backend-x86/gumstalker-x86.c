@@ -874,7 +874,7 @@ static GumInterceptor * gum_exec_ctx_interceptor = NULL;
 # endif
 #endif
 
-static void gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
+static void gum_stalker_do_run_on_thread (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
 gboolean
@@ -6661,23 +6661,23 @@ gum_stalker_is_run_on_thread_supported (void)
 }
 
 gboolean
-gum_stalker_run_on_thread_async (GumStalker * self,
-                                 GumThreadId thread_id,
-                                 GumStalkerRunOnThreadFunc func,
-                                 gpointer user_data)
+gum_stalker_run_on_thread (GumStalker * self,
+                           GumThreadId thread_id,
+                           GumStalkerRunOnThreadFunc func,
+                           gpointer user_data)
 {
   GumStalkerRunOnThreadCtx ctx;
   ctx.stalker = self;
   ctx.func = func;
   ctx.user_data = user_data;
-  return gum_process_modify_thread (thread_id,
-      gum_stalker_do_run_on_thread_async, &ctx, GUM_MODIFY_THREAD_FLAGS_NONE);
+  return gum_process_modify_thread (thread_id, gum_stalker_do_run_on_thread,
+      &ctx, GUM_MODIFY_THREAD_FLAGS_NONE);
 }
 
 static void
-gum_stalker_do_run_on_thread_async (GumThreadId thread_id,
-                                    GumCpuContext * cpu_context,
-                                    gpointer user_data)
+gum_stalker_do_run_on_thread (GumThreadId thread_id,
+                              GumCpuContext * cpu_context,
+                              gpointer user_data)
 {
   GumStalkerRunOnThreadCtx * run_ctx = (GumStalkerRunOnThreadCtx *) user_data;
   GumStalker * self = run_ctx->stalker;

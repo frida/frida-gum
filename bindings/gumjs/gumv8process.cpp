@@ -552,7 +552,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
     sync_ctx.context = context;
     sync_ctx.user_func = Local<Function>::New (isolate, user_func);
 
-    success = gum_stalker_run_on_thread_async (stalker, thread_id,
+    success = gum_stalker_run_on_thread (stalker, thread_id,
         gum_js_process_run_cb, &sync_ctx);
   }
 

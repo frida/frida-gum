@@ -439,7 +439,7 @@ gum_stalker_run_on_thread_sync (GumStalker * self,
 
   if (gum_process_get_current_thread_id () == thread_id)
   {
-    return gum_stalker_run_on_thread_async (self, thread_id, func, user_data);
+    return gum_stalker_run_on_thread (self, thread_id, func, user_data);
   }
   else
   {
@@ -450,7 +450,7 @@ gum_stalker_run_on_thread_sync (GumStalker * self,
     ctx.user_data = user_data;
 
     g_mutex_lock (&ctx.mutex);
-    if (!gum_stalker_run_on_thread_async (self, thread_id,
+    if (!gum_stalker_run_on_thread (self, thread_id,
         gum_stalker_do_run_on_thread_sync, &ctx))
     {
       return FALSE;

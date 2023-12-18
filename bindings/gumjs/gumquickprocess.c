@@ -660,7 +660,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
 
   stalker = gum_stalker_new ();
 
-  success = gum_stalker_run_on_thread_async (stalker, thread_id,
+  success = gum_stalker_run_on_thread (stalker, thread_id,
       gum_js_process_run_cb, &sync_ctx);
   _gum_quick_scope_resume (&scope);
 

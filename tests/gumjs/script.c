@@ -202,7 +202,7 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("RunOnThread")
     TESTENTRY (process_can_run_on_thread_sync)
-    TESTENTRY (process_can_run_on_thread_async)
+    TESTENTRY (process_can_run_on_thread)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Module")
@@ -5338,7 +5338,7 @@ TESTCASE (process_can_run_on_thread_sync)
   g_thread_join (thread);
 }
 
-TESTCASE (process_can_run_on_thread_async)
+TESTCASE (process_can_run_on_thread)
 {
   GThread * thread;
   GumThreadId thread_id;

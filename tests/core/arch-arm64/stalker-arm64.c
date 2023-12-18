@@ -82,9 +82,9 @@ TESTLIST_BEGIN (stalker)
 #endif
   TESTGROUP_BEGIN ("RunOnThread")
     TESTENTRY (run_on_thread_support)
-    TESTENTRY (run_on_thread_current_async)
+    TESTENTRY (run_on_thread_current)
     TESTENTRY (run_on_thread_current_sync)
-    TESTENTRY (run_on_thread_other_async)
+    TESTENTRY (run_on_thread_other)
     TESTENTRY (run_on_thread_other_sync)
   TESTGROUP_END ()
 TESTLIST_END ()
@@ -2427,13 +2427,13 @@ TESTCASE (run_on_thread_support)
   g_assert_true (supported);
 }
 
-TESTCASE (run_on_thread_current_async)
+TESTCASE (run_on_thread_current)
 {
   GumThreadId thread_id = gum_process_get_current_thread_id ();
   RunOnThreadCtx ctx;
   gboolean success;
 
-  success = gum_stalker_run_on_thread_async (fixture->stalker, thread_id,
+  success = gum_stalker_run_on_thread (fixture->stalker, thread_id,
       run_on_thread, &ctx);
 
 #if defined (HAVE_ANDROID)
@@ -2477,7 +2477,7 @@ run_on_thread (const GumCpuContext * cpu_context, gpointer user_data)
   ctx->thread_id = gum_process_get_current_thread_id ();
 }
 
-TESTCASE (run_on_thread_other_async)
+TESTCASE (run_on_thread_other)
 {
   GumThreadId this_id, other_id;
   volatile gboolean done = FALSE;
@@ -2487,8 +2487,7 @@ TESTCASE (run_on_thread_other_async)
   this_id = gum_process_get_current_thread_id ();
 
   thread = create_sleeping_dummy_thread_sync (&done, &other_id);
-  gum_stalker_run_on_thread_async (fixture->stalker, other_id, run_on_thread,
-      &ctx);
+  gum_stalker_run_on_thread (fixture->stalker, other_id, run_on_thread, &ctx);
 
   done = TRUE;
   g_thread_join (thread);
