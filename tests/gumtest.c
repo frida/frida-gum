@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -208,9 +208,6 @@ main (gint argc, gchar * argv[])
 #endif
 #ifdef HAVE_ARM64
   TESTLIST_REGISTER (interceptor_arm64);
-#endif
-#ifdef HAVE_DARWIN
-  TESTLIST_REGISTER (exceptor_darwin);
 #endif
   TESTLIST_REGISTER (memoryaccessmonitor);
 

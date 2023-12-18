@@ -676,16 +676,6 @@ gum_try_read_and_write_at (guint8 * a,
   {
     if (exception_raised_on_read != NULL)
       *exception_raised_on_read = TRUE;
-
-# ifdef HAVE_DARWIN
-    /*
-     * The Darwin Exceptor backend will currently disengage on an unhandled
-     * exception. This is because guarded Mach ports may make it impossible
-     * to forward to the previous handler. We may potentially improve on
-     * this by detecting that the process has guarded ports.
-     */
-    gum_exceptor_reset (exceptor);
-# endif
   }
 
 # ifdef HAVE_ANDROID
@@ -700,10 +690,6 @@ gum_try_read_and_write_at (guint8 * a,
   {
     if (exception_raised_on_write != NULL)
       *exception_raised_on_write = TRUE;
-
-# ifdef HAVE_DARWIN
-    gum_exceptor_reset (exceptor);
-# endif
   }
 
 # ifdef HAVE_ANDROID

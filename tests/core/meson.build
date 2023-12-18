@@ -27,7 +27,6 @@ core_sources = [
 if host_os_family == 'darwin'
   core_sources += [
     'interceptor-darwin.c',
-    'exceptor-darwin.c',
   ]
 endif
 
