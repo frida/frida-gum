@@ -81,7 +81,6 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (observer)
 #endif
   TESTGROUP_BEGIN ("RunOnThread")
-    TESTENTRY (run_on_thread_support)
     TESTENTRY (run_on_thread_current)
     TESTENTRY (run_on_thread_current_sync)
     TESTENTRY (run_on_thread_other)
@@ -2420,12 +2419,6 @@ gum_test_stalker_observer_increment_total (GumStalkerObserver * observer)
 }
 
 #endif
-
-TESTCASE (run_on_thread_support)
-{
-  gboolean supported = gum_stalker_is_run_on_thread_supported ();
-  g_assert_true (supported);
-}
 
 TESTCASE (run_on_thread_current)
 {

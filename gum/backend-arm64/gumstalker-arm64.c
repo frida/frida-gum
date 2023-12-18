@@ -5908,12 +5908,6 @@ gum_is_bl_imm (guint32 insn)
 #endif
 
 gboolean
-gum_stalker_is_run_on_thread_supported (void)
-{
-  return TRUE;
-}
-
-gboolean
 gum_stalker_run_on_thread (GumStalker * self,
                            GumThreadId thread_id,
                            GumStalkerRunOnThreadFunc func,

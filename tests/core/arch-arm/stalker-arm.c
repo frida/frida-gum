@@ -127,7 +127,6 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (prefetch)
 #endif
   TESTGROUP_BEGIN ("RunOnThread")
-    TESTENTRY (run_on_thread_support)
     TESTENTRY (run_on_thread_current)
     TESTENTRY (run_on_thread_current_sync)
     TESTENTRY (run_on_thread_other)
@@ -3802,12 +3801,6 @@ prefetch_read_blocks (int fd,
 }
 
 #endif
-
-TESTCASE (run_on_thread_support)
-{
-  gboolean supported = gum_stalker_is_run_on_thread_supported ();
-  g_assert_true (supported);
-}
 
 TESTCASE (run_on_thread_current)
 {

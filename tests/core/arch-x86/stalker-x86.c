@@ -121,7 +121,6 @@ TESTLIST_BEGIN (stalker)
   TESTGROUP_END ()
 #endif
   TESTGROUP_BEGIN ("RunOnThread")
-    TESTENTRY (run_on_thread_support)
     TESTENTRY (run_on_thread_current)
     TESTENTRY (run_on_thread_current_sync)
     TESTENTRY (run_on_thread_other)
@@ -3511,12 +3510,6 @@ test_check_followed (void)
 }
 
 #endif
-
-TESTCASE (run_on_thread_support)
-{
-  gboolean supported = gum_stalker_is_run_on_thread_supported ();
-  g_assert_true (supported);
-}
 
 TESTCASE (run_on_thread_current)
 {

@@ -432,11 +432,6 @@ gum_stalker_run_on_thread_sync (GumStalker * self,
 {
   RunOnThreadSyncCtx ctx;
 
-  if (!gum_stalker_is_run_on_thread_supported ())
-  {
-    return FALSE;
-  }
-
   if (gum_process_get_current_thread_id () == thread_id)
   {
     return gum_stalker_run_on_thread (self, thread_id, func, user_data);

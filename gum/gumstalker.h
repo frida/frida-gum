@@ -277,8 +277,6 @@ GUM_API void gum_stalker_observer_switch_callback (
     GumStalkerObserver * observer, gpointer from_address,
     gpointer start_address, gpointer from_insn, gpointer * target);
 
-GUM_API gboolean gum_stalker_is_run_on_thread_supported (void);
-
 GUM_API gboolean gum_stalker_run_on_thread (GumStalker * self,
     GumThreadId thread_id, GumStalkerRunOnThreadFunc func, gpointer user_data);
 
