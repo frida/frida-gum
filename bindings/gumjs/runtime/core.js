@@ -487,6 +487,13 @@ if (globalThis.Interceptor !== undefined) {
         Interceptor._replace(target, replacement, data);
       }
     },
+    replaceFast: {
+      enumerable: true,
+      value: function (target, replacement) {
+        Memory._checkCodePointer(target);
+        return Interceptor._replaceFast(target, replacement);
+      }
+    },
   });
 }
 
