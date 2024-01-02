@@ -20,6 +20,9 @@ struct GumV8Process
 
   v8::Global<v8::Object> * main_module_value;
   GumV8ExceptionHandler * exception_handler;
+
+  GumStalker * stalker;
+  GSource * flush_timer;
 };
 
 G_GNUC_INTERNAL void _gum_v8_process_init (GumV8Process * self,

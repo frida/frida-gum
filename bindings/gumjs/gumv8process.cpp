@@ -66,10 +66,7 @@ struct GumV8FindModuleByNameContext
 struct GumV8RunOnThreadContext
 {
   GumV8Core * core;
-  Isolate * isolate;
-  Local<Context> context;
   Local<Function> user_func;
-  MaybeLocal<Value> ret;
 };
 
 GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
@@ -103,6 +100,9 @@ static gboolean gum_v8_exception_handler_on_exception (
     GumExceptionDetails * details, GumV8ExceptionHandler * handler);
 static void gum_js_process_run_cb (const GumCpuContext * cpu_context,
     gpointer user_data);
+static void gum_v8_flush_stalker (GumV8Process * self);
+static gboolean gum_v8_flush_stalker_callback (GumV8Process * self);
+
 
 const gchar * gum_v8_script_exception_type_to_string (GumExceptionType type);
 
@@ -142,6 +142,8 @@ _gum_v8_process_init (GumV8Process * self,
   self->module = module;
   self->core = core;
 
+  self->stalker = NULL;
+
   auto process_module = External::New (isolate, self);
 
   auto process = _gum_v8_create_module ("Process", scope, isolate);
@@ -180,6 +182,8 @@ _gum_v8_process_flush (GumV8Process * self)
 void
 _gum_v8_process_dispose (GumV8Process * self)
 {
+  g_assert (self->flush_timer == NULL);
+
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 
   delete self->main_module_value;
@@ -530,51 +534,102 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
 {
   GumThreadId thread_id;
   Local<Function> user_func;
-  GumV8RunOnThreadContext sync_ctx;
-  GumStalker * stalker;
-  gboolean success;
+  GumV8RunOnThreadContext context;
+  gboolean run;
 
   auto isolate = core->isolate;
-  auto context = isolate->GetCurrentContext ();
 
   if (!_gum_v8_args_parse (args, "ZF", &thread_id, &user_func))
     return;
 
-  if (thread_id == 0)
-    return;
-
-  stalker = gum_stalker_new ();
+  if (module->stalker == NULL)
+    module->stalker = gum_stalker_new ();
 
   {
     ScriptUnlocker unlocker (core);
-    sync_ctx.core = core;
-    sync_ctx.isolate = isolate;
-    sync_ctx.context = context;
-    sync_ctx.user_func = Local<Function>::New (isolate, user_func);
+    context.core = core;
+    context.user_func = Local<Function>::New (isolate, user_func);
 
-    success = gum_stalker_run_on_thread (stalker, thread_id,
-        gum_js_process_run_cb, &sync_ctx);
+    run = gum_stalker_run_on_thread (module->stalker, thread_id,
+        gum_js_process_run_cb, &context);
   }
 
-  while (gum_stalker_garbage_collect (stalker))
-    g_usleep (10000);
+  gum_v8_flush_stalker (module);
 
-  g_object_unref (stalker);
+  if (!run)
+    goto error;
 
-  if (!success)
-    _gum_v8_throw_ascii_literal (isolate, "Failed to run on thread");
+  return;
+
+error:
+    _gum_v8_throw_ascii_literal (isolate, "failed to run on thread");
 }
 
 static void
 gum_js_process_run_cb (const GumCpuContext * cpu_context,
                             gpointer user_data)
 {
-  GumV8RunOnThreadContext * sync_ctx = (GumV8RunOnThreadContext *) user_data;
+  GumV8RunOnThreadContext * context = (GumV8RunOnThreadContext *) user_data;
+  auto core = context->core;
+  auto isolate = core->isolate;
+  auto ctx = isolate->GetCurrentContext ();
 
-  ScriptScope scope (sync_ctx->core->script);
-  auto isolate = sync_ctx->isolate;
-  auto context = sync_ctx->context;
+  ScriptScope scope (core->script);
   auto recv = Undefined (isolate);
 
-  sync_ctx->ret = sync_ctx->user_func->Call (context, recv, 0, nullptr);
+  auto result = context->user_func->Call (ctx, recv, 0, nullptr);
+  (void) result;
+}
+
+static void
+gum_v8_flush_stalker (GumV8Process * self)
+{
+  GumV8Core * core = self->core;
+
+  if (!gum_stalker_garbage_collect (self->stalker))
+    goto error;
+
+  if (self->flush_timer != NULL)
+    goto error;
+
+  {
+    auto source = g_timeout_source_new (10);
+    g_source_set_callback (source,
+        (GSourceFunc) gum_v8_flush_stalker_callback, self, NULL);
+    self->flush_timer = source;
+
+    _gum_v8_core_pin (core);
+
+    {
+      ScriptUnlocker unlocker (core);
+
+      g_source_attach (source,
+          gum_script_scheduler_get_js_context (core->scheduler));
+      g_source_unref (source);
+    }
+  }
+
+  return;
+
+error:
+  g_object_unref (self->stalker);
+  self->stalker = NULL;
+}
+
+static gboolean
+gum_v8_flush_stalker_callback (GumV8Process * self)
+{
+  gboolean pending_garbage;
+
+  pending_garbage = gum_stalker_garbage_collect (self->stalker);
+  if (!pending_garbage)
+  {
+    GumV8Core * core = self->core;
+
+    ScriptScope scope (core->script);
+    _gum_v8_core_unpin (core);
+    self->flush_timer = NULL;
+  }
+
+  return pending_garbage;
 }

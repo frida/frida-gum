@@ -23,6 +23,9 @@ struct _GumQuickProcess
 
   JSValue main_module_value;
   GumQuickExceptionHandler * exception_handler;
+
+  GumStalker * stalker;
+  GSource * flush_timer;
 };
 
 G_GNUC_INTERNAL void _gum_quick_process_init (GumQuickProcess * self,

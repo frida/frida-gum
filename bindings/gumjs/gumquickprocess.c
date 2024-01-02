@@ -82,9 +82,7 @@ struct _GumQuickFindRangeByAddressContext
 struct _GumQuickRunOnThreadContext
 {
   GumQuickCore * core;
-  GumQuickScope scope;
   JSValue user_func;
-  gboolean sync;
 };
 
 static void gumjs_free_main_module_value (GumQuickProcess * self);
@@ -122,6 +120,9 @@ static gboolean gum_quick_exception_handler_on_exception (
     GumExceptionDetails * details, GumQuickExceptionHandler * handler);
 static void gum_js_process_run_cb (const GumCpuContext * cpu_context,
     gpointer user_data);
+static void gum_quick_flush_stalker (GumQuickProcess * self,
+    GumQuickScope * scope);
+static gboolean gum_quick_flush_stalker_callback (GumQuickProcess * self);
 
 static const JSCFunctionListEntry gumjs_process_entries[] =
 {
@@ -159,6 +160,7 @@ _gum_quick_process_init (GumQuickProcess * self,
   self->module = module;
   self->core = core;
   self->main_module_value = JS_UNINITIALIZED;
+  self->stalker = NULL;
 
   _gum_quick_core_store_module_data (core, "process", self);
 
@@ -186,6 +188,8 @@ _gum_quick_process_flush (GumQuickProcess * self)
 void
 _gum_quick_process_dispose (GumQuickProcess * self)
 {
+  g_assert (self->flush_timer == NULL);
+
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
   gumjs_free_main_module_value (self);
 }
@@ -638,58 +642,108 @@ gum_quick_exception_handler_on_exception (GumExceptionDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
 {
+  GumQuickProcess * self = gumjs_get_parent_module (core);
   GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
   GumThreadId thread_id;
   JSValue user_func;
-  GumQuickRunOnThreadContext sync_ctx;
-  GumStalker * stalker;
-  gboolean success;
+  GumQuickRunOnThreadContext context;
+  gboolean run;
 
   if (!_gum_quick_args_parse (args, "ZF", &thread_id, &user_func))
     return JS_EXCEPTION;
 
-  if (thread_id == 0)
-    return JS_UNDEFINED;
-
   _gum_quick_scope_suspend (&scope);
 
-  sync_ctx.core = core;
-  sync_ctx.scope = scope;
-  sync_ctx.user_func = JS_DupValue (core->ctx, user_func);
-  sync_ctx.sync = FALSE;
+  context.core = core;
+  context.user_func = JS_DupValue (core->ctx, user_func);
 
-  stalker = gum_stalker_new ();
+  if (self->stalker == NULL)
+    self->stalker = gum_stalker_new ();
 
-  success = gum_stalker_run_on_thread (stalker, thread_id,
-      gum_js_process_run_cb, &sync_ctx);
+  run = gum_stalker_run_on_thread (self->stalker, thread_id,
+      gum_js_process_run_cb, &context);
+
   _gum_quick_scope_resume (&scope);
+  gum_quick_flush_stalker (self, &scope);
 
-  while (gum_stalker_garbage_collect (stalker))
-    g_usleep (10000);
+  if (!run)
+    goto error;
 
-  g_object_unref (stalker);
+  return JS_UNDEFINED;
 
-  if (success)
-  {
-    return JS_UNDEFINED;
-  }
-  else
-  {
-    _gum_quick_throw_literal (ctx, "Failed to run on thread");
-    return JS_EXCEPTION;
-  }
+error:
+  _gum_quick_throw_literal (ctx, "failed to run on thread");
+  return JS_EXCEPTION;
 }
 
 static void
 gum_js_process_run_cb (const GumCpuContext * cpu_context,
                        gpointer user_data)
 {
-  GumQuickRunOnThreadContext * sync_ctx =
-      (GumQuickRunOnThreadContext *) user_data;
+  GumQuickRunOnThreadContext * context = user_data;
+  GumQuickCore * core = context->core;
+  JSValue user_func = context->user_func;
+  GumQuickScope scope;
 
-  _gum_quick_scope_call (&sync_ctx->scope, sync_ctx->user_func, JS_UNDEFINED, 0,
+  _gum_quick_scope_enter (&scope, core);
+
+  _gum_quick_scope_call (&scope, user_func, JS_UNDEFINED, 0,
       NULL);
 
-  if (!sync_ctx->sync)
-    JS_FreeValue (sync_ctx->core->ctx, sync_ctx->user_func);
+  JS_FreeValue (core->ctx, user_func);
+
+  _gum_quick_scope_leave (&scope);
+}
+
+static void
+gum_quick_flush_stalker (GumQuickProcess * self,
+                         GumQuickScope * scope)
+{
+  GumQuickCore * core = self->core;
+  GSource * source;
+
+  if (!gum_stalker_garbage_collect (self->stalker))
+    goto error;
+
+  if (self->flush_timer != NULL)
+    goto error;
+
+  source = g_timeout_source_new (10);
+  g_source_set_callback (source,
+      (GSourceFunc) gum_quick_flush_stalker_callback, self, NULL);
+  self->flush_timer = source;
+
+  _gum_quick_core_pin (core);
+  _gum_quick_scope_suspend (scope);
+
+  g_source_attach (source,
+      gum_script_scheduler_get_js_context (core->scheduler));
+  g_source_unref (source);
+
+  _gum_quick_scope_resume (scope);
+  return;
+
+error:
+  g_object_unref (self->stalker);
+  self->stalker = NULL;
+}
+
+static gboolean
+gum_quick_flush_stalker_callback (GumQuickProcess * self)
+{
+  gboolean pending_garbage;
+
+  pending_garbage = gum_stalker_garbage_collect (self->stalker);
+  if (!pending_garbage)
+  {
+    GumQuickCore * core = self->core;
+    GumQuickScope scope;
+
+    _gum_quick_scope_enter (&scope, core);
+    _gum_quick_core_unpin (core);
+    self->flush_timer = NULL;
+    _gum_quick_scope_leave (&scope);
+  }
+
+  return pending_garbage;
 }
