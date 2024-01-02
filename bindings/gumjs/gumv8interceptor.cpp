@@ -145,6 +145,9 @@ static void gum_v8_invocation_listener_destroy (
     GumV8InvocationListener * listener);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
+static void gum_v8_handle_replace_ret (GumV8Interceptor * self,
+    gpointer target, Local<Value> replacement_value,
+    GumReplaceReturn replace_ret);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
 static void gum_v8_replace_entry_free (GumV8ReplaceEntry * entry);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
@@ -698,40 +701,44 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   if (!_gum_v8_args_parse (args, "pp|p", &target, &replacement_function,
       &replacement_data))
     return;
-  auto replacement_function_value = info[1];
-
-  auto entry = g_slice_new (GumV8ReplaceEntry);
-  entry->interceptor = module->interceptor;
-  entry->target = target;
-  entry->replacement = new Global<Value> (isolate, replacement_function_value);
 
   auto replace_ret = gum_interceptor_replace (module->interceptor, target,
       replacement_function, replacement_data, NULL);
 
-  if (replace_ret == GUM_REPLACE_OK)
-  {
-    auto native_callback = Local<FunctionTemplate>::New (isolate,
-        *core->native_callback);
-    auto instance = replacement_function_value.As<Object> ();
-    if (native_callback->HasInstance (instance))
-    {
-      auto callback = (GumV8NativeCallback *)
-          instance->GetInternalField (1).As<External> ()->Value ();
-      callback->interceptor_replacement_count++;
-    }
+  gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
+}
 
-    g_hash_table_insert (module->replacement_by_address, target, entry);
-  }
-  else
-  {
-    delete entry->replacement;
-    g_slice_free (GumV8ReplaceEntry, entry);
-  }
+static void
+gum_v8_handle_replace_ret (GumV8Interceptor * self,
+                           gpointer target,
+                           Local<Value> replacement_value,
+                           GumReplaceReturn replace_ret)
+{
+  GumV8Core * core = self->core;
+  auto isolate = core->isolate;
 
   switch (replace_ret)
   {
     case GUM_REPLACE_OK:
+    {
+      auto entry = g_slice_new (GumV8ReplaceEntry);
+      entry->interceptor = self->interceptor;
+      entry->target = target;
+      entry->replacement = new Global<Value> (isolate, replacement_value);
+
+      g_hash_table_insert (self->replacement_by_address, target, entry);
+
+      auto native_callback = Local<FunctionTemplate>::New (isolate,
+          *core->native_callback);
+      auto instance = replacement_value.As<Object> ();
+      if (native_callback->HasInstance (instance))
+      {
+        auto callback = (GumV8NativeCallback *)
+            instance->GetInternalField (1).As<External> ()->Value ();
+        callback->interceptor_replacement_count++;
+      }
       break;
+    }
     case GUM_REPLACE_WRONG_SIGNATURE:
     {
       _gum_v8_throw_ascii (isolate, "unable to intercept function at %p; "
@@ -758,61 +765,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
   gpointer target, replacement_function, original_function;
   if (!_gum_v8_args_parse (args, "pp", &target, &replacement_function))
     return;
-  auto replacement_function_value = info[1];
-
-  auto entry = g_slice_new (GumV8ReplaceEntry);
-  entry->interceptor = module->interceptor;
-  entry->target = target;
-  entry->replacement = new Global<Value> (isolate, replacement_function_value);
 
   auto replace_ret = gum_interceptor_replace_fast (module->interceptor, target,
       replacement_function, &original_function);
 
+  gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
+
   if (replace_ret == GUM_REPLACE_OK)
   {
-    auto native_callback = Local<FunctionTemplate>::New (isolate,
-        *core->native_callback);
-    auto instance = replacement_function_value.As<Object> ();
-    if (native_callback->HasInstance (instance))
-    {
-      auto callback = (GumV8NativeCallback *)
-          instance->GetInternalField (1).As<External> ()->Value ();
-      callback->interceptor_replacement_count++;
-    }
-
-    g_hash_table_insert (module->replacement_by_address, target, entry);
-
     info.GetReturnValue ().Set ( _gum_v8_native_pointer_new (
         GSIZE_TO_POINTER (original_function), core));
-  }
-  else
-  {
-    delete entry->replacement;
-    g_slice_free (GumV8ReplaceEntry, entry);
-  }
-
-  switch (replace_ret)
-  {
-    case GUM_REPLACE_OK:
-      break;
-    case GUM_REPLACE_WRONG_SIGNATURE:
-    {
-      _gum_v8_throw_ascii (isolate, "unable to intercept function at %p; "
-          "please file a bug", target);
-      break;
-    }
-    case GUM_REPLACE_ALREADY_REPLACED:
-      _gum_v8_throw_ascii_literal (isolate, "already replaced this function");
-      break;
-    case GUM_REPLACE_POLICY_VIOLATION:
-      _gum_v8_throw_ascii_literal (isolate,
-          "not permitted by code-signing policy");
-      break;
-    case GUM_REPLACE_WRONG_TYPE:
-      _gum_v8_throw_ascii_literal (isolate, "wrong type");
-      break;
-    default:
-      g_assert_not_reached ();
   }
 }
 
