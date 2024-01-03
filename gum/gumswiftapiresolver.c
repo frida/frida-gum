@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -743,7 +743,8 @@ gum_module_metadata_collect_export (const GumExportDetails * details,
   func.address = details->address;
   g_array_append_val (self->functions, func);
 
-  gum_module_metadata_maybe_ingest_thunk (self, name, func.address);
+  gum_module_metadata_maybe_ingest_thunk (self, name,
+      gum_strip_code_address (func.address));
 
 skip:
   return TRUE;
@@ -1448,7 +1449,7 @@ gum_resolve_relative_indirect_ptr (const GumRelativeIndirectPtr * delta)
 
   target = (gconstpointer *) ((const guint8 *) delta + val);
 
-  return *target;
+  return gum_strip_code_pointer (*target);
 }
 
 static gconstpointer
@@ -1462,7 +1463,7 @@ gum_resolve_relative_indirectable_ptr (const GumRelativeIndirectablePtr * delta)
 
   target = (gconstpointer *) ((const guint8 *) delta + (val & ~1));
 
-  return *target;
+  return gum_strip_code_pointer (*target);
 }
 
 static gchar *
