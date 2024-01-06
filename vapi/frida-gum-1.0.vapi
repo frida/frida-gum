@@ -329,6 +329,14 @@ namespace Gum {
 		public void * find_export_by_name (string? module_name, string symbol_name);
 	}
 
+	public class ModuleMap : GLib.Object {
+		public ModuleMap ();
+
+		public unowned Gum.ModuleDetails? find (Gum.Address address);
+
+		public void update ();
+	}
+
 	namespace Memory {
 		public bool is_readable (void * address, size_t len);
 		public uint8[] read (Address address, size_t len);
