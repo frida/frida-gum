@@ -1449,7 +1449,7 @@ gum_resolve_relative_indirect_ptr (const GumRelativeIndirectPtr * delta)
 
   target = (gconstpointer *) ((const guint8 *) delta + val);
 
-  return gum_strip_code_pointer (*target);
+  return gum_strip_code_pointer ((gpointer) *target);
 }
 
 static gconstpointer
@@ -1463,7 +1463,7 @@ gum_resolve_relative_indirectable_ptr (const GumRelativeIndirectablePtr * delta)
 
   target = (gconstpointer *) ((const guint8 *) delta + (val & ~1));
 
-  return gum_strip_code_pointer (*target);
+  return gum_strip_code_pointer ((gpointer) *target);
 }
 
 static gchar *
