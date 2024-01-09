@@ -99,3 +99,20 @@ beach:
 
   return result;
 }
+
+cs_insn *
+gum_arm64_reader_disassemble_instruction_at (gconstpointer address)
+{
+  csh capstone;
+  cs_insn * insn = NULL;
+
+  cs_arch_register_arm64 ();
+  cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  cs_disasm (capstone, address, 16, GPOINTER_TO_SIZE (address), 1, &insn);
+
+  cs_close (&capstone);
+
+  return insn;
+}
