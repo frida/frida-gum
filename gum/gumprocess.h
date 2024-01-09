@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2020-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,6 +32,11 @@ typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumSectionDetails GumSectionDetails;
 typedef struct _GumDependencyDetails GumDependencyDetails;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
+
+typedef enum {
+  GUM_TEARDOWN_REQUIREMENT_FULL,
+  GUM_TEARDOWN_REQUIREMENT_MINIMAL
+} GumTeardownRequirement;
 
 typedef enum {
   GUM_CODE_SIGNING_OPTIONAL,
@@ -194,6 +199,9 @@ typedef GumAddress (* GumResolveExportFunc) (const char * module_name,
     const char * symbol_name, gpointer user_data);
 
 GUM_API GumOS gum_process_get_native_os (void);
+GUM_API GumTeardownRequirement gum_process_get_teardown_requirement (void);
+GUM_API void gum_process_set_teardown_requirement (
+    GumTeardownRequirement requirement);
 GUM_API GumCodeSigningPolicy gum_process_get_code_signing_policy (void);
 GUM_API void gum_process_set_code_signing_policy (GumCodeSigningPolicy policy);
 GUM_API const gchar * gum_process_query_libc_name (void);

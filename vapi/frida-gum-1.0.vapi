@@ -55,6 +55,12 @@ namespace Gum {
 		INVALID_DATA,
 	}
 
+	[CCode (cprefix = "GUM_TEARDOWN_REQUIREMENT_")]
+	public enum TeardownRequirement {
+		FULL,
+		MINIMAL
+	}
+
 	[CCode (cprefix = "GUM_CODE_SIGNING_")]
 	public enum CodeSigningPolicy {
 		OPTIONAL,
@@ -274,6 +280,8 @@ namespace Gum {
 	}
 
 	namespace Process {
+		public Gum.TeardownRequirement get_teardown_requirement ();
+		public void set_teardown_requirement (Gum.TeardownRequirement requirement);
 		public Gum.CodeSigningPolicy get_code_signing_policy ();
 		public void set_code_signing_policy (Gum.CodeSigningPolicy policy);
 		public unowned string query_libc_name ();
