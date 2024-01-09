@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2023-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -60,6 +60,8 @@ static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 static gboolean gum_store_address_if_name_matches (
     const GumSymbolDetails * details, gpointer user_data);
 
+static GumTeardownRequirement gum_teardown_requirement =
+    GUM_TEARDOWN_REQUIREMENT_FULL;
 static GumCodeSigningPolicy gum_code_signing_policy = GUM_CODE_SIGNING_OPTIONAL;
 
 GUM_DEFINE_BOXED_TYPE (GumModuleDetails, gum_module_details,
@@ -89,6 +91,18 @@ gum_process_get_native_os (void)
 #else
 # error Unknown OS
 #endif
+}
+
+GumTeardownRequirement
+gum_process_get_teardown_requirement (void)
+{
+  return gum_teardown_requirement;
+}
+
+void
+gum_process_set_teardown_requirement (GumTeardownRequirement requirement)
+{
+  gum_teardown_requirement = requirement;
 }
 
 GumCodeSigningPolicy
