@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
+ * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,6 +14,14 @@
 #include <mach-o/dyld.h>
 
 #ifndef GUM_DIET
+
+# include <capstone.h>
+# if defined (HAVE_I386)
+#  include "gumx86reader.h"
+# elif defined (HAVE_ARM64)
+#  include "gumarm64reader.h"
+# endif
+
 # define GUM_TYPE_SYMBOL_CACHE_INVALIDATOR \
     (gum_symbol_cache_invalidator_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumSymbolCacheInvalidator,
@@ -42,10 +51,14 @@ static void gum_symbol_cache_invalidator_stop (
     GumSymbolCacheInvalidator * self);
 static void gum_symbol_cache_invalidator_on_dyld_debugger_notification (
     GumInvocationListener * self, GumInvocationContext * context);
+static void gum_symbol_cache_invalidator_on_dyld_runtime_notification (
+    const struct mach_header * mh, intptr_t vmaddr_slide);
+static void gum_clear_symbolicator_object (void);
 
 G_LOCK_DEFINE_STATIC (symbolicator);
 static GumDarwinSymbolicator * symbolicator = NULL;
 static GumSymbolCacheInvalidator * invalidator = NULL;
+static gboolean invalidator_initialized = FALSE;
 
 G_DEFINE_TYPE_EXTENDED (GumSymbolCacheInvalidator,
                         gum_symbol_cache_invalidator,
@@ -80,6 +93,8 @@ gum_try_obtain_symbolicator (void)
     result = g_object_ref (symbolicator);
 
   G_UNLOCK (symbolicator);
+
+  invalidator_initialized = TRUE;
 #endif
 
   return result;
@@ -96,6 +111,8 @@ do_deinit (void)
 
   gum_symbol_cache_invalidator_stop (invalidator);
   g_clear_object (&invalidator);
+
+  invalidator_initialized = FALSE;
 
   G_UNLOCK (symbolicator);
 }
@@ -248,15 +265,47 @@ gum_symbol_cache_invalidator_iface_init (gpointer g_iface,
 static void
 gum_symbol_cache_invalidator_init (GumSymbolCacheInvalidator * self)
 {
-  GumDarwinAllImageInfos infos;
+  static gsize registered = FALSE;
 
-  self->interceptor = gum_interceptor_obtain ();
-
-  if (gum_darwin_query_all_image_infos (mach_task_self (), &infos))
+  if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
   {
+    GumDarwinAllImageInfos infos;
+    G_GNUC_UNUSED gconstpointer notification_impl;
+    G_GNUC_UNUSED cs_insn * first_instruction;
+    gsize offset = 0;
+
+    if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos))
+      return;
+
+    notification_impl = GSIZE_TO_POINTER (
+        gum_strip_code_address (infos.notification_address));
+
+#if defined (HAVE_I386)
+    first_instruction =
+        gum_x86_reader_disassemble_instruction_at (notification_impl);
+    if (first_instruction != NULL && first_instruction->id == X86_INS_INT3)
+      offset = first_instruction->size;
+#elif defined (HAVE_ARM64)
+    first_instruction =
+        gum_arm64_reader_disassemble_instruction_at (notification_impl);
+    if (first_instruction != NULL && first_instruction->id == ARM64_INS_BRK)
+      offset = first_instruction->size;
+#endif
+
+    self->interceptor = gum_interceptor_obtain ();
+
     gum_interceptor_attach (self->interceptor,
-        GSIZE_TO_POINTER (infos.notification_address),
+        (gpointer) (notification_impl + offset),
         GUM_INVOCATION_LISTENER (self), NULL);
+  }
+  else if (g_once_init_enter (&registered))
+  {
+    _dyld_register_func_for_add_image (
+        gum_symbol_cache_invalidator_on_dyld_runtime_notification);
+    _dyld_register_func_for_remove_image (
+        gum_symbol_cache_invalidator_on_dyld_runtime_notification);
+
+    g_once_init_leave (&registered, TRUE);
   }
 }
 
@@ -280,6 +329,23 @@ static void
 gum_symbol_cache_invalidator_on_dyld_debugger_notification (
     GumInvocationListener * self,
     GumInvocationContext * context)
+{
+  gum_clear_symbolicator_object ();
+}
+
+static void
+gum_symbol_cache_invalidator_on_dyld_runtime_notification (
+    const struct mach_header * mh,
+    intptr_t vmaddr_slide)
+{
+  if (!invalidator_initialized)
+    return;
+
+  gum_clear_symbolicator_object ();
+}
+
+static void
+gum_clear_symbolicator_object (void)
 {
   G_LOCK (symbolicator);
 
