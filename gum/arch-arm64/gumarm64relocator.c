@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -313,7 +313,7 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
 void
 gum_arm64_relocator_write_all (GumArm64Relocator * self)
 {
-  guint count = 0;
+  G_GNUC_UNUSED guint count = 0;
 
   while (gum_arm64_relocator_write_one (self))
     count++;

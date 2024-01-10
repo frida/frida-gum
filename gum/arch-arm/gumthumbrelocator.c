@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -459,7 +459,7 @@ gum_stalker_relocator_write_it_branches (GumThumbRelocator * self)
 void
 gum_thumb_relocator_write_all (GumThumbRelocator * self)
 {
-  guint count = 0;
+  G_GNUC_UNUSED guint count = 0;
 
   while (gum_thumb_relocator_write_one (self))
     count++;

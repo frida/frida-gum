@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -370,7 +370,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
 void
 gum_x86_relocator_write_all (GumX86Relocator * self)
 {
-  guint count = 0;
+  G_GNUC_UNUSED guint count = 0;
 
   while (gum_x86_relocator_write_one (self))
     count++;
