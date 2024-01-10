@@ -3,6 +3,7 @@
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2019 John Coates <john@johncoates.dev>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -4796,10 +4797,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
      * therefore don't have to strip the low bit from the target address
      * returned from the inline cache code.
      */
-    if (gc->instruction->ci->id == ARM64_INS_BLR)
-      gum_arm64_writer_put_blr_reg_no_auth (cw, target->reg);
-    else
-      gum_arm64_writer_put_blr_reg (cw, target->reg);
+    gum_arm64_writer_put_bytes (cw, insn->start, insn->ci->size);
 
 #ifdef HAVE_LINUX
     gum_metal_hash_table_insert (ctx->excluded_calls, cw->code, insn->end);
