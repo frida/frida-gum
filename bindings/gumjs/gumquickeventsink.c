@@ -306,6 +306,7 @@ gum_quick_js_event_sink_drain (GumQuickJSEventSink * self)
 
   if (!JS_IsNull (self->on_call_summary))
   {
+    JSValue callback;
     JSValue summary;
     GHashTable * frequencies;
     GumCallEvent * ev;
@@ -313,6 +314,8 @@ gum_quick_js_event_sink_drain (GumQuickJSEventSink * self)
     GHashTableIter iter;
     gpointer target, count;
     gchar target_str[32];
+
+    callback = JS_DupValue (ctx, self->on_call_summary);
 
     summary = JS_NewObject (ctx);
 
@@ -346,16 +349,19 @@ gum_quick_js_event_sink_drain (GumQuickJSEventSink * self)
 
     g_hash_table_unref (frequencies);
 
-    _gum_quick_scope_call_void (&scope, self->on_call_summary, JS_UNDEFINED,
-        1, &summary);
+    _gum_quick_scope_call_void (&scope, callback, JS_UNDEFINED, 1, &summary);
 
     JS_FreeValue (ctx, summary);
+    JS_FreeValue (ctx, callback);
   }
 
   if (!JS_IsNull (self->on_receive))
   {
-    _gum_quick_scope_call_void (&scope, self->on_receive, JS_UNDEFINED,
-        1, &buffer_val);
+    JSValue callback = JS_DupValue (ctx, self->on_receive);
+
+    _gum_quick_scope_call_void (&scope, callback, JS_UNDEFINED, 1, &buffer_val);
+
+    JS_FreeValue (ctx, callback);
   }
 
   JS_FreeValue (ctx, buffer_val);
