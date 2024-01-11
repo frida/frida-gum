@@ -1,5 +1,7 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024 Alex Soler <asoler@nowsecure.com>
+ * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -222,7 +224,12 @@ gum_quick_js_event_sink_process (GumEventSink * sink,
 static void
 gum_quick_js_event_sink_flush (GumEventSink * sink)
 {
-  gum_quick_js_event_sink_drain (GUM_QUICK_JS_EVENT_SINK (sink));
+  GumQuickJSEventSink * self = GUM_QUICK_JS_EVENT_SINK (sink);
+
+  if (self->core == NULL)
+    return;
+
+  gum_quick_js_event_sink_drain (self);
 }
 
 static void
