@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2019 John Coates <john@johncoates.dev>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2024 Alex Soler <asoler@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -5660,6 +5661,11 @@ gum_code_slab_new (GumExecCtx * ctx)
 
   code_slab = gum_memory_allocate_near (&spec, total_size, stalker->page_size,
       stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
+  if (code_slab == NULL)
+  {
+    g_error ("Unable to allocate code slab near %p with max_distance=%zu",
+        spec.near_address, spec.max_distance);
+  }
 
   gum_code_slab_init (code_slab, stalker->code_slab_size_dynamic, total_size,
       stalker->page_size);
@@ -5723,6 +5729,11 @@ gum_data_slab_new (GumExecCtx * ctx)
 
   slab = gum_memory_allocate_near (&spec, slab_size, stalker->page_size,
       GUM_PAGE_RW);
+  if (slab == NULL)
+  {
+    g_error ("Unable to allocate data slab near %p with max_distance=%zu",
+        spec.near_address, spec.max_distance);
+  }
 
   gum_data_slab_init (slab, slab_size, slab_size);
 
