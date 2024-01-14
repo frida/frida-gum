@@ -8,6 +8,7 @@
 
 #include "gumquickapiresolver.h"
 #include "gumquickchecksum.h"
+#include "gumquickcloak.h"
 #include "gumquickcmodule.h"
 #include "gumquickcoderelocator.h"
 #include "gumquickcodewriter.h"
@@ -78,6 +79,7 @@ struct _GumQuickScript
   GumQuickCodeWriter code_writer;
   GumQuickCodeRelocator code_relocator;
   GumQuickStalker stalker;
+  GumQuickCloak cloak;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
@@ -166,6 +168,7 @@ struct _GumQuickWorker
   GumQuickInstruction instruction;
   GumQuickCodeWriter code_writer;
   GumQuickCodeRelocator code_relocator;
+  GumQuickCloak cloak;
 };
 
 enum _GumWorkerState
@@ -494,6 +497,7 @@ gum_quick_script_create_context (GumQuickScript * self,
       &self->code_writer, &self->instruction, core);
   _gum_quick_stalker_init (&self->stalker, global_obj, &self->code_writer,
       &self->instruction, core);
+  _gum_quick_cloak_init (&self->cloak, global_obj, core);
 
   JS_FreeValue (ctx, global_obj);
 
@@ -528,6 +532,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 
     _gum_quick_scope_enter (&scope, core);
 
+    _gum_quick_cloak_dispose (&self->cloak);
     _gum_quick_stalker_dispose (&self->stalker);
     _gum_quick_code_relocator_dispose (&self->code_relocator);
     _gum_quick_code_writer_dispose (&self->code_writer);
@@ -570,6 +575,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     core->current_scope = NULL;
   }
 
+  _gum_quick_cloak_finalize (&self->cloak);
   _gum_quick_stalker_finalize (&self->stalker);
   _gum_quick_code_relocator_finalize (&self->code_relocator);
   _gum_quick_code_writer_finalize (&self->code_writer);
@@ -1149,6 +1155,7 @@ _gum_quick_script_make_worker (GumQuickScript * self,
     _gum_quick_code_writer_init (&worker->code_writer, global_obj, core);
     _gum_quick_code_relocator_init (&worker->code_relocator, global_obj,
         &worker->code_writer, &worker->instruction, core);
+    _gum_quick_cloak_init (&worker->cloak, global_obj, core);
 
     core->current_scope = NULL;
   }

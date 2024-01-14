@@ -46,6 +46,7 @@ if quickjs_dep.found()
     'gumquickinstruction.c',
     'gumquickcodewriter.c',
     'gumquickcoderelocator.c',
+    'gumquickcloak.c',
   ]
   if sqlite_dep.found()
     gumjs_sources += 'gumquickdatabase.c'
