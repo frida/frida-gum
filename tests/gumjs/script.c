@@ -481,6 +481,7 @@ TESTLIST_BEGIN (script)
   TESTENTRY (debugger_can_be_enabled)
   TESTENTRY (objc_api_is_embedded)
   TESTENTRY (java_api_is_embedded)
+  TESTENTRY (cloaked_items_can_be_queried_added_and_removed)
 TESTLIST_END ()
 
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
@@ -10901,6 +10902,85 @@ TESTCASE (java_api_is_embedded)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Java.available);");
   EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
+}
+
+TESTCASE (cloaked_items_can_be_queried_added_and_removed)
+{
+  void * buffer = malloc (64);
+
+#ifdef HAVE_ANDROID
+  COMPILE_AND_LOAD_SCRIPT (
+      "const testRange = { base: " GUM_PTR_CONST ", size: 64 };"
+      "send(Cloak.hasRangeContaining(testRange.base) === false);"
+      "send(Process.findRangeByAddress(testRange.base) !== null);"
+      "send(Cloak.clipRange(testRange) === null);"
+      "Cloak.addRange(testRange);"
+      "send(Cloak.hasRangeContaining(testRange.base));"
+      "send(Process.findRangeByAddress(testRange.base) === null);"
+      "send(Cloak.clipRange(testRange).length === 0);"
+      "Cloak.removeRange(testRange);"
+
+      "send(Cloak.hasCurrentThread() === false);"
+      "const threadId = Process.getCurrentThreadId();"
+      "send(Cloak.hasThread(threadId) === false);"
+      "Cloak.addThread(threadId);"
+      "send(!Process.enumerateThreads().map(x => x.id).includes(threadId));"
+      "send(Cloak.hasCurrentThread() === true);"
+      "Cloak.removeThread(threadId);"
+      "send(true);"
+
+      "const fd = 1;"
+      "Cloak.addFileDescriptor(fd);"
+      "send(Cloak.hasFileDescriptor(fd));"
+      "Cloak.removeFileDescriptor(fd);"
+      "send(!Cloak.hasFileDescriptor(fd));",
+      buffer
+  );
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "const testRange = { base: " GUM_PTR_CONST ", size: 64 };"
+      "send(Cloak.hasRangeContaining(testRange.base) === false);"
+      "send(Process.findRangeByAddress(testRange.base) !== null);"
+      "send(Cloak.clipRange(testRange) === null);"
+      "Cloak.addRange(testRange);"
+      "send(Cloak.hasRangeContaining(testRange.base));"
+      "send(Process.findRangeByAddress(testRange.base) === null);"
+      "send(Cloak.clipRange(testRange).length === 0);"
+      "Cloak.removeRange(testRange);"
+
+      "send(Cloak.hasCurrentThread() === false);"
+      "const threadId = Process.getCurrentThreadId();"
+      "send(Cloak.hasThread(threadId) === false);"
+      "Cloak.addThread(threadId);"
+      "send(!Process.enumerateThreads().map(x => x.id).includes(threadId));"
+      "send(Cloak.hasCurrentThread() === true);"
+      "Cloak.removeThread(threadId);"
+      "send(Process.enumerateThreads().map(x => x.id).includes(threadId));"
+
+      "const fd = 1;"
+      "Cloak.addFileDescriptor(fd);"
+      "send(Cloak.hasFileDescriptor(fd));"
+      "Cloak.removeFileDescriptor(fd);"
+      "send(!Cloak.hasFileDescriptor(fd));",
+      buffer
+  );
+#endif
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+  free (buffer);
 }
 
 static gboolean
