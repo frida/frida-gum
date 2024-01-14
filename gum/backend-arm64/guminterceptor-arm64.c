@@ -10,6 +10,7 @@
 #include "gumarm64reader.h"
 #include "gumarm64relocator.h"
 #include "gumarm64writer.h"
+#include "gumcloak.h"
 #include "gumlibc.h"
 #include "gummemory.h"
 #ifdef HAVE_DARWIN
@@ -1012,11 +1013,17 @@ static void
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {
   gsize page_size, code_size;
+  GumMemoryRange range;
 
   page_size = gum_query_page_size ();
   code_size = page_size;
 
   self->thunks = gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW);
+
+  range.base_address = GUM_ADDRESS (self->thunks);
+  range.size = code_size;
+  gum_cloak_add_range (&range);
+
   gum_memory_patch_code (self->thunks, 1024,
       (GumMemoryPatchApplyFunc) gum_emit_thunks, self);
 }
