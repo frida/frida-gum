@@ -827,6 +827,33 @@ if (engine.SqliteDatabase !== undefined) {
   });
 }
 
+Object.defineProperties(Cloak, {
+  hasCurrentThread: {
+    enumerable: true,
+    value() {
+      return Cloak.hasThread(Process.getCurrentThreadId());
+    }
+  },
+  addRange: {
+    enumerable: true,
+    value(range) {
+      Cloak._addRange(range.base, range.size);
+    }
+  },
+  removeRange: {
+    enumerable: true,
+    value(range) {
+      Cloak._removeRange(range.base, range.size);
+    }
+  },
+  clipRange: {
+    enumerable: true,
+    value(range) {
+      return Cloak._clipRange(range.base, range.size);
+    }
+  },
+});
+
 function makeEnumerateApi(mod, name, arity) {
   const impl = mod['_' + name];
 
