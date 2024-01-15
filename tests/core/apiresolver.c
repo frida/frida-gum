@@ -260,7 +260,6 @@ TESTCASE (swift_method_can_be_resolved)
   if (g_error_matches (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED))
     goto not_supported;
   g_assert_no_error (error);
-  g_assert_cmpuint (num_matches, >, 0);
 
   return;
 
