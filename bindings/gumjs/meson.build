@@ -88,6 +88,7 @@ if v8_dep.found()
     'gumv8instruction.cpp',
     'gumv8codewriter.cpp',
     'gumv8coderelocator.cpp',
+    'gumv8cloak.cpp',
   ]
   if sqlite_dep.found()
     gumjs_sources += 'gumv8database.cpp'

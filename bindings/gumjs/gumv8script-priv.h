@@ -9,6 +9,7 @@
 
 #include "gumv8apiresolver.h"
 #include "gumv8checksum.h"
+#include "gumv8cloak.h"
 #include "gumv8cmodule.h"
 #include "gumv8coderelocator.h"
 #include "gumv8codewriter.h"
@@ -95,6 +96,8 @@ struct _GumV8Script
   GumV8CodeWriter code_writer;
   GumV8CodeRelocator code_relocator;
   GumV8Stalker stalker;
+  GumV8Cloak cloak;
+
   v8::Global<v8::Context> * context;
   GumESProgram * program;
 
