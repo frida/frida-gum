@@ -3,7 +3,7 @@
 pkgconfig=$1
 needs_exe_wrapper=$2
 
-bindir=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/$(uname -s | tr '[A-Z]' '[a-z]')-$(uname -m)/bin
+bindir=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$(uname -s | tr '[A-Z]' '[a-z]')-$(uname -m)/bin
 
 cat << EOF
 [constants]
