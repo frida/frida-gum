@@ -1,6 +1,6 @@
 #!/bin/sh
 
-arch=arm64e
+arch=arm64
 
 remote_host=iphone
 remote_prefix=/usr/local/opt/frida-tests-$arch
@@ -9,7 +9,7 @@ gum_tests=$(dirname "$0")
 
 cd "$gum_tests/../../build/tmp-ios-$arch/frida-gum" || exit 1
 
-. ../../frida-env-macos-x86_64.rc
+. ../../frida-env-macos-arm64.rc
 ninja || exit 1
 
 cd tests
