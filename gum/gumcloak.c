@@ -427,9 +427,11 @@ gum_cloak_has_range_containing (GumAddress address)
  * @range: the range to determine the visible parts of
  *
  * Determines how much of the given memory `range` is currently visible.
- * May return an empty array if the entire range is cloaked.
+ * May return an empty array if the entire range is cloaked, or NULL if it is
+ * entirely visible.
  *
- * Returns: (transfer full) (element-type Gum.MemoryRange): visible parts
+ * Returns: (transfer full) (element-type Gum.MemoryRange): NULL if all
+ * visible, or visible parts.
  */
 GArray *
 gum_cloak_clip_range (const GumMemoryRange * range)
