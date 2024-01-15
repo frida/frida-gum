@@ -2246,7 +2246,7 @@ TESTCASE (native_callback_should_support_stdcall)
 GUM_NOINLINE static void *
 sample_return_address (void)
 {
-# ifdef MSC_VER
+# ifdef _MSC_VER
   return _ReturnAddress ();
 # else
   return __builtin_return_address (0);
