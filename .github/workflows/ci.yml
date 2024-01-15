@@ -255,7 +255,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           gateway: corellium.frida.re
-          device: ios-14.8-arm64
+          device: ios-12.5.7-arm64
           upload: /tmp/runner.tar.gz
           run: |
             cd /usr/local
