@@ -586,22 +586,28 @@ gum_compare_grafted_hook (const void * element_a,
 static gboolean
 gum_is_system_module (const gchar * path)
 {
-  static gboolean initialized = FALSE;
+  gboolean has_system_prefix;
+  static gboolean api_initialized = FALSE;
   static bool (* dsc_contains_path) (const char * path) = NULL;
 
-  if (!initialized)
+  has_system_prefix = g_str_has_prefix (path, "/System/") ||
+      g_str_has_prefix (path, "/usr/lib/") ||
+      g_str_has_prefix (path, "/Developer/") ||
+      g_str_has_prefix (path, "/private/preboot/");
+  if (has_system_prefix)
+    return TRUE;
+
+  if (!api_initialized)
   {
     dsc_contains_path =
         dlsym (RTLD_DEFAULT, "_dyld_shared_cache_contains_path");
-    initialized = TRUE;
+    api_initialized = TRUE;
   }
 
   if (dsc_contains_path != NULL)
     return dsc_contains_path (path);
 
-  return g_str_has_prefix (path, "/System/") ||
-      g_str_has_prefix (path, "/usr/lib/") ||
-      g_str_has_prefix (path, "/Developer/");
+  return FALSE;
 }
 
 #else
