@@ -1039,8 +1039,8 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
   guint8 code_template[] =
   {
     0xb8, 0x14, 0x05, 0x00, 0x00, /* mov eax, 1300    */
-    0xe9, 0x01, 0x00, 0x00, 0x00, /* jump bump_number */
-    0xcc,                         /* int3             */
+    0xeb, 0x01,                   /* jmp bump_number  */
+    0x90,                         /* nop              */
     /* bump_number:                                   */
     0x83, 0xc0, 0x25,             /* add eax, 37      */
     0xc3,                         /* ret              */
