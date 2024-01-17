@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -142,8 +142,6 @@ static gboolean gum_read_attribute_location (Dwarf_Debug dbg, Dwarf_Die die,
     Dwarf_Half id, Dwarf_Addr * address);
 static gboolean gum_read_attribute_address (Dwarf_Debug dbg, Dwarf_Die die,
     Dwarf_Half id, Dwarf_Addr * address);
-static gboolean gum_read_attribute_offset (Dwarf_Debug dbg, Dwarf_Die die,
-    Dwarf_Half id, Dwarf_Off * offset);
 static gboolean gum_read_attribute_uint (Dwarf_Debug dbg, Dwarf_Die die,
     Dwarf_Half id, Dwarf_Unsigned * value);
 
@@ -792,9 +790,12 @@ gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
   Dwarf_Die die = details->cu_die;
   Dwarf_Addr low_pc, high_pc;
   Dwarf_Attribute high_pc_attr;
+  Dwarf_Attribute attribute = NULL;
+  Dwarf_Half form;
+  int res;
   Dwarf_Off ranges_offset;
-  Dwarf_Ranges * ranges;
-  Dwarf_Signed range_count, range_index;
+  Dwarf_Half version, offset_size;
+  Dwarf_Rnglists_Head rngl = NULL;
 
   if (gum_read_attribute_address (dbg, die, DW_AT_low_pc, &low_pc) &&
       dwarf_attr (die, DW_AT_high_pc, &high_pc_attr, NULL) == DW_DLV_OK)
@@ -824,32 +825,88 @@ gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
     return !op->found;
   }
 
-  if (!gum_read_attribute_offset (dbg, die, DW_AT_ranges, &ranges_offset))
+  if (dwarf_attr (die, DW_AT_ranges, &attribute, NULL) != DW_DLV_OK)
     goto skip;
 
-  if (dwarf_get_ranges_a (dbg, ranges_offset, die, &ranges, &range_count, NULL,
-      NULL) != DW_DLV_OK)
+  if (dwarf_whatform (attribute, &form, NULL) != DW_DLV_OK)
     goto skip;
 
-  for (range_index = 0; range_index < range_count; range_index++)
+  if (form == DW_FORM_rnglistx)
+    res = dwarf_formudata (attribute, &ranges_offset, NULL);
+  else
+    res = dwarf_global_formref (attribute, &ranges_offset, NULL);
+  if (res != DW_DLV_OK)
+    goto skip;
+
+  dwarf_get_version_of_die (die, &version, &offset_size);
+
+  if (version >= 5)
   {
-    Dwarf_Ranges * range = &ranges[range_index];
+    Dwarf_Unsigned n, global_offset, i;
 
-    if (range->dwr_type != DW_RANGES_ENTRY)
-      break;
+    if (dwarf_rnglists_get_rle_head (attribute, form, ranges_offset, &rngl, &n,
+          &global_offset, NULL) != DW_DLV_OK)
+      goto skip;
 
-    if (op->needle >= range->dwr_addr1 && op->needle < range->dwr_addr2)
+    for (i = 0; i != n; i++)
     {
-      op->found = TRUE;
-      dwarf_dieoffset (die, &op->cu_die_offset, NULL);
+      guint len, code;
+      Dwarf_Unsigned raw_low_pc, raw_high_pc, low_pc, high_pc;
+      Dwarf_Bool debug_addr_unavailable;
 
-      break;
+      if (dwarf_get_rnglists_entry_fields_a (rngl, i, &len, &code,
+            &raw_low_pc, &raw_high_pc, &debug_addr_unavailable, &low_pc,
+            &high_pc, NULL) != DW_DLV_OK)
+        goto skip;
+
+      if (code == DW_RLE_end_of_list)
+        break;
+      if (code == DW_RLE_base_address || code == DW_RLE_base_addressx)
+        continue;
+      if (code == debug_addr_unavailable)
+        continue;
+
+      if (op->needle >= low_pc && op->needle < high_pc)
+      {
+        op->found = TRUE;
+        dwarf_dieoffset (die, &op->cu_die_offset, NULL);
+
+        break;
+      }
     }
   }
+  else
+  {
+    Dwarf_Ranges * ranges;
+    Dwarf_Signed n, i;
 
-  dwarf_ranges_dealloc (dbg, ranges, range_count);
+    if (dwarf_get_ranges_a (dbg, ranges_offset, die, &ranges, &n, NULL,
+        NULL) != DW_DLV_OK)
+      goto skip;
+
+    for (i = 0; i != n; i++)
+    {
+      Dwarf_Ranges * range = &ranges[i];
+
+      if (range->dwr_type != DW_RANGES_ENTRY)
+        break;
+
+      if (op->needle >= range->dwr_addr1 && op->needle < range->dwr_addr2)
+      {
+        op->found = TRUE;
+        dwarf_dieoffset (die, &op->cu_die_offset, NULL);
+
+        break;
+      }
+    }
+
+    dwarf_ranges_dealloc (dbg, ranges, n);
+  }
 
 skip:
+  g_clear_pointer (&rngl, dwarf_dealloc_rnglists_head);
+  dwarf_dealloc (dbg, attribute, DW_DLA_ATTR);
+
   return !op->found;
 }
 
@@ -1190,25 +1247,6 @@ gum_read_attribute_address (Dwarf_Debug dbg,
     return FALSE;
 
   success = dwarf_formaddr (attribute, address, NULL) == DW_DLV_OK;
-
-  dwarf_dealloc (dbg, attribute, DW_DLA_ATTR);
-
-  return success;
-}
-
-static gboolean
-gum_read_attribute_offset (Dwarf_Debug dbg,
-                           Dwarf_Die die,
-                           Dwarf_Half id,
-                           Dwarf_Off * offset)
-{
-  gboolean success;
-  Dwarf_Attribute attribute;
-
-  if (dwarf_attr (die, id, &attribute, NULL) != DW_DLV_OK)
-    return FALSE;
-
-  success = dwarf_global_formref (attribute, offset, NULL) == DW_DLV_OK;
 
   dwarf_dealloc (dbg, attribute, DW_DLA_ATTR);
 
