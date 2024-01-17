@@ -266,7 +266,7 @@ jobs:
             ./gum-tests
 
   android-intel:
-    runs-on: macos-10.15
+    runs-on: macos-latest
     strategy:
       matrix:
         arch: [x86, x86_64]
