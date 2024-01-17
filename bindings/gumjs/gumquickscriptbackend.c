@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1198,6 +1198,12 @@ gum_es_program_free (GumESProgram * program,
   g_array_free (entrypoints, TRUE);
 
   g_slice_free (GumESProgram, program);
+}
+
+gboolean
+gum_es_program_is_esm (GumESProgram * self)
+{
+  return self->global_filename == NULL;
 }
 
 JSValue

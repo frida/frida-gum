@@ -1,6 +1,20 @@
 require('./core');
 require('./error-handler-quickjs');
 
+Script.load = (name, source) => {
+  return new Promise((resolve, reject) => {
+    Script._load(name, source, async evalResult => {
+      try {
+        await evalResult;
+        const namespace = await import(name);
+        resolve(namespace);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+};
+
 class WeakRef {
   constructor(target) {
     this._id = Script.bindWeak(target, this._onTargetDead);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
@@ -9986,12 +9986,6 @@ TESTCASE (esm_throwing_on_load_should_emit_error)
 
 TESTCASE (esm_throwing_after_toplevel_await_should_emit_error)
 {
-  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
-    g_print ("<not available on QuickJS> ");
-    return;
-  }
-
   COMPILE_AND_LOAD_SCRIPT (
       "📦\n"
       "122 /main.js\n"
@@ -10092,12 +10086,6 @@ TESTCASE (dynamic_script_loading_should_throw_on_runtime_error)
 
 TESTCASE (dynamic_script_loading_should_throw_on_error_with_toplevel_await)
 {
-  if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
-  {
-    g_print ("<not available on QuickJS> ");
-    return;
-  }
-
   COMPILE_AND_LOAD_SCRIPT (
       "Script.load('/x.js',"
           "`"

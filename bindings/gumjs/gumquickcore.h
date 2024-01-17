@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -285,6 +285,9 @@ G_GNUC_INTERNAL void _gum_quick_core_finalize (GumQuickCore * self);
 
 G_GNUC_INTERNAL void _gum_quick_core_pin (GumQuickCore * self);
 G_GNUC_INTERNAL void _gum_quick_core_unpin (GumQuickCore * self);
+
+G_GNUC_INTERNAL void _gum_quick_core_on_unhandled_exception (
+    GumQuickCore * self, JSValue exception);
 
 G_GNUC_INTERNAL void _gum_quick_core_post (GumQuickCore * self,
     const gchar * message, GBytes * data);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
@@ -37,6 +37,7 @@
 
 typedef struct _GumQuickWeakCallback GumQuickWeakCallback;
 typedef struct _GumQuickFlushCallback GumQuickFlushCallback;
+typedef struct _GumQuickModuleInitOperation GumQuickModuleInitOperation;
 typedef struct _GumQuickFFIFunctionParams GumQuickFFIFunctionParams;
 typedef guint8 GumQuickSchedulingBehavior;
 typedef guint8 GumQuickExceptionsBehavior;
@@ -50,6 +51,14 @@ struct _GumQuickFlushCallback
   GumQuickFlushNotify func;
   gpointer data;
   GDestroyNotify data_destroy;
+};
+
+struct _GumQuickModuleInitOperation
+{
+  JSValue module;
+  JSValue perform_init;
+
+  GumQuickCore * core;
 };
 
 struct _GumQuickWeakRef
@@ -174,6 +183,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_FUNCTION (gumjs_script_evaluate)
 GUMJS_DECLARE_FUNCTION (gumjs_script_load)
+static gboolean gum_quick_core_init_module (GumQuickModuleInitOperation * op);
 GUMJS_DECLARE_FUNCTION (gumjs_script_register_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_find_source_map)
 GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
@@ -1765,6 +1775,17 @@ _gum_quick_core_unpin (GumQuickCore * self)
 }
 
 void
+_gum_quick_core_on_unhandled_exception (GumQuickCore * self,
+                                        JSValue exception)
+{
+  if (self->unhandled_exception_sink == NULL)
+    return;
+
+  gum_quick_exception_sink_handle_exception (self->unhandled_exception_sink,
+      exception);
+}
+
+void
 _gum_quick_core_post (GumQuickCore * self,
                       const gchar * message,
                       GBytes * data)
@@ -1947,11 +1968,7 @@ _gum_quick_scope_catch_and_emit (GumQuickScope * self)
   if (JS_IsNull (exception))
     return;
 
-  if (core->unhandled_exception_sink != NULL)
-  {
-    gum_quick_exception_sink_handle_exception (
-        core->unhandled_exception_sink, exception);
-  }
+  _gum_quick_core_on_unhandled_exception (core, exception);
 
   JS_FreeValue (ctx, exception);
 }
@@ -2098,7 +2115,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_evaluate)
     return JS_EXCEPTION;
 
   func = JS_Eval (ctx, source, strlen (source), name,
-      JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_STRICT | JS_EVAL_FLAG_COMPILE_ONLY);
+      JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_STRICT | JS_EVAL_FLAG_COMPILE_ONLY |
+      JS_EVAL_FLAG_BACKTRACE_BARRIER);
   if (JS_IsException (func))
   {
     return _gum_quick_script_rethrow_parse_error_with_decorations (core->script,
@@ -2120,17 +2138,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_load)
 {
   GHashTable * es_assets = core->program->es_assets;
   const gchar * name, * source;
-  JSValue module;
+  JSValue perform_init, module;
   gchar * name_copy, * source_map;
+  GumQuickModuleInitOperation * op;
+  GSource * gsource;
 
-  if (!_gum_quick_args_parse (args, "ss", &name, &source))
+  if (!_gum_quick_args_parse (args, "ssF", &name, &source, &perform_init))
     return JS_EXCEPTION;
 
   if (g_hash_table_contains (es_assets, name))
     return _gum_quick_throw (ctx, "module '%s' already exists", name);
 
   module = JS_Eval (ctx, source, strlen (source), name,
-      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_STRICT | JS_EVAL_FLAG_COMPILE_ONLY);
+      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_STRICT | JS_EVAL_FLAG_COMPILE_ONLY |
+      JS_EVAL_FLAG_BACKTRACE_BARRIER);
   if (JS_IsException (module))
   {
     return _gum_quick_script_rethrow_parse_error_with_decorations (core->script,
@@ -2149,7 +2170,52 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_load)
         gum_es_asset_new_take (map_name, source_map, strlen (source_map)));
   }
 
-  return JS_EvalFunction (ctx, module);
+  /*
+   * QuickJS does not support having a synchronously evaluating module
+   * dynamically define and evaluate a new module depending on itself.
+   * This is only allowed if it is an asynchronously evaluating module.
+   * We defer the evaluation to avoid this edge-case.
+   */
+  op = g_slice_new (GumQuickModuleInitOperation);
+  op->module = module;
+  op->perform_init = JS_DupValue (ctx, perform_init);
+  op->core = core;
+
+  gsource = g_idle_source_new ();
+  g_source_set_callback (gsource, (GSourceFunc) gum_quick_core_init_module,
+      op, NULL);
+  g_source_attach (gsource,
+      gum_script_scheduler_get_js_context (core->scheduler));
+  g_source_unref (gsource);
+
+  _gum_quick_core_pin (core);
+
+  return JS_UNDEFINED;
+}
+
+static gboolean
+gum_quick_core_init_module (GumQuickModuleInitOperation * op)
+{
+  GumQuickCore * self = op->core;
+  JSContext * ctx = self->ctx;
+  GumQuickScope scope;
+  JSValue result;
+
+  _gum_quick_scope_enter (&scope, self);
+
+  result = JS_EvalFunction (ctx, op->module);
+  _gum_quick_scope_call_void (&scope, op->perform_init, JS_UNDEFINED,
+      1, &result);
+  JS_FreeValue (ctx, result);
+
+  JS_FreeValue (ctx, op->perform_init);
+  g_slice_free (GumQuickModuleInitOperation, op);
+
+  _gum_quick_core_unpin (self);
+
+  _gum_quick_scope_leave (&scope);
+
+  return G_SOURCE_REMOVE;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_register_source_map)

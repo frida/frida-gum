@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -97,9 +97,10 @@ enum
 enum _GumScriptState
 {
   GUM_SCRIPT_STATE_CREATED,
-  GUM_SCRIPT_STATE_UNLOADED,
+  GUM_SCRIPT_STATE_LOADING,
   GUM_SCRIPT_STATE_LOADED,
-  GUM_SCRIPT_STATE_UNLOADING
+  GUM_SCRIPT_STATE_UNLOADING,
+  GUM_SCRIPT_STATE_UNLOADED
 };
 
 struct _GumUnloadNotifyCallback
@@ -202,7 +203,11 @@ static void gum_quick_script_load_sync (GumScript * script,
     GCancellable * cancellable);
 static void gum_quick_script_do_load (GumScriptTask * task,
     GumQuickScript * self, gpointer task_data, GCancellable * cancellable);
-static void gum_quick_script_execute_entrypoints (GumQuickScript * self);
+static void gum_quick_script_execute_entrypoints (GumQuickScript * self,
+    GumScriptTask * task);
+static JSValue gum_quick_script_on_entrypoints_executed (JSContext * ctx,
+    JSValueConst this_val, int argc, JSValueConst * argv, int magic,
+    JSValue * func_data);
 static void gum_quick_script_unload (GumScript * script,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
@@ -634,10 +639,10 @@ gum_quick_script_do_load (GumScriptTask * task,
   if (self->state != GUM_SCRIPT_STATE_CREATED)
     goto invalid_operation;
 
-  self->state = GUM_SCRIPT_STATE_LOADED;
-  gum_quick_script_execute_entrypoints (self);
+  self->state = GUM_SCRIPT_STATE_LOADING;
 
-  gum_script_task_return_pointer (task, NULL, NULL);
+  gum_quick_script_execute_entrypoints (self, task);
+
   return;
 
 invalid_operation:
@@ -651,7 +656,8 @@ invalid_operation:
 }
 
 static void
-gum_quick_script_execute_entrypoints (GumQuickScript * self)
+gum_quick_script_execute_entrypoints (GumQuickScript * self,
+                                      GumScriptTask * task)
 {
   GumQuickScope scope;
   JSContext * ctx = self->ctx;
@@ -663,19 +669,124 @@ gum_quick_script_execute_entrypoints (GumQuickScript * self)
   gum_quick_bundle_load (gumjs_runtime_modules, ctx);
 
   entrypoints = self->program->entrypoints;
-  for (i = 0; i != entrypoints->len; i++)
+
+  if (gum_es_program_is_esm (self->program))
   {
-    JSValue result;
+    JSValue pending;
+    guint num_results;
+    JSValue global_obj, promise_class, all_settled_func, loaded_promise;
+    JSValue then_func, task_obj, on_loaded_func, result_val;
 
-    result = JS_EvalFunction (ctx, g_array_index (entrypoints, JSValue, i));
-    if (JS_IsException (result))
-      _gum_quick_scope_catch_and_emit (&scope);
+    pending = JS_NewArray (ctx);
+    num_results = 0;
+    for (i = 0; i != entrypoints->len; i++)
+    {
+      JSValue result;
 
-    JS_FreeValue (ctx, result);
+      result = JS_EvalFunction (ctx, g_array_index (entrypoints, JSValue, i));
+      if (JS_IsException (result))
+      {
+        _gum_quick_scope_catch_and_emit (&scope);
+      }
+      else
+      {
+        JS_DefinePropertyValueUint32 (ctx, pending, num_results++, result,
+            JS_PROP_C_W_E);
+      }
+    }
+
+    global_obj = JS_GetGlobalObject (ctx);
+    promise_class = JS_GetPropertyStr (ctx, global_obj, "Promise");
+    all_settled_func = JS_GetPropertyStr (ctx, promise_class, "allSettled");
+
+    loaded_promise = JS_Call (ctx, all_settled_func, promise_class, 1, &pending);
+
+    then_func = JS_GetPropertyStr (ctx, loaded_promise, "then");
+
+    task_obj = JS_NewObject (ctx);
+    JS_SetOpaque (task_obj, g_object_ref (task));
+
+    on_loaded_func = JS_NewCFunctionData (ctx,
+        gum_quick_script_on_entrypoints_executed, 1, 0, 1, &task_obj);
+
+    result_val = JS_Call (ctx, then_func, loaded_promise, 1, &on_loaded_func);
+
+    JS_FreeValue (ctx, result_val);
+    JS_FreeValue (ctx, on_loaded_func);
+    JS_FreeValue (ctx, task_obj);
+    JS_FreeValue (ctx, then_func);
+    JS_FreeValue (ctx, loaded_promise);
+    JS_FreeValue (ctx, all_settled_func);
+    JS_FreeValue (ctx, promise_class);
+    JS_FreeValue (ctx, global_obj);
+    JS_FreeValue (ctx, pending);
   }
+  else
+  {
+    for (i = 0; i != entrypoints->len; i++)
+    {
+      JSValue result;
+
+      result = JS_EvalFunction (ctx, g_array_index (entrypoints, JSValue, i));
+      if (JS_IsException (result))
+        _gum_quick_scope_catch_and_emit (&scope);
+
+      JS_FreeValue (ctx, result);
+    }
+
+    self->state = GUM_SCRIPT_STATE_LOADED;
+
+    gum_script_task_return_pointer (task, NULL, NULL);
+  }
+
   g_array_set_size (entrypoints, 0);
 
   _gum_quick_scope_leave (&scope);
+}
+
+static JSValue
+gum_quick_script_on_entrypoints_executed (JSContext * ctx,
+                                          JSValueConst this_val,
+                                          int argc,
+                                          JSValueConst * argv,
+                                          int magic,
+                                          JSValue * func_data)
+{
+  JSValueConst results = argv[0];
+  GumScriptTask * task;
+  JSClassID class_id;
+  GumQuickScript * self;
+  GumQuickCore * core;
+  guint n, i;
+
+  task = JS_GetAnyOpaque (func_data[0], &class_id);
+  self = GUM_QUICK_SCRIPT (
+      g_async_result_get_source_object (G_ASYNC_RESULT (task)));
+
+  core = JS_GetContextOpaque (ctx);
+
+  _gum_quick_array_get_length (ctx, results, core, &n);
+  for (i = 0; i != n; i++)
+  {
+    JSValue result, reason;
+
+    result = JS_GetPropertyUint32 (ctx, results, i);
+
+    reason = JS_GetPropertyStr (ctx, result, "reason");
+    if (!JS_IsUndefined (reason))
+      _gum_quick_core_on_unhandled_exception (core, reason);
+
+    JS_FreeValue (ctx, reason);
+    JS_FreeValue (ctx, result);
+  }
+
+  self->state = GUM_SCRIPT_STATE_LOADED;
+
+  gum_script_task_return_pointer (task, NULL, NULL);
+
+  g_object_unref (task);
+
+  return JS_UNDEFINED;
 }
 
 static void
