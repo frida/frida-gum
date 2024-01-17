@@ -88,24 +88,26 @@
 #define EXPECT_NO_MESSAGES() \
     g_assert_null (test_script_fixture_try_pop_message (fixture, 1))
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD, ...) \
-    test_script_fixture_expect_send_message_with (fixture, PAYLOAD, \
-    ## __VA_ARGS__)
+    test_script_fixture_expect_send_message_with (fixture, G_STRFUNC, \
+        __FILE__, __LINE__, PAYLOAD, ## __VA_ARGS__)
 #define EXPECT_SEND_MESSAGE_WITH_PREFIX(PREFIX, ...) \
-    test_script_fixture_expect_send_message_with_prefix (fixture, PREFIX, \
-    ## __VA_ARGS__)
+    test_script_fixture_expect_send_message_with_prefix (fixture, G_STRFUNC, \
+        __FILE__, __LINE__, PREFIX, ## __VA_ARGS__)
 #define EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA(PAYLOAD, DATA) \
     test_script_fixture_expect_send_message_with_payload_and_data (fixture, \
-        PAYLOAD, DATA)
+        G_STRFUNC, __FILE__, __LINE__, PAYLOAD, DATA)
 #define EXPECT_SEND_MESSAGE_WITH_POINTER() \
-    test_script_fixture_expect_send_message_with_pointer (fixture)
+    test_script_fixture_expect_send_message_with_pointer (fixture, G_STRFUNC, \
+        __FILE__, __LINE__)
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
-    test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
+    test_script_fixture_expect_error_message_with (fixture, G_STRFUNC, \
+        __FILE__, __LINE__, LINE_NUMBER, DESC)
 #define EXPECT_ERROR_MESSAGE_MATCHING(LINE_NUMBER, PATTERN) \
-    test_script_fixture_expect_error_message_matching (fixture, LINE_NUMBER, \
-        PATTERN)
+    test_script_fixture_expect_error_message_matching (fixture, G_STRFUNC, \
+        __FILE__, __LINE__, LINE_NUMBER, PATTERN)
 #define EXPECT_LOG_MESSAGE_WITH(LEVEL, PAYLOAD, ...) \
-    test_script_fixture_expect_log_message_with (fixture, LEVEL, PAYLOAD, \
-    ## __VA_ARGS__)
+    test_script_fixture_expect_log_message_with (fixture, G_STRFUNC, \
+        __FILE__, __LINE__, LEVEL, PAYLOAD, ## __VA_ARGS__)
 #define PUSH_TIMEOUT(value) test_script_fixture_push_timeout (fixture, value)
 #define POP_TIMEOUT() test_script_fixture_pop_timeout (fixture)
 #define DISABLE_LOG_MESSAGE_HANDLING() \
@@ -114,8 +116,62 @@
     test_script_fixture_make_tempfile_containing (fixture, str)
 #define ESCAPE_PATH(path) \
     test_script_fixture_escape_path (fixture, path)
+#define test_script_fixture_pop_message(fixture) \
+    _test_script_fixture_pop_message (fixture, G_STRFUNC, __FILE__, __LINE__)
 
 #define GUM_PTR_CONST "ptr(\"0x%" G_GSIZE_MODIFIER "x\")"
+
+#define gum_assert_cmpstr(func, file, line, s1, cmp, s2) \
+    G_STMT_START \
+    { \
+      const char * __s1 = (s1), * __s2 = (s2); \
+      if (g_strcmp0 (__s1, __s2) cmp 0) ; else \
+        g_assertion_message_cmpstr (G_LOG_DOMAIN, file, line, func, \
+            #s1 " " #cmp " " #s2, __s1, #cmp, __s2); \
+    } \
+    G_STMT_END
+#define gum_assert_true(func, file, line, expr) \
+    G_STMT_START \
+    { \
+      if G_LIKELY (expr) ; else \
+        g_assertion_message (G_LOG_DOMAIN, file, line, func, \
+            "'" #expr "' should be TRUE"); \
+    } \
+    G_STMT_END
+#define gum_assert_false(func, file, line, expr) \
+    G_STMT_START \
+    { \
+      if G_LIKELY (!(expr)) ; else \
+        g_assertion_message (G_LOG_DOMAIN, file, line, func, \
+            "'" #expr "' should be FALSE"); \
+    } \
+    G_STMT_END
+#define gum_assert_null(func, file, line, expr) \
+    G_STMT_START \
+    { \
+      if G_LIKELY ((expr) == NULL) ; else \
+        g_assertion_message (G_LOG_DOMAIN, file, line, func, \
+            "'" #expr "' should be NULL"); \
+    } \
+    G_STMT_END
+#define gum_assert_nonnull(func, file, line, expr) \
+    G_STMT_START \
+    { \
+      if G_LIKELY ((expr) != NULL) ; else \
+        g_assertion_message (G_LOG_DOMAIN, file, line, func, \
+            "'" #expr "' should not be NULL"); \
+    } \
+    G_STMT_END
+#define gum_assert_cmpint(func, file, line, n1, cmp, n2) \
+    G_STMT_START \
+    { \
+      gint64 __n1 = (n1), __n2 = (n2); \
+      if (__n1 cmp __n2) ; else \
+        g_assertion_message_cmpnum (G_LOG_DOMAIN, file, line, func, \
+            #n1 " " #cmp " " #n2, (long double) __n1, #cmp,\
+            (long double) __n2, 'i'); \
+    } \
+    G_STMT_END
 
 #ifdef HAVE_WINDOWS
 # define GUM_CLOSE_SOCKET(s) closesocket (s)
@@ -167,16 +223,20 @@ static TestScriptMessageItem * test_script_fixture_try_pop_message (
     TestScriptFixture * fixture, guint timeout);
 static gboolean test_script_fixture_stop_loop (TestScriptFixture * fixture);
 static void test_script_fixture_expect_send_message_with_prefix (
-    TestScriptFixture * fixture, const gchar * prefix_template, ...);
+    TestScriptFixture * fixture, const gchar * func, const gchar * file,
+    gint line, const gchar * prefix_template, ...);
 static void test_script_fixture_expect_send_message_with_payload_and_data (
-    TestScriptFixture * fixture, const gchar * payload, const gchar * data);
+    TestScriptFixture * fixture, const gchar * func, const gchar * file,
+    gint line, const gchar * payload, const gchar * data);
 static void test_script_fixture_expect_error_message_with (
-    TestScriptFixture * fixture, gint line_number, const gchar * description);
+    TestScriptFixture * fixture, const gchar * func, const gchar * file,
+    gint line, gint line_number, const gchar * description);
 static void test_script_fixture_expect_error_message_matching (
-    TestScriptFixture * fixture, gint line_number, const gchar * pattern);
+    TestScriptFixture * fixture, const gchar * func, const gchar * file,
+    gint line, gint line_number, const gchar * pattern);
 static void test_script_fixture_expect_log_message_with (
-    TestScriptFixture * fixture, const gchar * level,
-    const gchar * payload_template, ...);
+    TestScriptFixture * fixture, const gchar * func, const gchar * file,
+    gint line, const gchar * level, const gchar * payload_template, ...);
 static void test_script_fixture_push_timeout (TestScriptFixture * fixture,
     guint timeout);
 static void test_script_fixture_pop_timeout (TestScriptFixture * fixture);
@@ -427,7 +487,10 @@ test_script_fixture_stop_loop (TestScriptFixture * fixture)
 }
 
 static TestScriptMessageItem *
-test_script_fixture_pop_message (TestScriptFixture * fixture)
+_test_script_fixture_pop_message (TestScriptFixture * fixture,
+                                  const gchar * func,
+                                  const gchar * file,
+                                  gint line)
 {
   guint timeout;
   TestScriptMessageItem * item;
@@ -435,13 +498,16 @@ test_script_fixture_pop_message (TestScriptFixture * fixture)
   timeout = GPOINTER_TO_UINT (g_queue_peek_tail (&fixture->timeouts));
 
   item = test_script_fixture_try_pop_message (fixture, timeout);
-  g_assert_nonnull (item);
+  gum_assert_nonnull (func, file, line, item);
 
   return item;
 }
 
 static void
 test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
+                                              const gchar * func,
+                                              const gchar * file,
+                                              gint line,
                                               const gchar * payload_template,
                                               ...)
 {
@@ -454,10 +520,10 @@ test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
   payload = g_strdup_vprintf (payload_template, args);
   va_end (args);
 
-  item = test_script_fixture_pop_message (fixture);
+  item = _test_script_fixture_pop_message (fixture, func, file, line);
   expected_message =
       g_strconcat ("{\"type\":\"send\",\"payload\":", payload, "}", NULL);
-  g_assert_cmpstr (item->message, ==, expected_message);
+  gum_assert_cmpstr (func, file, line, item->message, ==, expected_message);
   test_script_message_item_free (item);
   g_free (expected_message);
 
@@ -467,6 +533,9 @@ test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
 static void
 test_script_fixture_expect_send_message_with_prefix (
     TestScriptFixture * fixture,
+    const gchar * func,
+    const gchar * file,
+    gint line,
     const gchar * prefix_template,
     ...)
 {
@@ -479,10 +548,11 @@ test_script_fixture_expect_send_message_with_prefix (
   prefix = g_strdup_vprintf (prefix_template, args);
   va_end (args);
 
-  item = test_script_fixture_pop_message (fixture);
+  item = _test_script_fixture_pop_message (fixture, func, file, line);
   expected_message_prefix =
       g_strconcat ("{\"type\":\"send\",\"payload\":", prefix, NULL);
-  g_assert_true (g_str_has_prefix (item->message, expected_message_prefix));
+  gum_assert_true (func, file, line,
+      g_str_has_prefix (item->message, expected_message_prefix));
   test_script_message_item_free (item);
   g_free (expected_message_prefix);
 
@@ -492,24 +562,27 @@ test_script_fixture_expect_send_message_with_prefix (
 static void
 test_script_fixture_expect_send_message_with_payload_and_data (
     TestScriptFixture * fixture,
+    const gchar * func,
+    const gchar * file,
+    gint line,
     const gchar * payload,
     const gchar * data)
 {
   TestScriptMessageItem * item;
   gchar * expected_message;
 
-  item = test_script_fixture_pop_message (fixture);
+  item = _test_script_fixture_pop_message (fixture, func, file, line);
   expected_message =
       g_strconcat ("{\"type\":\"send\",\"payload\":", payload, "}", NULL);
-  g_assert_cmpstr (item->message, ==, expected_message);
+  gum_assert_cmpstr (func, file, line, item->message, ==, expected_message);
   if (data != NULL)
   {
-    g_assert_nonnull (item->data);
-    g_assert_cmpstr (item->data, ==, data);
+    gum_assert_nonnull (func, file, line, item->data);
+    gum_assert_cmpstr (func, file, line, item->data, ==, data);
   }
   else
   {
-    g_assert_null (item->data);
+    gum_assert_null (func, file, line, item->data);
   }
   test_script_message_item_free (item);
   g_free (expected_message);
@@ -517,12 +590,15 @@ test_script_fixture_expect_send_message_with_payload_and_data (
 
 static gpointer
 test_script_fixture_expect_send_message_with_pointer (
-    TestScriptFixture * fixture)
+    TestScriptFixture * fixture,
+    const gchar * func,
+    const gchar * file,
+    gint line)
 {
   TestScriptMessageItem * item;
   gpointer ptr;
 
-  item = test_script_fixture_pop_message (fixture);
+  item = _test_script_fixture_pop_message (fixture, func, file, line);
   ptr = NULL;
   sscanf (item->message, "{\"type\":\"send\",\"payload\":"
       "\"0x%" G_GSIZE_MODIFIER "x\"}", (gsize *) &ptr);
@@ -533,13 +609,16 @@ test_script_fixture_expect_send_message_with_pointer (
 
 static gchar *
 test_script_fixture_pop_error_description (TestScriptFixture * fixture,
+                                           const gchar * func,
+                                           const gchar * file,
+                                           gint caller_line,
                                            gint * line_number)
 {
   TestScriptMessageItem * item;
   gchar description[1024], stack[1024], file_name[64];
   gint line, column;
 
-  item = test_script_fixture_pop_message (fixture);
+  item = _test_script_fixture_pop_message (fixture, func, file, caller_line);
 
   description[0] = '\0';
   stack[0] = '\0';
@@ -570,7 +649,7 @@ test_script_fixture_pop_error_description (TestScriptFixture * fixture,
 
   test_script_message_item_free (item);
 
-  g_assert_false (description[0] == '\0');
+  gum_assert_false (func, file, line, description[0] == '\0');
 
   if (line_number != NULL)
     *line_number = line;
@@ -580,6 +659,9 @@ test_script_fixture_pop_error_description (TestScriptFixture * fixture,
 
 static void
 test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
+                                               const gchar * func,
+                                               const gchar * file,
+                                               gint line,
                                                gint line_number,
                                                const gchar * description)
 {
@@ -587,18 +669,22 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
   gint actual_line_number;
 
   actual_description =
-      test_script_fixture_pop_error_description (fixture, &actual_line_number);
+      test_script_fixture_pop_error_description (fixture, func, file, line,
+          &actual_line_number);
 
   if (line_number != ANY_LINE_NUMBER)
-    g_assert_cmpint (actual_line_number, ==, line_number);
+    gum_assert_cmpint (func, file, line, actual_line_number, ==, line_number);
 
-  g_assert_cmpstr (actual_description, ==, description);
+  gum_assert_cmpstr (func, file, line, actual_description, ==, description);
 
   g_free (actual_description);
 }
 
 static void
 test_script_fixture_expect_error_message_matching (TestScriptFixture * fixture,
+                                                   const gchar * func,
+                                                   const gchar * file,
+                                                   gint line,
                                                    gint line_number,
                                                    const gchar * pattern)
 {
@@ -606,18 +692,23 @@ test_script_fixture_expect_error_message_matching (TestScriptFixture * fixture,
   gint actual_line_number;
 
   actual_description =
-      test_script_fixture_pop_error_description (fixture, &actual_line_number);
+      test_script_fixture_pop_error_description (fixture, func, file, line,
+          &actual_line_number);
 
   if (line_number != ANY_LINE_NUMBER)
-    g_assert_cmpint (actual_line_number, ==, line_number);
+    gum_assert_cmpint (func, file, line, actual_line_number, ==, line_number);
 
-  g_assert_true (g_regex_match_simple (pattern, actual_description, 0, 0));
+  gum_assert_true (func, file, line,
+      g_regex_match_simple (pattern, actual_description, 0, 0));
 
   g_free (actual_description);
 }
 
 static void
 test_script_fixture_expect_log_message_with (TestScriptFixture * fixture,
+                                             const gchar * func,
+                                             const gchar * file,
+                                             gint line,
                                              const gchar * level,
                                              const gchar * payload_template,
                                              ...)
@@ -631,10 +722,10 @@ test_script_fixture_expect_log_message_with (TestScriptFixture * fixture,
   payload = g_strdup_vprintf (payload_template, args);
   va_end (args);
 
-  item = test_script_fixture_pop_message (fixture);
+  item = _test_script_fixture_pop_message (fixture, func, file, line);
   expected_message = g_strconcat ("{\"type\":\"log\",\"level\":\"", level,
       "\",\"payload\":\"", payload, "\"}", NULL);
-  g_assert_cmpstr (item->message, ==, expected_message);
+  gum_assert_cmpstr (func, file, line, item->message, ==, expected_message);
   test_script_message_item_free (item);
   g_free (expected_message);
 
