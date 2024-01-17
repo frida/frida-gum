@@ -178,7 +178,6 @@ jobs:
             pkg: g++-mips64-linux-gnuabi64
           - id: mips64el
             pkg: g++-mips64el-linux-gnuabi64
-    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -279,7 +278,6 @@ jobs:
       matrix:
         arch: [x86, x86_64]
       fail-fast: false
-    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
