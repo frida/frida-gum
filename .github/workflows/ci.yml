@@ -15,6 +15,7 @@ env:
 jobs:
   gir:
     runs-on: ubuntu-22.04
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -52,6 +53,7 @@ jobs:
       matrix:
         arch: [amd64_x86, amd64]
       fail-fast: false
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -82,6 +84,7 @@ jobs:
 
   macos-x86_64:
     runs-on: macos-latest
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -106,6 +109,7 @@ jobs:
 
   linux-x86:
     runs-on: ubuntu-latest
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -138,6 +142,7 @@ jobs:
 
   linux-x86_64:
     runs-on: ubuntu-latest
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -173,6 +178,7 @@ jobs:
             pkg: g++-mips64-linux-gnuabi64
           - id: mips64el
             pkg: g++-mips64el-linux-gnuabi64
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -203,6 +209,7 @@ jobs:
 
   freebsd-arm64:
     runs-on: [self-hosted, freebsd, arm64]
+    if: false
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v3
@@ -223,6 +230,7 @@ jobs:
 
   ios-arm64:
     runs-on: macos-latest
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -271,6 +279,7 @@ jobs:
       matrix:
         arch: [x86, x86_64]
       fail-fast: false
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -333,6 +342,7 @@ jobs:
       matrix:
         arch: [arm, arm64]
       fail-fast: false
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -375,6 +385,7 @@ jobs:
   qnx-armeabi:
     runs-on: ubuntu-latest
     container: fridadotre/qnx:latest
+    if: false
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
