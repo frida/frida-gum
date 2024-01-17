@@ -44,7 +44,7 @@ TESTCASE (symbol_details_from_address)
       GPOINTER_TO_SIZE (gum_dummy_function_0));
   g_assert_true (g_str_has_prefix (details.module_name, "gum-tests"));
   g_assert_cmpstr (details.symbol_name, ==, "gum_dummy_function_0");
-#if !defined (HAVE_LINUX) && !defined (HAVE_IOS)
+#ifndef HAVE_IOS
   assert_basename_equals (__FILE__, details.file_name);
   g_assert_cmpuint (details.line_number, >, 0);
 #endif
