@@ -3243,6 +3243,15 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   self->requirements = requirements;
 }
 
+void
+gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
+{
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+
+  gum_exec_block_virtualize_ret_insn (block, gc);
+}
+
 GumMemoryAccess
 gum_stalker_iterator_get_memory_access (GumStalkerIterator * self)
 {
