@@ -56,8 +56,8 @@ G_GNUC_INTERNAL void gum_quick_script_backend_mark_scope_mutex_trapped (
 
 G_GNUC_INTERNAL void gum_es_program_free (GumESProgram * program,
     JSContext * ctx);
-G_GNUC_INTERNAL JSValue gum_es_program_compile_worker (GumESProgram * program,
 G_GNUC_INTERNAL gboolean gum_es_program_is_esm (GumESProgram * self);
+G_GNUC_INTERNAL JSValue gum_es_program_compile_worker (GumESProgram * self,
     JSContext * ctx, const GumESAsset * asset);
 G_GNUC_INTERNAL GumESAsset * gum_es_asset_new_take (const gchar * name,
     gpointer data, gsize data_size);

@@ -1207,14 +1207,14 @@ gum_es_program_is_esm (GumESProgram * self)
 }
 
 JSValue
-gum_es_program_compile_worker (GumESProgram * program,
+gum_es_program_compile_worker (GumESProgram * self,
                                JSContext * ctx,
                                const GumESAsset * asset)
 {
   JS_SetModuleLoaderFunc (JS_GetRuntime (ctx),
       gum_normalize_module_name_during_runtime,
       gum_load_module_during_runtime,
-      program);
+      self);
 
   return gum_compile_module (ctx, asset);
 }
