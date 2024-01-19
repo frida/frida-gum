@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -151,6 +151,7 @@ static void gum_v8_script_execute_entrypoints (GumV8Script * self,
     GumScriptTask * task);
 static void gum_v8_script_on_entrypoints_executed (
     const FunctionCallbackInfo<Value> & info);
+static gboolean gum_v8_script_complete_load_task (GumScriptTask * task);
 static void gum_v8_script_unload (GumScript * script,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
@@ -1287,6 +1288,7 @@ gum_v8_script_on_entrypoints_executed (const FunctionCallbackInfo<Value> & info)
   auto task = (GumScriptTask *) info.Data ().As<External> ()->Value ();
   auto self = (GumV8Script *)
       g_async_result_get_source_object (G_ASYNC_RESULT (task));
+  auto core = &self->core;
   auto isolate = info.GetIsolate ();
   auto context = isolate->GetCurrentContext ();
 
@@ -1298,7 +1300,31 @@ gum_v8_script_on_entrypoints_executed (const FunctionCallbackInfo<Value> & info)
     auto value = values->Get (context, i).ToLocalChecked ().As<Object> ();
     auto reason = value->Get (context, reason_str).ToLocalChecked ();
     if (!reason->IsUndefined ())
-      _gum_v8_core_on_unhandled_exception (&self->core, reason);
+      _gum_v8_core_on_unhandled_exception (core, reason);
+  }
+
+  auto source = g_idle_source_new ();
+  g_source_set_callback (source, (GSourceFunc) gum_v8_script_complete_load_task,
+      task, g_object_unref);
+  g_source_attach (source,
+      gum_script_scheduler_get_js_context (core->scheduler));
+  g_source_unref (source);
+
+  _gum_v8_core_pin (core);
+
+  g_object_unref (self);
+}
+
+static gboolean
+gum_v8_script_complete_load_task (GumScriptTask * task)
+{
+  auto self = GUM_V8_SCRIPT (
+      g_async_result_get_source_object (G_ASYNC_RESULT (task)));
+
+  {
+    ScriptScope scope (self);
+
+    _gum_v8_core_unpin (&self->core);
   }
 
   self->state = GUM_SCRIPT_STATE_LOADED;
@@ -1306,7 +1332,8 @@ gum_v8_script_on_entrypoints_executed (const FunctionCallbackInfo<Value> & info)
   gum_script_task_return_pointer (task, NULL, NULL);
 
   g_object_unref (self);
-  g_object_unref (task);
+
+  return G_SOURCE_REMOVE;
 }
 
 static void

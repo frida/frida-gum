@@ -208,6 +208,7 @@ static void gum_quick_script_execute_entrypoints (GumQuickScript * self,
 static JSValue gum_quick_script_on_entrypoints_executed (JSContext * ctx,
     JSValueConst this_val, int argc, JSValueConst * argv, int magic,
     JSValue * func_data);
+static gboolean gum_quick_script_complete_load_task (GumScriptTask * task);
 static void gum_quick_script_unload (GumScript * script,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
@@ -663,6 +664,7 @@ gum_quick_script_execute_entrypoints (GumQuickScript * self,
   JSContext * ctx = self->ctx;
   GArray * entrypoints;
   guint i;
+  gboolean done;
 
   _gum_quick_scope_enter (&scope, &self->core);
 
@@ -720,6 +722,8 @@ gum_quick_script_execute_entrypoints (GumQuickScript * self,
     JS_FreeValue (ctx, promise_class);
     JS_FreeValue (ctx, global_obj);
     JS_FreeValue (ctx, pending);
+
+    done = FALSE;
   }
   else
   {
@@ -734,14 +738,19 @@ gum_quick_script_execute_entrypoints (GumQuickScript * self,
       JS_FreeValue (ctx, result);
     }
 
-    self->state = GUM_SCRIPT_STATE_LOADED;
-
-    gum_script_task_return_pointer (task, NULL, NULL);
+    done = TRUE;
   }
 
   g_array_set_size (entrypoints, 0);
 
   _gum_quick_scope_leave (&scope);
+
+  if (done)
+  {
+    self->state = GUM_SCRIPT_STATE_LOADED;
+
+    gum_script_task_return_pointer (task, NULL, NULL);
+  }
 }
 
 static JSValue
@@ -758,6 +767,7 @@ gum_quick_script_on_entrypoints_executed (JSContext * ctx,
   GumQuickScript * self;
   GumQuickCore * core;
   guint n, i;
+  GSource * source;
 
   task = JS_GetAnyOpaque (func_data[0], &class_id);
   self = GUM_QUICK_SCRIPT (
@@ -780,14 +790,43 @@ gum_quick_script_on_entrypoints_executed (JSContext * ctx,
     JS_FreeValue (ctx, result);
   }
 
+  source = g_idle_source_new ();
+  g_source_set_callback (source,
+      (GSourceFunc) gum_quick_script_complete_load_task,
+      task, g_object_unref);
+  g_source_attach (source,
+      gum_script_scheduler_get_js_context (core->scheduler));
+  g_source_unref (source);
+
+  _gum_quick_core_pin (core);
+
+  g_object_unref (self);
+
+  return JS_UNDEFINED;
+}
+
+static gboolean
+gum_quick_script_complete_load_task (GumScriptTask * task)
+{
+  GumQuickScript * self;
+  GumQuickCore * core;
+  GumQuickScope scope;
+
+  self = GUM_QUICK_SCRIPT (
+      g_async_result_get_source_object (G_ASYNC_RESULT (task)));
+  core = &self->core;
+
+  _gum_quick_scope_enter (&scope, core);
+  _gum_quick_core_unpin (core);
+  _gum_quick_scope_leave (&scope);
+
   self->state = GUM_SCRIPT_STATE_LOADED;
 
   gum_script_task_return_pointer (task, NULL, NULL);
 
   g_object_unref (self);
-  g_object_unref (task);
 
-  return JS_UNDEFINED;
+  return G_SOURCE_REMOVE;
 }
 
 static void
