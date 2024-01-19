@@ -784,6 +784,7 @@ gum_quick_script_on_entrypoints_executed (JSContext * ctx,
 
   gum_script_task_return_pointer (task, NULL, NULL);
 
+  g_object_unref (self);
   g_object_unref (task);
 
   return JS_UNDEFINED;
