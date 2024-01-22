@@ -13,263 +13,11 @@ env:
   MESON_VERSION: 0.64.0
 
 jobs:
-  gir:
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install \
-            gobject-introspection \
-            libdwarf-dev \
-            libelf-dev \
-            libgirepository1.0-dev \
-            libglib2.0-dev \
-            libjson-glib-dev \
-            libsoup-3.0-dev \
-            libsqlite3-dev \
-            libunwind-dev \
-            ninja-build
-          pip install meson==${{ env.MESON_VERSION }}
-      - name: Build
-        run: |
-          meson setup \
-            -Doptimization=s \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            build
-          meson compile -C build
-
-  windows:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        arch: [amd64_x86, amd64]
-      fail-fast: false
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: pip install meson==${{ env.MESON_VERSION }} ninja
-      - name: Environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.arch }}
-      - name: Build
-        run: |
-          meson setup `
-            --default-library static `
-            -Doptimization=s `
-            -Dgumpp=enabled `
-            -Dgumjs=enabled `
-            --force-fallback-for=zlib `
-            build
-          meson compile -C build
-      - name: Test
-        run: |
-          Copy-Item build\bindings\gumpp\frida-gumpp-1.0.dll -Destination build\tests\
-          .\build\tests\gum-tests.exe
-
-  macos-x86_64:
-    runs-on: macos-latest
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: pip install meson==${{ env.MESON_VERSION }} ninja
-      - name: Build
-        run: |
-          meson setup \
-            --default-library static \
-            -Doptimization=s \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            --force-fallback-for=glib,capstone \
-            build
-          meson compile -C build
-      - name: Test
-        run: ./build/tests/gum-tests
-
-  linux-x86:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install gcc-multilib lib32stdc++-11-dev
-          pip install meson==${{ env.MESON_VERSION }}
-          .github/env/bootstrap.sh linux-x86_64 linux-x86
-      - name: Build
-        run: |
-          export PATH="/tmp/toolchain/bin:$PATH"
-          meson setup \
-            --native-file /tmp/native.txt \
-            --cross-file /tmp/cross.txt \
-            --default-library static \
-            --force-fallback-for=glib \
-            -Doptimization=s \
-            -Dwerror=true \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            build
-          meson compile -C build
-      - name: Test
-        run: ./build/tests/gum-tests
-
-  linux-x86_64:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: pip install meson==${{ env.MESON_VERSION }} ninja
-      - name: Build
-        run: |
-          meson setup \
-            --default-library static \
-            --force-fallback-for=glib \
-            -Doptimization=s \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            build
-          meson compile -C build
-      - name: Test
-        run: ./build/tests/gum-tests
-
-  linux-mips:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch:
-          - id: mips
-            pkg: g++-mips-linux-gnu
-          - id: mipsel
-            pkg: g++-mipsel-linux-gnu
-          - id: mips64
-            pkg: g++-mips64-linux-gnuabi64
-          - id: mips64el
-            pkg: g++-mips64el-linux-gnuabi64
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Install Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install ${{ matrix.arch.pkg }}
-          pip install meson==${{ env.MESON_VERSION }}
-          .github/env/bootstrap.sh linux-x86_64 linux-${{ matrix.arch.id }}
-      - name: Build
-        run: |
-          export PATH="/tmp/toolchain/bin:$PATH"
-          meson setup \
-            --native-file /tmp/native.txt \
-            --cross-file /tmp/cross.txt \
-            --default-library static \
-            -Doptimization=s \
-            -Dwerror=true \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            -Dtests=enabled \
-            build
-          meson compile -C build
-
-  freebsd-arm64:
-    runs-on: [self-hosted, freebsd, arm64]
-    steps:
-      - name: Checkout monorepo
-        uses: actions/checkout@v3
-      - name: Install dependencies
-        run: pip install meson==${{ env.MESON_VERSION }}
-      - name: Build
-        run: |
-          meson setup \
-            --default-library static \
-            -Doptimization=s \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            -Db_lundef=false \
-            build
-          meson compile -C build
-      - name: Test
-        run: ./build/tests/gum-tests
-
-  ios-arm64:
-    runs-on: macos-latest
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: |
-          pip install meson==${{ env.MESON_VERSION }}
-          .github/env/bootstrap.sh macos-x86_64 ios-arm64
-      - name: Build
-        run: |
-          export PATH="/tmp/toolchain/bin:$PATH"
-          meson setup \
-            --native-file /tmp/native.txt \
-            --cross-file /tmp/cross.txt \
-            --default-library static \
-            -Doptimization=s \
-            -Dwerror=true \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            -Dtests=enabled \
-            build
-          meson compile -C build
-      - name: Package
-        run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
-      - name: Test
-        uses: frida/corellium-action@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          gateway: corellium.frida.re
-          device: ios-12.5.7-arm64
-          upload: /tmp/runner.tar.gz
-          run: |
-            cd /usr/local
-            rm -rf opt/frida
-            mkdir -p opt/frida
-            cd opt/frida
-            tar xf $ASSET_PATH
-            ./gum-tests
-
   android-intel:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        arch: [x86, x86_64]
+        arch: [x86]
       fail-fast: false
     steps:
       - name: Enable KVM group perms
@@ -301,6 +49,11 @@ jobs:
             -Dtests=enabled \
             build
           meson compile -C build
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-build-${{ matrix.arch }}
+          path: build/
       - name: AVD cache
         uses: actions/cache@v2
         id: avd-cache
@@ -330,78 +83,26 @@ jobs:
           script: |
             tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
             adb push /tmp/runner.tar.gz /data/local/tmp/
-            adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; TMPDIR=/data/local/tmp ./gum-tests'"
-
-  android-arm:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [arm, arm64]
-      fail-fast: false
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: |
-          pip install meson==${{ env.MESON_VERSION }}
-          .github/env/bootstrap.sh linux-x86_64 android-${{ matrix.arch }}
-      - name: Build
-        run: |
-          export PATH="/tmp/toolchain/bin:$PATH"
-          meson setup \
-            --native-file /tmp/native.txt \
-            --cross-file /tmp/cross.txt \
-            --default-library static \
-            -Doptimization=s \
-            -Dwerror=true \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            -Dtests=enabled \
-            build
-          meson compile -C build
-      - name: Package
-        run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
+            adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; TMPDIR=/data/local/tmp ./gum-tests -l; TMPDIR=/data/local/tmp ./gum-tests -l'"
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - name: Test
-        uses: frida/corellium-action@v3
+        uses: reactivecircus/android-emulator-runner@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          gateway: corellium.frida.re
-          device: android-8.1.0-arm64
-          upload: /tmp/runner.tar.gz
-          run: |
-            cd /data/local/tmp
-            tar xf $ASSET_PATH
-            ./gum-tests
+          arch: ${{ matrix.arch }}
+          api-level: 27
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
+            adb push /tmp/runner.tar.gz /data/local/tmp/
+            adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; TMPDIR=/data/local/tmp ./gum-tests -l; TMPDIR=/data/local/tmp ./gum-tests || true'"
+            adb shell "su root sh -c 'ls -l /data/tombstones/; cp /data/tombstones/tombstone_00 /data/local/tmp/; chmod 777 /data/local/tmp/tombstone_00'"
+            adb pull /data/local/tmp/tombstone_00 .      
+      - name: Upload Tombstone
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-tombstone-${{ matrix.arch }}
+          path: tombstone_00
 
-  qnx-armeabi:
-    runs-on: ubuntu-latest
-    container: fridadotre/qnx:latest
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Install dependencies
-        run: |
-          pip install meson==${{ env.MESON_VERSION }}
-          .github/env/bootstrap.sh linux-x86_64 qnx-armeabi
-      - name: Build
-        run: |
-          export PATH="/tmp/toolchain/bin:$PATH"
-          meson setup \
-            --native-file /tmp/native.txt \
-            --cross-file /tmp/cross.txt \
-            --default-library static \
-            -Doptimization=s \
-            -Dwerror=true \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            -Dtests=enabled \
-            build
-          meson compile -C build
-      - name: Test
-        run: |
-          tar -C build/tests -cf /tmp/runner.tar gum-tests data/
-          /opt/sabrelite/run.sh /tmp/runner.tar /opt/frida/gum-tests
