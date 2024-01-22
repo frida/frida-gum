@@ -575,6 +575,8 @@ static gboolean resume_all_threads (const GumThreadDetails * details,
 #endif
 #endif
 
+static int target_function_int_replacement (int arg);
+
 static void measure_target_function_int_overhead (void);
 static int compare_measurements (gconstpointer element_a,
     gconstpointer element_b);
@@ -587,8 +589,6 @@ static void on_incoming_debug_message (GumInspectorServer * server,
     const gchar * message, gpointer user_data);
 static void on_outgoing_debug_message (const gchar * message,
     gpointer user_data);
-
-static int target_function_int_replacement (int arg);
 
 #ifdef HAVE_DARWIN
 static gpointer interceptor_attacher_worker (gpointer data);
