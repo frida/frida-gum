@@ -145,10 +145,10 @@ static void gum_v8_invocation_listener_destroy (
     GumV8InvocationListener * listener);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
 static void gum_v8_handle_replace_ret (GumV8Interceptor * self,
     gpointer target, Local<Value> replacement_value,
     GumReplaceReturn replace_ret);
-GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
 static void gum_v8_replace_entry_free (GumV8ReplaceEntry * entry);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_flush)
@@ -708,6 +708,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
+{
+  gpointer target, replacement_function, original_function;
+  if (!_gum_v8_args_parse (args, "pp", &target, &replacement_function))
+    return;
+
+  auto replace_ret = gum_interceptor_replace_fast (module->interceptor, target,
+      replacement_function, &original_function);
+
+  gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
+
+  if (replace_ret == GUM_REPLACE_OK)
+  {
+    info.GetReturnValue ().Set (_gum_v8_native_pointer_new (
+          GSIZE_TO_POINTER (original_function), core));
+  }
+}
+
 static void
 gum_v8_handle_replace_ret (GumV8Interceptor * self,
                            gpointer target,
@@ -757,24 +775,6 @@ gum_v8_handle_replace_ret (GumV8Interceptor * self,
       break;
     default:
       g_assert_not_reached ();
-  }
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
-{
-  gpointer target, replacement_function, original_function;
-  if (!_gum_v8_args_parse (args, "pp", &target, &replacement_function))
-    return;
-
-  auto replace_ret = gum_interceptor_replace_fast (module->interceptor, target,
-      replacement_function, &original_function);
-
-  gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
-
-  if (replace_ret == GUM_REPLACE_OK)
-  {
-    info.GetReturnValue ().Set ( _gum_v8_native_pointer_new (
-        GSIZE_TO_POINTER (original_function), core));
   }
 }
 

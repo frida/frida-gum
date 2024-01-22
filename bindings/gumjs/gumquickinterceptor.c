@@ -164,12 +164,11 @@ static void gum_quick_interceptor_detach (GumQuickInterceptor * self,
     GumQuickInvocationListener * listener);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
-static void gum_quick_replace_entry_new (GumQuickInterceptor * self,
-    gpointer target, JSValue replacement_value);
-static JSValue gum_quick_handle_replace_ret (GumQuickCore * core,
-    gpointer target, GumReplaceReturn replace_ret);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
-static void gum_quick_replace_entry_free (GumQuickReplaceEntry * entry);
+static void gum_quick_add_replace_entry (GumQuickInterceptor * self,
+    gpointer target, JSValue replacement_value);
+static JSValue gum_quick_handle_replace_ret (JSContext * ctx, gpointer target,
+    GumReplaceReturn replace_ret);
 static void gum_quick_replace_entry_revert_and_free (
     GumQuickReplaceEntry * entry);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
@@ -665,73 +664,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   replace_ret = gum_interceptor_replace (self->interceptor, target,
       replacement_function, replacement_data, NULL);
   if (replace_ret != GUM_REPLACE_OK)
-    return gum_quick_handle_replace_ret (core, target, replace_ret);
+    return gum_quick_handle_replace_ret (ctx, target, replace_ret);
 
-  gum_quick_replace_entry_new (self, target, replacement_value);
+  gum_quick_add_replace_entry (self, target, replacement_value);
 
   return JS_UNDEFINED;
-}
-
-
-static void
-gum_quick_replace_entry_new (GumQuickInterceptor * self,
-                             gpointer target,
-                             JSValue replacement_value)
-{
-  GumQuickCore * core = self->core;
-  GumQuickReplaceEntry * entry = NULL;
-  GumQuickNativeCallback * c;
-  JSContext * ctx = core->ctx;
-
-  entry = g_slice_new (GumQuickReplaceEntry);
-  entry->interceptor = self->interceptor;
-  entry->target = target;
-  entry->replacement = JS_DupValue (ctx, replacement_value);
-  entry->ctx = ctx;
-
-  c = JS_GetOpaque (entry->replacement, core->native_callback_class);
-  if (c != NULL)
-    c->interceptor_replacement_count++;
-
-  g_hash_table_insert (self->replacement_by_address, target, entry);
-}
-
-static JSValue
-gum_quick_handle_replace_ret (GumQuickCore * core,
-                              gpointer target,
-                              GumReplaceReturn replace_ret)
-{
-  JSContext * ctx = core->ctx;
-  switch (replace_ret)
-  {
-    case GUM_REPLACE_WRONG_SIGNATURE:
-      _gum_quick_throw (ctx, "unable to intercept function at %p; "
-          "please file a bug", target);
-      break;
-    case GUM_REPLACE_ALREADY_REPLACED:
-      _gum_quick_throw_literal (ctx, "already replaced this function");
-      break;
-    case GUM_REPLACE_POLICY_VIOLATION:
-      _gum_quick_throw_literal (ctx, "not permitted by code-signing policy");
-      break;
-    case GUM_REPLACE_WRONG_TYPE:
-      _gum_quick_throw_literal (ctx, "wrong type");
-      break;
-    default:
-      g_assert_not_reached ();
-  }
-  return JS_EXCEPTION;
-}
-
-static void
-gum_quick_replace_entry_free (GumQuickReplaceEntry * entry)
-{
-  if (entry == NULL)
-    return;
-
-  JS_FreeValue (entry->ctx, entry->replacement);
-
-  g_slice_free (GumQuickReplaceEntry, entry);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
@@ -753,12 +690,73 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
   replace_ret = gum_interceptor_replace_fast (self->interceptor, target,
       replacement_function, &original_function);
   if (replace_ret != GUM_REPLACE_OK)
-    return gum_quick_handle_replace_ret (core, target, replace_ret);
+    return gum_quick_handle_replace_ret (ctx, target, replace_ret);
 
-  gum_quick_replace_entry_new (self, target, replacement_value);
+  gum_quick_add_replace_entry (self, target, replacement_value);
 
   return _gum_quick_native_pointer_new (ctx,
       GSIZE_TO_POINTER (original_function), core);
+}
+
+static void
+gum_quick_add_replace_entry (GumQuickInterceptor * self,
+                             gpointer target,
+                             JSValue replacement_value)
+{
+  GumQuickCore * core = self->core;
+  JSContext * ctx = core->ctx;
+  GumQuickReplaceEntry * entry;
+  GumQuickNativeCallback * c;
+
+  entry = g_slice_new (GumQuickReplaceEntry);
+  entry->interceptor = self->interceptor;
+  entry->target = target;
+  entry->replacement = JS_DupValue (ctx, replacement_value);
+  entry->ctx = ctx;
+
+  c = JS_GetOpaque (entry->replacement, core->native_callback_class);
+  if (c != NULL)
+    c->interceptor_replacement_count++;
+
+  g_hash_table_insert (self->replacement_by_address, target, entry);
+}
+
+static JSValue
+gum_quick_handle_replace_ret (JSContext * ctx,
+                              gpointer target,
+                              GumReplaceReturn replace_ret)
+{
+  switch (replace_ret)
+  {
+    case GUM_REPLACE_WRONG_SIGNATURE:
+      _gum_quick_throw (ctx, "unable to intercept function at %p; "
+          "please file a bug", target);
+      break;
+    case GUM_REPLACE_ALREADY_REPLACED:
+      _gum_quick_throw_literal (ctx, "already replaced this function");
+      break;
+    case GUM_REPLACE_POLICY_VIOLATION:
+      _gum_quick_throw_literal (ctx, "not permitted by code-signing policy");
+      break;
+    case GUM_REPLACE_WRONG_TYPE:
+      _gum_quick_throw_literal (ctx, "wrong type");
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+
+  return JS_EXCEPTION;
+}
+
+static void
+gum_quick_replace_entry_free (GumQuickReplaceEntry * entry)
+{
+  if (entry == NULL)
+    return;
+
+  JS_FreeValue (entry->ctx, entry->replacement);
+
+  g_slice_free (GumQuickReplaceEntry, entry);
 }
 
 static void
