@@ -11161,6 +11161,12 @@ target_function_int (int arg)
   int result = 0;
   int i;
 
+  /*
+   * Pad the early part of the function so the loop doesn't branch back to the
+   * first part, as we may need to overwrite quite a bit if we're unlucky.
+   */
+  gum_script_dummy_global_to_trick_optimizer += 1337;
+
   for (i = 0; i != 10; i++)
     result += i * arg;
 
