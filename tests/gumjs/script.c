@@ -87,6 +87,16 @@ TESTLIST_BEGIN (script)
     TESTENTRY (interceptor_and_js_should_not_deadlock)
 #endif
   TESTGROUP_END ()
+  TESTGROUP_BEGIN ("Interceptor/Fast")
+    TESTENTRY (function_can_be_replaced_fast)
+    TESTENTRY (function_can_be_replaced_fast_and_called_immediately)
+    TESTENTRY (function_can_be_reverted_fast)
+    TESTENTRY (interceptor_should_support_native_pointer_values_fast)
+    TESTENTRY (interceptor_should_handle_bad_pointers_fast)
+    TESTENTRY (function_can_be_replaced_and_call_original_fast)
+    TESTENTRY (function_can_be_replaced_fast_performance)
+    TESTENTRY (function_can_be_replaced_and_call_original_fast_performance)
+  TESTGROUP_END ()
   TESTGROUP_BEGIN ("Interceptor/Performance")
     TESTENTRY (interceptor_on_enter_performance)
     TESTENTRY (interceptor_on_leave_performance)
@@ -484,6 +494,7 @@ TESTLIST_BEGIN (script)
   TESTENTRY (cloaked_items_can_be_queried_added_and_removed)
 TESTLIST_END ()
 
+typedef int (* TargetFunctionInt) (int arg);
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
 typedef struct _TestTrigger TestTrigger;
@@ -565,6 +576,8 @@ static gboolean resume_all_threads (const GumThreadDetails * details,
 #endif
 #endif
 
+static int target_function_int_replacement (int arg);
+
 static void measure_target_function_int_overhead (void);
 static int compare_measurements (gconstpointer element_a,
     gconstpointer element_b);
@@ -596,6 +609,8 @@ static void target_function_trigger (TestTrigger * trigger);
 static int target_function_nested_a (int arg);
 static int target_function_nested_b (int arg);
 static int target_function_nested_c (int arg);
+
+static TargetFunctionInt target_function_original = NULL;
 
 gint gum_script_dummy_global_to_trick_optimizer = 0;
 
@@ -7244,6 +7259,195 @@ empty_invocation_callback (GumInvocationContext * context,
 
 #endif
 
+TESTCASE (function_can_be_replaced_fast)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replaceFast(" GUM_PTR_CONST ", new NativeCallback(arg => {"
+      "  send(arg);"
+      "  return 1337;"
+      "}, 'int', ['int']));",
+      target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (target_function_int (7), ==, 1337);
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_NO_MESSAGES ();
+
+  gum_script_unload_sync (fixture->script, NULL);
+  target_function_int (1);
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (function_can_be_replaced_fast_and_called_immediately)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const address = " GUM_PTR_CONST ";"
+      "Interceptor.replaceFast(address, new NativeCallback(arg => {"
+      "  send(arg);"
+      "  return 1337;"
+      "}, 'int', ['int']));"
+      "const f = new NativeFunction(address, 'int', ['int'],"
+      "    { scheduling: 'exclusive' });"
+      "f(7);"
+      "Interceptor.flush();"
+      "f(8);",
+      target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("8");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (function_can_be_reverted_fast)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replaceFast(" GUM_PTR_CONST ", new NativeCallback(arg => {"
+      "  send(arg);"
+      "  return 1337;"
+      "}, 'int', ['int']));"
+      "Interceptor.revert(" GUM_PTR_CONST ");",
+      target_function_int,
+      target_function_int);
+  EXPECT_NO_MESSAGES ();
+  target_function_int (7);
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (interceptor_should_support_native_pointer_values_fast)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const value = { handle: " GUM_PTR_CONST " };"
+      "Interceptor.replaceFast(value,"
+      "    new NativeCallback(arg => 1337, 'int', ['int']));",
+      target_function_int);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (target_function_int (7), ==, 1337);
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (interceptor_should_handle_bad_pointers_fast)
+{
+  if (!check_exception_handling_testable ())
+    return;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replaceFast(ptr(0x42),"
+      "    new NativeCallback(() => {}, 'void', []));");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation accessing 0x42");
+}
+
+TESTCASE (function_can_be_replaced_and_call_original_fast)
+{
+  int ret = target_function_int (1);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let func;"
+      "const addr = Interceptor.replaceFast(" GUM_PTR_CONST ","
+      "    new NativeCallback(arg => func(arg) + 1, 'int', ['int']));"
+      "func = new NativeFunction(addr, 'int', ['int']);",
+      target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  g_assert_cmpint (target_function_int (1), ==, ret + 1);
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (function_can_be_replaced_fast_performance)
+{
+  GTimer * timer;
+  gdouble duration_default, duration_fast;
+  guint i;
+
+  target_function_original = NULL;
+
+  timer = g_timer_new ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ", " GUM_PTR_CONST ");",
+      target_function_int,
+      target_function_int_replacement);
+
+  g_timer_reset (timer);
+  for (i = 0; i != 1000000; i++)
+    g_assert_cmpint (target_function_int (7), ==, 1337);
+  duration_default = g_timer_elapsed (timer, NULL);
+
+  gum_script_unload_sync (fixture->script, NULL);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replaceFast(" GUM_PTR_CONST ", " GUM_PTR_CONST ");",
+      target_function_int,
+      target_function_int_replacement);
+
+  g_timer_reset (timer);
+  for (i = 0; i != 1000000; i++)
+    g_assert_cmpint (target_function_int (7), ==, 1337);
+  duration_fast = g_timer_elapsed (timer, NULL);
+
+  g_timer_destroy (timer);
+
+  g_print ("<duration_fast=%f duration_default=%f ratio=%f> ",
+      duration_fast,
+      duration_default,
+      duration_fast / duration_default);
+}
+
+TESTCASE (function_can_be_replaced_and_call_original_fast_performance)
+{
+  GTimer * timer;
+  gdouble duration_default, duration_fast;
+  guint i;
+
+  target_function_original = NULL;
+
+  timer = g_timer_new ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const origPtr = ptr(" GUM_PTR_CONST ");"
+      "const orig = ptr(" GUM_PTR_CONST ");"
+      "Interceptor.replace(orig, " GUM_PTR_CONST ");"
+      "origPtr.writePointer(orig);",
+      &target_function_original,
+      target_function_int,
+      target_function_int_replacement);
+
+  g_timer_reset (timer);
+  for (i = 0; i != 1000000; i++)
+    g_assert_cmpint (target_function_int (7), ==, 1652);
+  duration_default = g_timer_elapsed (timer, NULL);
+
+  gum_script_unload_sync (fixture->script, NULL);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const origPtr = ptr(" GUM_PTR_CONST ");"
+      "const orig = Interceptor.replaceFast(" GUM_PTR_CONST ", " GUM_PTR_CONST
+        ");"
+      "origPtr.writePointer(orig);",
+      &target_function_original,
+      target_function_int,
+      target_function_int_replacement);
+
+  g_timer_reset (timer);
+  for (i = 0; i != 1000000; i++)
+    g_assert_cmpint (target_function_int (7), ==, 1652);
+  duration_fast = g_timer_elapsed (timer, NULL);
+
+  g_timer_destroy (timer);
+
+  g_print ("<duration_fast=%f duration_default=%f ratio=%f> ",
+      duration_fast,
+      duration_default,
+      duration_fast / duration_default);
+}
+
+GUM_NOINLINE static int
+target_function_int_replacement (int arg)
+{
+  if (target_function_original == NULL)
+    return 1337;
+  else
+    return 1337 + target_function_original (arg);
+}
+
 TESTCASE (interceptor_on_enter_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -11034,6 +11238,12 @@ target_function_int (int arg)
 {
   int result = 0;
   int i;
+
+  /*
+   * Pad the early part of the function so the loop doesn't branch back to the
+   * first part, as we may need to overwrite quite a bit if we're unlucky.
+   */
+  gum_script_dummy_global_to_trick_optimizer += 1337;
 
   for (i = 0; i != 10; i++)
     result += i * arg;
