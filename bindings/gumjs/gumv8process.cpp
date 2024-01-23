@@ -66,7 +66,7 @@ struct GumV8FindModuleByNameContext
 struct GumV8RunOnThreadContext
 {
   GumV8Core * core;
-  Local<Function> user_func;
+  Global<Function> user_func;
 };
 
 GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
@@ -545,11 +545,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
   if (module->stalker == NULL)
     module->stalker = gum_stalker_new ();
 
+  context.core = core;
+  context.user_func = Global<Function> (isolate, user_func);
+
   {
     ScriptUnlocker unlocker (core);
-    context.core = core;
-    context.user_func = Local<Function>::New (isolate, user_func);
-
     run = gum_stalker_run_on_thread (module->stalker, thread_id,
         gum_js_process_run_cb, &context);
   }
@@ -571,13 +571,14 @@ gum_js_process_run_cb (const GumCpuContext * cpu_context,
 {
   GumV8RunOnThreadContext * context = (GumV8RunOnThreadContext *) user_data;
   auto core = context->core;
-  auto isolate = core->isolate;
-  auto ctx = isolate->GetCurrentContext ();
 
   ScriptScope scope (core->script);
-  auto recv = Undefined (isolate);
 
-  auto result = context->user_func->Call (ctx, recv, 0, nullptr);
+  auto isolate = core->isolate;
+  auto user_func = Local<Function>::New (isolate, context->user_func);
+  auto ctx = isolate->GetCurrentContext ();
+  auto recv = Undefined (isolate);
+  auto result = user_func->Call (ctx, recv, 0, nullptr);
   (void) result;
 }
 
