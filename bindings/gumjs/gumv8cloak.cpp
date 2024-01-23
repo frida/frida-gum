@@ -99,7 +99,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_cloak_has_thread)
   if (!_gum_v8_args_parse (args, "Z", &thread_id))
     return;
 
-  info.GetReturnValue ().Set (gum_cloak_has_thread (thread_id) == TRUE);
+  info.GetReturnValue ().Set ((bool) gum_cloak_has_thread (thread_id));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_cloak_add_range)
@@ -136,8 +136,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_cloak_has_range_containing)
   if (!_gum_v8_args_parse (args, "p", &address))
     return;
 
-  info.GetReturnValue ().Set (gum_cloak_has_range_containing (
-      GUM_ADDRESS (address)) == TRUE);
+  info.GetReturnValue ().Set ((bool) gum_cloak_has_range_containing (
+      GUM_ADDRESS (address)));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_cloak_clip_range)
@@ -163,11 +163,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_cloak_clip_range)
   auto result = Array::New (isolate, visible->len);
   for (guint i = 0; i != visible->len; i++)
   {
-    auto range = &g_array_index (visible, GumMemoryRange, i);
-    auto range_obj = Object::New (isolate);
-    _gum_v8_object_set_pointer (range_obj, "base", range->base_address, core);
-    _gum_v8_object_set_uint (range_obj, "size", range->size, core);
-    result->Set (context, i, range_obj).Check ();
+    auto r = &g_array_index (visible, GumMemoryRange, i);
+    auto obj = Object::New (isolate);
+    _gum_v8_object_set_pointer (obj, "base", r->base_address, core);
+    _gum_v8_object_set_uint (obj, "size", r->size, core);
+    result->Set (context, i, obj).Check ();
   }
 
   info.GetReturnValue ().Set (result);
@@ -197,5 +197,5 @@ GUMJS_DEFINE_FUNCTION (gumjs_cloak_has_file_descriptor)
   if (!_gum_v8_args_parse (args, "i", &fd))
     return;
 
-  info.GetReturnValue ().Set (gum_cloak_has_file_descriptor (fd) == TRUE);
+  info.GetReturnValue ().Set ((bool) gum_cloak_has_file_descriptor (fd));
 }

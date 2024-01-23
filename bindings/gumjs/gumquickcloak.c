@@ -168,12 +168,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_cloak_clip_range)
   result = JS_NewArray (ctx);
   for (i = 0; i != visible->len; i++)
   {
-    GumMemoryRange * range;
-
-    range = &g_array_index (visible, GumMemoryRange, i);
+    const GumMemoryRange * r = &g_array_index (visible, GumMemoryRange, i);
 
     JS_DefinePropertyValueUint32 (ctx, result, i,
-        _gum_quick_memory_range_new (ctx, range, core),
+        _gum_quick_memory_range_new (ctx, r, core),
         JS_PROP_C_W_E);
   }
 
