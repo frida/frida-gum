@@ -181,6 +181,12 @@
     <ClCompile Include="gumquickvalue.c">
       <Filter>quick</Filter>
     </ClCompile>
+    <ClCompile Include="gumquickcloak.c">
+      <Filter>quick</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8cloak.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h">
@@ -389,6 +395,12 @@
     </ClInclude>
     <ClInclude Include="gumquickscriptbackend-priv.h">
       <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumquickcloak.h">
+      <Filter>quick</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8cloak.h">
+      <Filter>v8</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

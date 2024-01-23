@@ -65,6 +65,7 @@
     <ClInclude Include="gumquickinstruction.h" />
     <ClInclude Include="gumquickcodewriter.h" />
     <ClInclude Include="gumquickcoderelocator.h" />
+    <ClInclude Include="gumquickcloak.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumquickscriptbackend.c" />
@@ -92,6 +93,7 @@
     <ClCompile Include="gumquickinstruction.c" />
     <ClCompile Include="gumquickcodewriter.c" />
     <ClCompile Include="gumquickcoderelocator.c" />
+    <ClCompile Include="gumquickcloak.c" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(FridaV8)'=='Enabled'">
@@ -126,6 +128,7 @@
     <ClInclude Include="gumv8instruction.h" />
     <ClInclude Include="gumv8codewriter.h" />
     <ClInclude Include="gumv8coderelocator.h" />
+    <ClInclude Include="gumv8cloak.h" />
   </ItemGroup>
   <ItemGroup Condition="'$(FridaV8)'=='Enabled'">
     <ClCompile Include="gumv8scriptbackend.cpp" />
@@ -155,6 +158,7 @@
     <ClCompile Include="gumv8instruction.cpp" />
     <ClCompile Include="gumv8codewriter.cpp" />
     <ClCompile Include="gumv8coderelocator.cpp" />
+    <ClCompile Include="gumv8cloak.cpp" />
   </ItemGroup>
 
   <ItemGroup>
