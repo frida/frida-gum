@@ -266,7 +266,7 @@ jobs:
             ./gum-tests
 
   android-intel:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         arch: [x86, x86_64]
