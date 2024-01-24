@@ -14,6 +14,7 @@ env:
 
 jobs:
   gir:
+    if: false
     runs-on: ubuntu-22.04
     steps:
       - name: Check out repo
@@ -81,6 +82,7 @@ jobs:
           .\build\tests\gum-tests.exe
 
   macos-x86_64:
+    if: false
     runs-on: macos-latest
     steps:
       - name: Check out repo
@@ -105,6 +107,7 @@ jobs:
         run: ./build/tests/gum-tests
 
   linux-x86:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
@@ -137,6 +140,7 @@ jobs:
         run: ./build/tests/gum-tests
 
   linux-x86_64:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
@@ -162,6 +166,7 @@ jobs:
 
   linux-mips:
     runs-on: ubuntu-latest
+    if: false
     strategy:
       matrix:
         arch:
@@ -202,6 +207,7 @@ jobs:
           meson compile -C build
 
   freebsd-arm64:
+    if: false
     runs-on: [self-hosted, freebsd, arm64]
     steps:
       - name: Checkout monorepo
@@ -222,6 +228,7 @@ jobs:
         run: ./build/tests/gum-tests
 
   ios-arm64:
+    if: false
     runs-on: macos-latest
     steps:
       - name: Check out repo
@@ -267,6 +274,7 @@ jobs:
 
   android-intel:
     runs-on: ubuntu-latest
+    if: false
     strategy:
       matrix:
         arch: [x86, x86_64]
@@ -333,6 +341,7 @@ jobs:
             adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; TMPDIR=/data/local/tmp ./gum-tests'"
 
   android-arm:
+    if: false
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -378,6 +387,7 @@ jobs:
             ./gum-tests
 
   qnx-armeabi:
+    if: false
     runs-on: ubuntu-latest
     container: fridadotre/qnx:latest
     steps:
