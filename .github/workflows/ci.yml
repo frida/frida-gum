@@ -266,12 +266,17 @@ jobs:
             ./gum-tests
 
   android-intel:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         arch: [x86, x86_64]
       fail-fast: false
     steps:
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - name: Check out repo
         uses: actions/checkout@v3
       - name: Set up Python
@@ -281,7 +286,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install meson==${{ env.MESON_VERSION }}
-          .github/env/bootstrap.sh macos-x86_64 android-${{ matrix.arch }}
+          .github/env/bootstrap.sh linux-x86_64 android-${{ matrix.arch }}
       - name: Build
         run: |
           export PATH="/tmp/toolchain/bin:$PATH"
@@ -323,7 +328,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            gtar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
+            tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
             adb push /tmp/runner.tar.gz /data/local/tmp/
             adb shell "su root sh -c 'set -ex; cd /data/local/tmp; tar xf runner.tar.gz; TMPDIR=/data/local/tmp ./gum-tests'"
 
