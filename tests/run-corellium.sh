@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 host_os=$1
 host_arch=arm64
@@ -27,8 +27,6 @@ gum_tests=$(dirname "$0")
 
 runner_tarball=$(mktemp -t gum-tests.XXXXXX)
 runner_script=$(mktemp -t gum-tests.XXXXXX)
-
-marker="*** Finished with exit code: "
 
 function dispose {
   rm -f "$runner_tarball"
@@ -69,8 +67,9 @@ esac
 
 curl \
     https://corellium.frida.re/devices/$device \
-    -F "token=$GH_TOKEN" \
-    -F "asset=@$runner_tarball" \
-    -F "script=<$runner_script" \
-    -F "marker=$marker" \
+    --form "asset=@$runner_tarball" \
+    --form "script=<$runner_script" \
+    --form-string $'marker=\n*** Finished with exit code: ' \
+    --form-string "token=$GH_TOKEN" \
+    -N \
     -v
