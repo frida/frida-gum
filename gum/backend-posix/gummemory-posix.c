@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,12 +34,14 @@ struct _GumEnumerateFreeRangesContext
   GumAddress prev_end;
 };
 
+static gpointer gum_memory_allocate_internal (gpointer address, gsize size,
+    gsize alignment, GumPageProtection prot, gint extra_flags);
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_try_suggest_allocation_base (const GumMemoryRange * range,
     const GumAllocNearContext * ctx, gpointer * allocation_base);
 static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
-    gint prot);
+    gint prot, gint extra_flags);
 static void gum_enumerate_free_ranges (GumFoundRangeFunc func,
     gpointer user_data);
 static gboolean gum_emit_free_range (const GumRangeDetails * details,
@@ -122,6 +124,16 @@ gum_memory_allocate (gpointer address,
                      gsize alignment,
                      GumPageProtection prot)
 {
+  return gum_memory_allocate_internal (address, size, alignment, prot, 0);
+}
+
+static gpointer
+gum_memory_allocate_internal (gpointer address,
+                              gsize size,
+                              gsize alignment,
+                              GumPageProtection prot,
+                              gint extra_flags)
+{
   gsize page_size, allocation_size;
   guint8 * base, * aligned_base;
 
@@ -132,7 +144,7 @@ gum_memory_allocate (gpointer address,
   allocation_size = GUM_ALIGN_SIZE (allocation_size, page_size);
 
   base = gum_allocate_page_aligned (address, allocation_size,
-      _gum_page_protection_to_posix (prot));
+      _gum_page_protection_to_posix (prot), extra_flags);
   if (base == NULL)
     return NULL;
 
@@ -197,6 +209,16 @@ gum_try_alloc_in_range_if_near_enough (const GumRangeDetails * details,
   if (!gum_try_suggest_allocation_base (details->range, ctx, &suggested_base))
     goto keep_looking;
 
+#ifdef HAVE_FREEBSD
+  received_base = gum_memory_allocate_internal (suggested_base, ctx->size,
+      ctx->alignment, ctx->prot, MAP_FIXED | MAP_EXCL);
+  if (received_base != NULL)
+  {
+    ctx->result = received_base;
+    return FALSE;
+  }
+#endif
+
   received_base = gum_memory_allocate (suggested_base, ctx->size,
       ctx->alignment, ctx->prot);
   if (received_base == NULL)
@@ -245,29 +267,29 @@ gum_try_suggest_allocation_base (const GumMemoryRange * range,
 static gpointer
 gum_allocate_page_aligned (gpointer address,
                            gsize size,
-                           gint prot)
+                           gint prot,
+                           gint extra_flags)
 {
   gpointer result;
-  int extra_flags = 0;
+  const gint base_flags = MAP_PRIVATE | MAP_ANONYMOUS | extra_flags;
+  gint region_flags = 0;
 
 #if defined (HAVE_FREEBSD) && GLIB_SIZEOF_VOID_P == 8
   if (address != NULL &&
       GPOINTER_TO_SIZE (address) + size < G_MAXUINT32)
   {
-    extra_flags |= MAP_32BIT;
+    region_flags |= MAP_32BIT;
   }
 #endif
 
-  result = mmap (address, size, prot, MAP_PRIVATE | MAP_ANONYMOUS | extra_flags,
-      -1, 0);
+  result = mmap (address, size, prot, base_flags | region_flags, -1, 0);
 
 #if defined (HAVE_FREEBSD) && GLIB_SIZEOF_VOID_P == 8
-  if (result == MAP_FAILED && (extra_flags & MAP_32BIT) != 0)
+  if (result == MAP_FAILED && (region_flags & MAP_32BIT) != 0)
   {
-    result = mmap (NULL, size, prot, MAP_PRIVATE | MAP_ANONYMOUS |
-        extra_flags, -1, 0);
+    result = mmap (NULL, size, prot, base_flags | region_flags, -1, 0);
     if (result == MAP_FAILED)
-      result = mmap (address, size, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+      result = mmap (address, size, prot, base_flags, -1, 0);
   }
 #endif
 
