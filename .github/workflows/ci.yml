@@ -47,64 +47,71 @@ jobs:
             build
           meson compile -C build
 
-  windows:
-    runs-on: windows-latest
+  desktop:
     strategy:
       matrix:
-        arch: [amd64_x86, amd64]
+        name:
+          - windows-x86_64
+          - windows-x86
+          - macos-x86_64
+          - linux-x86_64
+        include:
+          - name: windows-x86_64
+            os: windows
+            arch: x86_64
+            runner: windows-latest
+          - name: windows-x86
+            os: windows
+            arch: x86
+            runner: windows-latest
+          - name: macos-x86_64
+            os: macos
+            arch: x86_64
+            runner: macos-latest
+          - name: macos-arm64
+            os: macos
+            arch: arm64
+            runner: macos-12-arm64
+          - name: linux-x86_64
+            os: linux
+            arch: x86_64
+            runner: ubuntu-latest
       fail-fast: false
+    runs-on: ${{ matrix.runner }}
+    env:
+      FRIDA_MESON_OPTIONS: "-Dgumpp=enabled -Dgumjs=enabled -Ddevkits=gum,gumjs"
     steps:
       - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/checkout@v4
         with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: pip install meson==${{ env.MESON_VERSION }} ninja
-      - name: Environment
+          submodules: recursive
+      - name: Set up MSVS environment
+        if: ${{ matrix.os == 'windows' }}
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.arch }}
       - name: Build
+        if: ${{ matrix.os == 'windows' }}
         run: |
-          meson setup `
-            --default-library static `
-            -Doptimization=s `
-            -Dgumpp=enabled `
-            -Dgumjs=enabled `
-            --force-fallback-for=zlib `
-            build
-          meson compile -C build
-      - name: Test
-        run: |
-          Copy-Item build\bindings\gumpp\frida-gumpp-1.0.dll -Destination build\tests\
-          .\build\tests\gum-tests.exe
-
-  macos-x86_64:
-    if: false
-    runs-on: macos-latest
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: pip install meson==${{ env.MESON_VERSION }} ninja
+          .\configure -- ${Env:FRIDA_MESON_OPTIONS}.Split(' ')
+          .\make
       - name: Build
+        if: ${{ matrix.os != 'windows' }}
         run: |
-          meson setup \
-            --default-library static \
-            -Doptimization=s \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            --force-fallback-for=glib,capstone \
-            build
-          meson compile -C build
+          ./configure -- $FRIDA_MESON_OPTIONS
+          make
+      - name: Upload Gum devkit
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-gum-devkit-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/gum/devkit/
+      - name: Upload GumJS devkit
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-gumjs-devkit-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/bindings/gumjs/devkit/
       - name: Test
-        run: ./build/tests/gum-tests
+        run: make test
 
   linux-x86:
     if: false
@@ -132,31 +139,6 @@ jobs:
             --force-fallback-for=glib \
             -Doptimization=s \
             -Dwerror=true \
-            -Dgumpp=enabled \
-            -Dgumjs=enabled \
-            build
-          meson compile -C build
-      - name: Test
-        run: ./build/tests/gum-tests
-
-  linux-x86_64:
-    if: false
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      - name: Install dependencies
-        run: pip install meson==${{ env.MESON_VERSION }} ninja
-      - name: Build
-        run: |
-          meson setup \
-            --default-library static \
-            --force-fallback-for=glib \
-            -Doptimization=s \
             -Dgumpp=enabled \
             -Dgumjs=enabled \
             build
