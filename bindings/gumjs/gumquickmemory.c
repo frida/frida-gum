@@ -78,6 +78,7 @@ struct _GumMemoryScanSyncContext
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_query_protection)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_patch_code)
 static void gum_memory_patch_context_apply (gpointer mem,
     GumMemoryPatchContext * self);
@@ -169,6 +170,7 @@ static const JSCFunctionListEntry gumjs_memory_entries[] =
   JS_CFUNC_DEF ("_alloc", 0, gumjs_memory_alloc),
   JS_CFUNC_DEF ("copy", 0, gumjs_memory_copy),
   JS_CFUNC_DEF ("protect", 0, gumjs_memory_protect),
+  JS_CFUNC_DEF ("queryProtection", 0, gumjs_memory_query_protection),
   JS_CFUNC_DEF ("_patchCode", 0, gumjs_memory_patch_code),
   JS_CFUNC_DEF ("_checkCodePointer", 0, gumjs_memory_check_code_pointer),
 
@@ -374,6 +376,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
     success = TRUE;
 
   return JS_NewBool (ctx, success);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_query_protection)
+{
+  gpointer address;
+  GumPageProtection prot;
+
+  if (!_gum_quick_args_parse (args, "p", &address))
+    return JS_EXCEPTION;
+
+  if (!gum_memory_query_protection (address, &prot))
+    return JS_EXCEPTION;
+
+  return _gum_quick_page_protection_new (ctx, prot);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)

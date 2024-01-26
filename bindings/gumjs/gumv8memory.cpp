@@ -75,6 +75,7 @@ struct GumMemoryScanSyncContext
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_query_protection)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_patch_code)
 static void gum_memory_patch_context_apply (gpointer mem,
     GumMemoryPatchContext * self);
@@ -156,6 +157,7 @@ static const GumV8Function gumjs_memory_functions[] =
   { "_alloc", gumjs_memory_alloc },
   { "copy", gumjs_memory_copy },
   { "protect", gumjs_memory_protect },
+  { "queryProtection", gumjs_memory_query_protection },
   { "_patchCode", gumjs_memory_patch_code },
   { "_checkCodePointer", gumjs_memory_check_code_pointer },
 
@@ -347,6 +349,29 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
     success = true;
 
   info.GetReturnValue ().Set (success);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_query_protection)
+{
+  gpointer address;
+  GumPageProtection prot;
+
+  if (!_gum_v8_args_parse (args, "p", &address))
+    return;
+
+  if (!gum_memory_query_protection (address, &prot))
+    return;
+
+  gchar prot_str[4] = "---";
+
+  if ((prot & GUM_PAGE_READ) != 0)
+    prot_str[0] = 'r';
+  if ((prot & GUM_PAGE_WRITE) != 0)
+    prot_str[1] = 'w';
+  if ((prot & GUM_PAGE_EXECUTE) != 0)
+    prot_str[2] = 'x';
+
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, prot_str));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)

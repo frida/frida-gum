@@ -253,6 +253,14 @@ gum_memory_is_readable (gconstpointer address,
   return is_readable;
 }
 
+gboolean
+gum_memory_query_protection (gconstpointer address,
+                             GumPageProtection * prot)
+{
+  return gum_darwin_query_protection (mach_task_self (), GUM_ADDRESS (address),
+      prot);
+}
+
 guint8 *
 gum_memory_read (gconstpointer address,
                  gsize len,
