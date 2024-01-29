@@ -1,6 +1,7 @@
 *.user
 /__pycache__/
 /build/
+/deps/
 /gum/backend-darwin/helpers/build/
 /subprojects/capstone/
 /subprojects/elfutils/
