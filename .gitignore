@@ -1,4 +1,5 @@
 *.user
+/__pycache__/
 /build/
 /gum/backend-darwin/helpers/build/
 /subprojects/capstone/
