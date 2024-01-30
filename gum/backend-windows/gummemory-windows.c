@@ -53,12 +53,7 @@ gboolean
 gum_memory_query_protection (gconstpointer address,
                              GumPageProtection * prot)
 {
-  gsize size;
-
-  if (!gum_memory_get_protection (address, 1, &size, prot))
-    return FALSE;
-
-  return size >= 1;
+  return gum_memory_get_protection (address, 1, prot);
 }
 
 guint8 *
