@@ -384,12 +384,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_query_protection)
   GumPageProtection prot;
 
   if (!_gum_quick_args_parse (args, "p", &address))
-    return JS_EXCEPTION;
+    goto propagate_exception;
 
   if (!gum_memory_query_protection (address, &prot))
-    return JS_EXCEPTION;
+    goto query_failed;
 
   return _gum_quick_page_protection_new (ctx, prot);
+
+query_failed:
+  _gum_quick_throw_literal (ctx, "failed to query address");
+
+propagate_exception:
+  return JS_EXCEPTION;
+
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)

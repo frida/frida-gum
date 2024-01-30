@@ -360,18 +360,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_query_protection)
     return;
 
   if (!gum_memory_query_protection (address, &prot))
+  {
+    _gum_v8_throw_ascii_literal (isolate, "failed to query address");
     return;
+  }
 
-  gchar prot_str[4] = "---";
-
-  if ((prot & GUM_PAGE_READ) != 0)
-    prot_str[0] = 'r';
-  if ((prot & GUM_PAGE_WRITE) != 0)
-    prot_str[1] = 'w';
-  if ((prot & GUM_PAGE_EXECUTE) != 0)
-    prot_str[2] = 'x';
-
-  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, prot_str));
+  info.GetReturnValue ().Set (_gum_v8_page_protection_new (isolate,  prot));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)

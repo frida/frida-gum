@@ -1713,16 +1713,10 @@ _gum_v8_object_set_page_protection (Local<Object> object,
                                     GumPageProtection prot,
                                     GumV8Core * core)
 {
-  gchar prot_str[4] = "---";
-
-  if ((prot & GUM_PAGE_READ) != 0)
-    prot_str[0] = 'r';
-  if ((prot & GUM_PAGE_WRITE) != 0)
-    prot_str[1] = 'w';
-  if ((prot & GUM_PAGE_EXECUTE) != 0)
-    prot_str[2] = 'x';
-
-  return _gum_v8_object_set_ascii (object, key, prot_str, core);
+  return _gum_v8_object_set (object,
+      key,
+      _gum_v8_page_protection_new (core->isolate, prot),
+      core);
 }
 
 GArray *
@@ -1809,6 +1803,22 @@ _gum_v8_memory_range_get (Local<Value> value,
   range->base_address = GUM_ADDRESS (base);
   range->size = size_value.As<Number> ()->Uint32Value (context).ToChecked ();
   return TRUE;
+}
+
+v8::Local<v8::String>
+_gum_v8_page_protection_new (v8::Isolate * isolate,
+                             GumPageProtection prot)
+{
+  gchar prot_str[4] = "---";
+
+  if ((prot & GUM_PAGE_READ) != 0)
+    prot_str[0] = 'r';
+  if ((prot & GUM_PAGE_WRITE) != 0)
+    prot_str[1] = 'w';
+  if ((prot & GUM_PAGE_EXECUTE) != 0)
+    prot_str[2] = 'x';
+
+  return _gum_v8_string_new_ascii (isolate, prot_str);
 }
 
 gboolean
