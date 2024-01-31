@@ -96,7 +96,7 @@ if host_os in ['ios', 'watchos', 'tvos']
   extra_link_args += ['-Wl,-framework,Foundation']
 endif
 
-runner = executable(runner_name, runner_sources + [test_data_stamp],
+raw_runner = executable(runner_name, runner_sources + [test_data_stamp],
   link_with: link_targets,
   dependencies: [gum_dep, gum_heap_dep, gum_prof_dep, tls_provider_dep, threads_dep] + extra_test_deps,
   link_args: extra_link_args,
@@ -105,9 +105,9 @@ runner = executable(runner_name, runner_sources + [test_data_stamp],
 )
 
 if host_os_family == 'darwin'
-  custom_target('gum-tests-signed',
+  runner = custom_target('gum-tests-signed',
     input: [
-      runner,
+      raw_runner,
       'gum-tests.xcent',
     ],
     output: 'gum-tests',
@@ -119,4 +119,11 @@ if host_os_family == 'darwin'
     ],
     build_by_default: true,
   )
+else
+  runner = raw_runner
 endif
+
+test('gum', find_program('./run.py'),
+  args: runner.full_path(),
+  timeout: 120,
+)
