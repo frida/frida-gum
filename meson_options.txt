@@ -65,6 +65,13 @@ option('frida_java_bridge',
   description: 'Build JavaScript bindings with Java bridge included'
 )
 
+option('devkits',
+  type: 'array',
+  choices: ['gum', 'gumjs'],
+  value: [],
+  description: 'Devkits to build'
+)
+
 option('tests',
   type: 'feature',
   value: 'auto',

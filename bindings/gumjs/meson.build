@@ -330,3 +330,7 @@ pkg.generate(filebase: 'frida-gumjs-inspector-' + api_version,
 )
 
 meson.override_dependency('frida-gumjs-inspector-' + api_version, gumjs_inspector_dep)
+
+if 'gumjs' in get_option('devkits')
+  subdir('devkit')
+endif

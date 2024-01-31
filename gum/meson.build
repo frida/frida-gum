@@ -382,3 +382,7 @@ pkg.generate(gum,
 )
 
 meson.override_dependency('frida-gum-' + api_version, gum_dep)
+
+if 'gum' in get_option('devkits')
+  subdir('devkit')
+endif
