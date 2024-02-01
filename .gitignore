@@ -16,9 +16,11 @@
 /subprojects/libunwind/
 /subprojects/libxml2.wrap
 /subprojects/libxml2/
+/subprojects/nghttp2.wrap
+/subprojects/nghttp2/
 /subprojects/packagecache/
-/subprojects/pcre.wrap
-/subprojects/pcre/
+/subprojects/pcre2.wrap
+/subprojects/pcre2/
 /subprojects/proxy-libintl.wrap
 /subprojects/proxy-libintl/
 /subprojects/quickjs/
@@ -27,3 +29,4 @@
 /subprojects/xz/
 /subprojects/zlib.wrap
 /subprojects/zlib/
+/subprojects/gvdb.wrap
