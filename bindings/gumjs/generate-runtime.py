@@ -266,11 +266,14 @@ def generate_runtime_cmodule(output_dir, output, arch, input_dir, gum_dir, capst
 
     inputs = [
         (input_dir / "runtime" / "cmodule", None, is_header, identity_transform, 'GUM_CHEADER_FRIDA'),
-        (input_dir / "runtime" / "cmodule-tcc", None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
-        (libtcc_incdir, None, libtcc_is_header, identity_transform, 'GUM_CHEADER_TCC'),
         (gum_dir / ("arch-" + writer_arch), gum_dir.parent, gum_header_matches_writer, optimize_gum_header, 'GUM_CHEADER_FRIDA'),
         (capstone_incdir, None, capstone_header_matches_arch, optimize_capstone_header, 'GUM_CHEADER_FRIDA'),
     ]
+    if libtcc_incdir is not None:
+        inputs += [
+            (input_dir / "runtime" / "cmodule-tcc", None, is_header, identity_transform, 'GUM_CHEADER_TCC'),
+            (libtcc_incdir, None, libtcc_is_header, identity_transform, 'GUM_CHEADER_TCC'),
+        ]
 
     with (output_dir / output).open('w', encoding='utf-8') as output_file:
         modules = []
@@ -431,7 +434,8 @@ def make_script_filename(name):
 if __name__ == '__main__':
     backends = set(sys.argv[1].split(","))
     arch, endian = sys.argv[2:4]
-    input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir = [Path(d).resolve() for d in sys.argv[4:]]
+    input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir = \
+            [Path(d).resolve() if d else None for d in sys.argv[4:]]
 
     try:
         generate_runtime(backends, arch, endian, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, output_dir)
