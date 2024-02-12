@@ -568,7 +568,7 @@ static gpointer run_stalked_through_target_function (gpointer data);
 #endif
 
 static gpointer sleeping_dummy (gpointer data);
-static gpointer named_sleeper (gpointer data);
+G_GNUC_UNUSED static gpointer named_sleeper (gpointer data);
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 static gpointer invoke_target_function_trigger (gpointer data);
@@ -5052,21 +5052,24 @@ sleeping_dummy (gpointer data)
 
 TESTCASE (process_threads_have_names)
 {
+#if defined (HAVE_LINUX) && !defined (HAVE_PTHREAD_SETNAME_NP)
+  g_print ("<skipping, libc is too old> ");
+#else
   GumNamedSleeperContext ctx;
   GThread * thread;
 
-#ifdef HAVE_LINUX
+# ifdef HAVE_LINUX
   if (!check_exception_handling_testable ())
     return;
-#endif
+# endif
 
-#ifdef HAVE_MIPS
+# ifdef HAVE_MIPS
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
     return;
   }
-#endif
+# endif
 
   ctx.controller_messages = g_async_queue_new ();
   ctx.sleeper_messages = g_async_queue_new ();
@@ -5085,6 +5088,7 @@ TESTCASE (process_threads_have_names)
 
   g_async_queue_unref (ctx.sleeper_messages);
   g_async_queue_unref (ctx.controller_messages);
+#endif
 }
 
 static gpointer
@@ -5097,7 +5101,7 @@ named_sleeper (gpointer data)
    * to GLib potentially having been prebuilt against an old libc. Therefore we
    * set the name manually using pthreads.
    */
-#ifdef HAVE_LINUX
+#if defined (HAVE_LINUX) && defined (HAVE_PTHREAD_SETNAME_NP)
   pthread_setname_np (pthread_self (), "named-sleeper");
 #endif
 

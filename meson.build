@@ -465,12 +465,18 @@ if ffi_dep.found() and (ffi_dep.type_name() == 'internal' or cc.has_function('ff
   cdata.set('HAVE_FRIDA_LIBFFI', 1)
 endif
 
-if cc.has_function('pthread_attr_getstack',
-    args: ['-D_GNU_SOURCE'],
-    dependencies: [threads_dep],
-    prefix: '#include <pthread.h>')
-  cdata.set('HAVE_PTHREAD_ATTR_GETSTACK', 1)
-endif
+pthread_functions = [
+  'pthread_attr_getstack',
+  'pthread_setname_np',
+]
+foreach f : pthread_functions
+  if cc.has_function(f,
+      args: ['-D_GNU_SOURCE'],
+      dependencies: [threads_dep],
+      prefix: '#include <pthread.h>')
+    cdata.set('HAVE_' + f.to_upper(), 1)
+  endif
+endforeach
 
 if host_os_family == 'windows'
   extra_deps += cc.find_library('psapi')

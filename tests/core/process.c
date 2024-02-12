@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
@@ -154,8 +154,8 @@ static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
 static gboolean thread_check_cb (const GumThreadDetails * details,
     gpointer user_data);
-static gboolean thread_collect_if_matching_id (const GumThreadDetails * details,
-    gpointer user_data);
+G_GNUC_UNUSED static gboolean thread_collect_if_matching_id (
+    const GumThreadDetails * details, gpointer user_data);
 static gboolean module_found_cb (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean import_found_cb (const GumImportDetails * details,
@@ -240,6 +240,9 @@ TESTCASE (process_threads_exclude_cloaked)
 
 TESTCASE (process_threads_should_include_name)
 {
+#if defined (HAVE_LINUX) && !defined (HAVE_PTHREAD_SETNAME_NP)
+  g_print ("<skipping, libc is too old> ");
+#else
   volatile gboolean done = FALSE;
   GThread * thread;
   GumThreadDetails d = { 0, };
@@ -256,6 +259,7 @@ TESTCASE (process_threads_should_include_name)
   g_thread_join (thread);
 
   g_free ((gpointer) d.name);
+#endif
 }
 
 static gboolean
@@ -1146,7 +1150,7 @@ sleeping_dummy (gpointer data)
    * to GLib potentially having been prebuilt against an old libc. Therefore we
    * set the name manually using pthreads.
    */
-#ifdef HAVE_LINUX
+#if defined (HAVE_LINUX) && defined (HAVE_PTHREAD_SETNAME_NP)
   pthread_setname_np (pthread_self (), sync_data->name);
 #endif
 
