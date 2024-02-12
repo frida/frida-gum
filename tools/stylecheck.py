@@ -45,18 +45,22 @@ COMMON_MISTAKES = [
         re.compile(r"\w()\("),
         ("unless-line-matches", MACRO_DEFINE_PATTERN),
         ("unless-found-inside", STRING_LITERAL_PATTERN),
+        ("unless-found-inside", re.compile(r"ElfW\(\w+\)")),
     ),
     (
         "missing space after cast",
         re.compile(r"\([^()]+\)()\w"),
+        ("unless-found-inside", STRING_LITERAL_PATTERN),
     ),
     (
         "missing space in pointer declaration",
         re.compile(r"\w+()\* \w+"),
+        ("unless-found-inside", STRING_LITERAL_PATTERN),
     ),
     (
         "missing space in pointer declaration",
         re.compile(r"\w+ \*()\w+"),
+        ("unless-found-inside", STRING_LITERAL_PATTERN),
         ("unless-line-matches", re.compile(r"\s+return \*")),
     ),
     (
@@ -76,6 +80,10 @@ COMMON_MISTAKES = [
         re.compile(r"^.+\)[^\n]*({)", re.MULTILINE),
         ("unless-line-matches", MACRO_DEFINE_PATTERN),
         ("unless-found-inside", STRING_LITERAL_PATTERN),
+        ("unless-line-matches", re.compile(r".+ = { 0, };$")),
+        ("unless-line-matches", re.compile(r".+\) (const|override|const override) { .+; }$")),
+        ("unless-line-matches", re.compile(r".+\[=\]\(\) { .+ }")),
+        ("unless-line-matches", re.compile(r"^template ")),
     ),
     (
         "incorrectly formatted function definition",
