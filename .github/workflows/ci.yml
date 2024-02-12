@@ -85,11 +85,13 @@ jobs:
               ./configure --build=linux-x86 --host=linux-x86 ${{ env.GUM_OPTIONS }}
           make
       - name: Upload Gum devkit
+        if: ${{ !startsWith(matrix.id, 'linux-') }}
         uses: actions/upload-artifact@v4
         with:
           name: gum-devkit-${{ matrix.id }}
           path: build/gum/devkit/
       - name: Upload GumJS devkit
+        if: ${{ !startsWith(matrix.id, 'linux-') }}
         uses: actions/upload-artifact@v4
         with:
           name: gumjs-devkit-${{ matrix.id }}
@@ -121,15 +123,47 @@ jobs:
           ./configure ${{ matrix.opts }} ${{ env.GUM_OPTIONS }}
           make
       - name: Upload Gum devkit
+        if: ${{ !startsWith(matrix.id, 'linux-') }}
         uses: actions/upload-artifact@v4
         with:
           name: gum-devkit-${{ matrix.id }}
           path: build/gum/devkit/
       - name: Upload GumJS devkit
+        if: ${{ !startsWith(matrix.id, 'linux-') }}
         uses: actions/upload-artifact@v4
         with:
           name: gumjs-devkit-${{ matrix.id }}
           path: build/bindings/gumjs/devkit/
+
+  manylinux:
+    strategy:
+      matrix:
+        arch: [x86, x86_64, x86_64-musl, armhf, arm64, arm64-musl, mips, mipsel, mips64, mips64el]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    container: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: |
+          ./configure --host=$XTOOLS_HOST ${{ env.GUM_OPTIONS }}
+          make
+      - name: Upload Gum devkit
+        uses: actions/upload-artifact@v4
+        with:
+          name: gum-devkit-linux-${{ matrix.arch }}
+          path: build/gum/devkit/
+      - name: Upload GumJS devkit
+        uses: actions/upload-artifact@v4
+        with:
+          name: gumjs-devkit-linux-${{ matrix.arch }}
+          path: build/bindings/gumjs/devkit/
+      - name: Test
+        if: matrix.arch == 'x86' || matrix.arch == 'x86_64'
+        run: make test
 
   mobile:
     strategy:
