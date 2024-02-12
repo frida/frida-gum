@@ -5,18 +5,16 @@ task:
   install_script: |
     pkg install -y \
       git \
-      meson \
-      ninja \
-      npm \
-      py39-pip
-    pip install meson==0.64.0
+      npm
   compile_script: |
-    meson setup \
-      --default-library static \
-      -Doptimization=s \
-      -Dgumpp=enabled \
-      -Dgumjs=enabled \
-      -Db_lundef=false \
-      build
-    meson compile -C build
-  test_script: ./build/tests/gum-tests
+    ./configure \
+        --enable-gumpp \
+        --enable-gumjs \
+        --with-devkits=gum,gumjs \
+        --enable-tests
+    make
+  gum_devkit_artifacts:
+    path: "build/gum/devkit/*"
+  gumjs_devkit_artifacts:
+    path: "build/bindings/gumjs/devkit/*"
+  test_script: make test
