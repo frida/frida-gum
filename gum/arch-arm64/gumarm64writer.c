@@ -1729,7 +1729,6 @@ gboolean
 gum_arm64_writer_put_xpaci_reg (GumArm64Writer * self,
                                 arm64_reg reg)
 {
-
   GumArm64RegInfo ri;
 
   gum_arm64_writer_describe_reg (self, reg, &ri);

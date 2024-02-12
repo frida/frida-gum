@@ -578,7 +578,8 @@ beach:
   {
     sprintf (details->symbol_name, "0x%zx (0x%zx)",
         (size_t) (address - module->base_address),
-        (size_t) (module->preferred_address + (address - module->base_address)));
+        (size_t) (module->preferred_address +
+          (address - module->base_address)));
     success = TRUE;
   }
 

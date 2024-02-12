@@ -35,7 +35,7 @@
 
 #define GUM_FRAME_OFFSET_CPU_CONTEXT 0
 #define GUM_FRAME_OFFSET_NEXT_HOP \
-    (GUM_FRAME_OFFSET_CPU_CONTEXT + sizeof(GumCpuContext))
+    (GUM_FRAME_OFFSET_CPU_CONTEXT + sizeof (GumCpuContext))
 
 #define GUM_FCDATA(context) \
     ((GumMipsFunctionContextData *) (context)->backend_data.storage)

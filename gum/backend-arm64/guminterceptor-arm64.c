@@ -715,7 +715,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
   else
   {
-    ctx->on_enter_trampoline = gum_sign_code_pointer (gum_arm64_writer_cur (aw));
+    ctx->on_enter_trampoline =
+        gum_sign_code_pointer (gum_arm64_writer_cur (aw));
     deflector_target = ctx->on_enter_trampoline;
   }
 

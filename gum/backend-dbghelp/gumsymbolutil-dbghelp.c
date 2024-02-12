@@ -17,8 +17,8 @@
 
 typedef struct _GumSymbolInfo GumSymbolInfo;
 
-#pragma pack(push)
-#pragma pack(1)
+#pragma pack (push)
+#pragma pack (1)
 
 struct _GumSymbolInfo
 {
@@ -26,7 +26,7 @@ struct _GumSymbolInfo
   gchar sym_name_buf[GUM_MAX_SYMBOL_NAME + 1];
 };
 
-#pragma pack(pop)
+#pragma pack (pop)
 
 static BOOL CALLBACK enum_functions_callback (SYMBOL_INFO * sym_info,
     gulong symbol_size, gpointer user_context);

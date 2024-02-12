@@ -355,9 +355,9 @@ main (gint argc, gchar * argv[])
 /* HACK */
 struct GTestSuite
 {
-  gchar  *name;
-  GSList *suites;
-  GSList *cases;
+  gchar * name;
+  GSList * suites;
+  GSList * cases;
 };
 
 static guint

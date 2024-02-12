@@ -50,7 +50,8 @@ run (const gchar * query)
       "query='%{public}s'", query);
 #endif
 
-  gum_api_resolver_enumerate_matches (resolver, query, on_match, &num_matches, NULL);
+  gum_api_resolver_enumerate_matches (resolver, query, on_match, &num_matches,
+      NULL);
 
 #ifdef HAVE_DARWIN
   os_signpost_interval_end (gum_log, id, "enumerate_matches", "num_matches=%u",

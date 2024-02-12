@@ -773,7 +773,7 @@ TESTCASE (rip_relative_call)
     0xff, 0x15,                   /* call [rip + 0x1234] */
           0x34, 0x12, 0x00, 0x00
   };
-  static guint8 input[sizeof(input_template) + 0x1234];
+  static guint8 input[sizeof (input_template) + 0x1234];
   guint8 expected_output[] = {
     0x50,                         /* push rax */
     0x48, 0xb8,                   /* movabs rax, <return_address> */

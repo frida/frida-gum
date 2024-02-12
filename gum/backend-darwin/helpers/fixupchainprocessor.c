@@ -80,11 +80,12 @@ gum_process_chained_fixups (const GumChainedFixupsHeader * fixups_header,
 }
 
 static void
-gum_process_chained_fixups_in_segment_generic64 (void * cursor,
-                                                 GumChainedPtrFormat format,
-                                                 uint64_t actual_base_address,
-                                                 uint64_t preferred_base_address,
-                                                 void ** bound_pointers)
+gum_process_chained_fixups_in_segment_generic64 (
+    void * cursor,
+    GumChainedPtrFormat format,
+    uint64_t actual_base_address,
+    uint64_t preferred_base_address,
+    void ** bound_pointers)
 {
   const int64_t slide = actual_base_address - preferred_base_address;
   const size_t stride = 4;

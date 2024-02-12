@@ -2284,7 +2284,7 @@ gum_emit_symbol (const GumDarwinSymbolDetails * details,
 
 static gboolean
 gum_append_symbol_section (const GumDarwinSectionDetails * details,
-                            gpointer user_data)
+                           gpointer user_data)
 {
   GArray * sections = user_data;
   GumSymbolSection section;

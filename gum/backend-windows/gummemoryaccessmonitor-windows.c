@@ -473,7 +473,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
             return FALSE;
           break;
         default:
-          g_assert_not_reached();
+          g_assert_not_reached ();
         }
       }
       else

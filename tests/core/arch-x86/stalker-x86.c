@@ -2732,7 +2732,8 @@ destroy_test_window (TestWindow * window)
 
 static void
 send_message_and_pump_messages_briefly (TestWindow * window,
-    TestWindowMessageHandler handler, gpointer user_data)
+                                        TestWindowMessageHandler handler,
+                                        gpointer user_data)
 {
   MSG msg;
 
