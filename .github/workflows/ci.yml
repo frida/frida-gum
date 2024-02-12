@@ -101,6 +101,8 @@ jobs:
     strategy:
       matrix:
         include:
+          - { id: windows-x86_64-mingw, opts: '--host=x86_64-w64-mingw32 --without-prebuilds=sdk:host', pkg: g++-mingw-w64-x86-64        }
+          - { id: windows-x86-mingw,    opts: '--host=i686-w64-mingw32 --without-prebuilds=sdk:host',   pkg: g++-mingw-w64-i686          }
           - { id: linux-mips,           opts: '--host=mips-linux-gnu',                                  pkg: g++-mips-linux-gnu          }
           - { id: linux-mipsel,         opts: '--host=mipsel-linux-gnu',                                pkg: g++-mipsel-linux-gnu        }
           - { id: linux-mips64,         opts: '--host=mips64-linux-gnuabi64',                           pkg: g++-mips64-linux-gnuabi64   }
