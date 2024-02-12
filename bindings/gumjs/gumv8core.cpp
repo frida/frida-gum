@@ -2146,7 +2146,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
 GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
 {
   gchar str[32];
-  g_sprintf (str, "%" G_GINT64_FORMAT, _gum_v8_int64_get_value (info.Holder ()));
+  g_sprintf (str, "%" G_GINT64_FORMAT,
+      _gum_v8_int64_get_value (info.Holder ()));
 
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
@@ -3730,7 +3731,6 @@ gumjs_cpu_context_set_vector (Local<Name> property,
   if (new_bytes == NULL)
     return;
 
-
   gsize new_size;
   gconstpointer new_data = g_bytes_get_data (new_bytes, &new_size);
   if (new_size != size)
@@ -3867,7 +3867,7 @@ gumjs_cpu_context_set_flags (Local<Name> property,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_match_pattern_construct)
 {
-  if (!info.IsConstructCall())
+  if (!info.IsConstructCall ())
   {
     _gum_v8_throw_ascii_literal (isolate,
         "use `new MatchPattern()` to create a new instance");

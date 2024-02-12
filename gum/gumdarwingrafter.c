@@ -1131,7 +1131,8 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
              */
             if (ic->rebase_off + ic->rebase_size == ic->lazy_bind_off)
               ic->rebase_size += ic->lazy_bind_size;
-            else if (ic->weak_bind_off + ic->weak_bind_size == ic->lazy_bind_off)
+            else if (ic->weak_bind_off + ic->weak_bind_size ==
+                ic->lazy_bind_off)
               ic->weak_bind_size += ic->lazy_bind_size;
             else if (ic->export_off + ic->export_size == ic->lazy_bind_off)
               ic->export_size += ic->lazy_bind_size;
@@ -1144,7 +1145,8 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
            */
           binds = gum_merge_lazy_binds_into_binds (ic, linkedit);
           *merged_binds = binds;
-          ic->bind_off = layout->rewritten_binds_offset + layout->linkedit_shift;
+          ic->bind_off =
+              layout->rewritten_binds_offset + layout->linkedit_shift;
 
           /*
            * Adjust the size of binds so that everything is contiguous.

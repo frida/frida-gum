@@ -707,7 +707,8 @@ gum_quick_script_execute_entrypoints (GumQuickScript * self,
     promise_class = JS_GetPropertyStr (ctx, global_obj, "Promise");
     all_settled_func = JS_GetPropertyStr (ctx, promise_class, "allSettled");
 
-    loaded_promise = JS_Call (ctx, all_settled_func, promise_class, 1, &pending);
+    loaded_promise =
+        JS_Call (ctx, all_settled_func, promise_class, 1, &pending);
 
     then_func = JS_GetPropertyStr (ctx, loaded_promise, "then");
 

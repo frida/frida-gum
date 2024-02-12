@@ -653,7 +653,8 @@ gum_v8_script_compile (GumV8Script * self,
           const gchar * alias_start = rest_end + std::strlen (alias_marker);
           const gchar * alias_end = std::strchr (alias_start, '\n');
 
-          gchar * asset_alias = g_strndup (alias_start, alias_end - alias_start);
+          gchar * asset_alias =
+              g_strndup (alias_start, alias_end - alias_start);
           if (g_hash_table_contains (program->es_assets, asset_alias))
           {
             g_free (asset_alias);

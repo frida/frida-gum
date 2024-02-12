@@ -80,7 +80,8 @@ static const JSCFunctionListEntry gumjs_module_entries[] =
   JS_CFUNC_DEF ("_enumerateSymbols", 0, gumjs_module_enumerate_symbols),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_module_enumerate_ranges),
   JS_CFUNC_DEF ("_enumerateSections", 0, gumjs_module_enumerate_sections),
-  JS_CFUNC_DEF ("_enumerateDependencies", 0, gumjs_module_enumerate_dependencies),
+  JS_CFUNC_DEF ("_enumerateDependencies", 0,
+      gumjs_module_enumerate_dependencies),
   JS_CFUNC_DEF ("findBaseAddress", 0, gumjs_module_find_base_address),
   JS_CFUNC_DEF ("findExportByName", 0, gumjs_module_find_export_by_name),
 };

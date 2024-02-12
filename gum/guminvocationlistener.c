@@ -13,8 +13,8 @@ GUM_DECLARE_FINAL_TYPE (GumCallListener, gum_call_listener, GUM, CALL_LISTENER,
                         GObject)
 
 #define GUM_TYPE_PROBE_LISTENER (gum_probe_listener_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumProbeListener, gum_probe_listener, GUM, PROBE_LISTENER,
-                        GObject)
+GUM_DECLARE_FINAL_TYPE (GumProbeListener, gum_probe_listener, GUM,
+                        PROBE_LISTENER, GObject)
 
 struct _GumCallListener
 {

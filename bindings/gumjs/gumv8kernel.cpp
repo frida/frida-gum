@@ -575,7 +575,7 @@ gum_v8_kernel_read (GumMemoryValueType type,
     }
   }
 
-  if (!result.IsEmpty())
+  if (!result.IsEmpty ())
     return_value.Set (result);
 }
 

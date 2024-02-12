@@ -657,9 +657,9 @@ gum_quick_read_operation_finish (GInputStream * stream,
 
 static gboolean
 gum_quick_output_stream_get (JSContext * ctx,
-                            JSValueConst val,
-                            GumQuickCore * core,
-                            GumQuickObject ** object)
+                             JSValueConst val,
+                             GumQuickCore * core,
+                             GumQuickObject ** object)
 {
   return _gum_quick_unwrap (ctx, val,
       gumjs_get_parent_module (core)->output_stream_class, core,

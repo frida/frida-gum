@@ -401,8 +401,8 @@ static void gum_tcc_cmodule_drop_metadata (GumCModule * cm);
 static void gum_emit_symbol (void * ctx, const char * name, const void * val);
 static void gum_append_tcc_error (void * opaque, const char * msg);
 static void gum_emit_symbol (void * ctx, const char * name, const void * val);
-static const char * gum_tcc_cmodule_load_header (void * opaque, const char * path,
-    int * len);
+static const char * gum_tcc_cmodule_load_header (void * opaque,
+    const char * path, int * len);
 static void * gum_tcc_cmodule_resolve_symbol (void * opaque, const char * name);
 
 static void gum_add_abi_symbols (TCCState * state);

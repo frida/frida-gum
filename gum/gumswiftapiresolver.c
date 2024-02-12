@@ -80,8 +80,10 @@ typedef struct _GumGenericPackShapeHeader GumGenericPackShapeHeader;
 typedef struct _GumGenericPackShapeDescriptor GumGenericPackShapeDescriptor;
 typedef guint16 GumGenericPackKind;
 typedef struct _GumResilientSuperclass GumResilientSuperclass;
-typedef struct _GumSingletonMetadataInitialization GumSingletonMetadataInitialization;
-typedef struct _GumForeignMetadataInitialization GumForeignMetadataInitialization;
+typedef struct _GumSingletonMetadataInitialization
+    GumSingletonMetadataInitialization;
+typedef struct _GumForeignMetadataInitialization
+    GumForeignMetadataInitialization;
 typedef struct _GumVTableDescriptorHeader GumVTableDescriptorHeader;
 typedef struct _GumMethodDescriptor GumMethodDescriptor;
 typedef struct _GumOverrideTableHeader GumOverrideTableHeader;
@@ -1037,7 +1039,8 @@ gum_module_metadata_maybe_ingest_thunk (GumModuleMetadata * self,
     if (vtable == NULL)
     {
       vtable = g_ptr_array_new_full (64, g_free);
-      g_hash_table_insert (self->vtables, g_steal_pointer (&class_name), vtable);
+      g_hash_table_insert (self->vtables, g_steal_pointer (&class_name),
+          vtable);
     }
 
     if (vtable_index >= vtable->len)

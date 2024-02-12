@@ -96,8 +96,8 @@ G_LOCK_DEFINE_STATIC (gum_softened_code_pages);
 static GHashTable * gum_softened_code_pages;
 #endif
 
-GUM_DEFINE_BOXED_TYPE (GumMatchPattern, gum_match_pattern, gum_match_pattern_ref,
-                       gum_match_pattern_unref)
+GUM_DEFINE_BOXED_TYPE (GumMatchPattern, gum_match_pattern,
+                       gum_match_pattern_ref, gum_match_pattern_unref)
 GUM_DEFINE_BOXED_TYPE (GumMemoryRange, gum_memory_range, gum_memory_range_copy,
                        gum_memory_range_free)
 

@@ -1147,7 +1147,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
   GumQuickMemory * self;
   GArray * ranges;
   JSValue on_access;
-  GError *error;
+  GError * error;
 
   self = gumjs_get_parent_module (core);
 
