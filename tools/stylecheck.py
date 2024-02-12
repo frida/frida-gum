@@ -86,6 +86,13 @@ COMMON_MISTAKES = [
 
 COMMENT_PATTERN = re.compile(r"\/\*(.+?)\*\/", re.DOTALL)
 
+INCLUDED_SUBDIRS = [
+    "gum",
+    "libs",
+    Path("bindings") / "gumjs",
+    "tests",
+]
+
 INCLUDED_EXTENSIONS = {
     ".c",
     ".h",
@@ -94,6 +101,9 @@ INCLUDED_EXTENSIONS = {
 }
 
 EXCLUDED_SOURCES = {
+    "gum/backend-arm64/asmdefs.h",
+    "gum/backend-darwin/substratedclient.c",
+    "gum/backend-darwin/substratedclient.h",
     "gum/dlmalloc.c",
     "gum/gummetalhash.c",
     "gum/gummetalhash.h",
@@ -103,11 +113,22 @@ EXCLUDED_SOURCES = {
 
 
 def main():
-    changed_lines = json.loads(sys.argv[1])
+    if len(sys.argv) not in {1, 2}:
+        print(f"Usage: {sys.argv[0]} [inline-json]", file=sys.stderr)
+        sys.exit(1)
 
     repo_dir = Path(__file__).parent.parent.resolve()
-    changed_files = [Path(repo_dir / f) for f in changed_lines.keys()]
-    files_to_check = [f for f in changed_files if f.suffix in INCLUDED_EXTENSIONS]
+
+    if len(sys.argv) == 2:
+        changed_lines = json.loads(sys.argv[1])
+        changed_files = [Path(repo_dir / f) for f in changed_lines.keys()]
+        files_to_check = [f for f in changed_files if f.suffix in INCLUDED_EXTENSIONS]
+    else:
+        changed_lines = None
+        files_to_check = []
+        for subdir in INCLUDED_SUBDIRS:
+            for ext in INCLUDED_EXTENSIONS:
+                files_to_check += (repo_dir / subdir).glob(f"**/*{ext}")
 
     num_mistakes_found = 0
     for path in files_to_check:
@@ -159,7 +180,8 @@ def main():
                     if not is_actual_mistake:
                         break
 
-                if is_actual_mistake and line_number in changed_lines[relpath]:
+                if is_actual_mistake \
+                        and (changed_lines is None or line_number in changed_lines[relpath]):
                     print(f"{relpath}:{line_number}: {description}")
                     num_mistakes_found += 1
 
