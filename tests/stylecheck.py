@@ -9,6 +9,7 @@ import sys
 MACRO_DEFINE_PATTERN = re.compile(r"^#\s*define\s")
 STRING_LITERAL_PATTERN = re.compile(r"\"([^\\\"]|\\.)*\"")
 
+
 def function_parameters_are_aligned(match):
     lines = match.group(1).rstrip().split("\n")
     if lines[0].endswith(" ="):
@@ -34,6 +35,7 @@ def function_parameters_are_aligned(match):
             return False
 
     return True
+
 
 COMMON_MISTAKES = [
     (
