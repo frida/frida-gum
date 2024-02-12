@@ -1103,7 +1103,11 @@ static void
 callout_set_cool (GumCpuContext * cpu_context,
                 gpointer user_data)
 {
+#if GLIB_SIZEOF_VOID_P == 8
   cpu_context->rax = 0xc001;
+#else
+  cpu_context->eax = 0xc001;
+#endif
 }
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)
