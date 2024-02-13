@@ -162,6 +162,8 @@ G_GNUC_INTERNAL GArray * _gum_v8_memory_ranges_get (v8::Local<v8::Value> value,
 G_GNUC_INTERNAL gboolean _gum_v8_memory_range_get (v8::Local<v8::Value> value,
     GumMemoryRange * range, GumV8Core * core);
 
+G_GNUC_INTERNAL v8::Local<v8::String> _gum_v8_page_protection_new (
+    v8::Isolate * isolate, GumPageProtection prot);
 G_GNUC_INTERNAL gboolean _gum_v8_page_protection_get (
     v8::Local<v8::Value> prot_val, GumPageProtection * prot,
     GumV8Core * core);

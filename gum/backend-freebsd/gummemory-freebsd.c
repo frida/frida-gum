@@ -53,6 +53,18 @@ gum_memory_is_writable (gconstpointer address,
   return size >= len && (prot & GUM_PAGE_WRITE) != 0;
 }
 
+gboolean
+gum_memory_query_protection (gconstpointer address,
+                             GumPageProtection * prot)
+{
+  gsize size;
+
+  if (!gum_memory_get_protection (address, 1, &size, prot))
+    return FALSE;
+
+  return size >= 1;
+}
+
 guint8 *
 gum_memory_read (gconstpointer address,
                  gsize len,

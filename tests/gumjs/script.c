@@ -115,6 +115,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (memory_can_be_copied)
     TESTENTRY (memory_can_be_duped)
     TESTENTRY (memory_can_be_protected)
+    TESTENTRY (memory_protection_can_be_queried)
     TESTENTRY (code_can_be_patched)
     TESTENTRY (s8_can_be_read)
     TESTENTRY (s8_can_be_written)
@@ -8138,6 +8139,31 @@ TESTCASE (memory_can_be_protected)
   gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
   g_assert_true (exception_on_read);
   g_assert_true (exception_on_write);
+
+  gum_free_pages (buf);
+}
+
+TESTCASE (memory_protection_can_be_queried)
+{
+  gpointer buf;
+
+  buf = gum_alloc_n_pages (1, GUM_PAGE_RW);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const x = " GUM_PTR_CONST ";"
+      "send(Memory.queryProtection(x) === 'rw-');"
+      "Memory.protect(x, 1, 'r--');"
+      "send(Memory.queryProtection(x) === 'r--');"
+      "Memory.protect(x, 1, 'r-x');"
+      "send(Memory.queryProtection(x) === 'r-x');"
+      "Memory.protect(x, 1, 'rw-');"
+      "send(Memory.queryProtection(x) === 'rw-');",
+      buf);
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 
   gum_free_pages (buf);
 }

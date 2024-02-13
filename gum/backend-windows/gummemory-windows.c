@@ -49,6 +49,13 @@ gum_memory_is_readable (gconstpointer address,
   return (prot & GUM_PAGE_READ) != 0;
 }
 
+gboolean
+gum_memory_query_protection (gconstpointer address,
+                             GumPageProtection * prot)
+{
+  return gum_memory_get_protection (address, 1, prot);
+}
+
 guint8 *
 gum_memory_read (gconstpointer address,
                  gsize len,
