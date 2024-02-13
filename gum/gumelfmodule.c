@@ -2215,9 +2215,11 @@ gum_elf_module_check_str_bounds (GumElfModule * self,
   const gchar * end, * cursor;
 
   if (str < (const gchar *) base)
-    goto oob;
+    goto consider_file_data;
 
   end = (const gchar *) base + size;
+  if (str >= end)
+    goto consider_file_data;
 
   cursor = str;
   do
@@ -2229,6 +2231,17 @@ gum_elf_module_check_str_bounds (GumElfModule * self,
 
   return TRUE;
 
+consider_file_data:
+  {
+    if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
+        GUM_ADDRESS (base) == self->base_address)
+    {
+      return gum_elf_module_check_str_bounds (self, str, self->file_data,
+          self->file_size, name, error);
+    }
+
+    goto oob;
+  }
 oob:
   {
     g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
