@@ -3267,7 +3267,7 @@ TESTCODE (arm_simple_call,
 
 TESTCASE (arm_transformer_should_be_able_to_replace_call_with_callout)
 {
-  guint32 code[CODE_SIZE (arm_simple_call) / sizeof (guint32)], val;
+  guint32 code[CODE_SIZE (arm_simple_call) / sizeof (guint32)];
 
   memcpy (code, arm_simple_call, CODE_SIZE (arm_simple_call));
 
@@ -3282,8 +3282,6 @@ replace_call_with_callout (GumStalkerIterator * iterator,
                            GumStalkerOutput * output,
                            gpointer user_data)
 {
-  gint * num_cmp_callouts = user_data;
-  GumMemoryAccess access;
   const cs_insn * insn;
 
   while (gum_stalker_iterator_next (iterator, &insn))
@@ -3308,7 +3306,7 @@ TESTCODE (arm_simple_jumpout,
 
 TESTCASE (arm_transformer_should_be_able_to_replace_jumpout_with_callout)
 {
-  guint32 code[CODE_SIZE (Arm_simple_jumpout) / sizeof (guint32)], val;
+  guint32 code[CODE_SIZE (arm_simple_jumpout) / sizeof (guint32)];
 
   memcpy (code, arm_simple_jumpout, CODE_SIZE (arm_simple_jumpout));
 
@@ -3323,8 +3321,6 @@ replace_jumpout_with_callout (GumStalkerIterator * iterator,
                               GumStalkerOutput * output,
                               gpointer user_data)
 {
-  gint * num_cmp_callouts = user_data;
-  GumMemoryAccess access;
   const cs_insn * insn;
 
   while (gum_stalker_iterator_next (iterator, &insn))
