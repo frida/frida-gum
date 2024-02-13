@@ -645,7 +645,7 @@ static void
 callout_set_cool (GumCpuContext * cpu_context,
                   gpointer user_data)
 {
-  cpu_context->x0 = 0xc001;
+  cpu_context->x[0] = 0xc001;
 }
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)
