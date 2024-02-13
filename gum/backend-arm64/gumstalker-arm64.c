@@ -3030,7 +3030,7 @@ gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
   if ((block->ctx->sink_mask & GUM_RET) != 0)
     gum_exec_block_write_ret_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
 
-  gum_exec_block_write_chaining_return_code (block, gc, ARM64_REG_LR);
+  gum_exec_block_write_chaining_return_code (block, gc, ARM64_REG_X30);
 }
 
 GumMemoryAccess
