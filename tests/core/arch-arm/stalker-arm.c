@@ -3302,7 +3302,6 @@ callout_set_cool (GumCpuContext * cpu_context,
   cpu_context->r[0] = 0xc001;
 }
 
-
 TESTCODE (arm_ldrex_strex,
   0x44, 0x00, 0x9f, 0xe5, /* ldr r0, [pointer_to_value] */
   /* retry:                                             */
