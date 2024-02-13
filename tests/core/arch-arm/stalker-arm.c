@@ -3320,8 +3320,8 @@ TESTCASE (arm_transformer_should_be_able_to_replace_jumpout_with_callout)
 
 static void
 replace_jumpout_with_callout (GumStalkerIterator * iterator,
-                           GumStalkerOutput * output,
-                           gpointer user_data)
+                              GumStalkerOutput * output,
+                              gpointer user_data)
 {
   gint * num_cmp_callouts = user_data;
   GumMemoryAccess access;
