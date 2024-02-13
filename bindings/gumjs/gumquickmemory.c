@@ -396,7 +396,6 @@ query_failed:
 
 propagate_exception:
   return JS_EXCEPTION;
-
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_patch_code)
