@@ -694,7 +694,7 @@ static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 static void gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     GumGeneratorContext * gc, arm64_reg ret_reg);
 static void gum_exec_block_write_chaining_return_code (GumExecBlock * block,
-    GumGeneratorContext * gc);
+    GumGeneratorContext * gc, arm64_reg ret_reg);
 static void gum_exec_block_write_slab_transfer_code (GumArm64Writer * from,
     GumArm64Writer * to);
 static void gum_exec_block_backpatch_slab (GumExecBlock * block,
@@ -3032,7 +3032,7 @@ gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
 
   gum_exec_block_write_adjust_depth (block, gc->code_writer, -1);
 
-  gum_exec_block_write_chaining_return_code (block, gc);
+  gum_exec_block_write_chaining_return_code (block, gc, ARM64_REG_LR);
 }
 
 GumMemoryAccess
@@ -5110,12 +5110,13 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
                                         GumGeneratorContext * gc,
                                         arm64_reg ret_reg)
 {
-  gum_exec_block_write_chaining_return_code (block, gc);
+  gum_exec_block_write_chaining_return_code (block, gc, ret_reg);
 }
 
 static void
 gum_exec_block_write_chaining_return_code (GumExecBlock * block, 
-                                           GumGeneratorContext  * gc)
+                                           GumGeneratorContext  * gc,
+                                           arm64_reg ret_reg)
 {
   GumArm64Writer * cw = gc->code_writer;
   GumArm64Writer * cws = gc->slow_writer;
