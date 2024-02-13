@@ -579,8 +579,8 @@ TESTCASE (transformer_should_be_able_to_replace_call_with_callout)
 
 static void
 replace_call_with_callout (GumStalkerIterator * iterator,
-                          GumStalkerOutput * output,
-                          gpointer user_data)
+                           GumStalkerOutput * output,
+                           gpointer user_data)
 {
   const guint32 * func_start = user_data;
   const cs_insn * insn;
