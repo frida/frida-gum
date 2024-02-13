@@ -194,10 +194,10 @@ static void insert_extra_increment_after_xor (GumStalkerIterator * iterator,
 static void store_xax (GumCpuContext * cpu_context, gpointer user_data);
 static void skip_call (GumStalkerIterator * iterator, GumStalkerOutput * output,
     gpointer user_data);
-static void replace_call_with_callout (GumStalkerIterator * iterator, GumStalkerOutput * output,
-    gpointer user_data);
-static void replace_jmp_with_callout (GumStalkerIterator * iterator, GumStalkerOutput * output,
-    gpointer user_data);
+static void replace_call_with_callout (GumStalkerIterator * iterator, 
+    GumStalkerOutput * output, gpointer user_data);
+static void replace_jmp_with_callout (GumStalkerIterator * iterator, 
+    GumStalkerOutput * output, gpointer user_data);
 static void callout_set_cool (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
@@ -1029,8 +1029,8 @@ TESTCASE (transformer_should_be_able_to_replace_call_with_callout)
   func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
       code_template, sizeof (code_template));
 
-  fixture->transformer = gum_stalker_transformer_make_from_callback (replace_call_with_callout,
-      func, NULL);
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+        replace_call_with_callout, func, NULL);
 
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 0xc001);
@@ -1046,7 +1046,8 @@ replace_call_with_callout (GumStalkerIterator * iterator,
 
   while (gum_stalker_iterator_next (iterator, &insn))
   {
-    if (insn->address == GPOINTER_TO_SIZE (func_start + 5)) {
+    if (insn->address == GPOINTER_TO_SIZE (func_start + 5))
+    {
       gum_stalker_iterator_put_callout (iterator, callout_set_cool, NULL, NULL);
       continue;
     }
@@ -1072,8 +1073,8 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
   func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
       code_template, sizeof (code_template));
 
-  fixture->transformer = gum_stalker_transformer_make_from_callback (replace_jmp_with_callout,
-      func, NULL);
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+        replace_jmp_with_callout, func, NULL);
 
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 0xc001);
@@ -1081,17 +1082,18 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
 
 static void
 replace_jmp_with_callout (GumStalkerIterator * iterator,
-                           GumStalkerOutput * output,
-                           gpointer user_data)
+                          GumStalkerOutput * output,
+                          gpointer user_data)
 {
   const guint8 * func_start = user_data;
   const cs_insn * insn;
 
   while (gum_stalker_iterator_next (iterator, &insn))
   {
-    if (insn->address == GPOINTER_TO_SIZE (func_start + 5)) {
+    if (insn->address == GPOINTER_TO_SIZE (func_start + 5))
+    {
       gum_stalker_iterator_put_callout (iterator, callout_set_cool, NULL, NULL);
-      gum_stalker_iterator_put_chaining_return(iterator);
+      gum_stalker_iterator_put_chaining_return (iterator);
       continue;
     }
 
@@ -1101,7 +1103,7 @@ replace_jmp_with_callout (GumStalkerIterator * iterator,
 
 static void
 callout_set_cool (GumCpuContext * cpu_context,
-                gpointer user_data)
+                  gpointer user_data)
 {
 #if GLIB_SIZEOF_VOID_P == 8
   cpu_context->rax = 0xc001;
