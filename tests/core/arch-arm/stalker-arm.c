@@ -98,6 +98,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (performance)
 
   TESTENTRY (custom_transformer)
+  TESTENTRY (arm_transformer_should_be_able_to_replace_call_with_callout)
   TESTENTRY (arm_callout)
   TESTENTRY (thumb_callout)
   TESTENTRY (unfollow_should_be_allowed_before_first_transform)
@@ -163,6 +164,9 @@ static GLogWriterOutput test_log_writer_func (GLogLevelFlags log_level,
     const GLogField * fields, gsize n_fields, gpointer user_data);
 static void duplicate_adds (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
+static void replace_call_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void callout_set_cool (GumCpuContext * cpu_context, gpointer user_data);
 static void transform_arm_return_value (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void on_arm_ret (GumCpuContext * cpu_context, gpointer user_data);
@@ -3248,6 +3252,56 @@ add_n_return_value_increments (GumStalkerIterator * iterator,
     gum_stalker_iterator_keep (iterator);
   }
 }
+
+TESTCODE (arm_simple_call,
+    0x14, 0x05, 0x00, 0xe3, /* mov r0, 1300    */
+    0xfe, 0xff, 0xff, 0xfa, /* blx bump_number */
+    0x1e, 0xff, 0x2f, 0xe1, /* bx lr           */
+    /* bump_number:                            */
+    0x25, 0x00, 0x80, 0xe2, /* add r0, 37      */
+    0x1e, 0xff, 0x2f, 0xe1, /* bx lr           */
+);
+
+TESTCASE (arm_transformer_should_be_able_to_replace_call_with_callout)
+{
+  guint32 code[CODE_SIZE (arm_simple_call) / sizeof (guint32)], val;
+
+  memcpy (code, arm_simple_call, CODE_SIZE (arm_simple_call));
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      insert_callout_after_cmp, NULL, NULL);
+
+  INVOKE_ARM_EXPECTING (GUM_EXEC, code, 0xc001);
+}
+
+static void
+replace_call_with_callout (GumStalkerIterator * iterator,
+                           GumStalkerOutput * output,
+                           gpointer user_data)
+{
+  gint * num_cmp_callouts = user_data;
+  GumMemoryAccess access;
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    if (insn->id == ARM_INS_BLX)
+    {
+      gum_stalker_iterator_put_callout (iterator, callout_set_cool,
+          NULL, NULL);
+      continue;
+    }
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+callout_set_cool (GumCpuContext * cpu_context,
+                  gpointer user_data)
+{
+  cpu_context->r[0] = 0xc001;
+}
+
 
 TESTCODE (arm_ldrex_strex,
   0x44, 0x00, 0x9f, 0xe5, /* ldr r0, [pointer_to_value] */
