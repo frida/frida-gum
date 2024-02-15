@@ -124,6 +124,9 @@ struct _GumElfEnumerateImportsContext
 {
   GumFoundImportFunc func;
   gpointer user_data;
+
+  GHashTable * slots;
+  guint32 jump_slot_type;
 };
 
 struct _GumElfEnumerateExportsContext
@@ -177,6 +180,10 @@ static gboolean gum_elf_module_emit_relocations (GumElfModule * self,
     gpointer user_data);
 static gboolean gum_emit_elf_import (const GumElfSymbolDetails * details,
     gpointer user_data);
+static gboolean gum_try_get_jump_slot_relocation_type_for_machine (
+    GumElfMachine machine, guint32 * type);
+static gboolean gum_maybe_collect_import_slot_from_relocation (
+    const GumElfRelocationDetails * details, gpointer user_data);
 static gboolean gum_emit_elf_export (const GumElfSymbolDetails * details,
     gpointer user_data);
 static void gum_elf_module_parse_symbol (GumElfModule * self,
@@ -1475,7 +1482,17 @@ gum_elf_module_enumerate_imports (GumElfModule * self,
   ctx.func = func;
   ctx.user_data = user_data;
 
+  ctx.slots = g_hash_table_new (g_str_hash, g_str_equal);
+  if (gum_try_get_jump_slot_relocation_type_for_machine (self->ehdr.machine,
+        &ctx.jump_slot_type))
+  {
+    gum_elf_module_enumerate_relocations (self,
+        gum_maybe_collect_import_slot_from_relocation, &ctx);
+  }
+
   gum_elf_module_enumerate_dynamic_symbols (self, gum_emit_elf_import, &ctx);
+
+  g_hash_table_unref (ctx.slots);
 }
 
 static gboolean
@@ -1496,10 +1513,57 @@ gum_emit_elf_import (const GumElfSymbolDetails * details,
     d.name = details->name;
     d.module = NULL;
     d.address = 0;
-    d.slot = 0; /* TODO */
+    d.slot = GUM_ADDRESS (g_hash_table_lookup (ctx->slots, details->name));
 
     if (!ctx->func (&d, ctx->user_data))
       return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_try_get_jump_slot_relocation_type_for_machine (GumElfMachine machine,
+                                                   guint32 * type)
+{
+  switch (machine)
+  {
+    case GUM_ELF_MACHINE_386:
+      *type = GUM_ELF_IA32_JMP_SLOT;
+      break;
+    case GUM_ELF_MACHINE_X86_64:
+      *type = GUM_ELF_X64_JUMP_SLOT;
+      break;
+    case GUM_ELF_MACHINE_ARM:
+      *type = GUM_ELF_ARM_JUMP_SLOT;
+      break;
+    case GUM_ELF_MACHINE_AARCH64:
+      *type = GUM_ELF_ARM64_JUMP_SLOT;
+      break;
+    case GUM_ELF_MACHINE_MIPS:
+    case GUM_ELF_MACHINE_MIPS_RS3_LE:
+    case GUM_ELF_MACHINE_MIPS_X:
+      *type = GUM_ELF_MIPS_JUMP_SLOT;
+      break;
+    default:
+      *type = G_MAXUINT32;
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_maybe_collect_import_slot_from_relocation (
+    const GumElfRelocationDetails * details,
+    gpointer user_data)
+{
+  GumElfEnumerateImportsContext * ctx = user_data;
+
+  if (details->type == ctx->jump_slot_type && details->symbol != NULL)
+  {
+    g_hash_table_insert (ctx->slots, (gpointer) details->symbol->name,
+        GSIZE_TO_POINTER (details->address));
   }
 
   return TRUE;
