@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C)      2021 Paul Schmidt <p.schmidt@tu-bs.de>
  *
@@ -1396,6 +1396,8 @@ gum_elf_module_emit_relocations (GumElfModule * self,
       default:
         g_assert_not_reached ();
     }
+
+    d.address = gum_elf_module_translate_to_online (self, d.address);
 
     if (sym_index != GUM_STN_UNDEF)
     {
