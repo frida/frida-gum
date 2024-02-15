@@ -562,6 +562,7 @@ namespace Gum {
 		public string name;
 		public string module;
 		public Gum.Address address;
+		public Gum.Address slot;
 	}
 
 	[CCode (cprefix = "GUM_EXPORT_")]
