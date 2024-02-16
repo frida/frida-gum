@@ -822,7 +822,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
         gum_arm64_writer_put_push_all_x_registers (aw);
 
         gum_arm64_writer_put_call_address_with_arguments (aw,
-            GUM_ADDRESS (_gum_interceptor_translate_top_return_address), 1,
+            GUM_ADDRESS (gum_interceptor_translate_top_return_address), 1,
             GUM_ARG_REGISTER, ARM64_REG_LR);
 
         if (dst_reg >= ARM64_REG_X0 && dst_reg <= ARM64_REG_X28)

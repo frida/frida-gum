@@ -825,7 +825,7 @@ _gum_interceptor_peek_top_caller_return_address (void)
 }
 
 gpointer
-_gum_interceptor_translate_top_return_address (gpointer return_address)
+gum_interceptor_translate_top_return_address (gpointer return_address)
 {
   GumInvocationStack * stack;
   GumInvocationStackEntry * entry;

@@ -76,6 +76,9 @@ GUM_API gpointer gum_invocation_stack_translate (GumInvocationStack * self,
 GUM_API void gum_interceptor_save (GumInvocationState * state);
 GUM_API void gum_interceptor_restore (GumInvocationState * state);
 
+GUM_API gpointer gum_interceptor_translate_top_return_address (
+    gpointer return_address);
+
 G_END_DECLS
 
 #endif
