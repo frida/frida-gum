@@ -733,7 +733,10 @@ TESTCASE (module_import_slot_should_contain_correct_value)
 
   unsupported_on_this_os = slot == NULL;
   if (unsupported_on_this_os)
+  {
+    g_print ("<skipping, not yet supported on this OS> ");
     return;
+  }
 
   actual_value =
       gum_strip_code_address (GPOINTER_TO_SIZE (*slot));
