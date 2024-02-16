@@ -738,10 +738,9 @@ TESTCASE (module_import_slot_should_contain_correct_value)
     return;
   }
 
-  actual_value =
-      gum_strip_code_address (GPOINTER_TO_SIZE (*slot));
-  expected_value =
-      gum_strip_code_address (gum_module_find_export_by_name (NULL, "malloc"));
+  actual_value = gum_strip_code_address (GPOINTER_TO_SIZE (*slot));
+  expected_value = gum_strip_code_address (gum_module_find_export_by_name (
+        gum_process_query_libc_name (), "malloc"));
 
   g_assert_cmphex (actual_value, ==, expected_value);
 }
