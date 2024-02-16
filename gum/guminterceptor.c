@@ -844,6 +844,28 @@ fallback:
   return return_address;
 }
 
+gpointer
+gum_interceptor_translate_return_address (gpointer return_address)
+{
+  GumInvocationStack * stack;
+  GumInvocationStackEntry * entry;
+  gint i;
+
+  stack = gum_interceptor_get_current_stack ();
+  if (stack->len == 0)
+    goto fallback;
+
+  for (i = stack->len - 1; i >= 0; i--)
+  {
+    entry = &g_array_index (stack, GumInvocationStackEntry, i);
+    if (entry->function_ctx->on_leave_trampoline == return_address)
+      return entry->caller_ret_addr;
+  }
+
+fallback:
+  return return_address;
+}
+
 static GumFunctionContext *
 gum_interceptor_instrument (GumInterceptor * self,
                             GumInterceptorType type,
