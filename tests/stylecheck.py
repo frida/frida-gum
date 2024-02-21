@@ -43,6 +43,10 @@ COMMON_MISTAKES = [
         re.compile(r"([ \t]+)$", re.MULTILINE),
     ),
     (
+        "tabs used for indentation",
+        re.compile(r"(\t+)"),
+    ),
+    (
         "line exceeds 80 columns",
         re.compile(r"^.{81}()", re.MULTILINE),
     ),
