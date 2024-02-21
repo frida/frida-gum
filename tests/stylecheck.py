@@ -39,6 +39,10 @@ def function_parameters_are_aligned(match):
 
 COMMON_MISTAKES = [
     (
+        "trailing whitespace",
+        re.compile(r"([ \t]+)$", re.MULTILINE),
+    ),
+    (
         "line exceeds 80 columns",
         re.compile(r"^.{81}()", re.MULTILINE),
     ),
