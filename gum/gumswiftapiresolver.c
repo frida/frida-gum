@@ -588,8 +588,8 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
       module_path = module_path_copy;
     }
 
-    if (g_pattern_match_string (module_spec, module_name) ||
-        g_pattern_match_string (module_spec, module_path))
+    if (g_pattern_spec_match_string (module_spec, module_name) ||
+        g_pattern_spec_match_string (module_spec, module_path))
     {
       GArray * functions;
       guint i;
@@ -601,7 +601,7 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
         const GumFunctionMetadata * f =
             &g_array_index (functions, GumFunctionMetadata, i);
 
-        if (g_pattern_match_string (func_spec, f->name))
+        if (g_pattern_spec_match_string (func_spec, f->name))
         {
           GumApiDetails details;
 
