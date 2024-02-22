@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -238,8 +238,8 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       module_path = module_path_copy;
     }
 
-    if (g_pattern_match_string (module_spec, module_name) ||
-        g_pattern_match_string (module_spec, module_path))
+    if (g_pattern_spec_match_string (module_spec, module_name) ||
+        g_pattern_spec_match_string (module_spec, module_path))
     {
       GHashTable * functions;
       GHashTableIter function_iter;
@@ -256,7 +256,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
           const GumSectionDetails * section = &g_array_index (sections,
               GumSectionDetails, i);
 
-          if (g_pattern_match_string (item_spec, section->name))
+          if (g_pattern_spec_match_string (item_spec, section->name))
           {
             GumApiDetails details;
 
@@ -334,7 +334,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
           function_name = function_name_copy;
         }
 
-        if (g_pattern_match_string (item_spec, function_name))
+        if (g_pattern_spec_match_string (item_spec, function_name))
         {
           GumApiDetails details;
 
