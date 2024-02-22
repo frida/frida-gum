@@ -15,4 +15,8 @@ jobs:
         id: changed_lines
         uses: hestonhoffman/changed-lines@v1
       - name: Verify changed lines
-        run: ./tests/stylecheck.py '${{ steps.changed_lines.outputs.changed_lines }}'
+        run: |
+          cat << EOF > /tmp/changed-lines.json
+          ${{ steps.changed_lines.outputs.changed_lines }}
+          EOF
+          ./tests/stylecheck.py /tmp/changed-lines.json

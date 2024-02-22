@@ -39,6 +39,14 @@ def function_parameters_are_aligned(match):
 
 COMMON_MISTAKES = [
     (
+        "trailing whitespace",
+        re.compile(r"([ \t]+)$", re.MULTILINE),
+    ),
+    (
+        "tabs used for indentation",
+        re.compile(r"(\t+)"),
+    ),
+    (
         "line exceeds 80 columns",
         re.compile(r"^.{81}()", re.MULTILINE),
     ),
@@ -130,7 +138,7 @@ def main():
     repo_dir = Path(__file__).parent.parent.resolve()
 
     if len(sys.argv) == 2:
-        changed_lines = json.loads(sys.argv[1])
+        changed_lines = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
         changed_files = [Path(repo_dir / f) for f in changed_lines.keys()]
         files_to_check = [f for f in changed_files if f.suffix in INCLUDED_EXTENSIONS]
     else:
