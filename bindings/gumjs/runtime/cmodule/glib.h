@@ -124,7 +124,8 @@ gchar * g_utf8_casefold (const gchar * str, gssize len);
 gpointer g_malloc (gsize n_bytes);
 gpointer g_malloc0 (gsize n_bytes);
 gpointer g_realloc (gpointer mem, gsize n_bytes);
-gpointer g_memdup (gconstpointer mem, guint byte_size);
+gpointer g_memdup (gconstpointer mem, guint byte_size); /* Deprecated. */
+gpointer g_memdup2 (gconstpointer mem, gsize byte_size);
 void g_free (gpointer mem);
 
 typedef struct _GThread GThread;
@@ -215,6 +216,12 @@ typedef struct _GPatternSpec GPatternSpec;
 
 GPatternSpec * g_pattern_spec_new (const gchar * pattern);
 void g_pattern_spec_free (GPatternSpec * pspec);
+gboolean g_pattern_spec_match (GPatternSpec * pspec, gsize string_length,
+    const gchar * string, const gchar * string_reversed);
+gboolean g_pattern_spec_match_string (GPatternSpec * pspec,
+    const gchar * string);
+
+/* These two are deprecated: */
 gboolean g_pattern_match (GPatternSpec * pspec, guint string_length,
     const gchar * string, const gchar * string_reversed);
 gboolean g_pattern_match_string (GPatternSpec * pspec, const gchar * string);
