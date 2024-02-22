@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Eloi Vanderbeken <eloi.vanderbeken@synacktiv.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -146,7 +146,7 @@ gum_memory_access_monitor_new (const GumMemoryRange * ranges,
 
   monitor = g_object_new (GUM_TYPE_MEMORY_ACCESS_MONITOR, NULL);
 
-  monitor->ranges = g_memdup (ranges, num_ranges * sizeof (GumMemoryRange));
+  monitor->ranges = g_memdup2 (ranges, num_ranges * sizeof (GumMemoryRange));
   monitor->num_ranges = num_ranges;
   monitor->access_mask = access_mask;
   monitor->auto_reset = auto_reset;
