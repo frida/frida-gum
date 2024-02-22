@@ -320,7 +320,16 @@ gum_cmodule_get_symbols (void)
 
     symbols = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, NULL);
 
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4996)
+#endif
+
 {insertions}
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 
     _gum_register_destructor (gum_cmodule_deinit_symbols);
 
