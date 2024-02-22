@@ -291,7 +291,7 @@ gum_v8_js_event_sink_drain (GumV8JSEventSink * self)
   size = len * sizeof (GumEvent);
   if (len != 0)
   {
-    buffer = g_memdup (self->queue->data, size);
+    buffer = g_memdup2 (self->queue->data, size);
 
     gum_spinlock_acquire (&self->lock);
     g_array_remove_range (self->queue, 0, len);

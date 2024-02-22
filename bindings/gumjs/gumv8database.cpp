@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -606,7 +606,7 @@ gum_parse_column (Isolate * isolate,
     case SQLITE_BLOB:
     {
       auto size = sqlite3_column_bytes (statement, index);
-      auto data = g_memdup (sqlite3_column_blob (statement, index), size);
+      auto data = g_memdup2 (sqlite3_column_blob (statement, index), size);
       return _gum_v8_array_buffer_new_take (isolate, data, size);
     }
     case SQLITE_NULL:
