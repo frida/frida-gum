@@ -5,6 +5,7 @@
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Alex Soler <asoler@nowsecure.com>
+ * Copyright (C) 2024 Sai Cao <1665673333@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -2900,7 +2901,9 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
 
   self->generator_context->instruction = instruction;
 
-  if (is_first_instruction && (self->exec_context->sink_mask & GUM_BLOCK) != 0)
+  if (is_first_instruction &&
+     (self->exec_context->sink_mask & GUM_BLOCK) != 0 &&
+     (self->exec_block->flags & GUM_EXEC_BLOCK_USES_EXCLUSIVE_ACCESS) == 0)
   {
     gum_exec_block_write_block_event_code (self->exec_block, gc,
         GUM_CODE_INTERRUPTIBLE);
