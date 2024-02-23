@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
@@ -40,6 +40,7 @@
 #endif
 
 typedef struct _GumQuickMatchContext GumQuickMatchContext;
+typedef struct _GumQuickRunOnThreadContext GumQuickRunOnThreadContext;
 typedef struct _GumQuickFindModuleByNameContext GumQuickFindModuleByNameContext;
 typedef struct _GumQuickFindRangeByAddressContext
     GumQuickFindRangeByAddressContext;
@@ -58,6 +59,12 @@ struct _GumQuickMatchContext
 
   JSContext * ctx;
   GumQuickProcess * parent;
+};
+
+struct _GumQuickRunOnThreadContext
+{
+  JSValue user_func;
+  GumQuickCore * core;
 };
 
 struct _GumQuickFindModuleByNameContext
@@ -89,6 +96,15 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     GumQuickMatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread)
+static void gum_quick_run_on_thread_context_free (
+    GumQuickRunOnThreadContext * rc);
+static void gum_do_call_on_thread (const GumCpuContext * cpu_context,
+    gpointer user_data);
+static void gum_quick_process_maybe_start_stalker_gc_timer (
+    GumQuickProcess * self, GumQuickScope * scope);
+static gboolean gum_quick_process_on_stalker_gc_timer_tick (
+    GumQuickProcess * self);
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
 static gboolean gum_store_module_if_name_matches (
     const GumModuleDetails * details, GumQuickFindModuleByNameContext * fc);
@@ -124,6 +140,7 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("isDebuggerAttached", 0, gumjs_process_is_debugger_attached),
   JS_CFUNC_DEF ("getCurrentThreadId", 0, gumjs_process_get_current_thread_id),
   JS_CFUNC_DEF ("_enumerateThreads", 0, gumjs_process_enumerate_threads),
+  JS_CFUNC_DEF ("_runOnThread", 0, gumjs_process_run_on_thread),
   JS_CFUNC_DEF ("findModuleByName", 0, gumjs_process_find_module_by_name),
   JS_CFUNC_DEF ("_enumerateModules", 0, gumjs_process_enumerate_modules),
   JS_CFUNC_DEF ("findRangeByAddress", 0, gumjs_process_find_range_by_address),
@@ -146,7 +163,11 @@ _gum_quick_process_init (GumQuickProcess * self,
 
   self->module = module;
   self->core = core;
+
   self->main_module_value = JS_UNINITIALIZED;
+
+  self->stalker = NULL;
+  self->stalker_gc_timer = NULL;
 
   _gum_quick_core_store_module_data (core, "process", self);
 
@@ -174,6 +195,8 @@ _gum_quick_process_flush (GumQuickProcess * self)
 void
 _gum_quick_process_dispose (GumQuickProcess * self)
 {
+  g_assert (self->stalker_gc_timer == NULL);
+
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
   gumjs_free_main_module_value (self);
 }
@@ -314,6 +337,129 @@ gum_emit_thread (const GumThreadDetails * details,
   JS_FreeValue (ctx, thread);
 
   return _gum_quick_process_match_result (ctx, &result, &mc->result);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
+{
+  GumQuickProcess * self;
+  GumThreadId thread_id;
+  JSValue user_func;
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+  GumQuickRunOnThreadContext * rc;
+  gboolean success;
+
+  self = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_args_parse (args, "ZF", &thread_id, &user_func))
+    return JS_EXCEPTION;
+
+  if (self->stalker == NULL)
+    self->stalker = gum_stalker_new ();
+
+  rc = g_slice_new (GumQuickRunOnThreadContext);
+  rc->user_func = JS_DupValue (core->ctx, user_func);
+  rc->core = core;
+
+  _gum_quick_scope_suspend (&scope);
+
+  success = gum_stalker_run_on_thread (self->stalker, thread_id,
+      gum_do_call_on_thread, rc,
+      (GDestroyNotify) gum_quick_run_on_thread_context_free);
+
+  _gum_quick_scope_resume (&scope);
+
+  gum_quick_process_maybe_start_stalker_gc_timer (self, &scope);
+
+  if (!success)
+    goto run_failed;
+
+  return JS_UNDEFINED;
+
+run_failed:
+  {
+    _gum_quick_throw_literal (ctx, "failed to run on thread");
+
+    return JS_EXCEPTION;
+  }
+}
+
+static void
+gum_quick_run_on_thread_context_free (GumQuickRunOnThreadContext * rc)
+{
+  GumQuickCore * core = rc->core;
+  GumQuickScope scope;
+
+  _gum_quick_scope_enter (&scope, core);
+  JS_FreeValue (core->ctx, rc->user_func);
+  _gum_quick_scope_leave (&scope);
+
+  g_slice_free (GumQuickRunOnThreadContext, rc);
+}
+
+static void
+gum_do_call_on_thread (const GumCpuContext * cpu_context,
+                       gpointer user_data)
+{
+  GumQuickRunOnThreadContext * rc = user_data;
+  GumQuickScope scope;
+
+  _gum_quick_scope_enter (&scope, rc->core);
+  _gum_quick_scope_call (&scope, rc->user_func, JS_UNDEFINED, 0, NULL);
+  _gum_quick_scope_leave (&scope);
+}
+
+static void
+gum_quick_process_maybe_start_stalker_gc_timer (GumQuickProcess * self,
+                                                GumQuickScope * scope)
+{
+  GumQuickCore * core = self->core;
+  GSource * source;
+
+  if (self->stalker_gc_timer != NULL)
+    return;
+
+  if (!gum_stalker_garbage_collect (self->stalker))
+  {
+    g_object_unref (self->stalker);
+    self->stalker = NULL;
+    return;
+  }
+
+  source = g_timeout_source_new (10);
+  g_source_set_callback (source,
+      (GSourceFunc) gum_quick_process_on_stalker_gc_timer_tick, self, NULL);
+  self->stalker_gc_timer = source;
+
+  _gum_quick_core_pin (core);
+  _gum_quick_scope_suspend (scope);
+
+  g_source_attach (source,
+      gum_script_scheduler_get_js_context (core->scheduler));
+  g_source_unref (source);
+
+  _gum_quick_scope_resume (scope);
+}
+
+static gboolean
+gum_quick_process_on_stalker_gc_timer_tick (GumQuickProcess * self)
+{
+  gboolean pending_garbage;
+
+  pending_garbage = gum_stalker_garbage_collect (self->stalker);
+  if (!pending_garbage)
+  {
+    GumQuickCore * core = self->core;
+    GumQuickScope scope;
+
+    _gum_quick_scope_enter (&scope, core);
+
+    _gum_quick_core_unpin (core);
+    self->stalker_gc_timer = NULL;
+
+    _gum_quick_scope_leave (&scope);
+  }
+
+  return pending_garbage ? G_SOURCE_CONTINUE : G_SOURCE_REMOVE;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)

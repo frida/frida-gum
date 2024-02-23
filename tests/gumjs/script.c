@@ -213,6 +213,11 @@ TESTLIST_BEGIN (script)
 #endif
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("RunOnThread")
+    TESTENTRY (process_can_run_on_thread_with_success)
+    TESTENTRY (process_can_run_on_thread_with_failure)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("Module")
     TESTENTRY (module_imports_can_be_enumerated)
     TESTENTRY (module_imports_can_be_enumerated_legacy_style)
@@ -500,6 +505,7 @@ TESTLIST_END ()
 typedef int (* TargetFunctionInt) (int arg);
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 typedef struct _GumNamedSleeperContext GumNamedSleeperContext;
+typedef struct _TestRunOnThreadSyncContext TestRunOnThreadSyncContext;
 typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
 typedef struct _TestTrigger TestTrigger;
 
@@ -515,6 +521,15 @@ struct _GumNamedSleeperContext
 {
   GAsyncQueue * controller_messages;
   GAsyncQueue * sleeper_messages;
+};
+
+struct _TestRunOnThreadSyncContext
+{
+  GMutex mutex;
+  GCond cond;
+  gboolean started;
+  GumThreadId thread_id;
+  gboolean * done;
 };
 
 struct _GumCrashExceptorContext
@@ -570,6 +585,10 @@ static gpointer run_stalked_through_target_function (gpointer data);
 
 static gpointer sleeping_dummy (gpointer data);
 G_GNUC_UNUSED static gpointer named_sleeper (gpointer data);
+static GThread * create_sleeping_dummy_thread_sync (gboolean * done,
+    GumThreadId * thread_id);
+static gpointer sleeping_dummy_func (gpointer data);
+static const gchar * get_local_thread_string_value (void);
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 static gpointer invoke_target_function_trigger (gpointer data);
@@ -622,6 +641,7 @@ static int target_function_nested_b (int arg);
 static int target_function_nested_c (int arg);
 
 static TargetFunctionInt target_function_original = NULL;
+static GPrivate target_thread_string_value = G_PRIVATE_INIT (g_free);
 
 gint gum_script_dummy_global_to_trick_optimizer = 0;
 
@@ -5379,6 +5399,113 @@ TESTCASE (process_malloc_ranges_can_be_enumerated_legacy_style)
 }
 
 #endif
+
+TESTCASE (process_can_run_on_thread_with_success)
+{
+  GThread * thread;
+  GumThreadId thread_id;
+  gboolean done = FALSE;
+
+  thread = create_sleeping_dummy_thread_sync (&done, &thread_id);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const getLocalThreadStringValue = new NativeFunction(" GUM_PTR_CONST ", "
+        "'pointer', []);"
+      "Process.runOnThread(0x%" G_GSIZE_MODIFIER "x, () => {"
+      "  return getLocalThreadStringValue().readUtf8String();"
+      "})"
+      ".then(str => { send(str); });",
+      get_local_thread_string_value,
+      thread_id);
+
+  EXPECT_SEND_MESSAGE_WITH ("\"53Cr3t\"");
+
+  done = TRUE;
+  g_thread_join (thread);
+
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (process_can_run_on_thread_with_failure)
+{
+  GThread * thread;
+  GumThreadId thread_id;
+  gboolean done = FALSE;
+
+  thread = create_sleeping_dummy_thread_sync (&done, &thread_id);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Process.runOnThread(0x%" G_GSIZE_MODIFIER "x, () => {"
+      "  throw new Error('epic fail');"
+      "})"
+      ".catch(e => { send(e.message); });",
+      thread_id);
+
+  EXPECT_SEND_MESSAGE_WITH ("\"epic fail\"");
+
+  done = TRUE;
+  g_thread_join (thread);
+
+  EXPECT_NO_MESSAGES ();
+}
+
+static GThread *
+create_sleeping_dummy_thread_sync (gboolean * done,
+                                   GumThreadId * thread_id)
+{
+  TestRunOnThreadSyncContext sync_data;
+  GThread * thread;
+
+  g_mutex_init (&sync_data.mutex);
+  g_cond_init (&sync_data.cond);
+  sync_data.started = FALSE;
+  sync_data.thread_id = 0;
+  sync_data.done = done;
+
+  g_mutex_lock (&sync_data.mutex);
+
+  thread = g_thread_new ("gumjs-test-sleeping-dummy-func", sleeping_dummy_func,
+      &sync_data);
+
+  while (!sync_data.started)
+    g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  if (thread_id != NULL)
+    *thread_id = sync_data.thread_id;
+
+  g_mutex_unlock (&sync_data.mutex);
+
+  g_cond_clear (&sync_data.cond);
+  g_mutex_clear (&sync_data.mutex);
+
+  return thread;
+}
+
+static gpointer
+sleeping_dummy_func (gpointer data)
+{
+  TestRunOnThreadSyncContext * sync_data = data;
+  gboolean * done = sync_data->done;
+
+  g_private_replace (&target_thread_string_value, g_strdup ("53Cr3t"));
+
+  g_mutex_lock (&sync_data->mutex);
+  sync_data->started = TRUE;
+  sync_data->thread_id = gum_process_get_current_thread_id ();
+  g_cond_signal (&sync_data->cond);
+  g_mutex_unlock (&sync_data->mutex);
+
+  while (!(*done))
+    g_thread_yield ();
+
+  return NULL;
+}
+
+static const gchar *
+get_local_thread_string_value (void)
+{
+  return g_private_get (&target_thread_string_value);
+}
 
 TESTCASE (process_system_ranges_can_be_enumerated)
 {
