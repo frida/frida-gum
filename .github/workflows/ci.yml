@@ -37,7 +37,7 @@ jobs:
           ./configure \
               --enable-shared \
               --without-prebuilds=toolchain,sdk \
-              ${{ env.GUM_OPTIONS }}
+              --disable-tests
           make
       - name: Upload GObject introspection data
         uses: actions/upload-artifact@v4
