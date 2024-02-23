@@ -5,6 +5,7 @@
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Alex Soler <asoler@nowsecure.com>
+ * Copyright (C) 2024 Sai Cao <1665673333@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -2833,7 +2834,7 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
 
   if (is_first_instruction &&
      (self->exec_context->sink_mask & GUM_BLOCK) != 0 &&
-     (self->exec_block->flags&GUM_EXEC_BLOCK_USES_EXCLUSIVE_ACCESS)==0)
+     (self->exec_block->flags & GUM_EXEC_BLOCK_USES_EXCLUSIVE_ACCESS) == 0)
   {
     gum_exec_block_write_block_event_code (self->exec_block, gc,
         GUM_CODE_INTERRUPTIBLE);
@@ -5447,6 +5448,7 @@ gum_exec_block_write_exec_event_code (GumExecBlock * block,
                                       GumCodeContext cc)
 {
   gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc, gc->code_writer);
+
   gum_arm64_writer_put_call_address_with_arguments (gc->code_writer,
       GUM_ADDRESS (gum_exec_ctx_emit_exec_event), 3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (block->ctx),
