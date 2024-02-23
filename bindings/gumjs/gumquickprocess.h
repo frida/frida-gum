@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -22,6 +22,10 @@ struct _GumQuickProcess
   GumQuickCore * core;
 
   JSValue main_module_value;
+
+  GumStalker * stalker;
+  GSource * stalker_gc_timer;
+
   GumQuickExceptionHandler * exception_handler;
 };
 

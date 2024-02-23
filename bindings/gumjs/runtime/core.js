@@ -403,6 +403,20 @@ makeEnumerateRanges(Process);
 makeEnumerateApi(Process, 'enumerateMallocRanges', 0);
 
 Object.defineProperties(Process, {
+  runOnThread: {
+    enumerable: true,
+    value: function (threadId, callback) {
+      return new Promise((resolve, reject) => {
+        Process._runOnThread(threadId, () => {
+          try {
+            resolve(callback());
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+    },
+  },
   findModuleByAddress: {
     enumerable: true,
     value: function (address) {
