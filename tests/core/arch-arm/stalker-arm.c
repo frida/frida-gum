@@ -3259,7 +3259,7 @@ add_n_return_value_increments (GumStalkerIterator * iterator,
 TESTCODE (arm_simple_call,
     0x04, 0xe0, 0x2d, 0xe5, /* push {lr}       */
     0x0d, 0x00, 0x00, 0xe3, /* mov r0, 13      */
-    0x00, 0x00, 0x00, 0xfa, /* blx bump_number */
+    0x00, 0x00, 0x00, 0xeb, /* bl bump_number */
     0x04, 0xf0, 0x9d, 0xe4, /* pop {pc}        */
     /* bump_number:                            */
     0x25, 0x00, 0x80, 0xe2, /* add r0, 37      */
@@ -3275,7 +3275,7 @@ TESTCASE (arm_transformer_should_be_able_to_replace_call_with_callout)
   fixture->transformer = gum_stalker_transformer_make_from_callback (
       replace_call_with_callout, NULL, NULL);
 
-  INVOKE_ARM_EXPECTING (GUM_EXEC, code, 0xc001);
+  INVOKE_ARM_EXPECTING (GUM_NOTHING, arm_simple_call, 0xc001);
 }
 
 static void
@@ -3284,16 +3284,17 @@ replace_call_with_callout (GumStalkerIterator * iterator,
                            gpointer user_data)
 {
   const cs_insn * insn;
-
+  static int num = 0;
   while (gum_stalker_iterator_next (iterator, &insn))
   {
-    if (insn->id == ARM_INS_BLX)
+    if (num == 4)
     {
       gum_stalker_iterator_put_callout (iterator, callout_set_cool,
-          NULL, NULL);
-      continue;
+          NULL, NULL); 
+    } else {
+      gum_stalker_iterator_keep (iterator);
     }
-    gum_stalker_iterator_keep (iterator);
+    num++;
   }
 }
 
