@@ -2588,7 +2588,7 @@ gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
    GumBranchTarget target = {0};
 
    target.type = GUM_TARGET_DIRECT_REG_OFFSET;
-   GumBranchDirectRegOffset* value = &target.value.direct_reg_offset;
+   GumBranchDirectRegOffset * value = &target.value.direct_reg_offset;
    value->reg = ARM_REG_LR;
    value->offset = 0;
    value->mode = GUM_ARM_MODE_CURRENT;
@@ -2796,13 +2796,6 @@ gum_stalker_iterator_handle_thumb_it_insn (GumStalkerIterator * self)
        */
       insn->detail->arm.cc = ARM_CC_AL;
       gum_stalker_iterator_handle_thumb_branch_insn (self, insn);
-
-      /*
-       * Put a breakpoint to trap and detect any errant continued execution (the
-       * branch should handle any possible continuation). The original instruction
-       * is skipped by the branch code
-       */
-      //gum_thumb_writer_put_breakpoint (gc->thumb_writer);
     }
     else
     {
@@ -4732,6 +4725,7 @@ gum_exec_block_virtualize_arm_svc_insn (GumExecBlock * block,
   gum_exec_block_dont_virtualize_arm_insn (block, gc);
 
 #ifdef HAVE_LINUX
+  {
     GumArmWriter * cw = gc->arm_writer;
     gconstpointer not_cloned_child = cw->code + 1;
 
@@ -4763,6 +4757,7 @@ gum_exec_block_virtualize_arm_svc_insn (GumExecBlock * block,
     /* Restore the flags */
     gum_arm_writer_put_mov_cpsr_reg (cw, ARM_REG_R1);
     gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_R1);
+  }
 #endif
 }
 
@@ -5105,7 +5100,7 @@ gum_exec_block_write_arm_handle_excluded (GumExecBlock * block,
   if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
     if (!check (block->ctx, target->value.direct_address.address)){
-      gum_arm_relocator_skip_one (gc->arm_relocator); //in the case we return early, we still need to skip
+      gum_arm_relocator_skip_one (gc->arm_relocator);
       return;
     }
   }
