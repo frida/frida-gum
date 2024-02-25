@@ -3284,17 +3284,17 @@ replace_call_with_callout (GumStalkerIterator * iterator,
                            gpointer user_data)
 {
   const cs_insn * insn;
-  static int num = 0;
+  static int insn_num = 0;
   while (gum_stalker_iterator_next (iterator, &insn))
   {
-    if (num == 4)
+    if (insn_num == 4)
     {
       gum_stalker_iterator_put_callout (iterator, callout_set_cool,
           NULL, NULL); 
     } else {
       gum_stalker_iterator_keep (iterator);
     }
-    num++;
+    insn_num++;
   }
 }
 
