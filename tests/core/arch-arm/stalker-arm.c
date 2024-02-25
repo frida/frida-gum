@@ -3268,10 +3268,6 @@ TESTCODE (arm_simple_call,
 
 TESTCASE (arm_transformer_should_be_able_to_replace_call_with_callout)
 {
-  guint32 code[CODE_SIZE (arm_simple_call) / sizeof (guint32)];
-
-  memcpy (code, arm_simple_call, CODE_SIZE (arm_simple_call));
-
   fixture->transformer = gum_stalker_transformer_make_from_callback (
       replace_call_with_callout, NULL, NULL);
 
@@ -3291,7 +3287,9 @@ replace_call_with_callout (GumStalkerIterator * iterator,
     {
       gum_stalker_iterator_put_callout (iterator, callout_set_cool,
           NULL, NULL); 
-    } else {
+    } 
+    else 
+    {
       gum_stalker_iterator_keep (iterator);
     }
     insn_num++;
@@ -3308,14 +3306,10 @@ TESTCODE (arm_simple_jumpout,
 
 TESTCASE (arm_transformer_should_be_able_to_replace_jumpout_with_callout)
 {
-  guint32 code[CODE_SIZE (arm_simple_jumpout) / sizeof (guint32)];
-
-  memcpy (code, arm_simple_jumpout, CODE_SIZE (arm_simple_jumpout));
-
   fixture->transformer = gum_stalker_transformer_make_from_callback (
       replace_jumpout_with_callout, NULL, NULL);
 
-  INVOKE_ARM_EXPECTING (GUM_EXEC, code, 0xc001);
+  INVOKE_ARM_EXPECTING (GUM_EXEC, arm_simple_jumpout, 0xc001);
 }
 
 static void
