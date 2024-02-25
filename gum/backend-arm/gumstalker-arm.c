@@ -2451,7 +2451,9 @@ gum_stalker_iterator_arm_next (GumStalkerIterator * self,
     {
       gc->continuation_real_address = instruction->end;
       return FALSE;
-    } else if (!skip_implicitly_requested && gum_arm_relocator_eob (rl)){
+    } 
+    else if (!skip_implicitly_requested && gum_arm_relocator_eob (rl)) 
+    {
       return FALSE;
     }
   }
@@ -2510,7 +2512,9 @@ gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
     {
       gc->continuation_real_address = instruction->end;
       return FALSE;
-    } else if (!skip_implicitly_requested && gum_thumb_relocator_eob (rl)){
+    } 
+    else if (!skip_implicitly_requested && gum_thumb_relocator_eob (rl))
+    {
       return FALSE;
     }
   }
@@ -2585,7 +2589,7 @@ gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
 {
    GumExecBlock * block = self->exec_block;
    GumGeneratorContext * gc = self->generator_context;
-   GumBranchTarget target = {0};
+   GumBranchTarget target;
 
    target.type = GUM_TARGET_DIRECT_REG_OFFSET;
    GumBranchDirectRegOffset * value = &target.value.direct_reg_offset;
@@ -2593,12 +2597,14 @@ gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
    value->offset = 0;
    value->mode = GUM_ARM_MODE_CURRENT;
 
-  if(gc->is_thumb){
-    gum_exec_block_virtualize_thumb_ret_insn(block, &target, false, 0, gc);
-  }else{
-    gum_exec_block_virtualize_arm_ret_insn(block, &target, ARM_CC_AL, false, 0, gc);
+  if (gc->is_thumb)
+  {
+    gum_exec_block_virtualize_thumb_ret_insn (block, &target, false, 0, gc);
   }
-
+  else
+  {
+    gum_exec_block_virtualize_arm_ret_insn (block, &target, ARM_CC_AL, false, 0, gc);
+  }
 }
 
 GumMemoryAccess
@@ -2730,13 +2736,13 @@ gum_stalker_iterator_handle_thumb_branch_insn (GumStalkerIterator * self,
     case ARM_INS_MOV:
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
       gum_exec_block_virtualize_thumb_ret_insn (block, &target, FALSE, 0, gc);
-      gum_thumb_relocator_skip_one(gc->thumb_relocator); 
+      gum_thumb_relocator_skip_one (gc->thumb_relocator); 
       break;
     case ARM_INS_POP:
     case ARM_INS_LDM:
       gum_stalker_get_target_address (insn, TRUE, &target, &mask);
       gum_exec_block_virtualize_thumb_ret_insn (block, &target, TRUE, mask, gc);
-      gum_thumb_relocator_skip_one(gc->thumb_relocator); 
+      gum_thumb_relocator_skip_one (gc->thumb_relocator); 
       break;
     case ARM_INS_SMC:
     case ARM_INS_HVC:
@@ -4534,8 +4540,7 @@ gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
    * middle of the relocated branch
   */
 
-  gum_thumb_relocator_skip_one(gc->thumb_relocator);
-
+  gum_thumb_relocator_skip_one (gc->thumb_relocator);
 }
 
 static void
@@ -4566,7 +4571,6 @@ gum_exec_block_virtualize_arm_call_insn (GumExecBlock * block,
   gum_arm_writer_put_ldr_reg_address (gc->arm_writer, ARM_REG_LR,
       GUM_ADDRESS (ret_real_address));
   gum_exec_block_write_arm_exec_generated_code (gc->arm_writer, block->ctx);
-  
 }
 
 static void
@@ -4601,8 +4605,7 @@ gum_exec_block_virtualize_thumb_call_insn (GumExecBlock * block,
    * of the relocated branch
   */
 
-  gum_thumb_relocator_skip_one(gc->thumb_relocator); 
-  
+  gum_thumb_relocator_skip_one (gc->thumb_relocator); 
 }
 
 static void
@@ -5099,7 +5102,8 @@ gum_exec_block_write_arm_handle_excluded (GumExecBlock * block,
    */
   if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
-    if (!check (block->ctx, target->value.direct_address.address)){
+    if (!check (block->ctx, target->value.direct_address.address))
+    {
       gum_arm_relocator_skip_one (gc->arm_relocator);
       return;
     }
@@ -5167,7 +5171,6 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
     if (!check (block->ctx, target->value.direct_address.address)){
       return;
     }
-    
   }
 
   if (target->type != GUM_TARGET_DIRECT_ADDRESS)
