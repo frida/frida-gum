@@ -5168,7 +5168,8 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
 
   if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
-    if (!check (block->ctx, target->value.direct_address.address)){
+    if (!check (block->ctx, target->value.direct_address.address))
+    {
       return;
     }
   }
