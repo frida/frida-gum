@@ -2603,7 +2603,8 @@ gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
   }
   else
   {
-    gum_exec_block_virtualize_arm_ret_insn (block, &target, ARM_CC_AL, false, 0, gc);
+    gum_exec_block_virtualize_arm_ret_insn (block, &target, ARM_CC_AL, false, 
+        0, gc);
   }
 }
 
@@ -4666,7 +4667,7 @@ gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
 
   gum_exec_block_write_arm_exec_generated_code (gc->arm_writer, block->ctx);
 
-  gum_arm_relocator_skip_one(gc->arm_relocator);
+  gum_arm_relocator_skip_one (gc->arm_relocator);
 }
 
 static void
