@@ -272,9 +272,15 @@ gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   install: true,
 )
 
+gumjs_vars = [
+  'gumjs_qjs=' + quickjs_dep.found().to_string('enabled', 'disabled'),
+  'gumjs_v8=' + v8_dep.found().to_string('enabled', 'disabled'),
+]
+
 gumjs_dep = declare_dependency(link_with: gumjs,
   include_directories: [bindings_inc, include_directories('.')],
   dependencies: gumjs_deps,
+  variables: gumjs_vars,
 )
 
 pkg = import('pkgconfig')
@@ -286,10 +292,7 @@ pkg.generate(filebase: 'frida-gumjs-' + api_version,
   requires_private: ['libffi', 'capstone'] + gumjs_extra_requires,
   subdirs: install_header_basedir,
   libraries: [gumjs],
-  variables: [
-    'gumjs_qjs=' + quickjs_dep.found().to_string('enabled', 'disabled'),
-    'gumjs_v8=' + v8_dep.found().to_string('enabled', 'disabled'),
-  ],
+  variables: gumjs_vars,
 )
 
 meson.override_dependency('frida-gumjs-' + api_version, gumjs_dep)
