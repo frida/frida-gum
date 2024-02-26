@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,7 +10,7 @@
 
 #include "guminterceptor.h"
 #ifdef HAVE_DARWIN
-# include "backend-darwin/gumdarwin.h"
+# include "gum/gumdarwin.h"
 #endif
 #ifdef HAVE_LINUX
 # include "backend-linux/gumlinux.h"

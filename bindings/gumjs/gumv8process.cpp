@@ -11,11 +11,11 @@
 #include "gumv8macros.h"
 #include "gumv8matchcontext.h"
 #include "gumv8scope.h"
-#ifdef HAVE_DARWIN
-# include <gumdarwin.h>
-#endif
 
 #include <string.h>
+#ifdef HAVE_DARWIN
+# include <gum/gumdarwin.h>
+#endif
 
 #define GUMJS_MODULE_NAME Process
 

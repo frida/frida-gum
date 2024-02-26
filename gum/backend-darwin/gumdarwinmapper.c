@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,9 +7,9 @@
 
 #ifndef GUM_DIET
 
-#include "gumdarwinmapper.h"
+#include "gum/gumdarwinmapper.h"
 
-#include "gumdarwin.h"
+#include "gum/gumdarwin.h"
 #include "gumdarwinmodule.h"
 #include "helpers/fixupchainprocessor.h"
 

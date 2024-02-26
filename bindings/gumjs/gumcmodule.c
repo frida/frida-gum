@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,7 +13,7 @@
 #include <gum/gum.h>
 #include <json-glib/json-glib.h>
 #ifdef HAVE_DARWIN
-# include <gum/backend-darwin/gumdarwinmapper.h>
+# include <gum/gumdarwinmapper.h>
 #endif
 
 #ifdef HAVE_TINYCC

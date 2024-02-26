@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gummemory.h"
 
-#include "gumdarwin.h"
+#include "gum/gumdarwin.h"
 #include "gummemory-priv.h"
 
 #include <errno.h>

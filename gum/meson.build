@@ -109,11 +109,11 @@ endif
 
 if host_os_family == 'darwin'
   gum_backend_headers += [
-    'backend-darwin/gumdarwin.h',
-    'backend-darwin/gumdarwinbacktracer.h',
-    'backend-darwin/gumdarwinsymbolicator.h',
-    'backend-darwin/gumdarwinmapper.h',
-    'backend-darwin/gumdarwinmoduleresolver.h',
+    'backend-darwin' / 'include' / 'gum' / 'gumdarwin.h',
+    'backend-darwin' / 'include' / 'gum' / 'gumdarwinbacktracer.h',
+    'backend-darwin' / 'include' / 'gum' / 'gumdarwinsymbolicator.h',
+    'backend-darwin' / 'include' / 'gum' / 'gumdarwinmapper.h',
+    'backend-darwin' / 'include' / 'gum' / 'gumdarwinmoduleresolver.h',
   ]
   gum_sources += [
     'backend-darwin/gumobjcapiresolver.c',

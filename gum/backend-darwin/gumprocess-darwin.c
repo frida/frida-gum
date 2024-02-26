@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
@@ -12,7 +12,7 @@
 #include "gumprocess-priv.h"
 
 #include "gum-init.h"
-#include "gumdarwin.h"
+#include "gum/gumdarwin.h"
 #include "gumdarwinmodule.h"
 #include "gumleb.h"
 #include "gumprocess-darwin-priv.h"

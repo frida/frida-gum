@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,7 +7,7 @@
 
 #ifndef GUM_DIET
 
-#include "gumdarwinsymbolicator.h"
+#include "gum/gumdarwinsymbolicator.h"
 
 #include "gum-init.h"
 #include "gumapiresolver.h"

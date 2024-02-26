@@ -9,8 +9,9 @@
 #include "gumquickprocess.h"
 
 #include "gumquickmacros.h"
+
 #ifdef HAVE_DARWIN
-# include <gumdarwin.h>
+# include <gum/gumdarwin.h>
 #endif
 
 #if defined (HAVE_I386)

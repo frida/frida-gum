@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -33,7 +33,7 @@
 # include "backend-dbghelp/gumdbghelpbacktracer.h"
 # include "arch-x86/gumx86backtracer.h"
 #elif defined (HAVE_DARWIN)
-# include "backend-darwin/gumdarwinbacktracer.h"
+# include "gum/gumdarwinbacktracer.h"
 #elif defined (HAVE_LIBUNWIND)
 # include "backend-libunwind/gumunwbacktracer.h"
 #endif

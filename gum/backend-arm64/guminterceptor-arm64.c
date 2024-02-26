@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -14,7 +14,7 @@
 #include "gumlibc.h"
 #include "gummemory.h"
 #ifdef HAVE_DARWIN
-# include "gumdarwin.h"
+# include "gum/gumdarwin.h"
 # include "gumdarwingrafter-priv.h"
 #endif
 

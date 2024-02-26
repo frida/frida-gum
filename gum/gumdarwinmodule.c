@@ -12,7 +12,7 @@
 
 #include "gumdarwinmodule-priv.h"
 #ifdef HAVE_DARWIN
-# include "backend-darwin/gumdarwin.h"
+# include "gum/gumdarwin.h"
 #endif
 #include "gumleb.h"
 #include "gumkernel.h"

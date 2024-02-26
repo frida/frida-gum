@@ -683,7 +683,7 @@ endif
 
 if host_os_family == 'darwin'
   gum_incdirs += [
-    include_directories('gum/backend-darwin'),
+    include_directories('gum' / 'backend-darwin' / 'include'),
   ]
 endif
 

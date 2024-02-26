@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,7 +9,7 @@
 #include "gumtvos.h"
 #include "gum-init.h"
 #include "gumcloak.h"
-#include "gumdarwin.h"
+#include "gum/gumdarwin.h"
 #include "substratedclient.h"
 
 #include <CommonCrypto/CommonDigest.h>

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Stefano Moioli <smxdev4@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -21,7 +21,7 @@
 #  include <cpuid.h>
 # endif
 #elif defined (HAVE_ARM64) && defined (HAVE_DARWIN)
-# include "backend-darwin/gumdarwin.h"
+# include "gum/gumdarwin.h"
 #endif
 
 #include <stdarg.h>

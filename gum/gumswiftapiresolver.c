@@ -18,7 +18,7 @@
 #include "gumswiftapiresolver.h"
 
 #ifdef HAVE_DARWIN
-# include "gumdarwin.h"
+# include "gum/gumdarwin.h"
 #else
 # include "gummodulemap.h"
 #endif

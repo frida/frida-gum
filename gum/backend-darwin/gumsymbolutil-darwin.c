@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -9,7 +9,7 @@
 #include "gumsymbolutil.h"
 
 #include "gum-init.h"
-#include "gumdarwinsymbolicator.h"
+#include "gum/gumdarwinsymbolicator.h"
 
 #include <mach-o/dyld.h>
 

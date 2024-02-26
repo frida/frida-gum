@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #ifndef GUM_DIET
 
-#include "gumdarwinmoduleresolver.h"
+#include "gum/gumdarwinmoduleresolver.h"
 
-#include "gumdarwin.h"
+#include "gum/gumdarwin.h"
 
 #include <mach-o/loader.h>
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,7 +8,7 @@
 #include "gumkernel.h"
 
 #include "gum-init.h"
-#include "gumdarwin.h"
+#include "gum/gumdarwin.h"
 #include "gummemory-priv.h"
 #include "gumprocess-darwin-priv.h"
 
