@@ -917,7 +917,7 @@ TESTCASE (get_set_system_error)
 
 #ifdef HAVE_DARWIN
 
-#include <gum/backend-darwin/gumdarwin.h>
+#include "gum/gumdarwin.h"
 #include <mach/mach.h>
 
 static mach_port_t

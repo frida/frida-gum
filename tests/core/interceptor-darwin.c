@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "interceptor-darwin-fixture.c"
 
-#include "backend-darwin/gumdarwin.h"
+#include "gum/gumdarwin.h"
 
 #include <errno.h>
 #include <fcntl.h>

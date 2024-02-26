@@ -1,6 +1,6 @@
 #ifdef HAVE_DARWIN
 
-#include "backend-darwin/gumdarwinmapper.h"
+#include "gum/gumdarwinmapper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
