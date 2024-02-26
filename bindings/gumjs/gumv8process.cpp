@@ -195,6 +195,7 @@ _gum_v8_process_dispose (GumV8Process * self)
 void
 _gum_v8_process_finalize (GumV8Process * self)
 {
+  g_clear_object (&self->stalker);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
@@ -350,11 +351,7 @@ gum_v8_process_maybe_start_stalker_gc_timer (GumV8Process * self)
     return;
 
   if (!gum_stalker_garbage_collect (self->stalker))
-  {
-    g_object_unref (self->stalker);
-    self->stalker = NULL;
     return;
-  }
 
   auto source = g_timeout_source_new (10);
   g_source_set_callback (source,

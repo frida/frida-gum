@@ -214,6 +214,7 @@ gumjs_free_main_module_value (GumQuickProcess * self)
 void
 _gum_quick_process_finalize (GumQuickProcess * self)
 {
+  g_clear_object (&self->stalker);
 }
 
 static GumQuickProcess *
@@ -419,11 +420,7 @@ gum_quick_process_maybe_start_stalker_gc_timer (GumQuickProcess * self,
     return;
 
   if (!gum_stalker_garbage_collect (self->stalker))
-  {
-    g_object_unref (self->stalker);
-    self->stalker = NULL;
     return;
-  }
 
   source = g_timeout_source_new (10);
   g_source_set_callback (source,
