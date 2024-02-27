@@ -19,7 +19,7 @@
 # include "gum/gumfreebsd.h"
 #endif
 #ifdef HAVE_QNX
-# include "backend-qnx/gumqnx.h"
+# include "gum/gumqnx.h"
 /* Work around conflict between QNX headers and Capstone. */
 # undef ARM_REG_R0
 # undef ARM_REG_R1

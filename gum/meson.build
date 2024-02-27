@@ -180,7 +180,7 @@ endif
 
 if host_os_family == 'qnx'
   gum_backend_headers += [
-    'backend-qnx/gumqnx.h',
+    'backend-qnx' / 'include' / 'gum' / 'gumqnx.h',
   ]
   gum_sources += [
     'backend-qnx/gumprocess-qnx.c',

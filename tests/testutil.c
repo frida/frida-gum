@@ -15,7 +15,7 @@
 # include "gum/gumfreebsd.h"
 #endif
 #ifdef HAVE_QNX
-# include "backend-qnx/gumqnx.h"
+# include "gum/gumqnx.h"
 #endif
 
 #if defined (HAVE_WINDOWS) && defined (_DEBUG)

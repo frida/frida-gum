@@ -9,7 +9,7 @@
 
 #include "backend-elf/gumprocess-elf.h"
 #include "gum-init.h"
-#include "gumqnx.h"
+#include "gum/gumqnx.h"
 #include "gumqnx-priv.h"
 
 #include <devctl.h>
