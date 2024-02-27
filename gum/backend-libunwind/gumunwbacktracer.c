@@ -15,7 +15,7 @@
 # define gum_os_unparse_ucontext gum_linux_unparse_ucontext
 #endif
 #ifdef HAVE_FREEBSD
-# include "backend-freebsd/gumfreebsd.h"
+# include "gum/gumfreebsd.h"
 # define gum_os_unparse_ucontext gum_freebsd_unparse_ucontext
 #endif
 #ifdef HAVE_QNX

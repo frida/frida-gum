@@ -167,7 +167,7 @@ endif
 
 if host_os_family == 'freebsd'
   gum_backend_headers += [
-    'backend-freebsd/gumfreebsd.h',
+    'backend-freebsd' / 'include' / 'gum' / 'gumfreebsd.h',
   ]
   gum_sources += [
     'backend-freebsd/gummemory-freebsd.c',

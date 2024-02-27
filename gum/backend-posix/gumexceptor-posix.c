@@ -16,7 +16,7 @@
 # include "gum/gumlinux.h"
 #endif
 #ifdef HAVE_FREEBSD
-# include "backend-freebsd/gumfreebsd.h"
+# include "gum/gumfreebsd.h"
 #endif
 #ifdef HAVE_QNX
 # include "backend-qnx/gumqnx.h"

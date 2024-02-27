@@ -9,7 +9,7 @@
 
 #include "backend-elf/gumprocess-elf.h"
 #include "gum-init.h"
-#include "gumfreebsd.h"
+#include "gum/gumfreebsd.h"
 
 #include <dlfcn.h>
 #include <errno.h>

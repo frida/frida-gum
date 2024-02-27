@@ -693,6 +693,12 @@ if host_os_family == 'linux'
   ]
 endif
 
+if host_os_family == 'freebsd'
+  gum_incdirs += [
+    include_directories('gum' / 'backend-freebsd' / 'include'),
+  ]
+endif
+
 if host_os_family == 'linux' or host_os_family == 'qnx'
   gum_incdirs += [
     include_directories('gum/backend-elf'),
