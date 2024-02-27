@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
@@ -11,9 +11,9 @@
 
 #include "backend-elf/gumprocess-elf.h"
 #include "gum-init.h"
+#include "gum/gumlinux.h"
 #include "gumandroid.h"
 #include "gumelfmodule.h"
-#include "gumlinux.h"
 #include "gumlinux-priv.h"
 #include "gummodulemap.h"
 #include "valgrind.h"

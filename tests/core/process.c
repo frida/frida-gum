@@ -24,7 +24,7 @@
 #endif
 
 #if defined (HAVE_LINUX)
-# include "backend-linux/gumlinux.h"
+# include "gum/gumlinux.h"
 #endif
 
 #define TESTCASE(NAME) \

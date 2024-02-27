@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -11,7 +11,7 @@
 
 #include "guminterceptor.h"
 #ifdef HAVE_LINUX
-# include "backend-linux/gumlinux.h"
+# include "gum/gumlinux.h"
 # define gum_os_unparse_ucontext gum_linux_unparse_ucontext
 #endif
 #ifdef HAVE_FREEBSD

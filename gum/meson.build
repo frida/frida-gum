@@ -146,7 +146,7 @@ endif
 
 if host_os_family == 'linux'
   gum_backend_headers += [
-    'backend-linux/gumlinux.h',
+    'backend-linux' / 'include' / 'gum' / 'gumlinux.h',
   ]
   gum_sources += [
     'backend-linux/gummemory-linux.c',

@@ -13,7 +13,7 @@
 # include "gum/gumdarwin.h"
 #endif
 #ifdef HAVE_LINUX
-# include "backend-linux/gumlinux.h"
+# include "gum/gumlinux.h"
 #endif
 #ifdef HAVE_FREEBSD
 # include "backend-freebsd/gumfreebsd.h"

@@ -687,6 +687,12 @@ if host_os_family == 'darwin'
   ]
 endif
 
+if host_os_family == 'linux'
+  gum_incdirs += [
+    include_directories('gum' / 'backend-linux' / 'include'),
+  ]
+endif
+
 if host_os_family == 'linux' or host_os_family == 'qnx'
   gum_incdirs += [
     include_directories('gum/backend-elf'),
