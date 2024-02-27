@@ -9,7 +9,7 @@ all $(MAKECMDGOALS):
 
 git-submodules:
 	@if [ ! -f releng/meson/meson.py ]; then \
-		git submodule update --init --recursive; \
+		git submodule update --init --recursive --depth 1; \
 	fi
 -include git-submodules
 
