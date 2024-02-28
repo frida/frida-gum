@@ -48,6 +48,8 @@
 #ifdef HAVE_SYS_USER_H
 # include <sys/user.h>
 #endif
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #define GUM_PAGE_START(value, page_size) \
     (GUM_ADDRESS (value) & ~GUM_ADDRESS (page_size - 1))
@@ -86,6 +88,9 @@
 #endif
 #ifndef NT_PRSTATUS
 # define NT_PRSTATUS 1
+#endif
+#ifndef RUSAGE_THREAD
+# define RUSAGE_THREAD 1
 #endif
 
 #define GUM_TEMP_FAILURE_RETRY(expression) \
@@ -1546,6 +1551,26 @@ failure:
     g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
     return FALSE;
   }
+}
+
+/**
+ * gum_thead_get_user_time:
+ *
+ * Returns: the time the thread has spend executing in user-mode in micro-seconds
+ */
+guint64
+gum_thead_get_user_time (void)
+{
+  guint64 user_time = 0;
+  struct rusage usage;
+
+  if (getrusage (RUSAGE_THREAD, &usage) == 0)
+  {
+    user_time = (usage.ru_utime.tv_sec * G_USEC_PER_SEC)
+      + usage.ru_utime.tv_usec;
+  }
+
+  return user_time;
 }
 
 gboolean

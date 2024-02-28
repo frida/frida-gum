@@ -20,6 +20,7 @@
 #include <ucontext.h>
 #include <unistd.h>
 #include <sys/ptrace.h>
+#include <sys/resource.h>
 #include <sys/sysctl.h>
 #include <sys/thr.h>
 #include <sys/types.h>
@@ -714,6 +715,21 @@ failure:
     g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
     return FALSE;
   }
+}
+
+guint64
+gum_thead_get_user_time (void)
+{
+  guint64 user_time = 0;
+  struct rusage usage;
+
+  if (getrusage (RUSAGE_THREAD, &usage) == 0)
+  {
+    user_time = (usage.ru_utime.tv_sec * G_USEC_PER_SEC)
+      + usage.ru_utime.tv_usec;
+  }
+
+  return user_time;
 }
 
 gboolean

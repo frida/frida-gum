@@ -17,11 +17,13 @@ enum _GumBacktracerType
 
 GUMJS_DECLARE_FUNCTION (gumjs_thread_backtrace)
 GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
+GUMJS_DECLARE_FUNCTION (gumjs_thread_get_user_time)
 
 static const JSCFunctionListEntry gumjs_thread_entries[] =
 {
   JS_CFUNC_DEF ("_backtrace", 0, gumjs_thread_backtrace),
   JS_CFUNC_DEF ("sleep", 0, gumjs_thread_sleep),
+  JS_CFUNC_DEF ("getUserTime", 0, gumjs_thread_get_user_time),
 };
 
 static const JSCFunctionListEntry gumjs_backtracer_entries[] =
@@ -159,3 +161,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 
   return JS_UNDEFINED;
 }
+
+GUMJS_DEFINE_FUNCTION (gumjs_thread_get_user_time)
+{
+  guint64 user_time = gum_thead_get_user_time ();
+
+  return JS_NewFloat64 (ctx, ((double) user_time) / G_USEC_PER_SEC);
+}
+

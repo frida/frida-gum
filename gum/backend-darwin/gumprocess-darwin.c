@@ -686,6 +686,24 @@ failure:
 #endif
 }
 
+guint64
+gum_thead_get_user_time (void)
+{
+  mach_port_t port;
+  thread_basic_info_data_t info;
+  mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
+  G_GNUC_UNUSED kern_return_t kr;
+
+  port = mach_thread_self ();
+  kr = thread_info (port, THREAD_BASIC_INFO,
+      (thread_info_t) &info, &info_count);
+  g_assert (kr == KERN_SUCCESS);
+  mach_port_deallocate (mach_task_self (), port);
+
+  return ((guint64) info.user_time.seconds * G_USEC_PER_SEC) +
+      info.user_time.microseconds;
+}
+
 gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)

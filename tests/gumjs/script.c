@@ -11,6 +11,8 @@
 
 #include "script-fixture.c"
 
+#define NUM_THREADS (10)
+
 TESTLIST_BEGIN (script)
   TESTENTRY (invalid_script_should_return_null)
   TESTENTRY (strict_mode_should_be_enforced)
@@ -201,6 +203,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_threads_can_be_enumerated)
     TESTENTRY (process_threads_can_be_enumerated_legacy_style)
     TESTENTRY (process_threads_have_names)
+    TESTENTRY (process_threads_get_user_time)
+    TESTENTRY (process_threads_get_user_time_other_thread)
+    TESTENTRY (process_threads_find_busy_thread)
     TESTENTRY (process_modules_can_be_enumerated)
     TESTENTRY (process_modules_can_be_enumerated_legacy_style)
     TESTENTRY (process_module_can_be_looked_up_from_address)
@@ -510,6 +515,7 @@ TESTLIST_END ()
 typedef int (* TargetFunctionInt) (int arg);
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 typedef struct _GumNamedSleeperContext GumNamedSleeperContext;
+typedef struct _GumHotNamedSleeperContext GumHotNamedSleeperContext;
 typedef struct _TestRunOnThreadSyncContext TestRunOnThreadSyncContext;
 typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
 typedef struct _TestTrigger TestTrigger;
@@ -526,6 +532,14 @@ struct _GumNamedSleeperContext
 {
   GAsyncQueue * controller_messages;
   GAsyncQueue * sleeper_messages;
+};
+
+struct _GumHotNamedSleeperContext
+{
+  GAsyncQueue * controller_messages;
+  GAsyncQueue * sleeper_messages;
+  GumThreadId id;
+  gboolean hot;
 };
 
 struct _TestRunOnThreadSyncContext
@@ -590,6 +604,9 @@ static gpointer run_stalked_through_target_function (gpointer data);
 
 static gpointer sleeping_dummy (gpointer data);
 G_GNUC_UNUSED static gpointer named_sleeper (gpointer data);
+static gpointer user_time (gpointer data);
+static void do_work (void);
+static gpointer hot_user_time (gpointer data);
 static GThread * create_sleeping_dummy_thread_sync (gboolean * done,
     GumThreadId * thread_id);
 static gpointer sleeping_dummy_func (gpointer data);
@@ -5169,6 +5186,259 @@ named_sleeper (gpointer data)
   g_async_queue_push (ctx->controller_messages, "ready");
 
   g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done");
+
+  return NULL;
+}
+
+TESTCASE (process_threads_get_user_time)
+{
+  double user_time_a = 0, user_time_b = 0;
+
+#ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+#endif
+
+#ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "function delay() {"
+      "  const start = new Date();"
+      "  while (new Date() - start < 100);"
+      "}"
+      "delay();"
+      "const time_a = Thread.getUserTime();"
+      "delay();"
+      "const time_b = Thread.getUserTime();"
+      GUM_PTR_CONST".writeDouble(time_a);"
+      GUM_PTR_CONST".writeDouble(time_b);",
+      &user_time_a, &user_time_b
+      );
+  EXPECT_NO_MESSAGES ();
+
+#if defined (HAVE_LINUX) || defined (HAVE_DARWIN) || defined (HAVE_FREEBSD) \
+    || defined (HAVE_WINDOWS)
+  g_assert_true (user_time_a != 0);
+  g_assert_true (user_time_b > user_time_a);
+#else
+  g_assert_cmpuint (user_time_a, ==, 0);
+  g_assert_cmpuint (user_time_b, ==, 0);
+#endif
+}
+
+TESTCASE (process_threads_get_user_time_other_thread)
+{
+#if defined (HAVE_LINUX) && !defined (HAVE_PTHREAD_SETNAME_NP)
+  g_print ("<skipping, libc is too old> ");
+#else
+  GumNamedSleeperContext ctx;
+  GThread * thread;
+  double user_time_a = 0, user_time_b = 0;
+
+# ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+# endif
+
+# ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+# endif
+
+  ctx.controller_messages = g_async_queue_new ();
+  ctx.sleeper_messages = g_async_queue_new ();
+
+  thread = g_thread_new ("user-time", user_time, &ctx);
+  g_assert_cmpstr (g_async_queue_pop (ctx.controller_messages), ==, "ready1");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const tid = Process.enumerateThreads()"
+      "    .find(t => t.name === 'user-time')"
+      "    .id;"
+      "Process.runOnThread(tid, () => {"
+      "  const time = Thread.getUserTime();"
+      "  "GUM_PTR_CONST".writeDouble(time);"
+      "});",
+      &user_time_a
+      );
+  EXPECT_NO_MESSAGES ();
+
+  g_async_queue_push (ctx.sleeper_messages, "done1");
+  g_assert_cmpstr (g_async_queue_pop (ctx.controller_messages), ==, "ready2");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const tid = Process.enumerateThreads()"
+      "    .find(t => t.name === 'user-time')"
+      "    .id;"
+      "Process.runOnThread(tid, () => {"
+      "  const time = Thread.getUserTime();"
+      "  "GUM_PTR_CONST".writeDouble(time);"
+      "});",
+      &user_time_b
+      );
+  EXPECT_NO_MESSAGES ();
+
+  g_async_queue_push (ctx.sleeper_messages, "done2");
+
+  g_thread_join (thread);
+
+  g_async_queue_unref (ctx.sleeper_messages);
+  g_async_queue_unref (ctx.controller_messages);
+
+# if defined (HAVE_LINUX) || defined (HAVE_DARWIN) || defined (HAVE_FREEBSD) \
+    || defined (HAVE_WINDOWS)
+    g_assert_true (user_time_a != 0);
+    g_assert_true (user_time_b > user_time_a);
+# else
+    g_assert_cmpuint (user_time_a, ==, 0);
+    g_assert_cmpuint (user_time_b, ==, 0);
+# endif
+#endif
+}
+
+static gpointer
+user_time (gpointer data)
+{
+  GumNamedSleeperContext * ctx = data;
+
+  /*
+   * On Linux g_thread_new() may not actually set the thread name, which is due
+   * to GLib potentially having been prebuilt against an old libc. Therefore we
+   * set the name manually using pthreads.
+   */
+#if defined (HAVE_LINUX) && defined (HAVE_PTHREAD_SETNAME_NP)
+  pthread_setname_np (pthread_self (), "user-time");
+#endif
+
+  do_work ();
+  g_async_queue_push (ctx->controller_messages, "ready1");
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done1");
+
+  do_work ();
+  g_async_queue_push (ctx->controller_messages, "ready2");
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done2");
+
+  return NULL;
+}
+
+static void
+do_work (void)
+{
+  GTimer * timer = g_timer_new ();
+
+  g_timer_start (timer);
+  /* Do some work and use some CPU cycles */
+  static guint no_opt = 0;
+  while (g_timer_elapsed (timer, NULL) < 0.1)
+  {
+      no_opt = no_opt + 1;
+  }
+
+  g_timer_destroy (timer);
+}
+
+TESTCASE (process_threads_find_busy_thread)
+{
+#if defined (HAVE_LINUX) && !defined (HAVE_PTHREAD_SETNAME_NP)
+  g_print ("<skipping, libc is too old> ");
+#else
+  GumHotNamedSleeperContext ctx[NUM_THREADS];
+  GThread * thread[NUM_THREADS];
+
+# ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+# endif
+
+# ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+# endif
+
+  guint rand = g_random_int_range (0, 10);
+
+  for (guint i = 0; i < NUM_THREADS; i++)
+  {
+    ctx[i].controller_messages = g_async_queue_new ();
+    ctx[i].sleeper_messages = g_async_queue_new ();
+    ctx[i].hot = (i == rand);
+
+    thread[i] = g_thread_new ("user-time", hot_user_time, &ctx[i]);
+    g_assert_cmpstr (g_async_queue_pop (ctx[i].controller_messages), ==,
+        "ready1");
+
+    EXPECT_NO_MESSAGES ();
+    g_async_queue_push (ctx[i].sleeper_messages, "done1");
+
+    g_assert_cmpstr (g_async_queue_pop (ctx[i].controller_messages), ==,
+        "ready2");
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+        "const times = Process.enumerateThreads()"
+        "  .filter(t => t.name === 'user-time')"
+        "  .map(t => Process.runOnThread(t.id, () => {"
+        "    return {"
+        "      'id' : t.id,"
+        "      'time' : Thread.getUserTime()"
+        "    };"
+        "  }));"
+        "Promise.all(times).then((t) => {"
+        "  const result = t.sort((a,b) => b.time - a.time)[0].id;"
+        "  send(result);"
+        "});"
+        );
+
+  for (guint i = 0; i < NUM_THREADS; i++)
+  {
+    g_async_queue_push (ctx[i].sleeper_messages, "done2");
+    g_thread_join (thread[i]);
+    g_async_queue_unref (ctx[i].sleeper_messages);
+    g_async_queue_unref (ctx[i].controller_messages);
+  }
+
+# if defined (HAVE_LINUX) || defined (HAVE_DARWIN) || defined (HAVE_FREEBSD) \
+    || defined (HAVE_WINDOWS)
+  EXPECT_SEND_MESSAGE_WITH ("%" G_GSIZE_MODIFIER "u", ctx[rand].id);
+# endif
+#endif
+}
+
+static gpointer
+hot_user_time (gpointer data)
+{
+  GumHotNamedSleeperContext * ctx = data;
+
+  /*
+   * On Linux g_thread_new() may not actually set the thread name, which is due
+   * to GLib potentially having been prebuilt against an old libc. Therefore we
+   * set the name manually using pthreads.
+   */
+#ifdef HAVE_LINUX
+  pthread_setname_np (pthread_self (), "user-time");
+#endif
+
+  ctx->id = gum_process_get_current_thread_id ();
+
+  g_async_queue_push (ctx->controller_messages, "ready1");
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done1");
+
+  if (ctx->hot)
+    do_work ();
+  g_async_queue_push (ctx->controller_messages, "ready2");
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done2");
 
   return NULL;
 }
