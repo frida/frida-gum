@@ -194,9 +194,9 @@ static void insert_extra_increment_after_xor (GumStalkerIterator * iterator,
 static void store_xax (GumCpuContext * cpu_context, gpointer user_data);
 static void skip_call (GumStalkerIterator * iterator, GumStalkerOutput * output,
     gpointer user_data);
-static void replace_call_with_callout (GumStalkerIterator * iterator, 
+static void replace_call_with_callout (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
-static void replace_jmp_with_callout (GumStalkerIterator * iterator, 
+static void replace_jmp_with_callout (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void callout_set_cool (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,

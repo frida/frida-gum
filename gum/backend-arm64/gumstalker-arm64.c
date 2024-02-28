@@ -5112,7 +5112,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
 }
 
 static void
-gum_exec_block_write_chaining_return_code (GumExecBlock * block, 
+gum_exec_block_write_chaining_return_code (GumExecBlock * block,
                                            GumGeneratorContext  * gc,
                                            arm64_reg ret_reg)
 {

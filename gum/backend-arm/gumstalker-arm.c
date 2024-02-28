@@ -4502,7 +4502,7 @@ gum_exec_block_virtualize_arm_branch_insn (GumExecBlock * block,
 
   if (backpatch_prolog_state == GUM_PROLOG_CLOSED)
     gum_exec_block_arm_open_prolog (block, gc);
- 
+
   gum_exec_block_write_arm_handle_excluded (block, target, FALSE, gc);
   gum_exec_block_write_arm_handle_kuser_helper (block, target, gc);
   gum_exec_block_write_arm_call_switch_block (block, target, gc);
