@@ -3286,9 +3286,9 @@ replace_call_with_callout (GumStalkerIterator * iterator,
     if (insn_num == 4)
     {
       gum_stalker_iterator_put_callout (iterator, callout_set_cool,
-          NULL, NULL); 
-    } 
-    else 
+          NULL, NULL);
+    }
+    else
     {
       gum_stalker_iterator_keep (iterator);
     }
