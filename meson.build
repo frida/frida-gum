@@ -655,6 +655,14 @@ if host_os_family == 'windows'
     language: languages)
 endif
 
+if cc.get_argument_syntax() == 'msvc'
+  add_project_arguments(
+    '/wd4116',
+    '/wd4244',
+    '/wd5051',
+    language: languages)
+endif
+
 if host_os_family == 'linux'
   add_project_arguments('-D_GNU_SOURCE=1', language: languages)
 endif
