@@ -9,6 +9,7 @@
 
 #include "gum-init.h"
 #include "gumcloak.h"
+#include "gumstalker.h"
 
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
 typedef struct _GumResolveModulePointerContext GumResolveModulePointerContext;
