@@ -7,7 +7,7 @@
 #include "gum/gumandroid.h"
 
 #include "gum-init.h"
-#include "gum/gumlinux.h"
+#include "gumlinux.h"
 
 #include <dlfcn.h>
 #include <elf.h>
