@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,7 +11,7 @@
 # include "backend-darwin/gumobjcapiresolver-priv.h"
 #endif
 #ifdef HAVE_ANDROID
-# include "backend-linux/gumandroid.h"
+# include "gum/gumandroid.h"
 #endif
 
 #include <string.h>

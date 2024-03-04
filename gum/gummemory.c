@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -19,7 +19,7 @@
 #include <string.h>
 
 #ifdef HAVE_ANDROID
-# include "backend-linux/gumandroid.h"
+# include "gum/gumandroid.h"
 #endif
 #ifndef GUM_USE_SYSTEM_ALLOC
 # ifdef HAVE_DARWIN

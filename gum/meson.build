@@ -157,7 +157,7 @@ if host_os_family == 'linux'
   ]
   if host_os == 'android'
     gum_backend_headers += [
-      'backend-linux/gumandroid.h',
+      'backend-linux' / 'include' / 'gum' / 'gumandroid.h',
     ]
     gum_sources += [
       'backend-linux/gumandroid.c',

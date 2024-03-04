@@ -12,7 +12,7 @@
 
 #include "gumelfmodule-priv.h"
 #ifdef HAVE_ANDROID
-# include "backend-linux/gumandroid.h"
+# include "gum/gumandroid.h"
 # ifdef HAVE_MINIZIP
 #  include <minizip/mz.h>
 #  include <minizip/mz_strm.h>

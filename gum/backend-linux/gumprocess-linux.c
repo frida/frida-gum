@@ -11,8 +11,8 @@
 
 #include "backend-elf/gumprocess-elf.h"
 #include "gum-init.h"
+#include "gum/gumandroid.h"
 #include "gum/gumlinux.h"
-#include "gumandroid.h"
 #include "gumelfmodule.h"
 #include "gumlinux-priv.h"
 #include "gummodulemap.h"

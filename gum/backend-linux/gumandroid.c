@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumandroid.h"
+#include "gum/gumandroid.h"
 
 #include "gum-init.h"
-#include "gumlinux.h"
+#include "gum/gumlinux.h"
 
 #include <dlfcn.h>
 #include <elf.h>

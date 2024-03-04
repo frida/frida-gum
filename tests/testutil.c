@@ -9,7 +9,7 @@
 
 #include "valgrind.h"
 #ifdef HAVE_ANDROID
-# include "backend-linux/gumandroid.h"
+# include "gum/gumandroid.h"
 #endif
 #ifdef HAVE_FREEBSD
 # include "gum/gumfreebsd.h"
