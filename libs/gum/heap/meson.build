@@ -24,7 +24,7 @@ gum_heap_sources = [
   'gumsanitychecker.c',
 ]
 
-install_headers(gum_heap_headers, subdir: install_header_subdir + '/heap')
+install_headers(gum_heap_headers, subdir: install_header_subdir / 'heap')
 
 gum_heap = library('frida-gum-heap-' + api_version, gum_heap_sources,
   c_args: frida_component_cflags,

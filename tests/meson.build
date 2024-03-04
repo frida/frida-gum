@@ -1,9 +1,9 @@
 runner_sources = [
   'gumtest.c',
   'testutil.c',
-  'stubs/dummyclasses.c',
-  'stubs/fakebacktracer.c',
-  'stubs/fakeeventsink.c',
+  'stubs' / 'dummyclasses.c',
+  'stubs' / 'fakebacktracer.c',
+  'stubs' / 'fakeeventsink.c',
   'stalkerdummychannel.c',
   'lowlevelhelpers.c',
 ]
@@ -73,10 +73,10 @@ endif
 
 if host_os_family == 'darwin'
   symlist = 'gum-tests.symbols'
-  extra_link_args += ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)]
+  extra_link_args += ['-Wl,-exported_symbols_list,' + (meson.current_source_dir() / symlist)]
   extra_link_depends += [symlist]
 
-  subdir('stubs/objc')
+  subdir('stubs' / 'objc')
   link_targets += objcdummyclass
 elif host_os_family != 'windows'
   if host_os == 'android'
@@ -84,7 +84,7 @@ elif host_os_family != 'windows'
   else
     symscript = 'gum-tests.version'
   endif
-  extra_link_args += ['-Wl,--version-script,' + join_paths(meson.current_source_dir(), symscript)]
+  extra_link_args += ['-Wl,--version-script,' + (meson.current_source_dir() / symscript)]
   extra_link_depends += [symscript]
 endif
 

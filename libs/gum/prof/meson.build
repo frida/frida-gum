@@ -56,7 +56,7 @@ if host_os_family == 'qnx'
   ]
 endif
 
-install_headers(gum_prof_headers, subdir: install_header_subdir + '/prof')
+install_headers(gum_prof_headers, subdir: install_header_subdir / 'prof')
 
 gum_prof = library('frida-gum-prof-' + api_version, gum_prof_sources,
   c_args: frida_component_cflags,

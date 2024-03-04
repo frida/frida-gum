@@ -674,13 +674,13 @@ endif
 gum_incdirs = [
   include_directories('.'),
   include_directories('gum'),
-  include_directories('gum/arch-x86'),
-  include_directories('gum/arch-arm'),
-  include_directories('gum/arch-arm64'),
-  include_directories('gum/arch-mips'),
+  include_directories('gum' / 'arch-x86'),
+  include_directories('gum' / 'arch-arm'),
+  include_directories('gum' / 'arch-arm64'),
+  include_directories('gum' / 'arch-mips'),
   include_directories('libs'),
-  include_directories('libs/gum/heap'),
-  include_directories('libs/gum/prof'),
+  include_directories('libs' / 'gum' / 'heap'),
+  include_directories('libs' / 'gum' / 'prof'),
 ]
 
 if host_os_family == 'windows'
@@ -692,39 +692,27 @@ if host_os_family == 'windows'
 endif
 
 if host_os_family == 'darwin'
-  gum_incdirs += [
-    include_directories('gum' / 'backend-darwin' / 'include'),
-  ]
+  gum_incdirs += include_directories('gum' / 'backend-darwin' / 'include')
 endif
 
 if host_os_family == 'linux'
-  gum_incdirs += [
-    include_directories('gum' / 'backend-linux' / 'include'),
-  ]
+  gum_incdirs += include_directories('gum' / 'backend-linux' / 'include')
 endif
 
 if host_os_family == 'freebsd'
-  gum_incdirs += [
-    include_directories('gum' / 'backend-freebsd' / 'include'),
-  ]
+  gum_incdirs += include_directories('gum' / 'backend-freebsd' / 'include')
 endif
 
 if host_os_family == 'qnx'
-  gum_incdirs += [
-    include_directories('gum' / 'backend-qnx' / 'include'),
-  ]
+  gum_incdirs += include_directories('gum' / 'backend-qnx' / 'include')
 endif
 
 if host_os_family == 'linux' or host_os_family == 'qnx'
-  gum_incdirs += [
-    include_directories('gum/backend-elf'),
-  ]
+  gum_incdirs += include_directories('gum' / 'backend-elf')
 endif
 
 if libunwind_dep.found()
-  gum_incdirs += [
-    include_directories('gum' / 'backend-libunwind' / 'include'),
-  ]
+  gum_incdirs += include_directories('gum' / 'backend-libunwind' / 'include')
 endif
 
 install_header_basedir = 'frida-' + api_version

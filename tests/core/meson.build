@@ -14,14 +14,14 @@ core_sources = [
   'interceptor-callbacklistener.c',
   'interceptor-functiondatalistener.c',
   'memoryaccessmonitor.c',
-  'arch-x86/x86writer.c',
-  'arch-x86/x86relocator.c',
-  'arch-arm/armwriter.c',
-  'arch-arm/armrelocator.c',
-  'arch-arm/thumbwriter.c',
-  'arch-arm/thumbrelocator.c',
-  'arch-arm64/arm64writer.c',
-  'arch-arm64/arm64relocator.c',
+  'arch-x86' / 'x86writer.c',
+  'arch-x86' / 'x86relocator.c',
+  'arch-arm' / 'armwriter.c',
+  'arch-arm' / 'armrelocator.c',
+  'arch-arm' / 'thumbwriter.c',
+  'arch-arm' / 'thumbrelocator.c',
+  'arch-arm64' / 'arm64writer.c',
+  'arch-arm64' / 'arm64relocator.c',
 ]
 
 if host_os_family == 'darwin'
@@ -38,35 +38,35 @@ endif
 
 if host_arch in ['x86', 'x86_64']
   core_sources += [
-    'arch-x86/stalker-x86.c',
+    'arch-x86' / 'stalker-x86.c',
   ]
   if host_os == 'macos'
     core_sources += [
-      'arch-x86/stalker-x86-macos.m',
+      'arch-x86' / 'stalker-x86-macos.m',
     ]
   endif
 endif
 
 if host_arch == 'arm'
   core_sources += [
-    'arch-arm/interceptor-arm.c',
-    'arch-arm/stalker-arm.c',
+    'arch-arm' / 'interceptor-arm.c',
+    'arch-arm' / 'stalker-arm.c',
   ]
 endif
 
 if host_arch == 'arm64'
   core_sources += [
-    'arch-arm64/interceptor-arm64.c',
-    'arch-arm64/stalker-arm64.c',
+    'arch-arm64' / 'interceptor-arm64.c',
+    'arch-arm64' / 'stalker-arm64.c',
   ]
   if host_os_family == 'darwin'
     core_sources += [
-      'arch-arm64/stalker-arm64-darwin.m',
+      'arch-arm64' / 'stalker-arm64-darwin.m',
     ]
   endif
   if host_os == 'macos'
     core_sources += [
-      'arch-arm64/stalker-arm64-macos.m',
+      'arch-arm64' / 'stalker-arm64-macos.m',
     ]
   endif
 endif
@@ -94,7 +94,7 @@ if host_os_family == 'darwin'
 
   mapper_test_unsigned = executable('mapper-test-unsigned', 'mapper.c',
     dependencies: [gum_dep],
-    link_args: ['-Wl,-exported_symbols_list,' + join_paths(meson.current_source_dir(), symlist)],
+    link_args: ['-Wl,-exported_symbols_list,' + (meson.current_source_dir() / symlist)],
     link_depends: [symlist],
   )
 
