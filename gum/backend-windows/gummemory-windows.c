@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,7 +8,7 @@
 #include "gummemory.h"
 
 #include "gummemory-priv.h"
-#include "gumwindows.h"
+#include "gum/gumwindows.h"
 
 #include <stdlib.h>
 

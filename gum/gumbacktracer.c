@@ -30,7 +30,7 @@
 #include "gumbacktracer.h"
 
 #ifdef HAVE_WINDOWS
-# include "backend-dbghelp/gumdbghelpbacktracer.h"
+# include "gum/gumdbghelpbacktracer.h"
 # include "arch-x86/gumx86backtracer.h"
 #elif defined (HAVE_DARWIN)
 # include "gum/gumdarwinbacktracer.h"

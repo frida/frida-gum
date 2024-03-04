@@ -8,8 +8,8 @@
 #include "gumprocess-priv.h"
 
 #define _NO_CVCONST_H
-#include "gumwindows.h"
-#include "backend-dbghelp/gumdbghelp.h"
+#include "gum/gumdbghelp.h"
+#include "gum/gumwindows.h"
 
 #include <intrin.h>
 #include <psapi.h>

@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumexceptorbackend.h"
 
-#include "gumwindows.h"
+#include "gum/gumwindows.h"
 #include "gumx86writer.h"
 
 #include <capstone.h>

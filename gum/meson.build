@@ -87,9 +87,9 @@ gum_backend_headers = []
 
 if host_os_family == 'windows'
   gum_backend_headers += [
-    'backend-windows/gumwindows.h',
-    'backend-dbghelp/gumdbghelp.h',
-    'backend-dbghelp/gumdbghelpbacktracer.h',
+    'backend-windows' / 'include' / 'gum' / 'gumwindows.h',
+    'backend-dbghelp' / 'include' / 'gum' / 'gumdbghelp.h',
+    'backend-dbghelp' / 'include' / 'gum' / 'gumdbghelpbacktracer.h',
   ]
   gum_sources += [
     'backend-windows/gumexceptor-windows.c',

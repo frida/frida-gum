@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumdbghelp.h"
+#include "gum/gumdbghelp.h"
 
 #include "gum-init.h"
 #include "gumprocess.h"

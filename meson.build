@@ -685,7 +685,9 @@ gum_incdirs = [
 
 if host_os_family == 'windows'
   gum_incdirs += [
-    include_directories('ext/dbghelp'),
+    include_directories('gum' / 'backend-windows' / 'include'),
+    include_directories('gum' / 'backend-dbghelp' / 'include'),
+    include_directories('ext' / 'dbghelp'),
   ]
 endif
 

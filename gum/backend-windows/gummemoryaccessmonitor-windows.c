@@ -10,7 +10,7 @@
 #include "gummemoryaccessmonitor.h"
 
 #include "gumexceptor.h"
-#include "gumwindows.h"
+#include "gum/gumwindows.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 # define WIN32_LEAN_AND_MEAN
