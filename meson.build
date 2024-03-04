@@ -721,6 +721,12 @@ if host_os_family == 'linux' or host_os_family == 'qnx'
   ]
 endif
 
+if libunwind_dep.found()
+  gum_incdirs += [
+    include_directories('gum' / 'backend-libunwind' / 'include'),
+  ]
+endif
+
 install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 

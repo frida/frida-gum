@@ -35,7 +35,7 @@
 #elif defined (HAVE_DARWIN)
 # include "gum/gumdarwinbacktracer.h"
 #elif defined (HAVE_LIBUNWIND)
-# include "backend-libunwind/gumunwbacktracer.h"
+# include "gum/gumunwbacktracer.h"
 #endif
 
 #if defined (HAVE_I386)

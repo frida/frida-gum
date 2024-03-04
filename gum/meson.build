@@ -294,7 +294,7 @@ endif
 
 if libunwind_dep.found()
   gum_backend_headers += [
-    'backend-libunwind/gumunwbacktracer.h',
+    'backend-libunwind' / 'include' / 'gum' / 'gumunwbacktracer.h',
   ]
   gum_sources += [
     'backend-libunwind/gumunwbacktracer.c',

@@ -7,7 +7,7 @@
 
 #ifndef GUM_DIET
 
-#include "gumunwbacktracer.h"
+#include "gum/gumunwbacktracer.h"
 
 #include "guminterceptor.h"
 #ifdef HAVE_LINUX
