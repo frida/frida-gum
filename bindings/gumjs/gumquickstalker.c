@@ -1027,7 +1027,7 @@ gum_quick_stalker_iterator_put_chaining_return (GumQuickIterator * self,
                                                 JSContext * ctx,
                                                 GumQuickArgs * args)
 {
-  gum_stalker_iterator_put_callout (self->handle);
+  gum_stalker_iterator_put_chaining_return (self->handle);
 
   return JS_UNDEFINED;
 }
