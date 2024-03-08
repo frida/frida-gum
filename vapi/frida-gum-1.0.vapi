@@ -333,7 +333,7 @@ namespace Gum {
 		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 		public void enumerate_sections (string module_name, Gum.FoundSectionFunc func);
 		public void enumerate_dependencies (string module_name, Gum.FoundDependencyFunc func);
-		public void * find_base_address (string module_name);
+		public Gum.Address find_base_address (string module_name);
 		public void * find_export_by_name (string? module_name, string symbol_name);
 	}
 
