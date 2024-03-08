@@ -335,6 +335,7 @@ namespace Gum {
 		public void enumerate_dependencies (string module_name, Gum.FoundDependencyFunc func);
 		public Gum.Address find_base_address (string module_name);
 		public Gum.Address find_export_by_name (string? module_name, string symbol_name);
+		public Gum.Address find_symbol_by_name (string? module_name, string symbol_name);
 	}
 
 	public class ModuleMap : GLib.Object {
