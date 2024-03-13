@@ -568,16 +568,18 @@ gumjs_extra_requires = []
 if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
 
-  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), allow_fallback: true, default_options: [
+  quickjs_options = [
     'libc=false',
     'bignum=true',
     'atomics=disabled',
     'stack_check=disabled',
-  ])
+  ]
+
+  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), default_options: quickjs_options)
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
   if quickjs_dep.found()
     gumjs_extra_requires += 'quickjs'
-    quickjs_dep_native = dependency('quickjs', native: true)
+    quickjs_dep_native = dependency('quickjs', native: true, default_options: quickjs_options)
   endif
 
   v8_dep = dependency('v8-10.0',
