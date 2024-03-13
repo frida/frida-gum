@@ -352,6 +352,16 @@ endif
 
 threads_dep = dependency('threads')
 
+if allocator == 'internal' or have_gumjs
+  ffi_options = [
+    'exe_static_tramp=false',
+    'tests=false',
+  ]
+  ffi_dep = dependency('libffi', default_options: ffi_options)
+else
+  ffi_dep = disabler()
+endif
+
 glib_options = [
   'diet=' + diet.to_string(),
   'printf=' + allocator,
@@ -395,15 +405,6 @@ capstone_options = [
   'cli=disabled',
 ]
 capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
-
-if allocator == 'internal' or have_gumjs
-  ffi_options = [
-    'tests=false',
-  ]
-  ffi_dep = dependency('libffi', default_options: ffi_options)
-else
-  ffi_dep = disabler()
-endif
 
 if build_tests
   lzma_dep = dependency('liblzma')
