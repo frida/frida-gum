@@ -371,13 +371,13 @@ if optimize_for_prod
 endif
 glib_dep = dependency('glib-2.0', version: '>=2.56', default_options: glib_options)
 if not diet
-  gobject_dep = dependency('gobject-2.0', default_options: glib_options)
+  gobject_dep = dependency('gobject-2.0')
 else
   gobject_dep = disabler()
 endif
 gio_os_package_name = (host_os_family == 'windows') ? 'gio-windows-2.0' : 'gio-unix-2.0'
 if have_gumjs
-  gio_dep = dependency('gio-2.0', default_options: glib_options)
+  gio_dep = dependency('gio-2.0')
   gio_os_package_dep = dependency(gio_os_package_name)
 else
   gio_dep = disabler()
