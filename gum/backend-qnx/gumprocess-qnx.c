@@ -508,6 +508,12 @@ failure:
   }
 }
 
+guint64
+gum_thead_get_user_time (void)
+{
+  return 0;
+}
+
 gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)

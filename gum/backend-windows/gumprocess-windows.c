@@ -27,6 +27,9 @@ typedef void (WINAPI * GumGetCurrentThreadStackLimitsFunc) (
     PULONG_PTR low_limit, PULONG_PTR high_limit);
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumFindExportContext GumFindExportContext;
+typedef BOOL (WINAPI * GetThreadTimesFunc) (HANDLE ThreadHandle,
+    LPFILETIME lpCreationTime, LPFILETIME lpExitTime, LPFILETIME lpKernelTime,
+    LPFILETIME lpUserTime);
 
 struct _GumEnumerateSymbolsContext
 {
@@ -635,6 +638,46 @@ beach:
 
     return success;
   }
+}
+
+guint64
+gum_thead_get_user_time (void)
+{
+  static gboolean initialized = FALSE;
+  static GetThreadTimesFunc get_thread_times = NULL;
+
+  HMODULE mod;
+  FILETIME creationTime;
+  FILETIME exitTime;
+  FILETIME kernelTime;
+  FILETIME userTime;
+  guint64 result;
+
+  if (!initialized)
+  {
+    initialized = TRUE;
+
+    mod = GetModuleHandle (_T ("kernel32.dll"));
+    if (mod == NULL)
+      return 0;
+
+    get_thread_times =(GetThreadTimesFunc) GetProcAddress (mod,
+        "GetThreadTimes");
+  }
+
+  if (get_thread_times == NULL)
+    return 0;
+
+  if (!get_thread_times (GetCurrentThread (), &creationTime, &exitTime,
+      &kernelTime, &userTime))
+  {
+    return 0;
+  }
+
+  result = (((guint64) userTime.dwHighDateTime) << 32) + userTime.dwLowDateTime;
+
+  /* Timings on Windows are to 100-nanosecond granularity. Convert to u-secs */
+  return result / 10;
 }
 
 gboolean

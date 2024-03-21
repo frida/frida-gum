@@ -15,11 +15,13 @@ using namespace v8;
 
 GUMJS_DECLARE_FUNCTION (gumjs_thread_backtrace)
 GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
+GUMJS_DECLARE_FUNCTION (gumjs_thread_get_user_time)
 
 static const GumV8Function gumjs_thread_functions[] =
 {
   { "_backtrace", gumjs_thread_backtrace },
   { "sleep", gumjs_thread_sleep },
+  { "getUserTime", gumjs_thread_get_user_time},
 
   { NULL, NULL }
 };
@@ -171,3 +173,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
     g_usleep (delay * G_USEC_PER_SEC);
   }
 }
+
+GUMJS_DEFINE_FUNCTION (gumjs_thread_get_user_time)
+{
+  guint64 user_time = gum_thead_get_user_time ();
+
+  info.GetReturnValue ().Set ((double) user_time / G_USEC_PER_SEC);
+}
+

@@ -36,6 +36,9 @@ TESTLIST_BEGIN (process)
   TESTENTRY (process_threads)
   TESTENTRY (process_threads_exclude_cloaked)
   TESTENTRY (process_threads_should_include_name)
+  TESTENTRY (process_threads_get_user_time)
+  TESTENTRY (process_threads_get_user_time_by_id_self)
+  TESTENTRY (process_threads_get_user_time_by_id_other)
   TESTENTRY (process_modules)
   TESTENTRY (process_ranges)
   TESTENTRY (process_ranges_exclude_cloaked)
@@ -128,6 +131,9 @@ struct _ExportSearch
 #endif
 
 static gboolean check_thread_enumeration_testable (void);
+static guint64 gum_thead_get_user_time_by_id (GumThreadId thread_id);
+static void gum_get_user_time (const GumCpuContext * cpu_context,
+    gpointer user_data);
 
 static gpointer probe_thread (gpointer data);
 static void inspect_thread_ranges (void);
@@ -150,6 +156,7 @@ static gboolean process_potential_export_search_result (
 static GThread * create_sleeping_dummy_thread_sync (const gchar * name,
     volatile gboolean * done, GumThreadId * thread_id);
 static gpointer sleeping_dummy (gpointer data);
+static void do_work (void);
 static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
 static gboolean thread_check_cb (const GumThreadDetails * details,
@@ -288,6 +295,114 @@ check_thread_enumeration_testable (void)
   }
 
   return TRUE;
+}
+
+TESTCASE (process_threads_get_user_time)
+{
+  guint64 user_time_a, user_time_b;
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  do_work ();
+  user_time_a = gum_thead_get_user_time ();
+
+  do_work ();
+  user_time_b = gum_thead_get_user_time ();
+#if defined (HAVE_LINUX) || defined (HAVE_DARWIN) || defined (HAVE_FREEBSD) \
+    || defined (HAVE_WINDOWS)
+  g_assert_cmpuint (user_time_a, !=, 0);
+  g_assert_cmpuint (user_time_b, >, user_time_a);
+#else
+  g_assert_cmpuint (user_time_a, ==, 0);
+  g_assert_cmpuint (user_time_b, ==, 0);
+#endif
+}
+
+TESTCASE (process_threads_get_user_time_by_id_self)
+{
+  GumThreadId tid = gum_process_get_current_thread_id ();
+  guint64 user_time_a, user_time_b;
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  do_work ();
+  user_time_a = gum_thead_get_user_time_by_id (tid);
+
+  do_work ();
+  user_time_b = gum_thead_get_user_time_by_id (tid);
+#if defined (HAVE_LINUX) || defined (HAVE_DARWIN) || defined (HAVE_FREEBSD) \
+    || defined (HAVE_WINDOWS)
+  g_assert_cmpuint (user_time_a, !=, 0);
+  g_assert_cmpuint (user_time_b, >, user_time_a);
+#else
+  g_assert_cmpuint (user_time_a, ==, 0);
+  g_assert_cmpuint (user_time_b, ==, 0);
+#endif
+}
+
+TESTCASE (process_threads_get_user_time_by_id_other)
+{
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  GumThreadDetails d = { 0, };
+  guint64 user_time_a, user_time_b;
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  thread = create_sleeping_dummy_thread_sync ("user_time", &done, &d.id);
+
+  /* Sleep for a short while to let the other thread wake and run */
+  g_usleep (250000);
+  user_time_a = gum_thead_get_user_time_by_id (d.id);
+
+  /* Sleep for a short while to let the other thread wake and run */
+  g_usleep (250000);
+  user_time_b = gum_thead_get_user_time_by_id (d.id);
+
+#if defined (HAVE_LINUX) || defined (HAVE_DARWIN) || defined (HAVE_FREEBSD) \
+    || defined (HAVE_WINDOWS)
+  g_assert_cmpuint (user_time_a, !=, 0);
+  g_assert_cmpuint (user_time_b, >, user_time_a);
+#else
+  g_assert_cmpuint (user_time_b, ==, 0);
+  g_assert_cmpuint (user_time_a, ==, 0);
+#endif
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+static guint64
+gum_thead_get_user_time_by_id (GumThreadId thread_id)
+{
+  guint64 user_time = 0;
+  GumStalker * stalker = NULL;
+
+  if (thread_id == gum_process_get_current_thread_id ())
+  {
+    return gum_thead_get_user_time ();
+  }
+
+  stalker = gum_stalker_new ();
+
+  gum_stalker_run_on_thread_sync (stalker, thread_id, gum_get_user_time,
+    &user_time);
+
+  while (gum_stalker_garbage_collect (stalker))
+    g_usleep (10000);
+
+  g_object_unref (stalker);
+  return user_time;
+}
+
+static void
+gum_get_user_time (const GumCpuContext * cpu_context, gpointer user_data)
+{
+  guint64 * user_time = (guint64 *) user_data;
+  *user_time = gum_thead_get_user_time ();
 }
 
 TESTCASE (process_modules)
@@ -1156,6 +1271,8 @@ sleeping_dummy (gpointer data)
   pthread_setname_np (pthread_self (), sync_data->name);
 #endif
 
+  do_work ();
+
   g_mutex_lock (&sync_data->mutex);
   sync_data->started = TRUE;
   sync_data->thread_id = gum_process_get_current_thread_id ();
@@ -1166,6 +1283,22 @@ sleeping_dummy (gpointer data)
     g_thread_yield ();
 
   return NULL;
+}
+
+static void
+do_work (void)
+{
+  GTimer * timer = g_timer_new ();
+
+  g_timer_start (timer);
+  /* Do some work and use some CPU cycles */
+  static guint no_opt = 0;
+  while (g_timer_elapsed (timer, NULL) < 0.1)
+  {
+      no_opt = no_opt + 1;
+  }
+
+  g_timer_destroy (timer);
 }
 
 static gboolean
