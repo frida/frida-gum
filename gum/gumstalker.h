@@ -235,6 +235,8 @@ GUM_API GumMemoryAccess gum_stalker_iterator_get_memory_access (
     GumStalkerIterator * self);
 GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
+GUM_API void gum_stalker_iterator_put_chaining_return (
+    GumStalkerIterator * self);
 GUM_API csh gum_stalker_iterator_get_capstone (GumStalkerIterator * self);
 
 #define GUM_DECLARE_OBSERVER_INCREMENT(name) \

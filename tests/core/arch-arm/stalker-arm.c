@@ -98,6 +98,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (performance)
 
   TESTENTRY (custom_transformer)
+  TESTENTRY (arm_transformer_should_be_able_to_replace_call_with_callout)
+  TESTENTRY (arm_transformer_should_be_able_to_replace_jumpout_with_callout)
   TESTENTRY (arm_callout)
   TESTENTRY (thumb_callout)
   TESTENTRY (unfollow_should_be_allowed_before_first_transform)
@@ -163,6 +165,11 @@ static GLogWriterOutput test_log_writer_func (GLogLevelFlags log_level,
     const GLogField * fields, gsize n_fields, gpointer user_data);
 static void duplicate_adds (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
+static void replace_call_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void replace_jumpout_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void callout_set_cool (GumCpuContext * cpu_context, gpointer user_data);
 static void transform_arm_return_value (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void on_arm_ret (GumCpuContext * cpu_context, gpointer user_data);
@@ -3247,6 +3254,89 @@ add_n_return_value_increments (GumStalkerIterator * iterator,
 
     gum_stalker_iterator_keep (iterator);
   }
+}
+
+TESTCODE (arm_simple_call,
+    0x04, 0xe0, 0x2d, 0xe5, /* push {lr}       */
+    0x0d, 0x00, 0x00, 0xe3, /* mov r0, 13      */
+    0x00, 0x00, 0x00, 0xeb, /* bl bump_number */
+    0x04, 0xf0, 0x9d, 0xe4, /* pop {pc}        */
+    /* bump_number:                            */
+    0x25, 0x00, 0x80, 0xe2, /* add r0, 37      */
+    0x1e, 0xff, 0x2f, 0xe1, /* bx lr           */
+);
+
+TESTCASE (arm_transformer_should_be_able_to_replace_call_with_callout)
+{
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      replace_call_with_callout, NULL, NULL);
+
+  INVOKE_ARM_EXPECTING (GUM_NOTHING, arm_simple_call, 0xc001);
+}
+
+static void
+replace_call_with_callout (GumStalkerIterator * iterator,
+                           GumStalkerOutput * output,
+                           gpointer user_data)
+{
+  const cs_insn * insn;
+  static int insn_num = 0;
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    if (insn_num == 4)
+    {
+      gum_stalker_iterator_put_callout (iterator, callout_set_cool,
+          NULL, NULL);
+    }
+    else
+    {
+      gum_stalker_iterator_keep (iterator);
+    }
+    insn_num++;
+  }
+}
+
+TESTCODE (arm_simple_jumpout,
+    0x0d, 0x00, 0x00, 0xe3, /* mov r0, 13      */
+    0xff, 0xff, 0xff, 0xea, /* b bump_number   */
+    /* bump_number:                            */
+    0x25, 0x00, 0x80, 0xe2, /* add r0, 37      */
+    0x1e, 0xff, 0x2f, 0xe1, /* bx lr           */
+);
+
+TESTCASE (arm_transformer_should_be_able_to_replace_jumpout_with_callout)
+{
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      replace_jumpout_with_callout, NULL, NULL);
+
+  INVOKE_ARM_EXPECTING (GUM_EXEC, arm_simple_jumpout, 0xc001);
+}
+
+static void
+replace_jumpout_with_callout (GumStalkerIterator * iterator,
+                              GumStalkerOutput * output,
+                              gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    if (insn->id == ARM_INS_B)
+    {
+      gum_stalker_iterator_put_callout (iterator, callout_set_cool,
+          NULL, NULL);
+      gum_stalker_iterator_put_chaining_return (iterator);
+      continue;
+    }
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+callout_set_cool (GumCpuContext * cpu_context,
+                  gpointer user_data)
+{
+  cpu_context->r[0] = 0xc001;
 }
 
 TESTCODE (arm_ldrex_strex,
