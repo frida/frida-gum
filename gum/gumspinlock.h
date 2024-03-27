@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +24,7 @@ struct _GumSpinlock
 void gum_spinlock_init (GumSpinlock * spinlock);
 
 void gum_spinlock_acquire (GumSpinlock * spinlock);
+gboolean gum_spinlock_try_acquire (GumSpinlock * spinlock);
 void gum_spinlock_release (GumSpinlock * spinlock);
 
 G_END_DECLS
