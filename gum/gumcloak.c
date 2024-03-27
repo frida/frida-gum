@@ -735,3 +735,22 @@ gum_fd_compare (gconstpointer element_a,
     return -1;
   return 1;
 }
+
+gboolean
+gum_cloak_is_locked (void)
+{
+  if (!gum_spinlock_try_acquire (&cloak_lock))
+    return TRUE;
+
+  gum_spinlock_release (&cloak_lock);
+  return FALSE;
+}
+
+void
+gum_cloak_with_lock_held (GumCloakLockedFunc func,
+                          gpointer user_data)
+{
+  gum_spinlock_acquire (&cloak_lock);
+  func (user_data);
+  gum_spinlock_release (&cloak_lock);
+}
