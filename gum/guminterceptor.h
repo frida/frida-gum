@@ -17,6 +17,7 @@ G_BEGIN_DECLS
 GUM_DECLARE_FINAL_TYPE (GumInterceptor, gum_interceptor, GUM, INTERCEPTOR,
                         GObject)
 
+typedef void (* GumInterceptorLockedFunc) (gpointer user_data);
 typedef GArray GumInvocationStack;
 typedef guint GumInvocationState;
 
@@ -76,6 +77,9 @@ GUM_API gpointer gum_invocation_stack_translate (GumInvocationStack * self,
 GUM_API void gum_interceptor_save (GumInvocationState * state);
 GUM_API void gum_interceptor_restore (GumInvocationState * state);
 
+GUM_API void gum_interceptor_with_lock_held (GumInterceptor * self,
+    GumInterceptorLockedFunc func, gpointer user_data);
+GUM_API gboolean gum_interceptor_is_locked (GumInterceptor * self);
 G_END_DECLS
 
 #endif
