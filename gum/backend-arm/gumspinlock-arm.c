@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -33,6 +34,19 @@ gum_spinlock_acquire (GumSpinlock * spinlock)
   while (!g_atomic_int_compare_and_exchange (&self->is_held, FALSE, TRUE))
     ;
 #endif
+}
+
+gboolean
+gum_spinlock_try_acquire (GumSpinlock * spinlock)
+{
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+
+  if (self->is_held)
+    return FALSE;
+
+  gum_spinlock_acquire (spinlock);
+
+  return TRUE;
 }
 
 void
