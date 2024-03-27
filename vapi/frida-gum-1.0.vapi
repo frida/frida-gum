@@ -154,6 +154,11 @@ namespace Gum {
 
 		public void ignore_other_threads ();
 		public void unignore_other_threads ();
+
+		public void with_lock_held (Gum.Interceptor.LockedFunc func);
+		public bool is_locked ();
+
+		public delegate void LockedFunc ();
 	}
 
 	[CCode (type_cname = "GumInvocationListenerInterface")]
