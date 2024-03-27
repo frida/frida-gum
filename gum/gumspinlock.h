@@ -25,6 +25,8 @@ void gum_spinlock_init (GumSpinlock * spinlock);
 void gum_spinlock_acquire (GumSpinlock * spinlock);
 void gum_spinlock_release (GumSpinlock * spinlock);
 
+gboolean gum_spinlock_try_acquire (GumSpinlock * spinlock);
+
 G_END_DECLS
 
 #endif
