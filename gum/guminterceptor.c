@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
+ * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -807,6 +808,26 @@ gum_interceptor_restore (GumInvocationState * state)
   }
 
   g_array_set_size (stack, old_depth);
+}
+
+void
+gum_interceptor_with_lock_held (GumInterceptor * self,
+                                GumInterceptorLockedFunc func,
+                                gpointer user_data)
+{
+  GUM_INTERCEPTOR_LOCK (self);
+  func (user_data);
+  GUM_INTERCEPTOR_UNLOCK (self);
+}
+
+gboolean
+gum_interceptor_is_locked (GumInterceptor * self)
+{
+  if (!g_rec_mutex_trylock (&self->mutex))
+    return TRUE;
+
+  GUM_INTERCEPTOR_UNLOCK (self);
+  return FALSE;
 }
 
 gpointer

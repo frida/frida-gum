@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
+ * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,6 +20,7 @@ GUM_DECLARE_FINAL_TYPE (GumInterceptor, gum_interceptor, GUM, INTERCEPTOR,
 
 typedef GArray GumInvocationStack;
 typedef guint GumInvocationState;
+typedef void (* GumInterceptorLockedFunc) (gpointer user_data);
 
 typedef enum
 {
@@ -75,6 +77,10 @@ GUM_API gpointer gum_invocation_stack_translate (GumInvocationStack * self,
 
 GUM_API void gum_interceptor_save (GumInvocationState * state);
 GUM_API void gum_interceptor_restore (GumInvocationState * state);
+
+GUM_API void gum_interceptor_with_lock_held (GumInterceptor * self,
+    GumInterceptorLockedFunc func, gpointer user_data);
+GUM_API gboolean gum_interceptor_is_locked (GumInterceptor * self);
 
 G_END_DECLS
 
