@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -734,4 +735,23 @@ gum_fd_compare (gconstpointer element_a,
   if (a < b)
     return -1;
   return 1;
+}
+
+void
+gum_cloak_with_lock_held (GumCloakLockedFunc func,
+                          gpointer user_data)
+{
+  gum_spinlock_acquire (&cloak_lock);
+  func (user_data);
+  gum_spinlock_release (&cloak_lock);
+}
+
+gboolean
+gum_cloak_is_locked (void)
+{
+  if (!gum_spinlock_try_acquire (&cloak_lock))
+    return TRUE;
+
+  gum_spinlock_release (&cloak_lock);
+  return FALSE;
 }
