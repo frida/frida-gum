@@ -49,7 +49,7 @@ gum_spinlock_release (GumSpinlock * spinlock)
 gboolean
 gum_spinlock_try_acquire (GumSpinlock * spinlock)
 {
-  volatile guint32 is_held = *(guint32*)spinlock;
+  volatile guint32 is_held = *(guint32*) spinlock;
   if (is_held == 1)
     return FALSE;
 
