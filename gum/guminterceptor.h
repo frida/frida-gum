@@ -78,6 +78,8 @@ GUM_API void gum_interceptor_restore (GumInvocationState * state);
 
 GUM_API gpointer gum_interceptor_translate_top_return_address (
     gpointer return_address);
+GUM_API gpointer gum_interceptor_translate_return_address (
+    gpointer return_address);
 
 G_END_DECLS
 
