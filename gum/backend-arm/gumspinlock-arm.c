@@ -46,3 +46,15 @@ gum_spinlock_release (GumSpinlock * spinlock)
   g_atomic_int_set (&self->is_held, FALSE);
 #endif
 }
+
+gboolean
+gum_spinlock_try_acquire (GumSpinlock * spinlock)
+{
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+  if (self->is_held)
+    return FALSE;
+
+  gum_spinlock_acquire (spinlock);
+
+  return TRUE;
+}

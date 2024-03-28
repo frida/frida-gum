@@ -2061,3 +2061,23 @@ gum_page_address_compare (gconstpointer a,
 {
   return GPOINTER_TO_SIZE (a) - GPOINTER_TO_SIZE (b);
 }
+
+void
+gum_interceptor_with_lock_held (GumInterceptor * self,
+                                GumInterceptorLockedFunc func,
+                                gpointer user_data)
+{
+  GUM_INTERCEPTOR_LOCK (self);
+  func (user_data);
+  GUM_INTERCEPTOR_UNLOCK (self);
+}
+
+gboolean
+gum_interceptor_is_locked (GumInterceptor * self)
+{
+  if (!g_rec_mutex_trylock (&self->mutex))
+    return TRUE;
+
+  GUM_INTERCEPTOR_UNLOCK (self);
+  return FALSE;
+}

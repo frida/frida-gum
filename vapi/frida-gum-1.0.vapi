@@ -154,6 +154,11 @@ namespace Gum {
 
 		public void ignore_other_threads ();
 		public void unignore_other_threads ();
+
+		public void with_lock_held (Gum.Interceptor.LockedFunc func);
+		public bool is_locked ();
+
+		public delegate void LockedFunc ();
 	}
 
 	[CCode (type_cname = "GumInvocationListenerInterface")]
@@ -387,9 +392,13 @@ namespace Gum {
 		public bool has_file_descriptor (int fd);
 		public void enumerate_file_descriptors (Gum.Cloak.FoundFDFunc func);
 
+        public void with_lock_held (Gum.Cloak.LockedFunc func);
+        public bool is_locked ();
+
 		public delegate bool FoundThreadFunc (Gum.ThreadId id);
 		public delegate bool FoundRangeFunc (Gum.MemoryRange range);
 		public delegate bool FoundFDFunc (int fd);
+		public delegate void LockedFunc ();
 	}
 
 	public struct CpuContext {

@@ -37,3 +37,15 @@ gum_spinlock_release (GumSpinlock * spinlock)
 
   __sync_lock_release (&self->is_held);
 }
+
+gboolean
+gum_spinlock_try_acquire (GumSpinlock * spinlock)
+{
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+  if (self->is_held)
+    return FALSE;
+
+  gum_spinlock_acquire (spinlock);
+
+  return TRUE;
+}
