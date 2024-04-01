@@ -159,6 +159,23 @@ struct GumV8NativeCallback
   GumV8Core * core;
 };
 
+class GumV8SystemErrorPreservationScope
+{
+public:
+  GumV8SystemErrorPreservationScope ()
+    : saved_error (gum_thread_get_system_error ())
+  {
+  }
+
+  ~GumV8SystemErrorPreservationScope ()
+  {
+    gum_thread_set_system_error (saved_error);
+  }
+
+private:
+  gint saved_error;
+};
+
 G_GNUC_INTERNAL void _gum_v8_core_init (GumV8Core * self,
     GumV8Script * script, const gchar * runtime_source_map,
     GumV8MessageEmitter message_emitter, GumScriptScheduler * scheduler,
