@@ -4433,6 +4433,7 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 {
   GumQuickNativeCallback * self = user_data;
   GumQuickCore * core = self->core;
+  gint saved_system_error;
   guintptr return_address = 0;
   guintptr stack_pointer = 0;
   guintptr frame_pointer = 0;
@@ -4447,6 +4448,8 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   int argc, i;
   JSValue * argv;
   JSValue result;
+
+  saved_system_error = gum_thread_get_system_error ();
 
 #if defined (HAVE_I386) && defined (_MSC_VER)
   return_address = GPOINTER_TO_SIZE (_ReturnAddress ());
@@ -4556,6 +4559,8 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   JS_FreeValue (ctx, self->wrapper);
 
   _gum_quick_scope_leave (&scope);
+
+  gum_thread_set_system_error (saved_system_error);
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_callback_context_finalize)

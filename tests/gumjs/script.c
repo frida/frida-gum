@@ -67,6 +67,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (system_error_can_be_read_from_replacement_function)
     TESTENTRY (system_error_can_be_replaced_from_interceptor_listener)
     TESTENTRY (system_error_can_be_replaced_from_replacement_function)
+    TESTENTRY (system_error_unaffected_by_replacement_if_set_to_original_value)
+    TESTENTRY (system_error_unaffected_by_replacement_if_untouched)
     TESTENTRY (invocations_are_bound_on_tls_object)
     TESTENTRY (invocations_provide_thread_id)
     TESTENTRY (invocations_provide_call_depth)
@@ -368,6 +370,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_should_support_global_callbacks)
     TESTENTRY (cmodule_should_provide_access_to_cpu_registers)
     TESTENTRY (cmodule_should_provide_access_to_system_error)
+    TESTENTRY (system_error_unaffected_by_native_callback_from_cmodule)
 #else
     TESTENTRY (cmodule_constructor_should_throw_not_available)
 #endif
@@ -6988,6 +6991,52 @@ TESTCASE (system_error_can_be_replaced_from_replacement_function)
 #endif
 }
 
+TESTCASE (system_error_unaffected_by_replacement_if_set_to_original_value)
+{
+#ifdef HAVE_WINDOWS
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ","
+      "    new NativeCallback(function (arg) {"
+      "  this.lastError = 1337;"
+      "  return 0;"
+      "}, 'int', ['int']));", target_function_int);
+
+  SetLastError (1337);
+  target_function_int (7);
+  g_assert_cmpint (GetLastError (), ==, 1337);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ","
+      "    new NativeCallback(function (arg) {"
+      "  this.errno = 1337;"
+      "  return 0;"
+      "}, 'int', ['int']));", target_function_int);
+
+  errno = 1337;
+  target_function_int (7);
+  g_assert_cmpint (errno, ==, 1337);
+#endif
+}
+
+TESTCASE (system_error_unaffected_by_replacement_if_untouched)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ","
+      "    new NativeCallback(function (arg) {"
+      "  return 0;"
+      "}, 'int', ['int']));", target_function_int);
+
+#ifdef HAVE_WINDOWS
+  SetLastError (1337);
+  target_function_int (7);
+  g_assert_cmpint (GetLastError (), ==, 1337);
+#else
+  errno = 1337;
+  target_function_int (7);
+  g_assert_cmpint (errno, ==, 1337);
+#endif
+}
+
 TESTCASE (invocations_are_bound_on_tls_object)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -10193,6 +10242,36 @@ TESTCASE (cmodule_should_provide_access_to_system_error)
   gum_thread_set_system_error (1);
   bump_impl ();
   g_assert_cmpint (gum_thread_get_system_error (), ==, 2);
+}
+
+TESTCASE (system_error_unaffected_by_native_callback_from_cmodule)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const cm = new CModule(`\\n"
+      "  #include <gum/guminterceptor.h>\\n"
+      "\\n"
+      "  extern void nativeCallback (void);\\n"
+      "\\n"
+      "  void\\n"
+      "  replacement (GumInvocationContext * ic)\\n"
+      "  {\\n"
+      "    nativeCallback ();\\n"
+      "  }\\n"
+      "`, {\n"
+      "  nativeCallback: new NativeCallback(() => {}, 'void', [])\n"
+      "});\n"
+      "Interceptor.replace(" GUM_PTR_CONST ", cm.replacement);",
+      target_function_int);
+
+#ifdef HAVE_WINDOWS
+  SetLastError (1337);
+  target_function_int (7);
+  g_assert_cmpint (GetLastError (), ==, 1337);
+#else
+  errno = 1337;
+  target_function_int (7);
+  g_assert_cmpint (errno, ==, 1337);
+#endif
 }
 
 #else /* !HAVE_TINYCC */

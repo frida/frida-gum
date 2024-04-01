@@ -70,23 +70,6 @@ struct GumV8CallProbe
   GumV8Stalker * module;
 };
 
-class GumV8SystemErrorPreservationScope
-{
-public:
-  GumV8SystemErrorPreservationScope ()
-    : saved_error (gum_thread_get_system_error ())
-  {
-  }
-
-  ~GumV8SystemErrorPreservationScope ()
-  {
-    gum_thread_set_system_error (saved_error);
-  }
-
-private:
-  gint saved_error;
-};
-
 static gboolean gum_v8_stalker_on_flush_timer_tick (GumV8Stalker * self);
 
 GUMJS_DECLARE_GETTER (gumjs_stalker_get_trust_threshold)

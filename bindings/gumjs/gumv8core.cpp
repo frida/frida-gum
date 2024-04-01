@@ -3434,6 +3434,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
                                void ** args,
                                void * user_data)
 {
+  GumV8SystemErrorPreservationScope error_scope;
   guintptr return_address = 0;
   guintptr stack_pointer = 0;
   guintptr frame_pointer = 0;
