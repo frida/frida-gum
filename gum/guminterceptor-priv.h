@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
+ * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -68,7 +69,7 @@ struct _GumFunctionContext
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
-G_GNUC_INTERNAL void _gum_function_context_begin_invocation (
+G_GNUC_INTERNAL gboolean _gum_function_context_begin_invocation (
     GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
     gpointer * caller_ret_addr, gpointer * next_hop);
 G_GNUC_INTERNAL void _gum_function_context_end_invocation (

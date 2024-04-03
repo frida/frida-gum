@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
+ * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -46,6 +47,7 @@ struct _GumInterceptorBackend
 struct _GumX86FunctionContextData
 {
   guint redirect_code_size;
+  gpointer push_to_shadow_stack;
 };
 
 G_STATIC_ASSERT (sizeof (GumX86FunctionContextData)
@@ -61,7 +63,7 @@ static void gum_emit_leave_thunk (GumX86Writer * cw);
 
 static void gum_emit_prolog (GumX86Writer * cw,
     gssize stack_displacement);
-static void gum_emit_epilog (GumX86Writer * cw);
+static void gum_emit_epilog (GumX86Writer * cw, GumPointCut point_cut);
 
 GumInterceptorBackend *
 _gum_interceptor_backend_create (GRecMutex * mutex,
@@ -171,6 +173,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumX86Relocator * rl = &self->relocator;
   GumX86FunctionContextData * data = GUM_FCDATA (ctx);
   GumAddress function_ctx_ptr;
+  gpointer after_push_to_shadow_stack;
   guint reloc_bytes;
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
@@ -188,6 +191,27 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
     gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->data));
+
+    if ((cw->cpu_features & GUM_CPU_CET_SS) != 0)
+    {
+      /*
+       * Jumping to push_to_shadow_stack will push the on_leave_trampoline
+       * address onto the shadow stack, thereby making it a legit address to
+       * return to. Then it will jump back through XAX.
+       */
+
+      after_push_to_shadow_stack = gum_x86_writer_cur (cw);
+
+      gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP,
+          GUM_X86_XSP, (gssize) sizeof (gpointer));
+
+      gum_x86_writer_put_jmp_reg (cw, GUM_X86_XAX);
+
+      data->push_to_shadow_stack = gum_x86_writer_cur (cw);
+
+      gum_x86_writer_put_call_address (cw,
+          GUM_ADDRESS (after_push_to_shadow_stack));
+    }
 
     ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
@@ -321,6 +345,8 @@ static void
 gum_emit_enter_thunk (GumX86Writer * cw)
 {
   const gssize return_address_stack_displacement = 0;
+  const gchar * prepare_trap_on_leave = "prepare_trap_on_leave";
+  gpointer epilog;
 
   gum_emit_prolog (cw, return_address_stack_displacement);
 
@@ -338,7 +364,26 @@ gum_emit_enter_thunk (GumX86Writer * cw)
       GUM_ARG_REGISTER, GUM_X86_XDX,
       GUM_ARG_REGISTER, GUM_X86_XCX);
 
-  gum_emit_epilog (cw);
+  if ((cw->cpu_features & GUM_CPU_CET_SS) != 0)
+  {
+    gum_x86_writer_put_test_reg_reg (cw, GUM_X86_EAX, GUM_X86_EAX);
+    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, prepare_trap_on_leave,
+        GUM_NO_HINT);
+
+    epilog = gum_x86_writer_cur (cw);
+  }
+
+  gum_emit_epilog (cw, GUM_POINT_ENTER);
+
+  if ((cw->cpu_features & GUM_CPU_CET_SS) != 0)
+  {
+    gum_x86_writer_put_label (cw, prepare_trap_on_leave);
+
+    gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX, GUM_ADDRESS (epilog));
+    gum_x86_writer_put_jmp_reg_offset_ptr (cw, GUM_X86_XBX,
+        G_STRUCT_OFFSET (GumFunctionContext, backend_data) +
+        G_STRUCT_OFFSET (GumX86FunctionContextData, push_to_shadow_stack));
+  }
 }
 
 static void
@@ -359,7 +404,7 @@ gum_emit_leave_thunk (GumX86Writer * cw)
       GUM_ARG_REGISTER, GUM_X86_XSI,
       GUM_ARG_REGISTER, GUM_X86_XDX);
 
-  gum_emit_epilog (cw);
+  gum_emit_epilog (cw, GUM_POINT_LEAVE);
 }
 
 static void
@@ -401,7 +446,8 @@ gum_emit_prolog (GumX86Writer * cw,
 }
 
 static void
-gum_emit_epilog (GumX86Writer * cw)
+gum_emit_epilog (GumX86Writer * cw,
+                 GumPointCut point_cut)
 {
   guint8 fxrstor[] = {
     0x0f, 0xae, 0x0c, 0x24 /* fxrstor [esp] */
@@ -415,5 +461,17 @@ gum_emit_epilog (GumX86Writer * cw)
                                           GumCpuContext.xip */
   gum_x86_writer_put_popax (cw);
   gum_x86_writer_put_popfx (cw);
-  gum_x86_writer_put_ret (cw);
+
+  if (point_cut == GUM_POINT_LEAVE)
+  {
+    gum_x86_writer_put_ret (cw);
+  }
+  else
+  {
+    /* Emulate a ret without affecting the shadow stack. */
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP,
+        GUM_X86_XSP, sizeof (gpointer));
+    gum_x86_writer_put_jmp_reg_offset_ptr (cw, GUM_X86_XSP,
+        -((gssize) sizeof (gpointer)));
+  }
 }

@@ -2,6 +2,7 @@
  * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1513,7 +1514,7 @@ gum_function_context_find_taken_listener_slot (
   return NULL;
 }
 
-void
+gboolean
 _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
                                         GumCpuContext * cpu_context,
                                         gpointer * caller_ret_addr,
@@ -1526,7 +1527,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   GumInvocationContext * invocation_ctx = NULL;
   gint system_error;
   gboolean invoke_listeners = TRUE;
-  gboolean will_trap_on_leave;
+  gboolean will_trap_on_leave = FALSE;
 
   g_atomic_int_inc (&function_ctx->trampoline_usage_counter);
 
@@ -1663,15 +1664,13 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     *next_hop = function_ctx->on_invoke_trampoline;
   }
 
+bypass:
   if (!will_trap_on_leave)
   {
     g_atomic_int_dec_and_test (&function_ctx->trampoline_usage_counter);
   }
 
-  return;
-
-bypass:
-  g_atomic_int_dec_and_test (&function_ctx->trampoline_usage_counter);
+  return will_trap_on_leave;
 }
 
 void
