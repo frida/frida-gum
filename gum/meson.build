@@ -369,7 +369,7 @@ gum_dep = declare_dependency(link_with: gum,
   link_args: extra_libs_private,
   dependencies: gum_public_deps,
   variables: {
-    'vapidir': vapidir,
+    'frida_vapidir': vapidir,
   },
 )
 
@@ -385,7 +385,7 @@ pkg.generate(gum,
   extra_cflags: extra_cflags,
   libraries_private: extra_libs_private,
   variables: {
-    'vapidir': vapidir,
+    'frida_vapidir': vapidir,
   },
 )
 
