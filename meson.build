@@ -441,27 +441,26 @@ if get_option('devkits').length() != 0
   mkdevkit = find_program(releng / 'mkdevkit.py')
   uninstalled_dir = meson.global_build_root() / 'meson-uninstalled'
   devkit_options = [
-    '--cc=' + '!'.join(cc.cmd_array()),
-    '--c-args=' + '!'.join(get_option('c_args')),
-    '--pkg-config-path=' + '!'.join([uninstalled_dir] + get_option('pkg_config_path')),
+    '--cc', '>>>', cc.cmd_array(), '<<<',
+    '--c-args', '>>>', get_option('c_args'), '<<<',
+    '--pkg-config-path', '>>>', uninstalled_dir, get_option('pkg_config_path'), '<<<',
   ]
   if cc.get_argument_syntax() == 'msvc'
     static_lib_prefix = ''
     static_lib_suffix = '.lib'
-    devkit_options += ['--lib=' + find_program('lib').full_path()]
+    devkit_options += ['--lib', '>>>', find_program('lib'), '<<<']
   else
     static_lib_prefix = 'lib'
     static_lib_suffix = '.a'
     foreach tool : ['ar', 'nm', 'objcopy']
       p = find_program(tool, required: false)
       if p.found()
-        path = p.full_path()
-        devkit_options += [f'--@tool@=@path@']
+        devkit_options += ['--' + tool, p]
       endif
     endforeach
   endif
   if host_os_family == 'darwin'
-    devkit_options += ['--libtool=' + find_program('libtool').full_path()]
+    devkit_options += ['--libtool', find_program('libtool')]
   endif
 endif
 
