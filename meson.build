@@ -434,7 +434,11 @@ if get_option('devkits').length() != 0
   if not static
     error('Devkits can only be generated from static libraries')
   endif
-  mkdevkit = find_program('./releng/mkdevkit.py')
+  releng = meson.global_source_root() / 'releng'
+  if not import('fs').exists(releng)
+    releng = meson.project_source_root() / 'releng'
+  endif
+  mkdevkit = find_program(releng / 'mkdevkit.py')
   uninstalled_dir = meson.global_build_root() / 'meson-uninstalled'
   devkit_options = [
     '--cc=' + '!'.join(cc.cmd_array()),
