@@ -377,7 +377,7 @@ pkg = import('pkgconfig')
 pkg.generate(gum,
   filebase: 'frida-gum-' + api_version,
   name: 'Gum',
-  version: gum_version,
+  version: frida_version,
   description: 'Low-level code instrumentation library',
   requires: ['glib-2.0', 'gobject-2.0', 'gio-2.0', 'capstone'],
   requires_private: extra_requires_private,

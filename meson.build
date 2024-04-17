@@ -6,7 +6,11 @@ project('frida-gum', 'c', 'cpp',
   ],
 )
 
-gum_version = meson.project_version()
+frida_version = get_option('frida_version')
+if frida_version == ''
+  frida_version = meson.project_version()
+endif
+
 api_version = '1.0'
 
 host_os = host_machine.system()
@@ -136,10 +140,8 @@ extra_libs_private = []
 extra_gir_args_private = []
 
 cdata = configuration_data()
-cdata.set_quoted('GUM_VERSION', gum_version)
-if cc.get_define('FRIDA_VERSION') == ''
-  cdata.set_quoted('FRIDA_VERSION', gum_version)
-endif
+
+cdata.set_quoted('FRIDA_VERSION', frida_version)
 
 static = get_option('default_library') == 'static'
 if static

@@ -70,7 +70,7 @@ gum_prof_dep = declare_dependency(link_with: gum_prof)
 pkg = import('pkgconfig')
 pkg.generate(filebase: 'frida-gum-prof-' + api_version,
   name: 'GumProf',
-  version: gum_version,
+  version: frida_version,
   description: 'Profiling library built on top of Gum',
   requires: ['frida-gum-' + api_version],
   subdirs: install_header_basedir,

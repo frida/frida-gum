@@ -1,3 +1,9 @@
+option('frida_version',
+  type: 'string',
+  value: '',
+  description: 'Frida version, such as 16.2.2 or 16.2.2-dev.27',
+)
+
 option('diet',
   type: 'boolean',
   value: false,

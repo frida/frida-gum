@@ -49,7 +49,7 @@ gumpp_dep = declare_dependency(link_with: gumpp,
 pkg = import('pkgconfig')
 pkg.generate(filebase: 'frida-gumpp-' + api_version,
   name: 'Gum++',
-  version: gum_version,
+  version: frida_version,
   description: 'Gum C++ bindings',
   requires_private: ['frida-gum-' + api_version],
   subdirs: install_header_basedir,
