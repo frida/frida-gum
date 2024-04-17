@@ -1,5 +1,5 @@
 project('frida-gum', 'c', 'cpp',
-  version: '1.0.0',
+  version: '0.0.0',
   meson_version: '>=1.1.0',
   default_options: [
     'c_std=gnu99,c99',
