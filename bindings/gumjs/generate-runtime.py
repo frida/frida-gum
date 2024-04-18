@@ -23,20 +23,21 @@ EXACT_DEPS = {
 
 
 def main(argv):
-    output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile = \
-            [Path(d).resolve() if d else None for d in argv[1:8]]
-    backends = set(argv[8].split(","))
-    arch, endian = argv[9:]
+    output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, libtcc_incdir, npm, quickcompile = \
+            [Path(d).resolve() if d else None for d in argv[1:9]]
+    backends = set(argv[9].split(","))
+    arch, endian = argv[10:]
 
     try:
-        generate_runtime(output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile,
+        generate_runtime(output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, libtcc_incdir,
+                         npm, quickcompile,
                          backends, arch, endian)
     except Exception as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
 
-def generate_runtime(output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, libtcc_incdir, quickcompile, backends, arch, endian):
+def generate_runtime(output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, libtcc_incdir, npm, quickcompile, backends, arch, endian):
     frida_compile = priv_dir / "node_modules" / ".bin" / make_script_filename("frida-compile")
     if not frida_compile.exists():
         if priv_dir.exists():
@@ -45,32 +46,18 @@ def generate_runtime(output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, 
 
         (priv_dir / "tsconfig.json").write_text("{ \"files\": [], \"compilerOptions\": { \"typeRoots\": [] } }", encoding="utf-8")
 
-        npm = os.environ.get("NPM", make_script_filename("npm"))
-        try:
-            subprocess.run([npm, "init", "-y"],
-                           capture_output=True,
-                           cwd=priv_dir,
-                           check=True)
-            subprocess.run([npm, "install"] + [f"{name}@{version_spec}" for name, version_spec in RELAXED_DEPS.items()],
-                           capture_output=True,
-                           cwd=priv_dir,
-                           check=True)
-            subprocess.run([npm, "install", "-E"] + [f"{name}@{version_spec}" for name, version_spec in EXACT_DEPS.items()],
-                           capture_output=True,
-                           cwd=priv_dir,
-                           check=True)
-        except Exception as e:
-            message = "\n".join([
-                "",
-                "***",
-                "Failed to bootstrap frida-compile:",
-                "\t" + str(e),
-                "It appears Node.js is not installed.",
-                "We need it for processing JavaScript code at build-time.",
-                "Check PATH or set NPM to the absolute path of your npm binary.",
-                "***\n",
-            ])
-            raise EnvironmentError(message)
+        subprocess.run([npm, "init", "-y"],
+                       capture_output=True,
+                       cwd=priv_dir,
+                       check=True)
+        subprocess.run([npm, "install"] + [f"{name}@{version_spec}" for name, version_spec in RELAXED_DEPS.items()],
+                       capture_output=True,
+                       cwd=priv_dir,
+                       check=True)
+        subprocess.run([npm, "install", "-E"] + [f"{name}@{version_spec}" for name, version_spec in EXACT_DEPS.items()],
+                       capture_output=True,
+                       cwd=priv_dir,
+                       check=True)
 
     runtime_reldir = Path("runtime")
     runtime_srcdir = input_dir / runtime_reldir

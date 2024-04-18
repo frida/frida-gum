@@ -643,6 +643,11 @@ if have_gumjs
     'tests=false',
     'sysprof=disabled',
   ])
+
+  npm = find_program('npm', native: true, required: false)
+  if not npm.found()
+    error('Need Node.js and npm to process JavaScript code at build-time')
+  endif
 else
   v8_dep = disabler()
 endif
