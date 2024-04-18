@@ -4,6 +4,12 @@ option('frida_version',
   description: 'Frida version, such as 16.2.2 or 16.2.2-dev.27',
 )
 
+option('graft_tool',
+  type: 'feature',
+  value: 'auto',
+  description: 'Build gum-graft tool',
+)
+
 option('diet',
   type: 'boolean',
   value: false,
