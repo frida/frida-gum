@@ -204,8 +204,8 @@ gumjs_generated_bindings = custom_target('gumjs-generated-bindings',
   output: gumjs_generated_outputs,
   command: [
     find_program('generate-bindings.py'),
-    meson.project_source_root() / 'gum',
     meson.current_build_dir(),
+    meson.project_source_root() / 'gum',
   ],
 )
 gumjs_sources += [gumjs_generated_bindings]

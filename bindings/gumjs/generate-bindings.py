@@ -7,7 +7,11 @@ import re
 import sys
 
 
-def generate_and_write_bindings(source_dir, output_dir):
+def main(argv):
+    output_dir, source_dir = argv[1:]
+    generate_and_write_bindings(output_dir, source_dir)
+
+def generate_and_write_bindings(output_dir, source_dir):
     binding_params = [
         ("writer", { 'ignore': ['new', 'ref', 'unref', 'init', 'clear', 'reset',
                                 'set_target_cpu', 'set_target_abi', 'set_target_os',
@@ -3217,7 +3221,4 @@ def to_camel_case(name, start_high):
 
 
 if __name__ == '__main__':
-    source_dir = sys.argv[1]
-    output_dir = sys.argv[2]
-
-    generate_and_write_bindings(source_dir, output_dir)
+    main(sys.argv)
