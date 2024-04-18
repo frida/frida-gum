@@ -180,6 +180,7 @@ gumjs_runtime_sources = [
   'runtime' / 'cmodule' / 'json-glib' / 'json-glib.h',
 ]
 gumjs_runtime_outputs = [
+  'runtime.bundle',
   'gumcmodule-runtime.h',
 ]
 if quickjs_dep.found()
@@ -233,15 +234,16 @@ gumjs_runtime = custom_target('gumjs-runtime',
   output: gumjs_runtime_outputs,
   command: [
     find_program('generate-runtime.py'),
-    ','.join(backends),
-    host_arch,
-    host_machine.endian(),
+    meson.current_build_dir(),
+    '@PRIVATE_DIR@',
     meson.current_source_dir(),
     meson.project_source_root() / 'gum',
     capstone_dep.get_variable('includedir') / 'capstone',
     libtcc_incdir,
     quickcompile,
-    meson.current_build_dir(),
+    ','.join(backends),
+    host_arch,
+    host_machine.endian(),
   ],
 )
 gumjs_sources += [gumjs_runtime]
