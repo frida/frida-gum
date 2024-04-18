@@ -111,7 +111,10 @@ gumjs_generated_inputs = []
 foreach o : gumjs_generated_origins
   gumjs_generated_inputs += meson.project_source_root() / 'gum' / o
 endforeach
-gumjs_generated_outputs = []
+gumjs_generated_outputs = [
+  'api-types.d.ts',
+  'api-reference.md',
+]
 runtimes = []
 if quickjs_dep.found()
   runtimes += 'quick'
