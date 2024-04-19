@@ -567,7 +567,11 @@ openssl_options = [
 if host_os_family == 'windows' and cc.get_argument_syntax() != 'msvc'
   openssl_options += '-Dasm=disabled'
 endif
-dependency('openssl', required: false, default_options: openssl_options)
+dependency('openssl',
+  required: false,
+  modules: cc.get_argument_syntax() == 'msvc' ? ['OpenSSL::SSL'] : [],
+  default_options: openssl_options,
+)
 
 tls_provider_dep = dependency('gioopenssl', required: false, default_options: [
   'gnutls=disabled',
