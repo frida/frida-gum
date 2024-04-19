@@ -646,11 +646,11 @@ if have_gumjs
 
   node = find_program('node', version: '>=18.0.0', native: true, required: false)
   if not node.found()
-    error('Need Node.js >= 18.0.0 to process JavaScript code at build-time')
+    error('Need Node.js >= 18.0.0 to process JavaScript code at build time')
   endif
   npm = find_program('npm', native: true, required: false)
   if not npm.found()
-    error('Need npm to process JavaScript code at build-time')
+    error('Need npm to process JavaScript code at build time')
   endif
 else
   v8_dep = disabler()
