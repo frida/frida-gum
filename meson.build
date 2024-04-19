@@ -561,7 +561,21 @@ if host_os == 'android'
   endif
 endif
 
-tls_provider_dep = dependency('gioopenssl', required: false)
+openssl_options = [
+  'cli=disabled',
+]
+if host_os_family == 'windows' and cc.get_argument_syntax() != 'msvc'
+  openssl_options += '-Dasm=disabled'
+endif
+dependency('openssl', required: false, default_options: openssl_options)
+
+tls_provider_dep = dependency('gioopenssl', required: false, default_options: [
+  'gnutls=disabled',
+  'openssl=enabled',
+  'libproxy=disabled',
+  'gnome_proxy=disabled',
+  'tests=false',
+])
 if tls_provider_dep.found()
   cdata.set('HAVE_GIOOPENSSL', 1)
 endif
