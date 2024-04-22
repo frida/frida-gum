@@ -609,6 +609,14 @@ if have_gumjs
   v8_dep = dependency('v8-10.0',
     version: '>=10.6.122',
     required: get_option('v8'),
+    default_options: [
+      'debug=false',
+      'embedder_string=-frida',
+      'snapshot_compression=disabled',
+      'pointer_compression=disabled',
+      'shared_ro_heap=disabled',
+      'cppgc_caged_heap=disabled',
+    ],
   )
   cdata.set('HAVE_V8', v8_dep.found())
   if v8_dep.found()
