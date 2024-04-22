@@ -1,7 +1,8 @@
 [wrap-git]
 url = https://github.com/frida/libdwarf.git
-revision = main
+revision = fce48507e895f7e808a1b50c31a44571ae30389b
 depth = 1
 
 [provide]
 dependency_names = libdwarf
+

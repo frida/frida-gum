@@ -1,7 +1,8 @@
 [wrap-git]
 url = https://github.com/frida/libunwind.git
-revision = main
+revision = ccd3a38597a8397a3382e4e58fdabb26a6f0be13
 depth = 1
 
 [provide]
 dependency_names = libunwind
+

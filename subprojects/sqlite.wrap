@@ -1,7 +1,8 @@
 [wrap-git]
 url = https://github.com/frida/sqlite.git
-revision = main
+revision = 9337327a50008f2d2236112ccb6f44059b1bafbd
 depth = 1
 
 [provide]
 dependency_names = sqlite3
+
