@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/frida/minizip-ng.git
+revision = main
+depth = 1
+
+[provide]
+dependency_names = minizip

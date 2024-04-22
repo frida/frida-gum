@@ -553,7 +553,10 @@ else
 endif
 
 if host_os == 'android'
-  minizip_dep = dependency('minizip', required: false)
+  minizip_dep = dependency('minizip', required: false, default_options: [
+    'zlib=enabled',
+    'lzma=disabled',
+  ])
   if minizip_dep.found()
     cdata.set('HAVE_MINIZIP', 1)
     extra_deps += [minizip_dep]
