@@ -123,7 +123,7 @@ else
   runner = raw_runner
 endif
 
-test('gum', find_program('./run.py'),
-  args: runner.full_path(),
+test('gum', python,
+  args: [files('run.py'), runner.full_path()],
   timeout: 120,
 )

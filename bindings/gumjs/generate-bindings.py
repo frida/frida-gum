@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from __future__ import unicode_literals, print_function
 import codecs
 import os

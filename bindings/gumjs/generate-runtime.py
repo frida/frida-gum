@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from base64 import b64decode
 import json
 import os
