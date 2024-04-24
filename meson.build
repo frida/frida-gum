@@ -1,5 +1,7 @@
 project('frida-gum', 'c', 'cpp',
-  version: '0.0.0',
+  version: run_command(find_program('python3'), files('tools' / 'detect-version.py'),
+    capture: true,
+    check: true).stdout().strip(),
   meson_version: '>=1.1.0',
   default_options: [
     'c_std=gnu99,c99',
