@@ -23,6 +23,9 @@ endif
 api_version = '1.0'
 
 host_os_family = host_machine.system()
+if host_os_family == 'android'
+  host_os_family = 'linux'
+endif
 host_os = host_machine.subsystem().split('-')[0]
 if host_machine.cpu_family() == 'arm'
   host_arch = 'arm'
