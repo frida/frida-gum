@@ -22,12 +22,8 @@ endif
 
 api_version = '1.0'
 
-host_os = host_machine.system()
-if host_os == 'android'
-  host_os_family = 'linux'
-else
-  host_os_family = host_os
-endif
+host_os_family = host_machine.system()
+host_os = host_machine.subsystem()
 if host_machine.cpu_family() == 'arm'
   host_arch = 'arm'
   host_abi = 'arm'
@@ -84,30 +80,6 @@ if host_arch == 'arm'
 endif
 
 if host_os_family == 'darwin'
-  apple_os_flavors = [
-    ['macOS',   'OSX'],
-    ['iOS',     'IOS'],
-    ['watchOS', 'WATCH'],
-    ['tvOS',    'TV'],
-  ]
-  foreach candidate : apple_os_flavors
-    name = candidate[0]
-    constant = candidate[1]
-    if cc.compiles('''
-                   #include <TargetConditionals.h>
-                   #if !TARGET_OS_@0@
-                   # error Nope
-                   #endif
-                   '''.format(constant),
-                   name: f'compiling for @name@')
-      host_os = name.to_lower()
-      break
-    endif
-  endforeach
-  if host_os == 'darwin'
-    error('Unable to detect Apple OS flavor')
-  endif
-
   have_ptrauth_src = '''
 #ifdef __clang__
 # if __has_feature (ptrauth_calls)
@@ -126,10 +98,6 @@ if host_os_family == 'darwin'
   endif
 else
   have_ptrauth = false
-endif
-
-if host_os_family == 'linux' and cc.has_header('android/api-level.h')
-  host_os = 'android'
 endif
 
 if host_os_family == 'windows'
