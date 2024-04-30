@@ -23,7 +23,7 @@ endif
 api_version = '1.0'
 
 host_os_family = host_machine.system()
-host_os = host_machine.subsystem()
+host_os = host_machine.subsystem().split('-')[0]
 if host_machine.cpu_family() == 'arm'
   host_arch = 'arm'
   host_abi = 'arm'
