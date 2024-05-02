@@ -200,7 +200,7 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_DARWIN
   TESTLIST_REGISTER (interceptor_darwin);
 #endif
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID) && GLIB_SIZEOF_VOID_P == 8
   TESTLIST_REGISTER (interceptor_android);
 #endif
 #ifdef HAVE_ARM
