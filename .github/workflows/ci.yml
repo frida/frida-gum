@@ -176,7 +176,7 @@ jobs:
           - android-arm
           - android-arm64
       fail-fast: false
-    runs-on: macos-latest
+    runs-on: ${{ startsWith(matrix.id, 'ios-') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
