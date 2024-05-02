@@ -5,6 +5,7 @@
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
+ * Copyright (C) 2024 Hillel Pinto <hillelpinto3@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -364,6 +365,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (cmodule_can_be_used_with_stalker_call_probe)
     TESTENTRY (cmodule_can_be_used_with_module_map)
     TESTENTRY (cmodule_should_provide_some_builtin_string_functions)
+    TESTENTRY (cmodule_should_provide_memory_access_apis)
     TESTENTRY (cmodule_should_support_memory_builtins)
     TESTENTRY (cmodule_should_support_arithmetic_builtins)
     TESTENTRY (cmodule_should_support_floating_point)
@@ -9920,6 +9922,72 @@ TESTCASE (cmodule_should_provide_some_builtin_string_functions)
   g_assert_cmphex (buf[1], ==, 'X');
 
   g_assert_cmpint (score_impl ("w00tage"), ==, 9);
+}
+
+TESTCASE (cmodule_should_provide_memory_access_apis)
+{
+  gboolean (* scan) (const guint8 * p, guint8 ** match);
+  guint8 * match;
+  const guint8 haystack[] = { 0x11, 0x22, 0x33, 0x13, 0x37, 0x44, 0x42, 0x55 };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const m = new CModule(`"
+      "#include <gum/gummemory.h>\\n"
+      "\\n"
+      "static gboolean store_match (GumAddress address, gsize size,\\n"
+      "    gpointer user_data);\\n"
+      "\\n"
+      "gboolean\\n"
+      "scan (const guint8 * p,\\n"
+      "      guint8 ** match)\\n"
+      "{\\n"
+      "  guint8 * data;\\n"
+      "  gsize n_bytes_read;\\n"
+      "  GumMemoryRange range;\\n"
+      "  GumMatchPattern * pattern;\\n"
+      "\\n"
+      "  *match = NULL;\\n"
+      "\\n"
+      "  data = gum_memory_read (p, 8, &n_bytes_read);\\n"
+      "  if (data == NULL || n_bytes_read != 8)\\n"
+      "    return FALSE;\\n"
+      "\\n"
+      "  range.base_address = GUM_ADDRESS (data);\\n"
+      "  range.size = 8;\\n"
+      "  pattern = gum_match_pattern_new_from_string (\"13 37 ?? 42\");\\n"
+      "  gum_memory_scan (&range, pattern, store_match, match);\\n"
+      "\\n"
+      "  gum_match_pattern_unref (pattern);\\n"
+      "  g_free (data);\\n"
+      "\\n"
+      "  return TRUE;\\n"
+      "}\\n"
+      "\\n"
+      "static gboolean\\n"
+      "store_match (GumAddress address,\\n"
+      "             gsize size,\\n"
+      "             gpointer user_data)\\n"
+      "{\\n"
+      "  guint8 ** match = user_data;\\n"
+      "  *match = g_memdup (GSIZE_TO_POINTER (address), size);\\n"
+      "  return FALSE;\\n"
+      "}\\n"
+      "`);"
+      "send(m.scan);");
+
+  scan = EXPECT_SEND_MESSAGE_WITH_POINTER ();
+  g_assert_nonnull (scan);
+
+  g_assert_false (scan (GSIZE_TO_POINTER (42), &match));
+  g_assert_null (match);
+
+  g_assert_true (scan (haystack, &match));
+  g_assert_nonnull (match);
+  g_assert_cmphex (match[0], ==, 0x13);
+  g_assert_cmphex (match[1], ==, 0x37);
+  g_assert_cmphex (match[2], ==, 0x44);
+  g_assert_cmphex (match[3], ==, 0x42);
+  g_free (match);
 }
 
 TESTCASE (cmodule_should_support_memory_builtins)
