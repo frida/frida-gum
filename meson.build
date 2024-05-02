@@ -361,7 +361,7 @@ if optimize_for_prod
     'glib_checks=false',
   ]
 endif
-glib_dep = dependency('glib-2.0', version: '>=2.56', default_options: glib_options)
+glib_dep = dependency('glib-2.0', version: '>=2.74', default_options: glib_options)
 if not diet
   gobject_dep = dependency('gobject-2.0')
 else
