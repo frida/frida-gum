@@ -214,7 +214,7 @@ jobs:
             tar xf $ASSET_PATH
             ./gum-tests
       - name: Test on Corellium Android device
-        if: startsWith(matrix.id, 'android-arm')
+        if: matrix.id == 'android-arm64'
         uses: frida/corellium-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
