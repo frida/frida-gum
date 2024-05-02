@@ -209,7 +209,9 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_ARM64
   TESTLIST_REGISTER (interceptor_arm64);
 #endif
+#if !(defined (HAVE_FREEBSD) && defined (HAVE_ARM64))
   TESTLIST_REGISTER (memoryaccessmonitor);
+#endif
 
   if (gum_stalker_is_supported ())
   {
