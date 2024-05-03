@@ -54,8 +54,8 @@ jobs:
         include:
           - { id: windows-x86_64, runner: '"windows-latest"'                    }
           - { id: windows-x86,    runner: '"windows-latest"'                    }
-          - { id: macos-x86_64,   runner: '"macos-latest"'                      }
-          - { id: macos-arm64,    runner: '"macos-14"'                          }
+          - { id: macos-x86_64,   runner: '"macos-13"'                          }
+          - { id: macos-arm64,    runner: '"macos-latest"'                      }
           - { id: linux-x86_64,   runner: '"ubuntu-latest"'                     }
           - { id: linux-x86,      runner: '"ubuntu-latest"'                     }
           - { id: freebsd-arm64,  runner: '["self-hosted", "freebsd", "arm64"]' }
