@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -14,7 +14,6 @@
 #include "gumv8script.h"
 #include "gumv8scriptbackend.h"
 
-#include <ffi.h>
 #include <gum/gumexceptor.h>
 #include <gum/gumprocess.h>
 #include <v8.h>
@@ -104,7 +103,6 @@ struct GumV8Core
   v8::Global<v8::String> * value_key;
   v8::Global<v8::String> * system_error_key;
 
-  v8::Global<v8::FunctionTemplate> * native_callback;
   v8::Global<v8::FunctionTemplate> * callback_context;
   v8::Global<v8::Object> * callback_context_value;
 
@@ -139,23 +137,6 @@ struct GumV8ByteArray
   v8::Global<v8::Object> * instance;
   gpointer data;
   gsize size;
-  GumV8Core * core;
-};
-
-struct GumV8NativeCallback
-{
-  gint ref_count;
-
-  v8::Global<v8::Object> * wrapper;
-
-  v8::Global<v8::Function> * func;
-  ffi_closure * closure;
-  ffi_cif cif;
-  ffi_type ** atypes;
-  GSList * data;
-
-  gint interceptor_replacement_count;
-
   GumV8Core * core;
 };
 

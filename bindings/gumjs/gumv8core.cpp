@@ -26,6 +26,7 @@
 # include "gumv8script-java.h"
 #endif
 
+#include <ffi.h>
 #include <glib/gprintf.h>
 #ifdef _MSC_VER
 # include <intrin.h>
@@ -134,6 +135,22 @@ struct GumV8NativeFunction
   gboolean is_variadic;
   uint32_t nargs_fixed;
   ffi_abi abi;
+  GSList * data;
+
+  GumV8Core * core;
+};
+
+struct GumV8NativeCallback
+{
+  gint ref_count;
+
+  v8::Global<v8::Object> * wrapper;
+  gpointer ptr_value;
+
+  v8::Global<v8::Function> * func;
+  ffi_closure * closure;
+  ffi_cif cif;
+  ffi_type ** atypes;
   GSList * data;
 
   GumV8Core * core;
@@ -613,8 +630,6 @@ _gum_v8_core_init (GumV8Core * self,
       gumjs_native_callback_construct, scope, module, isolate);
   native_callback->Inherit (native_pointer);
   native_callback->InstanceTemplate ()->SetInternalFieldCount (2);
-  self->native_callback =
-      new Global<FunctionTemplate> (isolate, native_callback);
 
   auto cc = _gum_v8_create_class ("CallbackContext", nullptr, scope,
       module, isolate);
@@ -1306,9 +1321,6 @@ _gum_v8_core_finalize (GumV8Core * self)
 
   delete self->callback_context;
   self->callback_context = nullptr;
-
-  delete self->native_callback;
-  self->native_callback = nullptr;
 
   delete self->native_function;
   self->native_function = nullptr;
@@ -3388,6 +3400,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   callback->wrapper = new Global<Object> (isolate, wrapper);
   callback->wrapper->SetWeak (callback,
       gum_v8_native_callback_on_weak_notify, WeakCallbackType::kParameter);
+  callback->ptr_value = func;
 
   g_hash_table_add (core->native_callbacks, callback);
 
@@ -3522,8 +3535,8 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   auto interceptor = &self->core->script->interceptor;
   GumV8InvocationContext * jic = NULL;
   GumV8CallbackContext * jcc = NULL;
-  auto ic = gum_interceptor_get_current_invocation ();
-  if (ic != NULL && self->interceptor_replacement_count > 0)
+  auto ic = gum_interceptor_get_live_replacement_invocation (self->ptr_value);
+  if (ic != NULL)
   {
     jic = _gum_v8_interceptor_obtain_invocation_context (interceptor);
     _gum_v8_invocation_context_reset (jic, ic);

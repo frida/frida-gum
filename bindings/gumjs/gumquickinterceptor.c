@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -706,17 +706,12 @@ gum_quick_add_replace_entry (GumQuickInterceptor * self,
   GumQuickCore * core = self->core;
   JSContext * ctx = core->ctx;
   GumQuickReplaceEntry * entry;
-  GumQuickNativeCallback * c;
 
   entry = g_slice_new (GumQuickReplaceEntry);
   entry->interceptor = self->interceptor;
   entry->target = target;
   entry->replacement = JS_DupValue (ctx, replacement_value);
   entry->ctx = ctx;
-
-  c = JS_GetOpaque (entry->replacement, core->native_callback_class);
-  if (c != NULL)
-    c->interceptor_replacement_count++;
 
   g_hash_table_insert (self->replacement_by_address, target, entry);
 }
@@ -771,21 +766,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 {
   GumQuickInterceptor * self;
   gpointer target;
-  GumQuickReplaceEntry * entry;
 
   self = gumjs_get_parent_module (core);
 
   if (!_gum_quick_args_parse (args, "p", &target))
     return JS_EXCEPTION;
-
-  entry = g_hash_table_lookup (self->replacement_by_address, target);
-  if (entry != NULL)
-  {
-    GumQuickNativeCallback * c =
-        JS_GetOpaque (entry->replacement, core->native_callback_class);
-    if (c != NULL)
-      c->interceptor_replacement_count--;
-  }
 
   g_hash_table_remove (self->replacement_by_address, target);
 

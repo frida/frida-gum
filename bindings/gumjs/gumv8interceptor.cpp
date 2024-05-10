@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -746,15 +746,6 @@ gum_v8_handle_replace_ret (GumV8Interceptor * self,
 
       g_hash_table_insert (self->replacement_by_address, target, entry);
 
-      auto native_callback = Local<FunctionTemplate>::New (isolate,
-          *core->native_callback);
-      auto instance = replacement_value.As<Object> ();
-      if (native_callback->HasInstance (instance))
-      {
-        auto callback = (GumV8NativeCallback *)
-            instance->GetInternalField (1).As<External> ()->Value ();
-        callback->interceptor_replacement_count++;
-      }
       break;
     }
     case GUM_REPLACE_WRONG_SIGNATURE:
@@ -793,22 +784,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   gpointer target;
   if (!_gum_v8_args_parse (args, "p", &target))
     return;
-
-  auto entry = (GumV8ReplaceEntry *)
-      g_hash_table_lookup (module->replacement_by_address, target);
-  if (entry != NULL)
-  {
-    auto native_callback = Local<FunctionTemplate>::New (isolate,
-        *core->native_callback);
-    auto replacement_value (Local<Value>::New (isolate, *entry->replacement));
-    auto instance = replacement_value.As<Object> ();
-    if (native_callback->HasInstance (instance))
-    {
-      auto callback = (GumV8NativeCallback *)
-          instance->GetInternalField (1).As<External> ()->Value ();
-      callback->interceptor_replacement_count--;
-    }
-  }
 
   g_hash_table_remove (module->replacement_by_address, target);
 }
