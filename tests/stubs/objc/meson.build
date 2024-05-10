@@ -1,15 +1,11 @@
-objcdummyclass = static_library('objcdummyclass', [
-  'dummyclass.h',
-  'dummyclass.m',
-])
-
-custom_target('objcdummyclass-stripped',
-  input: objcdummyclass,
-  output: 'none',
+objcdummyclass = custom_target('objcdummyclass',
+  input: static_library('objcdummyclass-raw', 'dummyclass.m'),
+  output: 'libobjcdummyclass.a',
   command: [
-    'strip',
+    find_program('strip'),
     '-x',
     '@INPUT@',
+    '-o',
+    '@OUTPUT@',
   ],
-  build_by_default: true,
 )
