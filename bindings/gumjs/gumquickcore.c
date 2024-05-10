@@ -4502,8 +4502,8 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   }
 
   if (core->interceptor != NULL &&
-      (ic = gum_interceptor_get_current_invocation ()) != NULL &&
-      self->interceptor_replacement_count > 0)
+      (ic = gum_interceptor_get_live_replacement_invocation (
+        self->native_pointer.value)) != NULL)
   {
     jic = _gum_quick_interceptor_obtain_invocation_context (core->interceptor);
     _gum_quick_invocation_context_reset (jic, ic);

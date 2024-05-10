@@ -266,8 +266,6 @@ struct _GumQuickNativeCallback
   ffi_type ** atypes;
   GSList * data;
 
-  gint interceptor_replacement_count;
-
   GumQuickCore * core;
 };
 
