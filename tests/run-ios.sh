@@ -1,18 +1,13 @@
 #!/bin/sh
 
-arch=arm64
-
 remote_host=iphone
-remote_prefix=/usr/local/opt/frida-tests-$arch
+remote_prefix=/usr/local/opt/frida-tests
 
-gum_tests=$(dirname "$0")
+set -e
 
-cd "$gum_tests/../../build/tmp-ios-$arch/frida-gum" || exit 1
+make
 
-. ../../frida-env-macos-arm64.rc
-ninja || exit 1
-
-cd tests
+cd build/tests
 
 ssh "$remote_host" "mkdir -p '$remote_prefix'"
 rsync -rLz gum-tests data "$remote_host:$remote_prefix/" || exit 1
