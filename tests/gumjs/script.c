@@ -8887,19 +8887,19 @@ TESTCASE (ansi_string_can_be_written_in_code_page_936)
   MultiByteToWideChar (CP_THREAD_ACP, 0, str_ansi, -1,
       str_utf16, sizeof (str_utf16));
   str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
-  g_assert_cmpstr (str_utf8, == , "test测试.");
+  g_assert_cmpstr (str_utf8, ==, "test测试.");
   g_free (str_utf8);
-  g_assert_cmphex (str_ansi[9], == , '\0');
-  g_assert_cmphex (str_ansi[10], == , 'l');
-  g_assert_cmphex (str_ansi[11], == , 'z');
-  g_assert_cmphex (str_ansi[12], == , '\0');
+  g_assert_cmphex (str_ansi[9], ==, '\0');
+  g_assert_cmphex (str_ansi[10], ==, 'l');
+  g_assert_cmphex (str_ansi[11], ==, 'z');
+  g_assert_cmphex (str_ansi[12], ==, '\0');
 
   COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeAnsiString('Bjørheimsbygd');",
       str_ansi);
   MultiByteToWideChar (CP_THREAD_ACP, 0, str_ansi, -1,
       str_utf16, sizeof (str_utf16));
   str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
-  g_assert_cmpstr (str_utf8, == , "Bj?rheimsbygd");
+  g_assert_cmpstr (str_utf8, ==, "Bj?rheimsbygd");
   g_free (str_utf8);
 }
 
@@ -8923,12 +8923,12 @@ TESTCASE (ansi_string_can_be_written_in_code_page_1252)
   MultiByteToWideChar (CP_THREAD_ACP, 0, str_ansi, -1,
       str_utf16, sizeof (str_utf16));
   str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
-  g_assert_cmpstr (str_utf8, == , "Bjørheimsbygd");
+  g_assert_cmpstr (str_utf8, ==, "Bjørheimsbygd");
   g_free (str_utf8);
-  g_assert_cmphex (str_ansi[13], == , '\0');
-  g_assert_cmphex (str_ansi[14], == , 'a');
-  g_assert_cmphex (str_ansi[15], == , 'r');
-  g_assert_cmphex (str_ansi[16], == , '\0');
+  g_assert_cmphex (str_ansi[13], ==, '\0');
+  g_assert_cmphex (str_ansi[14], ==, 'a');
+  g_assert_cmphex (str_ansi[15], ==, 'r');
+  g_assert_cmphex (str_ansi[16], ==, '\0');
 }
 
 TESTCASE (ansi_string_can_be_allocated_in_code_page_936)
