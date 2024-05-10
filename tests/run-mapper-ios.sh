@@ -1,20 +1,20 @@
 #!/bin/bash
 
-arch=arm64e
-
 remote_host=iphone
-remote_prefix=/usr/local/opt/frida-tests-$arch
+remote_prefix=/usr/local/opt/frida-tests
 
-gum_tests=$(dirname "$0")
-gadget_stripped=../../frida-core/lib/gadget/frida-gadget.dylib
-gadget_unstripped=../../frida-core/lib/gadget/_frida-gadget.dylib
+gadget_stripped=$1
+gadget_unstripped=$2
+if [ -z "$gadget_stripped" -o -z "$gadget_unstripped" ]; then
+  echo "Usage: $0 path/to/stripped/gadget path/to/unstripped/gadget" > /dev/stderr
+  exit 1
+fi
 
-cd "$gum_tests/../../build/tmp_thin-ios-$arch/frida-gum" || exit 1
+set -e
 
-. ../../frida_thin-env-macos-x86_64.rc
-ninja || exit 1
+make
 
-cd tests
+cd build/tests
 
 ssh "$remote_host" "mkdir -p '$remote_prefix'"
 rsync -rLz gum-tests data core/mapper-test $gadget_stripped "$remote_host:$remote_prefix/" || exit 1
