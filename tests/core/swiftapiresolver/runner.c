@@ -45,17 +45,25 @@ run (const gchar * query)
   guint num_matches = 0;
 
 #ifdef HAVE_DARWIN
-  os_signpost_id_t id = os_signpost_id_generate (gum_log);
-  os_signpost_interval_begin (gum_log, id, "enumerate_matches",
-      "query='%{public}s'", query);
+  os_signpost_id_t id;
+
+  if (__builtin_available (macOS 10.14, iOS 12.0, *))
+  {
+    id = os_signpost_id_generate (gum_log);
+    os_signpost_interval_begin (gum_log, id, "enumerate_matches",
+        "query='%{public}s'", query);
+  }
 #endif
 
   gum_api_resolver_enumerate_matches (resolver, query, on_match, &num_matches,
       NULL);
 
 #ifdef HAVE_DARWIN
-  os_signpost_interval_end (gum_log, id, "enumerate_matches", "num_matches=%u",
-      num_matches);
+  if (__builtin_available (macOS 10.14, iOS 12.0, *))
+  {
+    os_signpost_interval_end (gum_log, id, "enumerate_matches",
+        "num_matches=%u", num_matches);
+  }
 #endif
 
   return num_matches;
