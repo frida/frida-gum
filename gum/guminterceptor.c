@@ -1103,6 +1103,13 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
       if (!rwx_supported)
       {
+        /*
+         * We don't bother restoring the protection on RWX systems, as we would
+         * have to determine the old protection to be able to do so safely.
+         *
+         * While we could easily do that, it would add overhead, but it's not
+         * really clear that it would have any tangible upsides.
+         */
         for (cur = addresses; cur != NULL; cur = cur->next)
         {
           gpointer target_page = cur->data;
