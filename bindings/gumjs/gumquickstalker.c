@@ -115,6 +115,7 @@ GUMJS_DECLARE_GETTER (gumjs_default_iterator_get_memory_access)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_put_callout)
+GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_put_chaining_return)
 
 static JSValue gum_quick_special_iterator_new (GumQuickStalker * parent,
     GumQuickSpecialIterator ** iterator);
@@ -125,6 +126,7 @@ GUMJS_DECLARE_GETTER (gumjs_special_iterator_get_memory_access)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_put_callout)
+GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_put_chaining_return)
 
 static void gum_quick_callout_free (GumQuickCallout * callout);
 static void gum_quick_callout_on_invoke (GumCpuContext * cpu_context,
@@ -200,6 +202,8 @@ static const JSCFunctionListEntry gumjs_default_iterator_entries[] =
   JS_CFUNC_DEF ("next", 0, gumjs_default_iterator_next),
   JS_CFUNC_DEF ("keep", 0, gumjs_default_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_default_iterator_put_callout),
+  JS_CFUNC_DEF ("putChainingReturn", 0,
+      gumjs_default_iterator_put_chaining_return),
 };
 
 static const JSClassDef gumjs_special_iterator_def =
@@ -215,6 +219,8 @@ static const JSCFunctionListEntry gumjs_special_iterator_entries[] =
   JS_CFUNC_DEF ("next", 0, gumjs_special_iterator_next),
   JS_CFUNC_DEF ("keep", 0, gumjs_special_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_special_iterator_put_callout),
+  JS_CFUNC_DEF ("putChainingReturn", 0,
+      gumjs_special_iterator_put_chaining_return),
 };
 
 static const JSClassExoticMethods gumjs_probe_args_exotic_methods =
@@ -1017,6 +1023,15 @@ gum_quick_stalker_iterator_put_callout (GumQuickIterator * self,
 }
 
 static JSValue
+gum_quick_stalker_iterator_put_chaining_return (GumQuickIterator * self,
+                                                JSContext * ctx)
+{
+  gum_stalker_iterator_put_chaining_return (self->handle);
+
+  return JS_UNDEFINED;
+}
+
+static JSValue
 gum_quick_default_iterator_new (GumQuickStalker * parent,
                                 GumQuickDefaultIterator ** iterator)
 {
@@ -1133,6 +1148,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_default_iterator_put_callout)
     return JS_EXCEPTION;
 
   return gum_quick_stalker_iterator_put_callout (&self->iterator, ctx, args);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_default_iterator_put_chaining_return)
+{
+  GumQuickDefaultIterator * self;
+
+  if (!gum_quick_default_iterator_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  return gum_quick_stalker_iterator_put_chaining_return (&self->iterator, ctx);
 }
 
 static JSValue
@@ -1252,6 +1277,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_special_iterator_put_callout)
     return JS_EXCEPTION;
 
   return gum_quick_stalker_iterator_put_callout (&self->iterator, ctx, args);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_special_iterator_put_chaining_return)
+{
+  GumQuickSpecialIterator * self;
+
+  if (!gum_quick_special_iterator_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  return gum_quick_stalker_iterator_put_chaining_return (&self->iterator, ctx);
 }
 
 static void

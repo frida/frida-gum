@@ -469,6 +469,14 @@ gum_callback_stalker_transformer_transform_block (
  * Returns: %TRUE if there is a next instruction, else %FALSE
  */
 
+/**
+ * gum_stalker_iterator_put_chaining_return:
+ * @self: a #GumStalkerIterator
+ *
+ * Puts a chaining return at the current location in the output
+ * instruction stream.
+ */
+
 static void
 gum_stalker_observer_default_init (GumStalkerObserverInterface * iface)
 {

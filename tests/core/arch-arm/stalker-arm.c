@@ -100,6 +100,8 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (custom_transformer)
   TESTENTRY (arm_callout)
   TESTENTRY (thumb_callout)
+  TESTENTRY (arm_transformer_should_be_able_to_replace_call_with_callout)
+  TESTENTRY (arm_transformer_should_be_able_to_replace_jumpout_with_callout)
   TESTENTRY (unfollow_should_be_allowed_before_first_transform)
   TESTENTRY (unfollow_should_be_allowed_mid_first_transform)
   TESTENTRY (unfollow_should_be_allowed_after_first_transform)
@@ -172,6 +174,11 @@ static void transform_thumb_return_value (GumStalkerIterator * iterator,
 static void on_thumb_ret (GumCpuContext * cpu_context,
     gpointer user_data);
 static gboolean is_thumb_pop_pc (const guint8 * bytes, gsize size);
+static void replace_call_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void replace_jumpout_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void callout_set_cool (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void test_invalidation_for_current_thread_with_target (GumAddress target,
@@ -2771,6 +2778,85 @@ is_thumb_pop_pc (const guint8 * bytes,
     return FALSE;
 
   return memcmp (bytes, pop_pc, size) == 0;
+}
+
+TESTCODE (arm_simple_call,
+  0x04, 0xe0, 0x2d, 0xe5, /* push {lr}      */
+  0x0d, 0x00, 0x00, 0xe3, /* mov r0, 13     */
+  0x00, 0x00, 0x00, 0xeb, /* bl bump_number */
+  0x04, 0xf0, 0x9d, 0xe4, /* pop {pc}       */
+  /* bump_number:                           */
+  0x25, 0x00, 0x80, 0xe2, /* add r0, 37     */
+  0x1e, 0xff, 0x2f, 0xe1, /* bx lr          */
+);
+
+TESTCASE (arm_transformer_should_be_able_to_replace_call_with_callout)
+{
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      replace_call_with_callout, NULL, NULL);
+
+  INVOKE_ARM_EXPECTING (GUM_NOTHING, arm_simple_call, 0xc001);
+}
+
+static void
+replace_call_with_callout (GumStalkerIterator * iterator,
+                           GumStalkerOutput * output,
+                           gpointer user_data)
+{
+  const cs_insn * insn;
+  static int insn_num = 0;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    if (insn_num == 4)
+      gum_stalker_iterator_put_callout (iterator, callout_set_cool, NULL, NULL);
+    else
+      gum_stalker_iterator_keep (iterator);
+    insn_num++;
+  }
+}
+
+TESTCODE (arm_simple_jumpout,
+  0x0d, 0x00, 0x00, 0xe3, /* mov r0, 13    */
+  0xff, 0xff, 0xff, 0xea, /* b bump_number */
+  /* bump_number:                          */
+  0x25, 0x00, 0x80, 0xe2, /* add r0, 37    */
+  0x1e, 0xff, 0x2f, 0xe1, /* bx lr         */
+);
+
+TESTCASE (arm_transformer_should_be_able_to_replace_jumpout_with_callout)
+{
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      replace_jumpout_with_callout, NULL, NULL);
+
+  INVOKE_ARM_EXPECTING (GUM_EXEC, arm_simple_jumpout, 0xc001);
+}
+
+static void
+replace_jumpout_with_callout (GumStalkerIterator * iterator,
+                              GumStalkerOutput * output,
+                              gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    if (insn->id == ARM_INS_B)
+    {
+      gum_stalker_iterator_put_callout (iterator, callout_set_cool, NULL, NULL);
+      gum_stalker_iterator_put_chaining_return (iterator);
+      continue;
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+callout_set_cool (GumCpuContext * cpu_context,
+                  gpointer user_data)
+{
+  cpu_context->r[0] = 0xc001;
 }
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)

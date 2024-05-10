@@ -220,6 +220,11 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
 {
 }
 
+void
+gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
+{
+}
+
 csh
 gum_stalker_iterator_get_capstone (GumStalkerIterator * self)
 {

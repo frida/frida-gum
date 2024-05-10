@@ -765,6 +765,8 @@ static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     GumGeneratorContext * gc, guint id, GumAddress jcc_address);
 static void gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     GumGeneratorContext * gc);
+static void gum_exec_block_write_chaining_return_code (GumExecBlock * block,
+    GumGeneratorContext * gc, guint16 npop);
 static gpointer * gum_exec_block_write_inline_cache_code (GumExecBlock * block,
     GumGeneratorContext * gc, GumX86Writer * cw, GumX86Writer * cws);
 static void gum_exec_block_backpatch_slab (GumExecBlock * block,
@@ -3367,6 +3369,20 @@ gum_stalker_invoke_callout (GumCalloutEntry * entry,
   ec->pending_calls--;
 }
 
+void
+gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
+{
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+
+  if ((block->ctx->sink_mask & GUM_RET) != 0)
+    gum_exec_block_write_ret_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
+
+  gum_exec_block_write_adjust_depth (block, gc->code_writer, -1);
+
+  gum_exec_block_write_chaining_return_code (block, gc, 0);
+}
+
 csh
 gum_stalker_iterator_get_capstone (GumStalkerIterator * self)
 {
@@ -5608,11 +5624,6 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
   cs_x86 * x86 = &insn->ci->detail->x86;
   cs_x86_op * op = &x86->operands[0];
   guint16 npop = 0;
-  const gint trust_threshold = block->ctx->stalker->trust_threshold;
-  GumX86Writer * cw = gc->code_writer;
-  GumX86Writer * cws = gc->slow_writer;
-  gpointer * ic_match;
-  GumExecCtx * ctx = block->ctx;
 
   if (x86->op_count != 0)
   {
@@ -5621,6 +5632,20 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     g_assert (op->imm <= G_MAXUINT16);
     npop = op->imm;
   }
+
+  gum_exec_block_write_chaining_return_code (block, gc, npop);
+}
+
+static void
+gum_exec_block_write_chaining_return_code (GumExecBlock * block,
+                                           GumGeneratorContext * gc,
+                                           guint16 npop)
+{
+  const gint trust_threshold = block->ctx->stalker->trust_threshold;
+  GumX86Writer * cw = gc->code_writer;
+  GumX86Writer * cws = gc->slow_writer;
+  gpointer * ic_match;
+  GumExecCtx * ctx = block->ctx;
 
   if (trust_threshold >= 0)
   {

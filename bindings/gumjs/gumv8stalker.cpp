@@ -133,6 +133,7 @@ GUMJS_DECLARE_GETTER (gumjs_stalker_default_iterator_get_memory_access)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_put_callout)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_put_chaining_return)
 
 static GumV8StalkerSpecialIterator *
     gum_v8_stalker_special_iterator_new_persistent (GumV8Stalker * parent);
@@ -149,6 +150,7 @@ GUMJS_DECLARE_GETTER (gumjs_stalker_special_iterator_get_memory_access)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_put_callout)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_put_chaining_return)
 
 static void gum_v8_callout_free (GumV8Callout * callout);
 static void gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
@@ -227,6 +229,7 @@ static const GumV8Function gumjs_stalker_default_iterator_functions[] =
   { "next", gumjs_stalker_default_iterator_next },
   { "keep", gumjs_stalker_default_iterator_keep },
   { "putCallout", gumjs_stalker_default_iterator_put_callout },
+  { "putChainingReturn", gumjs_stalker_default_iterator_put_chaining_return },
 
   { NULL, NULL }
 };
@@ -243,6 +246,7 @@ static const GumV8Function gumjs_stalker_special_iterator_functions[] =
   { "next", gumjs_stalker_special_iterator_next },
   { "keep", gumjs_stalker_special_iterator_keep },
   { "putCallout", gumjs_stalker_special_iterator_put_callout },
+  { "putChainingReturn", gumjs_stalker_special_iterator_put_chaining_return },
 
   { NULL, NULL }
 };
@@ -1083,6 +1087,16 @@ gum_v8_stalker_iterator_put_callout (GumV8StalkerIterator * self,
   }
 }
 
+static void
+gum_v8_stalker_iterator_put_chaining_return (GumV8StalkerIterator * self,
+                                             Isolate * isolate)
+{
+  if (!gum_v8_stalker_iterator_check_valid (self, isolate))
+    return;
+
+  gum_stalker_iterator_put_chaining_return (self->handle);
+}
+
 static GumV8StalkerDefaultIterator *
 gum_v8_stalker_default_iterator_new_persistent (GumV8Stalker * parent)
 {
@@ -1170,6 +1184,13 @@ GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (gumjs_stalker_default_iterator_put_callout,
   gum_v8_stalker_iterator_put_callout (&self->iterator, args, isolate);
 }
 
+GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (
+    gumjs_stalker_default_iterator_put_chaining_return,
+    GumV8StalkerDefaultIterator)
+{
+  gum_v8_stalker_iterator_put_chaining_return (&self->iterator, isolate);
+}
+
 static GumV8StalkerSpecialIterator *
 gum_v8_stalker_special_iterator_new_persistent (GumV8Stalker * parent)
 {
@@ -1255,6 +1276,13 @@ GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (gumjs_stalker_special_iterator_put_callout,
                                      GumV8StalkerSpecialIterator)
 {
   gum_v8_stalker_iterator_put_callout (&self->iterator, args, isolate);
+}
+
+GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (
+    gumjs_stalker_special_iterator_put_chaining_return,
+    GumV8StalkerSpecialIterator)
+{
+  gum_v8_stalker_iterator_put_chaining_return (&self->iterator, isolate);
 }
 
 static void

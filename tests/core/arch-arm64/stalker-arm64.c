@@ -32,6 +32,8 @@ TESTLIST_BEGIN (stalker)
   /* TRANSFORMERS */
   TESTENTRY (custom_transformer)
   TESTENTRY (transformer_should_be_able_to_skip_call)
+  TESTENTRY (transformer_should_be_able_to_replace_call_with_callout)
+  TESTENTRY (transformer_should_be_able_to_replace_tailjump_with_callout)
   TESTENTRY (unfollow_should_be_allowed_before_first_transform)
   TESTENTRY (unfollow_should_be_allowed_mid_first_transform)
   TESTENTRY (unfollow_should_be_allowed_after_first_transform)
@@ -123,6 +125,11 @@ static void insert_extra_add_after_sub (GumStalkerIterator * iterator,
 static void store_x0 (GumCpuContext * cpu_context, gpointer user_data);
 static void skip_call (GumStalkerIterator * iterator, GumStalkerOutput * output,
     gpointer user_data);
+static void replace_call_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void replace_jmp_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void callout_set_cool (GumCpuContext * cpu_context, gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static gboolean test_is_finished (void);
@@ -542,6 +549,103 @@ skip_call (GumStalkerIterator * iterator,
 
     gum_stalker_iterator_keep (iterator);
   }
+}
+
+TESTCASE (transformer_should_be_able_to_replace_call_with_callout)
+{
+  guint32 code_template[] =
+  {
+    0xa9bf7bfd, /* push {x29, x30} */
+    0xd280a280, /* mov x0, #1300   */
+    0x94000003, /* bl bump_number  */
+    0xa8c17bfd, /* pop {x29, x30}  */
+    0xd65f03c0, /* ret             */
+    /* bump_number:                */
+    0x91009400, /* add x0, x0, #37 */
+    0xd65f03c0, /* ret             */
+  };
+  StalkerTestFunc func;
+  gint ret;
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
+      code_template, sizeof (code_template));
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      replace_call_with_callout, func, NULL);
+
+  ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (ret, ==, 0xc001);
+}
+
+static void
+replace_call_with_callout (GumStalkerIterator * iterator,
+                           GumStalkerOutput * output,
+                           gpointer user_data)
+{
+  const guint32 * func_start = user_data;
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    if (insn->address == GPOINTER_TO_SIZE (func_start + 2))
+    {
+      gum_stalker_iterator_put_callout (iterator, callout_set_cool, NULL, NULL);
+      continue;
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
+{
+  guint32 code_template[] =
+  {
+    0xd280a280, /* mov x0, #1300   */
+    0x14000001, /* b bump_number   */
+    /* bump_number:                */
+    0x91009400, /* add x0, x0, #37 */
+    0xd65f03c0, /* ret             */
+  };
+  StalkerTestFunc func;
+  gint ret;
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
+      code_template, sizeof (code_template));
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      replace_jmp_with_callout, func, NULL);
+
+  ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (ret, ==, 0xc001);
+}
+
+static void
+replace_jmp_with_callout (GumStalkerIterator * iterator,
+                          GumStalkerOutput * output,
+                          gpointer user_data)
+{
+  const guint32 * func_start = user_data;
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    if (insn->address == GPOINTER_TO_SIZE (func_start + 1))
+    {
+      gum_stalker_iterator_put_callout (iterator, callout_set_cool, NULL, NULL);
+      gum_stalker_iterator_put_chaining_return (iterator);
+      continue;
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+callout_set_cool (GumCpuContext * cpu_context,
+                  gpointer user_data)
+{
+  cpu_context->x[0] = 0xc001;
 }
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)
