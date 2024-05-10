@@ -3141,10 +3141,9 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
       gc->continuation_real_address = instruction->end;
       return FALSE;
     }
-    else if (!skip_implicitly_requested && gum_x86_relocator_eob (rl))
-    {
+
+    if (!skip_implicitly_requested && gum_x86_relocator_eob (rl))
       return FALSE;
-    }
   }
 
   instruction = &self->instruction;
