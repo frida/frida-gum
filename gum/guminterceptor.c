@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -700,6 +700,24 @@ gum_interceptor_get_current_invocation (void)
   interceptor_ctx = get_interceptor_thread_context ();
   entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
   if (entry == NULL)
+    return NULL;
+
+  return &entry->invocation_context;
+}
+
+GumInvocationContext *
+gum_interceptor_get_live_replacement_invocation (gpointer replacement_function)
+{
+  InterceptorThreadContext * interceptor_ctx;
+  GumInvocationStackEntry * entry;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+  entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
+  if (entry == NULL)
+    return NULL;
+  if (!entry->calling_replacement)
+    return NULL;
+  if (replacement_function != entry->function_ctx->replacement_function)
     return NULL;
 
   return &entry->invocation_context;
