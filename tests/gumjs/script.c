@@ -322,6 +322,7 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("NativeCallback")
     TESTENTRY (native_callback_can_be_invoked)
+    TESTENTRY (native_callback_should_provide_access_to_system_error)
     TESTENTRY (native_callback_is_a_native_pointer)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
@@ -2171,6 +2172,41 @@ TESTCASE (native_callback_can_be_invoked)
   g_assert_cmpstr (str, ==, "BADger");
   g_assert_cmpint (toupper_impl (str, -1), ==, -6);
   g_assert_cmpstr (str, ==, "BADGER");
+}
+
+TESTCASE (native_callback_should_provide_access_to_system_error)
+{
+  void (* callback) (void);
+
+#ifdef HAVE_WINDOWS
+  COMPILE_AND_LOAD_SCRIPT (
+      "const cb = new NativeCallback(function () {"
+      "  send(this.lastError);"
+      "  this.lastError = this.lastError + 37;"
+      "  return 0;"
+      "}, 'void', []);"
+      GUM_PTR_CONST ".writePointer(cb);", &callback);
+  EXPECT_NO_MESSAGES ();
+
+  SetLastError (1300);
+  callback ();
+  g_assert_cmpuint (GetLastError (), ==, 1337);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "const cb = new NativeCallback(function () {"
+      "  send(this.errno);"
+      "  this.errno = this.errno + 37;"
+      "  return 0;"
+      "}, 'void', []);"
+      GUM_PTR_CONST ".writePointer(cb);", &callback);
+  EXPECT_NO_MESSAGES ();
+
+  errno = 1300;
+  callback ();
+  g_assert_cmpuint (errno, ==, 1337);
+#endif
+
+  EXPECT_SEND_MESSAGE_WITH ("1300");
 }
 
 TESTCASE (native_callback_is_a_native_pointer)
