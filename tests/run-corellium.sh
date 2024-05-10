@@ -1,7 +1,6 @@
 #!/bin/bash
 
 host_os=$1
-host_arch=arm64
 
 case $host_os in
   ios)
@@ -23,8 +22,6 @@ fi
 build_os=$(echo $(uname -s | tr '[A-Z]' '[a-z]' | sed 's,^darwin$,macos,'))
 build_arch=$(uname -m)
 
-gum_tests=$(dirname "$0")
-
 runner_tarball=$(mktemp -t gum-tests.XXXXXX)
 runner_script=$(mktemp -t gum-tests.XXXXXX)
 
@@ -36,13 +33,9 @@ trap dispose EXIT
 
 set -ex
 
-cd "$gum_tests/../../build"
-. frida-env-$build_os-$build_arch.rc
+make
 
-cd tmp-$host_os-$host_arch/frida-gum
-ninja
-
-cd tests
+cd build/tests
 tar czf "$runner_tarball" gum-tests data/
 
 case $host_os in
