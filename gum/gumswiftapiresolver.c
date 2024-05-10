@@ -772,7 +772,7 @@ gum_module_metadata_collect_section (const GumSectionDetails * details,
     const GumTypeContextDescriptor * type;
     guint32 descriptor_flags;
 
-    type = gum_resolve_relative_direct_ptr (&types[i]);
+    type = gum_resolve_relative_indirectable_ptr (&types[i]);
     descriptor_flags = type->context.flags;
 
     switch (GUM_DESCRIPTOR_FLAGS_KIND (descriptor_flags))
