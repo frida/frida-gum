@@ -266,8 +266,21 @@ gum_memory_patch_code (gpointer address,
 
     gum_clear_cache (address, size);
 
-    if (!gum_try_mprotect (start_page, range_size, GUM_PAGE_RX))
-      return FALSE;
+    if (!rwx_supported)
+    {
+      /*
+       * We don't bother restoring the protection on RWX systems, as we would
+       * have to determine the old protection to be able to do so safely.
+       *
+       * While we could easily do that, it would add overhead, but it's not
+       * really clear that it would have any tangible upsides.
+       *
+       * This behavior is also consistent with Interceptor, so if we later
+       * decide to change it, it also needs changing there.
+       */
+      if (!gum_try_mprotect (start_page, range_size, GUM_PAGE_RX))
+        return FALSE;
+    }
   }
   else
   {
