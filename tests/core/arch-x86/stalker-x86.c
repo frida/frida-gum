@@ -1030,7 +1030,7 @@ TESTCASE (transformer_should_be_able_to_replace_call_with_callout)
       code_template, sizeof (code_template));
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
-        replace_call_with_callout, func, NULL);
+      replace_call_with_callout, func, NULL);
 
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 0xc001);
@@ -1060,12 +1060,12 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
 {
   guint8 code_template[] =
   {
-    0xb8, 0x14, 0x05, 0x00, 0x00, /* mov eax, 1300    */
-    0xeb, 0x01,                   /* jmp bump_number  */
-    0x90,                         /* nop              */
-    /* bump_number:                                   */
-    0x83, 0xc0, 0x25,             /* add eax, 37      */
-    0xc3,                         /* ret              */
+    0xb8, 0x14, 0x05, 0x00, 0x00, /* mov eax, 1300   */
+    0xeb, 0x01,                   /* jmp bump_number */
+    0x90,                         /* nop             */
+    /* bump_number:                                  */
+    0x83, 0xc0, 0x25,             /* add eax, 37     */
+    0xc3,                         /* ret             */
   };
   StalkerTestFunc func;
   gint ret;
@@ -1074,7 +1074,7 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
       code_template, sizeof (code_template));
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
-        replace_jmp_with_callout, func, NULL);
+      replace_jmp_with_callout, func, NULL);
 
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 0xc001);
@@ -1105,11 +1105,7 @@ static void
 callout_set_cool (GumCpuContext * cpu_context,
                   gpointer user_data)
 {
-#if GLIB_SIZEOF_VOID_P == 8
-  cpu_context->rax = 0xc001;
-#else
-  cpu_context->eax = 0xc001;
-#endif
+  GUM_CPU_CONTEXT_XAX (cpu_context) = 0xc001;
 }
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)

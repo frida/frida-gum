@@ -206,11 +206,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
 }
 
-void
-gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
-{
-}
-
 GumMemoryAccess
 gum_stalker_iterator_get_memory_access (GumStalkerIterator * self)
 {
@@ -222,6 +217,11 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
                                   GumStalkerCallout callout,
                                   gpointer data,
                                   GDestroyNotify data_destroy)
+{
+}
+
+void
+gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
 {
 }
 

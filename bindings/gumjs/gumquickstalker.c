@@ -203,7 +203,7 @@ static const JSCFunctionListEntry gumjs_default_iterator_entries[] =
   JS_CFUNC_DEF ("keep", 0, gumjs_default_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_default_iterator_put_callout),
   JS_CFUNC_DEF ("putChainingReturn", 0,
-                gumjs_default_iterator_put_chaining_return),
+      gumjs_default_iterator_put_chaining_return),
 };
 
 static const JSClassDef gumjs_special_iterator_def =
@@ -220,7 +220,7 @@ static const JSCFunctionListEntry gumjs_special_iterator_entries[] =
   JS_CFUNC_DEF ("keep", 0, gumjs_special_iterator_keep),
   JS_CFUNC_DEF ("putCallout", 0, gumjs_special_iterator_put_callout),
   JS_CFUNC_DEF ("putChainingReturn", 0,
-                gumjs_special_iterator_put_chaining_return),
+      gumjs_special_iterator_put_chaining_return),
 };
 
 static const JSClassExoticMethods gumjs_probe_args_exotic_methods =
@@ -1024,8 +1024,7 @@ gum_quick_stalker_iterator_put_callout (GumQuickIterator * self,
 
 static JSValue
 gum_quick_stalker_iterator_put_chaining_return (GumQuickIterator * self,
-                                                JSContext * ctx,
-                                                GumQuickArgs * args)
+                                                JSContext * ctx)
 {
   gum_stalker_iterator_put_chaining_return (self->handle);
 
@@ -1158,8 +1157,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_default_iterator_put_chaining_return)
   if (!gum_quick_default_iterator_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  return gum_quick_stalker_iterator_put_chaining_return (
-        &self->iterator, ctx, args);
+  return gum_quick_stalker_iterator_put_chaining_return (&self->iterator, ctx);
 }
 
 static JSValue
@@ -1288,8 +1286,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_special_iterator_put_chaining_return)
   if (!gum_quick_special_iterator_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  return gum_quick_stalker_iterator_put_chaining_return (
-        &self->iterator, ctx, args);
+  return gum_quick_stalker_iterator_put_chaining_return (&self->iterator, ctx);
 }
 
 static void

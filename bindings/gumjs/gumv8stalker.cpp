@@ -1089,7 +1089,6 @@ gum_v8_stalker_iterator_put_callout (GumV8StalkerIterator * self,
 
 static void
 gum_v8_stalker_iterator_put_chaining_return (GumV8StalkerIterator * self,
-                                             const GumV8Args * args,
                                              Isolate * isolate)
 {
   if (!gum_v8_stalker_iterator_check_valid (self, isolate))
@@ -1189,7 +1188,7 @@ GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (
     gumjs_stalker_default_iterator_put_chaining_return,
     GumV8StalkerDefaultIterator)
 {
-  gum_v8_stalker_iterator_put_chaining_return (&self->iterator, args, isolate);
+  gum_v8_stalker_iterator_put_chaining_return (&self->iterator, isolate);
 }
 
 static GumV8StalkerSpecialIterator *
@@ -1283,7 +1282,7 @@ GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (
     gumjs_stalker_special_iterator_put_chaining_return,
     GumV8StalkerSpecialIterator)
 {
-  gum_v8_stalker_iterator_put_chaining_return (&self->iterator, args, isolate);
+  gum_v8_stalker_iterator_put_chaining_return (&self->iterator, isolate);
 }
 
 static void

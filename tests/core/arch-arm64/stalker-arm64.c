@@ -571,7 +571,7 @@ TESTCASE (transformer_should_be_able_to_replace_call_with_callout)
       code_template, sizeof (code_template));
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
-        replace_call_with_callout, func, NULL);
+      replace_call_with_callout, func, NULL);
 
   ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 0xc001);
@@ -602,7 +602,7 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
   guint32 code_template[] =
   {
     0xd280a280, /* mov x0, #1300   */
-    0x14000001, /* b bump_number  */
+    0x14000001, /* b bump_number   */
     /* bump_number:                */
     0x91009400, /* add x0, x0, #37 */
     0xd65f03c0, /* ret             */
@@ -614,7 +614,7 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
       code_template, sizeof (code_template));
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
-        replace_jmp_with_callout, func, NULL);
+      replace_jmp_with_callout, func, NULL);
 
   ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 0xc001);

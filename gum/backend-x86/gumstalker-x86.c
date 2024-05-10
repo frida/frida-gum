@@ -3245,20 +3245,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
   self->requirements = requirements;
 }
 
-void
-gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
-{
-  GumExecBlock * block = self->exec_block;
-  GumGeneratorContext * gc = self->generator_context;
-
-  if ((block->ctx->sink_mask & GUM_RET) != 0)
-    gum_exec_block_write_ret_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
-
-  gum_exec_block_write_adjust_depth (block, gc->code_writer, -1);
-
-  gum_exec_block_write_chaining_return_code (block, gc, 0);
-}
-
 GumMemoryAccess
 gum_stalker_iterator_get_memory_access (GumStalkerIterator * self)
 {
@@ -3381,6 +3367,20 @@ gum_stalker_invoke_callout (GumCalloutEntry * entry,
   ec->pending_calls++;
   entry->callout (cpu_context, entry->data);
   ec->pending_calls--;
+}
+
+void
+gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
+{
+  GumExecBlock * block = self->exec_block;
+  GumGeneratorContext * gc = self->generator_context;
+
+  if ((block->ctx->sink_mask & GUM_RET) != 0)
+    gum_exec_block_write_ret_event_code (block, gc, GUM_CODE_INTERRUPTIBLE);
+
+  gum_exec_block_write_adjust_depth (block, gc->code_writer, -1);
+
+  gum_exec_block_write_chaining_return_code (block, gc, 0);
 }
 
 csh

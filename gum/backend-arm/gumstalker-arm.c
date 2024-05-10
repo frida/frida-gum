@@ -2511,16 +2511,14 @@ gum_stalker_iterator_arm_next (GumStalkerIterator * self,
       gc->continuation_real_address = instruction->end;
       return FALSE;
     }
-    else if (!skip_implicitly_requested && gum_arm_relocator_eob (rl))
-    {
+
+    if (!skip_implicitly_requested && gum_arm_relocator_eob (rl))
       return FALSE;
-    }
   }
 
   instruction = &self->instruction;
 
   n_read = gum_arm_relocator_read_one (rl, &instruction->ci);
-
   if (n_read == 0)
     return FALSE;
 
@@ -2572,10 +2570,9 @@ gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
       gc->continuation_real_address = instruction->end;
       return FALSE;
     }
-    else if (!skip_implicitly_requested && gum_thumb_relocator_eob (rl))
-    {
+
+    if (!skip_implicitly_requested && gum_thumb_relocator_eob (rl))
       return FALSE;
-    }
   }
 
   instruction = &self->instruction;
@@ -2641,30 +2638,6 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     gum_stalker_iterator_thumb_keep (self);
   else
     gum_stalker_iterator_arm_keep (self);
-}
-
-void
-gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
-{
-   GumExecBlock * block = self->exec_block;
-   GumGeneratorContext * gc = self->generator_context;
-   GumBranchTarget target;
-
-   target.type = GUM_TARGET_DIRECT_REG_OFFSET;
-   GumBranchDirectRegOffset * value = &target.value.direct_reg_offset;
-   value->reg = ARM_REG_LR;
-   value->offset = 0;
-   value->mode = GUM_ARM_MODE_CURRENT;
-
-  if (gc->is_thumb)
-  {
-    gum_exec_block_virtualize_thumb_ret_insn (block, &target, false, 0, gc);
-  }
-  else
-  {
-    gum_exec_block_virtualize_arm_ret_insn (block, &target, ARM_CC_AL, false,
-        0, gc);
-  }
 }
 
 GumMemoryAccess
@@ -3438,6 +3411,31 @@ gum_stalker_invoke_callout (GumCalloutEntry * entry,
   ec->pending_calls++;
   entry->callout (cpu_context, entry->data);
   ec->pending_calls--;
+}
+
+void
+gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
+{
+   GumExecBlock * block = self->exec_block;
+   GumGeneratorContext * gc = self->generator_context;
+   GumBranchTarget target;
+   GumBranchDirectRegOffset * value;
+
+   target.type = GUM_TARGET_DIRECT_REG_OFFSET;
+   value = &target.value.direct_reg_offset;
+   value->reg = ARM_REG_LR;
+   value->offset = 0;
+   value->mode = GUM_ARM_MODE_CURRENT;
+
+  if (gc->is_thumb)
+  {
+    gum_exec_block_virtualize_thumb_ret_insn (block, &target, FALSE, 0, gc);
+  }
+  else
+  {
+    gum_exec_block_virtualize_arm_ret_insn (block, &target, ARM_CC_AL, FALSE, 0,
+        gc);
+  }
 }
 
 csh
@@ -4595,11 +4593,11 @@ gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
   gum_exec_block_write_thumb_exec_generated_code (cw, block->ctx);
 
   /*
-   * We MUST do this last to account for IT blocks. gum_thumb_relocator_skip_one will complete
-   * the IT branch, so if we do this early (like in arm), then the end branch will be relocated into the
-   * middle of the relocated branch
-  */
-
+   * We MUST do this last to account for IT blocks.
+   * gum_thumb_relocator_skip_one() will complete the IT branch, so if we do
+   * this early (like on ARM), then the end branch will be relocated into the
+   * middle of the relocated branch.
+   */
   gum_thumb_relocator_skip_one (gc->thumb_relocator);
 }
 
@@ -4660,11 +4658,11 @@ gum_exec_block_virtualize_thumb_call_insn (GumExecBlock * block,
   gum_exec_block_write_thumb_exec_generated_code (gc->thumb_writer, block->ctx);
 
   /*
-   * We MUST do this last to account for IT blocks. gum_thumb_relocator_skip_one will complete
-   * the IT branch, so if we do this early (like in arm), then the end branch will be relocated into the middle
-   * of the relocated branch
-  */
-
+   * We MUST do this last to account for IT blocks.
+   * gum_thumb_relocator_skip_one() will complete the IT branch, so if we do
+   * this early (like on ARM), then the end branch will be relocated into the
+   * middle of the relocated branch.
+   */
   gum_thumb_relocator_skip_one (gc->thumb_relocator);
 }
 
@@ -5229,9 +5227,7 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
   if (target->type == GUM_TARGET_DIRECT_ADDRESS)
   {
     if (!check (block->ctx, target->value.direct_address.address))
-    {
       return;
-    }
   }
 
   if (target->type != GUM_TARGET_DIRECT_ADDRESS)
