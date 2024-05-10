@@ -172,7 +172,6 @@ public:
     gum_thread_set_system_error (saved_error);
   }
 
-private:
   gint saved_error;
 };
 

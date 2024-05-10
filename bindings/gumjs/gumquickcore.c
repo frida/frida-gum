@@ -156,6 +156,7 @@ struct _GumQuickCallbackContext
 {
   JSValue wrapper;
   GumQuickCpuContext * cpu_context;
+  gint * system_error;
   GumAddress return_address;
   GumAddress raw_return_address;
   int initial_property_count;
@@ -312,9 +313,11 @@ static void gum_quick_native_callback_invoke (ffi_cif * cif,
 GUMJS_DECLARE_FINALIZER (gumjs_callback_context_finalize)
 GUMJS_DECLARE_GETTER (gumjs_callback_context_get_return_address)
 GUMJS_DECLARE_GETTER (gumjs_callback_context_get_cpu_context)
+GUMJS_DECLARE_GETTER (gumjs_callback_context_get_system_error)
+GUMJS_DECLARE_SETTER (gumjs_callback_context_set_system_error)
 static JSValue gum_quick_callback_context_new (GumQuickCore * core,
-    GumCpuContext * cpu_context, GumAddress raw_return_address,
-    GumQuickCallbackContext ** context);
+    GumCpuContext * cpu_context, gint * system_error,
+    GumAddress raw_return_address, GumQuickCallbackContext ** context);
 static gboolean gum_quick_callback_context_get (JSContext * ctx,
     JSValueConst val, GumQuickCore * core, GumQuickCallbackContext ** ic);
 
@@ -567,6 +570,9 @@ static const JSCFunctionListEntry gumjs_callback_context_entries[] =
   JS_CGETSET_DEF ("returnAddress", gumjs_callback_context_get_return_address,
       NULL),
   JS_CGETSET_DEF ("context", gumjs_callback_context_get_cpu_context, NULL),
+  JS_CGETSET_DEF (GUMJS_SYSTEM_ERROR_FIELD,
+      gumjs_callback_context_get_system_error,
+      gumjs_callback_context_set_system_error),
 };
 
 static const JSClassDef gumjs_cpu_context_def =
@@ -4522,7 +4528,7 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 #endif
 
     this_obj = gum_quick_callback_context_new (core, &cpu_context,
-        return_address, &jcc);
+        &saved_system_error, return_address, &jcc);
   }
 
   argc = cif->nargs;
@@ -4544,6 +4550,7 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 
   if (jcc != NULL)
   {
+    jcc->system_error = NULL;
     JS_FreeValue (ctx, jcc->cpu_context->wrapper);
     jcc->cpu_context = NULL;
     JS_FreeValue (ctx, jcc->wrapper);
@@ -4577,6 +4584,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_callback_context_finalize)
 static JSValue
 gum_quick_callback_context_new (GumQuickCore * core,
                                 GumCpuContext * cpu_context,
+                                gint * system_error,
                                 GumAddress raw_return_address,
                                 GumQuickCallbackContext ** context)
 {
@@ -4589,6 +4597,7 @@ gum_quick_callback_context_new (GumQuickCore * core,
   jcc = g_slice_new (GumQuickCallbackContext);
   jcc->wrapper = wrapper;
   jcc->cpu_context = NULL;
+  jcc->system_error = system_error;
   jcc->return_address = 0;
   jcc->raw_return_address = raw_return_address;
   jcc->initial_property_count = JS_GetOwnPropertyCountUnchecked (wrapper);
@@ -4647,14 +4656,52 @@ GUMJS_DEFINE_GETTER (gumjs_callback_context_get_cpu_context)
   return JS_DupValue (ctx, self->cpu_context->wrapper);
 }
 
+GUMJS_DEFINE_GETTER (gumjs_callback_context_get_system_error)
+{
+  GumQuickCallbackContext * self;
+
+  if (!gum_quick_callback_context_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  return JS_NewInt32 (ctx, *self->system_error);
+}
+
+GUMJS_DEFINE_SETTER (gumjs_callback_context_set_system_error)
+{
+  GumQuickCallbackContext * self;
+  gint value;
+
+  if (!gum_quick_callback_context_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  if (!_gum_quick_int_get (ctx, val, &value))
+    return JS_EXCEPTION;
+
+  *self->system_error = value;
+
+  return JS_UNDEFINED;
+}
+
 static gboolean
 gum_quick_callback_context_get (JSContext * ctx,
                                 JSValueConst val,
                                 GumQuickCore * core,
                                 GumQuickCallbackContext ** cc)
 {
-  return _gum_quick_unwrap (ctx, val, core->callback_context_class, core,
-      (gpointer *) cc);
+  GumQuickCallbackContext * c;
+
+  if (!_gum_quick_unwrap (ctx, val, core->callback_context_class, core,
+        (gpointer *) &c))
+    return FALSE;
+
+  if (c->cpu_context == NULL)
+  {
+    _gum_quick_throw_literal (ctx, "invalid operation");
+    return FALSE;
+  }
+
+  *cc = c;
+  return TRUE;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
