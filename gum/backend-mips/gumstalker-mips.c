@@ -206,6 +206,11 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
 {
 }
 
+void
+gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
+{
+}
+
 GumMemoryAccess
 gum_stalker_iterator_get_memory_access (GumStalkerIterator * self)
 {
