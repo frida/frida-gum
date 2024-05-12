@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -172,11 +173,12 @@ typedef enum {
 enum _GumCpuFeatures
 {
   GUM_CPU_AVX2            = 1 << 0,
-  GUM_CPU_THUMB_INTERWORK = 1 << 1,
-  GUM_CPU_VFP2            = 1 << 2,
-  GUM_CPU_VFP3            = 1 << 3,
-  GUM_CPU_VFPD32          = 1 << 4,
-  GUM_CPU_PTRAUTH         = 1 << 5,
+  GUM_CPU_CET_SS          = 1 << 1,
+  GUM_CPU_THUMB_INTERWORK = 1 << 2,
+  GUM_CPU_VFP2            = 1 << 3,
+  GUM_CPU_VFP3            = 1 << 4,
+  GUM_CPU_VFPD32          = 1 << 5,
+  GUM_CPU_PTRAUTH         = 1 << 6,
 };
 
 typedef enum {
