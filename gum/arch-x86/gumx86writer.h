@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
+ * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,6 +28,7 @@ struct _GumX86Writer
 
   GumCpuType target_cpu;
   GumAbiType target_abi;
+  GumCpuFeatures cpu_features;
 
   guint8 * base;
   guint8 * code;

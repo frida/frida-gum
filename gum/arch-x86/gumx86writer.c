@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
+ * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -169,6 +170,7 @@ gum_x86_writer_reset (GumX86Writer * writer,
   writer->target_cpu = GUM_CPU_AMD64;
 #endif
   writer->target_abi = GUM_NATIVE_ABI;
+  writer->cpu_features = gum_query_cpu_features ();
 
   writer->base = (guint8 *) code_address;
   writer->code = (guint8 *) code_address;
