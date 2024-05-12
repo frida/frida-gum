@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Stefano Moioli <smxdev4@gmail.com>
+ * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -728,17 +729,24 @@ gum_do_query_cpu_features (void)
 {
   GumCpuFeatures features = 0;
   gboolean cpu_supports_avx2 = FALSE;
+  gboolean cpu_supports_cet_ss = FALSE;
   gboolean os_enabled_xsave = FALSE;
   guint a, b, c, d;
 
   if (gum_get_cpuid (7, &a, &b, &c, &d))
+  {
     cpu_supports_avx2 = (b & (1 << 5)) != 0;
+    cpu_supports_cet_ss = (c & (1 << 7)) != 0;
+  }
 
   if (gum_get_cpuid (1, &a, &b, &c, &d))
     os_enabled_xsave = (c & (1 << 27)) != 0;
 
   if (cpu_supports_avx2 && os_enabled_xsave)
     features |= GUM_CPU_AVX2;
+
+  if (cpu_supports_cet_ss)
+    features |= GUM_CPU_CET_SS;
 
   return features;
 }
