@@ -26,14 +26,14 @@ function MessageDispatcher() {
   function handleMessage(rawMessage, data) {
     const message = JSON.parse(rawMessage);
     if (message instanceof Array && message[0] === 'frida:rpc') {
-      handleRpcMessage(message[1], message[2], message.slice(3));
+      handleRpcMessage(message[1], message[2], message.slice(3), data);
     } else {
       messages.push([message, data]);
       dispatchMessages();
     }
   }
 
-  function handleRpcMessage(id, operation, params) {
+  function handleRpcMessage(id, operation, params, data) {
     const exports = rpc.exports;
 
     if (operation === 'call') {
@@ -46,7 +46,7 @@ function MessageDispatcher() {
       }
 
       try {
-        const result = exports[method].apply(exports, args);
+        const result = exports[method].call(exports, ...args, data);
         if (typeof result === 'object' && result !== null &&
             typeof result.then === 'function') {
           result
