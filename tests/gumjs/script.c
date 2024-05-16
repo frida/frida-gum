@@ -50,6 +50,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (method_can_throw_sync)
     TESTENTRY (method_can_throw_async)
     TESTENTRY (method_can_return_null)
+    TESTENTRY (method_can_receive_binary_data)
     TESTENTRY (method_can_return_binary_data)
     TESTENTRY (method_list_can_be_queried)
     TESTENTRY (calling_inexistent_method_should_throw_error)
@@ -6037,6 +6038,25 @@ TESTCASE (method_can_return_null)
 {
   COMPILE_AND_LOAD_SCRIPT ("rpc.exports.returnNull = () => null;");
   POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"returnNull\",[]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",42,\"ok\",null]");
+}
+
+TESTCASE (method_can_receive_binary_data)
+{
+  const guint8 data_to_send[2] = { 0x13, 0x37 };
+  GBytes * bytes;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "rpc.exports.eat = (str, data) => {"
+          "send(str, data);"
+      "}");
+
+  bytes = g_bytes_new_static (data_to_send, sizeof (data_to_send));
+  gum_script_post (fixture->script,
+      "[\"frida:rpc\",42,\"call\",\"eat\",[\"yoghurt\"]]", bytes);
+  g_bytes_unref (bytes);
+
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"yoghurt\"", "13 37");
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",42,\"ok\",null]");
 }
 
