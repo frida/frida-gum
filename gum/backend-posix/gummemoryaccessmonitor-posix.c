@@ -378,6 +378,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
   d.operation = details->memory.operation;
   d.from = details->address;
   d.address = details->memory.address;
+  d.context = &details->context;
 
   for (i = 0; i != self->pages->len; i++)
   {

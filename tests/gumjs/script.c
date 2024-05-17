@@ -204,6 +204,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (memory_scan_handles_bad_arguments)
     TESTENTRY (memory_access_can_be_monitored)
     TESTENTRY (memory_access_can_be_monitored_one_range)
+    TESTENTRY (memory_access_monitor_provides_cpu_context)
+    TESTENTRY (memory_access_monitor_cpu_context_can_be_modified)
   TESTGROUP_END ()
 
   TESTENTRY (frida_version_is_available)
@@ -533,6 +535,8 @@ TESTLIST_BEGIN (script)
   TESTENTRY (cloaked_items_can_be_queried_added_and_removed)
 TESTLIST_END ()
 
+const gsize memory_access_target_max_size = 1024;
+
 typedef int (* TargetFunctionInt) (int arg);
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 typedef struct _GumNamedSleeperContext GumNamedSleeperContext;
@@ -642,6 +646,7 @@ static int target_function_int_replacement (int arg);
 static void measure_target_function_int_overhead (void);
 static int compare_measurements (gconstpointer element_a,
     gconstpointer element_b);
+static void memory_access_target (void);
 
 static gboolean check_exception_handling_testable (void);
 
@@ -8456,6 +8461,119 @@ TESTCASE (memory_access_can_be_monitored_one_range)
       "0,0,1,1]", GPOINTER_TO_SIZE (a + page_size));
 
   gum_free_pages ((gpointer) a);
+}
+
+TESTCASE (memory_access_monitor_provides_cpu_context)
+{
+  volatile guint8 * a;
+  guint page_size;
+
+  if (!check_exception_handling_testable ())
+    return;
+
+  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+          "send([details.context.pc.equals(details.from),"
+            "details.context.sp.equals(ptr(0))]);"
+        "}"
+      "});",
+      a, page_size);
+  EXPECT_NO_MESSAGES ();
+
+  a[0] = 1;
+  EXPECT_SEND_MESSAGE_WITH ("[true,false]");
+
+  gum_free_pages ((gpointer) a);
+}
+
+TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
+{
+  volatile guint8 * a;
+  guint page_size;
+  gsize (*func)(void);
+  const gsize expected_ret = 0xdeadface;
+  gsize ret;
+
+  if (!check_exception_handling_testable ())
+    return;
+
+  /*
+   * Since we don't want our memory access monitor to fire before we have
+   * called our function (e.g. as a result of sharing a page with other code)
+   * and C doesn't provide an easy way to determine it's size, so we can't set
+   * the `size` to monitor accurately. Instead, we will allocate a page of 
+   * memory and copy our function into it. We will use a generous maximum size
+   * which is likely to be much larger than the maximum function size and less
+   * than the size of a page. We then know that we will not get any false 
+   * positive traps since our function resides in its own page.
+   */
+  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  g_assert_cmpuint (memory_access_target_max_size, <=, page_size);
+  gum_memcpy ((gpointer) a, memory_access_target,
+      memory_access_target_max_size);
+
+  /* 
+   * In order to test the ability of our memory access monitor to write to a
+   * register, we will call a function and modify it's return value. However,
+   * whilst locating the start of the function is trivial, locating the end
+   * of it is not. We must therefore set the return value at the start of the
+   * function. However, we don't want the function to modify or set the 
+   * register used for the return value itself afterwards. And we don't want
+   * to have to write the function in assembly language for all of the possible
+   * architectures. Therefore, we define the function as returning `void`, but
+   * cast it to a function pointer returning `gsize` so that we can observe 
+   * the returned value. 
+   */
+  func = (gsize (*)(void))a;
+
+  gum_mprotect ((gpointer) a, page_size, GUM_PAGE_RX);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+            /*
+             * Set the value of the register used to hold the return value.
+             * Note that this has to be correct for all calling conventions
+             * (e.g. different operating systems) on all of their supported
+             * architectures.
+             */          
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+            "details.context.eax = " GUM_PTR_CONST ";"
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+            "details.context.rax = " GUM_PTR_CONST ";"
+#elif defined (HAVE_ARM)
+            "details.context.r0 = " GUM_PTR_CONST ";"
+#elif defined (HAVE_ARM64)
+            "details.context.x0 = " GUM_PTR_CONST ";"
+#elif defined (HAVE_MIPS)
+            "details.context.ra = " GUM_PTR_CONST ";"
+#endif
+            "send(1337);"
+        "}"
+      "});",
+      a, page_size, expected_ret);
+  EXPECT_NO_MESSAGES ();
+
+  ret = func ();
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+
+  g_assert_true (ret == expected_ret);
+
+  gum_free_pages ((gpointer) a);
+}
+
+__attribute__ ((noinline))
+static void
+memory_access_target (void)
+{
+  /* Avoid calls being optimized out */
+  asm ("");
 }
 
 TESTCASE (pointer_can_be_read)

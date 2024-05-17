@@ -30,6 +30,8 @@ struct _GumMemoryAccessDetails
   guint page_index;
   guint pages_completed;
   guint pages_total;
+
+  GumCpuContext * context;
 };
 
 GUM_API GumMemoryAccessMonitor * gum_memory_access_monitor_new (

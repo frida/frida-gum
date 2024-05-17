@@ -166,6 +166,7 @@ GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_range_index)
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_page_index)
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_pages_completed)
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_pages_total)
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_context)
 
 static const JSCFunctionListEntry gumjs_memory_entries[] =
 {
@@ -233,6 +234,7 @@ static const JSCFunctionListEntry gumjs_memory_access_details_entries[] =
       gumjs_memory_access_details_get_pages_completed, NULL),
   JS_CGETSET_DEF ("pagesTotal", gumjs_memory_access_details_get_pages_total,
       NULL),
+   JS_CGETSET_DEF ("context", gumjs_memory_access_details_get_context, NULL),
 };
 
 void
@@ -1376,4 +1378,15 @@ GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_pages_total)
     return JS_EXCEPTION;
 
   return JS_NewUint32 (ctx, details->pages_total);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_context)
+{
+  const GumMemoryAccessDetails * details;
+
+  if (!gum_quick_memory_access_details_get (ctx, this_val, core, &details))
+    return JS_EXCEPTION;
+
+  return _gum_quick_cpu_context_new (ctx, details->context,
+      GUM_CPU_CONTEXT_READWRITE, core, NULL);
 }

@@ -1235,6 +1235,9 @@ gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
   _gum_v8_object_set_uint (d, "pagesCompleted", details->pages_completed, core);
   _gum_v8_object_set_uint (d, "pagesTotal", details->pages_total, core);
 
+  auto cpu_context = _gum_v8_cpu_context_new_mutable (details->context, core);
+  _gum_v8_object_set (d, "context", cpu_context, core);
+
   auto on_access (Local<Function>::New (isolate, *self->on_access));
   Local<Value> argv[] = { d };
   auto result = on_access->Call (isolate->GetCurrentContext (),
