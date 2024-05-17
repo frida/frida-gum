@@ -535,8 +535,6 @@ TESTLIST_BEGIN (script)
   TESTENTRY (cloaked_items_can_be_queried_added_and_removed)
 TESTLIST_END ()
 
-const gsize memory_access_target_max_size = 1024;
-
 typedef int (* TargetFunctionInt) (int arg);
 typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 typedef struct _GumNamedSleeperContext GumNamedSleeperContext;
@@ -646,7 +644,7 @@ static int target_function_int_replacement (int arg);
 static void measure_target_function_int_overhead (void);
 static int compare_measurements (gconstpointer element_a,
     gconstpointer element_b);
-static void memory_access_target (void);
+static void put_return_instruction (gpointer mem, gpointer user_data);
 
 static gboolean check_exception_handling_testable (void);
 
@@ -8500,39 +8498,11 @@ TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
 
   if (!check_exception_handling_testable ())
     return;
-
-  /*
-   * Since we don't want our memory access monitor to fire before we have
-   * called our function (e.g. as a result of sharing a page with other code)
-   * and C doesn't provide an easy way to determine it's size, so we can't set
-   * the `size` to monitor accurately. Instead, we will allocate a page of 
-   * memory and copy our function into it. We will use a generous maximum size
-   * which is likely to be much larger than the maximum function size and less
-   * than the size of a page. We then know that we will not get any false 
-   * positive traps since our function resides in its own page.
-   */
-  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  a = gum_alloc_n_pages (1, GUM_PAGE_RX);
   page_size = gum_query_page_size ();
 
-  g_assert_cmpuint (memory_access_target_max_size, <=, page_size);
-  gum_memcpy ((gpointer) a, memory_access_target,
-      memory_access_target_max_size);
-
-  /* 
-   * In order to test the ability of our memory access monitor to write to a
-   * register, we will call a function and modify it's return value. However,
-   * whilst locating the start of the function is trivial, locating the end
-   * of it is not. We must therefore set the return value at the start of the
-   * function. However, we don't want the function to modify or set the 
-   * register used for the return value itself afterwards. And we don't want
-   * to have to write the function in assembly language for all of the possible
-   * architectures. Therefore, we define the function as returning `void`, but
-   * cast it to a function pointer returning `gsize` so that we can observe 
-   * the returned value. 
-   */
-  func = (gsize (*)(void))a;
-
-  gum_mprotect ((gpointer) a, page_size, GUM_PAGE_RX);
+  gum_memory_patch_code ((gpointer) a, 4, put_return_instruction, NULL);
+  func = (gsize (*)(void)) (gum_sign_code_pointer ((gpointer) a));
 
   COMPILE_AND_LOAD_SCRIPT (
       "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
@@ -8568,12 +8538,24 @@ TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
   gum_free_pages ((gpointer) a);
 }
 
-__attribute__ ((noinline))
 static void
-memory_access_target (void)
+put_return_instruction (gpointer mem,
+                        gpointer user_data)
 {
-  /* Avoid calls being optimized out */
-  asm ("");
+#if defined (HAVE_I386)
+  *((guint8 *) mem) = 0xc3;
+#elif defined (HAVE_ARM)
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  /* mov pc, lr */
+  *((guint32 *) mem) = 0xe1a0f00e;
+# else
+  *((guint32 *) mem) = 0x0ef0a0e1;
+# endif
+#elif defined (HAVE_ARM64)
+  *((guint32 *) mem) = 0xd65f03c0;
+#else
+# error Unsupported architecture
+#endif
 }
 
 TESTCASE (pointer_can_be_read)
