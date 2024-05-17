@@ -206,6 +206,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (memory_access_can_be_monitored_one_range)
     TESTENTRY (memory_access_monitor_provides_cpu_context)
     TESTENTRY (memory_access_monitor_cpu_context_can_be_modified)
+    TESTENTRY (memory_access_monitor_provides_thread_id)
   TESTGROUP_END ()
 
   TESTENTRY (frida_version_is_available)
@@ -8556,6 +8557,35 @@ put_return_instruction (gpointer mem,
 #else
 # error Unsupported architecture
 #endif
+}
+
+TESTCASE (memory_access_monitor_provides_thread_id)
+{
+  volatile guint8 * a;
+  guint page_size;
+  GumThreadId thread_id;
+
+  if (!check_exception_handling_testable ())
+    return;
+
+  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+          "send([details.threadId]);"
+        "}"
+      "});",
+      a, page_size);
+  EXPECT_NO_MESSAGES ();
+
+  a[0] = 1;
+
+  thread_id = gum_process_get_current_thread_id ();
+  EXPECT_SEND_MESSAGE_WITH ("[%" G_GSIZE_MODIFIER "u]", thread_id);
+
+  gum_free_pages ((gpointer) a);
 }
 
 TESTCASE (pointer_can_be_read)

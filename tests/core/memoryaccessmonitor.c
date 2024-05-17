@@ -19,13 +19,17 @@ TESTCASE (notify_on_read_access)
   volatile guint8 * bytes = GSIZE_TO_POINTER (fixture->range.base_address);
   guint8 val;
   volatile GumMemoryAccessDetails * d = &fixture->last_details;
+  GumThreadId thread_id;
 
   bytes[fixture->offset_in_first_page] = 0x13;
   bytes[fixture->offset_in_second_page] = 0x37;
 
   ENABLE_MONITOR ();
-
   val = bytes[fixture->offset_in_first_page];
+
+  thread_id = gum_process_get_current_thread_id ();
+  g_assert_cmpuint (d->thread_id, ==, thread_id);
+
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_READ);
   g_assert_true (d->from != NULL && d->from != d->address);
@@ -70,12 +74,17 @@ TESTCASE (notify_on_write_access)
   volatile guint8 * bytes = GSIZE_TO_POINTER (fixture->range.base_address);
   guint8 val;
   volatile GumMemoryAccessDetails * d = &fixture->last_details;
+  GumThreadId thread_id;
 
   bytes[fixture->offset_in_first_page] = 0x13;
 
   ENABLE_MONITOR ();
 
   bytes[fixture->offset_in_first_page] = 0x14;
+
+  thread_id = gum_process_get_current_thread_id ();
+  g_assert_cmpuint (d->thread_id, ==, thread_id);
+
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_WRITE);
   g_assert_true (d->from != NULL && d->from != d->address);
@@ -105,10 +114,15 @@ TESTCASE (notify_on_write_access)
 TESTCASE (notify_on_execute_access)
 {
   volatile GumMemoryAccessDetails * d = &fixture->last_details;
+  GumThreadId thread_id;
 
   ENABLE_MONITOR ();
 
   fixture->nop_function_in_third_page ();
+
+  thread_id = gum_process_get_current_thread_id ();
+  g_assert_cmpuint (d->thread_id, ==, thread_id);
+
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_EXECUTE);
   g_assert_true (d->from != NULL && d->from == d->address);

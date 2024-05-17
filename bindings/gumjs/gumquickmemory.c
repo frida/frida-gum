@@ -159,6 +159,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
 static void gum_quick_memory_clear_monitor (GumQuickMemory * self,
     JSContext * ctx);
 
+GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_thread_id)
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_operation)
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_from)
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_address)
@@ -223,6 +224,7 @@ static const JSClassDef gumjs_memory_access_details_def =
 
 static const JSCFunctionListEntry gumjs_memory_access_details_entries[] =
 {
+  JS_CGETSET_DEF ("threadId", gumjs_memory_access_details_get_thread_id, NULL),
   JS_CGETSET_DEF ("operation", gumjs_memory_access_details_get_operation, NULL),
   JS_CGETSET_DEF ("from", gumjs_memory_access_details_get_from, NULL),
   JS_CGETSET_DEF ("address", gumjs_memory_access_details_get_address, NULL),
@@ -1308,6 +1310,16 @@ gum_quick_memory_access_details_get (JSContext * ctx,
 
   *details = d;
   return TRUE;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_thread_id)
+{
+  const GumMemoryAccessDetails * details;
+
+  if (!gum_quick_memory_access_details_get (ctx, this_val, core, &details))
+    return JS_EXCEPTION;
+
+  return JS_NewInt64 (ctx, details->thread_id);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_memory_access_details_get_operation)

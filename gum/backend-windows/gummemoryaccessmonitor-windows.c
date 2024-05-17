@@ -431,6 +431,7 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
 
   self = GUM_MEMORY_ACCESS_MONITOR (user_data);
 
+  d.thread_id = details->thread_id;
   d.operation = details->memory.operation;
   d.from = details->address;
   d.address = details->memory.address;

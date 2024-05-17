@@ -8,6 +8,7 @@
 #define __GUM_MEMORY_ACCESS_MONITOR_H__
 
 #include <gum/gummemory.h>
+#include <gum/gumprocess.h>
 
 G_BEGIN_DECLS
 
@@ -22,6 +23,7 @@ typedef void (* GumMemoryAccessNotify) (GumMemoryAccessMonitor * monitor,
 
 struct _GumMemoryAccessDetails
 {
+  GumThreadId thread_id;
   GumMemoryOperation operation;
   gpointer from;
   gpointer address;

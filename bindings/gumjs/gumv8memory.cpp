@@ -1225,6 +1225,9 @@ gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
   ScriptScope script_scope (core->script);
 
   auto d = Object::New (isolate);
+  _gum_v8_object_set (d, "threadId", Number::New (isolate, details->thread_id),
+      core);
+
   _gum_v8_object_set_ascii (d, "operation",
       _gum_v8_memory_operation_to_string (details->operation), core);
   _gum_v8_object_set_pointer (d, "from", details->from, core);
