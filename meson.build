@@ -103,6 +103,12 @@ else
   have_ptrauth = false
 endif
 
+if cc.sizeof('void *') == 8
+  host_cpu_mode = '64'
+else
+  host_cpu_mode = '32'
+endif
+
 if host_os_family == 'windows'
   host_executable_format = 'pe'
 elif host_os_family == 'darwin'
@@ -740,6 +746,9 @@ endif
 
 install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
+
+vapidir = get_option('prefix') / 'share' / 'vala' / 'vapi'
+uninstalled_vapidir = meson.current_source_dir() / 'vapi'
 
 subdir('ext')
 subdir('gum')

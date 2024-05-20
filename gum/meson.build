@@ -361,16 +361,25 @@ if gir.found()
   )
 endif
 
-vapidir = meson.project_source_root() / 'vapi'
+
+uninstalled_variables = {
+  'frida_vapidir': uninstalled_vapidir,
+  'frida_dbghelp_prefix': uninstalled_dbghelp_prefix,
+  'frida_symsrv_prefix': uninstalled_symsrv_prefix,
+}
+
+installed_variables = {
+  'frida_vapidir': vapidir,
+  'frida_dbghelp_prefix': dbghelp_prefix,
+  'frida_symsrv_prefix': symsrv_prefix,
+}
 
 gum_dep = declare_dependency(link_with: gum,
   include_directories: gum_incdirs,
   compile_args: extra_cflags,
   link_args: extra_libs_private,
   dependencies: gum_public_deps,
-  variables: {
-    'frida_vapidir': vapidir,
-  },
+  variables: uninstalled_variables,
 )
 
 pkg = import('pkgconfig')
@@ -384,9 +393,8 @@ pkg.generate(gum,
   subdirs: install_header_basedir,
   extra_cflags: extra_cflags,
   libraries_private: extra_libs_private,
-  variables: {
-    'frida_vapidir': vapidir,
-  },
+  variables: installed_variables,
+  uninstalled_variables: uninstalled_variables,
 )
 
 meson.override_dependency('frida-gum-' + api_version, gum_dep)
