@@ -252,7 +252,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
   action.sa_sigaction = gum_exceptor_backend_on_signal;
   sigemptyset (&action.sa_mask);
-  action.sa_flags = SA_SIGINFO | SA_NODEFER;
+  action.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
   for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
   {
     gint sig = handled_signals[i];
