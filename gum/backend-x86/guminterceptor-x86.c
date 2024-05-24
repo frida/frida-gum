@@ -346,7 +346,6 @@ gum_emit_enter_thunk (GumX86Writer * cw)
 {
   const gssize return_address_stack_displacement = 0;
   const gchar * prepare_trap_on_leave = "prepare_trap_on_leave";
-  gpointer epilog;
 
   gum_emit_prolog (cw, return_address_stack_displacement);
 
@@ -366,23 +365,24 @@ gum_emit_enter_thunk (GumX86Writer * cw)
 
   if ((cw->cpu_features & GUM_CPU_CET_SS) != 0)
   {
+    gpointer epilog;
+
     gum_x86_writer_put_test_reg_reg (cw, GUM_X86_EAX, GUM_X86_EAX);
     gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, prepare_trap_on_leave,
         GUM_NO_HINT);
 
     epilog = gum_x86_writer_cur (cw);
-  }
+    gum_emit_epilog (cw, GUM_POINT_ENTER);
 
-  gum_emit_epilog (cw, GUM_POINT_ENTER);
-
-  if ((cw->cpu_features & GUM_CPU_CET_SS) != 0)
-  {
     gum_x86_writer_put_label (cw, prepare_trap_on_leave);
-
     gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX, GUM_ADDRESS (epilog));
     gum_x86_writer_put_jmp_reg_offset_ptr (cw, GUM_X86_XBX,
         G_STRUCT_OFFSET (GumFunctionContext, backend_data) +
         G_STRUCT_OFFSET (GumX86FunctionContextData, push_to_shadow_stack));
+  }
+  else
+  {
+    gum_emit_epilog (cw, GUM_POINT_ENTER);
   }
 }
 
