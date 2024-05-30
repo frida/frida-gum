@@ -747,9 +747,6 @@ endif
 install_header_basedir = 'frida-' + api_version
 install_header_subdir = install_header_basedir + '/gum'
 
-vapidir = get_option('prefix') / 'share' / 'vala' / 'vapi'
-uninstalled_vapidir = meson.current_source_dir() / 'vapi'
-
 subdir('ext')
 subdir('gum')
 if not diet

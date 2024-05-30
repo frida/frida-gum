@@ -22,4 +22,4 @@ if have_gumjs
   ]
 endif
 
-install_data(vapis, install_dir: vapidir)
+install_data(vapis, install_dir: get_option('prefix') / 'share' / 'vala' / 'vapi')
