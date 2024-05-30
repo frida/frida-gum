@@ -368,7 +368,7 @@ uninstalled_variables = {
 }
 
 installed_variables = {
-  'frida_vapidir': get_option('prefix') / 'share' / 'vala' / 'vapi',
+  'frida_vapidir': get_option('prefix') / get_option('datadir') / 'vala' / 'vapi',
   'frida_dbghelp_prefix': dbghelp_prefix,
   'frida_symsrv_prefix': symsrv_prefix,
 }
