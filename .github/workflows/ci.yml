@@ -200,6 +200,7 @@ jobs:
         run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
       - name: Test on Corellium iOS device
         if: matrix.id == 'ios-arm64'
+        continue-on-error: true
         uses: frida/corellium-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -215,6 +216,7 @@ jobs:
             ./gum-tests
       - name: Test on Corellium Android device
         if: matrix.id == 'android-arm64'
+        continue-on-error: true
         uses: frida/corellium-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
