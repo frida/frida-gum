@@ -68,7 +68,9 @@ jobs:
           submodules: recursive
       - name: Install gcc-multilib
         if: matrix.id == 'linux-x86'
-        run: sudo apt-get install gcc-multilib lib32stdc++-11-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install gcc-multilib lib32stdc++-11-dev
       - name: Build
         if: ${{ startsWith(matrix.id, 'windows-') }}
         run: |
@@ -118,7 +120,9 @@ jobs:
         with:
           submodules: recursive
       - name: Install toolchain
-        run: sudo apt-get install ${{ matrix.pkg }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install ${{ matrix.pkg }}
       - name: Build
         run: |
           ./configure ${{ matrix.opts }} ${{ env.GUM_OPTIONS }}
