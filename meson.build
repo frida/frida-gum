@@ -550,7 +550,7 @@ openssl_options = [
   'cli=disabled',
 ]
 if host_os_family == 'windows' and cc.get_argument_syntax() != 'msvc'
-  openssl_options += '-Dasm=disabled'
+  openssl_options += 'asm=disabled'
 endif
 dependency('openssl',
   required: false,
