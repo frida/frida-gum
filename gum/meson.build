@@ -361,10 +361,8 @@ if gir.found()
   )
 endif
 
-uninstalled_vapidir = meson.project_source_root() / 'vapi'
-
 uninstalled_variables = {
-  'frida_vapidir': uninstalled_vapidir,
+  'frida_vapidir': meson.project_source_root() / 'vapi',
   'frida_dbghelp_prefix': uninstalled_dbghelp_prefix,
   'frida_symsrv_prefix': uninstalled_symsrv_prefix,
 }
