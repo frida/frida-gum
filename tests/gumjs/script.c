@@ -6068,7 +6068,7 @@ TESTCASE (method_can_return_binary_data)
           "return buf.readByteArray(2);"
       "};");
   POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"read\",[]]");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",42,\"ok\",{}]",
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",42,\"ok\",null]",
       "59 6f");
 }
 

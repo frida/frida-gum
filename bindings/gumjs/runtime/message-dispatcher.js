@@ -71,7 +71,7 @@ function MessageDispatcher() {
     params = params || [];
 
     if (result instanceof ArrayBuffer)
-      send(['frida:rpc', id, type, {}].concat(params), result);
+      send(['frida:rpc', id, type, undefined].concat(params), result);
     else
       send(['frida:rpc', id, type, result].concat(params));
   }
