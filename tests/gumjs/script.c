@@ -52,6 +52,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (method_can_return_null)
     TESTENTRY (method_can_receive_binary_data)
     TESTENTRY (method_can_return_binary_data)
+    TESTENTRY (method_can_return_value_and_binary_data)
     TESTENTRY (method_list_can_be_queried)
     TESTENTRY (calling_inexistent_method_should_throw_error)
   TESTGROUP_END ()
@@ -6069,6 +6070,19 @@ TESTCASE (method_can_return_binary_data)
       "};");
   POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"read\",[]]");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",42,\"ok\",null]",
+      "59 6f");
+}
+
+TESTCASE (method_can_return_value_and_binary_data)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "rpc.exports.read = () => {"
+          "const buf = Memory.allocUtf8String(\"Yo\");"
+          "return [{meta: 'data'}, buf.readByteArray(2)];"
+      "};");
+  POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"read\",[]]");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA (
+      "[\"frida:rpc\",42,\"ok\",{\"meta\":\"data\"}]",
       "59 6f");
 }
 
