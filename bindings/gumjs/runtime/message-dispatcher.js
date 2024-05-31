@@ -70,7 +70,7 @@ function MessageDispatcher() {
   function reply(id, type, result, params = []) {
     if (Array.isArray(result) && result.length === 2 && result[1] instanceof ArrayBuffer) {
       const [value, data] = result;
-      send(['frida:rpc', id, type, value, ...params], data);
+      send(['frida:rpc', id, type, undefined, value, ...params], data);
     } else if (result instanceof ArrayBuffer) {
       send(['frida:rpc', id, type, undefined, ...params], result);
     } else {

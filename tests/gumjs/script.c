@@ -6082,7 +6082,7 @@ TESTCASE (method_can_return_value_and_binary_data)
       "};");
   POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"read\",[]]");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA (
-      "[\"frida:rpc\",42,\"ok\",{\"meta\":\"data\"}]",
+      "[\"frida:rpc\",42,\"ok\",null,{\"meta\":\"data\"}]",
       "59 6f");
 }
 
