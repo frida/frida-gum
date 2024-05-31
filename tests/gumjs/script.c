@@ -6,6 +6,7 @@
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  * Copyright (C) 2024 Hillel Pinto <hillelpinto3@gmail.com>
+ * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,7 +28,6 @@ TESTLIST_BEGIN (script)
   TESTENTRY (recv_wait_in_an_application_thread_should_throw_on_unload)
   TESTENTRY (recv_wait_in_our_js_thread_should_throw_on_unload)
   TESTENTRY (recv_wait_should_not_leak)
-  TESTENTRY (rpc_can_be_performed)
   TESTENTRY (message_can_be_logged)
   TESTENTRY (thread_can_be_forced_to_sleep)
   TESTENTRY (thread_backtrace_can_be_captured_with_limit)
@@ -43,6 +43,17 @@ TESTLIST_BEGIN (script)
 #ifndef HAVE_WINDOWS
   TESTENTRY (crash_on_thread_holding_js_lock_should_not_deadlock)
 #endif
+
+  TESTGROUP_BEGIN ("RPC")
+    TESTENTRY (method_can_be_called_sync)
+    TESTENTRY (method_can_be_called_async)
+    TESTENTRY (method_can_throw_sync)
+    TESTENTRY (method_can_throw_async)
+    TESTENTRY (method_can_return_null)
+    TESTENTRY (method_can_return_binary_data)
+    TESTENTRY (method_list_can_be_queried)
+    TESTENTRY (calling_inexistent_method_should_throw_error)
+  TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("WeakRef")
     TESTENTRY (weak_ref_api_should_be_supported)
@@ -5992,60 +6003,68 @@ TESTCASE (array_buffer_can_be_created)
   EXPECT_NO_MESSAGES ();
 }
 
-TESTCASE (rpc_can_be_performed)
+TESTCASE (method_can_be_called_sync)
+{
+  COMPILE_AND_LOAD_SCRIPT ("rpc.exports.add = (a, b) => a + b;");
+  POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"add\",[1,2]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",42,\"ok\",3]");
+}
+
+TESTCASE (method_can_be_called_async)
+{
+  COMPILE_AND_LOAD_SCRIPT ("rpc.exports.add = async (a, b) => a + b;");
+  POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"add\",[1,2]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",42,\"ok\",3]");
+}
+
+TESTCASE (method_can_throw_sync)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "rpc.exports.foo = (a, b) => {"
-          "const result = a + b;"
-          "if (result >= 0)"
-              "return result;"
-          "else "
-              "throw new Error('no');"
-      "};"
-      "rpc.exports.bar = (a, b) => {"
-          "return new Promise((resolve, reject) => {"
-              "const result = a + b;"
-              "if (result >= 0)"
-                  "resolve(result);"
-              "else "
-                  "reject(new Error('nope'));"
-          "});"
-      "};"
-      "rpc.exports.badger = () => {"
+      "rpc.exports.raise = () => { throw new Error('no'); }");
+  POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"raise\",[]]");
+  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",42,\"error\",\"no\",");
+}
+
+TESTCASE (method_can_throw_async)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "rpc.exports.raise = async () => { throw new Error('no'); }");
+  POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"raise\",[]]");
+  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",42,\"error\",\"no\",");
+}
+
+TESTCASE (method_can_return_null)
+{
+  COMPILE_AND_LOAD_SCRIPT ("rpc.exports.returnNull = () => null;");
+  POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"returnNull\",[]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",42,\"ok\",null]");
+}
+
+TESTCASE (method_can_return_binary_data)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "rpc.exports.read = () => {"
           "const buf = Memory.allocUtf8String(\"Yo\");"
           "return buf.readByteArray(2);"
-      "};"
-      "rpc.exports.returnNull = () => {"
-          "return null;"
       "};");
-  EXPECT_NO_MESSAGES ();
-
-  POST_MESSAGE ("[\"frida:rpc\",1,\"list\"]");
-  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",1,\"ok\","
-      "[\"foo\",\"bar\",\"badger\",\"returnNull\"]]");
-
-  POST_MESSAGE ("[\"frida:rpc\",2,\"call\",\"foo\",[1,2]]");
-  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",2,\"ok\",3]");
-
-  POST_MESSAGE ("[\"frida:rpc\",3,\"call\",\"foo\",[1,-2]]");
-  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",3,\"error\",\"no\",");
-
-  POST_MESSAGE ("[\"frida:rpc\",4,\"call\",\"bar\",[3,4]]");
-  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",4,\"ok\",7]");
-
-  POST_MESSAGE ("[\"frida:rpc\",5,\"call\",\"bar\",[3,-4]]");
-  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",5,\"error\",\"nope\",");
-
-  POST_MESSAGE ("[\"frida:rpc\",6,\"call\",\"baz\",[]]");
-  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",6,\"error\","
-      "\"unable to find method 'baz'\"]");
-
-  POST_MESSAGE ("[\"frida:rpc\",7,\"call\",\"badger\",[]]");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",7,\"ok\",{}]",
+  POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"read\",[]]");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",42,\"ok\",{}]",
       "59 6f");
+}
 
-  POST_MESSAGE ("[\"frida:rpc\",8,\"call\",\"returnNull\",[]]");
-  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",8,\"ok\",null]");
+TESTCASE (method_list_can_be_queried)
+{
+  COMPILE_AND_LOAD_SCRIPT ("rpc.exports = { a() {}, b() {}, c() {} };");
+  POST_MESSAGE ("[\"frida:rpc\",42,\"list\"]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",42,\"ok\",[\"a\",\"b\",\"c\"]]");
+}
+
+TESTCASE (calling_inexistent_method_should_throw_error)
+{
+  COMPILE_AND_LOAD_SCRIPT ("");
+  POST_MESSAGE ("[\"frida:rpc\",42,\"call\",\"banana\",[]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",42,\"error\","
+      "\"unable to find method 'banana'\"]");
 }
 
 TESTCASE (message_can_be_sent)
