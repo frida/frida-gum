@@ -6,6 +6,7 @@
  */
 
 #include "gumsampler.h"
+#include "gumusertimesampler.h"
 
 #include "testutil.h"
 #include "valgrind.h"

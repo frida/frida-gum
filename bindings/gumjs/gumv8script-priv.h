@@ -26,6 +26,7 @@
 #include "gumv8script.h"
 #include "gumv8scriptbackend.h"
 #include "gumv8socket.h"
+#include "gumv8sampler.h"
 #include "gumv8stalker.h"
 #include "gumv8stream.h"
 #include "gumv8symbol.h"
@@ -95,6 +96,7 @@ struct _GumV8Script
   GumV8Instruction instruction;
   GumV8CodeWriter code_writer;
   GumV8CodeRelocator code_relocator;
+  GumV8Sampler sampler;
   GumV8Stalker stalker;
   GumV8Cloak cloak;
 
