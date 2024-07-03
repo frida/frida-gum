@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/libunwind.git
-revision = ccd3a38597a8397a3382e4e58fdabb26a6f0be13
+revision = 4d0abea0effd3c80916e70abe38c2a6156596f05
 depth = 1
 
 [provide]
