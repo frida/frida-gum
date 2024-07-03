@@ -732,9 +732,6 @@ gum_do_query_cpu_features (void)
   gboolean cpu_supports_cet_ss = FALSE;
   gboolean os_enabled_xsave = FALSE;
   guint a, b, c, d;
-#ifdef HAVE_WINDOWS
-  PROCESS_MITIGATION_USER_SHADOW_STACK_POLICY pol;
-#endif
 
   if (gum_get_cpuid (7, &a, &b, &c, &d))
   {
@@ -749,16 +746,19 @@ gum_do_query_cpu_features (void)
     features |= GUM_CPU_AVX2;
 
 #ifdef HAVE_WINDOWS
-  if (cpu_supports_cet_ss &&
-      GetProcessMitigationPolicy (
-        GetCurrentProcess (),
-        ProcessUserShadowStackPolicy,
-        &pol,
-        sizeof pol
-      ) &&
-      !pol.EnableUserShadowStack)
   {
-    cpu_supports_cet_ss = FALSE;
+    PROCESS_MITIGATION_USER_SHADOW_STACK_POLICY pol;
+
+    if (cpu_supports_cet_ss &&
+        GetProcessMitigationPolicy (
+          GetCurrentProcess (),
+          ProcessUserShadowStackPolicy,
+          &pol,
+          sizeof (pol)) &&
+        !pol.EnableUserShadowStack)
+    {
+      cpu_supports_cet_ss = FALSE;
+    }
   }
 #endif
 
