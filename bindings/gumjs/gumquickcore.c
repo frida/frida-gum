@@ -162,6 +162,15 @@ struct _GumQuickCallbackContext
   int initial_property_count;
 };
 
+struct _GumQuickThreadData
+{
+    guint event_count_last_seen;
+};
+
+typedef struct _GumQuickThreadData GumQuickThreadData;
+
+static GPrivate gum_quick_thread_data;
+
 static gboolean gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
     gpointer user_data);
 
@@ -382,6 +391,8 @@ static JSValue gum_quick_value_from_ffi (JSContext * ctx,
 
 static void gum_quick_core_setup_atoms (GumQuickCore * self);
 static void gum_quick_core_teardown_atoms (GumQuickCore * self);
+
+static GumQuickThreadData * get_gum_quick_thread_data ();
 
 static const JSCFunctionListEntry gumjs_root_entries[] =
 {
@@ -2713,7 +2724,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self);
   GMainContext * context;
   gboolean called_from_js_thread;
-  guint start_count;
+  GumQuickThreadData * thread_data = get_gum_quick_thread_data();
   gboolean event_source_available;
 
   _gum_quick_scope_perform_pending_io (self->current_scope);
@@ -2725,8 +2736,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
   g_mutex_lock (&self->event_mutex);
 
-  start_count = self->event_count;
-  while (self->event_count == start_count && self->event_source_available)
+  while (self->event_count == thread_data->event_count_last_seen && self->event_source_available)
   {
     if (called_from_js_thread)
     {
@@ -2739,6 +2749,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
       g_cond_wait (&self->event_cond, &self->event_mutex);
     }
   }
+
+  thread_data->event_count_last_seen = self->event_count;
 
   event_source_available = self->event_source_available;
 
@@ -5834,4 +5846,18 @@ gum_quick_core_teardown_atoms (GumQuickCore * self)
 #endif
 
 #undef GUM_TEARDOWN_ATOM
+}
+
+static GumQuickThreadData * get_gum_quick_thread_data ()
+{
+  GumQuickThreadData * data = g_private_get (&gum_quick_thread_data);
+
+  if (data == NULL)
+  {
+    data = g_new0 (GumQuickThreadData, 1);
+    data->event_count_last_seen = 0;
+    g_private_set (&gum_quick_thread_data, (gpointer) data);
+  }
+
+  return data;
 }
