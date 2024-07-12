@@ -2723,7 +2723,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self);
   GMainContext * context;
   gboolean called_from_js_thread;
-  GumQuickThreadData * thread_data = get_gum_quick_thread_data();
+  GumQuickThreadData * thread_data = get_gum_quick_thread_data ();
   gboolean event_source_available;
 
   _gum_quick_scope_perform_pending_io (self->current_scope);

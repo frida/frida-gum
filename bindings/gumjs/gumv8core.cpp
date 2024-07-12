@@ -389,7 +389,7 @@ static gboolean gum_v8_value_to_ffi_type (GumV8Core * core,
 static gboolean gum_v8_value_from_ffi_type (GumV8Core * core,
     Local<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
 
-static GumV8ThreadData * get_gum_v8_thread_data();
+static GumV8ThreadData * get_gum_v8_thread_data ();
 
 static const GumV8Function gumjs_global_functions[] =
 {
