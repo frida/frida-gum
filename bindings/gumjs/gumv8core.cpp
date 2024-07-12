@@ -1610,7 +1610,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
-  GumV8ThreadData * thread_data = get_gum_v8_thread_data ();
   gboolean event_source_available;
 
   core->current_scope->PerformPendingIO ();
@@ -1618,6 +1617,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   {
     ScriptUnlocker unlocker (core);
 
+    auto thread_data = get_gum_v8_thread_data ();
     auto context = gum_script_scheduler_get_js_context (core->scheduler);
     gboolean called_from_js_thread = g_main_context_is_owner (context);
 
@@ -4595,7 +4595,8 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   return TRUE;
 }
 
-static GumV8ThreadData * get_gum_v8_thread_data ()
+static GumV8ThreadData *
+get_gum_v8_thread_data ()
 {
   GumV8ThreadData * data = (GumV8ThreadData *) g_private_get (&gum_v8_thread_data);
 

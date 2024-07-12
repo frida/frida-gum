@@ -389,7 +389,7 @@ static JSValue gum_quick_value_from_ffi (JSContext * ctx,
 static void gum_quick_core_setup_atoms (GumQuickCore * self);
 static void gum_quick_core_teardown_atoms (GumQuickCore * self);
 
-static GumQuickThreadData * get_gum_quick_thread_data ();
+static GumQuickThreadData * get_gum_quick_thread_data (void);
 
 static const JSCFunctionListEntry gumjs_root_entries[] =
 {
@@ -5847,7 +5847,8 @@ gum_quick_core_teardown_atoms (GumQuickCore * self)
 #undef GUM_TEARDOWN_ATOM
 }
 
-static GumQuickThreadData * get_gum_quick_thread_data ()
+static GumQuickThreadData *
+get_gum_quick_thread_data (void)
 {
   GumQuickThreadData * data = g_private_get (&gum_quick_thread_data);
 
