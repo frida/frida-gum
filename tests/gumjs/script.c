@@ -6138,7 +6138,7 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback((arg) => {"
       "   let timeToRecv;"
       "   let shouldExit = false;"
       "   while (true) {"
@@ -6148,7 +6148,8 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
       "            return;"
       "         }"
       "         else if (message.type != 'waituntil') {"
-      "            throw new Error('Received unexpected message: ' + message.type); }"
+      "            throw new Error("
+      "                'Received unexpected message: ' + message.type); }"
       "         timeToRecv = message.time;"
       "      }).wait();"
       "      if (shouldExit) {"
@@ -6157,7 +6158,8 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
       "      while (Date.now() < timeToRecv) {};"
       "      recv(message => {"
       "         if (message.type != 'ping') {"
-      "            throw new Error('Received unexpected message: '  + message.type); }"
+      "            throw new Error("
+      "                'Received unexpected message: '  + message.type); }"
       "      }).wait();"
       "      send('pong');"
       "   }"
@@ -6175,9 +6177,11 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
   for (int i = 0; i < 100; i++)
   {
     gint64 timeNow = g_get_real_time ();
-    gint64 timeToScheduleRecv = timeNow - (timeNow % (20 * 1000)) + 50 * 1000;
+    gint64 timeToScheduleRecv =
+        timeNow - (timeNow % (20 * 1000)) + 50 * 1000;
     GString * msg = g_string_new (NULL);
-    g_string_printf (msg, "{\"type\":\"waituntil\", \"time\": %lld}", timeToScheduleRecv / 1000);
+    g_string_printf (msg, "{\"type\":\"waituntil\", \"time\": %lld}",
+        timeToScheduleRecv / 1000);
     POST_MESSAGE (msg->str);
     g_string_free (msg, true);
     gint64 timeToPost = timeToScheduleRecv + i;

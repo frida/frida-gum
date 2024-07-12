@@ -2735,7 +2735,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
   g_mutex_lock (&self->event_mutex);
 
-  while (self->event_count == thread_data->event_count_last_seen && self->event_source_available)
+  while (self->event_count == thread_data->event_count_last_seen
+      && self->event_source_available)
   {
     if (called_from_js_thread)
     {

@@ -1623,7 +1623,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
     g_mutex_lock (&core->event_mutex);
 
-    while (core->event_count == thread_data->event_count_last_seen && core->event_source_available)
+    while (core->event_count == thread_data->event_count_last_seen
+        && core->event_source_available)
     {
       if (called_from_js_thread)
       {
@@ -4598,7 +4599,8 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
 static GumV8ThreadData *
 get_gum_v8_thread_data ()
 {
-  GumV8ThreadData * data = (GumV8ThreadData *) g_private_get (&gum_v8_thread_data);
+  GumV8ThreadData * data =
+      (GumV8ThreadData *) g_private_get (&gum_v8_thread_data);
 
   if (data == NULL)
   {
