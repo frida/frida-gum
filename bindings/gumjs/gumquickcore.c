@@ -45,6 +45,7 @@ typedef guint8 GumQuickCodeTraps;
 typedef guint8 GumQuickReturnValueShape;
 typedef struct _GumQuickFFIFunction GumQuickFFIFunction;
 typedef struct _GumQuickCallbackContext GumQuickCallbackContext;
+typedef struct _GumQuickThreadData GumQuickThreadData;
 
 struct _GumQuickFlushCallback
 {
@@ -166,10 +167,6 @@ struct _GumQuickThreadData
 {
     guint event_count_last_seen;
 };
-
-typedef struct _GumQuickThreadData GumQuickThreadData;
-
-static GPrivate gum_quick_thread_data;
 
 static gboolean gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
     gpointer user_data);
@@ -1380,6 +1377,8 @@ static const JSCFunctionListEntry gumjs_worker_entries[] =
   JS_CFUNC_DEF ("terminate", 0, gumjs_worker_terminate),
   JS_CFUNC_DEF ("post", 0, gumjs_worker_post),
 };
+
+static GPrivate gum_quick_thread_data;
 
 void
 _gum_quick_core_init (GumQuickCore * self,

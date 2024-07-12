@@ -179,14 +179,10 @@ struct GumV8SourceMap
   GumV8Core * core;
 };
 
-struct _GumV8ThreadData
+struct GumV8ThreadData
 {
     guint event_count_last_seen;
 };
-
-typedef struct _GumV8ThreadData GumV8ThreadData;
-
-static GPrivate gum_v8_thread_data;
 
 static gboolean gum_v8_core_handle_crashed_js (GumExceptionDetails * details,
     gpointer user_data);
@@ -538,6 +534,8 @@ static const GumV8Function gumjs_source_map_functions[] =
 
   { NULL, NULL }
 };
+
+static GPrivate gum_v8_thread_data;
 
 void
 _gum_v8_core_init (GumV8Core * self,
