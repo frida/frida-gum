@@ -6137,7 +6137,7 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
     return;
   }
 
-  COMPILE_AND_LOAD_SCRIPT(
+  COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
       "   let timeToRecv;"
       "   let shouldExit = false;"
@@ -6170,7 +6170,7 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
   worker_thread = g_thread_new ("script-test-worker-thread",
       invoke_target_function_int_worker, &ctx);
   while (ctx.started == 0)
-    g_usleep(G_USEC_PER_SEC / 200);
+    g_usleep (G_USEC_PER_SEC / 200);
 
   for (int i = 0; i < 100; i++)
   {
@@ -6181,7 +6181,7 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
     POST_MESSAGE (msg->str);
     g_string_free (msg, true);
     gint64 timeToPost = timeToScheduleRecv + i;
-    while (g_get_real_time () < timeToPost) {}
+    while (g_get_real_time () < timeToPost);
     POST_MESSAGE ("{\"type\":\"ping\"}");
     EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
   }
