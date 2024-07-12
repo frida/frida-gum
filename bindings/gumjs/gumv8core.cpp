@@ -4604,7 +4604,7 @@ get_gum_v8_thread_data ()
   {
     data = g_new0 (GumV8ThreadData, 1);
     data->event_count_last_seen = 0;
-    g_private_set(&gum_v8_thread_data, (gpointer) data);
+    g_private_set (&gum_v8_thread_data, (gpointer) data);
   }
 
   return data;
