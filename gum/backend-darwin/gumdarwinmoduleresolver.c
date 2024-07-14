@@ -35,6 +35,8 @@ static void gum_darwin_module_resolver_get_property (GObject * object,
 static void gum_darwin_module_resolver_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 
+static gboolean gum_find_sysroot (const GumModuleDetails * details,
+    gpointer user_data);
 static gboolean gum_store_module (const GumModuleDetails * details,
     gpointer user_data);
 
@@ -165,6 +167,7 @@ gum_darwin_module_resolver_load (GumDarwinModuleResolver * self,
   ctx.sysroot = NULL;
   ctx.sysroot_length = 0;
 
+  gum_darwin_enumerate_modules (self->task, gum_find_sysroot, &ctx);
   gum_darwin_enumerate_modules (self->task, gum_store_module, &ctx);
   if (ctx.index == 0)
     goto invalid_task;
@@ -382,18 +385,28 @@ gum_darwin_module_resolver_find_dynamic_address (GumDarwinModuleResolver * self,
 }
 
 static gboolean
+gum_find_sysroot (const GumModuleDetails * details,
+                  gpointer user_data)
+{
+  GumCollectModulesContext * ctx = user_data;
+
+  if (g_str_has_suffix (details->path, "/usr/lib/dyld_sim"))
+  {
+    ctx->sysroot_length = strlen (details->path) - 17;
+    ctx->sysroot = g_strndup (details->path, ctx->sysroot_length);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
 gum_store_module (const GumModuleDetails * details,
                   gpointer user_data)
 {
   GumCollectModulesContext * ctx = user_data;
   GumDarwinModuleResolver * self = ctx->self;
   GumDarwinModule * module;
-
-  if (ctx->index == 0 && g_str_has_suffix (details->path, "/usr/lib/dyld_sim"))
-  {
-    ctx->sysroot_length = strlen (details->path) - 17;
-    ctx->sysroot = g_strndup (details->path, ctx->sysroot_length);
-  }
 
   module = gum_darwin_module_new_from_memory (details->path, self->task,
       details->range->base_address, GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
