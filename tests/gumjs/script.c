@@ -7,6 +7,7 @@
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  * Copyright (C) 2024 Hillel Pinto <hillelpinto3@gmail.com>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
