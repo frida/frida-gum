@@ -20,6 +20,7 @@
 #include "gumquickmemory.h"
 #include "gumquickmodule.h"
 #include "gumquickprocess.h"
+#include "gumquicksampler.h"
 #include "gumquickscript-priv.h"
 #include "gumquickscript-runtime.h"
 #include "gumquickscriptbackend-priv.h"
@@ -78,6 +79,7 @@ struct _GumQuickScript
   GumQuickInstruction instruction;
   GumQuickCodeWriter code_writer;
   GumQuickCodeRelocator code_relocator;
+  GumQuickSampler sampler;
   GumQuickStalker stalker;
   GumQuickCloak cloak;
 
@@ -495,6 +497,7 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_code_writer_init (&self->code_writer, global_obj, core);
   _gum_quick_code_relocator_init (&self->code_relocator, global_obj,
       &self->code_writer, &self->instruction, core);
+  _gum_quick_sampler_init (&self->sampler, global_obj, core);
   _gum_quick_stalker_init (&self->stalker, global_obj, &self->code_writer,
       &self->instruction, core);
   _gum_quick_cloak_init (&self->cloak, global_obj, core);
@@ -533,6 +536,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_scope_enter (&scope, core);
 
     _gum_quick_cloak_dispose (&self->cloak);
+    _gum_quick_sampler_dispose (&self->sampler);
     _gum_quick_stalker_dispose (&self->stalker);
     _gum_quick_code_relocator_dispose (&self->code_relocator);
     _gum_quick_code_writer_dispose (&self->code_writer);
@@ -576,6 +580,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   }
 
   _gum_quick_cloak_finalize (&self->cloak);
+  _gum_quick_sampler_finalize (&self->sampler);
   _gum_quick_stalker_finalize (&self->stalker);
   _gum_quick_code_relocator_finalize (&self->code_relocator);
   _gum_quick_code_writer_finalize (&self->code_writer);
@@ -919,6 +924,7 @@ gum_quick_script_try_unload (GumQuickScript * self)
 
   _gum_quick_scope_enter (&scope, &self->core);
 
+  _gum_quick_sampler_flush (&self->sampler);
   _gum_quick_stalker_flush (&self->stalker);
   _gum_quick_interceptor_flush (&self->interceptor);
   _gum_quick_socket_flush (&self->socket);
