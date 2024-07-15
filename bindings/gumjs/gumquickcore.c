@@ -45,7 +45,6 @@ typedef guint8 GumQuickCodeTraps;
 typedef guint8 GumQuickReturnValueShape;
 typedef struct _GumQuickFFIFunction GumQuickFFIFunction;
 typedef struct _GumQuickCallbackContext GumQuickCallbackContext;
-typedef struct _GumQuickThreadData GumQuickThreadData;
 
 struct _GumQuickFlushCallback
 {
@@ -161,11 +160,6 @@ struct _GumQuickCallbackContext
   GumAddress return_address;
   GumAddress raw_return_address;
   int initial_property_count;
-};
-
-struct _GumQuickThreadData
-{
-    guint event_count_last_seen;
 };
 
 static gboolean gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
@@ -388,8 +382,6 @@ static JSValue gum_quick_value_from_ffi (JSContext * ctx,
 
 static void gum_quick_core_setup_atoms (GumQuickCore * self);
 static void gum_quick_core_teardown_atoms (GumQuickCore * self);
-
-static GumQuickThreadData * get_gum_quick_thread_data (void);
 
 static const JSCFunctionListEntry gumjs_root_entries[] =
 {
@@ -1377,8 +1369,6 @@ static const JSCFunctionListEntry gumjs_worker_entries[] =
   JS_CFUNC_DEF ("terminate", 0, gumjs_worker_terminate),
   JS_CFUNC_DEF ("post", 0, gumjs_worker_post),
 };
-
-static GPrivate gum_quick_thread_data;
 
 void
 _gum_quick_core_init (GumQuickCore * self,
@@ -2720,11 +2710,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
   GumQuickCore * self = core;
+  guint start_count;
   GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self);
   GMainContext * context;
   gboolean called_from_js_thread;
-  GumQuickThreadData * thread_data = get_gum_quick_thread_data ();
   gboolean event_source_available;
+
+  g_mutex_lock (&self->event_mutex);
+  start_count = self->event_count;
+  g_mutex_unlock (&self->event_mutex);
 
   _gum_quick_scope_perform_pending_io (self->current_scope);
 
@@ -2735,8 +2729,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
   g_mutex_lock (&self->event_mutex);
 
-  while (self->event_count == thread_data->event_count_last_seen
-      && self->event_source_available)
+  while (self->event_count == start_count && self->event_source_available)
   {
     if (called_from_js_thread)
     {
@@ -2749,8 +2742,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
       g_cond_wait (&self->event_cond, &self->event_mutex);
     }
   }
-
-  thread_data->event_count_last_seen = self->event_count;
 
   event_source_available = self->event_source_available;
 
@@ -5846,19 +5837,4 @@ gum_quick_core_teardown_atoms (GumQuickCore * self)
 #endif
 
 #undef GUM_TEARDOWN_ATOM
-}
-
-static GumQuickThreadData *
-get_gum_quick_thread_data (void)
-{
-  GumQuickThreadData * data = g_private_get (&gum_quick_thread_data);
-
-  if (data == NULL)
-  {
-    data = g_new0 (GumQuickThreadData, 1);
-    data->event_count_last_seen = 0;
-    g_private_set (&gum_quick_thread_data, (gpointer) data);
-  }
-
-  return data;
 }

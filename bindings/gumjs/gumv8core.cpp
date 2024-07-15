@@ -179,11 +179,6 @@ struct GumV8SourceMap
   GumV8Core * core;
 };
 
-struct GumV8ThreadData
-{
-    guint event_count_last_seen;
-};
-
 static gboolean gum_v8_core_handle_crashed_js (GumExceptionDetails * details,
     gpointer user_data);
 
@@ -389,8 +384,6 @@ static gboolean gum_v8_value_to_ffi_type (GumV8Core * core,
 static gboolean gum_v8_value_from_ffi_type (GumV8Core * core,
     Local<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
 
-static GumV8ThreadData * get_gum_v8_thread_data ();
-
 static const GumV8Function gumjs_global_functions[] =
 {
   { "_setTimeout", gumjs_set_timeout, },
@@ -534,8 +527,6 @@ static const GumV8Function gumjs_source_map_functions[] =
 
   { NULL, NULL }
 };
-
-static GPrivate gum_v8_thread_data;
 
 void
 _gum_v8_core_init (GumV8Core * self,
@@ -1610,6 +1601,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
+  g_mutex_lock (&core->event_mutex);
+  auto start_count = core->event_count;
+  g_mutex_unlock (&core->event_mutex);
+
   gboolean event_source_available;
 
   core->current_scope->PerformPendingIO ();
@@ -1617,14 +1612,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   {
     ScriptUnlocker unlocker (core);
 
-    auto thread_data = get_gum_v8_thread_data ();
     auto context = gum_script_scheduler_get_js_context (core->scheduler);
     gboolean called_from_js_thread = g_main_context_is_owner (context);
 
     g_mutex_lock (&core->event_mutex);
 
-    while (core->event_count == thread_data->event_count_last_seen
-        && core->event_source_available)
+    while (core->event_count == start_count && core->event_source_available)
     {
       if (called_from_js_thread)
       {
@@ -1637,8 +1630,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
         g_cond_wait (&core->event_cond, &core->event_mutex);
       }
     }
-
-    thread_data->event_count_last_seen = core->event_count;
 
     event_source_available = core->event_source_available;
 
@@ -4594,20 +4585,4 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   }
 
   return TRUE;
-}
-
-static GumV8ThreadData *
-get_gum_v8_thread_data ()
-{
-  GumV8ThreadData * data =
-      (GumV8ThreadData *) g_private_get (&gum_v8_thread_data);
-
-  if (data == NULL)
-  {
-    data = g_new0 (GumV8ThreadData, 1);
-    data->event_count_last_seen = 0;
-    g_private_set (&gum_v8_thread_data, (gpointer) data);
-  }
-
-  return data;
 }
