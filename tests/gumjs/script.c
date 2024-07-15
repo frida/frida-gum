@@ -6130,6 +6130,7 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
 {
   GThread * worker_thread;
   GumInvokeTargetContext ctx;
+  guint i;
 
   if (!g_test_slow ())
   {
@@ -6138,31 +6139,27 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback((arg) => {"
-      "   let timeToRecv;"
-      "   let shouldExit = false;"
-      "   while (true) {"
-      "      recv(message => {"
-      "         if (message.type == 'stop') {"
-      "            shouldExit = true;"
-      "            return;"
-      "         }"
-      "         else if (message.type != 'waituntil') {"
-      "            throw new Error("
-      "                'Received unexpected message: ' + message.type); }"
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(arg => {"
+      "  let timeToRecv;"
+      "  let shouldExit = false;"
+      "  while (true) {"
+      "    recv(message => {"
+      "       if (message.type === 'stop')"
+      "         shouldExit = true;"
+      "       else if (message.type === 'wait-until')"
       "         timeToRecv = message.time;"
-      "      }).wait();"
-      "      if (shouldExit) {"
-      "         return 0;"
-      "      }"
-      "      while (Date.now() < timeToRecv) {};"
-      "      recv(message => {"
-      "         if (message.type != 'ping') {"
-      "            throw new Error("
-      "                'Received unexpected message: '  + message.type); }"
-      "      }).wait();"
-      "      send('pong');"
-      "   }"
+      "       else"
+      "         throw new Error(`unexpected message: ${message.type}`);"
+      "    }).wait();"
+      "    if (shouldExit)"
+      "      return 0;"
+      "    while (Date.now() < timeToRecv) {}"
+      "    recv(message => {"
+      "      if (message.type !== 'ping')"
+      "        throw new Error(`unexpected message: ${message.type}`);"
+      "    }).wait();"
+      "    send('pong');"
+      "  }"
       "}, 'int', ['int']));", target_function_int);
 
   ctx.script = fixture->script;
@@ -6174,26 +6171,31 @@ TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
   while (ctx.started == 0)
     g_usleep (G_USEC_PER_SEC / 200);
 
-  for (int i = 0; i < 100; i++)
+  for (i = 0; i != 100; i++)
   {
-    gint64 timeNow = g_get_real_time ();
-    gint64 timeToScheduleRecv =
-        timeNow - (timeNow % (20 * 1000)) + 50 * 1000;
-    GString * msg = g_string_new (NULL);
-    g_string_printf (msg, "{\"type\":\"waituntil\", \"time\": %lld}",
-        timeToScheduleRecv / 1000);
-    POST_MESSAGE (msg->str);
-    g_string_free (msg, true);
-    gint64 timeToPost = timeToScheduleRecv + i;
-    while (g_get_real_time () < timeToPost);
+    gint64 time_now, time_to_schedule_recv, time_to_post;
+    gchar * msg;
+
+    time_now = g_get_real_time ();
+    time_to_schedule_recv = time_now - (time_now % (20 * 1000)) + (50 * 1000);
+    time_to_post = time_to_schedule_recv + i;
+
+    msg = g_strdup_printf (
+        "{\"type\":\"wait-until\",\"time\":%" G_GINT64_FORMAT "}",
+        time_to_schedule_recv / 1000);
+    POST_MESSAGE (msg);
+    g_free (msg);
+
+    while (g_get_real_time () < time_to_post)
+      ;
     POST_MESSAGE ("{\"type\":\"ping\"}");
     EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
   }
 
-  POST_MESSAGE ("{\"type\":\"stop\"}" );
+  POST_MESSAGE ("{\"type\":\"stop\"}");
 
   g_thread_join (worker_thread);
-  g_assert_cmpint (ctx.finished, == , 1);
+  g_assert_cmpint (ctx.finished, ==, 1);
 }
 
 TESTCASE (message_can_be_received_with_data)
