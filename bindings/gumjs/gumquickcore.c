@@ -3,6 +3,7 @@
  * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -2710,11 +2711,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
   GumQuickCore * self = core;
+  guint start_count;
   GumQuickScope scope = GUM_QUICK_SCOPE_INIT (self);
   GMainContext * context;
   gboolean called_from_js_thread;
-  guint start_count;
   gboolean event_source_available;
+
+  g_mutex_lock (&self->event_mutex);
+  start_count = self->event_count;
+  g_mutex_unlock (&self->event_mutex);
 
   _gum_quick_scope_perform_pending_io (self->current_scope);
 
@@ -2725,7 +2730,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
   g_mutex_lock (&self->event_mutex);
 
-  start_count = self->event_count;
   while (self->event_count == start_count && self->event_source_available)
   {
     if (called_from_js_thread)

@@ -5,6 +5,7 @@
  * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1601,6 +1602,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
+  g_mutex_lock (&core->event_mutex);
+  auto start_count = core->event_count;
+  g_mutex_unlock (&core->event_mutex);
+
   gboolean event_source_available;
 
   core->current_scope->PerformPendingIO ();
@@ -1613,7 +1618,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
     g_mutex_lock (&core->event_mutex);
 
-    auto start_count = core->event_count;
     while (core->event_count == start_count && core->event_source_available)
     {
       if (called_from_js_thread)

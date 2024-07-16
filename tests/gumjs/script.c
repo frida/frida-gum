@@ -7,6 +7,7 @@
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  * Copyright (C) 2024 Hillel Pinto <hillelpinto3@gmail.com>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -24,6 +25,7 @@ TESTLIST_BEGIN (script)
   TESTENTRY (recv_may_specify_desired_message_type)
   TESTENTRY (recv_can_be_waited_for_from_an_application_thread)
   TESTENTRY (recv_can_be_waited_for_from_two_application_threads)
+  TESTENTRY (recv_wait_in_an_application_thread_should_not_deadlock)
   TESTENTRY (recv_can_be_waited_for_from_our_js_thread)
   TESTENTRY (recv_wait_in_an_application_thread_should_throw_on_unload)
   TESTENTRY (recv_wait_in_our_js_thread_should_throw_on_unload)
@@ -6123,6 +6125,78 @@ TESTCASE (message_can_be_received)
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"ping\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
+}
+
+TESTCASE (recv_wait_in_an_application_thread_should_not_deadlock)
+{
+  GThread * worker_thread;
+  GumInvokeTargetContext ctx;
+  guint i;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(arg => {"
+      "  let timeToRecv;"
+      "  let shouldExit = false;"
+      "  while (true) {"
+      "    recv(message => {"
+      "       if (message.type === 'stop')"
+      "         shouldExit = true;"
+      "       else if (message.type === 'wait-until')"
+      "         timeToRecv = message.time;"
+      "       else"
+      "         throw new Error(`unexpected message: ${message.type}`);"
+      "    }).wait();"
+      "    if (shouldExit)"
+      "      return 0;"
+      "    while (Date.now() < timeToRecv) {}"
+      "    recv(message => {"
+      "      if (message.type !== 'ping')"
+      "        throw new Error(`unexpected message: ${message.type}`);"
+      "    }).wait();"
+      "    send('pong');"
+      "  }"
+      "}, 'int', ['int']));", target_function_int);
+
+  ctx.script = fixture->script;
+  ctx.repeat_duration = 0;
+  ctx.started = 0;
+  ctx.finished = 0;
+  worker_thread = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
+  while (ctx.started == 0)
+    g_usleep (G_USEC_PER_SEC / 200);
+
+  for (i = 0; i != 100; i++)
+  {
+    gint64 time_now, time_to_schedule_recv, time_to_post;
+    gchar * msg;
+
+    time_now = g_get_real_time ();
+    time_to_schedule_recv = time_now - (time_now % (20 * 1000)) + (50 * 1000);
+    time_to_post = time_to_schedule_recv + i;
+
+    msg = g_strdup_printf (
+        "{\"type\":\"wait-until\",\"time\":%" G_GINT64_FORMAT "}",
+        time_to_schedule_recv / 1000);
+    POST_MESSAGE (msg);
+    g_free (msg);
+
+    while (g_get_real_time () < time_to_post)
+      ;
+    POST_MESSAGE ("{\"type\":\"ping\"}");
+    EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
+  }
+
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+
+  g_thread_join (worker_thread);
+  g_assert_cmpint (ctx.finished, ==, 1);
 }
 
 TESTCASE (message_can_be_received_with_data)
