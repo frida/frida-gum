@@ -81,6 +81,7 @@ struct _GumDarwinMapper
   gsize constructor_offset;
   gsize destructor_offset;
   guint chained_fixups_count;
+  GumMemoryRange shared_cache_range;
   GumDarwinTlvParameters tlv;
 
   GArray * chained_symbols;
@@ -340,6 +341,9 @@ gum_darwin_mapper_constructed (GObject * object)
   g_assert (self->name != NULL);
   g_assert (self->module != NULL);
   g_assert (self->resolver != NULL);
+
+  gum_darwin_query_shared_cache_range (self->resolver->task,
+      &self->shared_cache_range);
 
   gum_darwin_module_query_tlv_parameters (self->module, &self->tlv);
 
@@ -2331,6 +2335,32 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
     }
     value->resolver = 0;
     return TRUE;
+  }
+
+  if (GUM_MEMORY_RANGE_INCLUDES (&self->shared_cache_range,
+        module->base_address))
+  {
+    const gchar * unmangled_name = name + 1;
+
+    value->address = gum_module_find_export_by_name (module->name, unmangled_name);
+#ifdef HAVE_ARM64
+    if (value->address != 0)
+    {
+      /*
+       * XXX: Symbols with a resolver, such as strcmp() on macOS Sequoia, have
+       *      an invalid signature. Asking the CPU to strip the ptrauth bits
+       *      in such a case thus results in more junk being added.
+       */
+      if (value->address >> 47 == 0x100)
+        value->address &= 0x7fffffffffffff;
+      else
+        value->address = gum_strip_code_address (value->address);
+    }
+#endif
+    value->resolver = 0;
+
+    if (value->address != 0)
+      return TRUE;
   }
 
   if (!gum_darwin_module_resolve_export (module, name, &details))
