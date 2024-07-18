@@ -27,6 +27,10 @@ typedef void (WINAPI * GumGetCurrentThreadStackLimitsFunc) (
     PULONG_PTR low_limit, PULONG_PTR high_limit);
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumFindExportContext GumFindExportContext;
+typedef BOOL (WINAPI * GumIsWow64ProcessFunc) (HANDLE process, BOOL * is_wow64);
+typedef BOOL (WINAPI * GumGetProcessInformationFunc) (HANDLE process,
+    PROCESS_INFORMATION_CLASS process_information_class,
+    void * process_information, DWORD process_information_size);
 
 struct _GumEnumerateSymbolsContext
 {
@@ -984,6 +988,136 @@ get_module_handle_utf8 (const gchar * module_name)
   g_free (wide_name);
 
   return module;
+}
+
+GumCpuType
+gum_windows_query_native_cpu_type (void)
+{
+  static gsize initialized = FALSE;
+  static GumCpuType type;
+
+  if (g_once_init_enter (&initialized))
+  {
+    SYSTEM_INFO si;
+
+    GetNativeSystemInfo (&si);
+
+    switch (si.wProcessorArchitecture)
+    {
+      case PROCESSOR_ARCHITECTURE_INTEL:
+        type = GUM_CPU_IA32;
+        break;
+      case PROCESSOR_ARCHITECTURE_AMD64:
+        type = GUM_CPU_AMD64;
+        break;
+      case PROCESSOR_ARCHITECTURE_ARM64:
+        type = GUM_CPU_ARM64;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  return type;
+}
+
+GumCpuType
+gum_windows_cpu_type_from_pid (guint pid,
+                               GError ** error)
+{
+  GumCpuType result = -1;
+  HANDLE process;
+  static gsize initialized = FALSE;
+  static GumIsWow64ProcessFunc is_wow64_process;
+  static GumGetProcessInformationFunc get_process_information;
+
+  process = OpenProcess (PROCESS_QUERY_INFORMATION, FALSE, pid);
+  if (process == NULL)
+    goto propagate_api_error;
+
+  if (g_once_init_enter (&initialized))
+  {
+    HMODULE kernel32;
+
+    kernel32 = GetModuleHandle (_T ("kernel32.dll"));
+
+    is_wow64_process = (GumIsWow64ProcessFunc)
+        GetProcAddress (kernel32, "IsWow64Process");
+    get_process_information = (GumGetProcessInformationFunc)
+        GetProcAddress (kernel32, "GetProcessInformation");
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  if (get_process_information != NULL)
+  {
+    PROCESS_MACHINE_INFORMATION info;
+
+    if (!get_process_information (process, ProcessMachineTypeInfo, &info,
+          sizeof (info)))
+    {
+      goto propagate_api_error;
+    }
+
+    switch (info.ProcessMachine)
+    {
+      case IMAGE_FILE_MACHINE_I386:
+        result = GUM_CPU_IA32;
+        break;
+      case IMAGE_FILE_MACHINE_AMD64:
+        result = GUM_CPU_AMD64;
+        break;
+      case IMAGE_FILE_MACHINE_ARM64:
+        result = GUM_CPU_ARM64;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
+  else if (is_wow64_process != NULL)
+  {
+    BOOL is_wow64;
+
+    if (!is_wow64_process (process, &is_wow64))
+      goto propagate_api_error;
+
+    result = is_wow64 ? GUM_CPU_IA32 : gum_windows_query_native_cpu_type ();
+  }
+  else
+  {
+    result = gum_windows_query_native_cpu_type ();
+  }
+
+  goto beach;
+
+propagate_api_error:
+  {
+    DWORD code = GetLastError ();
+
+    switch (code)
+    {
+      /* TODO: Handle code for when PID doesn't exist. */
+      case ERROR_ACCESS_DENIED:
+        g_set_error (error, GUM_ERROR, GUM_ERROR_PERMISSION_DENIED,
+            "Permission denied");
+        break;
+      default:
+        g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
+            "Unexpectedly failed with error code: 0x%08x", code);
+        break;
+    }
+
+    goto beach;
+  }
+beach:
+  {
+    if (process != NULL)
+      CloseHandle (process);
+
+    return result;
+  }
 }
 
 void

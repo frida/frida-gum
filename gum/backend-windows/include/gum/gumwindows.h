@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +16,9 @@
 #include <windows.h>
 
 G_BEGIN_DECLS
+
+GUM_API GumCpuType gum_windows_query_native_cpu_type (void);
+GUM_API GumCpuType gum_windows_cpu_type_from_pid (guint pid, GError ** error);
 
 GUM_API void gum_windows_parse_context (const CONTEXT * context,
     GumCpuContext * cpu_context);
