@@ -2349,8 +2349,11 @@ def generate_enum_parser(name, type, prefix, values):
     statements = []
     for i, value in enumerate(values):
         statements.extend([
-            "{0}if (strcmp (name, \"{1}\") == 0)".format("  else " if i > 0 else "", value),
-            "    *value = {0}{1};".format(prefix, value.upper().replace("-", "_")),
+            f"  if (strcmp (name, \"{value}\") == 0)",
+            "  {",
+            "    *value = {}{};".format(prefix, value.upper().replace("-", "_")),
+            "    return TRUE;",
+            "  }",
         ])
 
     code = """\
@@ -2359,10 +2362,9 @@ gum_try_parse_{name} (
     const gchar * name,
     {type} * value)
 {{
-  {statements}
-  else
-    return FALSE;
-  return TRUE;
+{statements}
+
+  return FALSE;
 }}
 """.format(
         name=name,
