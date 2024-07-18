@@ -256,11 +256,19 @@ if host_arch == 'arm64'
     'arch-arm64' / 'gumarm64reader.c',
     'backend-arm64' / 'gumcpucontext-arm64.c',
     'backend-arm64' / 'guminterceptor-arm64.c',
-    'backend-arm64' / 'guminterceptor-arm64-glue.S',
     'backend-arm64' / 'gumstalker-arm64.c',
-    'backend-arm64' / 'gumstalker-arm64-glue.S',
-    'backend-arm64' / 'memcpy-advsimd.S',
   ]
+  if cc.get_argument_syntax() == 'msvc'
+    gum_sources += [
+      'backend-arm64' / 'gumstalker-arm64-glue.masm',
+    ]
+  else
+    gum_sources += [
+      'backend-arm64' / 'guminterceptor-arm64-glue.S',
+      'backend-arm64' / 'gumstalker-arm64-glue.S',
+      'backend-arm64' / 'memcpy-advsimd.S',
+    ]
+  endif
 endif
 
 gum_mips_headers = [

@@ -25,6 +25,9 @@ if host_cpu_is_intel and host_os_family != 'qnx'
 endif
 
 if host_os_family == 'windows'
+  if not host_cpu_is_intel
+    gum_prof_sources += 'gumcyclesampler-windows.c'
+  endif
   gum_prof_sources += 'gumbusycyclesampler-windows.c'
 endif
 

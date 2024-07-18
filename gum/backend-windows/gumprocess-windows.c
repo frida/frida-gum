@@ -990,7 +990,7 @@ void
 gum_windows_parse_context (const CONTEXT * context,
                            GumCpuContext * cpu_context)
 {
-#if GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   cpu_context->eip = context->Eip;
 
   cpu_context->edi = context->Edi;
@@ -1001,7 +1001,7 @@ gum_windows_parse_context (const CONTEXT * context,
   cpu_context->edx = context->Edx;
   cpu_context->ecx = context->Ecx;
   cpu_context->eax = context->Eax;
-#else
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   cpu_context->rip = context->Rip;
 
   cpu_context->r15 = context->R15;
@@ -1021,6 +1021,47 @@ gum_windows_parse_context (const CONTEXT * context,
   cpu_context->rdx = context->Rdx;
   cpu_context->rcx = context->Rcx;
   cpu_context->rax = context->Rax;
+#else
+  guint i;
+
+  cpu_context->pc = context->Pc;
+  cpu_context->sp = context->Sp;
+  cpu_context->nzcv = context->Cpsr;
+
+  cpu_context->x[0] = context->X0;
+  cpu_context->x[1] = context->X1;
+  cpu_context->x[2] = context->X2;
+  cpu_context->x[3] = context->X3;
+  cpu_context->x[4] = context->X4;
+  cpu_context->x[5] = context->X5;
+  cpu_context->x[6] = context->X6;
+  cpu_context->x[7] = context->X7;
+  cpu_context->x[8] = context->X8;
+  cpu_context->x[9] = context->X9;
+  cpu_context->x[10] = context->X10;
+  cpu_context->x[11] = context->X11;
+  cpu_context->x[12] = context->X12;
+  cpu_context->x[13] = context->X13;
+  cpu_context->x[14] = context->X14;
+  cpu_context->x[15] = context->X15;
+  cpu_context->x[16] = context->X16;
+  cpu_context->x[17] = context->X17;
+  cpu_context->x[18] = context->X18;
+  cpu_context->x[19] = context->X19;
+  cpu_context->x[20] = context->X20;
+  cpu_context->x[21] = context->X21;
+  cpu_context->x[22] = context->X22;
+  cpu_context->x[23] = context->X23;
+  cpu_context->x[24] = context->X24;
+  cpu_context->x[25] = context->X25;
+  cpu_context->x[26] = context->X26;
+  cpu_context->x[27] = context->X27;
+  cpu_context->x[28] = context->X28;
+  cpu_context->fp = context->Fp;
+  cpu_context->lr = context->Lr;
+
+  for (i = 0; i != G_N_ELEMENTS (cpu_context->v); i++)
+    memcpy (cpu_context->v[i].q, context->V[i].B, 16);
 #endif
 }
 
@@ -1028,7 +1069,7 @@ void
 gum_windows_unparse_context (const GumCpuContext * cpu_context,
                              CONTEXT * context)
 {
-#if GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   context->Eip = cpu_context->eip;
 
   context->Edi = cpu_context->edi;
@@ -1039,7 +1080,7 @@ gum_windows_unparse_context (const GumCpuContext * cpu_context,
   context->Edx = cpu_context->edx;
   context->Ecx = cpu_context->ecx;
   context->Eax = cpu_context->eax;
-#else
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   context->Rip = cpu_context->rip;
 
   context->R15 = cpu_context->r15;
@@ -1059,6 +1100,47 @@ gum_windows_unparse_context (const GumCpuContext * cpu_context,
   context->Rdx = cpu_context->rdx;
   context->Rcx = cpu_context->rcx;
   context->Rax = cpu_context->rax;
+#else
+  guint i;
+
+  context->Pc = cpu_context->pc;
+  context->Sp = cpu_context->sp;
+  context->Cpsr = cpu_context->nzcv;
+
+  context->X0 = cpu_context->x[0];
+  context->X1 = cpu_context->x[1];
+  context->X2 = cpu_context->x[2];
+  context->X3 = cpu_context->x[3];
+  context->X4 = cpu_context->x[4];
+  context->X5 = cpu_context->x[5];
+  context->X6 = cpu_context->x[6];
+  context->X7 = cpu_context->x[7];
+  context->X8 = cpu_context->x[8];
+  context->X9 = cpu_context->x[9];
+  context->X10 = cpu_context->x[10];
+  context->X11 = cpu_context->x[11];
+  context->X12 = cpu_context->x[12];
+  context->X13 = cpu_context->x[13];
+  context->X14 = cpu_context->x[14];
+  context->X15 = cpu_context->x[15];
+  context->X16 = cpu_context->x[16];
+  context->X17 = cpu_context->x[17];
+  context->X18 = cpu_context->x[18];
+  context->X19 = cpu_context->x[19];
+  context->X20 = cpu_context->x[20];
+  context->X21 = cpu_context->x[21];
+  context->X22 = cpu_context->x[22];
+  context->X23 = cpu_context->x[23];
+  context->X24 = cpu_context->x[24];
+  context->X25 = cpu_context->x[25];
+  context->X26 = cpu_context->x[26];
+  context->X27 = cpu_context->x[27];
+  context->X28 = cpu_context->x[28];
+  context->Fp = cpu_context->fp;
+  context->Lr = cpu_context->lr;
+
+  for (i = 0; i != G_N_ELEMENTS (cpu_context->v); i++)
+    memcpy (context->V[i].B, cpu_context->v[i].q, 16);
 #endif
 }
 

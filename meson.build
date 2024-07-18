@@ -60,6 +60,10 @@ endif
 
 cc = meson.get_compiler('c')
 
+if cc.get_argument_syntax() == 'msvc' and host_arch == 'arm64'
+  add_languages('masm')
+endif
+
 frida_component_cflags = []
 ndebug = get_option('b_ndebug')
 optimize_for_prod = ndebug == 'true' or (ndebug == 'if-release' and not get_option('debug'))

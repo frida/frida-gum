@@ -29,7 +29,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #ifdef HAVE_LINUX
 # include <unwind.h>
 # include <sys/syscall.h>
@@ -1296,7 +1295,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
   gum_event_sink_start (ctx->sink);
   ctx->sink_started = TRUE;
 
-  return code_address + GUM_RESTORATION_PROLOG_SIZE;
+  return (guint8 *) code_address + GUM_RESTORATION_PROLOG_SIZE;
 }
 
 void
@@ -1491,7 +1490,7 @@ _gum_stalker_do_activate (GumStalker * self,
     if (gum_exec_ctx_maybe_unfollow (ctx, ret_addr))
       return ret_addr;
 
-    return code_address + GUM_RESTORATION_PROLOG_SIZE;
+    return (guint8 *) code_address + GUM_RESTORATION_PROLOG_SIZE;
   }
 
   return ret_addr;
@@ -3858,10 +3857,11 @@ static guint64
 gum_exec_ctx_read_register (GumCpuContext * cpu_context,
                             arm64_reg reg)
 {
+  if (reg >= ARM64_REG_X0 && reg <= ARM64_REG_X28)
+    return cpu_context->x[reg - ARM64_REG_X0];
+
   switch (reg)
   {
-    case ARM64_REG_X0...ARM64_REG_X28:
-      return cpu_context->x[reg - ARM64_REG_X0];
     case ARM64_REG_X29:
       return cpu_context->fp;
     case ARM64_REG_X30:
@@ -3876,11 +3876,14 @@ gum_exec_ctx_write_register (GumCpuContext * cpu_context,
                              arm64_reg reg,
                              guint64 value)
 {
+  if (reg >= ARM64_REG_X0 && reg <= ARM64_REG_X28)
+  {
+    cpu_context->x[reg - ARM64_REG_X0] = value;
+    return;
+  }
+
   switch (reg)
   {
-    case ARM64_REG_X0...ARM64_REG_X28:
-      cpu_context->x[reg - ARM64_REG_X0] = value;
-      break;
     case ARM64_REG_X29:
       cpu_context->fp = value;
       break;
@@ -4984,7 +4987,7 @@ gum_exec_block_backpatch_excluded_call (GumExecBlock * block,
       (num_ic_entries - 1) * sizeof (GumIcEntry));
 
   ic_entries[0].real_start = target;
-  ic_entries[0].code_start = target + 1;
+  ic_entries[0].code_start = (guint8 *) target + 1;
 
   gum_spinlock_release (&ctx->code_lock);
 

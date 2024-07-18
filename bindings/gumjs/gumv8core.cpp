@@ -3471,7 +3471,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   guintptr return_address = 0;
   guintptr stack_pointer = 0;
   guintptr frame_pointer = 0;
-#if defined (HAVE_I386) && defined (_MSC_VER)
+#if defined (_MSC_VER)
   return_address = GPOINTER_TO_SIZE (_ReturnAddress ());
   stack_pointer = GPOINTER_TO_SIZE (_AddressOfReturnAddress ());
   frame_pointer = *((guintptr *) stack_pointer - 1);

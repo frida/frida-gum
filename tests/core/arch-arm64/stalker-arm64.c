@@ -73,7 +73,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (exclusive_load_store_should_not_be_disturbed)
 
   /* EXTRA */
+#ifndef HAVE_WINDOWS
   TESTENTRY (pthread_create)
+#endif
   TESTENTRY (heap_api)
   TESTENTRY (no_register_clobber)
   TESTENTRY (performance)
@@ -156,7 +158,9 @@ static void bump_num_cmp_callouts (GumCpuContext * cpu_context,
     gpointer user_data);
 static void patch_instruction (gpointer code, guint offset, guint32 insn);
 static void do_patch_instruction (gpointer mem, gpointer user_data);
+#ifndef HAVE_WINDOWS
 static gpointer increment_integer (gpointer data);
+#endif
 static gboolean store_range_of_test_runner (const GumModuleDetails * details,
     gpointer user_data);
 static void pretend_workload (GumMemoryRange * runner_range);
@@ -268,7 +272,8 @@ TESTCASE (ret)
 
   ev = &g_array_index (fixture->sink->events, GumEvent, 0).ret;
 
-  GUM_ASSERT_CMPADDR (ev->location, ==, gum_strip_code_pointer (func) + 3 * 4);
+  GUM_ASSERT_CMPADDR (ev->location, ==,
+      (guint8 *) gum_strip_code_pointer (func) + 3 * 4);
   GUM_ASSERT_CMPADDR (ev->target, ==, fixture->last_invoke_retaddr);
 }
 
@@ -2008,6 +2013,8 @@ do_patch_instruction (gpointer mem,
   *insn = new_insn;
 }
 
+#ifndef HAVE_WINDOWS
+
 TESTCASE (pthread_create)
 {
   int ret;
@@ -2037,6 +2044,8 @@ increment_integer (gpointer data)
   *number += 1;
   return NULL;
 }
+
+#endif
 
 TESTCASE (heap_api)
 {

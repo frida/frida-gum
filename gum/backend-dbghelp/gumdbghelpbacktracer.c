@@ -11,11 +11,13 @@
 
 #include "guminterceptor.h"
 
-#if GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_ARM64)
+# define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_ARM64
+#elif GLIB_SIZEOF_VOID_P == 8
+# define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_AMD64
+#else
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_I386
 # define GUM_FFI_STACK_SKIP 44
-#else
-# define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_AMD64
 #endif
 
 #ifdef _MSC_VER
@@ -107,54 +109,37 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
   if (cpu_context != NULL)
   {
-#if GLIB_SIZEOF_VOID_P == 4
-    if (cpu_context->eip != 0)
-      context.Eip = cpu_context->eip;
-    else
-      context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
+    gum_windows_unparse_context (cpu_context, &context);
 
-    context.Edi = cpu_context->edi;
-    context.Esi = cpu_context->esi;
-    context.Ebp = cpu_context->ebp;
-    context.Esp = cpu_context->esp;
-    context.Ebx = cpu_context->ebx;
-    context.Edx = cpu_context->edx;
-    context.Ecx = cpu_context->ecx;
-    context.Eax = cpu_context->eax;
+#ifdef HAVE_I386
+# if GLIB_SIZEOF_VOID_P == 4
+    if (context.Eip == 0)
+      context.Eip = *((gsize *) GSIZE_TO_POINTER (cpu_context->esp));
 
     frame.AddrPC.Offset = context.Eip;
     frame.AddrFrame.Offset = cpu_context->ebp;
     frame.AddrStack.Offset = cpu_context->esp;
-#else
-    if (cpu_context->rip != 0)
-      context.Rip = cpu_context->rip;
-    else
+# else
+    if (context.Rip == 0)
       context.Rip = *((gsize *) GSIZE_TO_POINTER (cpu_context->rsp));
-
-    context.R15 = cpu_context->r15;
-    context.R14 = cpu_context->r14;
-    context.R13 = cpu_context->r13;
-    context.R12 = cpu_context->r12;
-    context.R11 = cpu_context->r11;
-    context.R10 = cpu_context->r10;
-    context.R9  = cpu_context->r9;
-    context.R8  = cpu_context->r8;
-
-    context.Rdi = cpu_context->rdi;
-    context.Rsi = cpu_context->rsi;
-    context.Rbp = cpu_context->rbp;
-    context.Rsp = cpu_context->rsp;
-    context.Rbx = cpu_context->rbx;
-    context.Rdx = cpu_context->rdx;
-    context.Rcx = cpu_context->rcx;
-    context.Rax = cpu_context->rax;
 
     frame.AddrPC.Offset = context.Rip;
     frame.AddrFrame.Offset = cpu_context->rsp;
     frame.AddrStack.Offset = cpu_context->rsp;
-#endif
+# endif
 
     has_ffi_frames = GUM_CPU_CONTEXT_XIP (cpu_context) == 0;
+#else
+    if (context.Pc == 0)
+      context.Pc = cpu_context->lr;
+
+    frame.AddrPC.Offset = context.Pc;
+    frame.AddrFrame.Offset = cpu_context->fp;
+    frame.AddrStack.Offset = cpu_context->sp;
+
+    has_ffi_frames = cpu_context->pc == 0;
+#endif
+
     if (has_ffi_frames)
     {
       start_index = 0;
@@ -176,18 +161,25 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
   }
   else
   {
-#if GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
     frame.AddrPC.Offset = context.Eip;
     frame.AddrFrame.Offset = context.Ebp;
     frame.AddrStack.Offset = context.Esp;
-#else
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
     frame.AddrPC.Offset = context.Rip;
     frame.AddrFrame.Offset = context.Rsp;
     frame.AddrStack.Offset = context.Rsp;
+#else
+    frame.AddrPC.Offset = context.Pc;
+    frame.AddrFrame.Offset = context.Fp;
+    frame.AddrStack.Offset = context.Sp;
 #endif
 
     start_index = 0;
     n_skip = 1; /* Leave out this function. */
+#ifdef HAVE_ARM64
+    n_skip++;
+#endif
     has_ffi_frames = FALSE;
   }
 
@@ -235,10 +227,12 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
     if (translated_pc != pc)
     {
-#if GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
       context.Eip = GPOINTER_TO_SIZE (translated_pc);
-#else
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
       context.Rip = GPOINTER_TO_SIZE (translated_pc);
+#else
+      context.Pc = GPOINTER_TO_SIZE (translated_pc);
 #endif
       frame.AddrPC.Offset = GPOINTER_TO_SIZE (translated_pc);
     }

@@ -18,8 +18,6 @@
 # include "gumdarwingrafter-priv.h"
 #endif
 
-#include <string.h>
-#include <unistd.h>
 #ifdef HAVE_DARWIN
 # include <dlfcn.h>
 # include <mach-o/dyld.h>
@@ -59,9 +57,6 @@ struct _GumArm64FunctionContextData
 
 G_STATIC_ASSERT (sizeof (GumArm64FunctionContextData)
     <= sizeof (GumFunctionContextBackendData));
-
-extern void _gum_interceptor_begin_invocation (void);
-extern void _gum_interceptor_end_invocation (void);
 
 static void gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
@@ -153,6 +148,9 @@ struct _GumGraftedSegmentPairDetails
   GumGraftedImport * imports;
   guint32 num_imports;
 };
+
+extern void _gum_interceptor_begin_invocation (void);
+extern void _gum_interceptor_end_invocation (void);
 
 static void gum_on_module_added (const struct mach_header * mh,
     intptr_t vmaddr_slide);
@@ -726,10 +724,11 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     gpointer return_address;
     gboolean dedicated;
 
-    caller.near_address = function_address + data->redirect_code_size - 4;
+    caller.near_address =
+        (guint8 *) function_address + data->redirect_code_size - 4;
     caller.max_distance = GUM_ARM64_B_MAX_DISTANCE;
 
-    return_address = function_address + data->redirect_code_size;
+    return_address = (guint8 *) function_address + data->redirect_code_size;
 
     dedicated = data->redirect_code_size == 4;
 

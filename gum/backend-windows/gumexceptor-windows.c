@@ -7,6 +7,7 @@
 #include "gumexceptorbackend.h"
 
 #include "gum/gumwindows.h"
+#include "gumarm64writer.h"
 #include "gumx86writer.h"
 
 #include <capstone.h>
@@ -27,7 +28,11 @@ struct _GumExceptorBackend
   GumWindowsExceptionHandler system_handler;
 
   gpointer dispatcher_impl;
+#ifdef HAVE_ARM64
+  guint32 * dispatcher_impl_bl;
+#else
   gint32 * dispatcher_impl_call_immediate;
+#endif
   DWORD previous_page_protection;
 
   gpointer trampoline;
@@ -87,7 +92,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
   g_assert (self->dispatcher_impl != NULL);
 
   gum_cs_arch_register_native ();
-  err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
+  err = cs_open (GUM_DEFAULT_CS_ARCH, GUM_CPU_MODE, &capstone);
   g_assert (err == CS_ERR_OK);
   err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
   g_assert (err == CS_ERR_OK);
@@ -105,6 +110,42 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
 
     offset += insn->size;
 
+#ifdef HAVE_ARM64
+    if (insn->id == ARM64_INS_BL)
+    {
+      guint32 * bl = GSIZE_TO_POINTER (insn->address);
+      cs_arm64_op * op = &insn->detail->arm64.operands[0];
+      gssize distance;
+
+      self->system_handler = GUM_POINTER_TO_FUNCPTR (
+          GumWindowsExceptionHandler, op->imm);
+
+      VirtualProtect (self->dispatcher_impl, 4096,
+          PAGE_EXECUTE_READWRITE, &self->previous_page_protection);
+      self->dispatcher_impl_bl = bl;
+
+      distance = (gssize) gum_exceptor_backend_dispatch - (gssize) bl;
+      if (!GUM_IS_WITHIN_INT28_RANGE (distance))
+      {
+        GumAddressSpec as;
+        GumArm64Writer cw;
+
+        as.near_address = self->dispatcher_impl;
+        as.max_distance = G_MAXINT32 - 16384;
+        self->trampoline = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &as);
+
+        gum_arm64_writer_init (&cw, self->trampoline);
+        gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X8,
+            GUM_ADDRESS (gum_exceptor_backend_dispatch));
+        gum_arm64_writer_put_br_reg (&cw, ARM64_REG_X8);
+        gum_arm64_writer_clear (&cw);
+
+        distance = (gssize) self->trampoline - (gssize) bl;
+      }
+
+      *bl = (*bl & ~GUM_INT26_MASK) | ((distance / 4) & GUM_INT26_MASK);
+    }
+#else
     if (insn->id == X86_INS_CALL)
     {
       cs_x86_op * op = &insn->detail->x86.operands[0];
@@ -130,7 +171,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
           GumX86Writer cw;
 
           as.near_address = self->dispatcher_impl;
-          as.max_distance = (G_MAXINT32 - 16384);
+          as.max_distance = G_MAXINT32 - 16384;
           self->trampoline = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &as);
 
           gum_x86_writer_init (&cw, self->trampoline);
@@ -144,6 +185,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
         *self->dispatcher_impl_call_immediate = distance;
       }
     }
+#endif
 
     cs_free (insn, 1);
   }
@@ -157,9 +199,20 @@ gum_exceptor_backend_finalize (GObject * object)
   GumExceptorBackend * self = GUM_EXCEPTOR_BACKEND (object);
   DWORD prot;
 
+#ifdef HAVE_ARM64
+  gssize distance;
+
+  distance = (gssize) self->system_handler - (gssize) self->dispatcher_impl_bl;
+
+  *self->dispatcher_impl_bl = (*self->dispatcher_impl_bl & ~GUM_INT26_MASK) |
+      ((distance / 4) & GUM_INT26_MASK);
+  self->dispatcher_impl_bl = NULL;
+#else
   *self->dispatcher_impl_call_immediate =
       (gssize) self->system_handler -
       (gssize) (self->dispatcher_impl_call_immediate + 1);
+  self->dispatcher_impl_call_immediate = NULL;
+#endif
 
   VirtualProtect (self->dispatcher_impl, 4096,
       self->previous_page_protection, &prot);
@@ -167,7 +220,6 @@ gum_exceptor_backend_finalize (GObject * object)
   self->system_handler = NULL;
 
   self->dispatcher_impl = NULL;
-  self->dispatcher_impl_call_immediate = NULL;
   self->previous_page_protection = 0;
 
   g_clear_pointer (&self->trampoline, gum_free_pages);

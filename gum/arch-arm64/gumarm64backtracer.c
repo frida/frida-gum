@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -11,6 +11,10 @@
 
 #include "guminterceptor.h"
 #include "gummemorymap.h"
+
+#ifdef _MSC_VER
+# include <intrin.h>
+#endif
 
 struct _GumArm64Backtracer
 {
@@ -104,7 +108,11 @@ gum_arm64_backtracer_generate (GumBacktracer * backtracer,
   }
   else
   {
+#ifdef _MSC_VER
+    start_address = _AddressOfReturnAddress ();
+#else
     asm ("\tmov %0, sp" : "=r" (start_address));
+#endif
     start_index = 0;
     skips_pending = 1;
   }

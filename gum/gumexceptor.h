@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -97,9 +97,9 @@ GUM_API void gum_exceptor_add (GumExceptor * self, GumExceptionHandler func,
 GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
     gpointer user_data);
 
-#if defined (_MSC_VER) && GLIB_SIZEOF_VOID_P == 8
+#if defined (_MSC_VER) && defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
 /*
- * On MSVC/64-bit setjmp() is actually an intrinsic that calls _setjmp() with a
+ * On MSVC/x86_64 setjmp() is actually an intrinsic that calls _setjmp() with a
  * a hidden second argument specifying the frame pointer. This makes sense when
  * the longjmp() is guaranteed to happen from code we control, but is not
  * reliable otherwise.

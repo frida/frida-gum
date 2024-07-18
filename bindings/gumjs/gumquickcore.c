@@ -4461,7 +4461,7 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 
   saved_system_error = gum_thread_get_system_error ();
 
-#if defined (HAVE_I386) && defined (_MSC_VER)
+#if defined (_MSC_VER)
   return_address = GPOINTER_TO_SIZE (_ReturnAddress ());
   stack_pointer = GPOINTER_TO_SIZE (_AddressOfReturnAddress ());
   frame_pointer = *((guintptr *) stack_pointer - 1);

@@ -419,12 +419,20 @@ enum _GumRelocationScenario
 
 #define GUM_MAX_THREAD_RANGES 2
 
-#if GLIB_SIZEOF_VOID_P == 8
-#define GUM_CPU_MODE CS_MODE_64
-#define GUM_X86_THUNK
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 8
+#  define GUM_CPU_MODE CS_MODE_64
+#  define GUM_X86_THUNK
+# else
+#  define GUM_CPU_MODE CS_MODE_32
+#  define GUM_X86_THUNK GUM_FASTCALL
+# endif
 #else
-#define GUM_CPU_MODE CS_MODE_32
-#define GUM_X86_THUNK GUM_FASTCALL
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
+#  define GUM_CPU_MODE CS_MODE_LITTLE_ENDIAN
+# else
+#  define GUM_CPU_MODE CS_MODE_BIG_ENDIAN
+# endif
 #endif
 #if !defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 8
 # define GUM_X86_THUNK_REG_ARG0 GUM_X86_XDI
