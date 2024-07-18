@@ -67,6 +67,7 @@ gum_sources = [
   'gumprintf.c',
   'gumprocess.c',
   'gumreturnaddress.c',
+  'gumspinlock.c',
   'gumstalker.c',
   'gumswiftapiresolver.c',
   'arch-x86' / 'gumx86writer.c',
@@ -212,17 +213,8 @@ if host_arch in ['x86', 'x86_64']
     'backend-x86' / 'guminterceptor-x86.c',
     'backend-x86' / 'gumstalker-x86.c',
   ]
-  if cc.get_argument_syntax() == 'msvc'
-    if host_arch == 'x86'
-      gum_sources += 'backend-x86' / 'gumspinlock-ia32-msc.c'
-    elif host_arch == 'x86_64'
-      gum_sources += 'backend-x86' / 'gumspinlock-amd64-msc.c'
-    endif
-  else
-    gum_sources += [
-      'backend-x86' / 'gumspinlock-x86.c',
-      'backend-x86' / 'gumstalker-x86-glue.S',
-    ]
+  if cc.get_argument_syntax() != 'msvc'
+    gum_sources += 'backend-x86' / 'gumstalker-x86-glue.S'
   endif
 endif
 
@@ -245,7 +237,6 @@ if host_arch == 'arm'
     'arch-arm' / 'gumthumbreader.c',
     'backend-arm' / 'gumcpucontext-arm.c',
     'backend-arm' / 'guminterceptor-arm.c',
-    'backend-arm' / 'gumspinlock-arm.c',
     'backend-arm' / 'gumstalker-arm.c',
     'backend-arm' / 'gumstalker-arm-glue.S',
   ]
@@ -266,7 +257,6 @@ if host_arch == 'arm64'
     'backend-arm64' / 'gumcpucontext-arm64.c',
     'backend-arm64' / 'guminterceptor-arm64.c',
     'backend-arm64' / 'guminterceptor-arm64-glue.S',
-    'backend-arm64' / 'gumspinlock-arm64.c',
     'backend-arm64' / 'gumstalker-arm64.c',
     'backend-arm64' / 'gumstalker-arm64-glue.S',
     'backend-arm64' / 'memcpy-advsimd.S',
@@ -287,7 +277,6 @@ if host_arch in ['mips', 'mips64']
     'arch-mips' / 'gummipsreader.c',
     'backend-mips' / 'gumcpucontext-mips.c',
     'backend-mips' / 'guminterceptor-mips.c',
-    'backend-mips' / 'gumspinlock-mips.c',
     'backend-mips' / 'gumstalker-mips.c',
   ]
 endif
