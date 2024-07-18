@@ -13,7 +13,7 @@ if cc.get_argument_syntax() == 'msvc'
 endif
 
 custom_target('gumjs-devkit',
-  input: gumjs,
+  input: [gum, gumjs],
   output: devkit_outputs,
   command: [
     mkdevkit,
