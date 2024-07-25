@@ -238,9 +238,6 @@ static gint64 gum_elf_module_read_int64 (GumElfModule * self, const gint64 * v);
 static guint64 gum_elf_module_read_uint64 (GumElfModule * self,
     const guint64 * v);
 
-static gboolean gum_maybe_extract_from_apk (const gchar * path,
-    GBytes ** file_bytes);
-
 G_DEFINE_TYPE (GumElfModule, gum_elf_module, G_TYPE_OBJECT)
 
 static void
@@ -511,7 +508,7 @@ gum_elf_module_load (GumElfModule * self,
     }
     else
 #endif
-    if (!gum_maybe_extract_from_apk (self->source_path, &self->file_bytes))
+    if (!gum_elf_module_maybe_extract_from_apk (self->source_path, &self->file_bytes))
     {
       GMappedFile * file =
           g_mapped_file_new (self->source_path, FALSE, &local_error);
@@ -2368,9 +2365,9 @@ gum_elf_module_read_uint64 (GumElfModule * self,
       : GUINT64_FROM_BE (*v);
 }
 
-static gboolean
-gum_maybe_extract_from_apk (const gchar * path,
-                            GBytes ** file_bytes)
+gboolean
+gum_elf_module_maybe_extract_from_apk (const gchar * path,
+                                       GBytes ** file_bytes)
 {
 #if defined (HAVE_ANDROID) && defined (HAVE_MINIZIP)
   gboolean success = FALSE;
