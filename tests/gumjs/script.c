@@ -197,6 +197,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (memory_scan_handles_bad_arguments)
     TESTENTRY (memory_access_can_be_monitored)
     TESTENTRY (memory_access_can_be_monitored_one_range)
+    TESTENTRY (memory_access_monitor_provides_cpu_context)
+    TESTENTRY (memory_access_monitor_cpu_context_can_be_modified)
+    TESTENTRY (memory_access_monitor_provides_thread_id)
   TESTGROUP_END ()
 
   TESTENTRY (frida_version_is_available)
@@ -633,6 +636,7 @@ static int target_function_int_replacement (int arg);
 static void measure_target_function_int_overhead (void);
 static int compare_measurements (gconstpointer element_a,
     gconstpointer element_b);
+static void put_return_instruction (gpointer mem, gpointer user_data);
 
 static gboolean check_exception_handling_testable (void);
 
@@ -8291,6 +8295,132 @@ TESTCASE (memory_access_can_be_monitored_one_range)
   a[page_size] = 3;
   EXPECT_SEND_MESSAGE_WITH ("[\"write\",true,\"0x%" G_GSIZE_MODIFIER "x\","
       "0,0,1,1]", GPOINTER_TO_SIZE (a + page_size));
+
+  gum_free_pages ((gpointer) a);
+}
+
+TESTCASE (memory_access_monitor_provides_cpu_context)
+{
+  volatile guint8 * a;
+  guint page_size;
+
+  if (!check_exception_handling_testable ())
+    return;
+
+  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+          "send([details.context.pc.equals(details.from),"
+            "details.context.sp.equals(ptr(0))]);"
+        "}"
+      "});",
+      a, page_size);
+  EXPECT_NO_MESSAGES ();
+
+  a[0] = 1;
+  EXPECT_SEND_MESSAGE_WITH ("[true,false]");
+
+  gum_free_pages ((gpointer) a);
+}
+
+TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
+{
+  volatile guint8 * a;
+  guint page_size;
+  gsize (*func)(void);
+  const gsize expected_ret = 0xdeadface;
+  gsize ret;
+
+  if (!check_exception_handling_testable ())
+    return;
+  a = gum_alloc_n_pages (1, GUM_PAGE_RX);
+  page_size = gum_query_page_size ();
+
+  gum_memory_patch_code ((gpointer) a, 4, put_return_instruction, NULL);
+  func = (gsize (*)(void)) (gum_sign_code_pointer ((gpointer) a));
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+            /*
+             * Set the value of the register used to hold the return value.
+             * Note that this has to be correct for all calling conventions
+             * (e.g. different operating systems) on all of their supported
+             * architectures.
+             */          
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+            "details.context.eax = " GUM_PTR_CONST ";"
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+            "details.context.rax = " GUM_PTR_CONST ";"
+#elif defined (HAVE_ARM)
+            "details.context.r0 = " GUM_PTR_CONST ";"
+#elif defined (HAVE_ARM64)
+            "details.context.x0 = " GUM_PTR_CONST ";"
+#elif defined (HAVE_MIPS)
+            "details.context.ra = " GUM_PTR_CONST ";"
+#endif
+            "send(1337);"
+        "}"
+      "});",
+      a, page_size, expected_ret);
+  EXPECT_NO_MESSAGES ();
+
+  ret = func ();
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+
+  g_assert_true (ret == expected_ret);
+
+  gum_free_pages ((gpointer) a);
+}
+
+static void
+put_return_instruction (gpointer mem,
+                        gpointer user_data)
+{
+#if defined (HAVE_I386)
+  *((guint8 *) mem) = 0xc3;
+#elif defined (HAVE_ARM)
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  /* mov pc, lr */
+  *((guint32 *) mem) = 0xe1a0f00e;
+# else
+  *((guint32 *) mem) = 0x0ef0a0e1;
+# endif
+#elif defined (HAVE_ARM64)
+  *((guint32 *) mem) = 0xd65f03c0;
+#else
+# error Unsupported architecture
+#endif
+}
+
+TESTCASE (memory_access_monitor_provides_thread_id)
+{
+  volatile guint8 * a;
+  guint page_size;
+  GumThreadId thread_id;
+
+  if (!check_exception_handling_testable ())
+    return;
+
+  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+          "send([details.threadId]);"
+        "}"
+      "});",
+      a, page_size);
+  EXPECT_NO_MESSAGES ();
+
+  a[0] = 1;
+
+  thread_id = gum_process_get_current_thread_id ();
+  EXPECT_SEND_MESSAGE_WITH ("[%" G_GSIZE_MODIFIER "u]", thread_id);
 
   gum_free_pages ((gpointer) a);
 }
