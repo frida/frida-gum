@@ -793,6 +793,8 @@ namespace Gum {
 
 		public Gum.Address translate_to_offline (Gum.Address online_address);
 		public Gum.Address translate_to_online (Gum.Address offline_address);
+
+		public static bool maybe_extract_from_apk (char * path, out GLib.Bytes * file_bytes);
 	}
 
 	[CCode (cprefix = "GUM_ELF_")]
