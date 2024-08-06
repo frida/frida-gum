@@ -1957,7 +1957,7 @@ gum_emit_arm64_tlv_init_code (GumEmitArm64Context * ctx)
   gum_arm64_writer_put_add_reg_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X19,
       ARM64_REG_X20);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X20, self->tlv_area);
-  gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X20, ARM64_REG_X19);
 
   gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X20, tlv_section);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X21,
@@ -1965,14 +1965,14 @@ gum_emit_arm64_tlv_init_code (GumEmitArm64Context * ctx)
 
   gum_arm64_writer_put_label (aw, next_label);
 
-  gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X19, self->tlv_get_addr_addr);
+  gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X19,
+      gum_strip_code_address (self->tlv_get_addr_addr));
   gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
   gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X20, ARM64_REG_X20,
       pointer_size);
 
   gum_arm64_writer_put_ldr_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
-  gum_arm64_writer_put_cmp_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X19);
-  gum_arm64_writer_put_cbnz_reg_label (aw, ARM64_REG_X21, has_key_label);
+  gum_arm64_writer_put_cbnz_reg_label (aw, ARM64_REG_X19, has_key_label);
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X19, self->pthread_key);
   gum_arm64_writer_put_ldr_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X19);
