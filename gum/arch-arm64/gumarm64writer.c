@@ -1627,8 +1627,8 @@ gboolean
 gum_arm64_writer_put_ubfm (GumArm64Writer * self,
                            arm64_reg dst_reg,
                            arm64_reg src_reg,
-                           guint8 imms,
-                           guint8 immr)
+                           guint8 immr,
+                           guint8 imms)
 {
   GumArm64RegInfo rd, rn;
 
@@ -1645,7 +1645,7 @@ gum_arm64_writer_put_ubfm (GumArm64Writer * self,
       (rd.width == 64 ? 0x80400000 : 0x00000000) |
       0x53000000 |
       (immr << 16) |
-      (imms << 9) |
+      (imms << 10) |
       (rn.index << 5) |
       rd.index);
 
@@ -1665,8 +1665,11 @@ gum_arm64_writer_put_lsl_reg_imm (GumArm64Writer * self,
   if (rd.width == 32 && (shift & 0xe0) != 0)
     return FALSE;
 
+  if (rd.width == 64 && (shift & 0xc0) != 0)
+    return FALSE;
+
   return gum_arm64_writer_put_ubfm (self, dst_reg, src_reg,
-      -shift % rd.width, rd.width - 1 - shift);
+      -shift % rd.width, (rd.width - 1) - shift);
 }
 
 gboolean
