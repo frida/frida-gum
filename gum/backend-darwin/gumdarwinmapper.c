@@ -1171,11 +1171,12 @@ gum_emit_runtime (GumDarwinMapper * self,
       (GumFoundDarwinBindFunc) gum_emit_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_lazy_binds (module,
       (GumFoundDarwinBindFunc) gum_emit_resolve_if_needed, &ctx);
-  gum_darwin_module_enumerate_init_pointers (module,
-      (GumFoundDarwinInitPointersFunc) gum_emit_init_calls, &ctx);
 
   if (tlv->num_descriptors != 0)
     gum_emit_tlv_init_code (&ctx);
+
+  gum_darwin_module_enumerate_init_pointers (module,
+      (GumFoundDarwinInitPointersFunc) gum_emit_init_calls, &ctx);
 
   gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, self->module->pointer_size);
   gum_x86_writer_put_pop_reg (&cw, GUM_X86_XBX);
@@ -1713,13 +1714,14 @@ gum_emit_arm64_runtime (GumDarwinMapper * self,
       (GumFoundDarwinBindFunc) gum_emit_arm64_resolve_if_needed, &ctx);
   gum_darwin_module_enumerate_lazy_binds (module,
       (GumFoundDarwinBindFunc) gum_emit_arm64_resolve_if_needed, &ctx);
+
+  if (tlv->num_descriptors != 0)
+    gum_emit_arm64_tlv_init_code (&ctx);
+
   gum_darwin_module_enumerate_init_pointers (module,
       (GumFoundDarwinInitPointersFunc) gum_emit_arm64_init_pointer_calls, &ctx);
   gum_darwin_module_enumerate_init_offsets (module,
       (GumFoundDarwinInitOffsetsFunc) gum_emit_arm64_init_offset_calls, &ctx);
-
-  if (tlv->num_descriptors != 0)
-    gum_emit_arm64_tlv_init_code (&ctx);
 
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
