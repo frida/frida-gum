@@ -90,6 +90,8 @@ namespace Gum {
 		SYSAPI
 	}
 
+	public const CpuType NATIVE_CPU;
+
 	[CCode (cprefix = "GUM_CPU_")]
 	public enum CpuType {
 		INVALID,
