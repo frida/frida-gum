@@ -952,6 +952,14 @@ unsupported_function_list_new (guint * count)
     { "retf",  1, 0, { 0xcb                                           } },
 #elif defined (HAVE_ARM)
     { "ret",   2, 1, { 0x70, 0x47                                     } },
+#elif defined (HAVE_ARM64)
+    { "ret",   12, 0,
+      {
+        0xb0, 0x01, 0x80, 0xd2, /* mov x16, #13 */
+        0xb1, 0x04, 0x80, 0xd2, /* mov x17, #37 */
+        0xc0, 0x03, 0x5f, 0xd6, /* ret          */
+      }
+    },
 #endif
   };
   UnsupportedFunction * result;
