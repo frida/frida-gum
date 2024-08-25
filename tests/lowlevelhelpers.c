@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -749,6 +749,9 @@ gum_emit_test_clobber_regs_function (gpointer mem,
       ARM64_REG_X0, G_STRUCT_OFFSET (GumCpuContext, fp));
   for (i = 28; i != -1; i--)
   {
+    gboolean is_platform_register = i == 18;
+    if (is_platform_register)
+      continue;
     gum_arm64_writer_put_ldr_reg_reg_offset (&cw, ARM64_REG_X0 + i,
         ARM64_REG_X0, G_STRUCT_OFFSET (GumCpuContext, x) + (i * 8));
   }

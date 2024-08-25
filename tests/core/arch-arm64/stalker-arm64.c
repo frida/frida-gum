@@ -2088,6 +2088,9 @@ TESTCASE (no_register_clobber)
 
   for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++)
   {
+    gboolean is_platform_register = i == ARM64_REG_X18;
+    if (is_platform_register)
+      continue;
     gum_arm64_writer_put_ldr_reg_u64 (&cw, i, i);
   }
   gum_arm64_writer_put_ldr_reg_u64 (&cw, ARM64_REG_FP, ARM64_REG_FP);
@@ -2129,6 +2132,9 @@ TESTCASE (no_register_clobber)
 
   for (i = ARM64_REG_X0; i <= ARM64_REG_X28; i++)
   {
+    gboolean is_platform_register = i == ARM64_REG_X18;
+    if (is_platform_register)
+      continue;
     g_assert_cmphex (ctx.x[i - ARM64_REG_X0], ==, i);
   }
   g_assert_cmphex (ctx.fp, ==, ARM64_REG_FP);
