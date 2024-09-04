@@ -3009,38 +3009,41 @@ gum_libc_clone (GumCloneFunc child_func,
   *(--child_sp) = arg;
 
   {
-    register          gint a0 asm ("$4") = flags;
-    register    gpointer * a1 asm ("$5") = child_sp;
-    register       pid_t * a2 asm ("$6") = parent_tidptr;
-    register GumUserDesc * a3 asm ("$7") = tls;
-    register       pid_t * a4 asm ("$8") = child_tidptr;
+    register          gint a0 asm ("$a0") = flags;
+    register    gpointer * a1 asm ("$a1") = child_sp;
+    register       pid_t * a2 asm ("$a2") = parent_tidptr;
+    register GumUserDesc * a3 asm ("$a3") = tls;
+    register       pid_t * a4 asm ("$t0") = child_tidptr;
     int status;
     gssize retval;
 
     asm volatile (
         ".set noreorder\n\t"
         "addiu $sp, $sp, -24\n\t"
-        "sw $8, 16($sp)\n\t"
-        "li $2, %[clone_syscall]\n\t"
+        "sw $t0, 16($sp)\n\t"
+        "li $v0, %[clone_syscall]\n\t"
         "syscall\n\t"
-        ".set reorder\n\t"
-        "bne $7, $0, 1f\n\t"
-        "bne $2, $0, 1f\n\t"
+        "bne $a3, $0, 1f\n\t"
+        "nop\n\t"
+        "bne $v0, $0, 1f\n\t"
+        "nop\n\t"
 
         /* child: */
-        "lw $4, 0($sp)\n\t"
-        "lw $8, 4($sp)\n\t"
+        "lw $a0, 0($sp)\n\t"
+        "lw $t9, 4($sp)\n\t"
         "addiu $sp, $sp, 8\n\t"
-        "jalr $8\n\t"
-        "move $4, $2\n\t"
-        "li $2, %[exit_syscall]\n\t"
+        "jalr $t9\n\t"
+        "nop\n\t"
+        "move $a0, $2\n\t"
+        "li $v0, %[exit_syscall]\n\t"
         "syscall\n\t"
 
         /* parent: */
         "1:\n\t"
         "addiu $sp, $sp, 24\n\t"
-        "move %0, $7\n\t"
-        "move %1, $2\n\t"
+        "move %0, $a3\n\t"
+        "move %1, $v0\n\t"
+        ".set reorder\n\t"
         : "=r" (status),
           "=r" (retval)
         : "r" (a0),
