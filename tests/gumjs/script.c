@@ -31,8 +31,6 @@ TESTLIST_BEGIN (script)
   TESTENTRY (recv_wait_in_our_js_thread_should_throw_on_unload)
   TESTENTRY (recv_wait_should_not_leak)
   TESTENTRY (message_can_be_logged)
-  TESTENTRY (thread_can_be_forced_to_sleep)
-  TESTENTRY (thread_backtrace_can_be_captured_with_limit)
   TESTENTRY (timeout_can_be_scheduled)
   TESTENTRY (timeout_can_be_cancelled)
   TESTENTRY (interval_can_be_scheduled)
@@ -45,6 +43,13 @@ TESTLIST_BEGIN (script)
 #ifndef HAVE_WINDOWS
   TESTENTRY (crash_on_thread_holding_js_lock_should_not_deadlock)
 #endif
+
+  TESTGROUP_BEGIN ("Thread")
+    TESTENTRY (thread_can_be_forced_to_sleep)
+    TESTENTRY (thread_backtrace_can_be_captured_with_limit)
+    TESTENTRY (hardware_breakpoint_can_be_set)
+    TESTENTRY (hardware_watchpoint_can_be_set)
+  TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("RPC")
     TESTENTRY (method_can_be_called_sync)
@@ -6529,6 +6534,65 @@ TESTCASE (thread_backtrace_can_be_captured_with_limit)
   COMPILE_AND_LOAD_SCRIPT (
       "send(Thread.backtrace(null, { limit: 2 }).length);");
   EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (hardware_breakpoint_can_be_set)
+{
+#if defined (HAVE_FREEBSD) || defined (HAVE_QNX)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const threads = Process.enumerateThreads();\n"
+      "Process.setExceptionHandler(e => {\n"
+      "  if (!['breakpoint', 'single-step'].includes(e.type))\n"
+      "    return false;\n"
+      "  send('trapped');\n"
+      "  threads.forEach(t => t.unsetHardwareBreakpoint(0));\n"
+      "  return true;\n"
+      "});\n"
+      "threads.forEach(t => t.setHardwareBreakpoint(0, " GUM_PTR_CONST "));",
+      target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("\"trapped\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (hardware_watchpoint_can_be_set)
+{
+  guint32 val = 42;
+
+#if defined (HAVE_FREEBSD) || defined (HAVE_QNX)
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const threads = Process.enumerateThreads();\n"
+      "Process.setExceptionHandler(e => {\n"
+      "  if (!['breakpoint', 'single-step'].includes(e.type))\n"
+      "    return false;\n"
+      "  send('trapped');\n"
+      "  threads.forEach(t => t.unsetHardwareWatchpoint(0));\n"
+      "  return true;\n"
+      "});\n"
+      "threads.forEach(t => t.setHardwareWatchpoint(0, " GUM_PTR_CONST ", 4,"
+        "'w'));",
+      &val);
+  EXPECT_NO_MESSAGES ();
+
+  val = 1337;
+  EXPECT_SEND_MESSAGE_WITH ("\"trapped\"");
   EXPECT_NO_MESSAGES ();
 }
 

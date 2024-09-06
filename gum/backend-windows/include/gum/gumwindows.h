@@ -24,6 +24,7 @@ GUM_API void gum_windows_parse_context (const CONTEXT * context,
     GumCpuContext * cpu_context);
 GUM_API void gum_windows_unparse_context (const GumCpuContext * cpu_context,
     CONTEXT * context);
+GUM_API CONTEXT * gum_windows_get_active_exceptor_context (void);
 
 GUM_API GumPageProtection gum_page_protection_from_windows (DWORD native_prot);
 GUM_API DWORD gum_page_protection_to_windows (GumPageProtection prot);

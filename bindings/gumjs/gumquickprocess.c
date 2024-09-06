@@ -157,12 +157,14 @@ void
 _gum_quick_process_init (GumQuickProcess * self,
                          JSValue ns,
                          GumQuickModule * module,
+                         GumQuickThread * thread,
                          GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
   JSValue obj;
 
   self->module = module;
+  self->thread = thread;
   self->core = core;
 
   self->main_module_value = JS_UNINITIALIZED;
@@ -308,31 +310,9 @@ gum_emit_thread (const GumThreadDetails * details,
                  GumQuickMatchContext * mc)
 {
   JSContext * ctx = mc->ctx;
-  GumQuickCore * core = mc->parent->core;
   JSValue thread, result;
 
-  thread = JS_NewObject (ctx);
-
-  JS_DefinePropertyValue (ctx, thread,
-      GUM_QUICK_CORE_ATOM (core, id),
-      JS_NewInt64 (ctx, details->id),
-      JS_PROP_C_W_E);
-  if (details->name != NULL)
-  {
-    JS_DefinePropertyValue (ctx, thread,
-        GUM_QUICK_CORE_ATOM (core, name),
-        JS_NewString (ctx, details->name),
-        JS_PROP_C_W_E);
-  }
-  JS_DefinePropertyValue (ctx, thread,
-      GUM_QUICK_CORE_ATOM (core, state),
-      _gum_quick_thread_state_new (ctx, details->state),
-      JS_PROP_C_W_E);
-  JS_DefinePropertyValue (ctx, thread,
-      GUM_QUICK_CORE_ATOM (core, context),
-      _gum_quick_cpu_context_new (ctx, (GumCpuContext *) &details->cpu_context,
-          GUM_CPU_CONTEXT_READONLY, core, NULL),
-      JS_PROP_C_W_E);
+  thread = _gum_quick_thread_new (ctx, details, mc->parent->thread);
 
   result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &thread);
 

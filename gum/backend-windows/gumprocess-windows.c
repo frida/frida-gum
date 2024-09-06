@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,6 +22,10 @@
 # pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
+typedef struct _GumSetHardwareBreakpointContext GumSetHardwareBreakpointContext;
+typedef struct _GumSetHardwareWatchpointContext GumSetHardwareWatchpointContext;
+typedef void (* GumModifyDebugRegistersFunc) (CONTEXT * ctx,
+    gpointer user_data);
 typedef HRESULT (WINAPI * GumGetThreadDescriptionFunc) (
     HANDLE thread, WCHAR ** description);
 typedef void (WINAPI * GumGetCurrentThreadStackLimitsFunc) (
@@ -31,6 +36,20 @@ typedef BOOL (WINAPI * GumIsWow64ProcessFunc) (HANDLE process, BOOL * is_wow64);
 typedef BOOL (WINAPI * GumGetProcessInformationFunc) (HANDLE process,
     PROCESS_INFORMATION_CLASS process_information_class,
     void * process_information, DWORD process_information_size);
+
+struct _GumSetHardwareBreakpointContext
+{
+  guint breakpoint_id;
+  GumAddress address;
+};
+
+struct _GumSetHardwareWatchpointContext
+{
+  guint watchpoint_id;
+  GumAddress address;
+  gsize size;
+  GumWatchConditions conditions;
+};
 
 struct _GumEnumerateSymbolsContext
 {
@@ -48,6 +67,14 @@ static gboolean gum_windows_get_thread_details (DWORD thread_id,
     GumThreadDetails * details);
 static gboolean gum_process_enumerate_heap_ranges (HANDLE heap,
     GumFoundMallocRangeFunc func, gpointer user_data);
+static void gum_do_set_hardware_breakpoint (CONTEXT * ctx, gpointer user_data);
+static void gum_do_unset_hardware_breakpoint (CONTEXT * ctx,
+    gpointer user_data);
+static void gum_do_set_hardware_watchpoint (CONTEXT * ctx, gpointer user_data);
+static void gum_do_unset_hardware_watchpoint (CONTEXT * ctx,
+    gpointer user_data);
+static gboolean gum_modify_debug_registers (GumThreadId thread_id,
+    GumModifyDebugRegistersFunc func, gpointer user_data, GError ** error);
 static BOOL CALLBACK gum_emit_symbol (PSYMBOL_INFO info, ULONG symbol_size,
     PVOID user_context);
 static gboolean gum_store_address_if_module_has_export (
@@ -630,6 +657,173 @@ failure:
         GUM_ERROR,
         GUM_ERROR_FAILED,
         "Unable to resume thread: 0x%08lx", GetLastError ());
+    goto beach;
+  }
+beach:
+  {
+    if (thread != NULL)
+      CloseHandle (thread);
+
+    return success;
+  }
+}
+
+gboolean
+gum_thread_set_hardware_breakpoint (GumThreadId thread_id,
+                                    guint breakpoint_id,
+                                    GumAddress address,
+                                    GError ** error)
+{
+  GumSetHardwareBreakpointContext bpc;
+
+  bpc.breakpoint_id = breakpoint_id;
+  bpc.address = address;
+
+  return gum_modify_debug_registers (thread_id, gum_do_set_hardware_breakpoint,
+      &bpc, error);
+}
+
+static void
+gum_do_set_hardware_breakpoint (CONTEXT * ctx,
+                                gpointer user_data)
+{
+  GumSetHardwareBreakpointContext * bpc = user_data;
+
+#ifdef HAVE_ARM64
+  _gum_arm64_set_breakpoint (ctx->Bcr, ctx->Bvr, bpc->breakpoint_id,
+      bpc->address);
+#else
+  _gum_x86_set_breakpoint (&ctx->Dr7, &ctx->Dr0, bpc->breakpoint_id,
+      bpc->address);
+#endif
+}
+
+gboolean
+gum_thread_unset_hardware_breakpoint (GumThreadId thread_id,
+                                      guint breakpoint_id,
+                                      GError ** error)
+{
+  return gum_modify_debug_registers (thread_id,
+      gum_do_unset_hardware_breakpoint, GUINT_TO_POINTER (breakpoint_id),
+      error);
+}
+
+static void
+gum_do_unset_hardware_breakpoint (CONTEXT * ctx,
+                                  gpointer user_data)
+{
+  guint breakpoint_id = GPOINTER_TO_UINT (user_data);
+
+#ifdef HAVE_ARM64
+  _gum_arm64_unset_breakpoint (ctx->Bcr, ctx->Bvr, breakpoint_id);
+#else
+  _gum_x86_unset_breakpoint (&ctx->Dr7, &ctx->Dr0, breakpoint_id);
+#endif
+}
+
+gboolean
+gum_thread_set_hardware_watchpoint (GumThreadId thread_id,
+                                    guint watchpoint_id,
+                                    GumAddress address,
+                                    gsize size,
+                                    GumWatchConditions wc,
+                                    GError ** error)
+{
+  GumSetHardwareWatchpointContext wpc;
+
+  wpc.watchpoint_id = watchpoint_id;
+  wpc.address = address;
+  wpc.size = size;
+  wpc.conditions = wc;
+
+  return gum_modify_debug_registers (thread_id, gum_do_set_hardware_watchpoint,
+      &wpc, error);
+}
+
+static void
+gum_do_set_hardware_watchpoint (CONTEXT * ctx,
+                                gpointer user_data)
+{
+  GumSetHardwareWatchpointContext * wpc = user_data;
+
+#ifdef HAVE_ARM64
+  _gum_arm64_set_watchpoint (ctx->Wcr, ctx->Wvr, wpc->watchpoint_id,
+      wpc->address, wpc->size, wpc->conditions);
+#else
+  _gum_x86_set_watchpoint (&ctx->Dr7, &ctx->Dr0, wpc->watchpoint_id,
+      wpc->address, wpc->size, wpc->conditions);
+#endif
+}
+
+gboolean
+gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
+                                      guint watchpoint_id,
+                                      GError ** error)
+{
+  return gum_modify_debug_registers (thread_id,
+      gum_do_unset_hardware_watchpoint, GUINT_TO_POINTER (watchpoint_id),
+      error);
+}
+
+static void
+gum_do_unset_hardware_watchpoint (CONTEXT * ctx,
+                                  gpointer user_data)
+{
+  guint watchpoint_id = GPOINTER_TO_UINT (user_data);
+
+#ifdef HAVE_ARM64
+  _gum_arm64_unset_watchpoint (ctx->Wcr, ctx->Wvr, watchpoint_id);
+#else
+  _gum_x86_unset_watchpoint (&ctx->Dr7, &ctx->Dr0, watchpoint_id);
+#endif
+}
+
+static gboolean
+gum_modify_debug_registers (GumThreadId thread_id,
+                            GumModifyDebugRegistersFunc func,
+                            gpointer user_data,
+                            GError ** error)
+{
+  gboolean success = FALSE;
+  HANDLE thread = NULL;
+  CONTEXT * active_ctx;
+
+  if (thread_id == gum_process_get_current_thread_id () &&
+      (active_ctx = gum_windows_get_active_exceptor_context ()) != NULL)
+  {
+    func (active_ctx, user_data);
+  }
+  else
+  {
+    CONTEXT ctx = { 0, };
+
+    thread = OpenThread (
+        THREAD_QUERY_INFORMATION | THREAD_GET_CONTEXT | THREAD_SET_CONTEXT,
+        FALSE,
+        thread_id);
+    if (thread == NULL)
+      goto failure;
+
+    ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+
+    if (!GetThreadContext (thread, &ctx))
+      goto failure;
+
+    func (&ctx, user_data);
+
+    if (!SetThreadContext (thread, &ctx))
+      goto failure;
+  }
+
+  success = TRUE;
+  goto beach;
+
+failure:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
+        "Unable to modify debug registers: 0x%08lx", GetLastError ());
     goto beach;
   }
 beach:

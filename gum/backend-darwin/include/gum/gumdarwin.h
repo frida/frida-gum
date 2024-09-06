@@ -102,20 +102,33 @@ typedef struct nlist_64 gum_nlist_t;
 typedef x86_thread_state_t GumDarwinUnifiedThreadState;
 # if GLIB_SIZEOF_VOID_P == 4
 typedef x86_thread_state32_t GumDarwinNativeThreadState;
+typedef x86_debug_state32_t GumDarwinNativeDebugState;
 # else
 typedef x86_thread_state64_t GumDarwinNativeThreadState;
+typedef x86_debug_state64_t GumDarwinNativeDebugState;
 # endif
 # define GUM_DARWIN_THREAD_STATE_COUNT x86_THREAD_STATE_COUNT
 # define GUM_DARWIN_THREAD_STATE_FLAVOR x86_THREAD_STATE
+# define GUM_DARWIN_DEBUG_STATE_COUNT x86_DEBUG_STATE64_COUNT
+# define GUM_DARWIN_DEBUG_STATE_FLAVOR x86_DEBUG_STATE64
 #else
 typedef arm_unified_thread_state_t GumDarwinUnifiedThreadState;
 # if GLIB_SIZEOF_VOID_P == 4
 typedef arm_thread_state32_t GumDarwinNativeThreadState;
+typedef arm_debug_state32_t GumDarwinNativeDebugState;
 # else
 typedef arm_thread_state64_t GumDarwinNativeThreadState;
+typedef arm_debug_state64_t GumDarwinNativeDebugState;
 # endif
 # define GUM_DARWIN_THREAD_STATE_COUNT ARM_UNIFIED_THREAD_STATE_COUNT
 # define GUM_DARWIN_THREAD_STATE_FLAVOR ARM_UNIFIED_THREAD_STATE
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_DARWIN_DEBUG_STATE_COUNT ARM_DEBUG_STATE32_COUNT
+#  define GUM_DARWIN_DEBUG_STATE_FLAVOR ARM_DEBUG_STATE32
+# else
+#  define GUM_DARWIN_DEBUG_STATE_COUNT ARM_DEBUG_STATE64_COUNT
+#  define GUM_DARWIN_DEBUG_STATE_FLAVOR ARM_DEBUG_STATE64
+# endif
 #endif
 
 typedef struct _GumDarwinAllImageInfos GumDarwinAllImageInfos;

@@ -28,6 +28,7 @@ static LONG NTAPI gum_exceptor_backend_dispatch (
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
+static GPrivate gum_active_context_key;
 
 #endif
 
@@ -99,6 +100,7 @@ gum_exceptor_backend_dispatch (EXCEPTION_POINTERS * exception_info)
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
+  gboolean handled;
 
   ed.thread_id = gum_process_get_current_thread_id ();
 
@@ -175,13 +177,23 @@ gum_exceptor_backend_dispatch (EXCEPTION_POINTERS * exception_info)
   gum_windows_parse_context (context, cpu_context);
   ed.native_context = context;
 
-  if (self->handler (&ed, self->handler_data))
+  g_private_set (&gum_active_context_key, context);
+  handled = self->handler (&ed, self->handler_data);
+  g_private_set (&gum_active_context_key, NULL);
+
+  if (handled)
   {
     gum_windows_unparse_context (cpu_context, context);
     return EXCEPTION_CONTINUE_EXECUTION;
   }
 
   return EXCEPTION_CONTINUE_SEARCH;
+}
+
+CONTEXT *
+gum_windows_get_active_exceptor_context (void)
+{
+  return g_private_get (&gum_active_context_key);
 }
 
 #endif

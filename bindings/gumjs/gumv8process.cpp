@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
+ * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -136,12 +137,14 @@ static const GumV8Function gumjs_process_functions[] =
 void
 _gum_v8_process_init (GumV8Process * self,
                       GumV8Module * module,
+                      GumV8Thread * thread,
                       GumV8Core * core,
                       Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
 
   self->module = module;
+  self->thread = thread;
   self->core = core;
 
   self->stalker = NULL;
@@ -265,25 +268,7 @@ static gboolean
 gum_emit_thread (const GumThreadDetails * details,
                  GumV8MatchContext<GumV8Process> * mc)
 {
-  auto core = mc->parent->core;
-  auto isolate = core->isolate;
-
-  auto thread = Object::New (isolate);
-  _gum_v8_object_set (thread, "id", Number::New (isolate, details->id), core);
-  if (details->name != NULL)
-    _gum_v8_object_set_utf8 (thread, "name", details->name, core);
-  _gum_v8_object_set (thread, "state", _gum_v8_string_new_ascii (isolate,
-      _gum_v8_thread_state_to_string (details->state)), core);
-  auto cpu_context =
-      _gum_v8_cpu_context_new_immutable (&details->cpu_context, core);
-  _gum_v8_object_set (thread, "context", cpu_context, core);
-
-  auto proceed = mc->OnMatch (thread);
-
-  _gum_v8_cpu_context_free_later (new Global<Object> (isolate, cpu_context),
-      core);
-
-  return proceed;
+  return mc->OnMatch (_gum_v8_thread_new (details, mc->parent->thread));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)

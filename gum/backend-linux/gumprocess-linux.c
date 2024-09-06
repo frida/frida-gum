@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023-2024 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
@@ -59,21 +59,41 @@
 #define GUM_PSR_THUMB 0x20
 
 #if defined (HAVE_I386)
-# define GumRegs struct user_regs_struct
+typedef struct user_regs_struct GumGPRegs;
+typedef struct _GumX86DebugRegs GumDebugRegs;
 #elif defined (HAVE_ARM)
-# define GumRegs struct pt_regs
+typedef struct pt_regs GumGPRegs;
+typedef struct _GumArmDebugRegs GumDebugRegs;
 #elif defined (HAVE_ARM64)
-# define GumRegs struct user_pt_regs
+typedef struct user_pt_regs GumGPRegs;
+typedef struct _GumArm64DebugRegs GumDebugRegs;
 #elif defined (HAVE_MIPS)
-# define GumRegs struct pt_regs
+typedef struct pt_regs GumGPRegs;
+typedef struct _GumMipsDebugRegs GumDebugRegs;
 #else
 # error Unsupported architecture
 #endif
+typedef guint GumMipsWatchStyle;
+typedef struct _GumMips32WatchRegs GumMips32WatchRegs;
+typedef struct _GumMips64WatchRegs GumMips64WatchRegs;
+typedef union _GumRegs GumRegs;
 #ifndef PTRACE_GETREGS
 # define PTRACE_GETREGS 12
 #endif
 #ifndef PTRACE_SETREGS
 # define PTRACE_SETREGS 13
+#endif
+#ifndef PTRACE_GETHBPREGS
+# define PTRACE_GETHBPREGS 29
+#endif
+#ifndef PTRACE_SETHBPREGS
+# define PTRACE_SETHBPREGS 30
+#endif
+#ifndef PTRACE_GET_WATCH_REGS
+# define PTRACE_GET_WATCH_REGS 0xd0
+#endif
+#ifndef PTRACE_SET_WATCH_REGS
+# define PTRACE_SET_WATCH_REGS 0xd1
 #endif
 #ifndef PTRACE_GETREGSET
 # define PTRACE_GETREGSET 0x4204
@@ -104,6 +124,10 @@ typedef struct _GumProgramRanges GumProgramRanges;
 typedef ElfW(auxv_t) * (* GumReadAuxvFunc) (void);
 
 typedef struct _GumModifyThreadContext GumModifyThreadContext;
+typedef void (* GumLinuxModifyThreadFunc) (GumThreadId thread_id,
+    GumRegs * regs, gpointer user_data);
+typedef struct _GumLinuxModifyThreadContext GumLinuxModifyThreadContext;
+typedef guint GumLinuxRegsType;
 typedef guint8 GumModifyThreadAck;
 
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
@@ -112,6 +136,9 @@ typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
 typedef gint (* GumFoundDlPhdrFunc) (struct dl_phdr_info * info,
     gsize size, gpointer data);
 typedef void (* GumDlIteratePhdrImpl) (GumFoundDlPhdrFunc func, gpointer data);
+
+typedef struct _GumSetHardwareBreakpointContext GumSetHardwareBreakpointContext;
+typedef struct _GumSetHardwareWatchpointContext GumSetHardwareWatchpointContext;
 
 typedef struct _GumUserDesc GumUserDesc;
 typedef struct _GumTcbHead GumTcbHead;
@@ -139,12 +166,85 @@ struct _GumProgramRanges
   GumMemoryRange vdso;
 };
 
+struct _GumModifyThreadContext
+{
+  GumModifyThreadFunc func;
+  gpointer user_data;
+};
+
+enum _GumLinuxRegsType
+{
+  GUM_REGS_GENERAL_PURPOSE,
+  GUM_REGS_DEBUG_BREAK,
+  GUM_REGS_DEBUG_WATCH,
+};
+
+struct _GumX86DebugRegs
+{
+  gsize dr0;
+  gsize dr1;
+  gsize dr2;
+  gsize dr3;
+  gsize dr6;
+  gsize dr7;
+};
+
+struct _GumArmDebugRegs
+{
+  guint32 cr[16];
+  guint32 vr[16];
+};
+
+struct _GumArm64DebugRegs
+{
+  guint64 cr[16];
+  guint64 vr[16];
+};
+
+enum _GumMipsWatchStyle
+{
+  GUM_MIPS_WATCH_MIPS32,
+  GUM_MIPS_WATCH_MIPS64,
+};
+
+struct _GumMips32WatchRegs
+{
+  guint32 watch_lo[8];
+  guint16 watch_hi[8];
+  guint16 watch_masks[8];
+  guint32 num_valid;
+} __attribute__ ((aligned (8)));
+
+struct _GumMips64WatchRegs
+{
+  guint64 watch_lo[8];
+  guint16 watch_hi[8];
+  guint16 watch_masks[8];
+  guint32 num_valid;
+} __attribute__ ((aligned (8)));
+
+struct _GumMipsDebugRegs
+{
+  GumMipsWatchStyle style;
+  union
+  {
+    GumMips32WatchRegs mips32;
+    GumMips64WatchRegs mips64;
+  };
+};
+
+union _GumRegs
+{
+  GumGPRegs gp;
+  GumDebugRegs debug;
+};
+
 enum _GumModifyThreadAck
 {
   GUM_ACK_READY = 1,
-  GUM_ACK_READ_CONTEXT,
-  GUM_ACK_MODIFIED_CONTEXT,
-  GUM_ACK_WROTE_CONTEXT,
+  GUM_ACK_READ_REGISTERS,
+  GUM_ACK_MODIFIED_REGISTERS,
+  GUM_ACK_WROTE_REGISTERS,
   GUM_ACK_FAILED_TO_ATTACH,
   GUM_ACK_FAILED_TO_WAIT,
   GUM_ACK_FAILED_TO_STOP,
@@ -153,11 +253,15 @@ enum _GumModifyThreadAck
   GUM_ACK_FAILED_TO_DETACH
 };
 
-struct _GumModifyThreadContext
+struct _GumLinuxModifyThreadContext
 {
-  gint fd[2];
   GumThreadId thread_id;
-  GumCpuContext cpu_context;
+  GumLinuxRegsType regs_type;
+  GumLinuxModifyThreadFunc func;
+  gpointer user_data;
+
+  gint fd[2];
+  GumRegs regs_data;
 };
 
 struct _GumEnumerateModulesContext
@@ -183,6 +287,20 @@ struct _GumResolveModuleNameContext
   GumAddress known_address;
   gchar * path;
   GumAddress base;
+};
+
+struct _GumSetHardwareBreakpointContext
+{
+  guint breakpoint_id;
+  GumAddress address;
+};
+
+struct _GumSetHardwareWatchpointContext
+{
+  guint watchpoint_id;
+  GumAddress address;
+  gsize size;
+  GumWatchConditions conditions;
 };
 
 struct _GumUserDesc
@@ -227,7 +345,13 @@ static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
     Dl_info * info);
 static void gum_deinit_libc_name (void);
 
-static gint gum_do_modify_thread (gpointer data);
+static void gum_do_modify_thread (GumThreadId thread_id, GumRegs * regs,
+    gpointer user_data);
+static gboolean gum_linux_modify_thread (GumThreadId thread_id,
+    GumLinuxRegsType regs_type, GumLinuxModifyThreadFunc func,
+    gpointer user_data, GError ** error);
+static gpointer gum_linux_handle_modify_thread_comms (gpointer data);
+static gint gum_linux_do_modify_thread (gpointer data);
 static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack);
 static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 
@@ -244,6 +368,14 @@ static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static gboolean gum_try_translate_vdso_name (gchar * name);
+static void gum_do_set_hardware_breakpoint (GumThreadId thread_id,
+    GumRegs * regs, gpointer user_data);
+static void gum_do_unset_hardware_breakpoint (GumThreadId thread_id,
+    GumRegs * regs, gpointer user_data);
+static void gum_do_set_hardware_watchpoint (GumThreadId thread_id,
+    GumRegs * regs, gpointer user_data);
+static void gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
+    GumRegs * regs, gpointer user_data);
 static void * gum_module_get_handle (const gchar * module_name);
 static void * gum_module_get_symbol (void * module, const gchar * symbol_name);
 
@@ -264,11 +396,12 @@ static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static GumPageProtection gum_page_protection_from_proc_perms_string (
     const gchar * perms);
 
-static gssize gum_get_regs (pid_t pid, GumRegs * regs);
-static gssize gum_set_regs (pid_t pid, const GumRegs * regs);
+static gssize gum_get_regs (pid_t pid, guint type, gpointer data, gsize * size);
+static gssize gum_set_regs (pid_t pid, guint type, gconstpointer data,
+    gsize size);
 
-static void gum_parse_regs (const GumRegs * regs, GumCpuContext * ctx);
-static void gum_unparse_regs (const GumCpuContext * ctx, GumRegs * regs);
+static void gum_parse_gp_regs (const GumGPRegs * regs, GumCpuContext * ctx);
+static void gum_unparse_gp_regs (const GumCpuContext * ctx, GumGPRegs * regs);
 
 static gssize gum_libc_clone (GumCloneFunc child_func, gpointer child_stack,
     gint flags, gpointer arg, pid_t * parent_tidptr, GumUserDesc * tls,
@@ -734,167 +867,234 @@ gum_process_modify_thread (GumThreadId thread_id,
                            gpointer user_data,
                            GumModifyThreadFlags flags)
 {
+  GumModifyThreadContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  return gum_linux_modify_thread (thread_id, GUM_REGS_GENERAL_PURPOSE,
+      gum_do_modify_thread, &ctx, NULL);
+}
+
+static void
+gum_do_modify_thread (GumThreadId thread_id,
+                      GumRegs * regs,
+                      gpointer user_data)
+{
+  GumGPRegs * gpr = &regs->gp;
+  GumModifyThreadContext * ctx = user_data;
+  GumCpuContext cpu_context;
+
+  gum_parse_gp_regs (gpr, &cpu_context);
+
+  ctx->func (thread_id, &cpu_context, ctx->user_data);
+
+  gum_unparse_gp_regs (&cpu_context, gpr);
+}
+
+static gboolean
+gum_linux_modify_thread (GumThreadId thread_id,
+                         GumLinuxRegsType regs_type,
+                         GumLinuxModifyThreadFunc func,
+                         gpointer user_data,
+                         GError ** error)
+{
   gboolean success = FALSE;
+  GumLinuxModifyThreadContext ctx;
+  gssize child;
+  gpointer stack = NULL;
+  gpointer tls = NULL;
+  GumUserDesc * desc;
 
-  if (thread_id == gum_process_get_current_thread_id ())
-  {
-    /*
-     * getcontext/setcontext is not supported on the musl C-runtime (or
-     * Android). musl, however doesn't provide any pre-processor definitions
-     * which allow it to be readily identified. However, the other major
-     * runtimes do, so we use their absence to determine that musl is in use and
-     * hence omit the block.
-     */
-#if !defined (HAVE_ANDROID) && (defined (__GLIBC__) || defined (__UCLIBC__)) \
-    && (!defined (__GLIBC__) || !(defined (__stub_getcontext) \
-        || defined (__stub_setcontext)))
-    ucontext_t uc;
-    volatile gboolean modified = FALSE;
+  ctx.thread_id = thread_id;
+  ctx.regs_type = regs_type;
+  ctx.func = func;
+  ctx.user_data = user_data;
 
-    getcontext (&uc);
-    if (!modified)
-    {
-      GumCpuContext cpu_context;
+  ctx.fd[0] = -1;
+  ctx.fd[1] = -1;
 
-      gum_linux_parse_ucontext (&uc, &cpu_context);
-      func (thread_id, &cpu_context, user_data);
-      gum_linux_unparse_ucontext (&cpu_context, &uc);
+  memset (&ctx.regs_data, 0, sizeof (ctx.regs_data));
 
-      modified = TRUE;
-      setcontext (&uc);
-    }
+  if (socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd) != 0)
+    goto socketpair_failed;
 
-    success = TRUE;
-#endif
-  }
-  else
-  {
-    GumModifyThreadContext ctx;
-    gint fd;
-    gssize child;
-    gpointer stack, tls;
-    GumUserDesc * desc;
-
-    if (socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd) != 0)
-      return FALSE;
-    ctx.thread_id = thread_id;
-
-    fd = ctx.fd[0];
-
-    stack = gum_alloc_n_pages (1, GUM_PAGE_RW);
-    tls = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  stack = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  tls = gum_alloc_n_pages (1, GUM_PAGE_RW);
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-    GumUserDesc segment;
-    gint gs;
+  GumUserDesc segment;
+  gint gs;
 
-    asm volatile (
-        "movw %%gs, %w0"
-        : "=q" (gs)
-    );
+  asm volatile (
+      "movw %%gs, %w0"
+      : "=q" (gs)
+  );
 
-    segment.entry_number = (gs & 0xffff) >> 3;
-    segment.base_addr = GPOINTER_TO_SIZE (tls);
-    segment.limit = 0xfffff;
-    segment.seg_32bit = 1;
-    segment.contents = 0;
-    segment.read_exec_only = 0;
-    segment.limit_in_pages = 1;
-    segment.seg_not_present = 0;
-    segment.useable = 1;
+  segment.entry_number = (gs & 0xffff) >> 3;
+  segment.base_addr = GPOINTER_TO_SIZE (tls);
+  segment.limit = 0xfffff;
+  segment.seg_32bit = 1;
+  segment.contents = 0;
+  segment.read_exec_only = 0;
+  segment.limit_in_pages = 1;
+  segment.seg_not_present = 0;
+  segment.useable = 1;
 
-    desc = &segment;
+  desc = &segment;
 #else
-    desc = tls;
+  desc = tls;
 #endif
 
 #if defined (HAVE_I386)
-    {
-      GumTcbHead * head = tls;
+  {
+    GumTcbHead * head = tls;
 
-      head->tcb = tls;
-      head->dtv = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (tls) + 1024);
-      head->self = tls;
-    }
+    head->tcb = tls;
+    head->dtv = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (tls) + 1024);
+    head->self = tls;
+  }
 #endif
 
-    /*
-     * It seems like the only reliable way to read/write the registers of
-     * another thread is to use ptrace(). We used to accomplish this by
-     * hi-jacking the target thread by installing a signal handler and sending a
-     * real-time signal directed at the target thread, and thus relying on the
-     * signal handler getting called in that thread. The signal handler would
-     * then provide us with read/write access to its registers. This hack would
-     * however not work if a thread was for example blocking in poll(), as the
-     * signal would then just get queued and we'd end up waiting indefinitely.
-     *
-     * It is however not possible to ptrace() another thread when we're in the
-     * same process group. This used to be supported in old kernels, but it was
-     * buggy and eventually dropped. So in order to use ptrace() we will need to
-     * spawn a new thread in a different process group so that it can ptrace()
-     * the target thread inside our process group. This is also the solution
-     * recommended by Linus:
-     *
-     * https://lkml.org/lkml/2006/9/1/217
-     *
-     * Because libc implementations don't expose an API to do this, and the
-     * thread setup code is private, where the TLS part is crucial for even just
-     * the syscall wrappers - due to them accessing `errno` - we cannot make any
-     * libc calls in this thread. And because the libc's clone() syscall wrapper
-     * typically writes to the child thread's TLS structures, which we cannot
-     * portably set up correctly, we cannot use the libc clone() syscall wrapper
-     * either.
-     */
-    child = gum_libc_clone (
-        gum_do_modify_thread,
-        stack + gum_query_page_size (),
-        CLONE_VM | CLONE_SETTLS,
-        &ctx,
-        NULL,
-        desc,
-        NULL);
-    if (child == -1)
-      goto beach;
+  /*
+   * It seems like the only reliable way to read/write the registers of
+   * another thread is to use ptrace(). We used to accomplish this by
+   * hi-jacking the target thread by installing a signal handler and sending a
+   * real-time signal directed at the target thread, and thus relying on the
+   * signal handler getting called in that thread. The signal handler would
+   * then provide us with read/write access to its registers. This hack would
+   * however not work if a thread was for example blocking in poll(), as the
+   * signal would then just get queued and we'd end up waiting indefinitely.
+   *
+   * It is however not possible to ptrace() another thread when we're in the
+   * same process group. This used to be supported in old kernels, but it was
+   * buggy and eventually dropped. So in order to use ptrace() we will need to
+   * spawn a new thread in a different process group so that it can ptrace()
+   * the target thread inside our process group. This is also the solution
+   * recommended by Linus:
+   *
+   * https://lkml.org/lkml/2006/9/1/217
+   *
+   * Because libc implementations don't expose an API to do this, and the
+   * thread setup code is private, where the TLS part is crucial for even just
+   * the syscall wrappers - due to them accessing `errno` - we cannot make any
+   * libc calls in this thread. And because the libc's clone() syscall wrapper
+   * typically writes to the child thread's TLS structures, which we cannot
+   * portably set up correctly, we cannot use the libc clone() syscall wrapper
+   * either.
+   */
+  child = gum_libc_clone (
+      gum_linux_do_modify_thread,
+      stack + gum_query_page_size (),
+      CLONE_VM | CLONE_SETTLS,
+      &ctx,
+      NULL,
+      desc,
+      NULL);
+  if (child == -1)
+    goto clone_failed;
 
-    gum_acquire_dumpability ();
+  gum_acquire_dumpability ();
 
-    prctl (PR_SET_PTRACER, child);
+  prctl (PR_SET_PTRACER, child);
 
-    gum_put_ack (fd, GUM_ACK_READY);
-
-    if (gum_await_ack (fd, GUM_ACK_READ_CONTEXT))
-    {
-      func (thread_id, &ctx.cpu_context, user_data);
-      gum_put_ack (fd, GUM_ACK_MODIFIED_CONTEXT);
-
-      success = gum_await_ack (fd, GUM_ACK_WROTE_CONTEXT);
-    }
-
-    gum_release_dumpability ();
-
-    waitpid (child, NULL, __WCLONE);
-
-beach:
-    gum_free_pages (tls);
-    gum_free_pages (stack);
-
-    close (ctx.fd[0]);
-    close (ctx.fd[1]);
+  if (thread_id == gum_process_get_current_thread_id ())
+  {
+    success = GPOINTER_TO_UINT (g_thread_join (g_thread_new (
+            "gum-modify-thread-worker",
+            gum_linux_handle_modify_thread_comms,
+            &ctx)));
+  }
+  else
+  {
+    success = GPOINTER_TO_UINT (gum_linux_handle_modify_thread_comms (&ctx));
   }
 
-  return success;
+  gum_release_dumpability ();
+
+  waitpid (child, NULL, __WCLONE);
+
+  if (!success)
+    goto attach_failed;
+
+  goto beach;
+
+socketpair_failed:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_PERMISSION_DENIED,
+        "Unable to create socketpair");
+    goto beach;
+  }
+clone_failed:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_PERMISSION_DENIED,
+        "Unable to set up clone");
+    goto beach;
+  }
+attach_failed:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_PERMISSION_DENIED,
+        "Unable to PTRACE_ATTACH");
+    goto beach;
+  }
+beach:
+  {
+    g_clear_pointer (&tls, gum_free_pages);
+    g_clear_pointer (&stack, gum_free_pages);
+
+    if (ctx.fd[0] != -1)
+      close (ctx.fd[0]);
+    if (ctx.fd[1] != -1)
+      close (ctx.fd[1]);
+
+    return success;
+  }
+}
+
+static gpointer
+gum_linux_handle_modify_thread_comms (gpointer data)
+{
+  GumLinuxModifyThreadContext * ctx = data;
+  gint fd = ctx->fd[0];
+  gboolean success = FALSE;
+
+  gum_put_ack (fd, GUM_ACK_READY);
+
+  if (gum_await_ack (fd, GUM_ACK_READ_REGISTERS))
+  {
+    ctx->func (ctx->thread_id, &ctx->regs_data, ctx->user_data);
+    gum_put_ack (fd, GUM_ACK_MODIFIED_REGISTERS);
+
+    success = gum_await_ack (fd, GUM_ACK_WROTE_REGISTERS);
+  }
+
+  return GSIZE_TO_POINTER (success);
 }
 
 static gint
-gum_do_modify_thread (gpointer data)
+gum_linux_do_modify_thread (gpointer data)
 {
-  GumModifyThreadContext * ctx = data;
+  GumLinuxModifyThreadContext * ctx = data;
   gint fd;
   gboolean attached = FALSE;
   gssize res;
   pid_t wait_result;
   int status;
-  GumRegs regs;
+#if defined (HAVE_I386)
+  const guint x86_debugreg_offsets[] = { 0, 1, 2, 3, 6, 7 };
+#elif defined (HAVE_ARM)
+  guint debug_regs_count = 0;
+#elif defined (HAVE_ARM64)
+  struct user_hwdebug_state debug_regs;
+  const guint debug_regs_type = (ctx->regs_type == GUM_REGS_DEBUG_BREAK)
+      ? NT_ARM_HW_BREAK
+      : NT_ARM_HW_WATCH;
+  gsize debug_regs_size = sizeof (struct user_hwdebug_state);
+  guint debug_regs_count = 0;
+#endif
+#ifndef HAVE_MIPS
+  guint i;
+#endif
 
   fd = ctx->fd[1];
 
@@ -919,17 +1119,136 @@ gum_do_modify_thread (gpointer data)
    * ptrace mention the possible race condition. For our purposes, however, we
    * only require that the target is stopped so that we can read its registers.
    */
-  res = gum_get_regs (ctx->thread_id, &regs);
-  if (res == -1)
-    goto failed_to_read;
-  gum_parse_regs (&regs, &ctx->cpu_context);
-  gum_put_ack (fd, GUM_ACK_READ_CONTEXT);
+  if (ctx->regs_type == GUM_REGS_GENERAL_PURPOSE)
+  {
+    gsize regs_size = sizeof (GumGPRegs);
 
-  gum_await_ack (fd, GUM_ACK_MODIFIED_CONTEXT);
-  gum_unparse_regs (&ctx->cpu_context, &regs);
-  res = gum_set_regs (ctx->thread_id, &regs);
-  if (res == -1)
-    goto failed_to_write;
+    res = gum_get_regs (ctx->thread_id, NT_PRSTATUS, &ctx->regs_data,
+        &regs_size);
+    if (res == -1)
+      goto failed_to_read;
+  }
+  else
+  {
+#if defined (HAVE_I386)
+    for (i = 0; i != G_N_ELEMENTS (x86_debugreg_offsets); i++)
+    {
+      const guint offset = x86_debugreg_offsets[i];
+
+      res = gum_libc_ptrace (PTRACE_PEEKUSER, ctx->thread_id,
+          GSIZE_TO_POINTER (
+            G_STRUCT_OFFSET (struct user, u_debugreg) +
+            (offset * sizeof (gpointer))),
+          &ctx->regs_data.debug.dr0 + i);
+      if (res == -1)
+        goto failed_to_read;
+    }
+#elif defined (HAVE_ARM)
+    guint32 info;
+    res = gum_libc_ptrace (PTRACE_GETHBPREGS, ctx->thread_id, 0, &info);
+    if (res == -1)
+      goto failed_to_read;
+
+    debug_regs_count = (ctx->regs_type == GUM_REGS_DEBUG_BREAK)
+        ? info & 0xff
+        : (info >> 8) & 0xff;
+
+    long step = (ctx->regs_type == GUM_REGS_DEBUG_WATCH) ? -1 : 1;
+    long num = step;
+    for (i = 0; i != debug_regs_count; i++)
+    {
+      res = gum_libc_ptrace (PTRACE_GETHBPREGS, ctx->thread_id,
+          GSIZE_TO_POINTER (num), &ctx->regs_data.debug.vr[i]);
+      if (res == -1)
+        goto failed_to_read;
+      num += step;
+
+      res = gum_libc_ptrace (PTRACE_GETHBPREGS, ctx->thread_id,
+          GSIZE_TO_POINTER (num), &ctx->regs_data.debug.cr[i]);
+      if (res == -1)
+        goto failed_to_read;
+      num += step;
+    }
+#elif defined (HAVE_ARM64)
+    res = gum_get_regs (ctx->thread_id, debug_regs_type, &debug_regs,
+        &debug_regs_size);
+    if (res == -1)
+      goto failed_to_read;
+
+    debug_regs_count = debug_regs.dbg_info & 0xff;
+
+    for (i = 0; i != G_N_ELEMENTS (debug_regs.dbg_regs); i++)
+    {
+      ctx->regs_data.debug.cr[i] = debug_regs.dbg_regs[i].ctrl;
+      ctx->regs_data.debug.vr[i] = debug_regs.dbg_regs[i].addr;
+    }
+#elif defined (HAVE_MIPS)
+    res = gum_libc_ptrace (PTRACE_GET_WATCH_REGS, ctx->thread_id,
+        &ctx->regs_data.debug, NULL);
+    if (res == -1)
+      goto failed_to_read;
+#endif
+  }
+  gum_put_ack (fd, GUM_ACK_READ_REGISTERS);
+
+  gum_await_ack (fd, GUM_ACK_MODIFIED_REGISTERS);
+  if (ctx->regs_type == GUM_REGS_GENERAL_PURPOSE)
+  {
+    res = gum_set_regs (ctx->thread_id, NT_PRSTATUS, &ctx->regs_data,
+        sizeof (GumGPRegs));
+    if (res == -1)
+      goto failed_to_write;
+  }
+  else
+  {
+#if defined (HAVE_I386)
+    for (i = 0; i != G_N_ELEMENTS (x86_debugreg_offsets); i++)
+    {
+      const guint offset = x86_debugreg_offsets[i];
+      res = gum_libc_ptrace (PTRACE_POKEUSER, ctx->thread_id,
+          GSIZE_TO_POINTER (
+            G_STRUCT_OFFSET (struct user, u_debugreg) +
+            (offset * sizeof (gpointer))),
+          GSIZE_TO_POINTER ((&ctx->regs_data.debug.dr0)[i]));
+      if (res == -1)
+        goto failed_to_write;
+    }
+#elif defined (HAVE_ARM)
+    long step = (ctx->regs_type == GUM_REGS_DEBUG_WATCH) ? -1 : 1;
+    long num = step;
+    for (i = 0; i != debug_regs_count; i++)
+    {
+      res = gum_libc_ptrace (PTRACE_SETHBPREGS, ctx->thread_id,
+          GSIZE_TO_POINTER (num), &ctx->regs_data.debug.vr[i]);
+      if (res == -1)
+        goto failed_to_write;
+      num += step;
+
+      res = gum_libc_ptrace (PTRACE_SETHBPREGS, ctx->thread_id,
+          GSIZE_TO_POINTER (num), &ctx->regs_data.debug.cr[i]);
+      if (res == -1)
+        goto failed_to_write;
+      num += step;
+    }
+#elif defined (HAVE_ARM64)
+    for (i = 0; i != debug_regs_count; i++)
+    {
+      debug_regs.dbg_regs[i].ctrl = ctx->regs_data.debug.cr[i];
+      debug_regs.dbg_regs[i].addr = ctx->regs_data.debug.vr[i];
+    }
+
+    res = gum_set_regs (ctx->thread_id, debug_regs_type, &debug_regs,
+        G_STRUCT_OFFSET (struct user_hwdebug_state, dbg_regs) +
+        debug_regs_count * 16);
+    if (res == -1)
+      goto failed_to_write;
+#elif defined (HAVE_MIPS)
+    res = gum_libc_ptrace (PTRACE_SET_WATCH_REGS, ctx->thread_id,
+        &ctx->regs_data.debug, NULL);
+    if (res == -1)
+      goto failed_to_write;
+#endif
+  }
 
   res = gum_libc_ptrace (PTRACE_DETACH, ctx->thread_id, NULL,
       GINT_TO_POINTER (SIGCONT));
@@ -938,7 +1257,7 @@ gum_do_modify_thread (gpointer data)
   if (res == -1)
     goto failed_to_detach;
 
-  gum_put_ack (fd, GUM_ACK_WROTE_CONTEXT);
+  gum_put_ack (fd, GUM_ACK_WROTE_REGISTERS);
 
   goto beach;
 
@@ -1546,6 +1865,167 @@ failure:
     g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
     return FALSE;
   }
+}
+
+gboolean
+gum_thread_set_hardware_breakpoint (GumThreadId thread_id,
+                                    guint breakpoint_id,
+                                    GumAddress address,
+                                    GError ** error)
+{
+  GumSetHardwareBreakpointContext bpc;
+
+  bpc.breakpoint_id = breakpoint_id;
+  bpc.address = address;
+
+  gum_linux_modify_thread (thread_id, GUM_REGS_DEBUG_BREAK,
+      gum_do_set_hardware_breakpoint, &bpc, error);
+
+  return gum_linux_modify_thread (thread_id, GUM_REGS_DEBUG_BREAK,
+      gum_do_set_hardware_breakpoint, &bpc, error);
+}
+
+static void
+gum_do_set_hardware_breakpoint (GumThreadId thread_id,
+                                GumRegs * regs,
+                                gpointer user_data)
+{
+  GumDebugRegs * dr = &regs->debug;
+  GumSetHardwareBreakpointContext * bpc = user_data;
+
+#if defined (HAVE_I386)
+  _gum_x86_set_breakpoint (&dr->dr7, &dr->dr0, bpc->breakpoint_id,
+      bpc->address);
+#elif defined (HAVE_ARM)
+  _gum_arm_set_breakpoint (dr->cr, dr->vr, bpc->breakpoint_id, bpc->address);
+#elif defined (HAVE_ARM64)
+  _gum_arm64_set_breakpoint (dr->cr, dr->vr, bpc->breakpoint_id, bpc->address);
+#elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 4
+  g_assert (dr->style == GUM_MIPS_WATCH_MIPS32);
+  _gum_mips_set_breakpoint (dr->mips32.watch_lo, dr->mips32.watch_hi,
+      bpc->breakpoint_id, bpc->address);
+#elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 8
+  g_assert (dr->style == GUM_MIPS_WATCH_MIPS64);
+  _gum_mips_set_breakpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
+      bpc->breakpoint_id, bpc->address);
+#endif
+}
+
+gboolean
+gum_thread_unset_hardware_breakpoint (GumThreadId thread_id,
+                                      guint breakpoint_id,
+                                      GError ** error)
+{
+  return gum_linux_modify_thread (thread_id, GUM_REGS_DEBUG_BREAK,
+      gum_do_unset_hardware_breakpoint, GUINT_TO_POINTER (breakpoint_id),
+      error);
+}
+
+static void
+gum_do_unset_hardware_breakpoint (GumThreadId thread_id,
+                                  GumRegs * regs,
+                                  gpointer user_data)
+{
+  GumDebugRegs * dr = &regs->debug;
+  guint breakpoint_id = GPOINTER_TO_UINT (user_data);
+
+#if defined (HAVE_I386)
+  _gum_x86_unset_breakpoint (&dr->dr7, &dr->dr0, breakpoint_id);
+#elif defined (HAVE_ARM)
+  _gum_arm_unset_breakpoint (dr->cr, dr->vr, breakpoint_id);
+#elif defined (HAVE_ARM64)
+  _gum_arm64_unset_breakpoint (dr->cr, dr->vr, breakpoint_id);
+#elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 4
+  g_assert (dr->style == GUM_MIPS_WATCH_MIPS32);
+  _gum_mips_unset_breakpoint (dr->mips32.watch_lo, dr->mips32.watch_hi,
+      breakpoint_id);
+#elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 8
+  g_assert (dr->style == GUM_MIPS_WATCH_MIPS64);
+  _gum_mips_unset_breakpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
+      breakpoint_id);
+#endif
+}
+
+gboolean
+gum_thread_set_hardware_watchpoint (GumThreadId thread_id,
+                                    guint watchpoint_id,
+                                    GumAddress address,
+                                    gsize size,
+                                    GumWatchConditions wc,
+                                    GError ** error)
+{
+  GumSetHardwareWatchpointContext wpc;
+
+  wpc.watchpoint_id = watchpoint_id;
+  wpc.address = address;
+  wpc.size = size;
+  wpc.conditions = wc;
+
+  return gum_linux_modify_thread (thread_id, GUM_REGS_DEBUG_WATCH,
+      gum_do_set_hardware_watchpoint, &wpc, error);
+}
+
+static void
+gum_do_set_hardware_watchpoint (GumThreadId thread_id,
+                                GumRegs * regs,
+                                gpointer user_data)
+{
+  GumDebugRegs * dr = &regs->debug;
+  GumSetHardwareWatchpointContext * wpc = user_data;
+
+#if defined (HAVE_I386)
+  _gum_x86_set_watchpoint (&dr->dr7, &dr->dr0, wpc->watchpoint_id, wpc->address,
+      wpc->size, wpc->conditions);
+#elif defined (HAVE_ARM)
+  _gum_arm_set_watchpoint (dr->cr, dr->vr, wpc->watchpoint_id, wpc->address,
+      wpc->size, wpc->conditions);
+#elif defined (HAVE_ARM64)
+  _gum_arm64_set_watchpoint (dr->cr, dr->vr, wpc->watchpoint_id, wpc->address,
+      wpc->size, wpc->conditions);
+#elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 4
+  g_assert (dr->style == GUM_MIPS_WATCH_MIPS32);
+  _gum_mips_set_watchpoint (dr->mips32.watch_lo, dr->mips32.watch_hi,
+      wpc->watchpoint_id, wpc->address, wpc->size, wpc->conditions);
+#elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 8
+  g_assert (dr->style == GUM_MIPS_WATCH_MIPS64);
+  _gum_mips_set_watchpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
+      wpc->watchpoint_id, wpc->address, wpc->size, wpc->conditions);
+#endif
+}
+
+gboolean
+gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
+                                      guint watchpoint_id,
+                                      GError ** error)
+{
+  return gum_linux_modify_thread (thread_id, GUM_REGS_DEBUG_WATCH,
+      gum_do_unset_hardware_watchpoint, GUINT_TO_POINTER (watchpoint_id),
+      error);
+}
+
+static void
+gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
+                                  GumRegs * regs,
+                                  gpointer user_data)
+{
+  GumDebugRegs * dr = &regs->debug;
+  guint watchpoint_id = GPOINTER_TO_UINT (user_data);
+
+#if defined (HAVE_I386)
+  _gum_x86_unset_watchpoint (&dr->dr7, &dr->dr0, watchpoint_id);
+#elif defined (HAVE_ARM)
+  _gum_arm_unset_watchpoint (dr->cr, dr->vr, watchpoint_id);
+#elif defined (HAVE_ARM64)
+  _gum_arm64_unset_watchpoint (dr->cr, dr->vr, watchpoint_id);
+#elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 4
+  g_assert (dr->style == GUM_MIPS_WATCH_MIPS32);
+  _gum_mips_unset_watchpoint (dr->mips32.watch_lo, dr->mips32.watch_hi,
+      watchpoint_id);
+#elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 8
+  g_assert (dr->style == GUM_MIPS_WATCH_MIPS64);
+  _gum_mips_unset_watchpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
+      watchpoint_id);
+#endif
 }
 
 gboolean
@@ -2453,8 +2933,8 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
 }
 
 static void
-gum_parse_regs (const GumRegs * regs,
-                GumCpuContext * ctx)
+gum_parse_gp_regs (const GumGPRegs * regs,
+                   GumCpuContext * ctx)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   ctx->eip = regs->eip;
@@ -2569,8 +3049,8 @@ gum_parse_regs (const GumRegs * regs,
 }
 
 static void
-gum_unparse_regs (const GumCpuContext * ctx,
-                  GumRegs * regs)
+gum_unparse_gp_regs (const GumCpuContext * ctx,
+                     GumGPRegs * regs)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   regs->eip = ctx->eip;
@@ -2756,48 +3236,53 @@ gum_page_protection_from_proc_perms_string (const gchar * perms)
 
 static gssize
 gum_get_regs (pid_t pid,
-              GumRegs * regs)
+              guint type,
+              gpointer data,
+              gsize * size)
 {
   if (gum_is_regset_supported)
   {
     struct iovec io = {
-      .iov_base = regs,
-      .iov_len = sizeof (GumRegs)
+      .iov_base = data,
+      .iov_len = *size
     };
     gssize ret = gum_libc_ptrace (PTRACE_GETREGSET, pid,
-        GSIZE_TO_POINTER (NT_PRSTATUS), &io);
+        GUINT_TO_POINTER (type), &io);
     if (ret >= 0)
+    {
+      *size = io.iov_len;
       return ret;
-    else if (ret == -EPERM || ret == -ESRCH)
+    }
+    if (ret == -EPERM || ret == -ESRCH)
       return ret;
-    else
-      gum_is_regset_supported = FALSE;
+    gum_is_regset_supported = FALSE;
   }
 
-  return gum_libc_ptrace (PTRACE_GETREGS, pid, NULL, regs);
+  return gum_libc_ptrace (PTRACE_GETREGS, pid, NULL, data);
 }
 
 static gssize
 gum_set_regs (pid_t pid,
-              const GumRegs * regs)
+              guint type,
+              gconstpointer data,
+              gsize size)
 {
   if (gum_is_regset_supported)
   {
     struct iovec io = {
-      .iov_base = (void *) regs,
-      .iov_len = sizeof (GumRegs)
+      .iov_base = (void *) data,
+      .iov_len = size
     };
     gssize ret = gum_libc_ptrace (PTRACE_SETREGSET, pid,
-        GSIZE_TO_POINTER (NT_PRSTATUS), &io);
+        GUINT_TO_POINTER (type), &io);
     if (ret >= 0)
       return ret;
-    else if (ret == -EPERM || ret == -ESRCH)
+    if (ret == -EPERM || ret == -ESRCH)
       return ret;
-    else
-      gum_is_regset_supported = FALSE;
+    gum_is_regset_supported = FALSE;
   }
 
-  return gum_libc_ptrace (PTRACE_SETREGS, pid, NULL, (gpointer) regs);
+  return gum_libc_ptrace (PTRACE_SETREGS, pid, NULL, (gpointer) data);
 }
 
 static gssize

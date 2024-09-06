@@ -2,6 +2,7 @@
  * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
+ * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -64,6 +65,11 @@ struct _GumThreadDetails
   GumThreadState state;
   GumCpuContext cpu_context;
 };
+
+typedef enum {
+  GUM_WATCH_READ  = (1 << 0),
+  GUM_WATCH_WRITE = (1 << 1),
+} GumWatchConditions;
 
 struct _GumModuleDetails
 {
@@ -230,6 +236,15 @@ GUM_API gint gum_thread_get_system_error (void);
 GUM_API void gum_thread_set_system_error (gint value);
 GUM_API gboolean gum_thread_suspend (GumThreadId thread_id, GError ** error);
 GUM_API gboolean gum_thread_resume (GumThreadId thread_id, GError ** error);
+GUM_API gboolean gum_thread_set_hardware_breakpoint (GumThreadId thread_id,
+    guint breakpoint_id, GumAddress address, GError ** error);
+GUM_API gboolean gum_thread_unset_hardware_breakpoint (GumThreadId thread_id,
+    guint breakpoint_id, GError ** error);
+GUM_API gboolean gum_thread_set_hardware_watchpoint (GumThreadId thread_id,
+    guint watchpoint_id, GumAddress address, gsize size, GumWatchConditions wc,
+    GError ** error);
+GUM_API gboolean gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
+    guint watchpoint_id, GError ** error);
 GUM_API gboolean gum_module_load (const gchar * module_name, GError ** error);
 GUM_API gboolean gum_module_ensure_initialized (const gchar * module_name);
 GUM_API void gum_module_enumerate_imports (const gchar * module_name,
