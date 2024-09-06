@@ -186,6 +186,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+      - uses: nttld/setup-ndk@v1
+        if: startsWith(matrix.id, 'android-')
+        id: setup-ndk
+        with:
+          ndk-version: r25
+          add-to-path: false
+      - name: Set ANDROID_NDK_ROOT
+        if: startsWith(matrix.id, 'android-')
+        run: echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
       - name: Build
         run: |
           ./configure --host=${{ matrix.id }} ${{ env.GUM_OPTIONS }}
