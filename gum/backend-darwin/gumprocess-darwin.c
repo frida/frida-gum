@@ -831,6 +831,13 @@ gum_modify_debug_registers (GumThreadId thread_id,
                             gpointer user_data,
                             GError ** error)
 {
+#ifdef HAVE_WATCHOS
+  g_set_error (error,
+      GUM_ERROR,
+      GUM_ERROR_NOT_SUPPORTED,
+      "Not supported");
+  return FALSE;
+#else
   gboolean success = FALSE;
   kern_return_t kr;
   GumDarwinNativeDebugState state;
@@ -864,6 +871,7 @@ beach:
   {
     return success;
   }
+#endif
 }
 
 gboolean
