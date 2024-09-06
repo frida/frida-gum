@@ -2,7 +2,7 @@
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
- * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2022-2024 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
@@ -29,7 +29,6 @@
 #include <sys/sysctl.h>
 #include <unistd.h>
 
-#define GUM_PSR_THUMB 0x20
 #define MAX_MACH_HEADER_SIZE (64 * 1024)
 #define DYLD_IMAGE_INFO_32_SIZE 12
 #define DYLD_IMAGE_INFO_64_SIZE 24
@@ -62,6 +61,10 @@
     ((ts).__fp = (uintptr_t) (ptr))
 #endif
 
+typedef struct _GumSetHardwareBreakpointContext GumSetHardwareBreakpointContext;
+typedef struct _GumSetHardwareWatchpointContext GumSetHardwareWatchpointContext;
+typedef void (* GumModifyDebugRegistersFunc) (GumDarwinNativeDebugState * ds,
+    gpointer user_data);
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
@@ -75,6 +78,20 @@ typedef struct _DyldAllImageInfos32 DyldAllImageInfos32;
 typedef struct _DyldAllImageInfos64 DyldAllImageInfos64;
 typedef struct _DyldImageInfo32 DyldImageInfo32;
 typedef struct _DyldImageInfo64 DyldImageInfo64;
+
+struct _GumSetHardwareBreakpointContext
+{
+  guint breakpoint_id;
+  GumAddress address;
+};
+
+struct _GumSetHardwareWatchpointContext
+{
+  guint watchpoint_id;
+  GumAddress address;
+  gsize size;
+  GumWatchConditions conditions;
+};
 
 struct _GumEnumerateImportsContext
 {
@@ -311,6 +328,16 @@ struct proc_regionwithpathinfo
 extern int __proc_info (int callnum, int pid, int flavor, uint64_t arg,
     void * buffer, int buffersize);
 
+static void gum_do_set_hardware_breakpoint (GumDarwinNativeDebugState * ds,
+    gpointer user_data);
+static void gum_do_unset_hardware_breakpoint (GumDarwinNativeDebugState * ds,
+    gpointer user_data);
+static void gum_do_set_hardware_watchpoint (GumDarwinNativeDebugState * ds,
+    gpointer user_data);
+static void gum_do_unset_hardware_watchpoint (GumDarwinNativeDebugState * ds,
+    gpointer user_data);
+static gboolean gum_modify_debug_registers (GumThreadId thread_id,
+    GumModifyDebugRegistersFunc func, gpointer user_data, GError ** error);
 static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
@@ -684,6 +711,159 @@ failure:
     return FALSE;
   }
 #endif
+}
+
+gboolean
+gum_thread_set_hardware_breakpoint (GumThreadId thread_id,
+                                    guint breakpoint_id,
+                                    GumAddress address,
+                                    GError ** error)
+{
+  GumSetHardwareBreakpointContext bpc;
+
+  bpc.breakpoint_id = breakpoint_id;
+  bpc.address = address;
+
+  return gum_modify_debug_registers (thread_id, gum_do_set_hardware_breakpoint,
+      &bpc, error);
+}
+
+static void
+gum_do_set_hardware_breakpoint (GumDarwinNativeDebugState * ds,
+                                gpointer user_data)
+{
+  GumSetHardwareBreakpointContext * bpc = user_data;
+
+#ifdef HAVE_ARM64
+  _gum_arm64_set_breakpoint (ds->__bcr, ds->__bvr, bpc->breakpoint_id,
+      bpc->address);
+#else
+  _gum_x86_set_breakpoint ((gsize *) &ds->__dr7, (gsize *) &ds->__dr0,
+      bpc->breakpoint_id, bpc->address);
+#endif
+}
+
+gboolean
+gum_thread_unset_hardware_breakpoint (GumThreadId thread_id,
+                                      guint breakpoint_id,
+                                      GError ** error)
+{
+  return gum_modify_debug_registers (thread_id,
+      gum_do_unset_hardware_breakpoint, GUINT_TO_POINTER (breakpoint_id),
+      error);
+}
+
+static void
+gum_do_unset_hardware_breakpoint (GumDarwinNativeDebugState * ds,
+                                  gpointer user_data)
+{
+  guint breakpoint_id = GPOINTER_TO_UINT (user_data);
+
+#ifdef HAVE_ARM64
+  _gum_arm64_unset_breakpoint (ds->__bcr, ds->__bvr, breakpoint_id);
+#else
+  _gum_x86_unset_breakpoint ((gsize *) &ds->__dr7, (gsize *) &ds->__dr0,
+      breakpoint_id);
+#endif
+}
+
+gboolean
+gum_thread_set_hardware_watchpoint (GumThreadId thread_id,
+                                    guint watchpoint_id,
+                                    GumAddress address,
+                                    gsize size,
+                                    GumWatchConditions wc,
+                                    GError ** error)
+{
+  GumSetHardwareWatchpointContext wpc;
+
+  wpc.watchpoint_id = watchpoint_id;
+  wpc.address = address;
+  wpc.size = size;
+  wpc.conditions = wc;
+
+  return gum_modify_debug_registers (thread_id, gum_do_set_hardware_watchpoint,
+      &wpc, error);
+}
+
+static void
+gum_do_set_hardware_watchpoint (GumDarwinNativeDebugState * ds,
+                                gpointer user_data)
+{
+  GumSetHardwareWatchpointContext * wpc = user_data;
+
+#if defined (HAVE_ARM64)
+  _gum_arm64_set_watchpoint (ds->__wcr, ds->__wvr, wpc->watchpoint_id,
+      wpc->address, wpc->size, wpc->conditions);
+#else
+  _gum_x86_set_watchpoint ((gsize *) &ds->__dr7, (gsize *) &ds->__dr0,
+      wpc->watchpoint_id, wpc->address, wpc->size, wpc->conditions);
+#endif
+}
+
+gboolean
+gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
+                                      guint watchpoint_id,
+                                      GError ** error)
+{
+  return gum_modify_debug_registers (thread_id,
+      gum_do_unset_hardware_watchpoint, GUINT_TO_POINTER (watchpoint_id),
+      error);
+}
+
+static void
+gum_do_unset_hardware_watchpoint (GumDarwinNativeDebugState * ds,
+                                  gpointer user_data)
+{
+  guint watchpoint_id = GPOINTER_TO_UINT (user_data);
+
+#if defined (HAVE_ARM64)
+  _gum_arm64_unset_watchpoint (ds->__wcr, ds->__wvr, watchpoint_id);
+#else
+  _gum_x86_unset_watchpoint ((gsize *) &ds->__dr7, (gsize *) &ds->__dr0,
+      watchpoint_id);
+#endif
+}
+
+static gboolean
+gum_modify_debug_registers (GumThreadId thread_id,
+                            GumModifyDebugRegistersFunc func,
+                            gpointer user_data,
+                            GError ** error)
+{
+  gboolean success = FALSE;
+  kern_return_t kr;
+  GumDarwinNativeDebugState state;
+  mach_msg_type_number_t state_count = GUM_DARWIN_DEBUG_STATE_COUNT;
+  thread_state_flavor_t state_flavor = GUM_DARWIN_DEBUG_STATE_FLAVOR;
+
+  kr = thread_get_state (thread_id, state_flavor, (thread_state_t) &state,
+      &state_count);
+  if (kr != KERN_SUCCESS)
+    goto failure;
+
+  func (&state, user_data);
+
+  kr = thread_set_state (thread_id, state_flavor, (thread_state_t) &state,
+      state_count);
+  if (kr != KERN_SUCCESS)
+    goto failure;
+
+  success = TRUE;
+  goto beach;
+
+failure:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
+        "Unable to modify debug registers: %s", mach_error_string (kr));
+    goto beach;
+  }
+beach:
+  {
+    return success;
+  }
 }
 
 gboolean

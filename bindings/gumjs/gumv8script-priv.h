@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -79,8 +80,8 @@ struct _GumV8Script
   GumV8Kernel kernel;
   GumV8Memory memory;
   GumV8Module module;
-  GumV8Process process;
   GumV8Thread thread;
+  GumV8Process process;
   GumV8File file;
   GumV8Checksum checksum;
   GumV8Stream stream;

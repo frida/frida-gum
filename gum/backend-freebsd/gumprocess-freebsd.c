@@ -717,6 +717,50 @@ failure:
 }
 
 gboolean
+gum_thread_set_hardware_breakpoint (GumThreadId thread_id,
+                                    guint breakpoint_id,
+                                    GumAddress address,
+                                    GError ** error)
+{
+  g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+      "Hardware breakpoints are not yet supported on this platform");
+  return FALSE;
+}
+
+gboolean
+gum_thread_unset_hardware_breakpoint (GumThreadId thread_id,
+                                      guint breakpoint_id,
+                                      GError ** error)
+{
+  g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+      "Hardware breakpoints are not yet supported on this platform");
+  return FALSE;
+}
+
+gboolean
+gum_thread_set_hardware_watchpoint (GumThreadId thread_id,
+                                    guint watchpoint_id,
+                                    GumAddress address,
+                                    gsize size,
+                                    GumWatchConditions wc,
+                                    GError ** error)
+{
+  g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+      "Hardware watchpoints are not yet supported on this platform");
+  return FALSE;
+}
+
+gboolean
+gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
+                                      guint watchpoint_id,
+                                      GError ** error)
+{
+  g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+      "Hardware watchpoints are not yet supported on this platform");
+  return FALSE;
+}
+
+gboolean
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {

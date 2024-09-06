@@ -62,8 +62,8 @@ struct _GumQuickScript
   GumQuickKernel kernel;
   GumQuickMemory memory;
   GumQuickModule module;
-  GumQuickProcess process;
   GumQuickThread thread;
+  GumQuickProcess process;
   GumQuickFile file;
   GumQuickChecksum checksum;
   GumQuickStream stream;
@@ -478,8 +478,9 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_kernel_init (&self->kernel, global_obj, core);
   _gum_quick_memory_init (&self->memory, global_obj, core);
   _gum_quick_module_init (&self->module, global_obj, core);
-  _gum_quick_process_init (&self->process, global_obj, &self->module, core);
   _gum_quick_thread_init (&self->thread, global_obj, core);
+  _gum_quick_process_init (&self->process, global_obj, &self->module,
+      &self->thread, core);
   _gum_quick_file_init (&self->file, global_obj, core);
   _gum_quick_checksum_init (&self->checksum, global_obj, core);
   _gum_quick_stream_init (&self->stream, global_obj, core);
@@ -548,8 +549,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_stream_dispose (&self->stream);
     _gum_quick_checksum_dispose (&self->checksum);
     _gum_quick_file_dispose (&self->file);
-    _gum_quick_thread_dispose (&self->thread);
     _gum_quick_process_dispose (&self->process);
+    _gum_quick_thread_dispose (&self->thread);
     _gum_quick_module_dispose (&self->module);
     _gum_quick_memory_dispose (&self->memory);
     _gum_quick_kernel_dispose (&self->kernel);
@@ -591,8 +592,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_stream_finalize (&self->stream);
   _gum_quick_checksum_finalize (&self->checksum);
   _gum_quick_file_finalize (&self->file);
-  _gum_quick_thread_finalize (&self->thread);
   _gum_quick_process_finalize (&self->process);
+  _gum_quick_thread_finalize (&self->thread);
   _gum_quick_module_finalize (&self->module);
   _gum_quick_memory_finalize (&self->memory);
   _gum_quick_kernel_finalize (&self->kernel);
@@ -1139,9 +1140,9 @@ _gum_quick_script_make_worker (GumQuickScript * self,
     _gum_quick_kernel_init (&worker->kernel, global_obj, core);
     _gum_quick_memory_init (&worker->memory, global_obj, core);
     _gum_quick_module_init (&worker->module, global_obj, core);
-    _gum_quick_process_init (&worker->process, global_obj, &worker->module,
-        core);
     _gum_quick_thread_init (&worker->thread, global_obj, core);
+    _gum_quick_process_init (&worker->process, global_obj, &worker->module,
+        &worker->thread, core);
     _gum_quick_file_init (&worker->file, global_obj, core);
     _gum_quick_checksum_init (&worker->checksum, global_obj, core);
     _gum_quick_stream_init (&worker->stream, global_obj, core);
