@@ -27,6 +27,10 @@
 # define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
 #endif
 
+#if defined(__x86_64__)
+# define GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
+#endif
+
 #define GUM_INTERCEPTOR_LOCK(o) g_rec_mutex_lock (&(o)->mutex)
 #define GUM_INTERCEPTOR_UNLOCK(o) g_rec_mutex_unlock (&(o)->mutex)
 
@@ -115,6 +119,11 @@ struct _InterceptorThreadContext
   GumInvocationStack * stack;
 
   GArray * listener_data_slots;
+
+#if defined(GUM_INTERCEPTOR_ALT_STACK_SUPPORTED)
+  gpointer alt_stack;
+  size_t alt_stack_size;
+#endif
 };
 
 struct _GumInvocationStackEntry
@@ -192,6 +201,8 @@ static void gum_function_context_add_listener (
 static void gum_function_context_remove_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener);
 static void listener_entry_free (ListenerEntry * entry);
+static void listener_entry_on_enter ( ListenerEntry * listener_entry,
+    GumInvocationContext * invocation_ctx);
 static gboolean gum_function_context_has_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener);
 static ListenerEntry ** gum_function_context_find_listener (
@@ -200,6 +211,12 @@ static ListenerEntry ** gum_function_context_find_taken_listener_slot (
     GumFunctionContext * function_ctx);
 static void gum_function_context_fixup_cpu_context (
     GumFunctionContext * function_ctx, GumCpuContext * cpu_context);
+static void gum_function_context_fixup_cpu_context (
+    GumFunctionContext * function_ctx, GumCpuContext * cpu_context);
+static void gum_function_context_begin_invocation_inner (
+    GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
+    gpointer * caller_ret_addr, gpointer * next_hop,
+    InterceptorThreadContext *interceptor_ctx, gboolean * result);
 
 static InterceptorThreadContext * get_interceptor_thread_context (void);
 static void release_interceptor_thread_context (
@@ -352,6 +369,30 @@ the_interceptor_weak_notify (gpointer data,
 
   g_mutex_unlock (&_gum_interceptor_lock);
 }
+
+#ifdef GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
+
+// Configuration for the alternate stack that is used when creating a new
+// ThreadInvocationContext.
+//
+// 0 means no alternate stack is used.
+static gint _gum_interceptor_alt_stack_size = 0;
+
+void
+gum_interceptor_configure_alternate_stack (gint stack_size)
+{
+  g_atomic_int_set (&_gum_interceptor_alt_stack_size, stack_size);
+}
+
+#else
+
+void
+gum_interceptor_configure_alternate_stack (gint stack_size)
+{
+  /* Do nothing on unsupported platforms */
+}
+
+#endif // GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
 
 GumAttachReturn
 gum_interceptor_attach (GumInterceptor * self,
@@ -1465,8 +1506,76 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
                                         gpointer * caller_ret_addr,
                                         gpointer * next_hop)
 {
-  GumInterceptor * interceptor;
+  gboolean result;
   InterceptorThreadContext * interceptor_ctx;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+
+#ifdef GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
+  if (!interceptor_ctx->alt_stack)
+    goto no_alt_stack;
+   
+  void *new_stack_top = (void *)(
+      ((uintptr_t)interceptor_ctx->alt_stack + interceptor_ctx->alt_stack_size)
+      & ~0xFULL  /* Align the stack to 16 bytes (required by System V ABI) */
+  );
+
+
+#if defined(__x86_64__)
+  // Check if the stack pointer is within the alt stack range already, and if it is,
+  // we don't need to switch stacks.
+  if (cpu_context->rsp >= (uintptr_t)interceptor_ctx->alt_stack &&
+      cpu_context->rsp < (uintptr_t)new_stack_top)
+    goto no_alt_stack;
+
+  // Switch to the new stack and call the function with arguments
+  asm volatile (
+      "movq %%rsp, %%rbx\n"      // Save the current stack pointer
+      "movq %0, %%rsp\n"         // Set the new stack pointer
+      "pushq %%rbx\n"
+      "pushq %%rbp\n"
+      "movq %1, %%rdi\n"         // First argument goes in rdi
+      "movq %2, %%rsi\n"         // Second argument goes in rsi
+      "movq %3, %%rdx\n"         // Third argument goes in rdx
+      "movq %4, %%rcx\n"         // Fourth argument goes in rcx
+      "movq %5, %%r8\n"          // Fifth argument goes in r8
+      "movq %6, %%r9\n"          // Sixth argument goes in r9
+      "call gum_function_context_begin_invocation_inner\n"  // Call the function
+      "popq %%rbp\n"
+      "popq %%rsp\n"
+      :
+      : "r"(new_stack_top), "r"(function_ctx), "r"(cpu_context), "r"(caller_ret_addr), "r"(next_hop), "r"(interceptor_ctx), "r"(&result)
+      : "memory", "rbx", "rdi", "rsi", "rdx", "rcx", "r8"
+  );
+#endif // __x86_64__
+  return result;
+
+no_alt_stack:
+#endif // GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
+  gum_function_context_begin_invocation_inner (
+    function_ctx,
+    cpu_context,
+    caller_ret_addr,
+    next_hop,
+    interceptor_ctx,
+    &result
+  );
+  return result;
+}
+
+#ifdef GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
+__attribute__((used))
+__attribute__((noinline))
+#endif // GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
+static void
+gum_function_context_begin_invocation_inner (GumFunctionContext * function_ctx,
+                                              GumCpuContext * cpu_context,
+                                              gpointer * caller_ret_addr,
+                                              gpointer * next_hop,
+                                              InterceptorThreadContext *interceptor_ctx,
+                                              gboolean * result)
+{
+  GumInterceptor * interceptor;
   GumInvocationStack * stack;
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx = NULL;
@@ -1490,7 +1599,6 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   }
   gum_tls_key_set_value (gum_interceptor_guard_key, interceptor);
 
-  interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
 
   stack_entry = gum_invocation_stack_peek_top (stack);
@@ -1574,11 +1682,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
       state.invocation_data = stack_entry->listener_invocation_data[i];
       invocation_ctx->backend->data = &state;
 
-      if (listener_entry->listener_interface->on_enter != NULL)
-      {
-        listener_entry->listener_interface->on_enter (
-            listener_entry->listener_instance, invocation_ctx);
-      }
+      listener_entry_on_enter (listener_entry, invocation_ctx);
     }
 
     system_error = invocation_ctx->system_error;
@@ -1620,7 +1724,23 @@ bypass:
     g_atomic_int_dec_and_test (&function_ctx->trampoline_usage_counter);
   }
 
-  return will_trap_on_leave;
+  *result = will_trap_on_leave;
+}
+
+static void
+listener_entry_on_enter (ListenerEntry * listener_entry,
+                         GumInvocationContext * invocation_ctx)
+{
+#ifndef GUM_DIET
+  if (listener_entry->listener_interface->on_enter != NULL)
+  {
+    listener_entry->listener_interface->on_enter (
+        listener_entry->listener_instance, invocation_ctx);
+  }
+#else
+  gum_invocation_listener_on_enter (listener_entry->listener_instance,
+      invocation_ctx);
+#endif // GUM_DIET
 }
 
 void
@@ -1733,7 +1853,7 @@ gum_function_context_fixup_cpu_context (GumFunctionContext * function_ctx,
 }
 
 static InterceptorThreadContext *
-get_interceptor_thread_context (void)
+get_interceptor_thread_context ()
 {
   InterceptorThreadContext * context;
 
@@ -1870,7 +1990,7 @@ gum_interceptor_replacement_invocation_backend =
 };
 
 static InterceptorThreadContext *
-interceptor_thread_context_new (void)
+interceptor_thread_context_new ()
 {
   InterceptorThreadContext * context;
 
@@ -1890,8 +2010,15 @@ interceptor_thread_context_new (void)
   context->stack = g_array_sized_new (FALSE, TRUE,
       sizeof (GumInvocationStackEntry), GUM_MAX_CALL_DEPTH);
 
+
   context->listener_data_slots = g_array_sized_new (FALSE, TRUE,
       sizeof (ListenerDataSlot), GUM_MAX_LISTENERS_PER_FUNCTION);
+
+#ifdef GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
+  context->alt_stack_size = g_atomic_int_get (&_gum_interceptor_alt_stack_size);
+  if (context->alt_stack_size > 0)
+    context->alt_stack = g_malloc0 (context->alt_stack_size);
+#endif
 
   return context;
 }
@@ -1902,6 +2029,11 @@ interceptor_thread_context_destroy (InterceptorThreadContext * context)
   g_array_free (context->listener_data_slots, TRUE);
 
   g_array_free (context->stack, TRUE);
+
+#ifdef GUM_INTERCEPTOR_ALT_STACK_SUPPORTED
+  if (context->alt_stack)
+    g_free (context->alt_stack);
+#endif
 
   g_slice_free (InterceptorThreadContext, context);
 }
