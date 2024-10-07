@@ -990,6 +990,9 @@ GUM_API GumAddress gum_elf_module_translate_to_offline (GumElfModule * self,
 GUM_API GumAddress gum_elf_module_translate_to_online (GumElfModule * self,
     GumAddress offline_address);
 
+GUM_API gboolean gum_elf_module_maybe_extract_from_apk (const gchar * path,
+    GBytes ** file_bytes);
+
 G_END_DECLS
 
 #endif
