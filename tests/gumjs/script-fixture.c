@@ -13,6 +13,7 @@
 #include "guminspectorserver.h"
 #include "gumquickscriptbackend.h"
 #include "gumscriptbackend.h"
+#include "gumusertimesampler.h"
 #include "valgrind.h"
 
 #include <limits.h>
