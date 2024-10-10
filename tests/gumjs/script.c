@@ -8137,6 +8137,22 @@ TESTCASE (memory_can_be_scanned_with_match_pattern_object)
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=0 size=11\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=13 size=11\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+
+  haystack2[7] = 0xd1;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const pattern = new MatchPattern(/Hello/.toString());"
+      "Memory.scan(" GUM_PTR_CONST ", 33, pattern, {"
+        "onMatch(address, size) {"
+        "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
+             ").toInt32() + ' size=' + size);"
+        "},"
+        "onComplete() {"
+        "  send('onComplete');"
+        "}"
+      "});", haystack2, haystack2);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=0 size=5\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
 TESTCASE (memory_can_be_scanned_synchronously)
