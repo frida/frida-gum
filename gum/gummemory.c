@@ -576,8 +576,8 @@ gum_match_pattern_new_from_regex (const gchar * regex_str)
   GumMatchPattern * pattern;
   GRegex * regex;
 
-  regex = g_regex_new (regex_str, G_REGEX_OPTIMIZE, G_REGEX_MATCH_NOTEMPTY,
-      NULL);
+  regex = g_regex_new (regex_str, G_REGEX_OPTIMIZE | G_REGEX_RAW,
+      G_REGEX_MATCH_NOTEMPTY, NULL);
   if (regex == NULL)
     return NULL;
 
