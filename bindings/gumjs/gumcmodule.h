@@ -106,6 +106,8 @@ GUM_API gpointer gum_cmodule_find_symbol_by_name (GumCModule * self,
 
 GUM_API void gum_cmodule_drop_metadata (GumCModule * self);
 
+GUM_API gboolean gum_cmodule_api_is_available (void);
+
 G_END_DECLS
 
 #endif

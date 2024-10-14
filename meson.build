@@ -4,9 +4,17 @@ project('frida-gum', 'c', 'cpp',
     check: true).stdout().strip(),
   meson_version: '>=1.1.0',
   default_options: [
-    'c_std=gnu99,c99',
+    'c_std=gnu99,c99'
   ],
 )
+
+enable_bitcode = get_option('bitcode')
+if enable_bitcode
+  message('Embedding Bitcode')
+
+  add_project_arguments(['-fembed-bitcode'], language: ['c', 'cpp'])
+  add_project_link_arguments(['-fembed-bitcode', '-flto'], language: ['c', 'cpp'])
+endif
 
 python = import('python').find_installation()
 
@@ -428,12 +436,18 @@ if get_option('devkits').length() != 0
   endif
   mkdevkit = [python, releng / 'mkdevkit.py']
   uninstalled_dir = meson.global_build_root() / 'meson-uninstalled'
+
+  prefix_syms = get_option('prefixsyms')
+
   devkit_options = [
     '--cc', '>>>', cc.cmd_array(), '<<<',
     '--c-args', '>>>', get_option('c_args'), '<<<',
     '--pkg-config', '>>>', find_program('pkg-config'), '<<<',
     '--pkg-config-path', '>>>', uninstalled_dir, get_option('pkg_config_path'), '<<<',
   ]
+  if prefix_syms
+    devkit_options += ['--prefixsyms']
+  endif
   if cc.get_argument_syntax() == 'msvc'
     static_lib_prefix = ''
     static_lib_suffix = '.lib'
@@ -624,8 +638,14 @@ if have_gumjs
     'tests=false',
   ])
 
-  libtcc_dep = dependency('libtcc', required: host_arch not in ['mips', 'mips64'])
-  cdata.set('HAVE_TINYCC', libtcc_dep.found())
+  if get_option('cmodule').allowed()
+    cdata.set('HAVE_CMODULE', true)
+    libtcc_dep = dependency('libtcc', required: host_arch not in ['mips', 'mips64'])
+    cdata.set('HAVE_TINYCC', libtcc_dep.found())
+  else
+    libtcc_dep = disabler()
+    libtcc_incdir = ''
+  endif
 
   if host_arch == 'arm' and cc.has_function('__aeabi_memmove')
     cdata.set('HAVE_AEABI_MEMORY_BUILTINS', 1)

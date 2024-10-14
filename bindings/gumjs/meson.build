@@ -164,28 +164,33 @@ gumjs_runtime_sources = [
   'runtime' / 'objc.js',
   'runtime' / 'swift.js',
   'runtime' / 'java.js',
-  'runtime' / 'cmodule-tcc' / 'inttypes.h',
-  'runtime' / 'cmodule-tcc' / 'stdint.h',
-  'runtime' / 'cmodule-tcc' / 'stdio.h',
-  'runtime' / 'cmodule-tcc' / 'stdlib.h',
-  'runtime' / 'cmodule-tcc' / 'string.h',
-  'runtime' / 'cmodule' / 'glib.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumdefs.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumprocess.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummodulemap.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummemory.h',
-  'runtime' / 'cmodule' / 'gum' / 'guminterceptor.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumstalker.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummetalarray.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummetalhash.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumspinlock.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumtls.h',
-  'runtime' / 'cmodule' / 'json-glib' / 'json-glib.h',
 ]
 gumjs_runtime_outputs = [
   'runtime.bundle',
-  'gumcmodule-runtime.h',
 ]
+
+if get_option('cmodule').allowed()
+  gumjs_runtime_sources += [
+    'runtime' / 'cmodule-tcc' / 'inttypes.h',
+    'runtime' / 'cmodule-tcc' / 'stdint.h',
+    'runtime' / 'cmodule-tcc' / 'stdio.h',
+    'runtime' / 'cmodule-tcc' / 'stdlib.h',
+    'runtime' / 'cmodule-tcc' / 'string.h',
+    'runtime' / 'cmodule' / 'glib.h',
+    'runtime' / 'cmodule' / 'gum' / 'gumdefs.h',
+    'runtime' / 'cmodule' / 'gum' / 'gumprocess.h',
+    'runtime' / 'cmodule' / 'gum' / 'gummodulemap.h',
+    'runtime' / 'cmodule' / 'gum' / 'gummemory.h',
+    'runtime' / 'cmodule' / 'gum' / 'guminterceptor.h',
+    'runtime' / 'cmodule' / 'gum' / 'gumstalker.h',
+    'runtime' / 'cmodule' / 'gum' / 'gummetalarray.h',
+    'runtime' / 'cmodule' / 'gum' / 'gummetalhash.h',
+    'runtime' / 'cmodule' / 'gum' / 'gumspinlock.h',
+    'runtime' / 'cmodule' / 'gum' / 'gumtls.h',
+    'runtime' / 'cmodule' / 'json-glib' / 'json-glib.h',
+  ]
+  gumjs_runtime_outputs += ['gumcmodule-runtime.h']
+endif
 if quickjs_dep.found()
   gumjs_runtime_outputs += [
     'gumquickscript-runtime.h',
@@ -215,11 +220,15 @@ gumjs_generated_bindings = custom_target('gumjs-generated-bindings',
 )
 gumjs_sources += [gumjs_generated_bindings]
 
-if libtcc_dep.found()
-  if libtcc_dep.type_name() == 'internal'
-    libtcc_incdir = meson.project_source_root() / 'subprojects' / 'tinycc' / 'include'
+if get_option('cmodule').allowed()
+  if libtcc_dep.found()
+    if libtcc_dep.type_name() == 'internal'
+      libtcc_incdir = meson.project_source_root() / 'subprojects' / 'tinycc' / 'include'
+    else
+      libtcc_incdir = libtcc_dep.get_variable('libdir') / 'tcc' / 'include'
+    endif
   else
-    libtcc_incdir = libtcc_dep.get_variable('libdir') / 'tcc' / 'include'
+    libtcc_incdir = ''
   endif
 else
   libtcc_incdir = ''
@@ -264,9 +273,12 @@ gumjs_deps = [
   gio_os_package_dep,
   json_glib_dep,
   ffi_dep,
-  libtcc_dep,
   sqlite_dep,
 ]
+
+if get_option('cmodule').allowed()
+  gumjs_deps += libtcc_dep
+endif
 
 gumjs = library('frida-gumjs-' + api_version, gumjs_sources,
   c_args: frida_component_cflags,

@@ -538,7 +538,9 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_code_relocator_dispose (&self->code_relocator);
     _gum_quick_code_writer_dispose (&self->code_writer);
     _gum_quick_instruction_dispose (&self->instruction);
+#ifdef HAVE_CMODULE
     _gum_quick_cmodule_dispose (&self->cmodule);
+#endif /* HAVE_CMODULE */
     _gum_quick_symbol_dispose (&self->symbol);
     _gum_quick_api_resolver_dispose (&self->api_resolver);
     _gum_quick_interceptor_dispose (&self->interceptor);
@@ -581,7 +583,9 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_code_relocator_finalize (&self->code_relocator);
   _gum_quick_code_writer_finalize (&self->code_writer);
   _gum_quick_instruction_finalize (&self->instruction);
+#ifdef HAVE_CMODULE
   _gum_quick_cmodule_finalize (&self->cmodule);
+#endif /* HAVE_CMODULE */
   _gum_quick_symbol_finalize (&self->symbol);
   _gum_quick_api_resolver_finalize (&self->api_resolver);
   _gum_quick_interceptor_finalize (&self->interceptor);
@@ -1260,7 +1264,9 @@ _gum_quick_worker_unref (GumQuickWorker * worker)
     _gum_quick_code_relocator_dispose (&worker->code_relocator);
     _gum_quick_code_writer_dispose (&worker->code_writer);
     _gum_quick_instruction_dispose (&worker->instruction);
+#ifdef HAVE_CMODULE
     _gum_quick_cmodule_dispose (&worker->cmodule);
+#endif /* HAVE_CMODULE */
     _gum_quick_symbol_dispose (&worker->symbol);
     _gum_quick_api_resolver_dispose (&worker->api_resolver);
 #ifdef HAVE_SQLITE
@@ -1296,7 +1302,9 @@ _gum_quick_worker_unref (GumQuickWorker * worker)
     _gum_quick_code_relocator_finalize (&worker->code_relocator);
     _gum_quick_code_writer_finalize (&worker->code_writer);
     _gum_quick_instruction_finalize (&worker->instruction);
+#ifdef HAVE_CMODULE
     _gum_quick_cmodule_finalize (&worker->cmodule);
+#endif /* HAVE_CMODULE */
     _gum_quick_symbol_finalize (&worker->symbol);
     _gum_quick_api_resolver_finalize (&worker->api_resolver);
 #ifdef HAVE_SQLITE
