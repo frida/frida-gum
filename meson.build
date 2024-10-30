@@ -601,7 +601,7 @@ if have_gumjs
     'stack_check=disabled',
   ]
   if enable_bitcode
-    message("Enabling bitcode for QuickJS")
+    message('Enabling bitcode for QuickJS')
     quickjs_options += ['bitcode=enabled']
   endif
 
