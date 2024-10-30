@@ -602,7 +602,7 @@ if have_gumjs
   ]
   if enable_bitcode
     message('Enabling bitcode for QuickJS')
-    quickjs_options += ['bitcode=enabled', 'force_fallback_for=quickjs']
+    quickjs_options += ['bitcode=true', 'force_fallback_for=quickjs']
   endif
 
   quickjs_dep = dependency('quickjs', required: get_option('quickjs'), fallback: ['quickjs', 'quickjs_dep'], default_options: quickjs_options)
@@ -622,7 +622,7 @@ if have_gumjs
   ]
   if enable_bitcode
     message('Enabling bitcode for V8')
-    v8_opts += ['bitcode=enabled']
+    v8_opts += ['bitcode=true']
   endif
 
   v8_dep = dependency('v8-10.0',
