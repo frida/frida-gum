@@ -621,7 +621,7 @@ if have_gumjs
     'cppgc_caged_heap=disabled',
   ]
   if enable_bitcode
-    message("Enabling bitcode for V8")
+    message('Enabling bitcode for V8')
     v8_opts += ['bitcode=enabled']
   endif
 
