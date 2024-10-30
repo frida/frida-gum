@@ -602,10 +602,10 @@ if have_gumjs
   ]
   if enable_bitcode
     message('Enabling bitcode for QuickJS')
-    quickjs_options += ['bitcode=enabled']
+    quickjs_options += ['bitcode=enabled', 'force_fallback_for=quickjs']
   endif
 
-  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), default_options: quickjs_options)
+  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), fallback: ['quickjs', 'quickjs_dep'], default_options: quickjs_options)
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
   if quickjs_dep.found()
     gumjs_extra_requires += 'quickjs'
