@@ -594,13 +594,16 @@ endif
 gumjs_extra_requires = []
 if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
-
   quickjs_options = [
     'libc=false',
     'bignum=true',
     'atomics=disabled',
     'stack_check=disabled',
   ]
+  if enable_bitcode
+    message("Enabling bitcode for QuickJS")
+    quickjs_options += ['bitcode=enabled']
+  endif
 
   quickjs_dep = dependency('quickjs', required: get_option('quickjs'), default_options: quickjs_options)
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
@@ -609,17 +612,23 @@ if have_gumjs
     quickjs_dep_native = dependency('quickjs', native: true, default_options: quickjs_options)
   endif
 
+  v8_opts = [
+    'debug=false',
+    'embedder_string=-frida',
+    'snapshot_compression=disabled',
+    'pointer_compression=disabled',
+    'shared_ro_heap=disabled',
+    'cppgc_caged_heap=disabled',
+  ]
+  if enable_bitcode
+    message("Enabling bitcode for V8")
+    v8_opts += ['bitcode=enabled']
+  endif
+
   v8_dep = dependency('v8-10.0',
     version: '>=10.6.122',
     required: get_option('v8'),
-    default_options: [
-      'debug=false',
-      'embedder_string=-frida',
-      'snapshot_compression=disabled',
-      'pointer_compression=disabled',
-      'shared_ro_heap=disabled',
-      'cppgc_caged_heap=disabled',
-    ],
+    default_options: v8_opts,
   )
   cdata.set('HAVE_V8', v8_dep.found())
   if v8_dep.found()
