@@ -92,7 +92,9 @@ struct _GumV8Script
   GumV8Interceptor interceptor;
   GumV8ApiResolver api_resolver;
   GumV8Symbol symbol;
+#ifdef HAVE_CMODULE
   GumV8CModule cmodule;
+#endif /* HAVE_CMODULE */
   GumV8Instruction instruction;
   GumV8CodeWriter code_writer;
   GumV8CodeRelocator code_relocator;
