@@ -6,6 +6,7 @@ gum_prof_headers = [
   'gumprofiler.h',
   'gumprofilereport.h',
   'gumsampler.h',
+  'gumusertimesampler.h',
   'gumwallclocksampler.h',
 ]
 
@@ -29,10 +30,12 @@ if host_os_family == 'windows'
     gum_prof_sources += 'gumcyclesampler-windows.c'
   endif
   gum_prof_sources += 'gumbusycyclesampler-windows.c'
+  gum_prof_sources += 'gumusertimesampler-windows.c'
 endif
 
 if host_os_family == 'darwin'
   gum_prof_sources += 'gumbusycyclesampler-darwin.c'
+  gum_prof_sources += 'gumusertimesampler-darwin.c'
   if not host_cpu_is_intel
     gum_prof_sources += 'gumcyclesampler-darwin.c'
   endif
@@ -40,6 +43,7 @@ endif
 
 if host_os_family == 'linux'
   gum_prof_sources += 'gumbusycyclesampler-linux.c'
+  gum_prof_sources += 'gumusertimesampler-linux.c'
   if not host_cpu_is_intel
     gum_prof_sources += 'gumcyclesampler-linux.c'
   endif
@@ -47,6 +51,7 @@ endif
 
 if host_os_family == 'freebsd'
   gum_prof_sources += 'gumbusycyclesampler-freebsd.c'
+  gum_prof_sources += 'gumusertimesampler-freebsd.c'
   if not host_cpu_is_intel
     gum_prof_sources += 'gumcyclesampler-freebsd.c'
   endif
@@ -56,6 +61,7 @@ if host_os_family == 'qnx'
   gum_prof_sources += [
     'gumbusycyclesampler-qnx.c',
     'gumcyclesampler-qnx.c',
+    'gumbusycyclesampler-freebsd.c',
   ]
 endif
 
