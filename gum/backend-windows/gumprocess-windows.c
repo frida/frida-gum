@@ -1312,7 +1312,10 @@ propagate_api_error:
 
     switch (code)
     {
-      /* TODO: Handle code for when PID doesn't exist. */
+      case ERROR_INVALID_PARAMETER:
+        g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
+            "Process not found");
+        break;
       case ERROR_ACCESS_DENIED:
         g_set_error (error, GUM_ERROR, GUM_ERROR_PERMISSION_DENIED,
             "Permission denied");
