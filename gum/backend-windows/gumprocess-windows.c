@@ -1242,6 +1242,26 @@ gum_windows_cpu_type_from_pid (guint pid,
     get_process_information = (GumGetProcessInformationFunc)
         GetProcAddress (kernel32, "GetProcessInformation");
 
+    if (get_process_information != NULL)
+    {
+      NTSTATUS (WINAPI * rtl_get_version) (PRTL_OSVERSIONINFOW info);
+      RTL_OSVERSIONINFOW info = { 0, };
+      gboolean win11_or_newer;
+
+      rtl_get_version = (NTSTATUS (WINAPI *) (PRTL_OSVERSIONINFOW))
+          GetProcAddress (GetModuleHandleW (L"ntdll.dll"), "RtlGetVersion");
+
+      info.dwOSVersionInfoSize = sizeof (info);
+      rtl_get_version (&info);
+
+      win11_or_newer =
+          info.dwMajorVersion >= 11 ||
+          (info.dwMajorVersion == 10 &&
+           (info.dwMinorVersion > 0 || info.dwBuildNumber >= 22000));
+      if (!win11_or_newer)
+        get_process_information = NULL;
+    }
+
     g_once_init_leave (&initialized, TRUE);
   }
 
