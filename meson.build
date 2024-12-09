@@ -4,9 +4,17 @@ project('frida-gum', 'c', 'cpp',
     check: true).stdout().strip(),
   meson_version: '>=1.1.0',
   default_options: [
-    'c_std=gnu99,c99',
+    'c_std=gnu99,c99'
   ],
 )
+
+enable_bitcode = get_option('bitcode')
+if enable_bitcode
+  message('Embedding Bitcode')
+
+  add_project_arguments(['-fembed-bitcode'], language: ['c', 'cpp'])
+  add_project_link_arguments(['-fembed-bitcode', '-flto'], language: ['c', 'cpp'])
+endif
 
 python = import('python').find_installation()
 
@@ -428,12 +436,18 @@ if get_option('devkits').length() != 0
   endif
   mkdevkit = [python, releng / 'mkdevkit.py']
   uninstalled_dir = meson.global_build_root() / 'meson-uninstalled'
+
+  prefix_syms = get_option('prefixsyms')
+
   devkit_options = [
     '--cc', '>>>', cc.cmd_array(), '<<<',
     '--c-args', '>>>', get_option('c_args'), '<<<',
     '--pkg-config', '>>>', find_program('pkg-config'), '<<<',
     '--pkg-config-path', '>>>', uninstalled_dir, get_option('pkg_config_path'), '<<<',
   ]
+  if prefix_syms
+    devkit_options += ['--prefixsyms']
+  endif
   if cc.get_argument_syntax() == 'msvc'
     static_lib_prefix = ''
     static_lib_suffix = '.lib'
@@ -580,32 +594,41 @@ endif
 gumjs_extra_requires = []
 if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
-
   quickjs_options = [
     'libc=false',
     'bignum=true',
     'atomics=disabled',
     'stack_check=disabled',
   ]
+  if enable_bitcode
+    message('Enabling bitcode for QuickJS')
+    quickjs_options += ['bitcode=true', 'force_fallback_for=quickjs']
+  endif
 
-  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), default_options: quickjs_options)
+  quickjs_dep = dependency('quickjs', required: get_option('quickjs'), fallback: ['quickjs', 'quickjs_dep'], default_options: quickjs_options)
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())
   if quickjs_dep.found()
     gumjs_extra_requires += 'quickjs'
     quickjs_dep_native = dependency('quickjs', native: true, default_options: quickjs_options)
   endif
 
+  v8_opts = [
+    'debug=false',
+    'embedder_string=-frida',
+    'snapshot_compression=disabled',
+    'pointer_compression=disabled',
+    'shared_ro_heap=disabled',
+    'cppgc_caged_heap=disabled',
+  ]
+  if enable_bitcode
+    message('Enabling bitcode for V8')
+    v8_opts += ['bitcode=true']
+  endif
+
   v8_dep = dependency('v8-10.0',
     version: '>=10.6.122',
     required: get_option('v8'),
-    default_options: [
-      'debug=false',
-      'embedder_string=-frida',
-      'snapshot_compression=disabled',
-      'pointer_compression=disabled',
-      'shared_ro_heap=disabled',
-      'cppgc_caged_heap=disabled',
-    ],
+    default_options: v8_opts,
   )
   cdata.set('HAVE_V8', v8_dep.found())
   if v8_dep.found()
@@ -624,8 +647,14 @@ if have_gumjs
     'tests=false',
   ])
 
-  libtcc_dep = dependency('libtcc', required: host_arch not in ['mips', 'mips64'])
-  cdata.set('HAVE_TINYCC', libtcc_dep.found())
+  if get_option('cmodule').allowed()
+    cdata.set('HAVE_CMODULE', true)
+    libtcc_dep = dependency('libtcc', required: host_arch not in ['mips', 'mips64'])
+    cdata.set('HAVE_TINYCC', libtcc_dep.found())
+  else
+    libtcc_dep = disabler()
+    libtcc_incdir = ''
+  endif
 
   if host_arch == 'arm' and cc.has_function('__aeabi_memmove')
     cdata.set('HAVE_AEABI_MEMORY_BUILTINS', 1)
