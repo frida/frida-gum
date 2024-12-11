@@ -537,6 +537,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_code_writer_init (&self->code_writer, &self->core, global_templ);
     _gum_v8_code_relocator_init (&self->code_relocator, &self->code_writer,
         &self->instruction, &self->core, global_templ);
+    _gum_v8_sampler_init (&self->sampler, &self->core, global_templ);
     _gum_v8_stalker_init (&self->stalker, &self->code_writer,
         &self->instruction, &self->core, global_templ);
     _gum_v8_cloak_init (&self->cloak, &self->core, global_templ);
@@ -571,6 +572,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_instruction_realize (&self->instruction);
     _gum_v8_code_writer_realize (&self->code_writer);
     _gum_v8_code_relocator_realize (&self->code_relocator);
+    _gum_v8_sampler_realize (&self->sampler);
     _gum_v8_stalker_realize (&self->stalker);
     _gum_v8_cloak_realize (&self->cloak);
 
@@ -1104,6 +1106,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
     ScriptScope scope (self);
 
     _gum_v8_cloak_dispose (&self->cloak);
+    _gum_v8_sampler_dispose (&self->sampler);
     _gum_v8_stalker_dispose (&self->stalker);
     _gum_v8_code_relocator_dispose (&self->code_relocator);
     _gum_v8_code_writer_dispose (&self->code_writer);
@@ -1137,6 +1140,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   self->context = nullptr;
 
   _gum_v8_cloak_finalize (&self->cloak);
+  _gum_v8_sampler_finalize (&self->sampler);
   _gum_v8_stalker_finalize (&self->stalker);
   _gum_v8_code_relocator_finalize (&self->code_relocator);
   _gum_v8_code_writer_finalize (&self->code_writer);
@@ -1423,6 +1427,7 @@ gum_v8_script_try_unload (GumV8Script * self)
   {
     ScriptScope scope (self);
 
+    _gum_v8_sampler_flush (&self->sampler);
     _gum_v8_stalker_flush (&self->stalker);
     _gum_v8_interceptor_flush (&self->interceptor);
     _gum_v8_socket_flush (&self->socket);
