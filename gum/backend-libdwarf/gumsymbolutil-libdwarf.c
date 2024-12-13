@@ -12,15 +12,7 @@
 
 #include <dlfcn.h>
 #include <dwarf.h>
-#ifdef __clang__
-# pragma clang diagnostic push
-# pragma clang diagnostic ignored "-Wtypedef-redefinition"
-#endif
 #include <libdwarf.h>
-#ifdef __clang__
-# pragma clang diagnostic pop
-#endif
-#include <libelf.h>
 #include <strings.h>
 
 #define GUM_MAX_CACHE_AGE (0.5)
@@ -44,7 +36,6 @@ typedef gboolean (* GumFoundDieFunc) (const GumDieDetails * details,
 struct _GumModuleEntry
 {
   GumElfModule * module;
-  Elf * elf;
   Dwarf_Debug dbg;
   gboolean collected;
 };
@@ -114,8 +105,6 @@ static gboolean gum_collect_symbol_if_function (
 
 static void gum_symbol_util_ensure_initialized (void);
 static void gum_symbol_util_deinitialize (void);
-
-static void gum_on_dwarf_error (Dwarf_Error error, Dwarf_Ptr errarg);
 
 static Dwarf_Die gum_find_cu_die_by_virtual_address (Dwarf_Debug dbg,
     Dwarf_Addr address);
@@ -526,8 +515,8 @@ gum_module_entry_from_path_and_base (const gchar * path,
 {
   GumModuleEntry * entry;
   GumElfModule * module;
-  Elf * elf;
   Dwarf_Debug dbg;
+  Dwarf_Error error;
 
   gum_symbol_util_ensure_initialized ();
 
@@ -536,38 +525,18 @@ gum_module_entry_from_path_and_base (const gchar * path,
     goto have_entry;
 
   module = gum_elf_module_new_from_memory (path, base_address, NULL);
-  if (module != NULL)
-  {
-    gconstpointer file_data;
-    gsize file_size;
-
-    file_data = gum_elf_module_get_file_data (module, &file_size);
-
-    elf_version (EV_CURRENT);
-
-    elf = elf_memory ((char *) file_data, file_size);
-  }
-  else
-  {
-    elf = NULL;
-  }
 
   dbg = NULL;
-  if (elf != NULL)
+  error = NULL;
+  if (dwarf_init_path (path, NULL, 0, DW_GROUPNUMBER_ANY, NULL, NULL, &dbg,
+        &error) != DW_DLV_OK)
   {
-    Dwarf_Error error = NULL;
-
-    if (dwarf_elf_init_b (elf, DW_DLC_READ, DW_GROUPNUMBER_ANY,
-          gum_on_dwarf_error, NULL, &dbg, &error) != DW_DLV_OK)
-    {
-      dwarf_dealloc (dbg, error, DW_DLA_ERROR);
-      error = NULL;
-    }
+    dwarf_dealloc (dbg, error, DW_DLA_ERROR);
+    error = NULL;
   }
 
   entry = g_slice_new (GumModuleEntry);
   entry->module = module;
-  entry->elf = elf;
   entry->dbg = dbg;
   entry->collected = FALSE;
 
@@ -581,10 +550,7 @@ static void
 gum_module_entry_free (GumModuleEntry * entry)
 {
   if (entry->dbg != NULL)
-    dwarf_finish (entry->dbg, NULL);
-
-  if (entry->elf != NULL)
-    elf_end (entry->elf);
+    dwarf_finish (entry->dbg);
 
   if (entry->module != NULL)
     gum_object_unref (entry->module);
@@ -753,12 +719,6 @@ gum_symbol_util_deinitialize (void)
   gum_module_entries = NULL;
 }
 
-static void
-gum_on_dwarf_error (Dwarf_Error error,
-                    Dwarf_Ptr errarg)
-{
-}
-
 static Dwarf_Die
 gum_find_cu_die_by_virtual_address (Dwarf_Debug dbg,
                                     Dwarf_Addr address)
@@ -777,7 +737,7 @@ gum_find_cu_die_by_virtual_address (Dwarf_Debug dbg,
     return NULL;
 
   result = NULL;
-  dwarf_offdie (dbg, op.cu_die_offset, &result, NULL);
+  dwarf_offdie_b (dbg, op.cu_die_offset, TRUE, &result, NULL);
 
   return result;
 }
@@ -880,7 +840,7 @@ gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
     Dwarf_Ranges * ranges;
     Dwarf_Signed n, i;
 
-    if (dwarf_get_ranges_a (dbg, ranges_offset, die, &ranges, &n, NULL,
+    if (dwarf_get_ranges_b (dbg, ranges_offset, die, NULL, &ranges, &n, NULL,
         NULL) != DW_DLV_OK)
       goto skip;
 
@@ -900,7 +860,7 @@ gum_store_cu_die_offset_if_containing_address (const GumCuDieDetails * details,
       }
     }
 
-    dwarf_ranges_dealloc (dbg, ranges, n);
+    dwarf_dealloc_ranges (dbg, ranges, n);
   }
 
 skip:
@@ -988,14 +948,23 @@ gum_find_line_by_virtual_address (Dwarf_Debug dbg,
                                   guint symbol_line_number,
                                   GumDwarfSourceDetails * details)
 {
-  gboolean success;
+  gboolean success = FALSE;
+  Dwarf_Small table_count;
+  Dwarf_Line_Context line_context;
   Dwarf_Line * lines;
   Dwarf_Signed line_count, line_index;
 
-  if (dwarf_srclines (cu_die, &lines, &line_count, NULL) != DW_DLV_OK)
-    return FALSE;
+  if (dwarf_srclines_b (cu_die, NULL, &table_count, &line_context, NULL)
+      != DW_DLV_OK)
+  {
+    goto beach;
+  }
 
-  success = FALSE;
+  if (dwarf_srclines_from_linecontext (line_context, &lines, &line_count, NULL)
+      != DW_DLV_OK)
+  {
+    goto beach;
+  }
 
   for (line_index = 0; line_index != line_count; line_index++)
   {
@@ -1029,15 +998,16 @@ gum_find_line_by_virtual_address (Dwarf_Debug dbg,
       success = TRUE;
 
       dwarf_dealloc (dbg, path, DW_DLA_STRING);
-
       break;
     }
   }
 
-  dwarf_srclines_dealloc (dbg, lines, line_count);
+beach:
+  g_clear_pointer (&line_context, dwarf_srclines_dealloc_b);
 
   return success;
 }
+
 
 static void
 gum_enumerate_cu_dies (Dwarf_Debug dbg,
@@ -1119,7 +1089,7 @@ gum_enumerate_dies_recurse (Dwarf_Debug dbg,
   {
     int status;
 
-    status = dwarf_siblingof (dbg, cur, &sibling, NULL);
+    status = dwarf_siblingof_b (dbg, cur, TRUE, &sibling, NULL);
     dwarf_dealloc (dbg, cur, DW_DLA_DIE);
     if (status != DW_DLV_OK)
       break;
@@ -1164,6 +1134,8 @@ gum_read_attribute_location (Dwarf_Debug dbg,
   Dwarf_Loc_Head_c locations;
   Dwarf_Unsigned count;
   Dwarf_Small lle_value;
+  Dwarf_Unsigned raw_low_pc, raw_high_pc;
+  Dwarf_Bool debug_addr_unavailable;
   Dwarf_Addr low_pc, high_pc;
   Dwarf_Unsigned loclist_count;
   Dwarf_Locdesc_c loclist;
@@ -1185,9 +1157,12 @@ gum_read_attribute_location (Dwarf_Debug dbg,
   if (count != 1)
     goto invalid_locations;
 
-  if (dwarf_get_locdesc_entry_c (locations,
+  if (dwarf_get_locdesc_entry_d (locations,
       0,
       &lle_value,
+      &raw_low_pc,
+      &raw_high_pc,
+      &debug_addr_unavailable,
       &low_pc,
       &high_pc,
       &loclist_count,
@@ -1225,7 +1200,7 @@ gum_read_attribute_location (Dwarf_Debug dbg,
   success = TRUE;
 
 invalid_locations:
-  dwarf_loc_head_c_dealloc (locations);
+  dwarf_dealloc_loc_head_c (locations);
 
 invalid_type:
   dwarf_dealloc (dbg, attribute, DW_DLA_ATTR);
