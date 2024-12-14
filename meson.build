@@ -398,10 +398,9 @@ capstone_options = [
 ]
 capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
 
-if build_tests
-  lzma_dep = dependency('liblzma')
-else
-  lzma_dep = disabler()
+lzma_dep = dependency('liblzma', required: build_tests)
+if lzma_dep.found()
+  cdata.set('HAVE_LZMA', 1)
 endif
 
 if glib_dep.type_name() == 'internal'
