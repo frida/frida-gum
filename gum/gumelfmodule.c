@@ -2451,6 +2451,7 @@ static GBytes *
 gum_decompress_xz (gconstpointer data,
                    gsize size)
 {
+#ifdef HAVE_LZMA
   gpointer out_data;
   gsize out_capacity;
   size_t in_pos, out_pos;
@@ -2481,6 +2482,9 @@ gum_decompress_xz (gconstpointer data,
         return NULL;
     }
   }
+#else
+  return NULL;
+#endif
 }
 
 static gboolean
