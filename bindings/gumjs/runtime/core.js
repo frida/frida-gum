@@ -287,40 +287,50 @@ makeEnumerateApi(Module, 'enumerateSections', 1);
 makeEnumerateApi(Module, 'enumerateDependencies', 1);
 
 Object.defineProperties(Module, {
-  load: {
+  findBaseAddress: {
     enumerable: true,
-    value: function (moduleName) {
-      Module._load(moduleName);
-      return Process.getModuleByName(moduleName);
+    value(moduleName) {
+      return Process.findModuleByName(moduleName)?.baseAddress ?? null;
     }
   },
   getBaseAddress: {
     enumerable: true,
-    value: function (moduleName) {
-      const base = Module.findBaseAddress(moduleName);
-      if (base === null)
-        throw new Error("unable to find module '" + moduleName + "'");
-      return base;
+    value(moduleName) {
+      return Process.getModuleByName(moduleName)?.baseAddress ?? null;
+    }
+  },
+  findExportByName: {
+    enumerable: true,
+    value(moduleName, symbolName) {
+      if (moduleName === null)
+        return Module.findGlobalExportByName(symbolName);
+      return Process.findModuleByName(moduleName)?.findExportByName(symbolName) ?? null;
     }
   },
   getExportByName: {
     enumerable: true,
-    value: function (moduleName, symbolName) {
+    value(moduleName, symbolName) {
       const address = Module.findExportByName(moduleName, symbolName);
       if (address === null) {
         const prefix = (moduleName !== null) ? (moduleName + ': ') : '';
-        throw new Error(prefix + "unable to find export '" + symbolName + "'");
+        throw new Error(`${prefix}unable to find export '${symbolName}'`);
       }
       return address;
     }
   },
+  findSymbolByName: {
+    enumerable: true,
+    value(moduleName, symbolName) {
+      return Process.findModuleByName(moduleName)?.findSymbolByName(symbolName) ?? null;
+    }
+  },
   getSymbolByName: {
     enumerable: true,
-    value: function (moduleName, symbolName) {
+    value(moduleName, symbolName) {
       const address = Module.findSymbolByName(moduleName, symbolName);
       if (address === null) {
         const prefix = (moduleName !== null) ? (moduleName + ': ') : '';
-        throw new Error(prefix + "unable to find symbol '" + symbolName + "'");
+        throw new Error(`${prefix}unable to find symbol '${symbolName}'`);
       }
       return address;
     }
@@ -328,64 +338,22 @@ Object.defineProperties(Module, {
 });
 
 Object.defineProperties(Module.prototype, {
-  enumerateImports: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateImports(this.path);
-    }
-  },
-  enumerateExports: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateExports(this.path);
-    }
-  },
-  enumerateSymbols: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateSymbols(this.path);
-    }
-  },
-  enumerateRanges: {
-    enumerable: true,
-    value: function (protection) {
-      return Module.enumerateRanges(this.path, protection);
-    }
-  },
-  enumerateSections: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateSections(this.path);
-    }
-  },
-  enumerateDependencies: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateDependencies(this.path);
-    }
-  },
-  findExportByName: {
-    enumerable: true,
-    value: function (exportName) {
-      return Module.findExportByName(this.path, exportName);
-    }
-  },
   getExportByName: {
     enumerable: true,
-    value: function (exportName) {
-      return Module.getExportByName(this.path, exportName);
-    }
-  },
-  findSymbolByName: {
-    enumerable: true,
-    value: function (symbolName) {
-      return Module.findSymbolByName(this.path, symbolName);
+    value(symbolName) {
+      const address = this.findExportByName(symbolName);
+      if (address === null)
+        throw new Error(`${this.path}: unable to find export '${symbolName}'`);
+      return address;
     }
   },
   getSymbolByName: {
     enumerable: true,
-    value: function (symbolName) {
-      return Module.getSymbolByName(this.path, symbolName);
+    value(symbolName) {
+      const address = this.findSymbolByName(symbolName);
+      if (address === null)
+        throw new Error(`${this.path}: unable to find export '${symbolName}'`);
+      return address;
     }
   },
 });

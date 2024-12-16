@@ -16,6 +16,14 @@
 
 using namespace v8;
 
+struct GumV8ModuleEntry
+{
+  Global<Object> * wrapper;
+  GumModule * handle;
+
+  GumV8Module * module;
+};
+
 class GumV8ImportsContext : public GumV8MatchContext<GumV8Module>
 {
 public:
@@ -64,6 +72,7 @@ struct GumV8ModuleFilter
 };
 
 GUMJS_DECLARE_FUNCTION (gumjs_module_load)
+GUMJS_DECLARE_FUNCTION (gumjs_module_find_global_export_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_module_ensure_initialized)
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_imports)
 static gboolean gum_emit_import (const GumImportDetails * details,
@@ -83,9 +92,14 @@ static gboolean gum_emit_section (const GumSectionDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_dependencies)
 static gboolean gum_emit_dependency (const GumDependencyDetails * details,
     GumV8MatchContext<GumV8Module> * mc);
-GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_symbol_by_name)
+
+static GumV8ModuleEntry * gum_v8_module_entry_new (Local<Object> wrapper,
+    GumModule * handle, GumV8Module * module);
+static void gum_v8_module_entry_free (GumV8ModuleEntry * map);
+static void gum_v8_module_entry_on_weak_notify (
+    const WeakCallbackInfo<GumV8ModuleEntry> & info);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
 GUMJS_DECLARE_GETTER (gumjs_module_map_get_handle)
@@ -108,7 +122,14 @@ static gboolean gum_v8_module_filter_matches (const GumModuleDetails * details,
 
 static const GumV8Function gumjs_module_static_functions[] =
 {
-  { "_load", gumjs_module_load },
+  { "load", gumjs_module_load },
+  { "findGlobalExportByName", gumjs_module_find_global_export_by_name },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_module_functions[] =
+{
   { "ensureInitialized", gumjs_module_ensure_initialized },
   { "_enumerateImports", gumjs_module_enumerate_imports },
   { "_enumerateExports", gumjs_module_enumerate_exports },
@@ -116,7 +137,6 @@ static const GumV8Function gumjs_module_static_functions[] =
   { "_enumerateRanges", gumjs_module_enumerate_ranges },
   { "_enumerateSections", gumjs_module_enumerate_sections },
   { "_enumerateDependencies", gumjs_module_enumerate_dependencies },
-  { "findBaseAddress", gumjs_module_find_base_address },
   { "findExportByName", gumjs_module_find_export_by_name },
   { "findSymbolByName", gumjs_module_find_symbol_by_name },
 
@@ -156,6 +176,7 @@ _gum_v8_module_init (GumV8Module * self,
   auto klass = _gum_v8_create_class ("Module", nullptr, scope, module, isolate);
   _gum_v8_class_add_static (klass, gumjs_module_static_functions, module,
       isolate);
+  _gum_v8_class_add (klass, gumjs_module_functions, module, isolate);
   self->klass = new Global<FunctionTemplate> (isolate, klass);
 
   auto map = _gum_v8_create_class ("ModuleMap", gumjs_module_map_construct,
@@ -170,6 +191,8 @@ _gum_v8_module_realize (GumV8Module * self)
   auto isolate = self->core->isolate;
   auto context = isolate->GetCurrentContext ();
 
+  self->entries = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_module_entry_free);
   self->maps = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_module_map_free);
 
@@ -209,6 +232,9 @@ _gum_v8_module_realize (GumV8Module * self)
 void
 _gum_v8_module_dispose (GumV8Module * self)
 {
+  g_hash_table_unref (self->entries);
+  self->entries = NULL;
+
   g_hash_table_unref (self->maps);
   self->maps = NULL;
 
@@ -277,25 +303,43 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_load)
   g_free (name);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_ensure_initialized)
+GUMJS_DEFINE_FUNCTION (gumjs_module_find_global_export_by_name)
 {
-  gchar * name;
-  if (!_gum_v8_args_parse (args, "s", &name))
+  gchar * symbol_name;
+  if (!_gum_v8_args_parse (args, "s", &symbol_name))
     return;
 
+  GumAddress address;
+  {
+    ScriptUnlocker unlocker (core);
+
+    address = gum_module_find_global_export_by_name (symbol_name);
+  }
+
+  if (address != 0)
+  {
+    info.GetReturnValue ().Set (
+        _gum_v8_native_pointer_new (GSIZE_TO_POINTER (address), core));
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
+  }
+
+  g_free (symbol_name);
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_ensure_initialized, GumV8ModuleEntry)
+{
   gboolean success;
   {
     ScriptUnlocker unlocker (core);
 
-    success = gum_module_ensure_initialized (name);
+    success = gum_module_ensure_initialized (self->handle);
   }
 
   if (!success)
-  {
-    _gum_v8_throw (isolate, "unable to find module '%s'", name);
-  }
-
-  g_free (name);
+    _gum_v8_throw (isolate, "unable to initialize module");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
@@ -585,26 +629,6 @@ gum_emit_dependency (const GumDependencyDetails * details,
   return mc->OnMatch (dependency);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
-{
-  gchar * name;
-  if (!_gum_v8_args_parse (args, "s", &name))
-    return;
-
-  auto address = gum_module_find_base_address (name);
-  if (address != 0)
-  {
-    info.GetReturnValue ().Set (
-        _gum_v8_native_pointer_new (GSIZE_TO_POINTER (address), core));
-  }
-  else
-  {
-    info.GetReturnValue ().SetNull ();
-  }
-
-  g_free (name);
-}
-
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 {
   gchar * module_name, * symbol_name;
@@ -657,6 +681,42 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_symbol_by_name)
 
   g_free (module_name);
   g_free (symbol_name);
+}
+
+static GumV8ModuleEntry *
+gum_v8_module_entry_new (Local<Object> wrapper,
+                         GumModule * handle,
+                         GumV8Module * module)
+{
+  auto map = g_slice_new (GumV8ModuleEntry);
+  map->wrapper = new Global<Object> (module->core->isolate, wrapper);
+  map->wrapper->SetWeak (map, gum_v8_module_entry_on_weak_notify,
+      WeakCallbackType::kParameter);
+  map->handle = handle;
+  map->module = module;
+
+  g_hash_table_add (module->maps, map);
+
+  return map;
+}
+
+static void
+gum_v8_module_entry_free (GumV8ModuleEntry * map)
+{
+  g_object_unref (map->handle);
+
+  delete map->wrapper;
+
+  g_slice_free (GumV8ModuleEntry, map);
+}
+
+static void
+gum_v8_module_entry_on_weak_notify (
+    const WeakCallbackInfo<GumV8ModuleEntry> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+  g_hash_table_remove (self->module->entries, self);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)

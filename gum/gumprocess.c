@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -9,6 +9,7 @@
 
 #include "gum-init.h"
 #include "gumcloak.h"
+#include "gummodule.h"
 
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
 typedef struct _GumResolveModulePointerContext GumResolveModulePointerContext;
@@ -338,7 +339,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
 /**
  * gum_module_enumerate_imports:
- * @module_name: name of module
+ * @module: module
  * @func: (scope call): function called with #GumImportDetails
  * @user_data: data to pass to @func
  *
@@ -348,7 +349,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
 /**
  * gum_module_enumerate_exports:
- * @module_name: name of module
+ * @module: module
  * @func: (scope call): function called with #GumExportDetails
  * @user_data: data to pass to @func
  *
@@ -358,7 +359,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
 /**
  * gum_module_enumerate_symbols:
- * @module_name: name of module
+ * @module: module
  * @func: (scope call): function called with #GumSymbolDetails
  * @user_data: data to pass to @func
  *
@@ -368,7 +369,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
 /**
  * gum_module_enumerate_ranges:
- * @module_name: name of module
+ * @self: module
  * @prot: bitfield specifying the minimum protection
  * @func: (scope call): function called with #GumRangeDetails
  * @user_data: data to pass to @func
@@ -378,7 +379,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
  */
 
 GumAddress
-gum_module_find_symbol_by_name (const gchar * module_name,
+gum_module_find_symbol_by_name (GumModule * self,
                                 const gchar * symbol_name)
 {
   GumResolveSymbolContext ctx;
@@ -386,8 +387,7 @@ gum_module_find_symbol_by_name (const gchar * module_name,
   ctx.name = symbol_name;
   ctx.result = 0;
 
-  gum_module_enumerate_symbols (module_name, gum_store_address_if_name_matches,
-      &ctx);
+  gum_module_enumerate_symbols (self, gum_store_address_if_name_matches, &ctx);
 
   return ctx.result;
 }

@@ -376,8 +376,7 @@ static void gum_do_set_hardware_watchpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
 static void gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
-static void * gum_module_get_handle (const gchar * module_name);
-static void * gum_module_get_symbol (void * module, const gchar * symbol_name);
+static gpointer gum_module_get_handle (const gchar * module_name);
 
 static gboolean gum_do_resolve_module_name (const gchar * name,
     const gchar * libc_name, gchar ** path, GumAddress * base);
@@ -1421,9 +1420,12 @@ gum_do_enumerate_modules (const gchar * libc_name,
 
   if (g_once_init_enter (&iterate_phdr_value))
   {
+    GumModule * libc;
     GumAddress impl;
 
-    impl = gum_module_find_export_by_name (libc_name, "dl_iterate_phdr");
+    libc = gum_module_find (libc_name);
+    impl = gum_module_find_export_by_name (libc, "dl_iterate_phdr");
+    g_object_unref (libc);
 
     g_once_init_leave (&iterate_phdr_value, impl + 1);
   }
@@ -2028,24 +2030,27 @@ gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
 #endif
 }
 
-gboolean
+GumModule *
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {
   GumGenericDlopenImpl dlopen_impl = dlopen;
+  gpointer handle;
 
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (gum_module_get_handle (module_name) != NULL)
-    return TRUE;
+  handle = gum_module_get_handle (module_name);
+  if (handle != NULL)
+    return g_object_new (GUM_TYPE_MODULE, "handle", handle, NULL);
 
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
     gum_android_find_unrestricted_dlopen (&dlopen_impl);
 #endif
 
-  if (dlopen_impl (module_name, RTLD_LAZY) == NULL)
+  handle = dlopen_impl (module_name, RTLD_LAZY);
+  if (handle == NULL)
     goto not_found;
 
-  return TRUE;
+  return g_object_new (GUM_TYPE_MODULE, "handle", handle, NULL);
 
 not_found:
   {
@@ -2054,7 +2059,7 @@ not_found:
   }
 }
 
-static void *
+static gpointer
 gum_module_get_handle (const gchar * module_name)
 {
 #if defined (HAVE_MUSL)
@@ -2098,37 +2103,18 @@ gum_module_get_handle (const gchar * module_name)
 #endif
 }
 
-static void *
-gum_module_get_symbol (void * module,
-                       const gchar * symbol)
-{
-  GumGenericDlsymImpl dlsym_impl = dlsym;
-
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    gum_android_find_unrestricted_dlsym (&dlsym_impl);
-#endif
-
-  return dlsym_impl (module, symbol);
-}
-
 gboolean
-gum_module_ensure_initialized (const gchar * module_name)
+gum_module_ensure_initialized (GumModule * self)
 {
-  void * module;
+  gpointer module;
 
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    return gum_android_ensure_module_initialized (module_name);
+    return gum_android_ensure_module_initialized (self->path);
 #endif
-
-  module = gum_module_get_handle (module_name);
-  if (module == NULL)
-    return FALSE;
-  dlclose (module);
 
 #ifndef HAVE_MUSL
-  module = dlopen (module_name, RTLD_LAZY);
+  module = dlopen (self->path, RTLD_LAZY);
   if (module == NULL)
     return FALSE;
   dlclose (module);
@@ -2137,34 +2123,60 @@ gum_module_ensure_initialized (const gchar * module_name)
   return TRUE;
 }
 
+void
+gum_module_enumerate_exports (GumModule * self,
+                              GumFoundExportFunc func,
+                              gpointer user_data)
+{
+#ifdef HAVE_ANDROID
+  if (gum_android_is_linker_module_name (self->path))
+  {
+    const gchar ** magic_exports;
+    guint i;
+
+    magic_exports = gum_android_get_magic_linker_export_names ();
+
+    for (i = 0; magic_exports[i] != NULL; i++)
+    {
+      const gchar * name = magic_exports[i];
+      GumExportDetails d;
+
+      d.type = GUM_EXPORT_FUNCTION;
+      d.name = name;
+      d.address = gum_module_find_export_by_name (self, name);
+      g_assert (d.address != 0);
+
+      if (!func (&d, user_data))
+        return;
+    }
+  }
+#endif
+
+  _gum_module_enumerate_exports (self, func, user_data);
+}
+
 GumAddress
-gum_module_find_export_by_name (const gchar * module_name,
+gum_module_find_export_by_name (GumModule * self,
                                 const gchar * symbol_name)
 {
   GumAddress result;
-  void * module;
+  gpointer handle;
+  GumGenericDlsymImpl dlsym_impl = dlsym;
 
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE &&
-      gum_android_try_resolve_magic_export (module_name, symbol_name, &result))
+      gum_android_try_resolve_magic_export (self->path, symbol_name, &result))
     return result;
 #endif
 
-  if (module_name != NULL)
-  {
-    module = gum_module_get_handle (module_name);
-    if (module == NULL)
-      return 0;
-  }
-  else
-  {
-    module = RTLD_DEFAULT;
-  }
+  handle = (self != NULL) ? self->handle : RTLD_DEFAULT;
 
-  result = GUM_ADDRESS (gum_module_get_symbol (module, symbol_name));
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
+    gum_android_find_unrestricted_dlsym (&dlsym_impl);
+#endif
 
-  if (module != RTLD_DEFAULT)
-    dlclose (module);
+  result = GUM_ADDRESS (dlsym_impl (handle, symbol_name));
 
   return result;
 }

@@ -245,25 +245,6 @@ GUM_API gboolean gum_thread_set_hardware_watchpoint (GumThreadId thread_id,
     GError ** error);
 GUM_API gboolean gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
     guint watchpoint_id, GError ** error);
-GUM_API gboolean gum_module_load (const gchar * module_name, GError ** error);
-GUM_API gboolean gum_module_ensure_initialized (const gchar * module_name);
-GUM_API void gum_module_enumerate_imports (const gchar * module_name,
-    GumFoundImportFunc func, gpointer user_data);
-GUM_API void gum_module_enumerate_exports (const gchar * module_name,
-    GumFoundExportFunc func, gpointer user_data);
-GUM_API void gum_module_enumerate_symbols (const gchar * module_name,
-    GumFoundSymbolFunc func, gpointer user_data);
-GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
-    GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
-GUM_API void gum_module_enumerate_sections (const gchar * module_name,
-    GumFoundSectionFunc func, gpointer user_data);
-GUM_API void gum_module_enumerate_dependencies (const gchar * module_name,
-    GumFoundDependencyFunc func, gpointer user_data);
-GUM_API GumAddress gum_module_find_base_address (const gchar * module_name);
-GUM_API GumAddress gum_module_find_export_by_name (const gchar * module_name,
-    const gchar * symbol_name);
-GUM_API GumAddress gum_module_find_symbol_by_name (const gchar * module_name,
-    const gchar * symbol_name);
 
 GUM_API const gchar * gum_code_signing_policy_to_string (
     GumCodeSigningPolicy policy);

@@ -14,15 +14,12 @@
 #ifdef HAVE_LZMA
 # include <lzma.h>
 #endif
-#ifdef HAVE_ANDROID
-# include "gum/gumandroid.h"
-# ifdef HAVE_MINIZIP
-#  include <minizip/mz.h>
-#  include <minizip/mz_strm.h>
-#  include <minizip/mz_strm_os.h>
-#  include <minizip/mz_zip.h>
-#  include <minizip/mz_zip_rw.h>
-# endif
+#if defined (HAVE_ANDROID) && defined (HAVE_MINIZIP)
+# include <minizip/mz.h>
+# include <minizip/mz_strm.h>
+# include <minizip/mz_strm_os.h>
+# include <minizip/mz_zip.h>
+# include <minizip/mz_zip_rw.h>
 #endif
 
 #include <string.h>
@@ -1644,31 +1641,6 @@ gum_elf_module_enumerate_exports (GumElfModule * self,
                                   gpointer user_data)
 {
   GumElfEnumerateExportsContext ctx;
-
-#ifdef HAVE_ANDROID
-  if (self->source_path != NULL &&
-      gum_android_is_linker_module_name (self->source_path))
-  {
-    const gchar ** magic_exports;
-    guint i;
-
-    magic_exports = gum_android_get_magic_linker_export_names ();
-
-    for (i = 0; magic_exports[i] != NULL; i++)
-    {
-      const gchar * name = magic_exports[i];
-      GumExportDetails d;
-
-      d.type = GUM_EXPORT_FUNCTION;
-      d.name = name;
-      d.address = gum_module_find_export_by_name (self->source_path, name);
-      g_assert (d.address != 0);
-
-      if (!func (&d, user_data))
-        return;
-    }
-  }
-#endif
 
   ctx.func = func;
   ctx.user_data = user_data;
