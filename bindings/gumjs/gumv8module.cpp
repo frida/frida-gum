@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -85,6 +85,7 @@ static gboolean gum_emit_dependency (const GumDependencyDetails * details,
     GumV8MatchContext<GumV8Module> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
+GUMJS_DECLARE_FUNCTION (gumjs_module_find_symbol_by_name)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
 GUMJS_DECLARE_GETTER (gumjs_module_map_get_handle)
@@ -117,6 +118,7 @@ static const GumV8Function gumjs_module_static_functions[] =
   { "_enumerateDependencies", gumjs_module_enumerate_dependencies },
   { "findBaseAddress", gumjs_module_find_base_address },
   { "findExportByName", gumjs_module_find_export_by_name },
+  { "findSymbolByName", gumjs_module_find_symbol_by_name },
 
   { NULL, NULL }
 };
@@ -614,6 +616,33 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
     ScriptUnlocker unlocker (core);
 
     address = gum_module_find_export_by_name (module_name, symbol_name);
+  }
+
+  if (address != 0)
+  {
+    info.GetReturnValue ().Set (
+        _gum_v8_native_pointer_new (GSIZE_TO_POINTER (address), core));
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
+  }
+
+  g_free (module_name);
+  g_free (symbol_name);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_find_symbol_by_name)
+{
+  gchar * module_name, * symbol_name;
+  if (!_gum_v8_args_parse (args, "s?s", &module_name, &symbol_name))
+    return;
+
+  GumAddress address;
+  {
+    ScriptUnlocker unlocker (core);
+
+    address = gum_module_find_symbol_by_name (module_name, symbol_name);
   }
 
   if (address != 0)

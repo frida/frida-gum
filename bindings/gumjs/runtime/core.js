@@ -314,6 +314,17 @@ Object.defineProperties(Module, {
       return address;
     }
   },
+  getSymbolByName: {
+    enumerable: true,
+    value: function (moduleName, symbolName) {
+      const address = Module.findSymbolByName(moduleName, symbolName);
+      if (address === null) {
+        const prefix = (moduleName !== null) ? (moduleName + ': ') : '';
+        throw new Error(prefix + "unable to find symbol '" + symbolName + "'");
+      }
+      return address;
+    }
+  },
 });
 
 Object.defineProperties(Module.prototype, {
@@ -363,6 +374,18 @@ Object.defineProperties(Module.prototype, {
     enumerable: true,
     value: function (exportName) {
       return Module.getExportByName(this.path, exportName);
+    }
+  },
+  findSymbolByName: {
+    enumerable: true,
+    value: function (symbolName) {
+      return Module.findSymbolByName(this.path, symbolName);
+    }
+  },
+  getSymbolByName: {
+    enumerable: true,
+    value: function (symbolName) {
+      return Module.getSymbolByName(this.path, symbolName);
     }
   },
 });

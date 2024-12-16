@@ -256,6 +256,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (module_dependencies_can_be_enumerated)
     TESTENTRY (module_base_address_can_be_found)
     TESTENTRY (module_export_can_be_found_by_name)
+    TESTENTRY (module_symbol_can_be_found_by_name)
     TESTENTRY (module_can_be_loaded)
     TESTENTRY (module_can_be_forcibly_initialized)
   TESTGROUP_END ()
@@ -5870,6 +5871,46 @@ TESTCASE (module_export_can_be_found_by_name)
       "send(Module.findExportByName('kernel32.dll', 'Sleep').toString(16));");
   EXPECT_SEND_MESSAGE_WITH (actual_address_str);
 #endif
+}
+
+TESTCASE (module_symbol_can_be_found_by_name)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const sysModuleName = '%s';"
+
+      "const allSymbols = Process.getModuleByName(sysModuleName).enumerateSymbols();"
+      "const sysModuleExport = allSymbols.find(s => !s.address.isNull()).name;"
+
+      "const badModuleName = 'nope_' + sysModuleName;"
+      "const badModuleExport = sysModuleExport + '_does_not_exist';"
+
+      "const impl = Module.findSymbolByName(sysModuleName, sysModuleExport);"
+      "send(impl !== null);"
+
+      "send(Module.findSymbolByName(badModuleName, badModuleExport) === null);"
+
+      "try {"
+          "send(Module.getSymbolByName(sysModuleName, sysModuleExport)"
+              ".equals(impl));"
+
+          "Module.getSymbolByName(badModuleName, badModuleExport);"
+          "send('should not get here');"
+      "} catch (e) {"
+          "send(/unable to find symbol/.test(e.message));"
+      "}",
+      SYSTEM_MODULE_NAME);
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 TESTCASE (module_can_be_loaded)
