@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -51,6 +51,7 @@ static gboolean gum_emit_dependency (const GumDependencyDetails * details,
     GumQuickMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
+GUMJS_DECLARE_FUNCTION (gumjs_module_find_symbol_by_name)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_map_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_module_map_finalize)
@@ -84,6 +85,7 @@ static const JSCFunctionListEntry gumjs_module_entries[] =
       gumjs_module_enumerate_dependencies),
   JS_CFUNC_DEF ("findBaseAddress", 0, gumjs_module_find_base_address),
   JS_CFUNC_DEF ("findExportByName", 0, gumjs_module_find_export_by_name),
+  JS_CFUNC_DEF ("findSymbolByName", 0, gumjs_module_find_symbol_by_name),
 };
 
 static const JSClassDef gumjs_module_map_def =
@@ -590,6 +592,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
   _gum_quick_scope_suspend (&scope);
 
   address = gum_module_find_export_by_name (module_name, symbol_name);
+
+  _gum_quick_scope_resume (&scope);
+
+  if (address == 0)
+    return JS_NULL;
+
+  return _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_find_symbol_by_name)
+{
+  const gchar * module_name, * symbol_name;
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+  GumAddress address;
+
+  if (!_gum_quick_args_parse (args, "s?s", &module_name, &symbol_name))
+    return JS_EXCEPTION;
+
+  _gum_quick_scope_suspend (&scope);
+
+  address = gum_module_find_symbol_by_name (module_name, symbol_name);
 
   _gum_quick_scope_resume (&scope);
 
