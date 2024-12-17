@@ -87,24 +87,20 @@ not_found:
   }
 }
 
-gboolean
+void
 gum_module_ensure_initialized (GumModule * self)
 {
   gpointer handle;
 
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    return TRUE;
+    return;
 #endif
 
 #ifndef HAVE_MUSL
   handle = dlopen (self->path, RTLD_LAZY);
-  if (handle == NULL)
-    return FALSE;
-  dlclose (handle);
+  g_clear_pointer (&handle, dlclose);
 #endif
-
-  return TRUE;
 }
 
 void

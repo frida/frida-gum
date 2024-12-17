@@ -73,6 +73,10 @@ struct GumV8ModuleFilter
 
 GUMJS_DECLARE_FUNCTION (gumjs_module_load)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_global_export_by_name)
+GUMJS_DECLARE_GETTER (gumjs_module_get_name)
+GUMJS_DECLARE_GETTER (gumjs_module_get_path)
+GUMJS_DECLARE_GETTER (gumjs_module_get_base)
+GUMJS_DECLARE_GETTER (gumjs_module_get_size)
 GUMJS_DECLARE_FUNCTION (gumjs_module_ensure_initialized)
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_imports)
 static gboolean gum_emit_import (const GumImportDetails * details,
@@ -128,6 +132,16 @@ static const GumV8Function gumjs_module_static_functions[] =
   { NULL, NULL }
 };
 
+static const GumV8Property gumjs_module_values[] =
+{
+  { "name", gumjs_module_get_name, NULL },
+  { "path", gumjs_module_get_path, NULL },
+  { "base", gumjs_module_get_base, NULL },
+  { "size", gumjs_module_get_size, NULL },
+
+  { NULL, NULL, NULL }
+};
+
 static const GumV8Function gumjs_module_functions[] =
 {
   { "ensureInitialized", gumjs_module_ensure_initialized },
@@ -176,6 +190,7 @@ _gum_v8_module_init (GumV8Module * self,
   auto klass = _gum_v8_create_class ("Module", nullptr, scope, module, isolate);
   _gum_v8_class_add_static (klass, gumjs_module_static_functions, module,
       isolate);
+  _gum_v8_class_add (klass, gumjs_module_values, module, isolate);
   _gum_v8_class_add (klass, gumjs_module_functions, module, isolate);
   self->klass = new Global<FunctionTemplate> (isolate, klass);
 
@@ -258,6 +273,9 @@ _gum_v8_module_dispose (GumV8Module * self)
   self->address_key = nullptr;
   self->slot_key = nullptr;
   self->variable_value = nullptr;
+
+  delete self->klass;
+  self->klass = nullptr;
 }
 
 void
@@ -329,17 +347,40 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_global_export_by_name)
   g_free (symbol_name);
 }
 
+GUMJS_DEFINE_CLASS_GETTER (gumjs_module_get_name, GumV8ModuleEntry)
+{
+  info.GetReturnValue ().Set (
+      String::NewFromUtf8 (isolate, gum_module_get_name (self->handle))
+      .ToLocalChecked ());
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_module_get_path, GumV8ModuleEntry)
+{
+  info.GetReturnValue ().Set (
+      String::NewFromUtf8 (isolate, gum_module_get_path (self->handle))
+      .ToLocalChecked ());
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_module_get_base, GumV8ModuleEntry)
+{
+  auto range = gum_module_get_range (self->handle);
+
+  info.GetReturnValue ().Set (_gum_v8_native_pointer_new (
+      GSIZE_TO_POINTER (range->base_address), core));
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_module_get_size, GumV8ModuleEntry)
+{
+  auto range = gum_module_get_range (self->handle);
+
+  info.GetReturnValue ().Set ((uint32_t) range->size);
+}
+
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_ensure_initialized, GumV8ModuleEntry)
 {
-  gboolean success;
-  {
-    ScriptUnlocker unlocker (core);
+  ScriptUnlocker unlocker (core);
 
-    success = gum_module_ensure_initialized (self->handle);
-  }
-
-  if (!success)
-    _gum_v8_throw (isolate, "unable to initialize module");
+  gum_module_ensure_initialized (self->handle);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_imports, GumV8ModuleEntry)

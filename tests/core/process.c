@@ -895,7 +895,7 @@ TESTCASE (module_base)
   module = gum_module_find (SYSTEM_MODULE_NAME);
   g_assert_nonnull (module);
 
-  g_assert_true (gum_module_get_base_address (module) != 0);
+  g_assert_true (gum_module_get_range (module)->base_address != 0);
 
   g_object_unref (module);
 }

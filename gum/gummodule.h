@@ -20,9 +20,9 @@ GUM_API GumModule * gum_module_load (const gchar * module_name,
 
 GUM_API const gchar * gum_module_get_name (GumModule * self);
 GUM_API const gchar * gum_module_get_path (GumModule * self);
-GUM_API GumAddress gum_module_get_base_address (GumModule * self);
+GUM_API const GumMemoryRange * gum_module_get_range (GumModule * self);
 
-GUM_API gboolean gum_module_ensure_initialized (GumModule * self);
+GUM_API void gum_module_ensure_initialized (GumModule * self);
 GUM_API void gum_module_enumerate_imports (GumModule * self,
     GumFoundImportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_exports (GumModule * self,

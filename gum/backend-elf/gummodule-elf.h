@@ -25,7 +25,7 @@ struct _GumModule
 
   gchar * name;
   gchar * path;
-  GumAddress base_address;
+  GumMemoryRange range;
 
   GumElfModule * elf_module;
 };

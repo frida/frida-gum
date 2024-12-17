@@ -139,10 +139,10 @@ gum_module_get_path (GumModule * self)
   return self->path;
 }
 
-GumAddress
-gum_module_get_base_address (GumModule * self)
+const GumMemoryRange *
+gum_module_get_range (GumModule * self)
 {
-  return self->base_address;
+  return &self->range;
 }
 
 void
