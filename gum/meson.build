@@ -153,6 +153,7 @@ if host_os_family == 'linux'
     'backend-linux' / 'gummemory-linux.c',
     'backend-posix' / 'gummemory-posix.c',
     'backend-linux' / 'gumprocess-linux.c',
+    'backend-linux' / 'gummodule-linux.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
   ]
@@ -194,7 +195,7 @@ endif
 
 if host_executable_format == 'elf'
   gum_sources += [
-    'backend-elf' / 'gumprocess-elf.c',
+    'backend-elf' / 'gummodule-elf.c',
   ]
 endif
 

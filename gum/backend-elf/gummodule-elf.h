@@ -4,12 +4,11 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_PROCESS_ELF_H__
-#define __GUM_PROCESS_ELF_H__
+#ifndef __GUM_MODULE_ELF_H__
+#define __GUM_MODULE_ELF_H__
 
 #include "gumelfmodule.h"
 #include "gummodule.h"
-#include "gumprocess.h"
 
 G_BEGIN_DECLS
 
@@ -22,12 +21,17 @@ struct _GumModule
 #endif
 
   gpointer handle;
-  const gchar * name;
-  const gchar * path;
+  GDestroyNotify destroy_handle;
+
+  gchar * name;
+  gchar * path;
   GumAddress base_address;
+
   GumElfModule * elf_module;
 };
 
+G_GNUC_INTERNAL GumModule * _gum_module_make (gpointer handle,
+    GDestroyNotify destroy_handle, const gchar * path);
 G_GNUC_INTERNAL void _gum_module_enumerate_exports (GumModule * self,
     GumFoundExportFunc func, gpointer user_data);
 

@@ -4,7 +4,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumprocess-elf.h"
+#include "gummodule-elf.h"
 
 #include <dlfcn.h>
 
@@ -49,6 +49,8 @@ struct _GumEnumerateSectionsContext
   gpointer user_data;
 };
 
+static void gum_module_dispose (GObject * object);
+static void gum_module_finalize (GObject * object);
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
 static gboolean gum_collect_dependency_exports (
@@ -66,6 +68,64 @@ static gboolean gum_emit_section (const GumElfSectionDetails * details,
     gpointer user_data);
 
 static GumElfModule * gum_open_elf_module (const gchar * name);
+
+G_DEFINE_TYPE (GumModule, gum_module, G_TYPE_OBJECT)
+
+static void
+gum_module_class_init (GumModuleClass * klass)
+{
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->dispose = gum_module_dispose;
+  object_class->finalize = gum_module_finalize;
+}
+
+static void
+gum_module_init (GumModule * self)
+{
+}
+
+static void
+gum_module_dispose (GObject * object)
+{
+  GumModule * self = GUM_MODULE (object);
+
+  g_clear_pointer (&self->handle, self->destroy_handle);
+  g_clear_object (&self->elf_module);
+
+  G_OBJECT_CLASS (gum_module_parent_class)->dispose (object);
+}
+
+static void
+gum_module_finalize (GObject * object)
+{
+  GumModule * self = GUM_MODULE (object);
+
+  g_free (self->name);
+  g_free (self->path);
+
+  G_OBJECT_CLASS (gum_module_parent_class)->finalize (object);
+}
+
+GumModule *
+_gum_module_make (gpointer handle,
+                  GDestroyNotify destroy_handle,
+                  const gchar * path)
+{
+  GumModule * module;
+
+  if (handle == NULL)
+    return NULL;
+
+  module = g_object_new (GUM_TYPE_MODULE, NULL);
+
+  module->handle = handle;
+  module->destroy_handle = destroy_handle;
+
+  module->path = g_strdup (path);
+
+  return module;
+}
 
 const gchar *
 gum_module_get_name (GumModule * self)

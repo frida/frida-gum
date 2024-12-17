@@ -342,11 +342,10 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_ensure_initialized, GumV8ModuleEntry)
     _gum_v8_throw (isolate, "unable to initialize module");
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_imports, GumV8ModuleEntry)
 {
-  gchar * name;
   GumV8ImportsContext ic (isolate, module);
-  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &ic.on_match,
+  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &ic.on_match,
       &ic.on_complete))
     return;
 
@@ -358,12 +357,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   ic.slot = Local<String>::New (isolate, *module->slot_key);
   ic.variable = Local<String>::New (isolate, *module->variable_value);
 
-  gum_module_enumerate_imports (name, (GumFoundImportFunc) gum_emit_import,
-      &ic);
+  gum_module_enumerate_imports (self->handle,
+      (GumFoundImportFunc) gum_emit_import, &ic);
 
   ic.OnComplete ();
-
-  g_free (name);
 }
 
 static gboolean
@@ -438,11 +435,10 @@ gum_emit_import (const GumImportDetails * details,
   return ic->OnMatch (imp);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_exports, GumV8ModuleEntry)
 {
-  gchar * name;
   GumV8ExportsContext ec (isolate, module);
-  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &ec.on_match,
+  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &ec.on_match,
       &ec.on_complete))
     return;
 
@@ -452,12 +448,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   ec.address = Local<String>::New (isolate, *module->address_key);
   ec.variable = Local<String>::New (isolate, *module->variable_value);
 
-  gum_module_enumerate_exports (name, (GumFoundExportFunc) gum_emit_export,
-      &ec);
+  gum_module_enumerate_exports (self->handle,
+      (GumFoundExportFunc) gum_emit_export, &ec);
 
   ec.OnComplete ();
-
-  g_free (name);
 }
 
 static gboolean
@@ -485,20 +479,17 @@ gum_emit_export (const GumExportDetails * details,
   return ec->OnMatch (exp);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_symbols)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_symbols, GumV8ModuleEntry)
 {
-  gchar * name;
   GumV8MatchContext<GumV8Module> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
+  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return;
 
-  gum_module_enumerate_symbols (name, (GumFoundSymbolFunc) gum_emit_symbol,
-      &mc);
+  gum_module_enumerate_symbols (self->handle,
+      (GumFoundSymbolFunc) gum_emit_symbol, &mc);
 
   mc.OnComplete ();
-
-  g_free (name);
 }
 
 static gboolean
@@ -532,21 +523,18 @@ gum_emit_symbol (const GumSymbolDetails * details,
   return mc->OnMatch (symbol);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_ranges, GumV8ModuleEntry)
 {
-  gchar * name;
   GumPageProtection prot;
   GumV8MatchContext<GumV8Module> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
-      &mc.on_match, &mc.on_complete))
+  if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
+        &mc.on_complete))
     return;
 
-  gum_module_enumerate_ranges (name, prot, (GumFoundRangeFunc) gum_emit_range,
-      &mc);
+  gum_module_enumerate_ranges (self->handle, prot,
+      (GumFoundRangeFunc) gum_emit_range, &mc);
 
   mc.OnComplete ();
-
-  g_free (name);
 }
 
 static gboolean
@@ -566,20 +554,17 @@ gum_emit_range (const GumRangeDetails * details,
   return mc->OnMatch (range);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_sections)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_sections, GumV8ModuleEntry)
 {
-  gchar * name;
   GumV8MatchContext<GumV8Module> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name,
-      &mc.on_match, &mc.on_complete))
+  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
+        &mc.on_complete))
     return;
 
-  gum_module_enumerate_sections (name, (GumFoundSectionFunc) gum_emit_section,
-      &mc);
+  gum_module_enumerate_sections (self->handle,
+      (GumFoundSectionFunc) gum_emit_section, &mc);
 
   mc.OnComplete ();
-
-  g_free (name);
 }
 
 static gboolean
@@ -598,20 +583,18 @@ gum_emit_section (const GumSectionDetails * details,
   return mc->OnMatch (section);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_dependencies)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_dependencies,
+    GumV8ModuleEntry)
 {
-  gchar * name;
   GumV8MatchContext<GumV8Module> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name,
-      &mc.on_match, &mc.on_complete))
+  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
+        &mc.on_complete))
     return;
 
-  gum_module_enumerate_dependencies (name,
+  gum_module_enumerate_dependencies (self->handle,
       (GumFoundDependencyFunc) gum_emit_dependency, &mc);
 
   mc.OnComplete ();
-
-  g_free (name);
 }
 
 static gboolean
@@ -629,17 +612,17 @@ gum_emit_dependency (const GumDependencyDetails * details,
   return mc->OnMatch (dependency);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_find_export_by_name, GumV8ModuleEntry)
 {
-  gchar * module_name, * symbol_name;
-  if (!_gum_v8_args_parse (args, "s?s", &module_name, &symbol_name))
+  gchar * symbol_name;
+  if (!_gum_v8_args_parse (args, "s", &symbol_name))
     return;
 
   GumAddress address;
   {
     ScriptUnlocker unlocker (core);
 
-    address = gum_module_find_export_by_name (module_name, symbol_name);
+    address = gum_module_find_export_by_name (self->handle, symbol_name);
   }
 
   if (address != 0)
@@ -652,21 +635,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
     info.GetReturnValue ().SetNull ();
   }
 
-  g_free (module_name);
   g_free (symbol_name);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_module_find_symbol_by_name)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_module_find_symbol_by_name, GumV8ModuleEntry)
 {
-  gchar * module_name, * symbol_name;
-  if (!_gum_v8_args_parse (args, "s?s", &module_name, &symbol_name))
+  gchar * symbol_name;
+  if (!_gum_v8_args_parse (args, "s", &symbol_name))
     return;
 
   GumAddress address;
   {
     ScriptUnlocker unlocker (core);
 
-    address = gum_module_find_symbol_by_name (module_name, symbol_name);
+    address = gum_module_find_symbol_by_name (self->handle, symbol_name);
   }
 
   if (address != 0)
@@ -679,7 +661,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_symbol_by_name)
     info.GetReturnValue ().SetNull ();
   }
 
-  g_free (module_name);
   g_free (symbol_name);
 }
 
