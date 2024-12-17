@@ -8,6 +8,10 @@
 
 #include "gum/gumandroid.h"
 
+#include <dlfcn.h>
+
+static GumAddress gum_dlsym (gpointer module_handle, const gchar * symbol_name);
+
 GumModule *
 gum_module_find (const gchar * module_name)
 {
@@ -45,14 +49,11 @@ gum_module_find (const gchar * module_name)
 #else
 # if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-  {
-    return _gum_module_make (gum_android_get_module_handle (module_name), NULL,
-        module_name);
-  }
+    return gum_android_find_module (module_name);
 # endif
 
   return _gum_module_make (dlopen (module_name, RTLD_LAZY | RTLD_NOLOAD),
-      dlclose);
+      (GDestroyNotify) dlclose, module_name);
 #endif
 }
 
@@ -60,13 +61,14 @@ GumModule *
 gum_module_load (const gchar * module_name,
                  GError ** error)
 {
+  GumModule * module;
   GumGenericDlopenImpl dlopen_impl = dlopen;
   gpointer handle;
 
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  handle = gum_module_get_handle (module_name);
-  if (handle != NULL)
-    return g_object_new (GUM_TYPE_MODULE, "handle", handle, NULL);
+  module = gum_module_find (module_name);
+  if (module != NULL)
+    return module;
 
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
     gum_android_find_unrestricted_dlopen (&dlopen_impl);
@@ -76,7 +78,7 @@ gum_module_load (const gchar * module_name,
   if (handle == NULL)
     goto not_found;
 
-  return g_object_new (GUM_TYPE_MODULE, "handle", handle, NULL);
+  return _gum_module_make (handle, (GDestroyNotify) dlclose, module_name);
 
 not_found:
   {
@@ -88,18 +90,18 @@ not_found:
 gboolean
 gum_module_ensure_initialized (GumModule * self)
 {
-  gpointer module;
+  gpointer handle;
 
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    return gum_android_ensure_module_initialized (self->path);
+    return TRUE;
 #endif
 
 #ifndef HAVE_MUSL
-  module = dlopen (self->path, RTLD_LAZY);
-  if (module == NULL)
+  handle = dlopen (self->path, RTLD_LAZY);
+  if (handle == NULL)
     return FALSE;
-  dlclose (module);
+  dlclose (handle);
 #endif
 
   return TRUE;
@@ -141,24 +143,33 @@ GumAddress
 gum_module_find_export_by_name (GumModule * self,
                                 const gchar * symbol_name)
 {
-  GumAddress result;
-  gpointer handle;
-  GumGenericDlsymImpl dlsym_impl = dlsym;
-
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+  GumAddress address;
+
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE &&
-      gum_android_try_resolve_magic_export (self->path, symbol_name, &result))
-    return result;
+      gum_android_try_resolve_magic_export (self->path, symbol_name, &address))
+    return address;
 #endif
 
-  handle = (self != NULL) ? self->handle : RTLD_DEFAULT;
+  return gum_dlsym (self->handle, symbol_name);
+}
+
+GumAddress
+gum_module_find_global_export_by_name (const gchar * symbol_name)
+{
+  return gum_dlsym (RTLD_DEFAULT, symbol_name);
+}
+
+static GumAddress
+gum_dlsym (gpointer module_handle,
+           const gchar * symbol_name)
+{
+  GumGenericDlsymImpl dlsym_impl = dlsym;
 
 #if defined (HAVE_ANDROID) && !defined (GUM_DIET)
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
     gum_android_find_unrestricted_dlsym (&dlsym_impl);
 #endif
 
-  result = GUM_ADDRESS (dlsym_impl (handle, symbol_name));
-
-  return result;
+  return GUM_ADDRESS (dlsym_impl (module_handle, symbol_name));
 }

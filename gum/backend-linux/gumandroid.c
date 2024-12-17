@@ -28,7 +28,7 @@
 # define GUM_LIBCXX_TINY_STRING_CAPACITY 23
 #endif
 
-typedef struct _GumGetModuleHandleContext GumGetModuleHandleContext;
+typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnsureModuleInitializedContext
     GumEnsureModuleInitializedContext;
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
@@ -62,10 +62,10 @@ typedef union _GumLibcxxString GumLibcxxString;
 typedef struct _GumLibcxxTinyString GumLibcxxTinyString;
 typedef struct _GumLibcxxHugeString GumLibcxxHugeString;
 
-struct _GumGetModuleHandleContext
+struct _GumFindModuleContext
 {
   const gchar * name;
-  void * module;
+  GumModule * module;
 };
 
 struct _GumEnsureModuleInitializedContext
@@ -408,8 +408,8 @@ static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
     const gchar * linker_path, const GRegex * linker_path_pattern,
     GumModuleDetails * module, GumMemoryRange * range);
 
-static gboolean gum_store_module_handle_if_name_matches (
-    const GumSoinfoDetails * details, GumGetModuleHandleContext * ctx);
+static gboolean gum_store_module_if_name_matches (
+    const GumSoinfoDetails * details, GumFindModuleContext * ctx);
 static gboolean gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
     GumEnumerateModulesContext * ctx);
 
@@ -932,23 +932,23 @@ gum_android_open_linker_module (void)
       linker->range->base_address, NULL);
 }
 
-void *
-gum_android_get_module_handle (const gchar * name)
+GumModule *
+gum_android_find_module (const gchar * name)
 {
-  GumGetModuleHandleContext ctx;
+  GumFindModuleContext ctx;
 
   ctx.name = name;
   ctx.module = NULL;
 
   gum_enumerate_soinfo (
-      (GumFoundSoinfoFunc) gum_store_module_handle_if_name_matches, &ctx);
+      (GumFoundSoinfoFunc) gum_store_module_if_name_matches, &ctx);
 
   return ctx.module;
 }
 
 static gboolean
-gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
-                                         GumGetModuleHandleContext * ctx)
+gum_store_module_if_name_matches (const GumSoinfoDetails * details,
+                                  GumFindModuleContext * ctx)
 {
   GumLinkerApi * api = details->api;
 
@@ -957,6 +957,7 @@ gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
     GumSoinfoBody * sb = details->body;
     int flags = RTLD_LAZY;
     void * caller_addr = GSIZE_TO_POINTER (sb->base);
+    gpointer handle;
 
     if (gum_android_is_vdso_module_name (details->path))
       return FALSE;
@@ -985,33 +986,23 @@ gum_store_module_handle_if_name_matches (const GumSoinfoDetails * details,
     if (api->dlopen != NULL)
     {
       /* API level >= 26 (Android >= 8.0) */
-      ctx->module = api->dlopen (details->path, flags, caller_addr);
+      handle = api->dlopen (details->path, flags, caller_addr);
     }
     else if (api->do_dlopen != NULL)
     {
       /* API level >= 24 (Android >= 7.0) */
-      ctx->module = api->do_dlopen (details->path, flags, NULL, caller_addr);
+      handle = api->do_dlopen (details->path, flags, NULL, caller_addr);
     }
     else
     {
-      ctx->module = dlopen (details->path, flags);
+      handle = dlopen (details->path, flags);
     }
+
+    ctx->module = _gum_module_make (handle, dlclose, details->path);
 
     return FALSE;
   }
 
-  return TRUE;
-}
-
-gboolean
-gum_android_ensure_module_initialized (const gchar * name)
-{
-  void * module;
-
-  module = gum_android_get_module_handle (name);
-  if (module == NULL)
-    return FALSE;
-  dlclose (module);
   return TRUE;
 }
 

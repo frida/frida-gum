@@ -46,8 +46,7 @@ GUM_API gboolean gum_android_try_resolve_magic_export (
     const gchar * module_name, const gchar * symbol_name, GumAddress * result);
 GUM_API GumElfModule * gum_android_open_linker_module (void);
 
-GUM_API void * gum_android_get_module_handle (const gchar * name);
-GUM_API gboolean gum_android_ensure_module_initialized (const gchar * name);
+GUM_API GumModule * gum_android_find_module (const gchar * name);
 GUM_API void gum_android_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
 
