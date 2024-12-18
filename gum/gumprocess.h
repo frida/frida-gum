@@ -80,7 +80,6 @@ GUM_API void gum_process_set_teardown_requirement (
     GumTeardownRequirement requirement);
 GUM_API GumCodeSigningPolicy gum_process_get_code_signing_policy (void);
 GUM_API void gum_process_set_code_signing_policy (GumCodeSigningPolicy policy);
-GUM_API const gchar * gum_process_query_libc_name (void);
 GUM_API gboolean gum_process_is_debugger_attached (void);
 GUM_API GumProcessId gum_process_get_id (void);
 GUM_API GumThreadId gum_process_get_current_thread_id (void);
@@ -90,6 +89,7 @@ GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
 GUM_API void gum_process_enumerate_threads (GumFoundThreadFunc func,
     gpointer user_data);
 GUM_API GumModule * gum_process_get_main_module (void);
+GUM_API GumModule * gum_process_get_libc_module (void);
 GUM_API GumModule * gum_process_find_module_by_name (const gchar * module_name);
 GUM_API GumModule * gum_process_find_module_by_address (GumAddress address);
 GUM_API GumModule * gum_process_load_module (const gchar * module_name,

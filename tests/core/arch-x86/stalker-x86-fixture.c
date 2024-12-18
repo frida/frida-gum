@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -49,6 +49,7 @@ typedef struct _TestStalkerFixture
   GumStalker * stalker;
   GumStalkerTransformer * transformer;
   GumFakeEventSink * sink;
+  const GumMemoryRange * runner_range;
 
   guint8 * code;
   guint8 * last_invoke_calladdr;
@@ -69,6 +70,7 @@ test_stalker_fixture_setup (TestStalkerFixture * fixture,
   fixture->stalker = gum_stalker_new ();
   fixture->transformer = NULL;
   fixture->sink = GUM_FAKE_EVENT_SINK (gum_fake_event_sink_new ());
+  fixture->runner_range = gum_module_get_range (gum_process_get_main_module ());
 
 #ifdef HAVE_WINDOWS
   if (IsDebuggerPresent ())

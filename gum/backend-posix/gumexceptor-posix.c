@@ -142,15 +142,14 @@ gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
   GPtrArray * module_candidates;
-  const gchar * libc_name;
+  GumModule * libc;
 
   object_class->dispose = gum_exceptor_backend_dispose;
 
   module_candidates = g_ptr_array_new_full (3, g_object_unref);
 
-  libc_name = gum_process_query_libc_name ();
-  g_ptr_array_add (module_candidates,
-      gum_process_find_module_by_name (libc_name));
+  libc = gum_process_get_libc_module ();
+  g_ptr_array_add (module_candidates, g_object_ref (libc));
 
 #if defined (HAVE_DARWIN)
   gum_original_signal = gum_resolve_symbol ("signal", module_candidates);
@@ -165,10 +164,10 @@ gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
     gchar * libdir, * pthread_name;
     GumModule * pthread;
 
-    libdir = g_path_get_dirname (libc_name);
+    libdir = g_path_get_dirname (gum_module_get_path (libc));
     pthread_name = g_build_filename (libdir, "libpthread.so.0", NULL);
 
-    pthread = gum_module_find (pthread_name);
+    pthread = gum_process_find_module_by_name (pthread_name);
     if (pthread != NULL)
       g_ptr_array_insert (module_candidates, 0, pthread);
 

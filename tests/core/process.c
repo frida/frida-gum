@@ -156,8 +156,7 @@ static gboolean thread_check_cb (const GumThreadDetails * details,
     gpointer user_data);
 G_GNUC_UNUSED static gboolean thread_collect_if_matching_id (
     const GumThreadDetails * details, gpointer user_data);
-static gboolean module_found_cb (const GumModuleDetails * details,
-    gpointer user_data);
+static gboolean module_found_cb (GumModule * module, gpointer user_data);
 static gboolean import_found_cb (const GumImportDetails * details,
     gpointer user_data);
 static gboolean export_found_cb (const GumExportDetails * details,
@@ -318,8 +317,7 @@ struct _ModuleBounds
 
 static gboolean find_module_bounds (const GumRangeDetails * details,
     gpointer user_data);
-static gboolean verify_module_bounds (const GumModuleDetails * details,
-    gpointer user_data);
+static gboolean verify_module_bounds (GumModule * module, gpointer user_data);
 
 TESTCASE (linux_process_modules)
 {
@@ -373,15 +371,16 @@ find_module_bounds (const GumRangeDetails * details,
 }
 
 static gboolean
-verify_module_bounds (const GumModuleDetails * details,
+verify_module_bounds (GumModule * module,
                       gpointer user_data)
 {
   ModuleBounds * bounds = user_data;
-  const GumMemoryRange * range = details->range;
+  const GumMemoryRange * range;
 
-  if (strcmp (details->name, bounds->name) != 0)
+  if (strcmp (gum_module_get_name (module), bounds->name) != 0)
     return TRUE;
 
+  range = gum_module_get_range (module);
   g_assert_cmphex (range->base_address, ==, bounds->start);
   g_assert_cmphex (range->base_address + range->size, >=, bounds->end);
 
@@ -696,11 +695,11 @@ TESTCASE (module_can_be_loaded)
   GError * error = NULL;
   gchar * invalid_name;
 
-  g_assert_true (gum_module_load (SYSTEM_MODULE_NAME, &error));
+  g_assert_true (gum_process_load_module (SYSTEM_MODULE_NAME, &error));
   g_assert_no_error (error);
 
   invalid_name = g_strconcat (SYSTEM_MODULE_NAME, "_nope", NULL);
-  g_assert_false (gum_module_load (invalid_name, &error));
+  g_assert_false (gum_process_load_module (invalid_name, &error));
   g_assert_nonnull (error);
   g_error_free (error);
   g_free (invalid_name);
@@ -711,7 +710,7 @@ TESTCASE (module_imports)
   GumModule * module;
   TestForEachContext ctx;
 
-  module = gum_module_find (GUM_TESTS_MODULE_NAME);
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
   g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
@@ -734,7 +733,7 @@ TESTCASE (module_import_slot_should_contain_correct_value)
   gsize actual_value, expected_value;
   gboolean unsupported_on_this_os;
 
-  module = gum_module_find (GUM_TESTS_MODULE_NAME);
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
   g_assert_nonnull (module);
 
   slot = NULL;
@@ -750,16 +749,11 @@ TESTCASE (module_import_slot_should_contain_correct_value)
     return;
   }
 
-  module = gum_module_find (gum_process_query_libc_name ());
-  g_assert_nonnull (module);
-
   actual_value = gum_strip_code_address (GPOINTER_TO_SIZE (*slot));
-  expected_value = gum_strip_code_address (
-      gum_module_find_export_by_name (module, "malloc"));
+  expected_value = gum_strip_code_address (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "malloc"));
 
   g_assert_cmphex (actual_value, ==, expected_value);
-
-  g_object_unref (module);
 }
 
 static gboolean
@@ -780,7 +774,7 @@ TESTCASE (module_exports)
   GumModule * module;
   TestForEachContext ctx;
 
-  module = gum_module_find (SYSTEM_MODULE_NAME);
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
   g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
@@ -801,7 +795,7 @@ TESTCASE (module_symbols)
   GumModule * module;
   TestForEachContext ctx;
 
-  module = gum_module_find (GUM_TESTS_MODULE_NAME);
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
   g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
@@ -822,7 +816,7 @@ TESTCASE (module_ranges_can_be_enumerated)
   GumModule * module;
   TestForEachContext ctx;
 
-  module = gum_module_find (SYSTEM_MODULE_NAME);
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
   g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
@@ -844,7 +838,7 @@ TESTCASE (module_sections_can_be_enumerated)
   GumModule * module;
   TestForEachContext ctx;
 
-  module = gum_module_find (SYSTEM_MODULE_NAME);
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
   g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
@@ -869,7 +863,7 @@ TESTCASE (module_dependencies_can_be_enumerated)
   GumModule * module;
   TestForEachContext ctx;
 
-  module = gum_module_find (GUM_TESTS_MODULE_NAME);
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
   g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
@@ -892,7 +886,7 @@ TESTCASE (module_base)
 {
   GumModule * module;
 
-  module = gum_module_find (SYSTEM_MODULE_NAME);
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
   g_assert_nonnull (module);
 
   g_assert_true (gum_module_get_range (module)->base_address != 0);
@@ -904,7 +898,7 @@ TESTCASE (module_export_can_be_found)
 {
   GumModule * module;
 
-  module = gum_module_find (SYSTEM_MODULE_NAME);
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
   g_assert_nonnull (module);
 
   g_assert_true (gum_module_find_export_by_name (module,
@@ -924,7 +918,7 @@ TESTCASE (module_export_matches_system_lookup)
   g_assert_true (lib != NULL);
   system_address = dlsym (lib, TRICKY_MODULE_EXPORT);
 
-  module = gum_module_find (TRICKY_MODULE_NAME);
+  module = gum_process_find_module_by_name (TRICKY_MODULE_NAME);
   g_assert_nonnull (module);
 
   enumerate_address = 0;
@@ -1273,7 +1267,7 @@ thread_collect_if_matching_id (const GumThreadDetails * details,
 }
 
 static gboolean
-module_found_cb (const GumModuleDetails * details,
+module_found_cb (GumModule * module,
                  gpointer user_data)
 {
   TestForEachContext * ctx = user_data;

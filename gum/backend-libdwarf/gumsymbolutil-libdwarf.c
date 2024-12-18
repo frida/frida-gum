@@ -478,18 +478,18 @@ gum_module_entry_from_address (gpointer address,
                                GumNearestSymbolDetails * nearest)
 {
   GumModuleEntry * entry;
-  gchar * path;
-  GumMemoryRange range;
+  GumModule * module;
 
   nearest->name = NULL;
   nearest->address = NULL;
 
-  if (!gum_process_resolve_module_pointer (address, &path, &range))
+  module = gum_process_find_module_by_address (GUM_ADDRESS (address));
+  if (module == NULL)
     return NULL;
 
-  entry = gum_module_entry_from_path_and_base (path, range.base_address);
+  entry = gum_module_entry_from_module (module);
 
-  g_free (path);
+  g_object_unref (module);
 
   if (entry == NULL)
     return NULL;
@@ -512,17 +512,17 @@ static GumModuleEntry *
 gum_module_entry_from_module (GumModule * module)
 {
   GumModuleEntry * entry;
-  GumElfModule * module;
+  const gchar * path;
   Dwarf_Debug dbg;
   Dwarf_Error error;
 
   gum_symbol_util_ensure_initialized ();
 
+  path = gum_module_get_path (module);
+
   entry = g_hash_table_lookup (gum_module_entries, path);
   if (entry != NULL)
     goto have_entry;
-
-  module = gum_elf_module_new_from_memory (path, base_address, NULL);
 
   dbg = NULL;
   error = NULL;
@@ -534,11 +534,11 @@ gum_module_entry_from_module (GumModule * module)
   }
 
   entry = g_slice_new (GumModuleEntry);
-  entry->module = module;
+  entry->module = gum_object_ref (module);
   entry->dbg = dbg;
   entry->collected = FALSE;
 
-  g_hash_table_insert (gum_module_entries, g_strdup (path), entry);
+  g_hash_table_insert (gum_module_entries, path, entry);
 
 have_entry:
   return (entry->module != NULL) ? entry : NULL;
@@ -692,7 +692,7 @@ gum_symbol_util_ensure_initialized (void)
   if (gum_module_entries != NULL)
     return;
 
-  gum_module_entries = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+  gum_module_entries = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
       (GDestroyNotify) gum_module_entry_free);
   gum_function_addresses = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) gum_function_addresses_free);

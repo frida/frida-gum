@@ -171,33 +171,14 @@ TESTCASE (line_diff)
 
 /* Implementation */
 
-static gboolean gum_test_assign_own_range_if_matching (
-    const GumModuleDetails * details, gpointer user_data);
-
-static GumMemoryRange _test_util_own_range = { 0, 0 };
+static const GumMemoryRange * _test_util_own_range;
 static gchar * _test_util_system_module_name = NULL;
 static GumHeapApiList * _test_util_heap_apis = NULL;
 
 void
 _test_util_init (void)
 {
-  gum_process_enumerate_modules (gum_test_assign_own_range_if_matching,
-      &_test_util_own_range);
-}
-
-static gboolean
-gum_test_assign_own_range_if_matching (const GumModuleDetails * details,
-                                       gpointer user_data)
-{
-  if (GUM_MEMORY_RANGE_INCLUDES (details->range,
-      GUM_ADDRESS (gum_test_assign_own_range_if_matching)))
-  {
-    GumMemoryRange * own_range = user_data;
-    memcpy (own_range, details->range, sizeof (GumMemoryRange));
-    return FALSE;
-  }
-
-  return TRUE;
+  _test_util_own_range = gum_module_get_range (gum_process_get_main_module ());
 }
 
 void
@@ -634,7 +615,7 @@ gum_test_should_forward_signal_to (gpointer handler)
   if (handler == NULL)
     return FALSE;
 
-  return GUM_MEMORY_RANGE_INCLUDES (&_test_util_own_range,
+  return GUM_MEMORY_RANGE_INCLUDES (_test_util_own_range,
       GUM_ADDRESS (handler));
 }
 

@@ -202,9 +202,13 @@ gum_emit_import (const GumImportDetails * details,
 
     if (d.address != 0)
     {
+      GumModule * module;
+
       if (ctx->module_map == NULL)
         ctx->module_map = gum_module_map_new ();
-      d.module = gum_module_map_find (ctx->module_map, d.address);
+      module = gum_module_map_find (ctx->module_map, d.address);
+      if (module != NULL)
+        d.module = gum_module_get_path (module);
     }
   }
 

@@ -339,10 +339,8 @@ static void gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
     ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress base_address,
     GumMemoryRange * range);
 
-static gchar * gum_try_init_libc_name (void);
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
     Dl_info * info);
-static void gum_deinit_libc_name (void);
 
 static void gum_do_modify_thread (GumThreadId thread_id, GumRegs * regs,
     gpointer user_data);
@@ -357,6 +355,7 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
+static void gum_deinit_libc_module (void);
 static void gum_do_enumerate_modules (const gchar * libc_name,
     GumFoundModuleFunc func, gpointer user_data);
 static void gum_process_enumerate_modules_by_using_libc (
@@ -462,25 +461,27 @@ gum_query_program_modules (void)
     while (gum_proc_maps_iter_next (&iter, &line))
     {
       GumAddress start;
-      GumModuleDetails * m;
+      GumModule ** m;
+      const GumMemoryRange * r;
 
       sscanf (line, "%" G_GINT64_MODIFIER "x-", &start);
 
       if (start == ranges.program.base_address)
+      {
         m = &gum_program_modules.program;
+        r = &ranges.program;
+      }
       else if (start == ranges.interpreter.base_address)
+      {
         m = &gum_program_modules.interpreter;
+        r = &ranges.interpreter;
+      }
       else
         continue;
 
       sscanf (line, "%*x-%*x %*c%*c%*c%*c %*x %*s %*d %[^\n]", path);
 
-      m->path = g_strdup (path);
-      m->name = strrchr (m->path, '/');
-      if (m->name != NULL)
-        m->name++;
-      else
-        m->name = m->path;
+      *m = _gum_module_make (NULL, NULL, path, r);
     }
 
     g_free (path);
@@ -488,10 +489,9 @@ gum_query_program_modules (void)
 
     if (ranges.vdso.base_address != 0)
     {
-      GumModuleDetails * m = &gum_program_modules.vdso;
       /* FIXME: Parse soname instead of hardcoding: */
-      m->path = g_strdup ("linux-vdso.so.1");
-      m->name = m->path;
+      gum_program_modules.vdso =
+          _gum_module_make (NULL, NULL, "linux-vdso.so.1", &ranges.vdso);
     }
 
     _gum_register_destructor (gum_deinit_program_modules);
@@ -746,58 +746,6 @@ gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
   range->size = highest - lowest;
 }
 
-const gchar *
-gum_process_query_libc_name (void)
-{
-  static GOnce once = G_ONCE_INIT;
-
-  g_once (&once, (GThreadFunc) gum_try_init_libc_name, NULL);
-
-  if (once.retval == NULL)
-    gum_panic ("Unable to locate the libc; please file a bug");
-
-  return once.retval;
-}
-
-static gchar *
-gum_try_init_libc_name (void)
-{
-  Dl_info info;
-
-#ifndef HAVE_ANDROID
-  if (!gum_try_resolve_dynamic_symbol ("__libc_start_main", &info))
-#endif
-  {
-    if (!gum_try_resolve_dynamic_symbol ("exit", &info))
-      return NULL;
-  }
-
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (g_path_is_absolute (info.dli_fname))
-  {
-    gum_libc_name = g_strdup (info.dli_fname);
-  }
-  else
-  {
-    gum_libc_name = g_build_filename (
-        "/system",
-        (sizeof (gpointer) == 4) ? "lib" : "lib64",
-        info.dli_fname,
-        NULL);
-  }
-#else
-  {
-    GumAddress base;
-    gum_do_resolve_module_name (info.dli_fname, info.dli_fname, &gum_libc_name,
-        &base);
-  }
-#endif
-
-  _gum_register_destructor (gum_deinit_libc_name);
-
-  return gum_libc_name;
-}
-
 static gboolean
 gum_try_resolve_dynamic_symbol (const gchar * name,
                                 Dl_info * info)
@@ -811,12 +759,6 @@ gum_try_resolve_dynamic_symbol (const gchar * name,
     return FALSE;
 
   return dladdr (address, info) != 0;
-}
-
-static void
-gum_deinit_libc_name (void)
-{
-  g_free (gum_libc_name);
 }
 
 gboolean
@@ -1378,6 +1320,46 @@ _gum_process_collect_main_module (GumModule * module,
   *out = g_object_ref (module);
 
   return FALSE;
+}
+
+GumModule *
+gum_process_get_libc_module (void)
+{
+  static GOnce once = G_ONCE_INIT;
+
+  g_once (&once, (GThreadFunc) gum_try_init_libc_module, NULL);
+
+  if (once.retval == NULL)
+    gum_panic ("Unable to locate the libc; please file a bug");
+
+  return once.retval;
+}
+
+static gchar *
+gum_try_init_libc_module (void)
+{
+  Dl_info info;
+
+#ifndef HAVE_ANDROID
+  if (!gum_try_resolve_dynamic_symbol ("__libc_start_main", &info))
+#endif
+  {
+    if (!gum_try_resolve_dynamic_symbol ("exit", &info))
+      return NULL;
+  }
+
+  gum_libc_module =
+      gum_process_find_module_by_address (GUM_ADDRESS (info.dli_fbase));
+
+  _gum_register_destructor (gum_deinit_libc_module);
+
+  return gum_libc_name;
+}
+
+static void
+gum_deinit_libc_module (void)
+{
+  g_object_unref (gum_libc_module);
 }
 
 void

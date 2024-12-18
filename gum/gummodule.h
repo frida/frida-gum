@@ -68,7 +68,7 @@ struct _GumImportDetails
 {
   GumImportType type;
   const gchar * name;
-  GumModule * module;
+  const gchar * module;
   GumAddress address;
   GumAddress slot;
 };
