@@ -92,13 +92,12 @@ static gboolean gum_find_nearest_symbol_by_address (gpointer address,
     GumNearestSymbolDetails * nearest);
 static GumModuleEntry * gum_module_entry_from_address (gpointer address,
     GumNearestSymbolDetails * nearest);
-static GumModuleEntry * gum_module_entry_from_path_and_base (const gchar * path,
-    GumAddress base_address);
+static GumModuleEntry * gum_module_entry_from_module (GumModule * module);
 
 static GHashTable * gum_get_function_addresses (void);
 static GHashTable * gum_get_address_symbols (void);
 static void gum_maybe_refresh_symbol_caches (void);
-static gboolean gum_collect_module_functions (const GumModuleDetails * details,
+static gboolean gum_collect_module_functions (GumModule * module,
     gpointer user_data);
 static gboolean gum_collect_symbol_if_function (
     const GumElfSymbolDetails * details, gpointer user_data);
@@ -510,8 +509,7 @@ gum_module_entry_from_address (gpointer address,
 }
 
 static GumModuleEntry *
-gum_module_entry_from_path_and_base (const gchar * path,
-                                     GumAddress base_address)
+gum_module_entry_from_module (GumModule * module)
 {
   GumModuleEntry * entry;
   GumElfModule * module;
@@ -597,7 +595,7 @@ gum_maybe_refresh_symbol_caches (void)
 }
 
 static gboolean
-gum_collect_module_functions (const GumModuleDetails * details,
+gum_collect_module_functions (GumModule * module,
                               gpointer user_data)
 {
   GumModuleEntry * entry;

@@ -1574,8 +1574,8 @@ gum_emit_elf_import (const GumElfSymbolDetails * details,
     GumImportDetails d;
 
     d.type = (details->type == GUM_ELF_SYMBOL_FUNC)
-        ? GUM_EXPORT_FUNCTION
-        : GUM_EXPORT_VARIABLE;
+        ? GUM_IMPORT_FUNCTION
+        : GUM_IMPORT_VARIABLE;
     d.name = details->name;
     d.module = NULL;
     d.address = 0;

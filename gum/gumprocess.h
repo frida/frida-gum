@@ -90,8 +90,10 @@ GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
 GUM_API void gum_process_enumerate_threads (GumFoundThreadFunc func,
     gpointer user_data);
 GUM_API GumModule * gum_process_get_main_module (void);
-GUM_API gboolean gum_process_resolve_module_pointer (gconstpointer ptr,
-    gchar ** path, GumMemoryRange * range);
+GUM_API GumModule * gum_process_find_module_by_name (const gchar * module_name);
+GUM_API GumModule * gum_process_find_module_by_address (GumAddress address);
+GUM_API GumModule * gum_process_load_module (const gchar * module_name,
+    GError ** error);
 GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
 GUM_API void gum_process_enumerate_ranges (GumPageProtection prot,

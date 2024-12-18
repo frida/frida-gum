@@ -52,10 +52,10 @@ struct _GumResolveSymbolContext
 static gboolean gum_emit_thread_if_not_cloaked (
     const GumThreadDetails * details, gpointer user_data);
 static void gum_deinit_main_module (void);
-static gboolean gum_try_resolve_module_pointer_from (
-    const GumModuleDetails * details, gpointer user_data);
-static gboolean gum_emit_module_if_not_cloaked (
-    const GumModuleDetails * details, gpointer user_data);
+static gboolean gum_try_resolve_module_pointer_from (GumModule * module,
+    gpointer user_data);
+static gboolean gum_emit_module_if_not_cloaked (GumModule * module,
+    gpointer user_data);
 static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean gum_store_address_if_name_matches (
@@ -219,7 +219,7 @@ gum_process_resolve_module_pointer (gconstpointer ptr,
 }
 
 static gboolean
-gum_try_resolve_module_pointer_from (const GumModuleDetails * details,
+gum_try_resolve_module_pointer_from (GumModule * module,
                                      gpointer user_data)
 {
   GumResolveModulePointerContext * ctx = user_data;
@@ -260,12 +260,15 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 }
 
 static gboolean
-gum_emit_module_if_not_cloaked (const GumModuleDetails * details,
+gum_emit_module_if_not_cloaked (GumModule * module,
                                 gpointer user_data)
 {
   GumEmitModulesContext * ctx = user_data;
+  const GumMemoryRange * range;
 
-  if (gum_cloak_has_range_containing (details->range->base_address))
+  range = gum_module_get_range (module);
+
+  if (gum_cloak_has_range_containing (range->base_address))
     return TRUE;
 
   return ctx->func (details, ctx->user_data);

@@ -117,10 +117,6 @@ struct _GumDependencyDetails
   GumDependencyType type;
 };
 
-GUM_API GumModule * gum_module_find (const gchar * module_name);
-GUM_API GumModule * gum_module_load (const gchar * module_name,
-    GError ** error);
-
 GUM_API const gchar * gum_module_get_name (GumModule * self);
 GUM_API const gchar * gum_module_get_path (GumModule * self);
 GUM_API const GumMemoryRange * gum_module_get_range (GumModule * self);

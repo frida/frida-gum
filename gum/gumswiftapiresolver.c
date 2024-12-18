@@ -680,9 +680,9 @@ gum_module_metadata_get_functions (GumModuleMetadata * self)
       gum_darwin_module_enumerate_sections (self->darwin_module,
           gum_module_metadata_collect_darwin_section, self);
 #else
-      gum_module_enumerate_exports (self->path,
+      gum_module_enumerate_exports (self->module,
           gum_module_metadata_collect_export, self);
-      gum_module_enumerate_sections (self->path,
+      gum_module_enumerate_sections (self->module,
           gum_module_metadata_collect_section, self);
 #endif
     }
