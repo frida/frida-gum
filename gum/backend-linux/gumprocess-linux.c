@@ -146,9 +146,9 @@ typedef gint (* GumCloneFunc) (gpointer arg);
 
 struct _GumProgramModules
 {
-  GumModuleDetails program;
-  GumModuleDetails interpreter;
-  GumModuleDetails vdso;
+  GumModule * program;
+  GumModule * interpreter;
+  GumModule * vdso;
   GumProgramRuntimeLinker rtld;
 };
 
@@ -1466,8 +1466,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   GumMemoryRange range;
   GumLinuxNamedRange * named_range;
   const gchar * path;
-  gchar * name;
-  GumModuleDetails details;
+  GumModule * module;
   gboolean carry_on;
 
   gum_compute_elf_range_from_phdrs (info->dlpi_phdr, sizeof (ElfW(Phdr)),
@@ -1477,15 +1476,12 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
       GSIZE_TO_POINTER (range.base_address));
 
   path = (named_range != NULL) ? named_range->name : info->dlpi_name;
-  name = g_path_get_basename (path);
 
-  details.name = name;
-  details.range = &range;
-  details.path = path;
+  module = _gum_module_make (x, dlclose, path, &range);
 
-  carry_on = ctx->func (&details, ctx->user_data);
+  carry_on = ctx->func (module, ctx->user_data);
 
-  g_free (name);
+  g_object_unref (module);
 
   return carry_on ? 0 : 1;
 }
@@ -1514,7 +1510,7 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     gchar perms[5] = { 0, };
     gint n;
     gboolean is_vdso, readable, shared;
-    gchar * name;
+    GumModule * module;
 
     if (!got_line)
     {
@@ -1556,10 +1552,6 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
 
     range.size = end - range.base_address;
 
-    details.name = name;
-    details.range = &range;
-    details.path = path;
-
     while (gum_proc_maps_iter_next (&iter, &line))
     {
       n = sscanf (line,
@@ -1587,9 +1579,11 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
       }
     }
 
-    carry_on = func (&details, user_data);
+    module = _gum_module_make (x, dlclose, path, &range);
 
-    g_free (name);
+    carry_on = func (module, user_data);
+
+    g_object_unref (module);
   }
   while (carry_on);
 

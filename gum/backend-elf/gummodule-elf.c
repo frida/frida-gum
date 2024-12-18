@@ -101,7 +101,6 @@ gum_module_finalize (GObject * object)
 {
   GumModule * self = GUM_MODULE (object);
 
-  g_free (self->name);
   g_free (self->path);
 
   G_OBJECT_CLASS (gum_module_parent_class)->finalize (object);
@@ -110,12 +109,11 @@ gum_module_finalize (GObject * object)
 GumModule *
 _gum_module_make (gpointer handle,
                   GDestroyNotify destroy_handle,
-                  const gchar * path)
+                  const gchar * path,
+                  const GumMemoryRange * range)
 {
   GumModule * module;
-
-  if (handle == NULL)
-    return NULL;
+  gchar * name;
 
   module = g_object_new (GUM_TYPE_MODULE, NULL);
 
@@ -123,6 +121,15 @@ _gum_module_make (gpointer handle,
   module->destroy_handle = destroy_handle;
 
   module->path = g_strdup (path);
+
+  name = strrchr (module->path, '/');
+  if (name != NULL)
+    name++;
+  else
+    name = module->path;
+  module->name = name;
+
+  module->range = *range;
 
   return module;
 }

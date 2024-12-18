@@ -12,6 +12,8 @@
 
 G_BEGIN_DECLS
 
+typedef gpointer (* GumCreateModuleHandleFunc) (GumModule * module);
+
 struct _GumModule
 {
 #ifndef GUM_DIET
@@ -31,7 +33,8 @@ struct _GumModule
 };
 
 G_GNUC_INTERNAL GumModule * _gum_module_make (gpointer handle,
-    GDestroyNotify destroy_handle, const gchar * path);
+    GDestroyNotify destroy_handle, const gchar * path,
+    const GumMemoryRange * range);
 G_GNUC_INTERNAL void _gum_module_enumerate_exports (GumModule * self,
     GumFoundExportFunc func, gpointer user_data);
 

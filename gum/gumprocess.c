@@ -12,7 +12,7 @@
 #include "gummodule.h"
 
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
-typedef struct _GumResolveModulePointerContext GumResolveModulePointerContext;
+typedef struct _GumFindModuleByAddressContext GumFindModuleByAddressContext;
 typedef struct _GumEmitModulesContext GumEmitModulesContext;
 typedef struct _GumEmitRangesContext GumEmitRangesContext;
 typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
@@ -23,12 +23,10 @@ struct _GumEmitThreadsContext
   gpointer user_data;
 };
 
-struct _GumResolveModulePointerContext
+struct _GumFindModuleByAddressContext
 {
-  gconstpointer ptr;
-  gboolean success;
-  gchar ** path;
-  GumMemoryRange * range;
+  GumAddress address;
+  GumModule * module;
 };
 
 struct _GumEmitModulesContext
@@ -192,48 +190,38 @@ gum_deinit_main_module (void)
 }
 
 /**
- * gum_process_resolve_module_pointer:
- * @ptr: memory location potentially belonging to a module
- * @path: (out) (optional): absolute path of module
- * @range: (out caller-allocates) (optional): memory range of module
+ * gum_process_find_module_by_address:
+ * @address: memory address potentially belonging to a module
  *
- * Determines which module @ptr belongs to, if any.
+ * Determines which module @address belongs to, if any.
  *
- * Returns: whether the pointer resolved to a module
+ * Returns: the module containing @address, or %NULL if none was found
  */
-gboolean
-gum_process_resolve_module_pointer (gconstpointer ptr,
-                                    gchar ** path,
-                                    GumMemoryRange * range)
+GumModule *
+gum_process_find_module_by_address (GumAddress address)
 {
-  GumResolveModulePointerContext ctx = {
-    .ptr = ptr,
-    .success = FALSE,
-    .path = path,
-    .range = range
+  GumFindModuleByAddressContext ctx = {
+    .address = address,
+    .module = NULL
   };
 
   gum_process_enumerate_modules (gum_try_resolve_module_pointer_from, &ctx);
 
-  return ctx.success;
+  return ctx.module;
 }
 
 static gboolean
 gum_try_resolve_module_pointer_from (GumModule * module,
                                      gpointer user_data)
 {
-  GumResolveModulePointerContext * ctx = user_data;
+  GumFindModuleByAddressContext * ctx = user_data;
+  const GumMemoryRange * range;
 
-  if (GUM_MEMORY_RANGE_INCLUDES (details->range, GUM_ADDRESS (ctx->ptr)))
+  range = gum_module_get_range (module);
+
+  if (GUM_MEMORY_RANGE_INCLUDES (range, ctx->address))
   {
-    ctx->success = TRUE;
-
-    if (ctx->path != NULL)
-      *ctx->path = g_strdup (details->path);
-
-    if (ctx->range != NULL)
-      *ctx->range = *details->range;
-
+    ctx->module = g_object_ref (module);
     return FALSE;
   }
 
@@ -271,7 +259,7 @@ gum_emit_module_if_not_cloaked (GumModule * module,
   if (gum_cloak_has_range_containing (range->base_address))
     return TRUE;
 
-  return ctx->func (details, ctx->user_data);
+  return ctx->func (module, ctx->user_data);
 }
 
 /**
@@ -418,33 +406,6 @@ gum_code_signing_policy_to_string (GumCodeSigningPolicy policy)
 
   g_assert_not_reached ();
   return NULL;
-}
-
-GumModuleDetails *
-gum_module_details_copy (const GumModuleDetails * module)
-{
-  GumModuleDetails * copy;
-
-  copy = g_slice_new (GumModuleDetails);
-
-  copy->name = g_strdup (module->name);
-  copy->range = gum_memory_range_copy (module->range);
-  copy->path = g_strdup (module->path);
-
-  return copy;
-}
-
-void
-gum_module_details_free (GumModuleDetails * module)
-{
-  if (module == NULL)
-    return;
-
-  g_free ((gpointer) module->name);
-  gum_memory_range_free ((GumMemoryRange *) module->range);
-  g_free ((gpointer) module->path);
-
-  g_slice_free (GumModuleDetails, module);
 }
 
 const gchar *
