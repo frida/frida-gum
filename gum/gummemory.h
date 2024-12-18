@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -27,7 +27,9 @@ typedef guint GumRwxSupport;
 typedef guint GumMemoryOperation;
 typedef guint GumPageProtection;
 typedef struct _GumAddressSpec GumAddressSpec;
+typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumMemoryRange GumMemoryRange;
+typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumMatchPattern GumMatchPattern;
 
 typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
@@ -68,12 +70,28 @@ struct _GumAddressSpec
   gsize max_distance;
 };
 
+struct _GumRangeDetails
+{
+  const GumMemoryRange * range;
+  GumPageProtection protection;
+  const GumFileMapping * file;
+};
+
 struct _GumMemoryRange
 {
   GumAddress base_address;
   gsize size;
 };
 
+struct _GumFileMapping
+{
+  const gchar * path;
+  guint64 offset;
+  gsize size;
+};
+
+typedef gboolean (* GumFoundRangeFunc) (const GumRangeDetails * details,
+    gpointer user_data);
 typedef void (* GumMemoryPatchApplyFunc) (gpointer mem, gpointer user_data);
 typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
     gpointer user_data);

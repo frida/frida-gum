@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -323,9 +323,8 @@ gum_allocator_probe_get_property (GObject * object,
 }
 
 static gboolean
-gum_allocator_probe_add_suppression_addresses_if_glib (
-    const GumModuleDetails * details,
-    gpointer user_data)
+gum_allocator_probe_add_suppression_addresses_if_glib (GumModule * module,
+                                                       gpointer user_data)
 {
   static const gchar * glib_function_name[] = {
     "g_quark_from_string",
@@ -344,7 +343,7 @@ gum_allocator_probe_add_suppression_addresses_if_glib (
   gchar * name_lowercase;
   static const gchar ** function_name;
 
-  name_lowercase = g_ascii_strdown (details->name, -1);
+  name_lowercase = g_ascii_strdown (gum_module_get_name (module), -1);
 
   if (g_strstr_len (name_lowercase, -1, "glib-2.0") != NULL)
     function_name = glib_function_name;
@@ -359,8 +358,8 @@ gum_allocator_probe_add_suppression_addresses_if_glib (
 
     for (i = 0; function_name[i] != NULL; i++)
     {
-      gpointer address = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-          details->path, function_name[i]));
+      gpointer address = GSIZE_TO_POINTER (
+          gum_module_find_export_by_name (module, function_name[i]));
       g_array_append_val (ignored, address);
     }
   }

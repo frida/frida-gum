@@ -65,9 +65,6 @@ static GumTeardownRequirement gum_teardown_requirement =
     GUM_TEARDOWN_REQUIREMENT_FULL;
 static GumCodeSigningPolicy gum_code_signing_policy = GUM_CODE_SIGNING_OPTIONAL;
 
-GUM_DEFINE_BOXED_TYPE (GumModuleDetails, gum_module_details,
-                       gum_module_details_copy, gum_module_details_free)
-
 GumOS
 gum_process_get_native_os (void)
 {
@@ -167,17 +164,16 @@ gum_emit_thread_if_not_cloaked (const GumThreadDetails * details,
 /**
  * gum_process_get_main_module:
  *
- * Returns the details of the module representing the main executable
- * of the process.
+ * Returns module representing the main executable of the process.
  */
-const GumModuleDetails *
+GumModule *
 gum_process_get_main_module (void)
 {
   static gsize cached_result = 0;
 
   if (g_once_init_enter (&cached_result))
   {
-    GumModuleDetails * result;
+    GumModule * result;
 
     gum_process_enumerate_modules (_gum_process_collect_main_module, &result);
 
@@ -192,7 +188,7 @@ gum_process_get_main_module (void)
 static void
 gum_deinit_main_module (void)
 {
-  gum_module_details_free ((GumModuleDetails *) gum_process_get_main_module ());
+  g_object_unref (gum_process_get_main_module ());
 }
 
 /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,8 +21,8 @@
  * GumHeapApiList: (skip)
  */
 
-static gboolean gum_collect_heap_api_if_crt_module (
-    const GumModuleDetails * details, gpointer user_data);
+static gboolean gum_collect_heap_api_if_crt_module (GumModule * module,
+    gpointer user_data);
 
 GumHeapApiList *
 gum_process_find_heap_apis (void)
@@ -59,16 +59,22 @@ gum_process_find_heap_apis (void)
 }
 
 static gboolean
-gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
+gum_collect_heap_api_if_crt_module (GumModule * module,
                                     gpointer user_data)
 {
   GumHeapApiList * list = (GumHeapApiList *) user_data;
+#ifdef HAVE_WINDOWS
+  const gchar * module_name;
+#endif
   gboolean is_libc_module;
 
 #ifdef HAVE_WINDOWS
-  is_libc_module = g_ascii_strncasecmp (details->name, "msvcr", 5) == 0;
+  module_name = gum_module_get_name (module);
+
+  is_libc_module = g_ascii_strncasecmp (module_name, "msvcr", 5) == 0;
 #else
-  is_libc_module = strcmp (details->path, gum_process_query_libc_name ()) == 0;
+  is_libc_module = strcmp (gum_module_get_path (module),
+      gum_process_query_libc_name ()) == 0;
 #endif
 
   if (is_libc_module)
@@ -77,7 +83,7 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
 
 #define GUM_ASSIGN(type, name) \
     api.name = GUM_POINTER_TO_FUNCPTR (type, gum_module_find_export_by_name ( \
-        details->path, G_STRINGIFY (name)))
+        module, G_STRINGIFY (name)))
 
     GUM_ASSIGN (GumMallocFunc, malloc);
     GUM_ASSIGN (GumCallocFunc, calloc);
@@ -85,7 +91,7 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
     GUM_ASSIGN (GumFreeFunc, free);
 
 #ifdef HAVE_WINDOWS
-    if (g_str_has_suffix (details->name, "d.dll"))
+    if (g_str_has_suffix (module_name, "d.dll"))
     {
       GUM_ASSIGN (GumMallocDbgFunc, _malloc_dbg);
       GUM_ASSIGN (GumCallocDbgFunc, _calloc_dbg);

@@ -11,6 +11,109 @@
 
 G_BEGIN_DECLS
 
+typedef struct _GumImportDetails GumImportDetails;
+typedef struct _GumExportDetails GumExportDetails;
+typedef struct _GumSymbolDetails GumSymbolDetails;
+typedef struct _GumSymbolSection GumSymbolSection;
+typedef struct _GumSectionDetails GumSectionDetails;
+typedef struct _GumDependencyDetails GumDependencyDetails;
+
+typedef gboolean (* GumFoundImportFunc) (const GumImportDetails * details,
+    gpointer user_data);
+typedef gboolean (* GumFoundExportFunc) (const GumExportDetails * details,
+    gpointer user_data);
+typedef gboolean (* GumFoundSymbolFunc) (const GumSymbolDetails * details,
+    gpointer user_data);
+typedef gboolean (* GumFoundSectionFunc) (const GumSectionDetails * details,
+    gpointer user_data);
+typedef gboolean (* GumFoundDependencyFunc) (
+    const GumDependencyDetails * details, gpointer user_data);
+typedef GumAddress (* GumResolveExportFunc) (const char * module_name,
+    const char * symbol_name, gpointer user_data);
+
+typedef enum {
+  GUM_IMPORT_UNKNOWN,
+  GUM_IMPORT_FUNCTION,
+  GUM_IMPORT_VARIABLE
+} GumImportType;
+
+typedef enum {
+  GUM_EXPORT_FUNCTION = 1,
+  GUM_EXPORT_VARIABLE
+} GumExportType;
+
+typedef enum {
+  /* Common */
+  GUM_SYMBOL_UNKNOWN,
+  GUM_SYMBOL_SECTION,
+
+  /* Mach-O */
+  GUM_SYMBOL_UNDEFINED,
+  GUM_SYMBOL_ABSOLUTE,
+  GUM_SYMBOL_PREBOUND_UNDEFINED,
+  GUM_SYMBOL_INDIRECT,
+
+  /* ELF */
+  GUM_SYMBOL_OBJECT,
+  GUM_SYMBOL_FUNCTION,
+  GUM_SYMBOL_FILE,
+  GUM_SYMBOL_COMMON,
+  GUM_SYMBOL_TLS,
+} GumSymbolType;
+
+struct _GumImportDetails
+{
+  GumImportType type;
+  const gchar * name;
+  const gchar * module;
+  GumAddress address;
+  GumAddress slot;
+};
+
+struct _GumExportDetails
+{
+  GumExportType type;
+  const gchar * name;
+  GumAddress address;
+};
+
+struct _GumSymbolDetails
+{
+  gboolean is_global;
+  GumSymbolType type;
+  const GumSymbolSection * section;
+  const gchar * name;
+  GumAddress address;
+  gssize size;
+};
+
+struct _GumSymbolSection
+{
+  const gchar * id;
+  GumPageProtection protection;
+};
+
+struct _GumSectionDetails
+{
+  const gchar * id;
+  const gchar * name;
+  GumAddress address;
+  gsize size;
+};
+
+typedef enum {
+  GUM_DEPENDENCY_REGULAR,
+  GUM_DEPENDENCY_WEAK,
+  GUM_DEPENDENCY_REEXPORT,
+  GUM_DEPENDENCY_UPWARD,
+} GumDependencyType;
+
+struct _GumDependencyDetails
+{
+  const gchar * name;
+  GumDependencyType type;
+};
+
 #define GUM_TYPE_MODULE (gum_module_get_type ())
 GUM_DECLARE_FINAL_TYPE (GumModule, gum_module, GUM, MODULE, GObject)
 
