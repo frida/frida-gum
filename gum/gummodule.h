@@ -11,6 +11,9 @@
 
 G_BEGIN_DECLS
 
+#define GUM_TYPE_MODULE (gum_module_get_type ())
+GUM_DECLARE_FINAL_TYPE (GumModule, gum_module, GUM, MODULE, GObject)
+
 typedef struct _GumImportDetails GumImportDetails;
 typedef struct _GumExportDetails GumExportDetails;
 typedef struct _GumSymbolDetails GumSymbolDetails;
@@ -65,7 +68,7 @@ struct _GumImportDetails
 {
   GumImportType type;
   const gchar * name;
-  const gchar * module;
+  GumModule * module;
   GumAddress address;
   GumAddress slot;
 };
@@ -113,9 +116,6 @@ struct _GumDependencyDetails
   const gchar * name;
   GumDependencyType type;
 };
-
-#define GUM_TYPE_MODULE (gum_module_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumModule, gum_module, GUM, MODULE, GObject)
 
 GUM_API GumModule * gum_module_find (const gchar * module_name);
 GUM_API GumModule * gum_module_load (const gchar * module_name,

@@ -51,7 +51,7 @@ struct _GumFunctionMetadata
 {
   gchar * name;
   GumAddress address;
-  gchar * module;
+  GumModule * module;
 };
 
 static void gum_module_api_resolver_iface_init (gpointer g_iface,
@@ -73,7 +73,7 @@ static gboolean gum_module_metadata_collect_section (
     const GumSectionDetails * details, gpointer user_data);
 
 static GumFunctionMetadata * gum_function_metadata_new (const gchar * name,
-    GumAddress address, const gchar * module);
+    GumAddress address, GumModule * module);
 static void gum_function_metadata_free (GumFunctionMetadata * function);
 
 static void gum_section_details_free (GumSectionDetails * self);
@@ -340,7 +340,9 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
           GumApiDetails details;
 
           details.name = g_strconcat (
-              (function->module != NULL) ? function->module : module_path,
+              (function->module != NULL)
+                ? gum_module_get_path (function->module)
+                : module_path,
               "!",
               function->name,
               NULL);
@@ -498,14 +500,14 @@ gum_module_metadata_collect_section (const GumSectionDetails * details,
 static GumFunctionMetadata *
 gum_function_metadata_new (const gchar * name,
                            GumAddress address,
-                           const gchar * module)
+                           GumModule * module)
 {
   GumFunctionMetadata * function;
 
   function = g_slice_new (GumFunctionMetadata);
   function->name = g_strdup (name);
   function->address = address;
-  function->module = g_strdup (module);
+  function->module = g_object_ref (module);
 
   return function;
 }
@@ -513,7 +515,7 @@ gum_function_metadata_new (const gchar * name,
 static void
 gum_function_metadata_free (GumFunctionMetadata * meta)
 {
-  g_free (meta->module);
+  g_object_unref (meta->module);
   g_free (meta->name);
 
   g_slice_free (GumFunctionMetadata, meta);

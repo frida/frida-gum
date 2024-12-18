@@ -111,10 +111,8 @@ struct _GumModuleMetadata
 {
   gint ref_count;
 
-  const gchar * name;
-  const gchar * path;
+  GumModule * module;
 
-  GumAddress base_address;
   GArray * functions;
   GHashTable * vtables;
   GumSwiftApiResolver * resolver;
@@ -321,8 +319,7 @@ struct _GumMethodOverrideDescriptor
 static void gum_swift_api_resolver_iface_init (gpointer g_iface,
     gpointer iface_data);
 static GumModuleMetadata * gum_swift_api_resolver_register_module (
-    GumSwiftApiResolver * self, const gchar * name, const gchar * path,
-    GumAddress base_address);
+    GumSwiftApiResolver * self, GumModule * module);
 static void gum_swift_api_resolver_finalize (GObject * object);
 static void gum_swift_api_resolver_enumerate_matches (
     GumApiResolver * resolver, const gchar * query, GumFoundApiFunc func,
@@ -443,7 +440,7 @@ gum_swift_api_resolver_init (GumSwiftApiResolver * self)
       module->darwin_module = dm;
     }
 #else
-    GArray * entries;
+    GPtrArray * entries;
     guint i;
 
     self->all_modules = gum_module_map_new ();
@@ -451,10 +448,9 @@ gum_swift_api_resolver_init (GumSwiftApiResolver * self)
     entries = gum_module_map_get_values (self->all_modules);
     for (i = 0; i != entries->len; i++)
     {
-      GumModuleDetails * d = &g_array_index (entries, GumModuleDetails, i);
+      GumModule * m = g_ptr_array_index (entries, i);
 
-      gum_swift_api_resolver_register_module (self, d->name, d->path,
-          d->range->base_address);
+      gum_swift_api_resolver_register_module (self, m);
     }
 #endif
   }
@@ -462,26 +458,24 @@ gum_swift_api_resolver_init (GumSwiftApiResolver * self)
 
 static GumModuleMetadata *
 gum_swift_api_resolver_register_module (GumSwiftApiResolver * self,
-                                        const gchar * name,
-                                        const gchar * path,
-                                        GumAddress base_address)
+                                        GumModule * module)
 {
-  GumModuleMetadata * module;
+  GumModuleMetadata * meta;
 
-  module = g_slice_new0 (GumModuleMetadata);
-  module->ref_count = 2;
-  module->name = name;
-  module->path = path;
-  module->base_address = base_address;
-  module->functions = NULL;
-  module->vtables = g_hash_table_new_full (g_str_hash, g_str_equal,
+  meta = g_slice_new0 (GumModuleMetadata);
+  meta->ref_count = 2;
+  meta->module = module;
+  meta->functions = NULL;
+  meta->vtables = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) g_ptr_array_unref);
-  module->resolver = self;
+  meta->resolver = self;
 
-  g_hash_table_insert (self->modules, g_strdup (name), module);
-  g_hash_table_insert (self->modules, g_strdup (path), module);
+  g_hash_table_insert (self->modules, (gpointer) gum_module_get_name (module),
+      meta);
+  g_hash_table_insert (self->modules, (gpointer) gum_module_get_path (module),
+      meta);
 
-  return module;
+  return meta;
 }
 
 static void
@@ -570,8 +564,8 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
   while (carry_on &&
       g_hash_table_iter_next (&module_iter, NULL, (gpointer *) &module))
   {
-    const gchar * module_name = module->name;
-    const gchar * module_path = module->path;
+    const gchar * module_name, * module_path;
+    const gchar * normalized_module_name, * normalized_module_path;
     gchar * module_name_copy = NULL;
     gchar * module_path_copy = NULL;
 
@@ -579,17 +573,25 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
       continue;
     g_hash_table_add (seen_modules, module);
 
+    module_name = gum_module_get_name (module->module);
+    module_path = gum_module_get_path (module->module);
+
     if (ignore_case)
     {
       module_name_copy = g_utf8_strdown (module_name, -1);
-      module_name = module_name_copy;
+      normalized_module_name = module_name_copy;
 
       module_path_copy = g_utf8_strdown (module_path, -1);
-      module_path = module_path_copy;
+      normalized_module_path = module_path_copy;
+    }
+    else
+    {
+      normalized_module_name = module_name;
+      normalized_module_path = module_path;
     }
 
-    if (g_pattern_spec_match_string (module_spec, module_name) ||
-        g_pattern_spec_match_string (module_spec, module_path))
+    if (g_pattern_spec_match_string (module_spec, normalized_module_name) ||
+        g_pattern_spec_match_string (module_spec, normalized_module_path))
     {
       GArray * functions;
       guint i;
@@ -606,7 +608,7 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
           GumApiDetails details;
 
           details.name = g_strconcat (
-              module->path,
+              module_path,
               "!",
               f->name,
               NULL);

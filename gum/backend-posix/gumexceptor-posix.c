@@ -176,7 +176,7 @@ gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
 
   g_free (pthread_name);
   g_free (libdir);
-  g_array_unref (module_candidates);
+  g_ptr_array_unref (module_candidates);
 }
 
 static void
