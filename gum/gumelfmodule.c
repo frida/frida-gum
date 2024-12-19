@@ -326,6 +326,8 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
 static void
 gum_elf_module_init (GumElfModule * self)
 {
+  self->source_mode = GUM_ELF_SOURCE_MODE_OFFLINE;
+
   self->phdrs = g_array_new (FALSE, FALSE, sizeof (GumElfPhdr));
   self->shdrs = g_array_new (FALSE, FALSE, sizeof (GumElfShdr));
   self->dyns = g_array_new (FALSE, FALSE, sizeof (GumElfDyn));
@@ -335,6 +337,7 @@ gum_elf_module_init (GumElfModule * self)
       (GDestroyNotify) gum_elf_section_details_clear);
 
   self->mapped_size = GUM_ELF_DEFAULT_MAPPED_SIZE;
+  self->dynamic_address_state = GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 }
 
 static void
