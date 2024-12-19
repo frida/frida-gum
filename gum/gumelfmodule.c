@@ -31,6 +31,9 @@
 #define GUM_ELF_PAGE_START(value, page_size) \
     (GUM_ADDRESS (value) & ~GUM_ADDRESS (page_size - 1))
 
+#define GUM_ELF_MODULE_LOCK(o) g_mutex_lock (&(o)->mutex)
+#define GUM_ELF_MODULE_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
+
 #define GUM_CHECK_BOUNDS(l, r, name) \
     G_STMT_START \
     { \
@@ -98,6 +101,8 @@ struct _GumElfModule
   guint64 mapped_size;
   GumElfDynamicAddressState dynamic_address_state;
   const gchar * dynamic_strings;
+
+  GMutex mutex;
 
   GumElfModule * fallback_elf_module;
   gboolean attempted_fallback_load;
@@ -338,6 +343,8 @@ gum_elf_module_init (GumElfModule * self)
 
   self->mapped_size = GUM_ELF_DEFAULT_MAPPED_SIZE;
   self->dynamic_address_state = GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
+
+  g_mutex_init (&self->mutex);
 }
 
 static void
@@ -356,6 +363,8 @@ static void
 gum_elf_module_finalize (GObject * object)
 {
   GumElfModule * self = GUM_ELF_MODULE (object);
+
+  g_mutex_clear (&self->mutex);
 
   g_array_unref (self->sections);
 
@@ -1069,6 +1078,7 @@ gum_elf_module_unload (GumElfModule * self)
 static GumElfModule *
 gum_elf_module_try_get_fallback_elf_module (GumElfModule * self)
 {
+  GUM_ELF_MODULE_LOCK (self);
 
   if (!self->attempted_fallback_load)
   {
@@ -1085,6 +1095,8 @@ gum_elf_module_try_get_fallback_elf_module (GumElfModule * self)
           gum_try_load_debugdata_as_fallback_module, self);
     }
   }
+
+  GUM_ELF_MODULE_UNLOCK (self);
 
   return self->fallback_elf_module;
 }
