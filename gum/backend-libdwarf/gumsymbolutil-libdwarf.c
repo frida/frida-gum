@@ -8,7 +8,7 @@
 #include "gumsymbolutil.h"
 
 #include "gum-init.h"
-#include "gumelfmodule.h"
+#include "gummodule-elf.h"
 
 #include <dlfcn.h>
 #include <dwarf.h>
@@ -534,11 +534,11 @@ gum_module_entry_from_module (GumModule * module)
   }
 
   entry = g_slice_new (GumModuleEntry);
-  entry->module = gum_object_ref (module);
+  entry->module = gum_object_ref (module->elf_module);
   entry->dbg = dbg;
   entry->collected = FALSE;
 
-  g_hash_table_insert (gum_module_entries, path, entry);
+  g_hash_table_insert (gum_module_entries, g_strdup (path), entry);
 
 have_entry:
   return (entry->module != NULL) ? entry : NULL;
@@ -600,8 +600,7 @@ gum_collect_module_functions (GumModule * module,
 {
   GumModuleEntry * entry;
 
-  entry = gum_module_entry_from_path_and_base (details->path,
-      details->range->base_address);
+  entry = gum_module_entry_from_module (module);
   if (entry == NULL || entry->collected)
     return TRUE;
 
@@ -692,7 +691,7 @@ gum_symbol_util_ensure_initialized (void)
   if (gum_module_entries != NULL)
     return;
 
-  gum_module_entries = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
+  gum_module_entries = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
       (GDestroyNotify) gum_module_entry_free);
   gum_function_addresses = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) gum_function_addresses_free);

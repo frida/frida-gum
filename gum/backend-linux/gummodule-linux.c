@@ -107,7 +107,7 @@ gum_module_find_export_by_name (GumModule * self,
     return address;
 #endif
 
-  return gum_dlsym (self->handle, symbol_name);
+  return gum_dlsym (_gum_module_get_handle (self), symbol_name);
 }
 
 GumAddress

@@ -8,6 +8,9 @@
 
 #include <dlfcn.h>
 
+#define GUM_MODULE_LOCK(o) g_mutex_lock (&(o)->mutex)
+#define GUM_MODULE_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
+
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
@@ -67,8 +70,6 @@ static gboolean gum_emit_range_if_module_name_matches (
 static gboolean gum_emit_section (const GumElfSectionDetails * details,
     gpointer user_data);
 
-static GumElfModule * gum_open_elf_module (const gchar * name);
-
 G_DEFINE_TYPE (GumModule, gum_module, G_TYPE_OBJECT)
 
 static void
@@ -90,7 +91,7 @@ gum_module_dispose (GObject * object)
 {
   GumModule * self = GUM_MODULE (object);
 
-  g_clear_pointer (&self->handle, self->destroy_handle);
+  g_clear_pointer (&self->cached_handle, self->destroy_handle);
   g_clear_object (&self->elf_module);
 
   G_OBJECT_CLASS (gum_module_parent_class)->dispose (object);
@@ -107,20 +108,24 @@ gum_module_finalize (GObject * object)
 }
 
 GumModule *
-_gum_module_make (gpointer handle,
-                  GDestroyNotify destroy_handle,
-                  const gchar * path,
-                  const GumMemoryRange * range)
+_gum_module_make (const gchar * path,
+                  const GumMemoryRange * range,
+                  GumCreateModuleHandleFunc create_handle,
+                  gpointer create_handle_data,
+                  GDestroyNotify create_handle_data_destroy,
+                  GDestroyNotify destroy_handle)
 {
   GumModule * module;
   gchar * name;
 
   module = g_object_new (GUM_TYPE_MODULE, NULL);
 
-  module->handle = handle;
-  module->destroy_handle = destroy_handle;
-
   module->path = g_strdup (path);
+  module->range = *range;
+  module->create_handle = create_handle;
+  module->create_handle_data = create_handle_data;
+  module->create_handle_data_destroy = create_handle_data_destroy;
+  module->destroy_handle = destroy_handle;
 
   name = strrchr (module->path, '/');
   if (name != NULL)
@@ -129,9 +134,37 @@ _gum_module_make (gpointer handle,
     name = module->path;
   module->name = name;
 
-  module->range = *range;
-
   return module;
+}
+
+GumModule *
+_gum_module_make_handleless (const gchar * path,
+                             const GumMemoryRange * range)
+{
+  return _gum_module_make (path, range, NULL, NULL, NULL, NULL);
+}
+
+gpointer
+_gum_module_get_handle (GumModule * self)
+{
+  gpointer handle;
+
+  GUM_MODULE_LOCK (self);
+
+  if (!self->tried_create_handle)
+  {
+    self->tried_create_handle = TRUE;
+
+    if (self->create_handle != NULL)
+    {
+      self->cached_handle = self->create_handle (self,
+          self->create_handle_data);
+    }
+  }
+
+  GUM_MODULE_UNLOCK (self);
+
+  return self->cached_handle;
 }
 
 const gchar *
@@ -395,21 +428,4 @@ gum_module_enumerate_dependencies (GumModule * self,
                                    gpointer user_data)
 {
   gum_elf_module_enumerate_dependencies (self->elf_module, func, user_data);
-}
-
-static GumElfModule *
-gum_open_elf_module (const gchar * name)
-{
-  gchar * path;
-  GumAddress base_address;
-  GumElfModule * module;
-
-  if (!_gum_process_resolve_module_name (name, &path, &base_address))
-    return NULL;
-
-  module = gum_elf_module_new_from_memory (path, base_address, NULL);
-
-  g_free (path);
-
-  return module;
 }

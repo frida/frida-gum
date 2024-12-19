@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,7 +12,8 @@
 
 G_BEGIN_DECLS
 
-typedef gpointer (* GumCreateModuleHandleFunc) (GumModule * module);
+typedef gpointer (* GumCreateModuleHandleFunc) (GumModule * module,
+    gpointer user_data);
 
 struct _GumModule
 {
@@ -22,24 +23,29 @@ struct _GumModule
   GumObject parent;
 #endif
 
-  gpointer handle;
-  GDestroyNotify destroy_handle;
-
   gchar * name;
   gchar * path;
   GumMemoryRange range;
+  GumCreateModuleHandleFunc create_handle;
+  gpointer create_handle_data;
+  GDestroyNotify create_handle_data_destroy;
+  GDestroyNotify destroy_handle;
 
+  GMutex mutex;
+  gpointer cached_handle;
+  gboolean tried_create_handle;
   GumElfModule * elf_module;
 };
 
-G_GNUC_INTERNAL GumModule * _gum_module_make (gpointer handle,
-    GDestroyNotify destroy_handle, const gchar * path,
+G_GNUC_INTERNAL GumModule * _gum_module_make (const gchar * path,
+    const GumMemoryRange * range, GumCreateModuleHandleFunc create_handle,
+    gpointer create_handle_data, GDestroyNotify create_handle_data_destroy,
+    GDestroyNotify destroy_handle);
+G_GNUC_INTERNAL GumModule * _gum_module_make_handleless (const gchar * path,
     const GumMemoryRange * range);
+G_GNUC_INTERNAL gpointer _gum_module_get_handle (GumModule * self);
 G_GNUC_INTERNAL void _gum_module_enumerate_exports (GumModule * self,
     GumFoundExportFunc func, gpointer user_data);
-
-G_GNUC_INTERNAL gboolean _gum_process_resolve_module_name (const gchar * name,
-    gchar ** path, GumAddress * base);
 
 G_END_DECLS
 

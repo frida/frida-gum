@@ -355,13 +355,14 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
+static GumModule * gum_try_init_libc_module (void);
 static void gum_deinit_libc_module (void);
-static void gum_do_enumerate_modules (const gchar * libc_name,
-    GumFoundModuleFunc func, gpointer user_data);
 static void gum_process_enumerate_modules_by_using_libc (
     GumDlIteratePhdrImpl iterate_phdr, GumFoundModuleFunc func,
     gpointer user_data);
 static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
+    gpointer user_data);
+static gpointer gum_create_module_handle (GumModule * module,
     gpointer user_data);
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
@@ -374,12 +375,6 @@ static void gum_do_set_hardware_watchpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
 static void gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
-static gpointer gum_module_get_handle (const gchar * module_name);
-
-static gboolean gum_do_resolve_module_name (const gchar * name,
-    const gchar * libc_name, gchar ** path, GumAddress * base);
-static gboolean gum_store_module_path_and_base_if_match (
-    const GumModuleDetails * details, gpointer user_data);
 
 static void gum_proc_maps_iter_init_for_path (GumProcMapsIter * iter,
     const gchar * path);
@@ -413,7 +408,7 @@ static gssize gum_libc_ptrace (gsize request, pid_t pid, gpointer address,
 static gssize gum_libc_syscall_4 (gsize n, gsize a, gsize b, gsize c, gsize d);
 
 static GumProgramModules gum_program_modules;
-static gchar * gum_libc_name;
+static GumModule * gum_libc_module;
 
 static gboolean gum_is_regset_supported = TRUE;
 
@@ -448,9 +443,6 @@ gum_query_program_modules (void)
     else
       ranges = user;
 
-    gum_program_modules.program.range = &ranges.program;
-    gum_program_modules.interpreter.range = &ranges.interpreter;
-    gum_program_modules.vdso.range = &ranges.vdso;
     gum_program_modules.rtld = (ranges.interpreter.base_address == 0)
         ? GUM_PROGRAM_RTLD_NONE
         : GUM_PROGRAM_RTLD_SHARED;
@@ -481,7 +473,7 @@ gum_query_program_modules (void)
 
       sscanf (line, "%*x-%*x %*c%*c%*c%*c %*x %*s %*d %[^\n]", path);
 
-      *m = _gum_module_make (NULL, NULL, path, r);
+      *m = _gum_module_make_handleless (path, r);
     }
 
     g_free (path);
@@ -490,8 +482,8 @@ gum_query_program_modules (void)
     if (ranges.vdso.base_address != 0)
     {
       /* FIXME: Parse soname instead of hardcoding: */
-      gum_program_modules.vdso =
-          _gum_module_make (NULL, NULL, "linux-vdso.so.1", &ranges.vdso);
+      gum_program_modules.vdso = _gum_module_make_handleless ("linux-vdso.so.1",
+          &ranges.vdso);
     }
 
     _gum_register_destructor (gum_deinit_program_modules);
@@ -507,9 +499,9 @@ gum_deinit_program_modules (void)
 {
   GumProgramModules * m = &gum_program_modules;
 
-  g_free ((gchar *) m->program.path);
-  g_free ((gchar *) m->interpreter.path);
-  g_free ((gchar *) m->vdso.path);
+  gum_object_unref (m->program);
+  gum_object_unref (m->interpreter);
+  gum_object_unref (m->vdso);
 }
 
 static gboolean
@@ -1335,7 +1327,7 @@ gum_process_get_libc_module (void)
   return once.retval;
 }
 
-static gchar *
+static GumModule *
 gum_try_init_libc_module (void)
 {
   Dl_info info;
@@ -1353,7 +1345,7 @@ gum_try_init_libc_module (void)
 
   _gum_register_destructor (gum_deinit_libc_module);
 
-  return gum_libc_name;
+  return gum_libc_module;
 }
 
 static void
@@ -1366,14 +1358,6 @@ void
 _gum_process_enumerate_modules (GumFoundModuleFunc func,
                                 gpointer user_data)
 {
-  gum_do_enumerate_modules (gum_process_query_libc_name (), func, user_data);
-}
-
-static void
-gum_do_enumerate_modules (const gchar * libc_name,
-                          GumFoundModuleFunc func,
-                          gpointer user_data)
-{
   const GumProgramModules * pm;
   static gsize iterate_phdr_value = 0;
   GumDlIteratePhdrImpl iterate_phdr;
@@ -1382,11 +1366,11 @@ gum_do_enumerate_modules (const gchar * libc_name,
 
   if (pm->rtld == GUM_PROGRAM_RTLD_NONE)
   {
-    if (!func (&pm->program, user_data))
+    if (!func (pm->program, user_data))
       return;
 
-    if (pm->vdso.range->base_address != 0)
-      func (&pm->vdso, user_data);
+    if (pm->vdso != NULL)
+      func (pm->vdso, user_data);
 
     return;
   }
@@ -1401,12 +1385,8 @@ gum_do_enumerate_modules (const gchar * libc_name,
 
   if (g_once_init_enter (&iterate_phdr_value))
   {
-    GumModule * libc;
-    GumAddress impl;
-
-    libc = gum_module_find (libc_name);
-    impl = gum_module_find_export_by_name (libc, "dl_iterate_phdr");
-    g_object_unref (libc);
+    GumAddress impl = gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "dl_iterate_phdr");
 
     g_once_init_leave (&iterate_phdr_value, impl + 1);
   }
@@ -1459,7 +1439,8 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
 
   path = (named_range != NULL) ? named_range->name : info->dlpi_name;
 
-  module = _gum_module_make (x, dlclose, path, &range);
+  module = _gum_module_make (path, &range, gum_create_module_handle, NULL, NULL,
+      (GDestroyNotify) dlclose);
 
   carry_on = ctx->func (module, ctx->user_data);
 
@@ -1486,7 +1467,6 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
   do
   {
     const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
-    GumModuleDetails details;
     GumMemoryRange range;
     GumAddress end;
     gchar perms[5] = { 0, };
@@ -1530,8 +1510,6 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
         sizeof (elf_magic)) != 0)
       continue;
 
-    name = g_path_get_basename (path);
-
     range.size = end - range.base_address;
 
     while (gum_proc_maps_iter_next (&iter, &line))
@@ -1561,7 +1539,8 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
       }
     }
 
-    module = _gum_module_make (x, dlclose, path, &range);
+    module = _gum_module_make (path, &range, gum_create_module_handle, NULL,
+        NULL, (GDestroyNotify) dlclose);
 
     carry_on = func (module, user_data);
 
@@ -1573,6 +1552,46 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
   g_free (next_path);
 
   gum_proc_maps_iter_destroy (&iter);
+}
+
+static gpointer
+gum_create_module_handle (GumModule * module,
+                          gpointer user_data)
+{
+#if defined (HAVE_MUSL)
+  struct link_map * cur;
+
+  for (cur = dlopen (NULL, 0); cur != NULL; cur = cur->l_next)
+  {
+    if (gum_linux_module_path_matches (cur->l_name, module->path))
+      return cur;
+  }
+
+  for (cur = dlopen (NULL, 0); cur != NULL; cur = cur->l_next)
+  {
+    gchar * target, * parent_dir, * canonical_path;
+    gboolean is_match;
+
+    target = g_file_read_link (cur->l_name, NULL);
+    if (target == NULL)
+      continue;
+    parent_dir = g_path_get_dirname (cur->l_name);
+    canonical_path = g_canonicalize_filename (target, parent_dir);
+
+    is_match = gum_linux_module_path_matches (canonical_path, module->path);
+
+    g_free (canonical_path);
+    g_free (parent_dir);
+    g_free (target);
+
+    if (is_match)
+      return cur;
+  }
+
+  return NULL;
+#else
+  return dlopen (module->path, RTLD_LAZY | RTLD_NOLOAD);
+#endif
 }
 
 GHashTable *
@@ -2234,95 +2253,6 @@ gum_linux_cpu_type_from_auxv (gconstpointer auxv,
   }
 
   return result;
-}
-
-gboolean
-_gum_process_resolve_module_name (const gchar * name,
-                                  gchar ** path,
-                                  GumAddress * base)
-{
-  return gum_do_resolve_module_name (name, gum_process_query_libc_name (), path,
-      base);
-}
-
-static gboolean
-gum_do_resolve_module_name (const gchar * name,
-                            const gchar * libc_name,
-                            gchar ** path,
-                            GumAddress * base)
-{
-  gboolean success = FALSE;
-  GumResolveModuleNameContext ctx;
-
-  if (name[0] == '/' && base == NULL)
-  {
-    success = TRUE;
-
-    if (path != NULL)
-      *path = g_strdup (name);
-
-    goto beach;
-  }
-
-  ctx.name = name;
-  ctx.known_address = 0;
-#if defined (HAVE_GLIBC) || defined (HAVE_MUSL)
-  {
-    struct link_map * map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
-    if (map != NULL)
-    {
-      ctx.known_address = GUM_ADDRESS (map->l_ld);
-      dlclose (map);
-    }
-  }
-#endif
-  ctx.path = NULL;
-  ctx.base = 0;
-
-  if (name == libc_name &&
-      gum_query_program_modules ()->rtld == GUM_PROGRAM_RTLD_NONE)
-  {
-    gum_linux_enumerate_modules_using_proc_maps (
-        gum_store_module_path_and_base_if_match, &ctx);
-  }
-  else
-  {
-    gum_do_enumerate_modules (libc_name,
-        gum_store_module_path_and_base_if_match, &ctx);
-  }
-
-  success = ctx.path != NULL;
-
-  if (path != NULL)
-    *path = g_steal_pointer (&ctx.path);
-
-  if (base != NULL)
-    *base = ctx.base;
-
-  g_free (ctx.path);
-
-beach:
-  return success;
-}
-
-static gboolean
-gum_store_module_path_and_base_if_match (
-    const GumModuleDetails * details,
-    gpointer user_data)
-{
-  GumResolveModuleNameContext * ctx = user_data;
-  gboolean is_match;
-
-  if (ctx->known_address != 0)
-    is_match = GUM_MEMORY_RANGE_INCLUDES (details->range, ctx->known_address);
-  else
-    is_match = gum_linux_module_path_matches (details->path, ctx->name);
-  if (!is_match)
-    return TRUE;
-
-  ctx->path = g_strdup (details->path);
-  ctx->base = details->range->base_address;
-  return FALSE;
 }
 
 gboolean
