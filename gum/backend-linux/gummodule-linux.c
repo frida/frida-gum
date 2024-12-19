@@ -13,8 +13,8 @@
 static GumAddress gum_dlsym (gpointer module_handle, const gchar * symbol_name);
 
 GumModule *
-gum_module_load (const gchar * module_name,
-                 GError ** error)
+gum_process_load_module (const gchar * module_name,
+                         GError ** error)
 {
   GumModule * module;
   GumGenericDlopenImpl dlopen_impl = dlopen;
@@ -50,17 +50,7 @@ not_found:
 void
 gum_module_ensure_initialized (GumModule * self)
 {
-  gpointer handle;
-
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    return;
-#endif
-
-#ifndef HAVE_MUSL
-  handle = dlopen (self->path, RTLD_LAZY);
-  g_clear_pointer (&handle, dlclose);
-#endif
+  _gum_module_get_handle (self);
 }
 
 void

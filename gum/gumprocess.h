@@ -90,7 +90,7 @@ GUM_API void gum_process_enumerate_threads (GumFoundThreadFunc func,
     gpointer user_data);
 GUM_API GumModule * gum_process_get_main_module (void);
 GUM_API GumModule * gum_process_get_libc_module (void);
-GUM_API GumModule * gum_process_find_module_by_name (const gchar * module_name);
+GUM_API GumModule * gum_process_find_module_by_name (const gchar * name);
 GUM_API GumModule * gum_process_find_module_by_address (GumAddress address);
 GUM_API GumModule * gum_process_load_module (const gchar * module_name,
     GError ** error);

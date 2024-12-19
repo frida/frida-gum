@@ -12,6 +12,7 @@
 #include "gummodule.h"
 
 typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
+typedef struct _GumFindModuleByNameContext GumFindModuleByNameContext;
 typedef struct _GumFindModuleByAddressContext GumFindModuleByAddressContext;
 typedef struct _GumEmitModulesContext GumEmitModulesContext;
 typedef struct _GumEmitRangesContext GumEmitRangesContext;
@@ -21,6 +22,15 @@ struct _GumEmitThreadsContext
 {
   GumFoundThreadFunc func;
   gpointer user_data;
+};
+
+struct _GumFindModuleByNameContext
+{
+#ifndef HAVE_WINDOWS
+  const
+#endif
+  gchar * name;
+  GumModule * module;
 };
 
 struct _GumFindModuleByAddressContext
@@ -50,7 +60,11 @@ struct _GumResolveSymbolContext
 static gboolean gum_emit_thread_if_not_cloaked (
     const GumThreadDetails * details, gpointer user_data);
 static void gum_deinit_main_module (void);
-static gboolean gum_try_resolve_module_pointer_from (GumModule * module,
+static gboolean gum_try_resolve_module_by_name (GumModule * module,
+    gpointer user_data);
+static gboolean gum_try_resolve_module_by_path (GumModule * module,
+    gpointer user_data);
+static gboolean gum_try_resolve_module_by_address (GumModule * module,
     gpointer user_data);
 static gboolean gum_emit_module_if_not_cloaked (GumModule * module,
     gpointer user_data);
@@ -190,12 +204,77 @@ gum_deinit_main_module (void)
 }
 
 /**
+ * gum_process_find_module_by_name:
+ * @name: name of a currently loaded module
+ *
+ * Finds a currently loaded module by name or filesystem path.
+ *
+ * Returns: (transfer full) (nullable): module matching @name, or %NULL if none
+ *   was found
+ */
+GumModule *
+gum_process_find_module_by_name (const gchar * name)
+{
+  GumFindModuleByNameContext ctx = {
+#ifdef HAVE_WINDOWS
+    .name = g_utf8_casefold (name),
+#else
+    .name = name,
+#endif
+    .module = NULL
+  };
+
+  if (g_path_is_absolute (name))
+    gum_process_enumerate_modules (gum_try_resolve_module_by_path, &ctx);
+  else
+    gum_process_enumerate_modules (gum_try_resolve_module_by_name, &ctx);
+
+#ifdef HAVE_WINDOWS
+  g_free (ctx.name);
+#endif
+
+  return ctx.module;
+}
+
+static gboolean
+gum_try_resolve_module_by_name (GumModule * module,
+                                gpointer user_data)
+{
+  GumFindModuleByNameContext * ctx = user_data;
+
+  if (strcmp (gum_module_get_name (module), ctx->name) == 0)
+  {
+    ctx->module = g_object_ref (module);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_try_resolve_module_by_path (GumModule * module,
+                                gpointer user_data)
+{
+  GumFindModuleByNameContext * ctx = user_data;
+
+  if (strcmp (gum_module_get_path (module), ctx->name) == 0)
+  {
+    ctx->module = g_object_ref (module);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * gum_process_find_module_by_address:
  * @address: memory address potentially belonging to a module
  *
- * Determines which module @address belongs to, if any.
+ * Determines which module @address belongs to, if any. Note that #ModuleMap is
+ * more efficient for repeated lookups.
  *
- * Returns: the module containing @address, or %NULL if none was found
+ * Returns: (transfer full) (nullable): module containing @address, or %NULL if
+ *   none was found
  */
 GumModule *
 gum_process_find_module_by_address (GumAddress address)
@@ -205,14 +284,14 @@ gum_process_find_module_by_address (GumAddress address)
     .module = NULL
   };
 
-  gum_process_enumerate_modules (gum_try_resolve_module_pointer_from, &ctx);
+  gum_process_enumerate_modules (gum_try_resolve_module_by_address, &ctx);
 
   return ctx.module;
 }
 
 static gboolean
-gum_try_resolve_module_pointer_from (GumModule * module,
-                                     gpointer user_data)
+gum_try_resolve_module_by_address (GumModule * module,
+                                   gpointer user_data)
 {
   GumFindModuleByAddressContext * ctx = user_data;
   const GumMemoryRange * range;
