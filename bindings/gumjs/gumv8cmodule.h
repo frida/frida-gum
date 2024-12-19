@@ -9,6 +9,7 @@
 
 #include "gumv8core.h"
 
+
 struct GumV8CModule
 {
   GumV8Core * core;
