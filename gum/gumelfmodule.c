@@ -100,7 +100,7 @@ struct _GumElfModule
   const gchar * dynamic_strings;
 
   GumElfModule * fallback_elf_module;
-  gboolean tried_fallback_load;
+  gboolean attempted_fallback_load;
 };
 
 enum _GumElfDynamicAddressState
@@ -1069,20 +1069,21 @@ gum_elf_module_unload (GumElfModule * self)
 static GumElfModule *
 gum_elf_module_try_get_fallback_elf_module (GumElfModule * self)
 {
-  if (self->tried_fallback_load)
-    return self->fallback_elf_module;
 
-  self->tried_fallback_load = TRUE;
+  if (!self->attempted_fallback_load)
+  {
+    self->attempted_fallback_load = TRUE;
 
-  if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
-  {
-    self->fallback_elf_module =
-        gum_elf_module_new_from_file (self->source_path, NULL);
-  }
-  else
-  {
-    gum_elf_module_enumerate_sections (self,
-        gum_try_load_debugdata_as_fallback_module, self);
+    if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
+    {
+      self->fallback_elf_module =
+          gum_elf_module_new_from_file (self->source_path, NULL);
+    }
+    else
+    {
+      gum_elf_module_enumerate_sections (self,
+          gum_try_load_debugdata_as_fallback_module, self);
+    }
   }
 
   return self->fallback_elf_module;
