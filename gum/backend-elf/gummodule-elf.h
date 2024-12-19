@@ -32,9 +32,12 @@ struct _GumModule
   GDestroyNotify destroy_handle;
 
   GMutex mutex;
+
   gpointer cached_handle;
-  gboolean tried_create_handle;
-  GumElfModule * elf_module;
+  gboolean attempted_handle_creation;
+
+  GumElfModule * cached_elf_module;
+  gboolean attempted_elf_module_creation;
 };
 
 G_GNUC_INTERNAL GumModule * _gum_module_make (const gchar * path,
@@ -43,9 +46,15 @@ G_GNUC_INTERNAL GumModule * _gum_module_make (const gchar * path,
     GDestroyNotify destroy_handle);
 G_GNUC_INTERNAL GumModule * _gum_module_make_handleless (const gchar * path,
     const GumMemoryRange * range);
+
 G_GNUC_INTERNAL gpointer _gum_module_get_handle (GumModule * self);
+G_GNUC_INTERNAL GumElfModule * _gum_module_get_elf_module (GumModule * self);
+
 G_GNUC_INTERNAL void _gum_module_enumerate_exports (GumModule * self,
     GumFoundExportFunc func, gpointer user_data);
+
+G_GNUC_INTERNAL const char * _gum_module_find_path_by_address (
+    GumAddress address);
 
 G_END_DECLS
 

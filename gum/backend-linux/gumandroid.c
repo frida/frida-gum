@@ -1130,7 +1130,7 @@ gum_linker_api_try_init (void)
   guint api_level, pending;
   gboolean got_dlopen_api245, got_dlopen_api26p;
 
-  linker = gum_android_get_linker_module ()->elf_module;
+  linker = _gum_module_get_elf_module (gum_android_get_linker_module ());
 
   api_level = gum_android_get_api_level ();
 

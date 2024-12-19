@@ -6,13 +6,10 @@
 
 #include "gummodule-elf.h"
 
-#include <dlfcn.h>
-
 #define GUM_MODULE_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_MODULE_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
-typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumEnumerateRangesContext GumEnumerateRangesContext;
 typedef struct _GumEnumerateSectionsContext GumEnumerateSectionsContext;
@@ -21,16 +18,6 @@ struct _GumEnumerateImportsContext
 {
   GumFoundImportFunc func;
   gpointer user_data;
-
-  GHashTable * dependency_exports;
-  GumElfModule * current_dependency;
-  GumModuleMap * module_map;
-};
-
-struct _GumDependencyExport
-{
-  gchar * module;
-  GumAddress address;
 };
 
 struct _GumEnumerateSymbolsContext
@@ -56,13 +43,6 @@ static void gum_module_dispose (GObject * object);
 static void gum_module_finalize (GObject * object);
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
-static gboolean gum_collect_dependency_exports (
-    const GumDependencyDetails * details, gpointer user_data);
-static gboolean gum_collect_dependency_export (const GumExportDetails * details,
-    gpointer user_data);
-static GumDependencyExport * gum_dependency_export_new (const gchar * module,
-    GumAddress address);
-static void gum_dependency_export_free (GumDependencyExport * export);
 static gboolean gum_emit_symbol (const GumElfSymbolDetails * details,
     gpointer user_data);
 static gboolean gum_emit_range_if_module_name_matches (
@@ -84,6 +64,7 @@ gum_module_class_init (GumModuleClass * klass)
 static void
 gum_module_init (GumModule * self)
 {
+  g_mutex_init (&self->mutex);
 }
 
 static void
@@ -91,8 +72,12 @@ gum_module_dispose (GObject * object)
 {
   GumModule * self = GUM_MODULE (object);
 
-  g_clear_pointer (&self->cached_handle, self->destroy_handle);
-  g_clear_object (&self->elf_module);
+  g_clear_object (&self->cached_elf_module);
+
+  if (self->destroy_handle != NULL)
+    g_clear_pointer (&self->cached_handle, self->destroy_handle);
+  else
+    self->cached_handle = NULL;
 
   G_OBJECT_CLASS (gum_module_parent_class)->dispose (object);
 }
@@ -101,6 +86,8 @@ static void
 gum_module_finalize (GObject * object)
 {
   GumModule * self = GUM_MODULE (object);
+
+  g_mutex_clear (&self->mutex);
 
   g_free (self->path);
 
@@ -147,13 +134,11 @@ _gum_module_make_handleless (const gchar * path,
 gpointer
 _gum_module_get_handle (GumModule * self)
 {
-  gpointer handle;
-
   GUM_MODULE_LOCK (self);
 
-  if (!self->tried_create_handle)
+  if (!self->attempted_handle_creation)
   {
-    self->tried_create_handle = TRUE;
+    self->attempted_handle_creation = TRUE;
 
     if (self->create_handle != NULL)
     {
@@ -165,6 +150,24 @@ _gum_module_get_handle (GumModule * self)
   GUM_MODULE_UNLOCK (self);
 
   return self->cached_handle;
+}
+
+GumElfModule *
+_gum_module_get_elf_module (GumModule * self)
+{
+  GUM_MODULE_LOCK (self);
+
+  if (!self->attempted_elf_module_creation)
+  {
+    self->attempted_elf_module_creation = TRUE;
+
+    self->cached_elf_module = gum_elf_module_new_from_memory (self->path,
+        self->range.base_address, NULL);
+  }
+
+  GUM_MODULE_UNLOCK (self);
+
+  return self->cached_elf_module;
 }
 
 const gchar *
@@ -190,24 +193,17 @@ gum_module_enumerate_imports (GumModule * self,
                               GumFoundImportFunc func,
                               gpointer user_data)
 {
+  GumElfModule * elf_module;
   GumEnumerateImportsContext ctx;
+
+  elf_module = _gum_module_get_elf_module (self);
+  if (elf_module == NULL)
+    return;
 
   ctx.func = func;
   ctx.user_data = user_data;
 
-  ctx.dependency_exports = g_hash_table_new_full (g_str_hash, g_str_equal,
-      g_free, (GDestroyNotify) gum_dependency_export_free);
-  ctx.current_dependency = NULL;
-  ctx.module_map = NULL;
-
-  gum_elf_module_enumerate_dependencies (self->elf_module,
-      gum_collect_dependency_exports, &ctx);
-
-  gum_elf_module_enumerate_imports (self->elf_module, gum_emit_import, &ctx);
-
-  if (ctx.module_map != NULL)
-    gum_object_unref (ctx.module_map);
-  g_hash_table_unref (ctx.dependency_exports);
+  gum_elf_module_enumerate_imports (elf_module, gum_emit_import, &ctx);
 }
 
 static gboolean
@@ -216,89 +212,19 @@ gum_emit_import (const GumImportDetails * details,
 {
   GumEnumerateImportsContext * ctx = user_data;
   GumImportDetails d;
-  GumDependencyExport * exp;
 
   d.type = details->type;
   d.name = details->name;
   d.slot = details->slot;
 
-  exp = g_hash_table_lookup (ctx->dependency_exports, details->name);
-  if (exp != NULL)
-  {
-    d.module = exp->module;
-    d.address = exp->address;
-  }
-  else
-  {
-    d.module = NULL;
-    d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, details->name));
-
-    if (d.address != 0)
-    {
-      GumModule * module;
-
-      if (ctx->module_map == NULL)
-        ctx->module_map = gum_module_map_new ();
-      module = gum_module_map_find (ctx->module_map, d.address);
-      if (module != NULL)
-        d.module = gum_module_get_path (module);
-    }
-  }
+  d.address = (d.slot != 0)
+      ? GUM_ADDRESS (*((gpointer *) GSIZE_TO_POINTER (d.slot)))
+      : 0;
+  d.module = (d.address != 0)
+      ? _gum_module_find_path_by_address (d.address)
+      : NULL;
 
   return ctx->func (&d, ctx->user_data);
-}
-
-static gboolean
-gum_collect_dependency_exports (const GumDependencyDetails * details,
-                                gpointer user_data)
-{
-  GumEnumerateImportsContext * ctx = user_data;
-  GumElfModule * module;
-
-  module = gum_open_elf_module (details->name);
-  if (module == NULL)
-    return TRUE;
-  ctx->current_dependency = module;
-  gum_elf_module_enumerate_exports (module, gum_collect_dependency_export, ctx);
-  ctx->current_dependency = NULL;
-  gum_object_unref (module);
-
-  return TRUE;
-}
-
-static gboolean
-gum_collect_dependency_export (const GumExportDetails * details,
-                               gpointer user_data)
-{
-  GumEnumerateImportsContext * ctx = user_data;
-  GumElfModule * module = ctx->current_dependency;
-
-  g_hash_table_insert (ctx->dependency_exports,
-      g_strdup (details->name),
-      gum_dependency_export_new (gum_elf_module_get_source_path (module),
-          details->address));
-
-  return TRUE;
-}
-
-static GumDependencyExport *
-gum_dependency_export_new (const gchar * module,
-                           GumAddress address)
-{
-  GumDependencyExport * export;
-
-  export = g_slice_new (GumDependencyExport);
-  export->module = g_strdup (module);
-  export->address = address;
-
-  return export;
-}
-
-static void
-gum_dependency_export_free (GumDependencyExport * export)
-{
-  g_free (export->module);
-  g_slice_free (GumDependencyExport, export);
 }
 
 void
@@ -306,7 +232,13 @@ _gum_module_enumerate_exports (GumModule * self,
                                GumFoundExportFunc func,
                                gpointer user_data)
 {
-  gum_elf_module_enumerate_exports (self->elf_module, func, user_data);
+  GumElfModule * elf_module;
+
+  elf_module = _gum_module_get_elf_module (self);
+  if (elf_module == NULL)
+    return;
+
+  gum_elf_module_enumerate_exports (elf_module, func, user_data);
 }
 
 void
@@ -314,12 +246,17 @@ gum_module_enumerate_symbols (GumModule * self,
                               GumFoundSymbolFunc func,
                               gpointer user_data)
 {
+  GumElfModule * elf_module;
   GumEnumerateSymbolsContext ctx;
+
+  elf_module = _gum_module_get_elf_module (self);
+  if (elf_module == NULL)
+    return;
 
   ctx.func = func;
   ctx.user_data = user_data;
 
-  gum_elf_module_enumerate_symbols (self->elf_module, gum_emit_symbol, &ctx);
+  gum_elf_module_enumerate_symbols (elf_module, gum_emit_symbol, &ctx);
 }
 
 static gboolean
@@ -399,12 +336,17 @@ gum_module_enumerate_sections (GumModule * self,
                                GumFoundSectionFunc func,
                                gpointer user_data)
 {
+  GumElfModule * elf_module;
   GumEnumerateSectionsContext ctx;
+
+  elf_module = _gum_module_get_elf_module (self);
+  if (elf_module == NULL)
+    return;
 
   ctx.func = func;
   ctx.user_data = user_data;
 
-  gum_elf_module_enumerate_sections (self->elf_module, gum_emit_section, &ctx);
+  gum_elf_module_enumerate_sections (elf_module, gum_emit_section, &ctx);
 }
 
 static gboolean
@@ -427,5 +369,11 @@ gum_module_enumerate_dependencies (GumModule * self,
                                    GumFoundDependencyFunc func,
                                    gpointer user_data)
 {
-  gum_elf_module_enumerate_dependencies (self->elf_module, func, user_data);
+  GumElfModule * elf_module;
+
+  elf_module = _gum_module_get_elf_module (self);
+  if (elf_module == NULL)
+    return;
+
+  gum_elf_module_enumerate_dependencies (elf_module, func, user_data);
 }

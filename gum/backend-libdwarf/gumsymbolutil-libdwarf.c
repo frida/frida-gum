@@ -513,6 +513,7 @@ gum_module_entry_from_module (GumModule * module)
 {
   GumModuleEntry * entry;
   const gchar * path;
+  GumElfModule * elf_module;
   Dwarf_Debug dbg;
   Dwarf_Error error;
 
@@ -524,6 +525,8 @@ gum_module_entry_from_module (GumModule * module)
   if (entry != NULL)
     goto have_entry;
 
+  elf_module = _gum_module_get_elf_module (module);
+
   dbg = NULL;
   error = NULL;
   if (dwarf_init_path (path, NULL, 0, DW_GROUPNUMBER_ANY, NULL, NULL, &dbg,
@@ -534,7 +537,7 @@ gum_module_entry_from_module (GumModule * module)
   }
 
   entry = g_slice_new (GumModuleEntry);
-  entry->module = gum_object_ref (module->elf_module);
+  entry->module = (elf_module != NULL) ? gum_object_ref (elf_module) : NULL;
   entry->dbg = dbg;
   entry->collected = FALSE;
 
