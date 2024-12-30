@@ -142,6 +142,7 @@ struct _GumDarwinModule
 
   GArray * segments;
   GArray * text_ranges;
+  gsize text_size;
 
   const guint8 * rebases;
   const guint8 * rebases_end;

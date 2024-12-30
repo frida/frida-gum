@@ -2522,6 +2522,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         if (strcmp (segment.name, "__TEXT") == 0)
         {
           self->preferred_address = segment.vm_address;
+          self->text_size = segment.vm_size;
         }
 
         break;
