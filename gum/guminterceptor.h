@@ -84,6 +84,13 @@ GUM_API void gum_interceptor_with_lock_held (GumInterceptor * self,
     GumInterceptorLockedFunc func, gpointer user_data);
 GUM_API gboolean gum_interceptor_is_locked (GumInterceptor * self);
 
+// Configure the alternate stack for the interceptor. The alternate stack is
+// used by the interceptor to run the intercepted code on a separate stack to
+// avoid overflowing the current execution stack. The configuration applied when
+// constructing new threads contexts, so it generally must be called before
+// attaching the interceptor in order to apply.
+GUM_API void gum_interceptor_configure_alternate_stack (gint stack_size);
+
 G_END_DECLS
 
 #endif
