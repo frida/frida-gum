@@ -67,8 +67,9 @@ if force_cpp_linking
 endif
 
 if host_os_family == 'windows'
-  extra_link_depends += configure_file(input: dbghelp_dll, output: 'dbghelp.dll', copy: true)
-  extra_link_depends += configure_file(input: symsrv_dll, output: 'symsrv.dll', copy: true)
+  fs = import('fs')
+  extra_link_depends += fs.copyfile(dbghelp_dll)
+  extra_link_depends += fs.copyfile(symsrv_dll)
 endif
 
 if host_os_family == 'darwin'
