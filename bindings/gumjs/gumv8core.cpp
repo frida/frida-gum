@@ -3539,6 +3539,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   auto interceptor = &self->core->script->interceptor;
   GumV8InvocationContext * jic = NULL;
   GumV8CallbackContext * jcc = NULL;
+  GumCpuContext cpu_context = { 0, };
   auto ic = gum_interceptor_get_live_replacement_invocation (self->ptr_value);
   if (ic != NULL)
   {
@@ -3548,7 +3549,6 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   }
   else
   {
-    GumCpuContext cpu_context = { 0, };
 #if defined (HAVE_I386)
     GUM_CPU_CONTEXT_XSP (&cpu_context) = stack_pointer;
     GUM_CPU_CONTEXT_XBP (&cpu_context) = frame_pointer;
