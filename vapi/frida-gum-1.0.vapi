@@ -291,13 +291,16 @@ namespace Gum {
 		public void set_teardown_requirement (Gum.TeardownRequirement requirement);
 		public Gum.CodeSigningPolicy get_code_signing_policy ();
 		public void set_code_signing_policy (Gum.CodeSigningPolicy policy);
-		public unowned string query_libc_name ();
 		public bool is_debugger_attached ();
 		public Gum.ProcessId get_id ();
 		public Gum.ThreadId get_current_thread_id ();
 		public bool has_thread (Gum.ThreadId thread_id);
 		public bool modify_thread (Gum.ThreadId thread_id, Gum.ModifyThreadFunc func, Gum.ModifyThreadFlags flags = NONE);
 		public void enumerate_threads (Gum.FoundThreadFunc func);
+		public unowned Module get_main_module ();
+		public unowned Module? get_libc_module ();
+		public Module? find_module_by_name (string name);
+		public Module? find_module_by_address (Gum.Address address);
 		public void enumerate_modules (Gum.FoundModuleFunc func);
 		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
 		public Gum.HeapApiList find_heap_apis ();
@@ -332,23 +335,29 @@ namespace Gum {
 		public bool resume (Gum.ThreadId thread_id) throws Gum.Error;
 	}
 
-	namespace Module {
-		public bool ensure_initialized (string module_name);
-		public void enumerate_imports (string module_name, Gum.FoundImportFunc func);
-		public void enumerate_exports (string module_name, Gum.FoundExportFunc func);
-		public void enumerate_symbols (string module_name, Gum.FoundSymbolFunc func);
-		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
-		public void enumerate_sections (string module_name, Gum.FoundSectionFunc func);
-		public void enumerate_dependencies (string module_name, Gum.FoundDependencyFunc func);
-		public Gum.Address find_base_address (string module_name);
-		public Gum.Address find_export_by_name (string? module_name, string symbol_name);
-		public Gum.Address find_symbol_by_name (string? module_name, string symbol_name);
+	public interface Module : GLib.Object {
+		public string name { get; }
+		public string path { get; }
+		public Gum.MemoryRange? range { get; }
+
+		public static Module load (string module_name) throws Gum.Error;
+
+		public abstract void ensure_initialized ();
+		public abstract void enumerate_imports (Gum.FoundImportFunc func);
+		public abstract void enumerate_exports (Gum.FoundExportFunc func);
+		public abstract void enumerate_symbols (Gum.FoundSymbolFunc func);
+		public abstract void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
+		public abstract void enumerate_sections (Gum.FoundSectionFunc func);
+		public abstract void enumerate_dependencies (Gum.FoundDependencyFunc func);
+		public abstract Gum.Address find_export_by_name (string symbol_name);
+		public static Gum.Address find_global_export_by_name (string symbol_name);
+		public abstract Gum.Address find_symbol_by_name (string symbol_name);
 	}
 
 	public class ModuleMap : GLib.Object {
 		public ModuleMap ();
 
-		public unowned Gum.ModuleDetails? find (Gum.Address address);
+		public unowned Gum.Module? find (Gum.Address address);
 
 		public void update ();
 	}
@@ -529,7 +538,7 @@ namespace Gum {
 
 	public delegate void ModifyThreadFunc (Gum.ThreadId thread_id, CpuContext * cpu_context);
 	public delegate bool FoundThreadFunc (Gum.ThreadDetails details);
-	public delegate bool FoundModuleFunc (Gum.ModuleDetails details);
+	public delegate bool FoundModuleFunc (Gum.Module module);
 	public delegate bool FoundRangeFunc (Gum.RangeDetails details);
 	public delegate bool FoundImportFunc (Gum.ImportDetails details);
 	public delegate bool FoundExportFunc (Gum.ExportDetails details);
@@ -556,12 +565,6 @@ namespace Gum {
 		public Gum.ThreadId id;
 		public Gum.ThreadState state;
 		public CpuContext cpu_context;
-	}
-
-	public struct ModuleDetails {
-		public string name;
-		public Gum.MemoryRange? range;
-		public string path;
 	}
 
 	[CCode (cprefix = "GUM_IMPORT_")]

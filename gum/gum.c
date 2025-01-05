@@ -512,36 +512,44 @@ gum_on_log_message (const gchar * log_domain,
   {
     const gchar * cf_path = "/System/Library/Frameworks/"
         "CoreFoundation.framework/CoreFoundation";
-    void * cf;
+    GumModule * cf;
 
     /*
      * CoreFoundation must be loaded by the main thread, so we should avoid
      * loading it.
      */
-    if (gum_module_find_base_address (cf_path) != 0)
+    cf = gum_process_find_module_by_name (cf_path);
+    if (cf != NULL)
     {
-      cf = dlopen (cf_path, RTLD_GLOBAL | RTLD_LAZY);
-      g_assert (cf != NULL);
+      GumModule * foundation;
 
       api = g_slice_new (GumCFApi);
 
-      api->CFStringCreateWithCString = dlsym (cf, "CFStringCreateWithCString");
+      api->CFStringCreateWithCString = GSIZE_TO_POINTER (
+          gum_module_find_export_by_name (cf, "CFStringCreateWithCString"));
       g_assert (api->CFStringCreateWithCString != NULL);
 
-      api->CFRelease = dlsym (cf, "CFRelease");
+      api->CFRelease = GSIZE_TO_POINTER (
+          gum_module_find_export_by_name (cf, "CFRelease"));
       g_assert (api->CFRelease != NULL);
 
-      api->CFLog = dlsym (cf, "CFLog");
+      api->CFLog = GSIZE_TO_POINTER (
+          gum_module_find_export_by_name (cf, "CFLog"));
       g_assert (api->CFLog != NULL);
 
-      dlclose (cf);
+      g_object_unref (cf);
 
       /*
        * In case Foundation is also loaded, make sure it's initialized
        * so CFLog() doesn't crash if called early.
        */
-      gum_module_ensure_initialized ("/System/Library/Frameworks/"
+      foundation = gum_process_find_module_by_name ("/System/Library/Frameworks/"
           "Foundation.framework/Foundation");
+      if (foundation != NULL)
+      {
+        gum_module_ensure_initialized (foundation);
+        g_object_unref (foundation);
+      }
     }
     else
     {

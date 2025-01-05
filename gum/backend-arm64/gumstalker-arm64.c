@@ -5942,7 +5942,7 @@ gum_find_thread_exit_implementation (void)
   guint32 * cursor;
 
   cursor = GSIZE_TO_POINTER (gum_strip_code_address (
-      gum_module_find_export_by_name ("/usr/lib/system/libsystem_pthread.dylib",
+      gum_module_find_export_by_name (gum_process_get_libc_module (),
           "pthread_exit")));
 
   do
@@ -5969,16 +5969,22 @@ gum_find_thread_exit_implementation (void)
   while (TRUE);
 #elif defined (HAVE_GLIBC)
   return GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        gum_process_query_libc_name (),
+        gum_process_get_libc_module (),
         "__call_tls_dtors"));
 #elif defined (HAVE_ANDROID)
   return GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        gum_process_query_libc_name (),
+        gum_process_get_libc_module (),
         "pthread_exit"));
 #elif defined (HAVE_FREEBSD)
-  return GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        "/lib/libthr.so.3",
-        "_pthread_exit"));
+  GumAddress result;
+  GumModule * libthr;
+
+  libthr = gum_process_find_module_by_name ("/lib/libthr.so.3");
+  g_assert (libthr != NULL);
+  result = gum_module_find_export_by_name (libthr, "_pthread_exit");
+  g_object_unref (libthr);
+
+  return GSIZE_TO_POINTER (result);
 #else
   return NULL;
 #endif

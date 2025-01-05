@@ -136,7 +136,7 @@ gum_instance_tracker_new (void)
 
 static gboolean
 gum_instance_tracker_fill_vtable_if_module_is_gobject (
-    const GumModuleDetails * details,
+    GumModule * module,
     gpointer user_data)
 {
   GumInstanceTracker * self;
@@ -146,13 +146,13 @@ gum_instance_tracker_fill_vtable_if_module_is_gobject (
   self = GUM_INSTANCE_TRACKER (user_data);
   vtable = &self->vtable;
 
-  name_lowercase = g_ascii_strdown (details->name, -1);
+  name_lowercase = g_ascii_strdown (gum_module_get_name (module), -1);
 
   if (g_strstr_len (name_lowercase, -1, "gobject-2.0") != NULL)
   {
 #define GUM_ASSIGN(type, field, name) \
     vtable->field = GUM_POINTER_TO_FUNCPTR (type, \
-        gum_module_find_export_by_name (details->path, G_STRINGIFY (name)))
+        gum_module_find_export_by_name (module, G_STRINGIFY (name)))
 
     GUM_ASSIGN (GumCreateInstanceFunc, create_instance, g_type_create_instance);
     GUM_ASSIGN (GumFreeInstanceFunc, free_instance, g_type_free_instance);

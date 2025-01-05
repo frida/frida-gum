@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -31,7 +31,8 @@ struct _GumDarwinModuleResolver
   GumCpuType cpu_type;
   GumPtrauthSupport ptrauth_support;
   guint page_size;
-  GHashTable * modules;
+  GPtrArray * modules;
+  GHashTable * module_by_name;
   gchar * sysroot;
 
   GumDarwinModuleResolverLookupFunc lookup_dynamic_func;
@@ -49,8 +50,10 @@ GUM_API void gum_darwin_module_resolver_set_dynamic_lookup_handler (
     GumDarwinModuleResolver * self, GumDarwinModuleResolverLookupFunc func,
     gpointer data, GDestroyNotify data_destroy);
 
-GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module (
-    GumDarwinModuleResolver * self, const gchar * module_name);
+GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module_by_name (
+    GumDarwinModuleResolver * self, const gchar * name);
+GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module_by_address (
+    GumDarwinModuleResolver * self, GumAddress address);
 GUM_API gboolean gum_darwin_module_resolver_find_export (
     GumDarwinModuleResolver * self, GumDarwinModule * module,
     const gchar * symbol, GumExportDetails * details);

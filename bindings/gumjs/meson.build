@@ -172,6 +172,7 @@ gumjs_runtime_sources = [
   'runtime' / 'cmodule' / 'glib.h',
   'runtime' / 'cmodule' / 'gum' / 'gumdefs.h',
   'runtime' / 'cmodule' / 'gum' / 'gumprocess.h',
+  'runtime' / 'cmodule' / 'gum' / 'gummodule.h',
   'runtime' / 'cmodule' / 'gum' / 'gummodulemap.h',
   'runtime' / 'cmodule' / 'gum' / 'gummemory.h',
   'runtime' / 'cmodule' / 'gum' / 'guminterceptor.h',

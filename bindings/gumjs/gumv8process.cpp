@@ -62,16 +62,6 @@ struct GumV8RunOnThreadContext
   GumV8Core * core;
 };
 
-struct GumV8FindModuleByNameContext
-{
-  gchar * name;
-  gboolean name_is_canonical;
-
-  Local<Object> module;
-
-  GumV8Process * parent;
-};
-
 GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
@@ -88,10 +78,9 @@ static void gum_do_call_on_thread (const GumCpuContext * cpu_context,
 static void gum_v8_process_maybe_start_stalker_gc_timer (GumV8Process * self);
 static gboolean gum_v8_process_on_stalker_gc_timer_tick (GumV8Process * self);
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
-static gboolean gum_store_module_if_name_matches (
-    const GumModuleDetails * details, GumV8FindModuleByNameContext * fc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_address)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
-static gboolean gum_emit_module (const GumModuleDetails * details,
+static gboolean gum_emit_module (GumModule * module,
     GumV8MatchContext<GumV8Process> * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
@@ -126,6 +115,7 @@ static const GumV8Function gumjs_process_functions[] =
   { "_enumerateThreads", gumjs_process_enumerate_threads },
   { "_runOnThread", gumjs_process_run_on_thread },
   { "findModuleByName", gumjs_process_find_module_by_name },
+  { "findModuleByAddress", gumjs_process_find_module_by_address },
   { "_enumerateModules", gumjs_process_enumerate_modules },
   { "_enumerateRanges", gumjs_process_enumerate_ranges },
   { "enumerateSystemRanges", gumjs_process_enumerate_system_ranges },
@@ -208,7 +198,7 @@ GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
   if (self->main_module_value == nullptr)
   {
     self->main_module_value = new Global<Object> (isolate,
-        _gum_v8_module_value_new (gum_process_get_main_module (),
+        _gum_v8_module_new_from_handle (gum_process_get_main_module (),
           self->module));
   }
 
@@ -375,53 +365,40 @@ gum_v8_process_on_stalker_gc_timer_tick (GumV8Process * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)
 {
-  GumV8FindModuleByNameContext fc;
-  if (!_gum_v8_args_parse (args, "s", &fc.name))
+  gchar * name;
+  if (!_gum_v8_args_parse (args, "s", &name))
     return;
-  fc.name_is_canonical = g_path_is_absolute (fc.name);
-  fc.parent = module;
 
-#ifdef HAVE_WINDOWS
-  gchar * folded_name = g_utf8_casefold (fc.name, -1);
-  g_free (fc.name);
-  fc.name = folded_name;
-#endif
-
-  gum_process_enumerate_modules (
-      (GumFoundModuleFunc) gum_store_module_if_name_matches, &fc);
-
-  if (!fc.module.IsEmpty ())
-    info.GetReturnValue ().Set (fc.module);
-  else
-    info.GetReturnValue ().SetNull ();
-
-  g_free (fc.name);
-}
-
-static gboolean
-gum_store_module_if_name_matches (const GumModuleDetails * details,
-                                  GumV8FindModuleByNameContext * fc)
-{
-  gboolean proceed = TRUE;
-
-  const gchar * key = fc->name_is_canonical ? details->path : details->name;
-  gchar * allocated_key = NULL;
-
-#ifdef HAVE_WINDOWS
-  allocated_key = g_utf8_casefold (key, -1);
-  key = allocated_key;
-#endif
-
-  if (strcmp (key, fc->name) == 0)
+  auto handle = gum_process_find_module_by_name (name);
+  if (handle != NULL)
   {
-    fc->module = _gum_v8_module_value_new (details, fc->parent->module);
-
-    proceed = FALSE;
+    info.GetReturnValue ().Set (
+        _gum_v8_module_new_take_handle (handle, module->module));
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
   }
 
-  g_free (allocated_key);
+  g_free (name);
+}
 
-  return proceed;
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_address)
+{
+  gpointer address;
+  if (!_gum_v8_args_parse (args, "p", &address))
+    return;
+
+  auto handle = gum_process_find_module_by_address (GUM_ADDRESS (address));
+  if (handle != NULL)
+  {
+    info.GetReturnValue ().Set (
+        _gum_v8_module_new_take_handle (handle, module->module));
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
@@ -437,12 +414,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 }
 
 static gboolean
-gum_emit_module (const GumModuleDetails * details,
+gum_emit_module (GumModule * module,
                  GumV8MatchContext<GumV8Process> * mc)
 {
-  auto module = _gum_v8_module_value_new (details, mc->parent->module);
+  auto wrapper = _gum_v8_module_new_from_handle (module, mc->parent->module);
 
-  return mc->OnMatch (module);
+  return mc->OnMatch (wrapper);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)

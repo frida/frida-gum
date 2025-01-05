@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -51,13 +52,16 @@ gum_objc_dispose_class_pair_monitor_iface_init (gpointer g_iface,
 static void
 gum_objc_dispose_class_pair_monitor_init (GumObjcDisposeClassPairMonitor * self)
 {
+  GumModule * libobjc;
   gpointer dispose_impl;
 
   g_rec_mutex_init (&self->mutex);
 
-  dispose_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-      "/usr/lib/libobjc.A.dylib", "objc_disposeClassPair"));
+  libobjc = gum_process_find_module_by_name ("/usr/lib/libobjc.A.dylib");
+  dispose_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (libobjc, "objc_disposeClassPair"));
   g_assert (dispose_impl != NULL);
+  g_object_unref (libobjc);
 
   self->interceptor = gum_interceptor_obtain ();
   gum_interceptor_attach (self->interceptor, dispose_impl,

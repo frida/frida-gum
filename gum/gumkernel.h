@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +12,7 @@
 G_BEGIN_DECLS
 
 typedef struct _GumKernelModuleRangeDetails GumKernelModuleRangeDetails;
+typedef struct _GumKernelModuleDetails GumKernelModuleDetails;
 
 struct _GumKernelModuleRangeDetails
 {
@@ -21,8 +22,17 @@ struct _GumKernelModuleRangeDetails
   GumPageProtection protection;
 };
 
+struct _GumKernelModuleDetails
+{
+  const gchar * name;
+  const GumMemoryRange * range;
+  const gchar * path;
+};
+
 typedef gboolean (* GumFoundKernelModuleRangeFunc) (
     const GumKernelModuleRangeDetails * details, gpointer user_data);
+typedef gboolean (* GumFoundKernelModuleFunc) (
+    const GumKernelModuleDetails * details, gpointer user_data);
 
 GUM_API gboolean gum_kernel_api_is_available (void);
 GUM_API guint gum_kernel_query_page_size (void);
@@ -42,7 +52,7 @@ GUM_API void gum_kernel_enumerate_ranges (GumPageProtection prot,
 GUM_API void gum_kernel_enumerate_module_ranges (const gchar * module_name,
     GumPageProtection prot, GumFoundKernelModuleRangeFunc func,
     gpointer user_data);
-GUM_API void gum_kernel_enumerate_modules (GumFoundModuleFunc func,
+GUM_API void gum_kernel_enumerate_modules (GumFoundKernelModuleFunc func,
     gpointer user_data);
 GUM_API GumAddress gum_kernel_find_base_address (void);
 GUM_API void gum_kernel_set_base_address (GumAddress base);

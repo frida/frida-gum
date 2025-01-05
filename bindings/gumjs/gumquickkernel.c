@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2018-2019 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -71,10 +71,10 @@ GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
 GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
-static gboolean gum_emit_module (const GumModuleDetails * details,
+static gboolean gum_emit_module (const GumKernelModuleDetails * details,
     GumQuickMatchContext * mc);
 static JSValue gum_parse_module_details (JSContext * ctx,
-    const GumModuleDetails * details, GumQuickCore * core);
+    const GumKernelModuleDetails * details, GumQuickCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumQuickMatchContext * mc);
@@ -254,13 +254,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
   mc.ctx = ctx;
   mc.core = core;
 
-  gum_kernel_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
+  gum_kernel_enumerate_modules ((GumFoundKernelModuleFunc) gum_emit_module,
+      &mc);
 
   return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
 }
 
 static gboolean
-gum_emit_module (const GumModuleDetails * details,
+gum_emit_module (const GumKernelModuleDetails * details,
                  GumQuickMatchContext * mc)
 {
   JSContext * ctx = mc->ctx;
@@ -277,7 +278,7 @@ gum_emit_module (const GumModuleDetails * details,
 
 static JSValue
 gum_parse_module_details (JSContext * ctx,
-                          const GumModuleDetails * details,
+                          const GumKernelModuleDetails * details,
                           GumQuickCore * core)
 {
   JSValue m = JS_NewObject (ctx);

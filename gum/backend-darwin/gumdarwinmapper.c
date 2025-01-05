@@ -57,6 +57,7 @@ struct _GumDarwinMapper
   GumDarwinModule * module;
   GumDarwinModuleImage * image;
   GumDarwinModuleResolver * resolver;
+  GumDarwinModuleResolver * local_resolver;
   GumDarwinMapper * parent;
 
   gboolean mapped;
@@ -149,6 +150,7 @@ struct _GumLibdyldDyld4Section64
 };
 
 static void gum_darwin_mapper_constructed (GObject * object);
+static void gum_darwin_mapper_dispose (GObject * object);
 static void gum_darwin_mapper_finalize (GObject * object);
 static void gum_darwin_mapper_get_property (GObject * object, guint property_id,
     GValue * value, GParamSpec * pspec);
@@ -304,6 +306,7 @@ gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
   object_class->constructed = gum_darwin_mapper_constructed;
+  object_class->dispose = gum_darwin_mapper_dispose;
   object_class->finalize = gum_darwin_mapper_finalize;
   object_class->get_property = gum_darwin_mapper_get_property;
   object_class->set_property = gum_darwin_mapper_set_property;
@@ -328,6 +331,9 @@ gum_darwin_mapper_class_init (GumDarwinMapperClass * klass)
 static void
 gum_darwin_mapper_init (GumDarwinMapper * self)
 {
+  self->local_resolver =
+      gum_darwin_module_resolver_new (mach_task_self (), NULL);
+
   self->mapped = FALSE;
   self->apple_parameters = g_ptr_array_new_with_free_func (g_free);
 }
@@ -349,7 +355,7 @@ gum_darwin_mapper_constructed (GObject * object)
 
   if (self->tlv.num_descriptors != 0)
   {
-    GumDarwinModule * pthread = gum_darwin_module_resolver_find_module (
+    GumDarwinModule * pthread = gum_darwin_module_resolver_find_module_by_name (
         self->resolver, "/usr/lib/system/libsystem_pthread.dylib");
     if (pthread != NULL)
     {
@@ -371,6 +377,18 @@ gum_darwin_mapper_constructed (GObject * object)
 }
 
 static void
+gum_darwin_mapper_dispose (GObject * object)
+{
+  GumDarwinMapper * self = GUM_DARWIN_MAPPER (object);
+
+  g_clear_object (&self->local_resolver);
+  g_clear_object (&self->resolver);
+  g_clear_object (&self->module);
+
+  G_OBJECT_CLASS (gum_darwin_mapper_parent_class)->dispose (object);
+}
+
+static void
 gum_darwin_mapper_finalize (GObject * object)
 {
   GumDarwinMapper * self = GUM_DARWIN_MAPPER (object);
@@ -387,8 +405,6 @@ gum_darwin_mapper_finalize (GObject * object)
   g_ptr_array_unref (self->apple_parameters);
   g_ptr_array_unref (self->dependencies);
 
-  g_object_unref (self->resolver);
-  g_object_unref (self->module);
   g_free (self->name);
 
   G_OBJECT_CLASS (gum_darwin_mapper_parent_class)->finalize (object);
@@ -778,7 +794,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   {
     GumDarwinModule * libdyld;
 
-    libdyld = gum_darwin_module_resolver_find_module (self->resolver,
+    libdyld = gum_darwin_module_resolver_find_module_by_name (self->resolver,
         "libdyld.dylib");
     ctx.success = FALSE;
     gum_darwin_module_enumerate_sections (libdyld, gum_find_tlv_get_addr, &ctx);
@@ -2195,7 +2211,7 @@ gum_darwin_mapper_get_dependency_by_name (GumDarwinMapper * self,
   if (mapping == NULL)
   {
     GumDarwinModule * module =
-        gum_darwin_module_resolver_find_module (resolver, name);
+        gum_darwin_module_resolver_find_module_by_name (resolver, name);
     if (module != NULL)
       mapping = gum_darwin_mapper_add_existing_mapping (self, module);
   }
@@ -2342,9 +2358,22 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
   if (GUM_MEMORY_RANGE_INCLUDES (&self->shared_cache_range,
         module->base_address))
   {
-    const gchar * unmangled_name = name + 1;
+    GumDarwinModule * local_module;
+    GumExportDetails d;
 
-    value->address = gum_module_find_export_by_name (module->name, unmangled_name);
+    local_module = gum_darwin_module_resolver_find_module_by_name (
+        self->local_resolver, module->name);
+    if (local_module != NULL &&
+        gum_darwin_module_resolver_find_export_by_mangled_name (
+          self->local_resolver, local_module, name, &d))
+    {
+      value->address = d.address;
+    }
+    else
+    {
+      value->address = 0;
+    }
+
 #ifdef HAVE_ARM64
     if (value->address != 0)
     {

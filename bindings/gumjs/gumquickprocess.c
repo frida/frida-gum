@@ -42,7 +42,6 @@
 
 typedef struct _GumQuickMatchContext GumQuickMatchContext;
 typedef struct _GumQuickRunOnThreadContext GumQuickRunOnThreadContext;
-typedef struct _GumQuickFindModuleByNameContext GumQuickFindModuleByNameContext;
 typedef struct _GumQuickFindRangeByAddressContext
     GumQuickFindRangeByAddressContext;
 
@@ -66,16 +65,6 @@ struct _GumQuickRunOnThreadContext
 {
   JSValue user_func;
   GumQuickCore * core;
-};
-
-struct _GumQuickFindModuleByNameContext
-{
-  const gchar * name;
-  gboolean name_is_canonical;
-  JSValue result;
-
-  JSContext * ctx;
-  GumQuickModule * module;
 };
 
 struct _GumQuickFindRangeByAddressContext
@@ -107,11 +96,9 @@ static void gum_quick_process_maybe_start_stalker_gc_timer (
 static gboolean gum_quick_process_on_stalker_gc_timer_tick (
     GumQuickProcess * self);
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
-static gboolean gum_store_module_if_name_matches (
-    const GumModuleDetails * details, GumQuickFindModuleByNameContext * fc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_address)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
-static gboolean gum_emit_module (const GumModuleDetails * details,
-    GumQuickMatchContext * mc);
+static gboolean gum_emit_module (GumModule * module, GumQuickMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_range_by_address)
 static gboolean gum_store_range_if_containing_address (
     const GumRangeDetails * details, GumQuickFindRangeByAddressContext * fc);
@@ -143,6 +130,7 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("_enumerateThreads", 0, gumjs_process_enumerate_threads),
   JS_CFUNC_DEF ("_runOnThread", 0, gumjs_process_run_on_thread),
   JS_CFUNC_DEF ("findModuleByName", 0, gumjs_process_find_module_by_name),
+  JS_CFUNC_DEF ("findModuleByAddress", 0, gumjs_process_find_module_by_address),
   JS_CFUNC_DEF ("_enumerateModules", 0, gumjs_process_enumerate_modules),
   JS_CFUNC_DEF ("findRangeByAddress", 0, gumjs_process_find_range_by_address),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_process_enumerate_ranges),
@@ -234,7 +222,7 @@ GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
 
   if (JS_IsUninitialized (self->main_module_value))
   {
-    self->main_module_value = _gum_quick_module_new (ctx,
+    self->main_module_value = _gum_quick_module_new_from_handle (ctx,
         gum_process_get_main_module (), self->module);
   }
 
@@ -442,54 +430,34 @@ gum_quick_process_on_stalker_gc_timer_tick (GumQuickProcess * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_name)
 {
-  GumQuickFindModuleByNameContext fc;
-  gchar * allocated_name = NULL;
+  const gchar * name;
+  GumModule * module;
 
-  if (!_gum_quick_args_parse (args, "s", &fc.name))
+  if (!_gum_quick_args_parse (args, "s", &name))
     return JS_EXCEPTION;
-  fc.name_is_canonical = g_path_is_absolute (fc.name);
-  fc.result = JS_NULL;
-  fc.ctx = ctx;
-  fc.module = gumjs_get_parent_module (core)->module;
 
-#ifdef HAVE_WINDOWS
-  allocated_name = g_utf8_casefold (fc.name, -1);
-  fc.name = allocated_name;
-#endif
+  module = gum_process_find_module_by_name (name);
+  if (module == NULL)
+    return JS_NULL;
 
-  gum_process_enumerate_modules (
-      (GumFoundModuleFunc) gum_store_module_if_name_matches, &fc);
-
-  g_free (allocated_name);
-
-  return fc.result;
+  return _gum_quick_module_new_take_handle (ctx, module,
+      gumjs_get_parent_module (core)->module);
 }
 
-static gboolean
-gum_store_module_if_name_matches (const GumModuleDetails * details,
-                                  GumQuickFindModuleByNameContext * fc)
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_address)
 {
-  gboolean proceed = TRUE;
-  const gchar * key;
-  gchar * allocated_key = NULL;
+  gpointer address;
+  GumModule * module;
 
-  key = fc->name_is_canonical ? details->path : details->name;
+  if (!_gum_quick_args_parse (args, "p", &address))
+    return JS_EXCEPTION;
 
-#ifdef HAVE_WINDOWS
-  allocated_key = g_utf8_casefold (key, -1);
-  key = allocated_key;
-#endif
+  module = gum_process_find_module_by_address (GUM_ADDRESS (address));
+  if (module == NULL)
+    return JS_NULL;
 
-  if (strcmp (key, fc->name) == 0)
-  {
-    fc->result = _gum_quick_module_new (fc->ctx, details, fc->module);
-
-    proceed = FALSE;
-  }
-
-  g_free (allocated_key);
-
-  return proceed;
+  return _gum_quick_module_new_take_handle (ctx, module,
+      gumjs_get_parent_module (core)->module);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
@@ -509,17 +477,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 }
 
 static gboolean
-gum_emit_module (const GumModuleDetails * details,
+gum_emit_module (GumModule * module,
                  GumQuickMatchContext * mc)
 {
   JSContext * ctx = mc->ctx;
-  JSValue module, result;
+  JSValue wrapper, result;
 
-  module = _gum_quick_module_new (ctx, details, mc->parent->module);
+  wrapper = _gum_quick_module_new_from_handle (ctx, module, mc->parent->module);
 
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &module);
+  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &wrapper);
 
-  JS_FreeValue (ctx, module);
+  JS_FreeValue (ctx, wrapper);
 
   return _gum_quick_process_match_result (ctx, &result, &mc->result);
 }

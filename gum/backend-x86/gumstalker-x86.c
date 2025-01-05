@@ -725,10 +725,10 @@ static gboolean gum_exec_block_is_direct_jmp_to_plt_got (GumExecBlock * block,
 #ifdef HAVE_LINUX
 static GArray * gum_exec_ctx_get_plt_got_ranges (void);
 static void gum_exec_ctx_deinit_plt_got_ranges (void);
-static gboolean gum_exec_ctx_find_plt_got (const GumModuleDetails * details,
+static gboolean gum_collect_plt_got_in_module (GumModule * module,
     gpointer user_data);
-static gboolean gum_exec_check_elf_section (
-    const GumElfSectionDetails * details, gpointer user_data);
+static gboolean gum_collect_if_plt_got_section (
+    const GumSectionDetails * details, gpointer user_data);
 #endif
 static void gum_exec_block_handle_direct_jmp_to_plt_got (GumExecBlock * block,
     GumGeneratorContext * gc, GumBranchTarget * target);
@@ -4900,7 +4900,7 @@ gum_exec_ctx_get_plt_got_ranges (void)
   {
     GArray * ranges = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
 
-    gum_process_enumerate_modules (gum_exec_ctx_find_plt_got, ranges);
+    gum_process_enumerate_modules (gum_collect_plt_got_in_module, ranges);
 
     _gum_register_early_destructor (gum_exec_ctx_deinit_plt_got_ranges);
 
@@ -4917,36 +4917,23 @@ gum_exec_ctx_deinit_plt_got_ranges (void)
 }
 
 static gboolean
-gum_exec_ctx_find_plt_got (const GumModuleDetails * details,
-                           gpointer user_data)
+gum_collect_plt_got_in_module (GumModule * module,
+                               gpointer user_data)
 {
   GArray * ranges = user_data;
-  GumElfModule * elf;
 
-  if (details->path == NULL)
-    return TRUE;
-
-  elf = gum_elf_module_new_from_memory (details->path,
-      details->range->base_address, NULL);
-  if (elf == NULL)
-    return TRUE;
-
-  gum_elf_module_enumerate_sections (elf, gum_exec_check_elf_section, ranges);
-
-  g_object_unref (elf);
+  gum_module_enumerate_sections (module, gum_collect_if_plt_got_section,
+      ranges);
 
   return TRUE;
 }
 
 static gboolean
-gum_exec_check_elf_section (const GumElfSectionDetails * details,
-                            gpointer user_data)
+gum_collect_if_plt_got_section (const GumSectionDetails * details,
+                                gpointer user_data)
 {
   GArray * ranges = user_data;
   GumMemoryRange range;
-
-  if (details->name == NULL)
-    return TRUE;
 
   if (strcmp (details->name, ".plt.got") != 0 &&
       strcmp (details->name, ".plt.sec") != 0)
@@ -6711,16 +6698,22 @@ gum_find_thread_exit_implementation (void)
   return GSIZE_TO_POINTER (result);
 #elif defined (HAVE_GLIBC)
   return GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        gum_process_query_libc_name (),
+        gum_process_get_libc_module (),
         "__call_tls_dtors"));
 #elif defined (HAVE_ANDROID)
   return GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        gum_process_query_libc_name (),
+        gum_process_get_libc_module (),
         "pthread_exit"));
 #elif defined (HAVE_FREEBSD)
-  return GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        "/lib/libthr.so.3",
-        "_pthread_exit"));
+  GumAddress result;
+  GumModule * libthr;
+
+  libthr = gum_process_find_module_by_name ("/lib/libthr.so.3");
+  g_assert (libthr != NULL);
+  result = gum_module_find_export_by_name (libthr, "_pthread_exit");
+  g_object_unref (libthr);
+
+  return GSIZE_TO_POINTER (result);
 #else
   return NULL;
 #endif

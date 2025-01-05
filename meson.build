@@ -739,7 +739,7 @@ if host_os_family == 'qnx'
   gum_incdirs += include_directories('gum' / 'backend-qnx' / 'include')
 endif
 
-if host_os_family == 'linux' or host_os_family == 'qnx'
+if host_executable_format == 'elf'
   gum_incdirs += include_directories('gum' / 'backend-elf')
 endif
 

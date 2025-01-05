@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -115,6 +115,7 @@ struct _TestArmStalkerFixture
   GumStalker * stalker;
   GumStalkerTransformer * transformer;
   GumFakeEventSink * sink;
+  const GumMemoryRange * runner_range;
 
   guint8 * code;
   guint8 * invoker;
@@ -168,7 +169,7 @@ test_arm_stalker_fixture_setup (TestArmStalkerFixture * fixture,
   fixture->stalker = gum_stalker_new ();
   fixture->transformer = NULL;
   fixture->sink = GUM_FAKE_EVENT_SINK (gum_fake_event_sink_new ());
-  fixture->sink->mask = 0;
+  fixture->runner_range = gum_module_get_range (gum_process_get_main_module ());
 }
 
 static void

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,7 +14,7 @@ struct _GumModuleMap
 {
   GObject parent;
 
-  GArray * modules;
+  GPtrArray * modules;
 
   GumModuleMapFilterFunc filter_func;
   gpointer filter_data;
@@ -22,16 +22,12 @@ struct _GumModuleMap
 };
 
 static void gum_module_map_dispose (GObject * object);
-static void gum_module_map_finalize (GObject * object);
 
-static void gum_module_map_clear (GumModuleMap * self);
-static gboolean gum_add_module (const GumModuleDetails * details,
-    gpointer user_data);
-
-static gint gum_module_details_compare_base (
-    const GumModuleDetails * lhs_module, const GumModuleDetails * rhs_module);
-static gint gum_module_details_compare_to_key (const GumAddress * key_ptr,
-    const GumModuleDetails * member);
+static gboolean gum_add_module (GumModule * module, gpointer user_data);
+static gint gum_module_compare_base (GumModule ** lhs_module,
+    GumModule ** rhs_module);
+static gint gum_module_compare_to_key (const GumAddress * key_ptr,
+    GumModule ** member);
 
 G_DEFINE_TYPE (GumModuleMap, gum_module_map, G_TYPE_OBJECT)
 
@@ -41,19 +37,20 @@ gum_module_map_class_init (GumModuleMapClass * klass)
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
   object_class->dispose = gum_module_map_dispose;
-  object_class->finalize = gum_module_map_finalize;
 }
 
 static void
 gum_module_map_init (GumModuleMap * self)
 {
-  self->modules = g_array_new (FALSE, FALSE, sizeof (GumModuleDetails));
+  self->modules = g_ptr_array_new_full (0, g_object_unref);
 }
 
 static void
 gum_module_map_dispose (GObject * object)
 {
   GumModuleMap * self = GUM_MODULE_MAP (object);
+
+  g_clear_pointer (&self->modules, g_ptr_array_unref);
 
   if (self->filter_data_destroy != NULL)
     self->filter_data_destroy (self->filter_data);
@@ -63,17 +60,6 @@ gum_module_map_dispose (GObject * object)
   self->filter_data_destroy = NULL;
 
   G_OBJECT_CLASS (gum_module_map_parent_class)->dispose (object);
-}
-
-static void
-gum_module_map_finalize (GObject * object)
-{
-  GumModuleMap * self = GUM_MODULE_MAP (object);
-
-  gum_module_map_clear (self);
-  g_array_free (self->modules, TRUE);
-
-  G_OBJECT_CLASS (gum_module_map_parent_class)->finalize (object);
 }
 
 GumModuleMap *
@@ -105,74 +91,63 @@ gum_module_map_new_filtered (GumModuleMapFilterFunc func,
   return map;
 }
 
-const GumModuleDetails *
+GumModule *
 gum_module_map_find (GumModuleMap * self,
                      GumAddress address)
 {
-  GumAddress bare_address = gum_strip_code_address (address);
+  GumModule ** entry;
+  GumAddress bare_address;
 
-  return bsearch (&bare_address, self->modules->data, self->modules->len,
-      sizeof (GumModuleDetails),
-      (GCompareFunc) gum_module_details_compare_to_key);
+  bare_address = gum_strip_code_address (address);
+
+  entry = bsearch (&bare_address, self->modules->pdata, self->modules->len,
+      sizeof (GumModule *), (GCompareFunc) gum_module_compare_to_key);
+  if (entry == NULL)
+    return NULL;
+
+  return *entry;
 }
 
 void
 gum_module_map_update (GumModuleMap * self)
 {
-  gum_module_map_clear (self);
+  g_ptr_array_set_size (self->modules, 0);
   gum_process_enumerate_modules (gum_add_module, self);
-  g_array_sort (self->modules, (GCompareFunc) gum_module_details_compare_base);
+  g_ptr_array_sort (self->modules, (GCompareFunc) gum_module_compare_base);
 }
 
-GArray *
+GPtrArray *
 gum_module_map_get_values (GumModuleMap * self)
 {
   return self->modules;
 }
 
-static void
-gum_module_map_clear (GumModuleMap * self)
-{
-  guint i;
-
-  for (i = 0; i != self->modules->len; i++)
-  {
-    GumModuleDetails * d = &g_array_index (self->modules, GumModuleDetails, i);
-    g_free ((gchar *) d->name);
-    g_slice_free (GumMemoryRange, (GumMemoryRange *) d->range);
-    g_free ((gchar *) d->path);
-  }
-  g_array_set_size (self->modules, 0);
-}
-
 static gboolean
-gum_add_module (const GumModuleDetails * details,
+gum_add_module (GumModule * module,
                 gpointer user_data)
 {
   GumModuleMap * self = user_data;
-  GumModuleDetails copy;
 
   if (self->filter_func != NULL)
   {
-    if (!self->filter_func (details, self->filter_data))
+    if (!self->filter_func (module, self->filter_data))
       return TRUE;
   }
 
-  copy.name = g_strdup (details->name);
-  copy.range = g_slice_dup (GumMemoryRange, details->range);
-  copy.path = g_strdup (details->path);
-
-  g_array_append_val (self->modules, copy);
+  g_ptr_array_add (self->modules, g_object_ref (module));
 
   return TRUE;
 }
 
 static gint
-gum_module_details_compare_base (const GumModuleDetails * lhs_module,
-                                 const GumModuleDetails * rhs_module)
+gum_module_compare_base (GumModule ** lhs_module,
+                         GumModule ** rhs_module)
 {
-  GumAddress lhs = lhs_module->range->base_address;
-  GumAddress rhs = rhs_module->range->base_address;
+  GumAddress lhs;
+  GumAddress rhs;
+
+  lhs = gum_module_get_range (*lhs_module)->base_address;
+  rhs = gum_module_get_range (*rhs_module)->base_address;
 
   if (lhs < rhs)
     return -1;
@@ -184,16 +159,18 @@ gum_module_details_compare_base (const GumModuleDetails * lhs_module,
 }
 
 static gint
-gum_module_details_compare_to_key (const GumAddress * key_ptr,
-                                   const GumModuleDetails * member)
+gum_module_compare_to_key (const GumAddress * key_ptr,
+                           GumModule ** member)
 {
   GumAddress key = *key_ptr;
-  const GumMemoryRange * m = member->range;
+  const GumMemoryRange * r;
 
-  if (key < m->base_address)
+  r = gum_module_get_range (*member);
+
+  if (key < r->base_address)
     return -1;
 
-  if (key >= m->base_address + m->size)
+  if (key >= r->base_address + r->size)
     return 1;
 
   return 0;

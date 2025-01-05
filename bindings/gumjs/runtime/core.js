@@ -279,113 +279,131 @@ Object.defineProperties(Memory, {
   }
 });
 
-makeEnumerateApi(Module, 'enumerateImports', 1);
-makeEnumerateApi(Module, 'enumerateExports', 1);
-makeEnumerateApi(Module, 'enumerateSymbols', 1);
-makeEnumerateApi(Module, 'enumerateRanges', 2);
-makeEnumerateApi(Module, 'enumerateSections', 1);
-makeEnumerateApi(Module, 'enumerateDependencies', 1);
+makeModuleEnumerateApi(Module, 'enumerateImports', 1);
+makeModuleEnumerateApi(Module, 'enumerateExports', 1);
+makeModuleEnumerateApi(Module, 'enumerateSymbols', 1);
+makeModuleEnumerateApi(Module, 'enumerateRanges', 2);
+makeModuleEnumerateApi(Module, 'enumerateSections', 1);
+makeModuleEnumerateApi(Module, 'enumerateDependencies', 1);
+
+function makeModuleEnumerateApi(mod, name, arity) {
+  Object.defineProperty(mod, name, {
+    enumerable: true,
+    value(...args) {
+      const module = Process.findModuleByName(args[0]);
+      if (module === null) {
+        const callbacks = args[arity];
+        if (callbacks !== undefined) {
+          callbacks.onComplete();
+          return;
+        }
+        return [];
+      }
+      return module[name].apply(module, args.slice(1));
+    }
+  });
+
+  Object.defineProperty(mod, name + 'Sync', {
+    enumerable: true,
+    value(moduleName, ...args) {
+      const module = Process.findModuleByName(moduleName);
+      if (module === null)
+        return [];
+      return module[name + 'Sync'].apply(module, args);
+    }
+  });
+}
 
 Object.defineProperties(Module, {
-  load: {
+  ensureInitialized: {
     enumerable: true,
-    value: function (moduleName) {
-      Module._load(moduleName);
-      return Process.getModuleByName(moduleName);
+    value(moduleName) {
+      Process.getModuleByName(moduleName).ensureInitialized();
+    }
+  },
+  findBaseAddress: {
+    enumerable: true,
+    value(moduleName) {
+      return Process.findModuleByName(moduleName)?.base ?? null;
     }
   },
   getBaseAddress: {
     enumerable: true,
-    value: function (moduleName) {
-      const base = Module.findBaseAddress(moduleName);
-      if (base === null)
-        throw new Error("unable to find module '" + moduleName + "'");
-      return base;
+    value(moduleName) {
+      return Process.getModuleByName(moduleName)?.base ?? null;
+    }
+  },
+  findExportByName: {
+    enumerable: true,
+    value(moduleName, symbolName) {
+      if (moduleName === null)
+        return Module.findGlobalExportByName(symbolName);
+      return Process.findModuleByName(moduleName)?.findExportByName(symbolName) ?? null;
     }
   },
   getExportByName: {
     enumerable: true,
-    value: function (moduleName, symbolName) {
+    value(moduleName, symbolName) {
       const address = Module.findExportByName(moduleName, symbolName);
       if (address === null) {
         const prefix = (moduleName !== null) ? (moduleName + ': ') : '';
-        throw new Error(prefix + "unable to find export '" + symbolName + "'");
+        throw new Error(`${prefix}unable to find export '${symbolName}'`);
       }
       return address;
     }
   },
+  findSymbolByName: {
+    enumerable: true,
+    value(moduleName, symbolName) {
+      return Process.findModuleByName(moduleName)?.findSymbolByName(symbolName) ?? null;
+    }
+  },
   getSymbolByName: {
     enumerable: true,
-    value: function (moduleName, symbolName) {
+    value(moduleName, symbolName) {
       const address = Module.findSymbolByName(moduleName, symbolName);
       if (address === null) {
         const prefix = (moduleName !== null) ? (moduleName + ': ') : '';
-        throw new Error(prefix + "unable to find symbol '" + symbolName + "'");
+        throw new Error(`${prefix}unable to find symbol '${symbolName}'`);
       }
       return address;
     }
   },
 });
 
-Object.defineProperties(Module.prototype, {
-  enumerateImports: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateImports(this.path);
-    }
-  },
-  enumerateExports: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateExports(this.path);
-    }
-  },
-  enumerateSymbols: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateSymbols(this.path);
-    }
-  },
-  enumerateRanges: {
-    enumerable: true,
-    value: function (protection) {
-      return Module.enumerateRanges(this.path, protection);
-    }
-  },
-  enumerateSections: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateSections(this.path);
-    }
-  },
-  enumerateDependencies: {
-    enumerable: true,
-    value: function () {
-      return Module.enumerateDependencies(this.path);
-    }
-  },
-  findExportByName: {
-    enumerable: true,
-    value: function (exportName) {
-      return Module.findExportByName(this.path, exportName);
-    }
-  },
+const moduleProto = Module.prototype;
+
+makeEnumerateApi(moduleProto, 'enumerateImports', 1);
+makeEnumerateApi(moduleProto, 'enumerateExports', 1);
+makeEnumerateApi(moduleProto, 'enumerateSymbols', 1);
+makeEnumerateApi(moduleProto, 'enumerateRanges', 2);
+makeEnumerateApi(moduleProto, 'enumerateSections', 1);
+makeEnumerateApi(moduleProto, 'enumerateDependencies', 1);
+
+Object.defineProperties(moduleProto, {
   getExportByName: {
     enumerable: true,
-    value: function (exportName) {
-      return Module.getExportByName(this.path, exportName);
-    }
-  },
-  findSymbolByName: {
-    enumerable: true,
-    value: function (symbolName) {
-      return Module.findSymbolByName(this.path, symbolName);
+    value(symbolName) {
+      const address = this.findExportByName(symbolName);
+      if (address === null)
+        throw new Error(`${this.path}: unable to find export '${symbolName}'`);
+      return address;
     }
   },
   getSymbolByName: {
     enumerable: true,
-    value: function (symbolName) {
-      return Module.getSymbolByName(this.path, symbolName);
+    value(symbolName) {
+      const address = this.findSymbolByName(symbolName);
+      if (address === null)
+        throw new Error(`${this.path}: unable to find export '${symbolName}'`);
+      return address;
+    }
+  },
+  toJSON: {
+    enumerable: true,
+    value() {
+      const {name, base, size, path} = this;
+      return {name, base, size, path};
     }
   },
 });
@@ -439,24 +457,6 @@ Object.defineProperties(Process, {
         });
       });
     },
-  },
-  findModuleByAddress: {
-    enumerable: true,
-    value: function (address) {
-      let module = null;
-      Process._enumerateModules({
-        onMatch(m) {
-          const base = m.base;
-          if (base.compare(address) <= 0 && base.add(m.size).compare(address) > 0) {
-            module = m;
-            return 'stop';
-          }
-        },
-        onComplete() {
-        }
-      });
-      return module;
-    }
   },
   getModuleByAddress: {
     enumerable: true,

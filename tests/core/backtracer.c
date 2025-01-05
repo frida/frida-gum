@@ -77,10 +77,10 @@ TESTCASE (full_cycle_with_interceptor)
   open_impl = _open;
   close_impl = _close;
 #else
-  open_impl =
-      GSIZE_TO_POINTER (gum_module_find_export_by_name (NULL, "open"));
-  close_impl =
-      GSIZE_TO_POINTER (gum_module_find_export_by_name (NULL, "close"));
+  open_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (gum_process_get_libc_module (), "open"));
+  close_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (gum_process_get_libc_module (), "close"));
 #endif
 
   gum_interceptor_attach (interceptor, open_impl,

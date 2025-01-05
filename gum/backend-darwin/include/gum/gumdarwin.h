@@ -187,22 +187,12 @@ GUM_API gboolean gum_darwin_modify_thread (mach_port_t thread,
     GumModifyThreadFunc func, gpointer user_data, GumModifyThreadFlags flags);
 GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
     GumFoundThreadFunc func, gpointer user_data);
+GUM_API GumModule * gum_darwin_find_module_by_name (mach_port_t task,
+    const gchar * name);
 GUM_API void gum_darwin_enumerate_modules (mach_port_t task,
-    GumFoundModuleFunc func, gpointer user_data);
-GUM_API void gum_darwin_enumerate_modules_forensically (mach_port_t task,
     GumFoundModuleFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_ranges (mach_port_t task,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
-GUM_API void gum_darwin_enumerate_imports (mach_port_t task,
-    const gchar * module_name, GumFoundImportFunc func, gpointer user_data);
-GUM_API void gum_darwin_enumerate_exports (mach_port_t task,
-    const gchar * module_name, GumFoundExportFunc func, gpointer user_data);
-GUM_API void gum_darwin_enumerate_symbols (mach_port_t task,
-    const gchar * module_name, GumFoundSymbolFunc func, gpointer user_data);
-GUM_API void gum_darwin_enumerate_sections (mach_port_t task,
-    const gchar * module_name, GumFoundSectionFunc func, gpointer user_data);
-GUM_API void gum_darwin_enumerate_dependencies (mach_port_t task,
-    const gchar * module_name, GumFoundDependencyFunc func, gpointer user_data);
 
 GUM_API gboolean gum_darwin_find_slide (GumAddress module_address,
     const guint8 * module, gsize module_size, gint64 * slide);

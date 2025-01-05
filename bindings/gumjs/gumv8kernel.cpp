@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -59,10 +59,10 @@ GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
 GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
-static gboolean gum_emit_module (const GumModuleDetails * details,
+static gboolean gum_emit_module (const GumKernelModuleDetails * details,
     GumV8MatchContext<GumV8Kernel> * mc);
 static Local<Object> gum_parse_module_details (
-    const GumModuleDetails * details, GumV8Core * core);
+    const GumKernelModuleDetails * details, GumV8Core * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumV8MatchContext<GumV8Kernel> * mc);
@@ -240,13 +240,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
       &mc.on_complete))
     return;
 
-  gum_kernel_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
+  gum_kernel_enumerate_modules ((GumFoundKernelModuleFunc) gum_emit_module,
+      &mc);
 
   mc.OnComplete ();
 }
 
 static gboolean
-gum_emit_module (const GumModuleDetails * details,
+gum_emit_module (const GumKernelModuleDetails * details,
                  GumV8MatchContext<GumV8Kernel> * mc)
 {
   auto module = gum_parse_module_details (details, mc->parent->core);
@@ -255,7 +256,7 @@ gum_emit_module (const GumModuleDetails * details,
 }
 
 static Local<Object>
-gum_parse_module_details (const GumModuleDetails * details,
+gum_parse_module_details (const GumKernelModuleDetails * details,
                           GumV8Core * core)
 {
   auto module = Object::New (core->isolate);

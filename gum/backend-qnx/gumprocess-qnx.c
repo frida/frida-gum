@@ -7,8 +7,8 @@
 
 #include "gumprocess-priv.h"
 
-#include "backend-elf/gumprocess-elf.h"
 #include "gum-init.h"
+#include "gummodule-elf.h"
 #include "gum/gumqnx.h"
 #include "gumqnx-priv.h"
 
@@ -51,11 +51,12 @@ struct _GumQnxModule
   /* ... */
 };
 
-static gchar * gum_try_init_libc_name (void);
-static void gum_deinit_libc_name (void);
+static void gum_deinit_libc_module (void);
 
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
+static gpointer gum_create_module_handle (GumNativeModule * module,
+    gpointer user_data);
 static void gum_enumerate_ranges_of (const gchar * device_path,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 
@@ -72,38 +73,36 @@ static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
 
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
 
-static gchar * gum_libc_name;
+static GumModule * gum_libc_module;
 
-const gchar *
-gum_process_query_libc_name (void)
+GumModule *
+gum_process_get_libc_module (void)
 {
-  static GOnce once = G_ONCE_INIT;
+  static gsize modules_value = 0;
 
-  g_once (&once, (GThreadFunc) gum_try_init_libc_name, NULL);
+  if (g_once_init_enter (&modules_value))
+  {
+    const gchar * symbol_in_libc = "exit";
+    gpointer addr_in_libc;
 
-  if (once.retval == NULL)
-    gum_panic ("Unable to locate the libc; please file a bug");
+    addr_in_libc = dlsym (RTLD_NEXT, symbol_in_libc);
+    g_assert (addr_in_libc != NULL);
 
-  return once.retval;
-}
+    gum_libc_module =
+        gum_process_find_module_by_address (GUM_ADDRESS (addr_in_libc));
 
-static gchar *
-gum_try_init_libc_name (void)
-{
-  const gpointer exit_impl = dlsym (RTLD_NEXT, "exit");
+    _gum_register_destructor (gum_deinit_libc_module);
 
-  if (!gum_process_resolve_module_pointer (exit_impl, &gum_libc_name, NULL))
-    return NULL;
+    g_once_init_leave (&modules_value, GPOINTER_TO_SIZE (gum_libc_module));
+  }
 
-  _gum_register_destructor (gum_deinit_libc_name);
-
-  return gum_libc_name;
+  return GSIZE_TO_POINTER (modules_value);
 }
 
 static void
-gum_deinit_libc_name (void)
+gum_deinit_libc_module (void)
 {
-  g_free (gum_libc_name);
+  gum_object_unref (gum_libc_module);
 }
 
 gboolean
@@ -276,12 +275,12 @@ gum_store_cpu_context (GumThreadId thread_id,
 }
 
 gboolean
-_gum_process_collect_main_module (const GumModuleDetails * details,
+_gum_process_collect_main_module (GumModule * module,
                                   gpointer user_data)
 {
-  GumModuleDetails ** out = user_data;
+  GumModule ** out = user_data;
 
-  *out = gum_module_details_copy (details);
+  *out = g_object_ref (module);
 
   return FALSE;
 }
@@ -301,32 +300,28 @@ _gum_process_enumerate_modules (GumFoundModuleFunc func,
     const GumQnxModuleList * l = (GumQnxModuleList *) cur;
     const GumQnxModule * mod = l->module;
     const Link_map * map = &mod->map;
-    gchar * resolved_path, * resolved_name;
-    GumModuleDetails details;
+    gchar * resolved_path;
+    const gchar * path;
     GumMemoryRange range;
     const Elf32_Ehdr * ehdr;
     const Elf32_Phdr * phdr;
     guint i;
+    GumNativeModule * module;
 
     if ((mod->flags & GUM_QNX_MODULE_FLAG_EXECUTABLE) != 0)
     {
       resolved_path = gum_qnx_query_program_path_for_self (NULL);
       g_assert (resolved_path != NULL);
-      resolved_name = g_path_get_basename (resolved_path);
 
-      details.name = resolved_name;
-      details.path = resolved_path;
+      path = resolved_path;
     }
     else
     {
       resolved_path = gum_resolve_path (map->l_path);
-      resolved_name = NULL;
 
-      details.name = map->l_name;
-      details.path = resolved_path;
+      path = resolved_path;
     }
 
-    details.range = &range;
     range.base_address = map->l_addr;
     range.size = 0;
     ehdr = GSIZE_TO_POINTER (map->l_addr);
@@ -338,13 +333,24 @@ _gum_process_enumerate_modules (GumFoundModuleFunc func,
         range.size += h->p_memsz;
     }
 
-    carry_on = func (&details, user_data);
+    module = _gum_native_module_make (path, &range, gum_create_module_handle,
+        NULL, NULL, (GDestroyNotify) dlclose);
 
-    g_free (resolved_name);
+    carry_on = func (GUM_MODULE (module), user_data);
+
+    gum_object_unref (module);
+
     g_free (resolved_path);
   }
 
   dlclose (handle);
+}
+
+static gpointer
+gum_create_module_handle (GumNativeModule * module,
+                          gpointer user_data)
+{
+  return dlopen (module->path, RTLD_LAZY | RTLD_NOLOAD);
 }
 
 void
@@ -550,79 +556,6 @@ gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
   g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
       "Hardware watchpoints are not yet supported on this platform");
   return FALSE;
-}
-
-gboolean
-gum_module_load (const gchar * module_name,
-                 GError ** error)
-{
-  if (dlopen (module_name, RTLD_LAZY) == NULL)
-    goto not_found;
-
-  return TRUE;
-
-not_found:
-  {
-    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND, "%s", dlerror ());
-    return FALSE;
-  }
-}
-
-gboolean
-gum_module_ensure_initialized (const gchar * module_name)
-{
-  gboolean success;
-  gchar * name = NULL;
-  void * module;
-
-  success = FALSE;
-
-  if (!_gum_process_resolve_module_name (module_name, &name, NULL))
-    goto beach;
-
-  module = dlopen (name, RTLD_LAZY);
-  if (module == NULL)
-    goto beach;
-  dlclose (module);
-
-  success = TRUE;
-
-beach:
-  g_free (name);
-
-  return success;
-}
-
-GumAddress
-gum_module_find_export_by_name (const gchar * module_name,
-                                const gchar * symbol_name)
-{
-  GumAddress result;
-  void * module;
-
-  if (module_name != NULL)
-  {
-    gchar * name;
-
-    if (!_gum_process_resolve_module_name (module_name, &name, NULL))
-      return 0;
-    module = dlopen (name, RTLD_LAZY);
-    g_free (name);
-
-    if (module == NULL)
-      return 0;
-  }
-  else
-  {
-    module = RTLD_DEFAULT;
-  }
-
-  result = GUM_ADDRESS (dlsym (module, symbol_name));
-
-  if (module != RTLD_DEFAULT)
-    dlclose (module);
-
-  return result;
 }
 
 GumCpuType

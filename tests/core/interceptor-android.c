@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -22,7 +22,7 @@ TESTCASE (can_attach_to_close_with_two_unrelated_interceptors)
   other_interceptor = g_object_new (GUM_TYPE_INTERCEPTOR, NULL);
 
   close_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name (NULL, "close"));
+      gum_module_find_export_by_name (gum_process_get_libc_module (), "close"));
 
   fd = eventfd (FALSE, EFD_CLOEXEC);
   g_assert_true (fd != -1);
@@ -45,7 +45,7 @@ TESTCASE (can_attach_to_dlopen)
   void * libc;
 
   dlopen_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name (NULL, "dlopen"));
+      gum_module_find_global_export_by_name ("dlopen"));
 
   interceptor_fixture_attach (fixture, 0, dlopen_impl, '>', '<');
 
@@ -63,7 +63,7 @@ TESTCASE (can_attach_to_fork)
   pid_t pid;
 
   fork_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libc.so", "fork"));
+      gum_module_find_export_by_name (gum_process_get_libc_module (), "fork"));
 
   interceptor_fixture_attach (fixture, 0, fork_impl, '>', '<');
 
@@ -84,7 +84,7 @@ struct _GumRuntimeBounds
   gpointer end;
 };
 
-static gboolean gum_store_runtime_bounds (const GumModuleDetails * details,
+static gboolean gum_store_runtime_bounds (GumModule * module,
     GumRuntimeBounds * bounds);
 
 TESTCASE (can_attach_to_set_argv0)
@@ -124,14 +124,15 @@ TESTCASE (can_attach_to_set_argv0)
 }
 
 static gboolean
-gum_store_runtime_bounds (const GumModuleDetails * details,
+gum_store_runtime_bounds (GumModule * module,
                           GumRuntimeBounds * bounds)
 {
-  const GumMemoryRange * range = details->range;
+  const GumMemoryRange * range;
 
-  if (strcmp (details->name, "libandroid_runtime.so") != 0)
+  if (strcmp (gum_module_get_name (module), "libandroid_runtime.so") != 0)
     return TRUE;
 
+  range = gum_module_get_range (module);
   bounds->start = GSIZE_TO_POINTER (range->base_address);
   bounds->end = GSIZE_TO_POINTER (range->base_address + range->size);
 

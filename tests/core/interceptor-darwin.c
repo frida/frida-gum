@@ -63,8 +63,8 @@ TESTCASE (can_attach_to_errno)
   int * (* error_impl) (void);
   int ret;
 
-  error_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "__error"));
+  error_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "__error"));
 
   interceptor_fixture_attach (fixture, 0, error_impl, '>', '<');
 
@@ -78,8 +78,8 @@ TESTCASE (can_attach_to_strcmp)
 {
   int (* strcmp_impl) (const char * s1, const char * s2);
 
-  strcmp_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "strcmp"));
+  strcmp_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "strcmp"));
 
   interceptor_fixture_attach (fixture, 0, strcmp_impl, '>', '<');
 
@@ -91,8 +91,8 @@ TESTCASE (can_attach_to_strrchr)
   char * (* strrchr_impl) (const char * s, int c);
   const char * s = "badger";
 
-  strrchr_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "strrchr"));
+  strrchr_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "strrchr"));
 
   interceptor_fixture_attach (fixture, 0, strrchr_impl, '>', '<');
 
@@ -107,8 +107,8 @@ TESTCASE (can_attach_to_read)
   GThread * read_thread;
   guint8 value = 42;
 
-  read_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "read"));
+  read_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "read"));
 
   ret = pipe (fds);
   g_assert_cmpint (ret, ==, 0);
@@ -159,8 +159,8 @@ TESTCASE (can_attach_to_accept)
   ret = connect (client, (struct sockaddr *) &addr, sizeof (addr));
   g_assert_true (ret == -1 && errno == EINPROGRESS);
 
-  accept_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "accept"));
+  accept_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "accept"));
 
   interceptor_fixture_attach (fixture, 0, accept_impl, '>', '<');
 
@@ -184,7 +184,7 @@ TESTCASE (can_attach_to_posix_spawnattr_setbinpref_np)
   int ret;
 
   posix_spawnattr_setbinpref_np_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib",
+      gum_module_find_export_by_name (gum_process_get_libc_module (),
       "posix_spawnattr_setbinpref_np"));
 
   interceptor_fixture_attach (fixture, 0, posix_spawnattr_setbinpref_np_impl,
@@ -209,8 +209,8 @@ TESTCASE (can_attach_to_pid_for_task)
 
   self = mach_task_self ();
 
-  pid_for_task_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "pid_for_task"));
+  pid_for_task_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "pid_for_task"));
 
   interceptor_fixture_attach (fixture, 0, pid_for_task_impl, '>', '<');
 
@@ -226,8 +226,8 @@ TESTCASE (can_attach_to_mach_host_self)
   mach_port_t (* mach_host_self_impl) (void);
   mach_port_t host;
 
-  mach_host_self_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "mach_host_self"));
+  mach_host_self_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "mach_host_self"));
 
   interceptor_fixture_attach (fixture, 0, mach_host_self_impl, '>', '<');
 
@@ -242,19 +242,21 @@ TESTCASE (can_attach_to_mach_host_self)
 
 TESTCASE (can_attach_to_xpc_retain)
 {
+  GumModule * libc;
   gpointer (* xpc_dictionary_create_impl) (const gchar * const * keys,
       gconstpointer * values, gsize count);
   gpointer (* xpc_retain_impl) (gpointer object);
   void (* xpc_release_impl) (gpointer object);
   gpointer dict;
 
+  libc = gum_process_get_libc_module ();
+
   xpc_dictionary_create_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib",
-      "xpc_dictionary_create"));
+      gum_module_find_export_by_name (libc, "xpc_dictionary_create"));
   xpc_retain_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "xpc_retain"));
+      gum_module_find_export_by_name (libc, "xpc_retain"));
   xpc_release_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "xpc_release"));
+      gum_module_find_export_by_name (libc, "xpc_release"));
 
   dict = xpc_dictionary_create_impl (NULL, NULL, 0);
 
@@ -272,24 +274,32 @@ TESTCASE (can_attach_to_xpc_retain)
 
 TESTCASE (can_attach_to_sqlite3_close)
 {
+  GumModule * sqlite;
   gint (* close_impl) (gpointer connection);
 
+  sqlite = gum_process_find_module_by_name ("/usr/lib/libsqlite3.dylib");
+
   close_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-      "libsqlite3.dylib", "sqlite3_close"));
+        sqlite, "sqlite3_close"));
 
   interceptor_fixture_attach (fixture, 0, close_impl, '>', '<');
 
   close_impl (NULL);
   g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  g_object_unref (sqlite);
 }
 
 TESTCASE (can_attach_to_sqlite3_thread_cleanup)
 {
 #ifndef HAVE_ARM
+  GumModule * sqlite;
   void (* thread_cleanup_impl) (void);
 
+  sqlite = gum_process_find_module_by_name ("/usr/lib/libsqlite3.dylib");
+
   thread_cleanup_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-      "libsqlite3.dylib", "sqlite3_thread_cleanup"));
+        sqlite, "sqlite3_thread_cleanup"));
 
   interceptor_fixture_attach (fixture, 0, thread_cleanup_impl, '>', '<');
 
@@ -298,6 +308,8 @@ TESTCASE (can_attach_to_sqlite3_thread_cleanup)
 
   interceptor_fixture_detach (fixture, 0);
   g_string_truncate (fixture->result, 0);
+
+  g_object_unref (sqlite);
 #endif
 }
 
@@ -317,7 +329,7 @@ perform_read (gpointer data)
 
 TESTCASE (attach_performance)
 {
-  gpointer sqlite;
+  GumModule * sqlite;
   TestPerformanceContext ctx;
   GTimer * timer;
 
@@ -331,15 +343,14 @@ TESTCASE (attach_performance)
   ctx.listener = GUM_INVOCATION_LISTENER (test_callback_listener_new ());
   ctx.count = 0;
 
-  sqlite = dlopen ("/usr/lib/libsqlite3.0.dylib", RTLD_LAZY | RTLD_GLOBAL);
+  sqlite = gum_module_load ("/usr/lib/libsqlite3.0.dylib", NULL);
   g_assert_nonnull (sqlite);
 
   timer = g_timer_new ();
 
   gum_interceptor_begin_transaction (ctx.interceptor);
 
-  gum_module_enumerate_exports ("libsqlite3.dylib", attach_if_function_export,
-      &ctx);
+  gum_module_enumerate_exports (sqlite, attach_if_function_export, &ctx);
 
   gum_interceptor_end_transaction (ctx.interceptor);
 
@@ -347,14 +358,14 @@ TESTCASE (attach_performance)
       (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
   g_timer_destroy (timer);
 
-  dlclose (sqlite);
+  g_object_unref (sqlite);
 
   g_object_unref (ctx.listener);
 }
 
 TESTCASE (replace_performance)
 {
-  gpointer sqlite;
+  GumModule * sqlite;
   TestPerformanceContext ctx;
   GTimer * timer;
 
@@ -368,15 +379,14 @@ TESTCASE (replace_performance)
   ctx.listener = NULL;
   ctx.count = 0;
 
-  sqlite = dlopen ("/usr/lib/libsqlite3.0.dylib", RTLD_LAZY | RTLD_GLOBAL);
+  sqlite = gum_module_load ("/usr/lib/libsqlite3.0.dylib", NULL);
   g_assert_nonnull (sqlite);
 
   timer = g_timer_new ();
 
   gum_interceptor_begin_transaction (ctx.interceptor);
 
-  gum_module_enumerate_exports ("libsqlite3.dylib", replace_if_function_export,
-      &ctx);
+  gum_module_enumerate_exports (sqlite, replace_if_function_export, &ctx);
 
   gum_interceptor_end_transaction (ctx.interceptor);
 
@@ -384,7 +394,7 @@ TESTCASE (replace_performance)
       (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
   g_timer_destroy (timer);
 
-  dlclose (sqlite);
+  g_object_unref (sqlite);
 }
 
 static gboolean

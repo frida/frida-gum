@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -120,8 +120,8 @@ static void gum_remove_deflector (gpointer cave,
 static gpointer gum_code_deflector_dispatcher_lookup (
     GumCodeDeflectorDispatcher * self, gpointer return_address);
 
-static gboolean gum_probe_module_for_code_cave (
-    const GumModuleDetails * details, gpointer user_data);
+static gboolean gum_probe_module_for_code_cave (GumModule * module,
+    gpointer user_data);
 
 GUM_DEFINE_BOXED_TYPE (GumCodeSlice, gum_code_slice, gum_code_slice_ref,
                        gum_code_slice_unref)
@@ -802,16 +802,17 @@ gum_code_deflector_dispatcher_lookup (GumCodeDeflectorDispatcher * self,
 }
 
 static gboolean
-gum_probe_module_for_code_cave (const GumModuleDetails * details,
+gum_probe_module_for_code_cave (GumModule * module,
                                 gpointer user_data)
 {
-  const GumMemoryRange * range = details->range;
   GumProbeRangeForCodeCaveContext * ctx = user_data;
   const GumAddressSpec * caller = ctx->caller;
+  const GumMemoryRange * range;
   GumAddress header_address, cave_address;
   gsize distance;
   const guint8 empty_cave[GUM_CODE_DEFLECTOR_CAVE_SIZE] = { 0, };
 
+  range = gum_module_get_range (module);
   header_address = range->base_address;
 
 #ifdef HAVE_DARWIN

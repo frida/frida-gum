@@ -8,9 +8,7 @@
 
 #include "gumprocess-priv.h"
 
-#define _NO_CVCONST_H
-#include "gum/gumdbghelp.h"
-#include "gum/gumwindows.h"
+#include "gummodule-windows.h"
 
 #include <intrin.h>
 #include <psapi.h>
@@ -30,8 +28,6 @@ typedef HRESULT (WINAPI * GumGetThreadDescriptionFunc) (
     HANDLE thread, WCHAR ** description);
 typedef void (WINAPI * GumGetCurrentThreadStackLimitsFunc) (
     PULONG_PTR low_limit, PULONG_PTR high_limit);
-typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
-typedef struct _GumFindExportContext GumFindExportContext;
 typedef BOOL (WINAPI * GumIsWow64ProcessFunc) (HANDLE process, BOOL * is_wow64);
 typedef BOOL (WINAPI * GumGetProcessInformationFunc) (HANDLE process,
     PROCESS_INFORMATION_CLASS process_information_class,
@@ -51,18 +47,7 @@ struct _GumSetHardwareWatchpointContext
   GumWatchConditions conditions;
 };
 
-struct _GumEnumerateSymbolsContext
-{
-  GumFoundSymbolFunc func;
-  gpointer user_data;
-};
-
-struct _GumFindExportContext
-{
-  const gchar * symbol_name;
-  GumAddress result;
-};
-
+static void gum_deinit_libc_module (void);
 static gboolean gum_windows_get_thread_details (DWORD thread_id,
     GumThreadDetails * details);
 static gboolean gum_process_enumerate_heap_ranges (HANDLE heap,
@@ -75,18 +60,58 @@ static void gum_do_unset_hardware_watchpoint (CONTEXT * ctx,
     gpointer user_data);
 static gboolean gum_modify_debug_registers (GumThreadId thread_id,
     GumModifyDebugRegistersFunc func, gpointer user_data, GError ** error);
-static BOOL CALLBACK gum_emit_symbol (PSYMBOL_INFO info, ULONG symbol_size,
-    PVOID user_context);
-static gboolean gum_store_address_if_module_has_export (
-    const GumModuleDetails * details, gpointer user_data);
-static gboolean gum_store_address_if_export_name_matches (
-    const GumExportDetails * details, gpointer user_data);
-static HMODULE get_module_handle_utf8 (const gchar * module_name);
 
-const gchar *
-gum_process_query_libc_name (void)
+static GumModule * gum_libc_module;
+
+GumModule *
+gum_process_get_libc_module (void)
 {
-  return "msvcrt.dll";
+  static gsize modules_value = 0;
+
+  if (g_once_init_enter (&modules_value))
+  {
+    gum_libc_module = gum_process_find_module_by_name ("msvcrt.dll");
+
+    _gum_register_destructor (gum_deinit_libc_module);
+
+    g_once_init_leave (&modules_value, GPOINTER_TO_SIZE (gum_libc_module) + 1);
+  }
+
+  return GSIZE_TO_POINTER (modules_value - 1);
+}
+
+static void
+gum_deinit_libc_module (void)
+{
+  g_clear_object (&gum_libc_module);
+}
+
+GumModule *
+gum_process_find_module_by_name (const gchar * name)
+{
+  gunichar2 * wide_name;
+  BOOL found;
+  HMODULE handle;
+
+  wide_name = g_utf8_to_utf16 (name, -1, NULL, NULL, NULL);
+  found = GetModuleHandleExW (0, (LPCWSTR) wide_name, &handle);
+  g_free (wide_name);
+  if (!found)
+    return NULL;
+
+  return GUM_MODULE (_gum_native_module_make (handle));
+}
+
+GumModule *
+gum_process_find_module_by_address (GumAddress address)
+{
+  HMODULE handle;
+
+  if (!GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+      GSIZE_TO_POINTER (address), &handle))
+    return NULL;
+
+  return GUM_MODULE (_gum_native_module_make (handle));
 }
 
 gboolean
@@ -332,12 +357,12 @@ beach:
 }
 
 gboolean
-_gum_process_collect_main_module (const GumModuleDetails * details,
+_gum_process_collect_main_module (GumModule * module,
                                   gpointer user_data)
 {
-  GumModuleDetails ** out = user_data;
+  GumModule ** out = user_data;
 
-  *out = gum_module_details_copy (details);
+  *out = g_object_ref (module);
 
   return FALSE;
 }
@@ -356,48 +381,28 @@ _gum_process_enumerate_modules (GumFoundModuleFunc func,
 
   if (!EnumProcessModules (this_process, &first_module, sizeof (first_module),
       &modules_size))
-  {
     goto beach;
-  }
 
-  modules = (HMODULE *) g_malloc (modules_size);
+  modules = g_malloc (modules_size);
 
   if (!EnumProcessModules (this_process, modules, modules_size, &modules_size))
-  {
     goto beach;
-  }
 
   for (mod_idx = 0; mod_idx != modules_size / sizeof (HMODULE); mod_idx++)
   {
-    MODULEINFO mi;
-    WCHAR module_path_utf16[MAX_PATH];
-    gchar * module_path, * module_name;
-    GumMemoryRange range;
-    GumModuleDetails details;
+    HMODULE handle;
+    GumNativeModule * module;
     gboolean carry_on;
 
-    if (!GetModuleInformation (this_process, modules[mod_idx], &mi,
-        sizeof (mi)))
-    {
+    if (!GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+          (LPCWSTR) modules[mod_idx], &handle))
       continue;
-    }
 
-    GetModuleFileNameW (modules[mod_idx], module_path_utf16, MAX_PATH);
-    module_path_utf16[MAX_PATH - 1] = '\0';
-    module_path = g_utf16_to_utf8 ((const gunichar2 *) module_path_utf16, -1,
-        NULL, NULL, NULL);
-    module_name = strrchr (module_path, '\\') + 1;
+    module = _gum_native_module_make (handle);
 
-    range.base_address = GUM_ADDRESS (mi.lpBaseOfDll);
-    range.size = mi.SizeOfImage;
+    carry_on = func (GUM_MODULE (module), user_data);
 
-    details.name = module_name;
-    details.range = &range;
-    details.path = module_path;
-
-    carry_on = func (&details, user_data);
-
-    g_free (module_path);
+    gum_object_unref (module);
 
     if (!carry_on)
       break;
@@ -833,355 +838,6 @@ beach:
 
     return success;
   }
-}
-
-gboolean
-gum_module_load (const gchar * module_name,
-                 GError ** error)
-{
-  gunichar2 * wide_name;
-  HMODULE module;
-
-  wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
-  module = LoadLibraryW ((LPCWSTR) wide_name);
-  g_free (wide_name);
-
-  if (module == NULL)
-    goto not_found;
-
-  return TRUE;
-
-not_found:
-  {
-    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
-        "LoadLibrary failed: 0x%08lx", GetLastError ());
-    return FALSE;
-  }
-}
-
-gboolean
-gum_module_ensure_initialized (const gchar * module_name)
-{
-  HMODULE module;
-
-  module = get_module_handle_utf8 (module_name);
-
-  return module != NULL;
-}
-
-void
-gum_module_enumerate_imports (const gchar * module_name,
-                              GumFoundImportFunc func,
-                              gpointer user_data)
-{
-  gpointer module;
-  const guint8 * mod_base;
-  const IMAGE_DOS_HEADER * dos_hdr;
-  const IMAGE_NT_HEADERS * nt_hdrs;
-  const IMAGE_DATA_DIRECTORY * entry;
-  const IMAGE_IMPORT_DESCRIPTOR * desc;
-
-  module = get_module_handle_utf8 (module_name);
-  if (module == NULL)
-    return;
-
-  mod_base = (const guint8 *) module;
-  dos_hdr = (const IMAGE_DOS_HEADER *) module;
-  nt_hdrs = (const IMAGE_NT_HEADERS *) &mod_base[dos_hdr->e_lfanew];
-  entry = &nt_hdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-  desc = (const IMAGE_IMPORT_DESCRIPTOR *) (mod_base + entry->VirtualAddress);
-
-  for (; desc->Characteristics != 0; desc++)
-  {
-    GumImportDetails details;
-    const IMAGE_THUNK_DATA * thunk_data;
-
-    if (desc->OriginalFirstThunk == 0)
-      continue;
-
-    details.type = GUM_IMPORT_FUNCTION; /* FIXME: how can we tell? */
-    details.name = NULL;
-    details.module = (const gchar *) (mod_base + desc->Name);
-    details.address = 0;
-    details.slot = 0; /* TODO */
-
-    thunk_data = (const IMAGE_THUNK_DATA *)
-        (mod_base + desc->OriginalFirstThunk);
-    for (; thunk_data->u1.AddressOfData != 0; thunk_data++)
-    {
-      if ((thunk_data->u1.AddressOfData & IMAGE_ORDINAL_FLAG) != 0)
-        continue; /* FIXME: we ignore imports by ordinal */
-
-      details.name = (const gchar *)
-          (mod_base + thunk_data->u1.AddressOfData + 2);
-      details.address =
-          gum_module_find_export_by_name (details.module, details.name);
-
-      if (!func (&details, user_data))
-        return;
-    }
-  }
-}
-
-void
-gum_module_enumerate_exports (const gchar * module_name,
-                              GumFoundExportFunc func,
-                              gpointer user_data)
-{
-  gpointer module;
-  const guint8 * mod_base;
-  const IMAGE_DOS_HEADER * dos_hdr;
-  const IMAGE_NT_HEADERS * nt_hdrs;
-  const IMAGE_DATA_DIRECTORY * entry;
-  const IMAGE_EXPORT_DIRECTORY * exp;
-  const guint8 * exp_start, * exp_end;
-
-  module = get_module_handle_utf8 (module_name);
-  if (module == NULL)
-    return;
-
-  mod_base = (const guint8 *) module;
-  dos_hdr = (const IMAGE_DOS_HEADER *) module;
-  nt_hdrs = (const IMAGE_NT_HEADERS *) &mod_base[dos_hdr->e_lfanew];
-  entry = &nt_hdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-  exp = (const IMAGE_EXPORT_DIRECTORY *)(mod_base + entry->VirtualAddress);
-  exp_start = mod_base + entry->VirtualAddress;
-  exp_end = exp_start + entry->Size - 1;
-
-  if (exp->AddressOfNames != 0)
-  {
-    const DWORD * name_rvas, * func_rvas;
-    const WORD * ord_rvas;
-    DWORD index;
-
-    name_rvas = (const DWORD *) &mod_base[exp->AddressOfNames];
-    ord_rvas = (const WORD *) &mod_base[exp->AddressOfNameOrdinals];
-    func_rvas = (const DWORD *) &mod_base[exp->AddressOfFunctions];
-
-    for (index = 0; index < exp->NumberOfNames; index++)
-    {
-      DWORD func_rva;
-      const guint8 * func_address;
-
-      func_rva = func_rvas[ord_rvas[index]];
-      func_address = &mod_base[func_rva];
-      if (func_address < exp_start || func_address > exp_end)
-      {
-        GumExportDetails details;
-
-        details.type = GUM_EXPORT_FUNCTION; /* TODO: data exports */
-        details.name = (const gchar *) &mod_base[name_rvas[index]];
-        details.address = GUM_ADDRESS (func_address);
-
-        if (!func (&details, user_data))
-          return;
-      }
-    }
-  }
-}
-
-void
-gum_module_enumerate_symbols (const gchar * module_name,
-                              GumFoundSymbolFunc func,
-                              gpointer user_data)
-{
-  GumDbghelpImpl * dbghelp;
-  HMODULE module;
-  GumEnumerateSymbolsContext ctx;
-
-  dbghelp = gum_dbghelp_impl_try_obtain ();
-  if (dbghelp == NULL)
-    return;
-
-  module = get_module_handle_utf8 (module_name);
-  if (module == NULL)
-    return;
-
-  ctx.func = func;
-  ctx.user_data = user_data;
-  dbghelp->SymEnumSymbols (GetCurrentProcess (), GPOINTER_TO_SIZE (module),
-      NULL, gum_emit_symbol, &ctx);
-}
-
-static BOOL CALLBACK
-gum_emit_symbol (PSYMBOL_INFO info,
-                 ULONG symbol_size,
-                 PVOID user_context)
-{
-  GumEnumerateSymbolsContext * ctx = user_context;
-  GumSymbolDetails details;
-
-  details.is_global = info->Tag == SymTagPublicSymbol ||
-      (info->Flags & SYMFLAG_EXPORT) != 0;
-
-  if (info->Tag == SymTagPublicSymbol || info->Tag == SymTagFunction)
-  {
-    details.type = GUM_SYMBOL_FUNCTION;
-  }
-  else if (info->Tag == SymTagData)
-  {
-    details.type = ((info->Flags & SYMFLAG_TLSREL) != 0)
-        ? GUM_SYMBOL_TLS
-        : GUM_SYMBOL_OBJECT;
-  }
-  else
-  {
-    return TRUE;
-  }
-
-  details.section = NULL;
-  details.name = info->Name;
-  details.address = info->Address;
-  details.size = symbol_size;
-
-  return ctx->func (&details, ctx->user_data);
-}
-
-void
-gum_module_enumerate_ranges (const gchar * module_name,
-                             GumPageProtection prot,
-                             GumFoundRangeFunc func,
-                             gpointer user_data)
-{
-  HANDLE this_process;
-  HMODULE module;
-  MODULEINFO mi;
-  guint8 * cur_base_address, * end_address;
-
-  this_process = GetCurrentProcess ();
-
-  module = get_module_handle_utf8 (module_name);
-  if (module == NULL)
-    return;
-
-  if (!GetModuleInformation (this_process, module, &mi, sizeof (mi)))
-    return;
-
-  cur_base_address = (guint8 *) mi.lpBaseOfDll;
-  end_address = (guint8 *) mi.lpBaseOfDll + mi.SizeOfImage;
-
-  do
-  {
-    MEMORY_BASIC_INFORMATION mbi;
-    SIZE_T ret G_GNUC_UNUSED;
-
-    ret = VirtualQuery (cur_base_address, &mbi, sizeof (mbi));
-    g_assert (ret != 0);
-
-    if (mbi.Protect != 0)
-    {
-      GumPageProtection cur_prot;
-
-      cur_prot = gum_page_protection_from_windows (mbi.Protect);
-
-      if ((cur_prot & prot) == prot)
-      {
-        GumMemoryRange range;
-        GumRangeDetails details;
-
-        range.base_address = GUM_ADDRESS (cur_base_address);
-        range.size = mbi.RegionSize;
-
-        details.range = &range;
-        details.protection = cur_prot;
-        details.file = NULL; /* TODO */
-
-        if (!func (&details, user_data))
-          return;
-      }
-    }
-
-    cur_base_address += mbi.RegionSize;
-  }
-  while (cur_base_address < end_address);
-}
-
-void
-gum_module_enumerate_sections (const gchar * module_name,
-                               GumFoundSectionFunc func,
-                               gpointer user_data)
-{
-}
-
-void
-gum_module_enumerate_dependencies (const gchar * module_name,
-                                   GumFoundDependencyFunc func,
-                                   gpointer user_data)
-{
-}
-
-GumAddress
-gum_module_find_base_address (const gchar * module_name)
-{
-  return GUM_ADDRESS (get_module_handle_utf8 (module_name));
-}
-
-GumAddress
-gum_module_find_export_by_name (const gchar * module_name,
-                                const gchar * symbol_name)
-{
-  if (module_name == NULL)
-  {
-    GumFindExportContext ctx;
-
-    ctx.symbol_name = symbol_name;
-    ctx.result = 0;
-
-    gum_process_enumerate_modules (gum_store_address_if_module_has_export,
-        &ctx);
-
-    return ctx.result;
-  }
-  else
-  {
-    HMODULE module;
-
-    module = get_module_handle_utf8 (module_name);
-    if (module == NULL)
-      return 0;
-
-    return GUM_ADDRESS (GetProcAddress (module, symbol_name));
-  }
-}
-
-static gboolean
-gum_store_address_if_module_has_export (const GumModuleDetails * details,
-                                        gpointer user_data)
-{
-  GumFindExportContext * ctx = user_data;
-
-  gum_module_enumerate_exports (details->path,
-      gum_store_address_if_export_name_matches, ctx);
-
-  return ctx->result == 0;
-}
-
-static gboolean
-gum_store_address_if_export_name_matches (const GumExportDetails * details,
-                                          gpointer user_data)
-{
-  GumFindExportContext * ctx = user_data;
-
-  if (strcmp (details->name, ctx->symbol_name) == 0)
-  {
-    ctx->result = details->address;
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-static HMODULE
-get_module_handle_utf8 (const gchar * module_name)
-{
-  HMODULE module;
-  gunichar2 * wide_name;
-
-  wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
-  module = GetModuleHandleW ((LPCWSTR) wide_name);
-  g_free (wide_name);
-
-  return module;
 }
 
 GumCpuType

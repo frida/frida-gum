@@ -155,9 +155,7 @@ struct _TestThreadSyncData
   gboolean * done;
 };
 
-static gboolean store_range_of_test_runner (const GumModuleDetails * details,
-    gpointer user_data);
-static guint32 pretend_workload (GumMemoryRange * runner_range);
+static guint32 pretend_workload (const GumMemoryRange * runner_range);
 static guint32 crc32b (const guint8 * message, gsize size);
 static gboolean test_log_fatal_func (const gchar * log_domain,
     GLogLevelFlags log_level, const gchar * message, gpointer user_data);
@@ -216,7 +214,7 @@ static void patch_code_pointer_slot (gpointer mem, gpointer user_data);
 static void prefetch_on_event (const GumEvent * event,
     GumCpuContext * cpu_context, gpointer user_data);
 static void prefetch_run_child (GumStalker * stalker,
-    GumMemoryRange * runner_range, int compile_fd, int execute_fd);
+    const GumMemoryRange * runner_range, int compile_fd, int execute_fd);
 static void prefetch_activation_target (void);
 static void prefetch_write_blocks (int fd, GHashTable * table);
 static void prefetch_read_blocks (int fd, GHashTable * table);
@@ -2429,8 +2427,7 @@ TESTCODE (call_workload,
 TESTCASE (can_follow_workload)
 {
   GumAddress func;
-  guint32 (* call_workload_impl) (GumMemoryRange * runner_range);
-  GumMemoryRange runner_range;
+  guint32 (* call_workload_impl) (const GumMemoryRange * runner_range);
   guint32 crc, crc_followed;
 
   if (!g_test_slow ())
@@ -2443,11 +2440,7 @@ TESTCASE (can_follow_workload)
   patch_code_pointer (func, 4 * 4, GUM_ADDRESS (pretend_workload));
   call_workload_impl = GSIZE_TO_POINTER (func);
 
-  runner_range.base_address = 0;
-  runner_range.size = 0;
-  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-
-  crc = call_workload_impl (&runner_range);
+  crc = call_workload_impl (fixture->runner_range);
 
   g_test_log_set_fatal_handler (test_log_fatal_func, NULL);
   g_log_set_writer_func (test_log_writer_func, NULL, NULL);
@@ -2456,14 +2449,14 @@ TESTCASE (can_follow_workload)
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  call_workload_impl (&runner_range);
+  call_workload_impl (fixture->runner_range);
 
   gum_stalker_unfollow_me (fixture->stalker);
 
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
-  crc_followed = call_workload_impl (&runner_range);
+  crc_followed = call_workload_impl (fixture->runner_range);
 
   gum_stalker_unfollow_me (fixture->stalker);
 
@@ -2475,7 +2468,6 @@ TESTCASE (can_follow_workload)
 
 TESTCASE (performance)
 {
-  GumMemoryRange runner_range;
   GTimer * timer;
   gdouble normal_cold, normal_hot;
   gdouble stalker_cold, stalker_hot;
@@ -2486,19 +2478,15 @@ TESTCASE (performance)
     return;
   }
 
-  runner_range.base_address = 0;
-  runner_range.size = 0;
-  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-
   timer = g_timer_new ();
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
 
   g_timer_reset (timer);
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
   normal_cold = g_timer_elapsed (timer, NULL);
 
   g_timer_reset (timer);
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
   normal_hot = g_timer_elapsed (timer, NULL);
 
   g_test_log_set_fatal_handler (test_log_fatal_func, NULL);
@@ -2509,11 +2497,11 @@ TESTCASE (performance)
       GUM_EVENT_SINK (fixture->sink));
 
   g_timer_reset (timer);
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
   stalker_cold = g_timer_elapsed (timer, NULL);
 
   g_timer_reset (timer);
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
   stalker_hot = g_timer_elapsed (timer, NULL);
 
   gum_stalker_unfollow_me (fixture->stalker);
@@ -2529,23 +2517,8 @@ TESTCASE (performance)
   g_print ("\t<ratio_hot=%f>\n", stalker_hot / normal_hot);
 }
 
-static gboolean
-store_range_of_test_runner (const GumModuleDetails * details,
-                            gpointer user_data)
-{
-  GumMemoryRange * runner_range = user_data;
-
-  if (strstr (details->name, "gum-tests") != NULL)
-  {
-    *runner_range = *details->range;
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
 GUM_NOINLINE static guint32
-pretend_workload (GumMemoryRange * runner_range)
+pretend_workload (const GumMemoryRange * runner_range)
 {
   guint32 crc;
   lzma_stream stream = LZMA_STREAM_INIT;
@@ -3660,7 +3633,6 @@ patch_code_pointer_slot (gpointer mem,
 
 TESTCASE (prefetch)
 {
-  GumMemoryRange runner_range;
   gint trust;
   int compile_pipes[2] = { -1, -1 };
   int execute_pipes[2] = { -1, -1 };
@@ -3681,13 +3653,6 @@ TESTCASE (prefetch)
     g_print ("<skipping, run in slow mode> ");
     return;
   }
-
-  /* Initialize workload parameters */
-  runner_range.base_address = 0;
-  runner_range.size = 0;
-  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert_cmpuint (runner_range.base_address, !=, 0);
-  g_assert_cmpuint (runner_range.size, !=, 0);
 
   /* Initialize Stalker */
   gum_stalker_set_trust_threshold (fixture->stalker, 3);
@@ -3721,7 +3686,7 @@ TESTCASE (prefetch)
   gum_stalker_deactivate (fixture->stalker);
 
   /* Run the child */
-  prefetch_run_child (fixture->stalker, &runner_range,
+  prefetch_run_child (fixture->stalker, fixture->runner_range,
       compile_pipes[STDOUT_FILENO], execute_pipes[STDOUT_FILENO]);
 
   /* Read the results */
@@ -3750,7 +3715,7 @@ TESTCASE (prefetch)
   }
 
   /* Run the child again */
-  prefetch_run_child (fixture->stalker, &runner_range,
+  prefetch_run_child (fixture->stalker, fixture->runner_range,
       compile_pipes[STDOUT_FILENO], execute_pipes[STDOUT_FILENO]);
 
   /* Read the results */
@@ -3818,7 +3783,7 @@ prefetch_on_event (const GumEvent * event,
 
 static void
 prefetch_run_child (GumStalker * stalker,
-                    GumMemoryRange * runner_range,
+                    const GumMemoryRange * runner_range,
                     int compile_fd,
                     int execute_fd)
 {

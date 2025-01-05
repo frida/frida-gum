@@ -129,7 +129,7 @@ TESTCASE (attach_to_pthread_key_create)
   pthread_key_t key;
 
   pthread_key_create_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name (NULL, "pthread_key_create"));
+      gum_module_find_global_export_by_name ("pthread_key_create"));
 
   interceptor_fixture_attach (fixture, 0, pthread_key_create_impl, '>', '<');
 

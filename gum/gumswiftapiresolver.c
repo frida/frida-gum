@@ -17,11 +17,7 @@
 
 #include "gumswiftapiresolver.h"
 
-#ifdef HAVE_DARWIN
-# include "gum/gumdarwin.h"
-#else
-# include "gummodulemap.h"
-#endif
+#include "gummodulemap.h"
 #include "gumprocess.h"
 
 #include <capstone.h>
@@ -100,28 +96,18 @@ struct _GumSwiftApiResolver
   GRegex * query_pattern;
 
   GHashTable * modules;
-#ifdef HAVE_DARWIN
-  GumDarwinModuleResolver * module_resolver;
-#else
   GumModuleMap * all_modules;
-#endif
 };
 
 struct _GumModuleMetadata
 {
   gint ref_count;
 
-  const gchar * name;
-  const gchar * path;
+  GumModule * module;
 
-  GumAddress base_address;
   GArray * functions;
   GHashTable * vtables;
   GumSwiftApiResolver * resolver;
-
-#ifdef HAVE_DARWIN
-  GumDarwinModule * darwin_module;
-#endif
 };
 
 struct _GumFunctionMetadata
@@ -321,8 +307,8 @@ struct _GumMethodOverrideDescriptor
 static void gum_swift_api_resolver_iface_init (gpointer g_iface,
     gpointer iface_data);
 static GumModuleMetadata * gum_swift_api_resolver_register_module (
-    GumSwiftApiResolver * self, const gchar * name, const gchar * path,
-    GumAddress base_address);
+    GumSwiftApiResolver * self, GumModule * module);
+static void gum_swift_api_resolver_dispose (GObject * object);
 static void gum_swift_api_resolver_finalize (GObject * object);
 static void gum_swift_api_resolver_enumerate_matches (
     GumApiResolver * resolver, const gchar * query, GumFoundApiFunc func,
@@ -330,12 +316,6 @@ static void gum_swift_api_resolver_enumerate_matches (
 
 static void gum_module_metadata_unref (GumModuleMetadata * module);
 static GArray * gum_module_metadata_get_functions (GumModuleMetadata * self);
-#ifdef HAVE_DARWIN
-static gboolean gum_module_metadata_collect_darwin_export (
-    const GumDarwinExportDetails * details, gpointer user_data);
-static gboolean gum_module_metadata_collect_darwin_section (
-    const GumDarwinSectionDetails * details, gpointer user_data);
-#endif
 static gboolean gum_module_metadata_collect_export (
     const GumExportDetails * details, gpointer user_data);
 static gboolean gum_module_metadata_collect_section (
@@ -395,10 +375,12 @@ gum_swift_api_resolver_class_init (GumSwiftApiResolverClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
+  object_class->dispose = gum_swift_api_resolver_dispose;
   object_class->finalize = gum_swift_api_resolver_finalize;
 
   gum_demangle_impl = GUM_POINTER_TO_FUNCPTR (GumSwiftDemangle,
-      gum_module_find_export_by_name (NULL, "swift_demangle_getDemangledName"));
+      gum_module_find_global_export_by_name (
+        "swift_demangle_getDemangledName"));
 }
 
 static void
@@ -413,89 +395,64 @@ gum_swift_api_resolver_iface_init (gpointer g_iface,
 static void
 gum_swift_api_resolver_init (GumSwiftApiResolver * self)
 {
+  GPtrArray * entries;
+  guint i;
+
   self->query_pattern = g_regex_new ("functions:(.+)!([^\\n\\r\\/]+)(\\/i)?",
       0, 0, NULL);
 
-  self->modules = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+  self->modules = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
       (GDestroyNotify) gum_module_metadata_unref);
 
+  self->all_modules = gum_module_map_new ();
+
+  entries = gum_module_map_get_values (self->all_modules);
+  for (i = 0; i != entries->len; i++)
   {
-#ifdef HAVE_DARWIN
-    GHashTableIter iter;
-    const gchar * name_or_path;
-    GumDarwinModule * dm;
+    GumModule * m = g_ptr_array_index (entries, i);
 
-    self->module_resolver =
-        gum_darwin_module_resolver_new (mach_task_self (), NULL);
-
-    g_hash_table_iter_init (&iter, self->module_resolver->modules);
-
-    while (g_hash_table_iter_next (&iter, (gpointer *) &name_or_path,
-          (gpointer *) &dm))
-    {
-      GumModuleMetadata * module;
-
-      if (name_or_path[0] == '/')
-        continue;
-
-      module = gum_swift_api_resolver_register_module (self, name_or_path,
-          dm->name, dm->base_address);
-      module->darwin_module = dm;
-    }
-#else
-    GArray * entries;
-    guint i;
-
-    self->all_modules = gum_module_map_new ();
-
-    entries = gum_module_map_get_values (self->all_modules);
-    for (i = 0; i != entries->len; i++)
-    {
-      GumModuleDetails * d = &g_array_index (entries, GumModuleDetails, i);
-
-      gum_swift_api_resolver_register_module (self, d->name, d->path,
-          d->range->base_address);
-    }
-#endif
+    gum_swift_api_resolver_register_module (self, m);
   }
 }
 
 static GumModuleMetadata *
 gum_swift_api_resolver_register_module (GumSwiftApiResolver * self,
-                                        const gchar * name,
-                                        const gchar * path,
-                                        GumAddress base_address)
+                                        GumModule * module)
 {
-  GumModuleMetadata * module;
+  GumModuleMetadata * meta;
 
-  module = g_slice_new0 (GumModuleMetadata);
-  module->ref_count = 2;
-  module->name = name;
-  module->path = path;
-  module->base_address = base_address;
-  module->functions = NULL;
-  module->vtables = g_hash_table_new_full (g_str_hash, g_str_equal,
+  meta = g_slice_new0 (GumModuleMetadata);
+  meta->ref_count = 2;
+  meta->module = module;
+  meta->functions = NULL;
+  meta->vtables = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) g_ptr_array_unref);
-  module->resolver = self;
+  meta->resolver = self;
 
-  g_hash_table_insert (self->modules, g_strdup (name), module);
-  g_hash_table_insert (self->modules, g_strdup (path), module);
+  g_hash_table_insert (self->modules, (gpointer) gum_module_get_name (module),
+      meta);
+  g_hash_table_insert (self->modules, (gpointer) gum_module_get_path (module),
+      meta);
 
-  return module;
+  return meta;
+}
+
+static void
+gum_swift_api_resolver_dispose (GObject * object)
+{
+  GumSwiftApiResolver * self = GUM_SWIFT_API_RESOLVER (object);
+
+  g_clear_object (&self->all_modules);
+
+  g_clear_pointer (&self->modules, g_hash_table_unref);
+
+  G_OBJECT_CLASS (gum_swift_api_resolver_parent_class)->dispose (object);
 }
 
 static void
 gum_swift_api_resolver_finalize (GObject * object)
 {
   GumSwiftApiResolver * self = GUM_SWIFT_API_RESOLVER (object);
-
-#ifdef HAVE_DARWIN
-  g_object_unref (self->module_resolver);
-#else
-  g_object_unref (self->all_modules);
-#endif
-
-  g_hash_table_unref (self->modules);
 
   g_regex_unref (self->query_pattern);
 
@@ -570,8 +527,8 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
   while (carry_on &&
       g_hash_table_iter_next (&module_iter, NULL, (gpointer *) &module))
   {
-    const gchar * module_name = module->name;
-    const gchar * module_path = module->path;
+    const gchar * module_name, * module_path;
+    const gchar * normalized_module_name, * normalized_module_path;
     gchar * module_name_copy = NULL;
     gchar * module_path_copy = NULL;
 
@@ -579,17 +536,25 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
       continue;
     g_hash_table_add (seen_modules, module);
 
+    module_name = gum_module_get_name (module->module);
+    module_path = gum_module_get_path (module->module);
+
     if (ignore_case)
     {
       module_name_copy = g_utf8_strdown (module_name, -1);
-      module_name = module_name_copy;
+      normalized_module_name = module_name_copy;
 
       module_path_copy = g_utf8_strdown (module_path, -1);
-      module_path = module_path_copy;
+      normalized_module_path = module_path_copy;
+    }
+    else
+    {
+      normalized_module_name = module_name;
+      normalized_module_path = module_path;
     }
 
-    if (g_pattern_spec_match_string (module_spec, module_name) ||
-        g_pattern_spec_match_string (module_spec, module_path))
+    if (g_pattern_spec_match_string (module_spec, normalized_module_name) ||
+        g_pattern_spec_match_string (module_spec, normalized_module_path))
     {
       GArray * functions;
       guint i;
@@ -606,7 +571,7 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
           GumApiDetails details;
 
           details.name = g_strconcat (
-              module->path,
+              module_path,
               "!",
               f->name,
               NULL);
@@ -671,60 +636,14 @@ gum_module_metadata_get_functions (GumModuleMetadata * self)
     g_array_set_clear_func (self->functions,
         (GDestroyNotify) gum_function_metadata_free);
 
-    {
-#ifdef HAVE_DARWIN
-      gum_darwin_module_enumerate_exports (self->darwin_module,
-          gum_module_metadata_collect_darwin_export, self);
-      gum_darwin_module_enumerate_sections (self->darwin_module,
-          gum_module_metadata_collect_darwin_section, self);
-#else
-      gum_module_enumerate_exports (self->path,
-          gum_module_metadata_collect_export, self);
-      gum_module_enumerate_sections (self->path,
-          gum_module_metadata_collect_section, self);
-#endif
-    }
+    gum_module_enumerate_exports (self->module,
+        gum_module_metadata_collect_export, self);
+    gum_module_enumerate_sections (self->module,
+        gum_module_metadata_collect_section, self);
   }
 
   return self->functions;
 }
-
-#ifdef HAVE_DARWIN
-
-static gboolean
-gum_module_metadata_collect_darwin_export (
-    const GumDarwinExportDetails * details,
-    gpointer user_data)
-{
-  GumModuleMetadata * self = user_data;
-  GumExportDetails export;
-
-  if (!gum_darwin_module_resolver_resolve_export (
-        self->resolver->module_resolver, self->darwin_module,
-        details, &export))
-  {
-    return TRUE;
-  }
-
-  return gum_module_metadata_collect_export (&export, user_data);
-}
-
-static gboolean
-gum_module_metadata_collect_darwin_section (
-    const GumDarwinSectionDetails * details,
-    gpointer user_data)
-{
-  GumSectionDetails section;
-
-  section.id = "<unused>";
-  section.name = details->section_name;
-  section.address = details->vm_address;
-  section.size = details->size;
-
-  return gum_module_metadata_collect_section (&section, user_data);
-}
-
-#endif
 
 static gboolean
 gum_module_metadata_collect_export (const GumExportDetails * details,

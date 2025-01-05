@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -320,7 +320,7 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
     "dlclose",
     "dlerror",
   };
-  const gchar * correct_module_name, * incorrect_module_name;
+  GumModule * correct_module, * incorrect_module;
   guint i;
 
   if (gum_android_get_api_level () >= 29)
@@ -344,13 +344,13 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
 
   if (gum_android_get_api_level () >= 26)
   {
-    correct_module_name = libdl_name;
-    incorrect_module_name = linker_name;
+    correct_module = gum_process_find_module_by_name (libdl_name);
+    incorrect_module = gum_process_find_module_by_name (linker_name);
   }
   else
   {
-    correct_module_name = linker_name;
-    incorrect_module_name = libdl_name;
+    correct_module = gum_process_find_module_by_name (linker_name);
+    incorrect_module = gum_process_find_module_by_name (libdl_name);
   }
 
   fixture->resolver = gum_api_resolver_make ("module");
@@ -366,13 +366,14 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
     query = g_strconcat ("exports:*!", func_name, NULL);
 
     g_assert_true (
-        gum_module_find_export_by_name (incorrect_module_name, func_name) == 0);
+        gum_module_find_export_by_name (incorrect_module, func_name) == 0);
 
     ctx.number_of_calls = 0;
-    ctx.expected_name =
-        g_strdup_printf ("%s!%s", correct_module_name, func_name);
+    ctx.expected_name = g_strdup_printf ("%s!%s",
+        gum_module_get_name (correct_module),
+        func_name);
     ctx.expected_address =
-        gum_module_find_export_by_name (correct_module_name, func_name);
+        gum_module_find_export_by_name (correct_module, func_name);
     g_assert_cmpuint (ctx.expected_address, !=, 0);
 
     gum_api_resolver_enumerate_matches (fixture->resolver, query,
@@ -384,6 +385,9 @@ TESTCASE (linker_exports_can_be_resolved_on_android)
 
     g_free (query);
   }
+
+  g_object_unref (incorrect_module);
+  g_object_unref (correct_module);
 }
 
 static gboolean

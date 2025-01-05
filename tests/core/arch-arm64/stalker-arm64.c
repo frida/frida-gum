@@ -161,9 +161,7 @@ static void do_patch_instruction (gpointer mem, gpointer user_data);
 #ifndef HAVE_WINDOWS
 static gpointer increment_integer (gpointer data);
 #endif
-static gboolean store_range_of_test_runner (const GumModuleDetails * details,
-    gpointer user_data);
-static void pretend_workload (GumMemoryRange * runner_range);
+static void pretend_workload (const GumMemoryRange * runner_range);
 
 volatile gboolean stalker_invalidation_test_is_finished = FALSE;
 volatile gint stalker_invalidation_magic_number = 42;
@@ -172,7 +170,7 @@ volatile gint stalker_invalidation_magic_number = 42;
 static void prefetch_on_event (const GumEvent * event,
     GumCpuContext * cpu_context, gpointer user_data);
 static void prefetch_run_child (GumStalker * stalker,
-    GumMemoryRange * runner_range, int compile_fd, int execute_fd);
+    const GumMemoryRange * runner_range, int compile_fd, int execute_fd);
 static void prefetch_activation_target (void);
 static void prefetch_write_blocks (int fd, GHashTable * table);
 static void prefetch_read_blocks (int fd, GHashTable * table);
@@ -2146,20 +2144,14 @@ TESTCASE (no_register_clobber)
 
 TESTCASE (performance)
 {
-  GumMemoryRange runner_range;
   GTimer * timer;
   gdouble duration_direct, duration_stalked;
 
-  runner_range.base_address = 0;
-  runner_range.size = 0;
-  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert_true (runner_range.base_address != 0 && runner_range.size != 0);
-
   timer = g_timer_new ();
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
 
   g_timer_reset (timer);
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
   duration_direct = g_timer_elapsed (timer, NULL);
 
   fixture->sink->mask = GUM_NOTHING;
@@ -2170,12 +2162,12 @@ TESTCASE (performance)
 
   /* warm-up */
   g_timer_reset (timer);
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
   g_timer_elapsed (timer, NULL);
 
   /* the real deal */
   g_timer_reset (timer);
-  pretend_workload (&runner_range);
+  pretend_workload (fixture->runner_range);
   duration_stalked = g_timer_elapsed (timer, NULL);
 
   gum_stalker_unfollow_me (fixture->stalker);
@@ -2186,23 +2178,8 @@ TESTCASE (performance)
       duration_direct, duration_stalked, duration_stalked / duration_direct);
 }
 
-static gboolean
-store_range_of_test_runner (const GumModuleDetails * details,
-                            gpointer user_data)
-{
-  GumMemoryRange * runner_range = user_data;
-
-  if (strstr (details->name, "gum-tests") != NULL)
-  {
-    *runner_range = *details->range;
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
 GUM_NOINLINE static void
-pretend_workload (GumMemoryRange * runner_range)
+pretend_workload (const GumMemoryRange * runner_range)
 {
   lzma_stream stream = LZMA_STREAM_INIT;
   const uint32_t preset = 9 | LZMA_PRESET_EXTREME;
@@ -2255,7 +2232,6 @@ pretend_workload (GumMemoryRange * runner_range)
 
 TESTCASE (prefetch)
 {
-  GumMemoryRange runner_range;
   gint trust;
   int compile_pipes[2] = { -1, -1 };
   int execute_pipes[2] = { -1, -1 };
@@ -2276,13 +2252,6 @@ TESTCASE (prefetch)
     g_print ("<skipping, run in slow mode> ");
     return;
   }
-
-  /* Initialize workload parameters */
-  runner_range.base_address = 0;
-  runner_range.size = 0;
-  gum_process_enumerate_modules (store_range_of_test_runner, &runner_range);
-  g_assert_cmpuint (runner_range.base_address, !=, 0);
-  g_assert_cmpuint (runner_range.size, !=, 0);
 
   /* Initialize Stalker */
   gum_stalker_set_trust_threshold (fixture->stalker, 3);
@@ -2316,7 +2285,7 @@ TESTCASE (prefetch)
   gum_stalker_deactivate (fixture->stalker);
 
   /* Run the child */
-  prefetch_run_child (fixture->stalker, &runner_range,
+  prefetch_run_child (fixture->stalker, fixture->runner_range,
       compile_pipes[STDOUT_FILENO], execute_pipes[STDOUT_FILENO]);
 
   /* Read the results */
@@ -2345,7 +2314,7 @@ TESTCASE (prefetch)
   }
 
   /* Run the child again */
-  prefetch_run_child (fixture->stalker, &runner_range,
+  prefetch_run_child (fixture->stalker, fixture->runner_range,
       compile_pipes[STDOUT_FILENO], execute_pipes[STDOUT_FILENO]);
 
   /* Read the results */
@@ -2413,7 +2382,7 @@ prefetch_on_event (const GumEvent * event,
 
 static void
 prefetch_run_child (GumStalker * stalker,
-                    GumMemoryRange * runner_range,
+                    const GumMemoryRange * runner_range,
                     int compile_fd,
                     int execute_fd)
 {

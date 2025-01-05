@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,8 +26,10 @@ G_GNUC_INTERNAL void _gum_quick_module_init (GumQuickModule * self,
 G_GNUC_INTERNAL void _gum_quick_module_dispose (GumQuickModule * self);
 G_GNUC_INTERNAL void _gum_quick_module_finalize (GumQuickModule * self);
 
-G_GNUC_INTERNAL JSValue _gum_quick_module_new (JSContext * ctx,
-    const GumModuleDetails * details, GumQuickModule * parent);
+G_GNUC_INTERNAL JSValue _gum_quick_module_new_from_handle (JSContext * ctx,
+    GumModule * handle, GumQuickModule * parent);
+G_GNUC_INTERNAL JSValue _gum_quick_module_new_take_handle (JSContext * ctx,
+    GumModule * handle, GumQuickModule * parent);
 
 G_END_DECLS
 

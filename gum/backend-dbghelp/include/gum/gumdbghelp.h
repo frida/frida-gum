@@ -15,6 +15,7 @@
 # pragma warning (disable: 4091)
 #endif
 
+#define _NO_CVCONST_H
 #define _WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <dbghelp.h>

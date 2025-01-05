@@ -5237,10 +5237,14 @@ TESTCASE (process_modules_can_be_enumerated_legacy_style)
 TESTCASE (process_module_can_be_looked_up_from_address)
 {
 #ifndef HAVE_LINUX
+  GumModule * system_module;
   gpointer f;
 
-  f = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT));
+  system_module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+  g_assert_nonnull (system_module);
+
+  f = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (system_module, SYSTEM_MODULE_EXPORT));
   g_assert_nonnull (f);
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -5250,9 +5254,11 @@ TESTCASE (process_module_can_be_looked_up_from_address)
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Object.keys(Process.getModuleByAddress(" GUM_PTR_CONST
-      ".strip())).length > 0);",
+      ".strip()).toJSON()).length > 0);",
       f);
   EXPECT_SEND_MESSAGE_WITH ("true");
+
+  g_object_unref (system_module);
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -5345,7 +5351,7 @@ TESTCASE (process_module_can_be_looked_up_from_name)
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Object.keys(Process.getModuleByName('%s')).length > 0);",
+      "send(Object.keys(Process.getModuleByName('%s').toJSON()).length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -5392,11 +5398,17 @@ TESTCASE (process_ranges_can_be_enumerated_with_neighbors_coalesced)
 
 TESTCASE (process_range_can_be_looked_up_from_address)
 {
+  GumModule * system_module;
   gpointer f;
 
+  system_module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+  g_assert_nonnull (system_module);
+
   f = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT));
+      system_module, SYSTEM_MODULE_EXPORT));
   g_assert_nonnull (f);
+
+  g_object_unref (system_module);
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.findRangeByAddress(" GUM_PTR_CONST ".strip()) !== null);",
@@ -10068,8 +10080,13 @@ TESTCASE (cmodule_can_be_used_with_stalker_call_probe)
 
 TESTCASE (cmodule_can_be_used_with_module_map)
 {
+  TestScriptMessageItem * item;
+  GumModuleMap * modules;
+  gchar * expected_message;
+
   COMPILE_AND_LOAD_SCRIPT (
       "const modules = new ModuleMap();"
+      "send(modules.handle);"
       ""
       "const cm = new CModule('"
       "#include <gum/gummodulemap.h>\\n"
@@ -10078,21 +10095,35 @@ TESTCASE (cmodule_can_be_used_with_module_map)
       "find (GumModuleMap * map,\\n"
       "      gconstpointer address)\\n"
       "{\\n"
-      "  const GumModuleDetails * m;\\n"
+      "  GumModule * m;\\n"
       "\\n"
       "  m = gum_module_map_find (map, GUM_ADDRESS (address));\\n"
       "  if (m == NULL)\\n"
       "    return NULL;\\n"
       "\\n"
-      "  return m->name;\\n"
+      "  return gum_module_get_name (m);\\n"
       "}');"
       ""
       "const find = new NativeFunction(cm.find, 'pointer', "
           "['pointer', 'pointer']);"
-      "send(find(modules, modules.values()[0].base).isNull());"
+      "send(find(modules, modules.values()[0].base).readUtf8String());"
       "send(find(modules, NULL).isNull());");
-  EXPECT_SEND_MESSAGE_WITH ("false");
+
+  item = test_script_fixture_pop_message (fixture);
+  sscanf (item->message, "{\"type\":\"send\",\"payload\":\"0x%zx\"}",
+      (size_t *) &modules);
+  test_script_message_item_free (item);
+
+  item = test_script_fixture_pop_message (fixture);
+  expected_message = g_strdup_printf ("{\"type\":\"send\",\"payload\":\"%s\"}",
+      gum_module_get_name (
+        g_ptr_array_index (gum_module_map_get_values (modules), 0)));
+  g_assert_cmpstr (item->message, ==, expected_message);
+  g_free (expected_message);
+  test_script_message_item_free (item);
+
   EXPECT_SEND_MESSAGE_WITH ("true");
+
   EXPECT_NO_MESSAGES ();
 }
 

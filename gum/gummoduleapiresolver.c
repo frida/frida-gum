@@ -40,8 +40,7 @@ struct _GumModuleMetadata
 {
   gint ref_count;
 
-  const gchar * name;
-  const gchar * path;
+  GumModule * module;
 
   GHashTable * import_by_name;
   GHashTable * export_by_name;
@@ -106,7 +105,7 @@ gum_module_api_resolver_iface_init (gpointer g_iface,
 static void
 gum_module_api_resolver_init (GumModuleApiResolver * self)
 {
-  GArray * entries;
+  GPtrArray * entries;
   guint i;
 
   self->query_pattern =
@@ -114,24 +113,27 @@ gum_module_api_resolver_init (GumModuleApiResolver * self)
           0, 0, NULL);
 
   self->all_modules = gum_module_map_new ();
-  self->module_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+  self->module_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
       (GDestroyNotify) gum_module_metadata_unref);
   entries = gum_module_map_get_values (self->all_modules);
   for (i = 0; i != entries->len; i++)
   {
-    GumModuleDetails * d = &g_array_index (entries, GumModuleDetails, i);
-    GumModuleMetadata * module;
+    GumModule * module;
+    GumModuleMetadata * meta;
 
-    module = g_slice_new (GumModuleMetadata);
-    module->ref_count = 2;
-    module->name = d->name;
-    module->path = d->path;
-    module->import_by_name = NULL;
-    module->export_by_name = NULL;
-    module->sections = NULL;
+    module = g_ptr_array_index (entries, i);
 
-    g_hash_table_insert (self->module_by_name, g_strdup (module->name), module);
-    g_hash_table_insert (self->module_by_name, g_strdup (module->path), module);
+    meta = g_slice_new (GumModuleMetadata);
+    meta->ref_count = 2;
+    meta->module = g_object_ref (module);
+    meta->import_by_name = NULL;
+    meta->export_by_name = NULL;
+    meta->sections = NULL;
+
+    g_hash_table_insert (self->module_by_name,
+        (gpointer) gum_module_get_name (module), meta);
+    g_hash_table_insert (self->module_by_name,
+        (gpointer) gum_module_get_path (module), meta);
   }
 }
 
@@ -220,8 +222,8 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   while (carry_on &&
       g_hash_table_iter_next (&module_iter, NULL, (gpointer *) &module))
   {
-    const gchar * module_name = module->name;
-    const gchar * module_path = module->path;
+    const gchar * module_name, * module_path;
+    const gchar * normalized_module_name, * normalized_module_path;
     gchar * module_name_copy = NULL;
     gchar * module_path_copy = NULL;
 
@@ -229,17 +231,25 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       continue;
     g_hash_table_add (seen_modules, module);
 
+    module_name = gum_module_get_name (module->module);
+    module_path = gum_module_get_path (module->module);
+
     if (ignore_case)
     {
       module_name_copy = g_utf8_strdown (module_name, -1);
-      module_name = module_name_copy;
+      normalized_module_name = module_name_copy;
 
       module_path_copy = g_utf8_strdown (module_path, -1);
-      module_path = module_path_copy;
+      normalized_module_path = module_path_copy;
+    }
+    else
+    {
+      normalized_module_name = module_name;
+      normalized_module_path = module_path;
     }
 
-    if (g_pattern_spec_match_string (module_spec, module_name) ||
-        g_pattern_spec_match_string (module_spec, module_path))
+    if (g_pattern_spec_match_string (module_spec, normalized_module_name) ||
+        g_pattern_spec_match_string (module_spec, normalized_module_path))
     {
       GHashTable * functions;
       GHashTableIter function_iter;
@@ -261,7 +271,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
             GumApiDetails details;
 
             details.name = g_strconcat (
-                module->path,
+                module_path,
                 "!",
                 section->id,
                 NULL);
@@ -282,30 +292,21 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
         GumApiDetails details;
 
         details.address =
-            gum_module_find_export_by_name (module->path, item_query);
+            gum_module_find_export_by_name (module->module, item_query);
         details.size = GUM_API_SIZE_NONE;
 
 #ifndef HAVE_WINDOWS
         if (details.address != 0)
         {
-          const GumModuleDetails * module_containing_address;
-          gboolean match_is_in_a_different_module;
-
-          module_containing_address =
-              gum_module_map_find (self->all_modules, details.address);
-
-          match_is_in_a_different_module =
-              module_containing_address != NULL &&
-              strcmp (module_containing_address->path, module->path) != 0;
-
-          if (match_is_in_a_different_module)
+          if (gum_module_map_find (self->all_modules, details.address) !=
+              module->module)
             details.address = 0;
         }
 #endif
 
         if (details.address != 0)
         {
-          details.name = g_strconcat (module->path, "!", item_query, NULL);
+          details.name = g_strconcat (module_path, "!", item_query, NULL);
 
           carry_on = func (&details, user_data);
 
@@ -339,7 +340,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
           GumApiDetails details;
 
           details.name = g_strconcat (
-              (function->module != NULL) ? function->module : module->path,
+              (function->module != NULL) ? function->module : module_path,
               "!",
               function->name,
               NULL);
@@ -380,21 +381,23 @@ invalid_query:
 }
 
 static void
-gum_module_metadata_unref (GumModuleMetadata * module)
+gum_module_metadata_unref (GumModuleMetadata * meta)
 {
-  module->ref_count--;
-  if (module->ref_count == 0)
+  meta->ref_count--;
+  if (meta->ref_count == 0)
   {
-    if (module->sections != NULL)
-      g_array_unref (module->sections);
+    if (meta->sections != NULL)
+      g_array_unref (meta->sections);
 
-    if (module->export_by_name != NULL)
-      g_hash_table_unref (module->export_by_name);
+    if (meta->export_by_name != NULL)
+      g_hash_table_unref (meta->export_by_name);
 
-    if (module->import_by_name != NULL)
-      g_hash_table_unref (module->import_by_name);
+    if (meta->import_by_name != NULL)
+      g_hash_table_unref (meta->import_by_name);
 
-    g_slice_free (GumModuleMetadata, module);
+    g_object_unref (meta->module);
+
+    g_slice_free (GumModuleMetadata, meta);
   }
 }
 
@@ -405,7 +408,7 @@ gum_module_metadata_get_imports (GumModuleMetadata * self)
   {
     self->import_by_name = g_hash_table_new_full (g_str_hash, g_str_equal,
         g_free, (GDestroyNotify) gum_function_metadata_free);
-    gum_module_enumerate_imports (self->path,
+    gum_module_enumerate_imports (self->module,
         gum_module_metadata_collect_import, self->import_by_name);
   }
 
@@ -419,7 +422,7 @@ gum_module_metadata_get_exports (GumModuleMetadata * self)
   {
     self->export_by_name = g_hash_table_new_full (g_str_hash, g_str_equal,
         g_free, (GDestroyNotify) gum_function_metadata_free);
-    gum_module_enumerate_exports (self->path,
+    gum_module_enumerate_exports (self->module,
         gum_module_metadata_collect_export, self->export_by_name);
   }
 
@@ -434,7 +437,7 @@ gum_module_metadata_get_sections (GumModuleMetadata * self)
     self->sections = g_array_new (FALSE, FALSE, sizeof (GumSectionDetails));
     g_array_set_clear_func (self->sections,
         (GDestroyNotify) gum_section_details_free);
-    gum_module_enumerate_sections (self->path,
+    gum_module_enumerate_sections (self->module,
         gum_module_metadata_collect_section, self->sections);
   }
 
@@ -508,19 +511,19 @@ gum_function_metadata_new (const gchar * name,
 }
 
 static void
-gum_function_metadata_free (GumFunctionMetadata * function)
+gum_function_metadata_free (GumFunctionMetadata * meta)
 {
-  g_free (function->module);
-  g_free (function->name);
+  g_free (meta->module);
+  g_free (meta->name);
 
-  g_slice_free (GumFunctionMetadata, function);
+  g_slice_free (GumFunctionMetadata, meta);
 }
 
 static void
-gum_section_details_free (GumSectionDetails * self)
+gum_section_details_free (GumSectionDetails * section)
 {
-  g_free ((gpointer) self->id);
-  g_free ((gpointer) self->name);
+  g_free ((gpointer) section->id);
+  g_free ((gpointer) section->name);
 }
 
 #endif

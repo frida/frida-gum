@@ -9,11 +9,10 @@
 
 #include "gumprocess-priv.h"
 
-#include "backend-elf/gumprocess-elf.h"
 #include "gum-init.h"
+#include "gummodule-elf.h"
 #include "gum/gumandroid.h"
 #include "gum/gumlinux.h"
-#include "gumelfmodule.h"
 #include "gumlinux-priv.h"
 #include "gummodulemap.h"
 #include "valgrind.h"
@@ -147,9 +146,9 @@ typedef gint (* GumCloneFunc) (gpointer arg);
 
 struct _GumProgramModules
 {
-  GumModuleDetails program;
-  GumModuleDetails interpreter;
-  GumModuleDetails vdso;
+  GumModule * program;
+  GumModule * interpreter;
+  GumModule * vdso;
   GumProgramRuntimeLinker rtld;
 };
 
@@ -340,10 +339,8 @@ static void gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
     ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress base_address,
     GumMemoryRange * range);
 
-static gchar * gum_try_init_libc_name (void);
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
     Dl_info * info);
-static void gum_deinit_libc_name (void);
 
 static void gum_do_modify_thread (GumThreadId thread_id, GumRegs * regs,
     gpointer user_data);
@@ -358,12 +355,16 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
-static void gum_do_enumerate_modules (const gchar * libc_name,
-    GumFoundModuleFunc func, gpointer user_data);
+static GumModule * gum_try_init_libc_module (void);
+static void gum_deinit_libc_module (void);
+static const Dl_info * gum_process_get_libc_info (void);
+static const Dl_info * gum_try_init_libc_info (void);
 static void gum_process_enumerate_modules_by_using_libc (
     GumDlIteratePhdrImpl iterate_phdr, GumFoundModuleFunc func,
     gpointer user_data);
 static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
+    gpointer user_data);
+static gpointer gum_create_module_handle (GumNativeModule * module,
     gpointer user_data);
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
@@ -376,13 +377,6 @@ static void gum_do_set_hardware_watchpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
 static void gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
-static void * gum_module_get_handle (const gchar * module_name);
-static void * gum_module_get_symbol (void * module, const gchar * symbol_name);
-
-static gboolean gum_do_resolve_module_name (const gchar * name,
-    const gchar * libc_name, gchar ** path, GumAddress * base);
-static gboolean gum_store_module_path_and_base_if_match (
-    const GumModuleDetails * details, gpointer user_data);
 
 static void gum_proc_maps_iter_init_for_path (GumProcMapsIter * iter,
     const gchar * path);
@@ -416,7 +410,8 @@ static gssize gum_libc_ptrace (gsize request, pid_t pid, gpointer address,
 static gssize gum_libc_syscall_4 (gsize n, gsize a, gsize b, gsize c, gsize d);
 
 static GumProgramModules gum_program_modules;
-static gchar * gum_libc_name;
+static GumModule * gum_libc_module;
+static Dl_info gum_libc_info;
 
 static gboolean gum_is_regset_supported = TRUE;
 
@@ -451,9 +446,6 @@ gum_query_program_modules (void)
     else
       ranges = user;
 
-    gum_program_modules.program.range = &ranges.program;
-    gum_program_modules.interpreter.range = &ranges.interpreter;
-    gum_program_modules.vdso.range = &ranges.vdso;
     gum_program_modules.rtld = (ranges.interpreter.base_address == 0)
         ? GUM_PROGRAM_RTLD_NONE
         : GUM_PROGRAM_RTLD_SHARED;
@@ -464,25 +456,27 @@ gum_query_program_modules (void)
     while (gum_proc_maps_iter_next (&iter, &line))
     {
       GumAddress start;
-      GumModuleDetails * m;
+      GumModule ** m;
+      const GumMemoryRange * r;
 
       sscanf (line, "%" G_GINT64_MODIFIER "x-", &start);
 
       if (start == ranges.program.base_address)
+      {
         m = &gum_program_modules.program;
+        r = &ranges.program;
+      }
       else if (start == ranges.interpreter.base_address)
+      {
         m = &gum_program_modules.interpreter;
+        r = &ranges.interpreter;
+      }
       else
         continue;
 
       sscanf (line, "%*x-%*x %*c%*c%*c%*c %*x %*s %*d %[^\n]", path);
 
-      m->path = g_strdup (path);
-      m->name = strrchr (m->path, '/');
-      if (m->name != NULL)
-        m->name++;
-      else
-        m->name = m->path;
+      *m = GUM_MODULE (_gum_native_module_make_handleless (path, r));
     }
 
     g_free (path);
@@ -490,10 +484,9 @@ gum_query_program_modules (void)
 
     if (ranges.vdso.base_address != 0)
     {
-      GumModuleDetails * m = &gum_program_modules.vdso;
       /* FIXME: Parse soname instead of hardcoding: */
-      m->path = g_strdup ("linux-vdso.so.1");
-      m->name = m->path;
+      gum_program_modules.vdso = GUM_MODULE (
+          _gum_native_module_make_handleless ("linux-vdso.so.1", &ranges.vdso));
     }
 
     _gum_register_destructor (gum_deinit_program_modules);
@@ -509,9 +502,9 @@ gum_deinit_program_modules (void)
 {
   GumProgramModules * m = &gum_program_modules;
 
-  g_free ((gchar *) m->program.path);
-  g_free ((gchar *) m->interpreter.path);
-  g_free ((gchar *) m->vdso.path);
+  gum_object_unref (m->program);
+  gum_object_unref (m->interpreter);
+  gum_object_unref (m->vdso);
 }
 
 static gboolean
@@ -748,58 +741,6 @@ gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
   range->size = highest - lowest;
 }
 
-const gchar *
-gum_process_query_libc_name (void)
-{
-  static GOnce once = G_ONCE_INIT;
-
-  g_once (&once, (GThreadFunc) gum_try_init_libc_name, NULL);
-
-  if (once.retval == NULL)
-    gum_panic ("Unable to locate the libc; please file a bug");
-
-  return once.retval;
-}
-
-static gchar *
-gum_try_init_libc_name (void)
-{
-  Dl_info info;
-
-#ifndef HAVE_ANDROID
-  if (!gum_try_resolve_dynamic_symbol ("__libc_start_main", &info))
-#endif
-  {
-    if (!gum_try_resolve_dynamic_symbol ("exit", &info))
-      return NULL;
-  }
-
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (g_path_is_absolute (info.dli_fname))
-  {
-    gum_libc_name = g_strdup (info.dli_fname);
-  }
-  else
-  {
-    gum_libc_name = g_build_filename (
-        "/system",
-        (sizeof (gpointer) == 4) ? "lib" : "lib64",
-        info.dli_fname,
-        NULL);
-  }
-#else
-  {
-    GumAddress base;
-    gum_do_resolve_module_name (info.dli_fname, info.dli_fname, &gum_libc_name,
-        &base);
-  }
-#endif
-
-  _gum_register_destructor (gum_deinit_libc_name);
-
-  return gum_libc_name;
-}
-
 static gboolean
 gum_try_resolve_dynamic_symbol (const gchar * name,
                                 Dl_info * info)
@@ -813,12 +754,6 @@ gum_try_resolve_dynamic_symbol (const gchar * name,
     return FALSE;
 
   return dladdr (address, info) != 0;
-}
-
-static void
-gum_deinit_libc_name (void)
-{
-  g_free (gum_libc_name);
 }
 
 gboolean
@@ -1372,27 +1307,111 @@ gum_store_cpu_context (GumThreadId thread_id,
 }
 
 gboolean
-_gum_process_collect_main_module (const GumModuleDetails * details,
+_gum_process_collect_main_module (GumModule * module,
                                   gpointer user_data)
 {
-  GumModuleDetails ** out = user_data;
+  GumModule ** out = user_data;
 
-  *out = gum_module_details_copy (details);
+  *out = g_object_ref (module);
 
   return FALSE;
+}
+
+GumModule *
+gum_process_get_libc_module (void)
+{
+  static GOnce once = G_ONCE_INIT;
+
+  g_once (&once, (GThreadFunc) gum_try_init_libc_module, NULL);
+
+  if (once.retval == NULL)
+    gum_panic ("Unable to locate the libc; please file a bug");
+
+  return once.retval;
+}
+
+static GumModule *
+gum_try_init_libc_module (void)
+{
+  gum_libc_module = gum_process_find_module_by_address (
+      GUM_ADDRESS (gum_process_get_libc_info ()->dli_fbase));
+
+  _gum_register_destructor (gum_deinit_libc_module);
+
+  return gum_libc_module;
+}
+
+static void
+gum_deinit_libc_module (void)
+{
+  gum_object_unref (gum_libc_module);
+}
+
+static const Dl_info *
+gum_process_get_libc_info (void)
+{
+  static GOnce once = G_ONCE_INIT;
+
+  g_once (&once, (GThreadFunc) gum_try_init_libc_info, NULL);
+
+  if (once.retval == NULL)
+    gum_panic ("Unable to locate the libc; please file a bug");
+
+  return once.retval;
+}
+
+static const Dl_info *
+gum_try_init_libc_info (void)
+{
+#ifndef HAVE_ANDROID
+  if (!gum_try_resolve_dynamic_symbol ("__libc_start_main", &gum_libc_info))
+#endif
+  {
+    if (!gum_try_resolve_dynamic_symbol ("exit", &gum_libc_info))
+      return NULL;
+  }
+
+  return &gum_libc_info;
+}
+
+GumModule *
+gum_process_load_module (const gchar * module_name,
+                         GError ** error)
+{
+  GumModule * module;
+  GumGenericDlopenImpl dlopen_impl = dlopen;
+  gpointer handle;
+
+#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+  module = gum_process_find_module_by_name (module_name);
+  if (module != NULL)
+    return module;
+
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
+    gum_android_find_unrestricted_dlopen (&dlopen_impl);
+#endif
+
+  handle = dlopen_impl (module_name, RTLD_LAZY);
+  if (handle == NULL)
+    goto not_found;
+
+  module = gum_process_find_module_by_name (module_name);
+  g_assert (module != NULL);
+
+  dlclose (handle);
+
+  return module;
+
+not_found:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND, "%s", dlerror ());
+    return FALSE;
+  }
 }
 
 void
 _gum_process_enumerate_modules (GumFoundModuleFunc func,
                                 gpointer user_data)
-{
-  gum_do_enumerate_modules (gum_process_query_libc_name (), func, user_data);
-}
-
-static void
-gum_do_enumerate_modules (const gchar * libc_name,
-                          GumFoundModuleFunc func,
-                          gpointer user_data)
 {
   const GumProgramModules * pm;
   static gsize iterate_phdr_value = 0;
@@ -1402,11 +1421,11 @@ gum_do_enumerate_modules (const gchar * libc_name,
 
   if (pm->rtld == GUM_PROGRAM_RTLD_NONE)
   {
-    if (!func (&pm->program, user_data))
+    if (!func (pm->program, user_data))
       return;
 
-    if (pm->vdso.range->base_address != 0)
-      func (&pm->vdso, user_data);
+    if (pm->vdso != NULL)
+      func (pm->vdso, user_data);
 
     return;
   }
@@ -1421,11 +1440,17 @@ gum_do_enumerate_modules (const gchar * libc_name,
 
   if (g_once_init_enter (&iterate_phdr_value))
   {
-    GumAddress impl;
+    gpointer libc, impl;
 
-    impl = gum_module_find_export_by_name (libc_name, "dl_iterate_phdr");
+    libc = dlopen (gum_process_get_libc_info ()->dli_fname,
+        RTLD_LAZY | RTLD_GLOBAL);
+    g_assert (libc != NULL);
 
-    g_once_init_leave (&iterate_phdr_value, impl + 1);
+    impl = dlsym (libc, "dl_iterate_phdr");
+
+    dlclose (libc);
+
+    g_once_init_leave (&iterate_phdr_value, GPOINTER_TO_SIZE (impl) + 1);
   }
 
   iterate_phdr = GSIZE_TO_POINTER (iterate_phdr_value - 1);
@@ -1465,8 +1490,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   GumMemoryRange range;
   GumLinuxNamedRange * named_range;
   const gchar * path;
-  gchar * name;
-  GumModuleDetails details;
+  GumNativeModule * module;
   gboolean carry_on;
 
   gum_compute_elf_range_from_phdrs (info->dlpi_phdr, sizeof (ElfW(Phdr)),
@@ -1476,15 +1500,13 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
       GSIZE_TO_POINTER (range.base_address));
 
   path = (named_range != NULL) ? named_range->name : info->dlpi_name;
-  name = g_path_get_basename (path);
 
-  details.name = name;
-  details.range = &range;
-  details.path = path;
+  module = _gum_native_module_make (path, &range, gum_create_module_handle,
+      NULL, NULL, (GDestroyNotify) dlclose);
 
-  carry_on = ctx->func (&details, ctx->user_data);
+  carry_on = ctx->func (GUM_MODULE (module), ctx->user_data);
 
-  g_free (name);
+  gum_object_unref (module);
 
   return carry_on ? 0 : 1;
 }
@@ -1507,13 +1529,12 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
   do
   {
     const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
-    GumModuleDetails details;
     GumMemoryRange range;
     GumAddress end;
     gchar perms[5] = { 0, };
     gint n;
     gboolean is_vdso, readable, shared;
-    gchar * name;
+    GumNativeModule * module;
 
     if (!got_line)
     {
@@ -1551,13 +1572,7 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
         sizeof (elf_magic)) != 0)
       continue;
 
-    name = g_path_get_basename (path);
-
     range.size = end - range.base_address;
-
-    details.name = name;
-    details.range = &range;
-    details.path = path;
 
     while (gum_proc_maps_iter_next (&iter, &line))
     {
@@ -1586,9 +1601,12 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
       }
     }
 
-    carry_on = func (&details, user_data);
+    module = _gum_native_module_make (path, &range, gum_create_module_handle,
+        NULL, NULL, (GDestroyNotify) dlclose);
 
-    g_free (name);
+    carry_on = func (GUM_MODULE (module), user_data);
+
+    gum_object_unref (module);
   }
   while (carry_on);
 
@@ -1596,6 +1614,46 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
   g_free (next_path);
 
   gum_proc_maps_iter_destroy (&iter);
+}
+
+static gpointer
+gum_create_module_handle (GumNativeModule * module,
+                          gpointer user_data)
+{
+#if defined (HAVE_MUSL)
+  struct link_map * cur;
+
+  for (cur = dlopen (NULL, 0); cur != NULL; cur = cur->l_next)
+  {
+    if (gum_linux_module_path_matches (cur->l_name, module->path))
+      return cur;
+  }
+
+  for (cur = dlopen (NULL, 0); cur != NULL; cur = cur->l_next)
+  {
+    gchar * target, * parent_dir, * canonical_path;
+    gboolean is_match;
+
+    target = g_file_read_link (cur->l_name, NULL);
+    if (target == NULL)
+      continue;
+    parent_dir = g_path_get_dirname (cur->l_name);
+    canonical_path = g_canonicalize_filename (target, parent_dir);
+
+    is_match = gum_linux_module_path_matches (canonical_path, module->path);
+
+    g_free (canonical_path);
+    g_free (parent_dir);
+    g_free (target);
+
+    if (is_match)
+      return cur;
+  }
+
+  return NULL;
+#else
+  return dlopen (module->path, RTLD_LAZY | RTLD_NOLOAD);
+#endif
 }
 
 GHashTable *
@@ -2028,147 +2086,6 @@ gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
 #endif
 }
 
-gboolean
-gum_module_load (const gchar * module_name,
-                 GError ** error)
-{
-  GumGenericDlopenImpl dlopen_impl = dlopen;
-
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (gum_module_get_handle (module_name) != NULL)
-    return TRUE;
-
-  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    gum_android_find_unrestricted_dlopen (&dlopen_impl);
-#endif
-
-  if (dlopen_impl (module_name, RTLD_LAZY) == NULL)
-    goto not_found;
-
-  return TRUE;
-
-not_found:
-  {
-    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND, "%s", dlerror ());
-    return FALSE;
-  }
-}
-
-static void *
-gum_module_get_handle (const gchar * module_name)
-{
-#if defined (HAVE_MUSL)
-  struct link_map * cur;
-
-  for (cur = dlopen (NULL, 0); cur != NULL; cur = cur->l_next)
-  {
-    if (gum_linux_module_path_matches (cur->l_name, module_name))
-      return cur;
-  }
-
-  for (cur = dlopen (NULL, 0); cur != NULL; cur = cur->l_next)
-  {
-    gchar * target, * parent_dir, * canonical_path;
-    gboolean is_match;
-
-    target = g_file_read_link (cur->l_name, NULL);
-    if (target == NULL)
-      continue;
-    parent_dir = g_path_get_dirname (cur->l_name);
-    canonical_path = g_canonicalize_filename (target, parent_dir);
-
-    is_match = gum_linux_module_path_matches (canonical_path, module_name);
-
-    g_free (canonical_path);
-    g_free (parent_dir);
-    g_free (target);
-
-    if (is_match)
-      return cur;
-  }
-
-  return NULL;
-#else
-# if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    return gum_android_get_module_handle (module_name);
-# endif
-
-  return dlopen (module_name, RTLD_LAZY | RTLD_NOLOAD);
-#endif
-}
-
-static void *
-gum_module_get_symbol (void * module,
-                       const gchar * symbol)
-{
-  GumGenericDlsymImpl dlsym_impl = dlsym;
-
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    gum_android_find_unrestricted_dlsym (&dlsym_impl);
-#endif
-
-  return dlsym_impl (module, symbol);
-}
-
-gboolean
-gum_module_ensure_initialized (const gchar * module_name)
-{
-  void * module;
-
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
-    return gum_android_ensure_module_initialized (module_name);
-#endif
-
-  module = gum_module_get_handle (module_name);
-  if (module == NULL)
-    return FALSE;
-  dlclose (module);
-
-#ifndef HAVE_MUSL
-  module = dlopen (module_name, RTLD_LAZY);
-  if (module == NULL)
-    return FALSE;
-  dlclose (module);
-#endif
-
-  return TRUE;
-}
-
-GumAddress
-gum_module_find_export_by_name (const gchar * module_name,
-                                const gchar * symbol_name)
-{
-  GumAddress result;
-  void * module;
-
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
-  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE &&
-      gum_android_try_resolve_magic_export (module_name, symbol_name, &result))
-    return result;
-#endif
-
-  if (module_name != NULL)
-  {
-    module = gum_module_get_handle (module_name);
-    if (module == NULL)
-      return 0;
-  }
-  else
-  {
-    module = RTLD_DEFAULT;
-  }
-
-  result = GUM_ADDRESS (gum_module_get_symbol (module, symbol_name));
-
-  if (module != RTLD_DEFAULT)
-    dlclose (module);
-
-  return result;
-}
-
 GumCpuType
 gum_linux_cpu_type_from_file (const gchar * path,
                               GError ** error)
@@ -2398,95 +2315,6 @@ gum_linux_cpu_type_from_auxv (gconstpointer auxv,
   }
 
   return result;
-}
-
-gboolean
-_gum_process_resolve_module_name (const gchar * name,
-                                  gchar ** path,
-                                  GumAddress * base)
-{
-  return gum_do_resolve_module_name (name, gum_process_query_libc_name (), path,
-      base);
-}
-
-static gboolean
-gum_do_resolve_module_name (const gchar * name,
-                            const gchar * libc_name,
-                            gchar ** path,
-                            GumAddress * base)
-{
-  gboolean success = FALSE;
-  GumResolveModuleNameContext ctx;
-
-  if (name[0] == '/' && base == NULL)
-  {
-    success = TRUE;
-
-    if (path != NULL)
-      *path = g_strdup (name);
-
-    goto beach;
-  }
-
-  ctx.name = name;
-  ctx.known_address = 0;
-#if defined (HAVE_GLIBC) || defined (HAVE_MUSL)
-  {
-    struct link_map * map = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
-    if (map != NULL)
-    {
-      ctx.known_address = GUM_ADDRESS (map->l_ld);
-      dlclose (map);
-    }
-  }
-#endif
-  ctx.path = NULL;
-  ctx.base = 0;
-
-  if (name == libc_name &&
-      gum_query_program_modules ()->rtld == GUM_PROGRAM_RTLD_NONE)
-  {
-    gum_linux_enumerate_modules_using_proc_maps (
-        gum_store_module_path_and_base_if_match, &ctx);
-  }
-  else
-  {
-    gum_do_enumerate_modules (libc_name,
-        gum_store_module_path_and_base_if_match, &ctx);
-  }
-
-  success = ctx.path != NULL;
-
-  if (path != NULL)
-    *path = g_steal_pointer (&ctx.path);
-
-  if (base != NULL)
-    *base = ctx.base;
-
-  g_free (ctx.path);
-
-beach:
-  return success;
-}
-
-static gboolean
-gum_store_module_path_and_base_if_match (
-    const GumModuleDetails * details,
-    gpointer user_data)
-{
-  GumResolveModuleNameContext * ctx = user_data;
-  gboolean is_match;
-
-  if (ctx->known_address != 0)
-    is_match = GUM_MEMORY_RANGE_INCLUDES (details->range, ctx->known_address);
-  else
-    is_match = gum_linux_module_path_matches (details->path, ctx->name);
-  if (!is_match)
-    return TRUE;
-
-  ctx->path = g_strdup (details->path);
-  ctx->base = details->range->base_address;
-  return FALSE;
 }
 
 gboolean

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -86,9 +86,6 @@ static void gum_inspector_peer_on_closed (GumInspectorPeer * self);
 static void gum_inspector_peer_on_message (GumInspectorPeer * self, gint type,
     GBytes * message);
 
-static gboolean gum_store_process_title (const GumModuleDetails * details,
-    gpointer user_data);
-
 G_DEFINE_TYPE (GumInspectorServer, gum_inspector_server, G_TYPE_OBJECT)
 
 static guint gum_inspector_server_signals[LAST_SIGNAL] = { 0, };
@@ -120,7 +117,9 @@ gum_inspector_server_init (GumInspectorServer * self)
   gchar * ws_path;
 
   self->id = g_uuid_string_random ();
-  gum_process_enumerate_modules (gum_store_process_title, &self->title);
+  self->title = g_strdup_printf ("%s[%u]",
+      gum_module_get_name (gum_process_get_main_module ()),
+      gum_process_get_id ());
 
   server = g_object_new (SOUP_TYPE_SERVER, NULL);
 
@@ -548,15 +547,4 @@ gum_inspector_peer_on_message (GumInspectorPeer * self,
     gum_inspector_server_on_websocket_stanza (self->server, self,
         g_bytes_get_data (message, NULL));
   }
-}
-
-static gboolean
-gum_store_process_title (const GumModuleDetails * details,
-                         gpointer user_data)
-{
-  gchar ** title = user_data;
-
-  *title = g_strdup_printf ("%s[%u]", details->name, gum_process_get_id ());
-
-  return FALSE;
 }

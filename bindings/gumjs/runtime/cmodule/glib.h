@@ -100,7 +100,10 @@ typedef guint32 gunichar;
 typedef guint16 gunichar2;
 
 typedef void (* GCallback) (void);
+typedef void (* GFunc) (gpointer data, gpointer user_data);
+typedef gpointer (* GCopyFunc) (gconstpointer src, gpointer data);
 typedef void (* GDestroyNotify) (gpointer data);
+typedef gboolean (* GEqualFunc) (gconstpointer a, gconstpointer b);
 typedef gint (* GCompareDataFunc) (gconstpointer a, gconstpointer b,
     gpointer user_data);
 
@@ -234,8 +237,8 @@ struct _GArray
   guint len;
 };
 
-#define g_array_append_val(a,v) g_array_append_vals (a, &(v), 1)
-#define g_array_prepend_val(a,v) g_array_prepend_vals (a, &(v), 1)
+#define g_array_append_val(a, v) g_array_append_vals (a, &(v), 1)
+#define g_array_prepend_val(a, v) g_array_prepend_vals (a, &(v), 1)
 #define g_array_insert_val(a, i, v) g_array_insert_vals (a, i, &(v), 1)
 #define g_array_index(a, t, i) (((t *) (void *) (a)->data) [(i)])
 
@@ -259,11 +262,58 @@ void g_array_sort_with_data (GArray * array, GCompareDataFunc compare_func,
     gpointer user_data);
 void g_array_set_clear_func (GArray * array, GDestroyNotify clear_func);
 
+typedef struct _GPtrArray GPtrArray;
+
+struct _GPtrArray
+{
+  gpointer * pdata;
+  guint len;
+};
+
+#define g_ptr_array_index(a, i) ((a)->pdata)[i]
+
+GPtrArray * g_ptr_array_new (void);
+GPtrArray * g_ptr_array_new_with_free_func (GDestroyNotify element_free_func);
+gpointer * g_ptr_array_steal (GPtrArray * array, gsize * len);
+GPtrArray * g_ptr_array_copy (GPtrArray * array, GCopyFunc func,
+    gpointer user_data);
+GPtrArray * g_ptr_array_sized_new (guint reserved_size);
+GPtrArray * g_ptr_array_new_full (guint reserved_size,
+    GDestroyNotify element_free_func);
+GPtrArray * g_ptr_array_new_null_terminated (guint reserved_size,
+    GDestroyNotify element_free_func, gboolean null_terminated);
+gpointer * g_ptr_array_free (GPtrArray * array, gboolean free_seg);
+GPtrArray * g_ptr_array_ref (GPtrArray * array);
+void g_ptr_array_unref (GPtrArray * array);
+void g_ptr_array_set_free_func (GPtrArray * array,
+    GDestroyNotify element_free_func);
+void g_ptr_array_set_size (GPtrArray * array, gint length);
+gpointer g_ptr_array_remove_index (GPtrArray * array, guint index_);
+gpointer g_ptr_array_remove_index_fast (GPtrArray * array, guint index_);
+gpointer g_ptr_array_steal_index (GPtrArray * array, guint index_);
+gpointer g_ptr_array_steal_index_fast (GPtrArray * array, guint index_);
+gboolean g_ptr_array_remove (GPtrArray * array, gpointer data);
+gboolean g_ptr_array_remove_fast (GPtrArray * array, gpointer data);
+GPtrArray * g_ptr_array_remove_range (GPtrArray * array, guint index_,
+    guint length);
+void g_ptr_array_add (GPtrArray * array, gpointer data);
+void g_ptr_array_extend (GPtrArray * array_to_extend, GPtrArray * array,
+    GCopyFunc func, gpointer user_data);
+void g_ptr_array_extend_and_steal (GPtrArray * array_to_extend,
+    GPtrArray * array);
+void g_ptr_array_insert (GPtrArray * array, gint index_, gpointer data);
+void g_ptr_array_sort_with_data (GPtrArray * array,
+    GCompareDataFunc compare_func, gpointer user_data);
+void g_ptr_array_foreach (GPtrArray * array, GFunc func, gpointer user_data);
+gboolean g_ptr_array_find (GPtrArray * haystack, gconstpointer needle,
+    guint * index_);
+gboolean g_ptr_array_find_with_equal_func (GPtrArray * haystack,
+    gconstpointer needle, GEqualFunc equal_func, guint * index_);
+
 typedef struct _GHashTable GHashTable;
 typedef struct _GHashTableIter GHashTableIter;
 
 typedef guint (* GHashFunc) (gconstpointer key);
-typedef gboolean (* GEqualFunc) (gconstpointer a, gconstpointer b);
 
 struct _GHashTableIter
 {

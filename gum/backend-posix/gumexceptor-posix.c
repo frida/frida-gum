@@ -91,9 +91,9 @@ static void gum_exceptor_backend_abort (GumExceptorBackend * self,
 static gboolean gum_is_signal_handler_chainable (sig_t handler);
 
 static gpointer gum_resolve_symbol (const gchar * symbol_name,
-    const gchar ** module_candidates);
+    GPtrArray * module_candidates);
 static gpointer gum_try_resolve_symbol (const gchar * symbol_name,
-    const gchar ** module_candidates);
+    GPtrArray * module_candidates);
 
 static void gum_parse_context (gconstpointer context,
     GumCpuContext * ctx);
@@ -141,47 +141,46 @@ static void
 gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
-  const gchar * libc;
-  gchar * libdir = NULL;
-  gchar * pthread = NULL;
-  const gchar * module_candidates[3];
+  GPtrArray * module_candidates;
+  GumModule * libc;
 
   object_class->dispose = gum_exceptor_backend_dispose;
 
-  libc = gum_process_query_libc_name ();
+  module_candidates = g_ptr_array_new_full (3, g_object_unref);
+
+  libc = gum_process_get_libc_module ();
+  g_ptr_array_add (module_candidates, g_object_ref (libc));
 
 #if defined (HAVE_DARWIN)
-  module_candidates[0] = libc;
-  module_candidates[1] = NULL;
-
   gum_original_signal = gum_resolve_symbol ("signal", module_candidates);
 #elif defined (HAVE_ANDROID)
-  module_candidates[0] = libc;
-  module_candidates[1] = NULL;
-
   gum_original_signal = gum_try_resolve_symbol ("signal", module_candidates);
   if (gum_original_signal == NULL)
     gum_original_signal = gum_resolve_symbol ("bsd_signal", module_candidates);
 #elif defined (HAVE_QNX)
-  module_candidates[0] = libc;
-  module_candidates[1] = NULL;
-
   gum_original_signal = gum_resolve_symbol ("signal", module_candidates);
 #else
-  libdir = g_path_get_dirname (libc);
-  pthread = g_build_filename (libdir, "libpthread.so.0", NULL);
+  {
+    gchar * libdir, * pthread_name;
+    GumModule * pthread;
 
-  module_candidates[0] = pthread;
-  module_candidates[1] = libc;
-  module_candidates[2] = NULL;
+    libdir = g_path_get_dirname (gum_module_get_path (libc));
+    pthread_name = g_build_filename (libdir, "libpthread.so.0", NULL);
+
+    pthread = gum_process_find_module_by_name (pthread_name);
+    if (pthread != NULL)
+      g_ptr_array_insert (module_candidates, 0, pthread);
+
+    g_free (pthread_name);
+    g_free (libdir);
+  }
 
   gum_original_signal = gum_resolve_symbol ("signal", module_candidates);
 #endif
 
   gum_original_sigaction = gum_resolve_symbol ("sigaction", module_candidates);
 
-  g_free (pthread);
-  g_free (libdir);
+  g_ptr_array_unref (module_candidates);
 }
 
 static void
@@ -499,7 +498,7 @@ gum_is_signal_handler_chainable (sig_t handler)
 
 static gpointer
 gum_resolve_symbol (const gchar * symbol_name,
-                    const gchar ** module_candidates)
+                    GPtrArray * module_candidates)
 {
   gpointer result;
 
@@ -512,15 +511,18 @@ gum_resolve_symbol (const gchar * symbol_name,
 
 static gpointer
 gum_try_resolve_symbol (const gchar * symbol_name,
-                        const gchar ** module_candidates)
+                        GPtrArray * module_candidates)
 {
-  const gchar ** cur, * module_name;
+  guint i;
 
-  for (cur = module_candidates; (module_name = *cur) != NULL; cur++)
+  for (i = 0; i != module_candidates->len; i++)
   {
+    GumModule * module;
     GumAddress address;
 
-    address = gum_module_find_export_by_name (module_name, symbol_name);
+    module = g_ptr_array_index (module_candidates, i);
+
+    address = gum_module_find_export_by_name (module, symbol_name);
     if (address != 0)
       return GSIZE_TO_POINTER (address);
   }

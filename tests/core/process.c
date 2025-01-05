@@ -141,8 +141,8 @@ static gboolean store_export_address_if_tricky_module_export (
 #endif
 
 #ifdef HAVE_DARWIN
-static gboolean assign_true_if_core_foundation (
-    const GumModuleDetails * details, gpointer user_data);
+static gboolean assign_true_if_core_foundation (GumModule * module,
+    gpointer user_data);
 static gboolean process_potential_export_search_result (
     const GumExportDetails * details, gpointer user_data);
 #endif
@@ -156,8 +156,7 @@ static gboolean thread_check_cb (const GumThreadDetails * details,
     gpointer user_data);
 G_GNUC_UNUSED static gboolean thread_collect_if_matching_id (
     const GumThreadDetails * details, gpointer user_data);
-static gboolean module_found_cb (const GumModuleDetails * details,
-    gpointer user_data);
+static gboolean module_found_cb (GumModule * module, gpointer user_data);
 static gboolean import_found_cb (const GumImportDetails * details,
     gpointer user_data);
 static gboolean export_found_cb (const GumExportDetails * details,
@@ -318,8 +317,7 @@ struct _ModuleBounds
 
 static gboolean find_module_bounds (const GumRangeDetails * details,
     gpointer user_data);
-static gboolean verify_module_bounds (const GumModuleDetails * details,
-    gpointer user_data);
+static gboolean verify_module_bounds (GumModule * module, gpointer user_data);
 
 TESTCASE (linux_process_modules)
 {
@@ -373,15 +371,16 @@ find_module_bounds (const GumRangeDetails * details,
 }
 
 static gboolean
-verify_module_bounds (const GumModuleDetails * details,
+verify_module_bounds (GumModule * module,
                       gpointer user_data)
 {
   ModuleBounds * bounds = user_data;
-  const GumMemoryRange * range = details->range;
+  const GumMemoryRange * range;
 
-  if (strcmp (details->name, bounds->name) != 0)
+  if (strcmp (gum_module_get_name (module), bounds->name) != 0)
     return TRUE;
 
+  range = gum_module_get_range (module);
   g_assert_cmphex (range->base_address, ==, bounds->start);
   g_assert_cmphex (range->base_address + range->size, >=, bounds->end);
 
@@ -693,43 +692,59 @@ TESTCASE (process_malloc_ranges)
 
 TESTCASE (module_can_be_loaded)
 {
+  GumModule * module;
   GError * error = NULL;
   gchar * invalid_name;
 
-  g_assert_true (gum_module_load (SYSTEM_MODULE_NAME, &error));
+  module = gum_module_load (SYSTEM_MODULE_NAME, &error);
+  g_assert_nonnull (module);
   g_assert_no_error (error);
+  g_object_unref (module);
 
   invalid_name = g_strconcat (SYSTEM_MODULE_NAME, "_nope", NULL);
-  g_assert_false (gum_module_load (invalid_name, &error));
-  g_assert_nonnull (error);
+  module = gum_module_load (invalid_name, &error);
+  g_assert_null (module);
+  g_assert_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND);
   g_error_free (error);
   g_free (invalid_name);
 }
 
 TESTCASE (module_imports)
 {
+  GumModule * module;
   TestForEachContext ctx;
+
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
+  g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_module_enumerate_imports (GUM_TESTS_MODULE_NAME, import_found_cb, &ctx);
+  gum_module_enumerate_imports (module, import_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_module_enumerate_imports (GUM_TESTS_MODULE_NAME, import_found_cb, &ctx);
+  gum_module_enumerate_imports (module, import_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  g_object_unref (module);
 }
 
 TESTCASE (module_import_slot_should_contain_correct_value)
 {
+  GumModule * module;
   gpointer * slot;
   gsize actual_value, expected_value;
   gboolean unsupported_on_this_os;
 
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
+  g_assert_nonnull (module);
+
   slot = NULL;
-  gum_module_enumerate_imports (GUM_TESTS_MODULE_NAME,
+  gum_module_enumerate_imports (module,
       store_import_slot_of_malloc_if_available, &slot);
+
+  g_clear_object (&module);
 
   unsupported_on_this_os = slot == NULL;
   if (unsupported_on_this_os)
@@ -740,7 +755,7 @@ TESTCASE (module_import_slot_should_contain_correct_value)
 
   actual_value = gum_strip_code_address (GPOINTER_TO_SIZE (*slot));
   expected_value = gum_strip_code_address (gum_module_find_export_by_name (
-        gum_process_query_libc_name (), "malloc"));
+        gum_process_get_libc_module (), "malloc"));
 
   g_assert_cmphex (actual_value, ==, expected_value);
 }
@@ -760,65 +775,87 @@ store_import_slot_of_malloc_if_available (const GumImportDetails * details,
 
 TESTCASE (module_exports)
 {
+  GumModule * module;
   TestForEachContext ctx;
+
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+  g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_module_enumerate_exports (SYSTEM_MODULE_NAME, export_found_cb, &ctx);
+  gum_module_enumerate_exports (module, export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_module_enumerate_exports (SYSTEM_MODULE_NAME, export_found_cb, &ctx);
+  gum_module_enumerate_exports (module, export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  g_object_unref (module);
 }
 
 TESTCASE (module_symbols)
 {
+  GumModule * module;
   TestForEachContext ctx;
+
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
+  g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_module_enumerate_symbols (GUM_TESTS_MODULE_NAME, symbol_found_cb, &ctx);
+  gum_module_enumerate_symbols (module, symbol_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_module_enumerate_symbols (GUM_TESTS_MODULE_NAME, symbol_found_cb, &ctx);
+  gum_module_enumerate_symbols (module, symbol_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  g_object_unref (module);
 }
 
 TESTCASE (module_ranges_can_be_enumerated)
 {
+  GumModule * module;
   TestForEachContext ctx;
+
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+  g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_module_enumerate_ranges (SYSTEM_MODULE_NAME, GUM_PAGE_READ,
-      range_found_cb, &ctx);
+  gum_module_enumerate_ranges (module, GUM_PAGE_READ, range_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_module_enumerate_ranges (SYSTEM_MODULE_NAME, GUM_PAGE_READ,
-      range_found_cb, &ctx);
+  gum_module_enumerate_ranges (module, GUM_PAGE_READ, range_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  g_object_unref (module);
 }
 
 TESTCASE (module_sections_can_be_enumerated)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  GumModule * module;
   TestForEachContext ctx;
+
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+  g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_module_enumerate_sections (SYSTEM_MODULE_NAME, section_found_cb, &ctx);
+  gum_module_enumerate_sections (module, section_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_module_enumerate_sections (SYSTEM_MODULE_NAME, section_found_cb, &ctx);
+  gum_module_enumerate_sections (module, section_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  g_object_unref (module);
 #else
   (void) section_found_cb;
 #endif
@@ -827,17 +864,23 @@ TESTCASE (module_sections_can_be_enumerated)
 TESTCASE (module_dependencies_can_be_enumerated)
 {
 #if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  GumModule * module;
   TestForEachContext ctx;
+
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
+  g_assert_nonnull (module);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_module_enumerate_dependencies (GUM_TESTS_MODULE_NAME, dep_found_cb, &ctx);
+  gum_module_enumerate_dependencies (module, dep_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_module_enumerate_dependencies (GUM_TESTS_MODULE_NAME, dep_found_cb, &ctx);
+  gum_module_enumerate_dependencies (module, dep_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  g_object_unref (module);
 #else
   (void) dep_found_cb;
 #endif
@@ -845,35 +888,55 @@ TESTCASE (module_dependencies_can_be_enumerated)
 
 TESTCASE (module_base)
 {
-  g_assert_true (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
+  GumModule * module;
+
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+  g_assert_nonnull (module);
+
+  g_assert_true (gum_module_get_range (module)->base_address != 0);
+
+  g_object_unref (module);
 }
 
 TESTCASE (module_export_can_be_found)
 {
-  g_assert_true (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
+  GumModule * module;
+
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+  g_assert_nonnull (module);
+
+  g_assert_true (gum_module_find_export_by_name (module,
       SYSTEM_MODULE_EXPORT) != 0);
+
+  g_object_unref (module);
 }
 
 TESTCASE (module_export_matches_system_lookup)
 {
 #ifndef HAVE_WINDOWS
   void * lib, * system_address;
+  GumModule * module;
   GumAddress enumerate_address, find_by_name_address;
 
   lib = dlopen (TRICKY_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
   g_assert_true (lib != NULL);
   system_address = dlsym (lib, TRICKY_MODULE_EXPORT);
 
+  module = gum_process_find_module_by_name (TRICKY_MODULE_NAME);
+  g_assert_nonnull (module);
+
   enumerate_address = 0;
-  gum_module_enumerate_exports (TRICKY_MODULE_NAME,
+  gum_module_enumerate_exports (module,
       store_export_address_if_tricky_module_export, &enumerate_address);
   g_assert_true (enumerate_address != 0);
 
   find_by_name_address =
-      gum_module_find_export_by_name (TRICKY_MODULE_NAME, TRICKY_MODULE_EXPORT);
+      gum_module_find_export_by_name (module, TRICKY_MODULE_EXPORT);
 
   g_assert_cmphex (enumerate_address, ==, GPOINTER_TO_SIZE (system_address));
   g_assert_cmphex (find_by_name_address, ==, GPOINTER_TO_SIZE (system_address));
+
+  g_object_unref (module);
 
   dlclose (lib);
 #endif
@@ -987,70 +1050,86 @@ TESTCASE (darwin_enumerate_ranges)
 TESTCASE (darwin_module_exports)
 {
   mach_port_t task;
+  GumModule * module;
   TestForEachContext ctx;
   ExportSearch search;
   GumAddress actual_mach_msg_address = 0;
   GumAddress expected_mach_msg_address;
-  void * module;
+  void * module_handle;
 
   task = gum_test_get_target_task ();
 
+  module = gum_darwin_find_module_by_name (task, SYSTEM_MODULE_NAME);
+  g_assert_nonnull (module);
+
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
-      export_found_cb, &ctx);
+  gum_module_enumerate_exports (module, export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
-      export_found_cb, &ctx);
+  gum_module_enumerate_exports (module, export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 
   search.type = GUM_EXPORT_FUNCTION;
   search.name = "mach_msg";
   search.result = 0;
-  gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
-      process_potential_export_search_result, &search);
+  gum_module_enumerate_exports (module, process_potential_export_search_result,
+      &search);
   actual_mach_msg_address = search.result;
   g_assert_true (actual_mach_msg_address != 0);
 
-  module = dlopen (SYSTEM_MODULE_NAME, 0);
-  expected_mach_msg_address = GUM_ADDRESS (dlsym (module, "mach_msg"));
+  module_handle = dlopen (SYSTEM_MODULE_NAME, RTLD_LAZY);
+  expected_mach_msg_address = GUM_ADDRESS (dlsym (module_handle, "mach_msg"));
   g_assert_true (expected_mach_msg_address != 0);
-  dlclose (module);
+  dlclose (module_handle);
 
   g_assert_cmphex (actual_mach_msg_address, ==, expected_mach_msg_address);
+
+  g_object_unref (module);
 }
 
 TESTCASE (darwin_module_exports_should_support_dyld)
 {
   mach_port_t task;
+  GumModule * module;
   TestForEachContext ctx;
 
   task = gum_test_get_target_task ();
 
+  module = gum_darwin_find_module_by_name (task, "/usr/lib/dyld");
+  g_assert_nonnull (module);
+
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_darwin_enumerate_exports (task, "/usr/lib/dyld", export_found_cb, &ctx);
+  gum_module_enumerate_exports (module, export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >=, 1);
+
+  g_object_unref (module);
 }
 
 TESTCASE (darwin_libsystem_exports_should_contain_chkstk)
 {
   mach_port_t task;
+  GumModule * module;
   ExportSearch search;
 
   task = gum_test_get_target_task ();
+
+  module = gum_darwin_find_module_by_name (task, "/usr/lib/libSystem.B.dylib");
+  g_assert_nonnull (module);
 
   search.type = GUM_EXPORT_FUNCTION;
   search.name = "___chkstk_darwin";
   search.result = 0;
 
-  gum_darwin_enumerate_exports (task, "/usr/lib/libSystem.B.dylib",
-      process_potential_export_search_result, &search);
+  gum_module_enumerate_exports (module, process_potential_export_search_result,
+      &search);
 
   g_assert_true (search.result != 0);
+
+  g_object_unref (module);
 }
 
 TESTCASE (darwin_module_resolver_should_resolve_chkstk)
@@ -1065,7 +1144,7 @@ TESTCASE (darwin_module_resolver_should_resolve_chkstk)
   resolver = gum_darwin_module_resolver_new (task, NULL);
   g_assert_nonnull (resolver);
 
-  libsystem = gum_darwin_module_resolver_find_module (resolver,
+  libsystem = gum_darwin_module_resolver_find_module_by_name (resolver,
       "/usr/lib/libSystem.B.dylib");
   g_assert_nonnull (libsystem);
 
@@ -1076,12 +1155,12 @@ TESTCASE (darwin_module_resolver_should_resolve_chkstk)
 }
 
 static gboolean
-assign_true_if_core_foundation (const GumModuleDetails * details,
+assign_true_if_core_foundation (GumModule * module,
                                 gpointer user_data)
 {
   gboolean * found = user_data;
 
-  if (strcmp (details->name, "CoreFoundation") == 0)
+  if (strcmp (gum_module_get_name (module), "CoreFoundation") == 0)
   {
     *found = TRUE;
     return FALSE;
@@ -1208,7 +1287,7 @@ thread_collect_if_matching_id (const GumThreadDetails * details,
 }
 
 static gboolean
-module_found_cb (const GumModuleDetails * details,
+module_found_cb (GumModule * module,
                  gpointer user_data)
 {
   TestForEachContext * ctx = user_data;

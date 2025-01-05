@@ -9,8 +9,8 @@
 
 #include "gum-init.h"
 #include "gum/gumdarwin.h"
+#include "gumdarwin-priv.h"
 #include "gummemory-priv.h"
-#include "gumprocess-darwin-priv.h"
 
 #include <mach/mach.h>
 #include <mach-o/loader.h>
@@ -66,7 +66,7 @@ struct _GumKernelFindRangeByNameContext
 
 struct _GumEmitModuleContext
 {
-  GumFoundModuleFunc func;
+  GumFoundKernelModuleFunc func;
   gpointer user_data;
 };
 
@@ -377,7 +377,7 @@ gum_kernel_emit_match (GumAddress address,
 }
 
 void
-gum_kernel_enumerate_modules (GumFoundModuleFunc func,
+gum_kernel_enumerate_modules (GumFoundKernelModuleFunc func,
                               gpointer user_data)
 {
   GumEmitModuleContext ctx;
@@ -396,7 +396,7 @@ gum_kernel_emit_module (GumDarwinModule * module,
                         gpointer user_data)
 {
   GumEmitModuleContext * ctx = user_data;
-  GumModuleDetails details;
+  GumKernelModuleDetails details;
   GumMemoryRange range;
 
   range.base_address = module->base_address;

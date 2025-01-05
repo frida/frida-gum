@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,8 +21,12 @@
  * GumHeapApiList: (skip)
  */
 
-static gboolean gum_collect_heap_api_if_crt_module (
-    const GumModuleDetails * details, gpointer user_data);
+#ifdef HAVE_WINDOWS
+static gboolean gum_collect_heap_api_if_crt_module (GumModule * module,
+    gpointer user_data);
+#endif
+static void gum_collect_heap_api_from_libc_module (GumModule * libc,
+    GumHeapApiList * list);
 
 GumHeapApiList *
 gum_process_find_heap_apis (void)
@@ -53,54 +57,63 @@ gum_process_find_heap_apis (void)
   }
 #endif
 
+#ifdef HAVE_WINDOWS
   gum_process_enumerate_modules (gum_collect_heap_api_if_crt_module, list);
+#else
+  gum_collect_heap_api_from_libc_module (gum_process_get_libc_module (), list);
+#endif
 
   return list;
 }
 
+#ifdef HAVE_WINDOWS
+
 static gboolean
-gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
+gum_collect_heap_api_if_crt_module (GumModule * module,
                                     gpointer user_data)
 {
   GumHeapApiList * list = (GumHeapApiList *) user_data;
-  gboolean is_libc_module;
+  const gchar * module_name;
 
-#ifdef HAVE_WINDOWS
-  is_libc_module = g_ascii_strncasecmp (details->name, "msvcr", 5) == 0;
-#else
-  is_libc_module = strcmp (details->path, gum_process_query_libc_name ()) == 0;
+  module_name = gum_module_get_name (module);
+
+  if (g_ascii_strncasecmp (module_name, "msvcr", 5) == 0)
+    gum_collect_heap_api_from_libc_module (module, list);
+
+  return TRUE;
+}
+
 #endif
 
-  if (is_libc_module)
-  {
-    GumHeapApi api = { 0, };
+static void
+gum_collect_heap_api_from_libc_module (GumModule * libc,
+                                       GumHeapApiList * list)
+{
+  GumHeapApi api = { 0, };
 
 #define GUM_ASSIGN(type, name) \
     api.name = GUM_POINTER_TO_FUNCPTR (type, gum_module_find_export_by_name ( \
-        details->path, G_STRINGIFY (name)))
+        libc, G_STRINGIFY (name)))
 
-    GUM_ASSIGN (GumMallocFunc, malloc);
-    GUM_ASSIGN (GumCallocFunc, calloc);
-    GUM_ASSIGN (GumReallocFunc, realloc);
-    GUM_ASSIGN (GumFreeFunc, free);
+  GUM_ASSIGN (GumMallocFunc, malloc);
+  GUM_ASSIGN (GumCallocFunc, calloc);
+  GUM_ASSIGN (GumReallocFunc, realloc);
+  GUM_ASSIGN (GumFreeFunc, free);
 
 #ifdef HAVE_WINDOWS
-    if (g_str_has_suffix (details->name, "d.dll"))
-    {
-      GUM_ASSIGN (GumMallocDbgFunc, _malloc_dbg);
-      GUM_ASSIGN (GumCallocDbgFunc, _calloc_dbg);
-      GUM_ASSIGN (GumReallocDbgFunc, _realloc_dbg);
-      GUM_ASSIGN (GumFreeDbgFunc, _free_dbg);
-      GUM_ASSIGN (GumCrtReportBlockTypeFunc, _CrtReportBlockType);
-    }
+  if (g_str_has_suffix (gum_module_get_name (libc), "d.dll"))
+  {
+    GUM_ASSIGN (GumMallocDbgFunc, _malloc_dbg);
+    GUM_ASSIGN (GumCallocDbgFunc, _calloc_dbg);
+    GUM_ASSIGN (GumReallocDbgFunc, _realloc_dbg);
+    GUM_ASSIGN (GumFreeDbgFunc, _free_dbg);
+    GUM_ASSIGN (GumCrtReportBlockTypeFunc, _CrtReportBlockType);
+  }
 #endif
 
 #undef GUM_ASSIGN
 
-    gum_heap_api_list_add (list, &api);
-  }
-
-  return TRUE;
+  gum_heap_api_list_add (list, &api);
 }
 
 GumHeapApiList *

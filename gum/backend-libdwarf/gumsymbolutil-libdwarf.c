@@ -8,7 +8,7 @@
 #include "gumsymbolutil.h"
 
 #include "gum-init.h"
-#include "gumelfmodule.h"
+#include "gummodule-elf.h"
 
 #include <dlfcn.h>
 #include <dwarf.h>
@@ -92,13 +92,12 @@ static gboolean gum_find_nearest_symbol_by_address (gpointer address,
     GumNearestSymbolDetails * nearest);
 static GumModuleEntry * gum_module_entry_from_address (gpointer address,
     GumNearestSymbolDetails * nearest);
-static GumModuleEntry * gum_module_entry_from_path_and_base (const gchar * path,
-    GumAddress base_address);
+static GumModuleEntry * gum_module_entry_from_module (GumModule * module);
 
 static GHashTable * gum_get_function_addresses (void);
 static GHashTable * gum_get_address_symbols (void);
 static void gum_maybe_refresh_symbol_caches (void);
-static gboolean gum_collect_module_functions (const GumModuleDetails * details,
+static gboolean gum_collect_module_functions (GumModule * module,
     gpointer user_data);
 static gboolean gum_collect_symbol_if_function (
     const GumElfSymbolDetails * details, gpointer user_data);
@@ -479,18 +478,18 @@ gum_module_entry_from_address (gpointer address,
                                GumNearestSymbolDetails * nearest)
 {
   GumModuleEntry * entry;
-  gchar * path;
-  GumMemoryRange range;
+  GumModule * module;
 
   nearest->name = NULL;
   nearest->address = NULL;
 
-  if (!gum_process_resolve_module_pointer (address, &path, &range))
+  module = gum_process_find_module_by_address (GUM_ADDRESS (address));
+  if (module == NULL)
     return NULL;
 
-  entry = gum_module_entry_from_path_and_base (path, range.base_address);
+  entry = gum_module_entry_from_module (module);
 
-  g_free (path);
+  g_object_unref (module);
 
   if (entry == NULL)
     return NULL;
@@ -510,21 +509,23 @@ gum_module_entry_from_address (gpointer address,
 }
 
 static GumModuleEntry *
-gum_module_entry_from_path_and_base (const gchar * path,
-                                     GumAddress base_address)
+gum_module_entry_from_module (GumModule * module)
 {
   GumModuleEntry * entry;
-  GumElfModule * module;
+  const gchar * path;
+  GumElfModule * elf_module;
   Dwarf_Debug dbg;
   Dwarf_Error error;
 
   gum_symbol_util_ensure_initialized ();
 
+  path = gum_module_get_path (module);
+
   entry = g_hash_table_lookup (gum_module_entries, path);
   if (entry != NULL)
     goto have_entry;
 
-  module = gum_elf_module_new_from_memory (path, base_address, NULL);
+  elf_module = _gum_native_module_get_elf_module (GUM_NATIVE_MODULE (module));
 
   dbg = NULL;
   error = NULL;
@@ -536,7 +537,7 @@ gum_module_entry_from_path_and_base (const gchar * path,
   }
 
   entry = g_slice_new (GumModuleEntry);
-  entry->module = module;
+  entry->module = (elf_module != NULL) ? gum_object_ref (elf_module) : NULL;
   entry->dbg = dbg;
   entry->collected = FALSE;
 
@@ -597,13 +598,12 @@ gum_maybe_refresh_symbol_caches (void)
 }
 
 static gboolean
-gum_collect_module_functions (const GumModuleDetails * details,
+gum_collect_module_functions (GumModule * module,
                               gpointer user_data)
 {
   GumModuleEntry * entry;
 
-  entry = gum_module_entry_from_path_and_base (details->path,
-      details->range->base_address);
+  entry = gum_module_entry_from_module (module);
   if (entry == NULL || entry->collected)
     return TRUE;
 

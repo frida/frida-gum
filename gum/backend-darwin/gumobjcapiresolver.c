@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C)      2021 Francesco Tamagni <mrmacete@protonmail.ch>
@@ -98,10 +98,17 @@ static GumLibcFreeFunc gum_libc_free;
 static void
 gum_objc_api_resolver_class_init (GumObjcApiResolverClass * klass)
 {
-  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+  GObjectClass * object_class;
+  GumModule * libsystem_malloc;
 
+  object_class = G_OBJECT_CLASS (klass);
+
+  libsystem_malloc = gum_process_find_module_by_name (
+      "/usr/lib/system/libsystem_malloc.dylib");
   gum_libc_free = (GumLibcFreeFunc) gum_module_find_export_by_name (
-      "/usr/lib/system/libsystem_malloc.dylib", "free");
+      libsystem_malloc,
+      "free");
+  g_object_unref (libsystem_malloc);
 
   object_class->dispose = gum_objc_api_resolver_dispose;
   object_class->finalize = gum_objc_api_resolver_finalize;

@@ -26,6 +26,7 @@ gum_headers = [
   'gummemorymap.h',
   'gummetalarray.h',
   'gummetalhash.h',
+  'gummodule.h',
   'gummoduleapiresolver.h',
   'gummodulemap.h',
   'gumprintf.h',
@@ -66,6 +67,8 @@ gum_sources = [
   'gummodulemap.c',
   'gumprintf.c',
   'gumprocess.c',
+  'gummodule.c',
+  'gummodulefacade.c',
   'gumreturnaddress.c',
   'gumspinlock.c',
   'gumstalker.c',
@@ -97,6 +100,7 @@ if host_os_family == 'windows'
     'backend-windows' / 'gummemory-windows.c',
     'backend-windows' / 'gummemoryaccessmonitor-windows.c',
     'backend-windows' / 'gumprocess-windows.c',
+    'backend-windows' / 'gummodule-windows.c',
     'backend-windows' / 'gumtls-windows.c',
     'backend-dbghelp' / 'gumdbghelp.c',
     'backend-dbghelp' / 'gumdbghelpbacktracer.c',
@@ -126,6 +130,7 @@ if host_os_family == 'darwin'
     'backend-darwin' / 'gumtls-darwin.c',
     'backend-darwin' / 'gummemory-darwin.c',
     'backend-darwin' / 'gumprocess-darwin.c',
+    'backend-darwin' / 'gummodule-darwin.c',
     'backend-posix' / 'gumexceptor-posix.c',
     'backend-darwin' / 'gumdarwinmapper.c',
     'backend-darwin' / 'gumdarwinmoduleresolver.c',
@@ -153,6 +158,7 @@ if host_os_family == 'linux'
     'backend-linux' / 'gummemory-linux.c',
     'backend-posix' / 'gummemory-posix.c',
     'backend-linux' / 'gumprocess-linux.c',
+    'backend-linux' / 'gummodule-linux.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
   ]
@@ -174,6 +180,7 @@ if host_os_family == 'freebsd'
     'backend-freebsd' / 'gummemory-freebsd.c',
     'backend-posix' / 'gummemory-posix.c',
     'backend-freebsd' / 'gumprocess-freebsd.c',
+    'backend-freebsd' / 'gummodule-freebsd.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
   ]
@@ -185,6 +192,7 @@ if host_os_family == 'qnx'
   ]
   gum_sources += [
     'backend-qnx' / 'gumprocess-qnx.c',
+    'backend-qnx' / 'gummodule-qnx.c',
     'backend-qnx' / 'gummemory-qnx.c',
     'backend-posix' / 'gummemory-posix.c',
     'backend-posix' / 'gumtls-posix.c',
@@ -194,7 +202,7 @@ endif
 
 if host_executable_format == 'elf'
   gum_sources += [
-    'backend-elf' / 'gumprocess-elf.c',
+    'backend-elf' / 'gummodule-elf.c',
   ]
 endif
 

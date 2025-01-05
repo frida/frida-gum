@@ -95,7 +95,7 @@ TESTCASE (attach_to_thumb_thunk_reading_lr)
   GumEmitLrThunkContext ctx;
 
   spec.near_address = GSIZE_TO_POINTER (
-      gum_module_find_base_address (GUM_TESTS_MODULE_NAME));
+      gum_module_get_range (gum_process_get_main_module ())->base_address);
   spec.max_distance = GUM_THUMB_B_MAX_DISTANCE - 4096;
 
   page_size = gum_query_page_size ();
@@ -156,7 +156,7 @@ TESTCASE (attach_to_thumb_function_reading_lr)
   GumEmitLrFuncContext ctx;
 
   spec.near_address = GSIZE_TO_POINTER (
-      gum_module_find_base_address (GUM_TESTS_MODULE_NAME));
+      gum_module_get_range (gum_process_get_main_module ())->base_address);
   spec.max_distance = GUM_THUMB_B_MAX_DISTANCE - 4096;
 
   page_size = gum_query_page_size ();
