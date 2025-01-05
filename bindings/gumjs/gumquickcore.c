@@ -33,6 +33,7 @@
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
+#include <glib/gprintf.h>
 
 #define GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY { NULL, }
 
@@ -2880,11 +2881,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
     return _gum_quick_throw_literal (ctx, "unsupported radix");
 
   if (radix == 10)
-    sprintf (str, "%" G_GINT64_FORMAT, value);
+    g_sprintf (str, "%" G_GINT64_FORMAT, value);
   else if (value >= 0)
-    sprintf (str, "%" G_GINT64_MODIFIER "x", value);
+    g_sprintf (str, "%" G_GINT64_MODIFIER "x", value);
   else
-    sprintf (str, "-%" G_GINT64_MODIFIER "x", -value);
+    g_sprintf (str, "-%" G_GINT64_MODIFIER "x", -value);
 
   return JS_NewString (ctx, str);
 }
@@ -2897,7 +2898,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
   if (!_gum_quick_int64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  sprintf (str, "%" G_GINT64_FORMAT, self->value);
+  g_sprintf (str, "%" G_GINT64_FORMAT, self->value);
 
   return JS_NewString (ctx, str);
 }
@@ -3036,9 +3037,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
     return _gum_quick_throw_literal (ctx, "unsupported radix");
 
   if (radix == 10)
-    sprintf (str, "%" G_GUINT64_FORMAT, value);
+    g_sprintf (str, "%" G_GUINT64_FORMAT, value);
   else
-    sprintf (str, "%" G_GINT64_MODIFIER "x", value);
+    g_sprintf (str, "%" G_GINT64_MODIFIER "x", value);
 
   return JS_NewString (ctx, str);
 }
@@ -3051,7 +3052,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_json)
   if (!_gum_quick_uint64_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  sprintf (str, "%" G_GUINT64_FORMAT, self->value);
+  g_sprintf (str, "%" G_GUINT64_FORMAT, self->value);
 
   return JS_NewString (ctx, str);
 }
@@ -3334,14 +3335,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 
   if (radix == 10)
   {
-    sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr_bits);
+    g_sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr_bits);
   }
   else
   {
     if (radix_specified)
-      sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr_bits);
+      g_sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr_bits);
     else
-      sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr_bits);
+      g_sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr_bits);
   }
 
   return JS_NewString (ctx, str);
@@ -3355,7 +3356,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
   if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (self->value));
+  g_sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (self->value));
 
   return JS_NewString (ctx, str);
 }

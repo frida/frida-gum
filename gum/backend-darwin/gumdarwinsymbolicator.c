@@ -20,6 +20,7 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
+#include <glib/gprintf.h>
 
 #define kCSNull ((CSTypeRef) { NULL, NULL })
 #define kCSNow  G_GUINT64_CONSTANT (0x8000000000000000)
@@ -387,7 +388,7 @@ gum_darwin_symbolicator_details_from_address (GumDarwinSymbolicator * self,
   else if (!gum_darwin_symbolicator_synthesize_details_from_address (self,
       address, details))
   {
-    sprintf (details->symbol_name, "0x%zx",
+    g_sprintf (details->symbol_name, "0x%zx",
         (size_t) ((unsigned long long) details->address -
             CSSymbolOwnerGetBaseAddress (owner)));
   }
@@ -578,7 +579,7 @@ gum_darwin_symbolicator_synthesize_details_from_address (
 beach:
   if (!success && module != NULL)
   {
-    sprintf (details->symbol_name, "0x%zx (0x%zx)",
+    g_sprintf (details->symbol_name, "0x%zx (0x%zx)",
         (size_t) (address - darwin_module->base_address),
         (size_t) (darwin_module->preferred_address +
           (address - darwin_module->base_address)));

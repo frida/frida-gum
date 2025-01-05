@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +10,7 @@
 #include "gumquickmacros.h"
 
 #include <string.h>
+#include <glib/gprintf.h>
 
 #define GUM_QUICK_TYPE_TRANSFORMER (gum_quick_transformer_get_type ())
 #define GUM_QUICK_TRANSFORMER_CAST(obj) ((GumQuickTransformer *) (obj))
@@ -1707,7 +1708,7 @@ gum_encode_pointer (JSContext * ctx,
   {
     gchar str[32];
 
-    sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (value));
+    g_sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (value));
 
     return JS_NewString (ctx, str);
   }
