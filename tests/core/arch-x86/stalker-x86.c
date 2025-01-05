@@ -2673,7 +2673,7 @@ typedef void (* TestWindowMessageHandler) (TestWindow * window,
 
 struct _TestWindow
 {
-  LPTSTR klass;
+  ATOM klass;
   HWND handle;
   GumStalker * stalker;
 
@@ -2803,7 +2803,7 @@ static TestWindow *
 create_test_window (GumStalker * stalker)
 {
   TestWindow * window;
-  WNDCLASS wc = { 0, };
+  WNDCLASSW wc = { 0, };
 
   window = g_slice_new (TestWindow);
 
@@ -2811,17 +2811,17 @@ create_test_window (GumStalker * stalker)
 
   wc.lpfnWndProc = test_window_proc;
   wc.hInstance = GetModuleHandle (NULL);
-  wc.lpszClassName = _T ("GumTestWindowClass");
-  window->klass = (LPTSTR) GSIZE_TO_POINTER (RegisterClass (&wc));
-  g_assert_nonnull (window->klass);
+  wc.lpszClassName = L"GumTestWindowClass";
+  window->klass = RegisterClassW (&wc);
+  g_assert_cmpuint (window->klass, !=, 0);
 
 #ifdef _MSC_VER
 # pragma warning (push)
 # pragma warning (disable: 4306)
 #endif
-  window->handle = CreateWindow (window->klass, _T ("GumTestWindow"),
+  window->handle = CreateWindowW ((LPCWSTR) window->klass, L"GumTestWindow",
       WS_CAPTION, 10, 10, 320, 240, HWND_MESSAGE, NULL,
-      GetModuleHandle (NULL), NULL);
+      GetModuleHandleW (NULL), NULL);
 #ifdef _MSC_VER
 # pragma warning (pop)
 #endif
@@ -2836,7 +2836,8 @@ create_test_window (GumStalker * stalker)
 static void
 destroy_test_window (TestWindow * window)
 {
-  g_assert_true (UnregisterClass (window->klass, GetModuleHandle (NULL)));
+  g_assert_true (UnregisterClassW ((LPCWSTR) window->klass,
+        GetModuleHandleW (NULL)));
 
   g_slice_free (TestWindow, window);
 }

@@ -5872,7 +5872,7 @@ TESTCASE (module_export_can_be_found_by_name)
   gpointer actual_address;
   char actual_address_str[32];
 
-  mod = GetModuleHandle (_T ("kernel32.dll"));
+  mod = GetModuleHandleW (L"kernel32.dll");
   g_assert_nonnull (mod);
   actual_address = GetProcAddress (mod, "Sleep");
   g_assert_nonnull (actual_address);

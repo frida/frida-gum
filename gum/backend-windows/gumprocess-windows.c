@@ -12,7 +12,6 @@
 
 #include <intrin.h>
 #include <psapi.h>
-#include <tchar.h>
 #include <tlhelp32.h>
 
 #ifndef _MSC_VER
@@ -282,7 +281,7 @@ gum_windows_get_thread_details (DWORD thread_id,
   if (g_once_init_enter (&initialized))
   {
     get_thread_description = (GumGetThreadDescriptionFunc) GetProcAddress (
-        GetModuleHandle (_T ("kernel32.dll")),
+        GetModuleHandleW (L"kernel32.dll"),
         "GetThreadDescription");
 
     desired_access = THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME;
@@ -537,7 +536,7 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
   if (g_once_init_enter (&initialized))
   {
     get_stack_limits = (GumGetCurrentThreadStackLimitsFunc) GetProcAddress (
-        GetModuleHandle (_T ("kernel32.dll")),
+        GetModuleHandleW (L"kernel32.dll"),
         "GetCurrentThreadStackLimits");
 
     g_once_init_leave (&initialized, TRUE);
@@ -891,7 +890,7 @@ gum_windows_cpu_type_from_pid (guint pid,
   {
     HMODULE kernel32;
 
-    kernel32 = GetModuleHandle (_T ("kernel32.dll"));
+    kernel32 = GetModuleHandleW (L"kernel32.dll");
 
     is_wow64_process = (GumIsWow64ProcessFunc)
         GetProcAddress (kernel32, "IsWow64Process");

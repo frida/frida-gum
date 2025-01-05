@@ -34,7 +34,6 @@
 # define VC_EXTRALEAN
 # include <windows.h>
 # include <psapi.h>
-# include <tchar.h>
 #endif
 #ifdef HAVE_LINUX
 # include <sys/syscall.h>
@@ -974,8 +973,8 @@ gum_stalker_init (GumStalker * self)
     guint8 * p;
     GArray * impls;
 
-    ntmod = GetModuleHandle (_T ("ntdll.dll"));
-    usermod = GetModuleHandle (_T ("user32.dll"));
+    ntmod = GetModuleHandleW (L"ntdll.dll");
+    usermod = GetModuleHandleW (L"user32.dll");
     g_assert (ntmod != NULL && usermod != NULL);
 
     success = GetModuleInformation (GetCurrentProcess (), usermod,
@@ -1014,9 +1013,9 @@ gum_stalker_init (GumStalker * self)
     self->wow_transition_impls = impls;
     gum_collect_export_by_handle (impls, ntmod, "Wow64Transition");
     gum_collect_export_by_handle (impls, usermod, "Wow64Transition");
-    gum_collect_export (impls, _T ("kernel32.dll"), "Wow64Transition");
-    gum_collect_export (impls, _T ("kernelbase.dll"), "Wow64Transition");
-    gum_collect_export (impls, _T ("win32u.dll"), "Wow64Transition");
+    gum_collect_export (impls, L"kernel32.dll", "Wow64Transition");
+    gum_collect_export (impls, L"kernelbase.dll", "Wow64Transition");
+    gum_collect_export (impls, L"win32u.dll", "Wow64Transition");
   }
 # endif
 #endif
