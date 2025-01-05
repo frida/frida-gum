@@ -341,6 +341,9 @@ endif
 if ffi_dep.found()
   gum_internal_deps += ffi_dep
 endif
+if lzma_dep.found()
+  gum_internal_deps += lzma_dep
+endif
 
 gum = library('frida-gum-' + api_version, gum_sources + gum_enums,
   c_args: frida_component_cflags,
