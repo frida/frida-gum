@@ -6644,12 +6644,11 @@ gum_find_thread_exit_implementation (void)
 {
 #if defined (HAVE_DARWIN)
   GumAddress result = 0;
-  const gchar * pthread_path = "/usr/lib/system/libsystem_pthread.dylib";
-  GumMemoryRange range;
+  GumModule * pthread;
   GumMatchPattern * pattern;
 
-  range.base_address = gum_module_find_base_address (pthread_path);
-  range.size = 128 * 1024;
+  pthread = gum_process_find_module_by_name (
+      "/usr/lib/system/libsystem_pthread.dylib");
 
   pattern = gum_match_pattern_new_from_string (
 #if GLIB_SIZEOF_VOID_P == 8
@@ -6684,15 +6683,18 @@ gum_find_thread_exit_implementation (void)
 #endif
   );
 
-  gum_memory_scan (&range, pattern, gum_store_thread_exit_match, &result);
+  gum_memory_scan (gum_module_get_range (pthread), pattern,
+      gum_store_thread_exit_match, &result);
 
   gum_match_pattern_unref (pattern);
 
   /* Non-public symbols are all <redacted> on iOS. */
 #ifndef HAVE_IOS
   if (result == 0)
-    result = gum_module_find_symbol_by_name (pthread_path, "_pthread_exit");
+    result = gum_module_find_symbol_by_name (pthread, "_pthread_exit");
 #endif
+
+  g_object_unref (pthread);
 
   return GSIZE_TO_POINTER (result);
 #elif defined (HAVE_GLIBC)
