@@ -6,18 +6,24 @@
 
 #include "gummodule.h"
 
-typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
+#include <string.h>
 
-struct _GumResolveSymbolContext
+typedef struct _GumSymbolEntry GumSymbolEntry;
+
+struct _GumSymbolEntry
 {
   const gchar * name;
-  GumAddress result;
+  GumAddress address;
 };
 
-static gboolean gum_store_address_if_name_matches (
-    const GumSymbolDetails * details, gpointer user_data);
+static gboolean gum_store_symbol (const GumSymbolDetails * details,
+    gpointer user_data);
+static gint gum_symbol_entry_compare (const GumSymbolEntry * lhs,
+    const GumSymbolEntry * rhs);
 
 G_DEFINE_INTERFACE (GumModule, gum_module, G_TYPE_OBJECT)
+
+G_LOCK_DEFINE_STATIC (gum_module_symbol_cache);
 
 static void
 gum_module_default_init (GumModuleInterface * iface)
@@ -109,33 +115,62 @@ gum_module_find_symbol_by_name (GumModule * self,
                                 const gchar * symbol_name)
 {
   GumModuleInterface * iface;
-  GumResolveSymbolContext ctx;
+  GArray * cache;
+  GumSymbolEntry needle;
+  guint matched_index;
 
   iface = GUM_MODULE_GET_IFACE (self);
 
   if (iface->find_symbol_by_name != NULL)
     return iface->find_symbol_by_name (self, symbol_name);
 
-  ctx.name = symbol_name;
-  ctx.result = 0;
+  G_LOCK (gum_module_symbol_cache);
 
-  gum_module_enumerate_symbols (self, gum_store_address_if_name_matches, &ctx);
+  cache = g_object_get_data (G_OBJECT (self), "symbol-cache");
+  if (cache == NULL)
+  {
+    cache = g_array_new (FALSE, FALSE, sizeof (GumSymbolEntry));
+    gum_module_enumerate_symbols (self, gum_store_symbol, cache);
+    g_array_sort (cache, (GCompareFunc) gum_symbol_entry_compare);
+    g_object_set_data_full (G_OBJECT (self), "symbol-cache", cache,
+        (GDestroyNotify) g_array_unref);
+  }
 
-  return ctx.result;
+  G_UNLOCK (gum_module_symbol_cache);
+
+  needle.name = symbol_name;
+  needle.address = 0;
+
+  if (!g_array_binary_search (cache, &needle,
+        (GCompareFunc) gum_symbol_entry_compare, &matched_index))
+  {
+    return 0;
+  }
+
+  return g_array_index (cache, GumSymbolEntry, matched_index).address;
 }
 
 static gboolean
-gum_store_address_if_name_matches (const GumSymbolDetails * details,
-                                   gpointer user_data)
+gum_store_symbol (const GumSymbolDetails * details,
+                  gpointer user_data)
 {
-  GumResolveSymbolContext * ctx = user_data;
-  gboolean carry_on = TRUE;
+  GArray * cache = user_data;
+  GumSymbolEntry entry;
 
-  if (strcmp (details->name, ctx->name) == 0)
-  {
-    ctx->result = details->address;
-    carry_on = FALSE;
-  }
+  /*
+   * Implementations guarantee that the lifetime of this string is at least that
+   * of the module.
+   */
+  entry.name = details->name;
+  entry.address = details->address;
+  g_array_append_val (cache, entry);
 
-  return carry_on;
+  return TRUE;
+}
+
+static gint
+gum_symbol_entry_compare (const GumSymbolEntry * lhs,
+                          const GumSymbolEntry * rhs)
+{
+  return strcmp (lhs->name, rhs->name);
 }
