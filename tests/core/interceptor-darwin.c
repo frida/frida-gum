@@ -472,6 +472,7 @@ static gboolean replace_with_cydia_substrate_if_function_export (
 
 TESTCASE (should_retain_code_signing_status)
 {
+  GumModule * sqlite;
   gint (* close_impl) (gpointer connection);
   gint res;
   uint32_t attributes;
@@ -482,8 +483,11 @@ TESTCASE (should_retain_code_signing_status)
     return;
   }
 
-  close_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-      "libsqlite3.dylib", "sqlite3_close"));
+  sqlite = gum_process_find_module_by_name ("libsqlite3.dylib");
+  g_assert_nonnull (sqlite);
+
+  close_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (sqlite, "sqlite3_close"));
   interceptor_fixture_attach (fixture, 0, close_impl, '>', '<');
 
   g_assert_cmpstr (fixture->result->str, ==, "");
@@ -495,11 +499,13 @@ TESTCASE (should_retain_code_signing_status)
   g_assert_cmpint (res, !=, -1);
 
   g_assert_true ((attributes & CS_VALID) != 0);
+
+  g_object_unref (sqlite);
 }
 
 TESTCASE (cydia_substrate_replace_performance)
 {
-  gpointer cydia_substrate, sqlite;
+  GumModule * cydia_substrate, * sqlite;
   TestPerformanceContext ctx;
   GTimer * timer;
 
@@ -509,31 +515,32 @@ TESTCASE (cydia_substrate_replace_performance)
     return;
   }
 
-  cydia_substrate = dlopen (
+  cydia_substrate = gum_module_load (
       "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate",
-      RTLD_LAZY | RTLD_GLOBAL);
+      NULL);
   g_assert_nonnull (cydia_substrate);
 
-  ctx.MSHookFunction = dlsym (cydia_substrate, "MSHookFunction");
+  ctx.MSHookFunction = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (cydia_substrate, "MSHookFunction"));
   g_assert_nonnull (ctx.MSHookFunction);
 
   ctx.count = 0;
 
-  sqlite = dlopen ("/usr/lib/libsqlite3.0.dylib", RTLD_LAZY | RTLD_GLOBAL);
+  sqlite = gum_module_load ("/usr/lib/libsqlite3.0.dylib", NULL);
   g_assert_nonnull (sqlite);
 
   timer = g_timer_new ();
 
-  gum_module_enumerate_exports ("libsqlite3.dylib",
+  gum_module_enumerate_exports (sqlite,
       replace_with_cydia_substrate_if_function_export, &ctx);
 
   g_print ("<hooked %u functions in %u ms> ", ctx.count,
       (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
   g_timer_destroy (timer);
 
-  dlclose (sqlite);
+  g_object_unref (sqlite);
 
-  dlclose (cydia_substrate);
+  g_object_unref (cydia_substrate);
 }
 
 static gboolean
