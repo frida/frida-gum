@@ -1091,6 +1091,9 @@ gum_elf_module_try_get_fallback_elf_module (GumElfModule * self)
       gum_elf_module_enumerate_sections (self,
           gum_try_load_debugdata_as_fallback_module, self);
     }
+
+    if (self->fallback_elf_module != NULL)
+      self->fallback_elf_module->base_address = self->base_address;
   }
 
   GUM_ELF_MODULE_UNLOCK (self);
