@@ -19,8 +19,8 @@ typedef enum {
 } GumDarwinGrafterFlags;
 
 #define GUM_TYPE_DARWIN_GRAFTER (gum_darwin_grafter_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumDarwinGrafter, gum_darwin_grafter, GUM,
-                        DARWIN_GRAFTER, GObject)
+G_DECLARE_FINAL_TYPE (GumDarwinGrafter, gum_darwin_grafter, GUM, DARWIN_GRAFTER,
+                      GObject)
 
 GUM_API GumDarwinGrafter * gum_darwin_grafter_new_from_file (
     const gchar * path, GumDarwinGrafterFlags flags);

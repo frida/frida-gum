@@ -13,8 +13,8 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_DARWIN_MODULE (gum_darwin_module_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM, DARWIN_MODULE,
-                        GObject)
+G_DECLARE_FINAL_TYPE (GumDarwinModule, gum_darwin_module, GUM, DARWIN_MODULE,
+                      GObject)
 
 #define GUM_TYPE_DARWIN_MODULE_IMAGE (gum_darwin_module_image_get_type ())
 
@@ -111,11 +111,7 @@ typedef struct _GumChainedPtrArm64eAuthBind24 GumChainedPtrArm64eAuthBind24;
 
 struct _GumDarwinModule
 {
-#ifndef GUM_DIET
   GObject parent;
-#else
-  GumObject parent;
-#endif
 
   GumDarwinModuleFiletype filetype;
   gchar * name;
@@ -654,9 +650,7 @@ GUM_API gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self,
 GUM_API void gum_darwin_threaded_item_parse (guint64 value,
     GumDarwinThreadedItem * result);
 
-#ifndef GUM_DIET
 GUM_API GType gum_darwin_module_image_get_type (void) G_GNUC_CONST;
-#endif
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_new (void);
 GUM_API GumDarwinModuleImage * gum_darwin_module_image_dup (
     const GumDarwinModuleImage * other);

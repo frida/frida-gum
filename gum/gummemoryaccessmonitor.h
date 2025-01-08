@@ -12,8 +12,8 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_MEMORY_ACCESS_MONITOR (gum_memory_access_monitor_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor, GUM,
-                        MEMORY_ACCESS_MONITOR, GObject)
+G_DECLARE_FINAL_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor, GUM,
+                      MEMORY_ACCESS_MONITOR, GObject)
 
 typedef struct _GumMemoryAccessDetails GumMemoryAccessDetails;
 

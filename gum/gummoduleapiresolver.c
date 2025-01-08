@@ -14,8 +14,6 @@
  * See [iface@Gum.ApiResolver] for more information.
  */
 
-#ifndef GUM_DIET
-
 #include "gummoduleapiresolver.h"
 
 #include "gummodulemap.h"
@@ -525,5 +523,3 @@ gum_section_details_free (GumSectionDetails * section)
   g_free ((gpointer) section->id);
   g_free ((gpointer) section->name);
 }
-
-#endif

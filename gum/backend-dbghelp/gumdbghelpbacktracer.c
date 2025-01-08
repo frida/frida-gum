@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gum/gumdbghelpbacktracer.h"
 
 #include "guminterceptor.h"
@@ -247,5 +245,3 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
   dbghelp->Unlock ();
 }
-
-#endif

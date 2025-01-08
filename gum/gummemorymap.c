@@ -4,8 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gummemorymap.h"
 
 #include "gumprocess-priv.h"
@@ -150,5 +148,3 @@ gum_memory_map_add_range (const GumRangeDetails * details,
 
   return TRUE;
 }
-
-#endif

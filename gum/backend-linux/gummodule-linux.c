@@ -18,7 +18,7 @@ gum_module_load (const gchar * module_name,
   GumGenericDlopenImpl dlopen_impl = dlopen;
   gpointer handle;
 
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+#ifdef HAVE_ANDROID
   module = gum_process_find_module_by_name (module_name);
   if (module != NULL)
     return module;

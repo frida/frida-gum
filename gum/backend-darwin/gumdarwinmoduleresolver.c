@@ -4,8 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gum/gumdarwinmoduleresolver.h"
 
 #include "gumdarwin-priv.h"
@@ -853,5 +851,3 @@ gum_darwin_module_compare_to_key (const GumAddress * key_ptr,
 
   return 0;
 }
-
-#endif

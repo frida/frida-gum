@@ -6,8 +6,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumstalker.h"
 
 #include "gummetalhash.h"
@@ -6733,7 +6731,5 @@ gum_store_thread_exit_match (GumAddress address,
 
   return FALSE;
 }
-
-#endif
 
 #endif

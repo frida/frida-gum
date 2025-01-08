@@ -102,7 +102,7 @@ gum_process_get_libc_module (void)
 static void
 gum_deinit_libc_module (void)
 {
-  gum_object_unref (gum_libc_module);
+  g_object_unref (gum_libc_module);
 }
 
 gboolean
@@ -338,7 +338,7 @@ _gum_process_enumerate_modules (GumFoundModuleFunc func,
 
     carry_on = func (GUM_MODULE (module), user_data);
 
-    gum_object_unref (module);
+    g_object_unref (module);
 
     g_free (resolved_path);
   }

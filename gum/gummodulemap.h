@@ -12,7 +12,7 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_MODULE_MAP (gum_module_map_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumModuleMap, gum_module_map, GUM, MODULE_MAP, GObject)
+G_DECLARE_FINAL_TYPE (GumModuleMap, gum_module_map, GUM, MODULE_MAP, GObject)
 
 typedef gboolean (* GumModuleMapFilterFunc) (GumModule * module,
     gpointer user_data);

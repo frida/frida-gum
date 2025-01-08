@@ -2,8 +2,6 @@
 #ifndef __GUM_ENUM_TYPES_H__
 #define __GUM_ENUM_TYPES_H__
 
-#ifndef GUM_DIET
-
 #include <glib-object.h>
 
 G_BEGIN_DECLS
@@ -21,8 +19,6 @@ GType @enum_name@_get_type (void) G_GNUC_CONST;
 
 /*** BEGIN file-tail ***/
 G_END_DECLS
-
-#endif
 
 #endif /* __GUM_ENUM_TYPES_H__ */
 /*** END file-tail ***/

@@ -6,8 +6,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumelfmodule.h"
 
 #include "gumelfmodule-priv.h"
@@ -2529,5 +2527,3 @@ beach:
   return FALSE;
 #endif
 }
-
-#endif

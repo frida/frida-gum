@@ -13,8 +13,8 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_SWIFT_API_RESOLVER (gum_swift_api_resolver_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumSwiftApiResolver, gum_swift_api_resolver, GUM,
-                        SWIFT_API_RESOLVER, GObject)
+G_DECLARE_FINAL_TYPE (GumSwiftApiResolver, gum_swift_api_resolver, GUM,
+                      SWIFT_API_RESOLVER, GObject)
 
 GUM_API GumApiResolver * gum_swift_api_resolver_new (void);
 

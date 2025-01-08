@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumexceptor.h"
 
 #include "gumexceptorbackend.h"
@@ -482,5 +480,3 @@ gum_exceptor_scope_perform_longjmp (GumExceptorScope * self)
 #endif
   GUM_NATIVE_LONGJMP (self->env, 1);
 }
-
-#endif

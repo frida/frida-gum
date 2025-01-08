@@ -4,8 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumeventsink.h"
 
 struct _GumDefaultEventSink
@@ -229,5 +227,3 @@ gum_callback_event_sink_process (GumEventSink * sink,
 
   self->callback (event, cpu_context, self->data);
 }
-
-#endif

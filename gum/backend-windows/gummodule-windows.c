@@ -14,11 +14,7 @@ typedef struct _GumFindExportContext GumFindExportContext;
 
 struct _GumNativeModule
 {
-#ifndef GUM_DIET
   GObject parent;
-#else
-  GumObject parent;
-#endif
 
   HMODULE handle;
   gchar * name;

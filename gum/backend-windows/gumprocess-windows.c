@@ -401,7 +401,7 @@ _gum_process_enumerate_modules (GumFoundModuleFunc func,
 
     carry_on = func (GUM_MODULE (module), user_data);
 
-    gum_object_unref (module);
+    g_object_unref (module);
 
     if (!carry_on)
       break;

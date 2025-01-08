@@ -12,7 +12,7 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_MODULE (gum_module_get_type ())
-GUM_DECLARE_INTERFACE (GumModule, gum_module, GUM, MODULE, GObject)
+G_DECLARE_INTERFACE (GumModule, gum_module, GUM, MODULE, GObject)
 
 typedef struct _GumImportDetails GumImportDetails;
 typedef struct _GumExportDetails GumExportDetails;

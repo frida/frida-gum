@@ -16,8 +16,8 @@ G_GNUC_INTERNAL void _gum_exceptor_backend_recover_from_fork_in_parent (void);
 G_GNUC_INTERNAL void _gum_exceptor_backend_recover_from_fork_in_child (void);
 
 #define GUM_TYPE_EXCEPTOR_BACKEND (gum_exceptor_backend_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumExceptorBackend, gum_exceptor_backend, GUM,
-                        EXCEPTOR_BACKEND, GObject)
+G_DECLARE_FINAL_TYPE (GumExceptorBackend, gum_exceptor_backend, GUM,
+                      EXCEPTOR_BACKEND, GObject)
 
 G_GNUC_INTERNAL GumExceptorBackend * gum_exceptor_backend_new (
     GumExceptionHandler handler, gpointer user_data);

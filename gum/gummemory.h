@@ -122,9 +122,7 @@ GUM_API void gum_memory_scan (const GumMemoryRange * range,
     const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
     gpointer user_data);
 
-#ifndef GUM_DIET
 GUM_API GType gum_match_pattern_get_type (void) G_GNUC_CONST;
-#endif
 GUM_API GumMatchPattern * gum_match_pattern_new_from_string (
     const gchar * pattern_str);
 GUM_API GumMatchPattern * gum_match_pattern_ref (GumMatchPattern * pattern);
@@ -182,9 +180,7 @@ GUM_API gboolean gum_memory_decommit (gpointer address, gsize size);
 GUM_API gboolean gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,
     gconstpointer address);
 
-#ifndef GUM_DIET
 GUM_API GType gum_memory_range_get_type (void) G_GNUC_CONST;
-#endif
 GUM_API GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
 GUM_API void gum_memory_range_free (GumMemoryRange * range);
 

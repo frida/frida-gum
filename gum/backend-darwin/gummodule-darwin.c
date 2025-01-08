@@ -25,11 +25,7 @@ typedef struct _GumEnumerateSectionsContext GumEnumerateSectionsContext;
 
 struct _GumNativeModule
 {
-#ifndef GUM_DIET
   GObject parent;
-#else
-  GumObject parent;
-#endif
 
   gchar * name;
   gchar * path;

@@ -12,8 +12,8 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_UNW_BACKTRACER (gum_unw_backtracer_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumUnwBacktracer, gum_unw_backtracer, GUM,
-                        UNW_BACKTRACER, GObject)
+G_DECLARE_FINAL_TYPE (GumUnwBacktracer, gum_unw_backtracer, GUM, UNW_BACKTRACER,
+                      GObject)
 
 GUM_API GumBacktracer * gum_unw_backtracer_new (void);
 

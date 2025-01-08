@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gum/gumdarwinmapper.h"
 
 #include "gum/gumdarwin.h"
@@ -2834,5 +2832,3 @@ gum_find_tlv_get_addr (const GumDarwinSectionDetails * details,
 
   return FALSE;
 }
-
-#endif

@@ -110,10 +110,8 @@ struct _GumCFApi
 
 static void gum_do_init (void);
 
-#ifndef GUM_DIET
 static GumAddress * gum_address_copy (const GumAddress * address);
 static void gum_address_free (GumAddress * address);
-#endif
 
 static GumCpuFeatures gum_do_query_cpu_features (void);
 
@@ -130,8 +128,8 @@ static GumInterceptor * gum_cached_interceptor = NULL;
 
 G_DEFINE_QUARK (gum-error-quark, gum_error)
 
-GUM_DEFINE_BOXED_TYPE (GumAddress, gum_address, gum_address_copy,
-                       gum_address_free)
+G_DEFINE_BOXED_TYPE (GumAddress, gum_address, gum_address_copy,
+                     gum_address_free)
 
 void
 gum_init (void)
@@ -185,9 +183,7 @@ gum_do_init (void)
 
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
-# ifndef GUM_DIET
   gobject_init ();
-# endif
 #endif
 
 #ifndef GUM_USE_SYSTEM_ALLOC
@@ -325,7 +321,7 @@ gum_deinit_embedded (void)
   glib_shutdown ();
 #endif
 
-  gum_clear_object (&gum_cached_interceptor);
+  g_clear_object (&gum_cached_interceptor);
 
   gum_deinit ();
 #ifdef HAVE_FRIDA_GLIB
@@ -654,49 +650,18 @@ gum_on_log_message (const gchar * log_domain,
 #endif
 }
 
-#ifdef GUM_DIET
-
-gpointer
-gum_object_ref (gpointer object)
-{
-  GumObject * self = object;
-
-  g_atomic_int_inc (&self->ref_count);
-
-  return self;
-}
-
-void
-gum_object_unref (gpointer object)
-{
-  GumObject * self = object;
-
-  if (g_atomic_int_dec_and_test (&self->ref_count))
-  {
-    self->finalize (object);
-
-    g_free (self);
-  }
-}
-
-#endif
-
 void
 gum_panic (const gchar * format,
            ...)
 {
-#ifndef GUM_DIET
   va_list args;
 
   va_start (args, format);
   g_logv (G_LOG_DOMAIN, G_LOG_LEVEL_CRITICAL, format, args);
   va_end (args);
-#endif
 
   g_abort ();
 }
-
-#ifndef GUM_DIET
 
 static GumAddress *
 gum_address_copy (const GumAddress * address)
@@ -709,8 +674,6 @@ gum_address_free (GumAddress * address)
 {
   g_slice_free (GumAddress, address);
 }
-
-#endif
 
 GumCpuFeatures
 gum_query_cpu_features (void)

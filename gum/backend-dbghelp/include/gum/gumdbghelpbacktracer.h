@@ -14,8 +14,8 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_DBGHELP_BACKTRACER (gum_dbghelp_backtracer_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumDbghelpBacktracer, gum_dbghelp_backtracer, GUM,
-                        DBGHELP_BACKTRACER, GObject)
+G_DECLARE_FINAL_TYPE (GumDbghelpBacktracer, gum_dbghelp_backtracer, GUM,
+                      DBGHELP_BACKTRACER, GObject)
 
 GUM_API GumBacktracer * gum_dbghelp_backtracer_new (GumDbghelpImpl * dbghelp);
 

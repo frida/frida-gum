@@ -13,19 +13,15 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_NATIVE_MODULE (gum_native_module_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumNativeModule, gum_native_module, GUM, NATIVE_MODULE,
-                        GObject)
+G_DECLARE_FINAL_TYPE (GumNativeModule, gum_native_module, GUM, NATIVE_MODULE,
+                      GObject)
 
 typedef gpointer (* GumCreateModuleHandleFunc) (GumNativeModule * module,
     gpointer user_data);
 
 struct _GumNativeModule
 {
-#ifndef GUM_DIET
   GObject parent;
-#else
-  GumObject parent;
-#endif
 
   gchar * name;
   gchar * path;

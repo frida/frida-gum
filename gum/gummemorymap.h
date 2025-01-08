@@ -12,7 +12,7 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_MEMORY_MAP (gum_memory_map_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumMemoryMap, gum_memory_map, GUM, MEMORY_MAP, GObject)
+G_DECLARE_FINAL_TYPE (GumMemoryMap, gum_memory_map, GUM, MEMORY_MAP, GObject)
 
 GUM_API GumMemoryMap * gum_memory_map_new (GumPageProtection prot);
 

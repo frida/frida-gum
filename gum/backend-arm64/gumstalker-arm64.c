@@ -10,8 +10,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumstalker.h"
 
 #include "gumarm64reader.h"
@@ -5995,5 +5993,3 @@ gum_is_bl_imm (guint32 insn)
 {
   return (insn & ~GUM_INT26_MASK) == 0x94000000;
 }
-
-#endif

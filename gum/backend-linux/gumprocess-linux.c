@@ -502,9 +502,9 @@ gum_deinit_program_modules (void)
 {
   GumProgramModules * m = &gum_program_modules;
 
-  gum_object_unref (m->program);
-  gum_object_unref (m->interpreter);
-  gum_object_unref (m->vdso);
+  g_object_unref (m->program);
+  g_object_unref (m->interpreter);
+  g_object_unref (m->vdso);
 }
 
 static gboolean
@@ -1344,7 +1344,7 @@ gum_try_init_libc_module (void)
 static void
 gum_deinit_libc_module (void)
 {
-  gum_object_unref (gum_libc_module);
+  g_object_unref (gum_libc_module);
 }
 
 static const Dl_info *
@@ -1382,7 +1382,7 @@ gum_process_load_module (const gchar * module_name,
   GumGenericDlopenImpl dlopen_impl = dlopen;
   gpointer handle;
 
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+#ifdef HAVE_ANDROID
   module = gum_process_find_module_by_name (module_name);
   if (module != NULL)
     return module;
@@ -1430,7 +1430,7 @@ _gum_process_enumerate_modules (GumFoundModuleFunc func,
     return;
   }
 
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+#ifdef HAVE_ANDROID
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
   {
     gum_android_enumerate_modules (func, user_data);
@@ -1506,7 +1506,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
 
   carry_on = ctx->func (GUM_MODULE (module), ctx->user_data);
 
-  gum_object_unref (module);
+  g_object_unref (module);
 
   return carry_on ? 0 : 1;
 }
@@ -1606,7 +1606,7 @@ gum_linux_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
 
     carry_on = func (GUM_MODULE (module), user_data);
 
-    gum_object_unref (module);
+    g_object_unref (module);
   }
   while (carry_on);
 

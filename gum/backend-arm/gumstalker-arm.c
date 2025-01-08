@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumstalker.h"
 
 #include "gumarmreg.h"
@@ -6297,5 +6295,3 @@ gum_count_trailing_zeros (guint16 value)
   return num_zeros;
 #endif
 }
-
-#endif

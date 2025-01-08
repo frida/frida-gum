@@ -535,60 +535,6 @@ enum _GumRelocationScenario
     (((gint64) (i)) >= (gint64) G_MININT32 && \
      ((gint64) (i)) <= (gint64) G_MAXINT32)
 
-#ifndef GUM_DIET
-
-# define GUM_DECLARE_FINAL_TYPE(ModuleObjName, module_obj_name, MODULE, \
-      OBJ_NAME, ParentName) \
-    G_DECLARE_FINAL_TYPE (ModuleObjName, module_obj_name, MODULE, OBJ_NAME, \
-      ParentName)
-# define GUM_DECLARE_INTERFACE(ModuleObjName, module_obj_name, MODULE, \
-      OBJ_NAME, PrerequisiteName) \
-    G_DECLARE_INTERFACE (ModuleObjName, module_obj_name, MODULE, OBJ_NAME, \
-      PrerequisiteName)
-# define GUM_DEFINE_BOXED_TYPE(TypeName, type_name, copy_func, free_func) \
-    G_DEFINE_BOXED_TYPE (TypeName, type_name, copy_func, free_func)
-# define gum_object_ref(object) g_object_ref (object)
-# define gum_object_unref(object) g_object_unref (object)
-# define gum_clear_object(object_ptr) \
-    g_clear_pointer ((object_ptr), g_object_unref)
-
-#else
-
-# define GUM_DECLARE_FINAL_TYPE(ModuleObjName, module_obj_name, MODULE, \
-      OBJ_NAME, ParentName) \
-    typedef struct _##ModuleObjName ModuleObjName; \
-    \
-    G_GNUC_UNUSED static inline ModuleObjName * MODULE##_##OBJ_NAME ( \
-      gpointer obj) \
-    { \
-      return obj; \
-    }
-# define GUM_DECLARE_INTERFACE(ModuleObjName, module_obj_name, MODULE, \
-      OBJ_NAME, PrerequisiteName) \
-    typedef struct _##ModuleObjName ModuleObjName; \
-    \
-    G_GNUC_UNUSED static inline ModuleObjName * MODULE##_##OBJ_NAME ( \
-      gpointer obj) \
-    { \
-      return obj; \
-    }
-# define GUM_DEFINE_BOXED_TYPE(TypeName, type_name, copy_func, free_func)
-# define gum_clear_object(object_ptr) \
-    g_clear_pointer ((object_ptr), gum_object_unref)
-
-typedef struct _GumObject GumObject;
-
-struct _GumObject
-{
-  gint ref_count;
-  void (* finalize) (GumObject * object);
-};
-
-GUM_API gpointer gum_object_ref (gpointer object);
-GUM_API void gum_object_unref (gpointer object);
-
-#endif
-
 #ifdef G_NORETURN
 # define GUM_NORETURN G_NORETURN
 #else
@@ -610,9 +556,7 @@ GUM_API gpointer gum_cpu_context_get_return_value (GumCpuContext * self);
 GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
     gpointer value);
 
-#ifndef GUM_DIET
 GUM_API GType gum_address_get_type (void) G_GNUC_CONST;
-#endif
 
 G_END_DECLS
 

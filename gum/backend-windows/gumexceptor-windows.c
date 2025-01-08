@@ -8,8 +8,6 @@
 
 #include "gum/gumwindows.h"
 
-#ifndef GUM_DIET
-
 struct _GumExceptorBackend
 {
   GObject parent;
@@ -30,8 +28,6 @@ G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 static GumExceptorBackend * the_backend = NULL;
 static GPrivate gum_active_context_key;
 
-#endif
-
 void
 _gum_exceptor_backend_prepare_to_fork (void)
 {
@@ -46,8 +42,6 @@ void
 _gum_exceptor_backend_recover_from_fork_in_child (void)
 {
 }
-
-#ifndef GUM_DIET
 
 static void
 gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
@@ -195,5 +189,3 @@ gum_windows_get_active_exceptor_context (void)
 {
   return g_private_get (&gum_active_context_key);
 }
-
-#endif

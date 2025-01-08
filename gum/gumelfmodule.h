@@ -12,7 +12,7 @@
 G_BEGIN_DECLS
 
 #define GUM_ELF_TYPE_MODULE (gum_elf_module_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumElfModule, gum_elf_module, GUM_ELF, MODULE, GObject)
+G_DECLARE_FINAL_TYPE (GumElfModule, gum_elf_module, GUM_ELF, MODULE, GObject)
 
 typedef enum {
   GUM_ELF_NONE,

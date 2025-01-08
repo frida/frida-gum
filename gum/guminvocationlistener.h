@@ -13,13 +13,11 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_INVOCATION_LISTENER (gum_invocation_listener_get_type ())
-GUM_DECLARE_INTERFACE (GumInvocationListener, gum_invocation_listener, GUM,
-                       INVOCATION_LISTENER, GObject)
+G_DECLARE_INTERFACE (GumInvocationListener, gum_invocation_listener, GUM,
+                     INVOCATION_LISTENER, GObject)
 
 typedef void (* GumInvocationCallback) (GumInvocationContext * context,
     gpointer user_data);
-
-#ifndef GUM_DIET
 
 struct _GumInvocationListenerInterface
 {
@@ -30,21 +28,6 @@ struct _GumInvocationListenerInterface
   void (* on_leave) (GumInvocationListener * self,
       GumInvocationContext * context);
 };
-
-#else
-
-struct _GumInvocationListener
-{
-  GumObject parent;
-
-  GumInvocationCallback on_enter;
-  GumInvocationCallback on_leave;
-
-  gpointer data;
-  GDestroyNotify data_destroy;
-};
-
-#endif
 
 GUM_API GumInvocationListener * gum_make_call_listener (
     GumInvocationCallback on_enter, GumInvocationCallback on_leave,

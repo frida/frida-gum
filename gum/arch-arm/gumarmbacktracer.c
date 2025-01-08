@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumarmbacktracer.h"
 
 #include "guminterceptor.h"
@@ -211,5 +209,3 @@ gum_arm_backtracer_generate (GumBacktracer * backtracer,
 
   return_addresses->len = i;
 }
-
-#endif

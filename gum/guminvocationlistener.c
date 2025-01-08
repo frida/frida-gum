@@ -6,15 +6,13 @@
 
 #include "guminvocationlistener.h"
 
-#ifndef GUM_DIET
-
 #define GUM_TYPE_CALL_LISTENER (gum_call_listener_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumCallListener, gum_call_listener, GUM, CALL_LISTENER,
-                        GObject)
+G_DECLARE_FINAL_TYPE (GumCallListener, gum_call_listener, GUM, CALL_LISTENER,
+                      GObject)
 
 #define GUM_TYPE_PROBE_LISTENER (gum_probe_listener_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumProbeListener, gum_probe_listener, GUM,
-                        PROBE_LISTENER, GObject)
+G_DECLARE_FINAL_TYPE (GumProbeListener, gum_probe_listener, GUM, PROBE_LISTENER,
+                      GObject)
 
 struct _GumCallListener
 {
@@ -220,83 +218,3 @@ gum_probe_listener_on_enter (GumInvocationListener * listener,
 
   self->on_hit (context, self->data);
 }
-
-#else
-
-static GumInvocationListener * gum_make_invocation_listener (
-    GumInvocationCallback on_enter, GumInvocationCallback on_leave,
-    gpointer data, GDestroyNotify data_destroy);
-static void gum_invocation_listener_finalize (GumObject * object);
-static void gum_invocation_listener_dummy_callback (
-    GumInvocationContext * context, gpointer user_data);
-
-GumInvocationListener *
-gum_make_call_listener (GumInvocationCallback on_enter,
-                        GumInvocationCallback on_leave,
-                        gpointer data,
-                        GDestroyNotify data_destroy)
-{
-  return gum_make_invocation_listener (on_enter,
-      (on_leave != NULL) ? on_leave : gum_invocation_listener_dummy_callback,
-      data, data_destroy);
-}
-
-GumInvocationListener *
-gum_make_probe_listener (GumInvocationCallback on_hit,
-                         gpointer data,
-                         GDestroyNotify data_destroy)
-{
-  return gum_make_invocation_listener (on_hit, NULL, data, data_destroy);
-}
-
-void
-gum_invocation_listener_on_enter (GumInvocationListener * self,
-                                  GumInvocationContext * context)
-{
-  if (self->on_enter != NULL)
-    self->on_enter (context, self->data);
-}
-
-void
-gum_invocation_listener_on_leave (GumInvocationListener * self,
-                                  GumInvocationContext * context)
-{
-  if (self->on_leave != NULL)
-    self->on_leave (context, self->data);
-}
-
-static GumInvocationListener *
-gum_make_invocation_listener (GumInvocationCallback on_enter,
-                              GumInvocationCallback on_leave,
-                              gpointer data,
-                              GDestroyNotify data_destroy)
-{
-  GumInvocationListener * listener;
-
-  listener = g_new (GumInvocationListener, 1);
-  listener->parent.ref_count = 1;
-  listener->parent.finalize = gum_invocation_listener_finalize;
-  listener->on_enter = on_enter;
-  listener->on_leave = on_leave;
-  listener->data = data;
-  listener->data_destroy = data_destroy;
-
-  return listener;
-}
-
-static void
-gum_invocation_listener_finalize (GumObject * object)
-{
-  GumInvocationListener * self = GUM_INVOCATION_LISTENER (object);
-
-  if (self->data_destroy != NULL)
-    self->data_destroy (self->data);
-}
-
-static void
-gum_invocation_listener_dummy_callback (GumInvocationContext * context,
-                                        gpointer user_data)
-{
-}
-
-#endif

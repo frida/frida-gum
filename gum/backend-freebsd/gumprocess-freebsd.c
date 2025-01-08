@@ -115,7 +115,7 @@ gum_process_get_libc_module (void)
 static void
 gum_deinit_libc_module (void)
 {
-  gum_object_unref (gum_libc_module);
+  g_object_unref (gum_libc_module);
 }
 
 gboolean
@@ -528,7 +528,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
 
   carry_on = ctx->func (GUM_MODULE (module), ctx->user_data);
 
-  gum_object_unref (module);
+  g_object_unref (module);
 
   return carry_on ? 0 : 1;
 }

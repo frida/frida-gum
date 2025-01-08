@@ -13,12 +13,10 @@ G_BEGIN_DECLS
 
 #define GUM_TYPE_OBJC_DISPOSE_CLASS_PAIR_MONITOR \
     (gum_objc_dispose_class_pair_monitor_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumObjcDisposeClassPairMonitor,
-                        gum_objc_dispose_class_pair_monitor,
-                        GUM, OBJC_DISPOSE_CLASS_PAIR_MONITOR,
-                        GObject)
-
-#ifndef GUM_DIET
+G_DECLARE_FINAL_TYPE (GumObjcDisposeClassPairMonitor,
+                      gum_objc_dispose_class_pair_monitor,
+                      GUM, OBJC_DISPOSE_CLASS_PAIR_MONITOR,
+                      GObject)
 
 struct _GumObjcDisposeClassPairMonitor
 {
@@ -26,8 +24,6 @@ struct _GumObjcDisposeClassPairMonitor
   GRecMutex mutex;
   GumInterceptor * interceptor;
 };
-
-#endif
 
 G_GNUC_INTERNAL GumObjcDisposeClassPairMonitor *
     gum_objc_dispose_class_pair_monitor_obtain (void);

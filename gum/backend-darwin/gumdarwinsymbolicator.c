@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gum/gumdarwinsymbolicator.h"
 
 #include "gum-init.h"
@@ -816,5 +814,3 @@ gum_cs_unload_library (void)
   dlclose (gum_cs);
   gum_cs = NULL;
 }
-
-#endif

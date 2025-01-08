@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gummemoryaccessmonitor.h"
 
 #include "gumexceptor.h"
@@ -516,5 +514,3 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
 
   return FALSE;
 }
-
-#endif

@@ -481,7 +481,7 @@ gum_native_module_find_export_by_name (GumModule * module,
 
   self = GUM_NATIVE_MODULE (module);
 
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+#ifdef HAVE_ANDROID
   {
     GumAddress addr;
 
@@ -508,7 +508,7 @@ static GumAddress
 gum_dlsym (gpointer module_handle,
            const gchar * symbol_name)
 {
-#if defined (HAVE_ANDROID) && !defined (GUM_DIET)
+#ifdef HAVE_ANDROID
   GumGenericDlsymImpl dlsym_impl = dlsym;
 
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)

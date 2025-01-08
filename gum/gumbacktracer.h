@@ -14,9 +14,7 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_BACKTRACER (gum_backtracer_get_type ())
-GUM_DECLARE_INTERFACE (GumBacktracer, gum_backtracer, GUM, BACKTRACER, GObject)
-
-#ifndef GUM_DIET
+G_DECLARE_INTERFACE (GumBacktracer, gum_backtracer, GUM, BACKTRACER, GObject)
 
 struct _GumBacktracerInterface
 {
@@ -25,8 +23,6 @@ struct _GumBacktracerInterface
   void (* generate) (GumBacktracer * self, const GumCpuContext * cpu_context,
       GumReturnAddressArray * return_addresses, guint limit);
 };
-
-#endif
 
 GUM_API GumBacktracer * gum_backtracer_make_accurate (void);
 GUM_API GumBacktracer * gum_backtracer_make_fuzzy (void);

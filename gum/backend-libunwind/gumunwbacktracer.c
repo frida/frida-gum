@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gum/gumunwbacktracer.h"
 
 #include "guminterceptor.h"
@@ -226,5 +224,3 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
 # error FIXME
 #endif
 }
-
-#endif

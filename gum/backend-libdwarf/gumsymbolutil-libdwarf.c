@@ -537,7 +537,7 @@ gum_module_entry_from_module (GumModule * module)
   }
 
   entry = g_slice_new (GumModuleEntry);
-  entry->module = (elf_module != NULL) ? gum_object_ref (elf_module) : NULL;
+  entry->module = (elf_module != NULL) ? g_object_ref (elf_module) : NULL;
   entry->dbg = dbg;
   entry->collected = FALSE;
 
@@ -554,7 +554,7 @@ gum_module_entry_free (GumModuleEntry * entry)
     dwarf_finish (entry->dbg);
 
   if (entry->module != NULL)
-    gum_object_unref (entry->module);
+    g_object_unref (entry->module);
 
   g_slice_free (GumModuleEntry, entry);
 }

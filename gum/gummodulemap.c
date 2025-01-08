@@ -4,8 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gummodulemap.h"
 
 #include <stdlib.h>
@@ -175,5 +173,3 @@ gum_module_compare_to_key (const GumAddress * key_ptr,
 
   return 0;
 }
-
-#endif

@@ -13,8 +13,6 @@
  * See [iface@Gum.ApiResolver] for more information.
  */
 
-#ifndef GUM_DIET
-
 #include "gumswiftapiresolver.h"
 
 #include "gummodulemap.h"
@@ -1408,5 +1406,3 @@ gum_demangle (const gchar * name)
 
   return dbuf;
 }
-
-#endif

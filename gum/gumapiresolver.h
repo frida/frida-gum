@@ -14,15 +14,13 @@ G_BEGIN_DECLS
 #define GUM_API_SIZE_NONE -1
 
 #define GUM_TYPE_API_RESOLVER (gum_api_resolver_get_type ())
-GUM_DECLARE_INTERFACE (GumApiResolver, gum_api_resolver, GUM, API_RESOLVER,
-                       GObject)
+G_DECLARE_INTERFACE (GumApiResolver, gum_api_resolver, GUM, API_RESOLVER,
+                     GObject)
 
 typedef struct _GumApiDetails GumApiDetails;
 
 typedef gboolean (* GumFoundApiFunc) (const GumApiDetails * details,
     gpointer user_data);
-
-#ifndef GUM_DIET
 
 struct _GumApiResolverInterface
 {
@@ -31,8 +29,6 @@ struct _GumApiResolverInterface
   void (* enumerate_matches) (GumApiResolver * self, const gchar * query,
       GumFoundApiFunc func, gpointer user_data, GError ** error);
 };
-
-#endif
 
 struct _GumApiDetails
 {

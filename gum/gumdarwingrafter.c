@@ -19,8 +19,6 @@
 #define GUM_BIND_STATE_RESET_SIZE 2
 #define GUM_MAX_LDR_OFFSET (262143 * 4)
 
-#ifndef GUM_DIET
-
 typedef struct _GumGraftedLayout GumGraftedLayout;
 typedef struct _GumSegmentPairDescriptor GumSegmentPairDescriptor;
 typedef struct _GumGraftedHookTrampoline GumGraftedHookTrampoline;
@@ -1726,8 +1724,6 @@ gum_replay_bind_state_transitions (const guint8 * start,
     }
   }
 }
-
-#endif
 
 void
 _gum_grafted_hook_activate (GumGraftedHook * self)

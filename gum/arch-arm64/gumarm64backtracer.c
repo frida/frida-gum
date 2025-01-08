@@ -5,8 +5,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumarm64backtracer.h"
 
 #include "guminterceptor.h"
@@ -221,5 +219,3 @@ gum_strip_item (gsize address)
   return address;
 #endif
 }
-
-#endif

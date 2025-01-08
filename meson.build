@@ -140,19 +140,12 @@ if static
 endif
 
 diet = get_option('diet')
-if diet
-  if not optimize_for_prod
-    error('Diet mode requires -Db_ndebug=true')
-  endif
-  extra_cflags += '-DGUM_DIET'
-  cdata.set('GUM_DIET', 1)
+if diet and not optimize_for_prod
+  error('Diet mode requires -Db_ndebug=true')
 endif
 
 gumpp_opt = get_option('gumpp')
 gumjs_opt = get_option('gumjs')
-if diet and (gumpp_opt.enabled() or gumjs_opt.enabled())
-  error('Bindings do not support diet mode (for now)')
-endif
 have_gumpp = not gumpp_opt.disabled()
 have_gumjs = not gumjs_opt.disabled()
 
@@ -372,11 +365,7 @@ if optimize_for_prod
   ]
 endif
 glib_dep = dependency('glib-2.0', version: '>=2.72', default_options: glib_options)
-if not diet
-  gobject_dep = dependency('gobject-2.0')
-else
-  gobject_dep = disabler()
-endif
+gobject_dep = dependency('gobject-2.0')
 gio_os_package_name = (host_os_family == 'windows') ? 'gio-windows-2.0' : 'gio-unix-2.0'
 if have_gumjs
   gio_dep = dependency('gio-2.0')
@@ -416,7 +405,7 @@ else
 '''
   have_shared_glib = cc.compiles(glib_flavor_src, name: 'compiling with shared GLib', dependencies: [glib_dep])
 endif
-if not static and not diet and have_shared_glib and not meson.is_cross_build()
+if not static and have_shared_glib and not meson.is_cross_build()
   gir = find_program('g-ir-scanner', required: false)
 else
   gir = disabler()
@@ -753,14 +742,10 @@ install_header_subdir = install_header_basedir + '/gum'
 
 subdir('ext')
 subdir('gum')
-if not diet
-  subdir('libs')
-  subdir('bindings')
-endif
+subdir('libs')
+subdir('bindings')
 subdir('vapi')
-if not diet
-  subdir('tools')
-endif
+subdir('tools')
 
 if build_tests
   subdir('tests')

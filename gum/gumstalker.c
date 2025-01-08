@@ -4,8 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumstalker.h"
 
 #include "gumstalker-priv.h"
@@ -566,5 +564,3 @@ gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
   iface->switch_callback (observer, from_address, start_address, from_insn,
       target);
 }
-
-#endif

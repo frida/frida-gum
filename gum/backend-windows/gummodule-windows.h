@@ -14,8 +14,8 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_NATIVE_MODULE (gum_native_module_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumNativeModule, gum_native_module, GUM, NATIVE_MODULE,
-                        GObject)
+G_DECLARE_FINAL_TYPE (GumNativeModule, gum_native_module, GUM, NATIVE_MODULE,
+                      GObject)
 
 G_GNUC_INTERNAL GumNativeModule * _gum_native_module_make (HMODULE handle);
 

@@ -12,8 +12,8 @@
 G_BEGIN_DECLS
 
 #define GUM_TYPE_ARM64_BACKTRACER (gum_arm64_backtracer_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumArm64Backtracer, gum_arm64_backtracer, GUM,
-                        ARM64_BACKTRACER, GObject)
+G_DECLARE_FINAL_TYPE (GumArm64Backtracer, gum_arm64_backtracer, GUM,
+                      ARM64_BACKTRACER, GObject)
 
 GUM_API GumBacktracer * gum_arm64_backtracer_new (void);
 

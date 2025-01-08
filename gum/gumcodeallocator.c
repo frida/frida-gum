@@ -123,10 +123,10 @@ static gpointer gum_code_deflector_dispatcher_lookup (
 static gboolean gum_probe_module_for_code_cave (GumModule * module,
     gpointer user_data);
 
-GUM_DEFINE_BOXED_TYPE (GumCodeSlice, gum_code_slice, gum_code_slice_ref,
-                       gum_code_slice_unref)
-GUM_DEFINE_BOXED_TYPE (GumCodeDeflector, gum_code_deflector,
-                       gum_code_deflector_ref, gum_code_deflector_unref)
+G_DEFINE_BOXED_TYPE (GumCodeSlice, gum_code_slice, gum_code_slice_ref,
+                     gum_code_slice_unref)
+G_DEFINE_BOXED_TYPE (GumCodeDeflector, gum_code_deflector,
+                     gum_code_deflector_ref, gum_code_deflector_unref)
 
 void
 gum_code_allocator_init (GumCodeAllocator * allocator,

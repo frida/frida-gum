@@ -12,8 +12,8 @@
 G_BEGIN_DECLS
 
 #define GUM_DARWIN_TYPE_SYMBOLICATOR (gum_darwin_symbolicator_get_type ())
-GUM_DECLARE_FINAL_TYPE (GumDarwinSymbolicator, gum_darwin_symbolicator,
-                        GUM_DARWIN, SYMBOLICATOR, GObject)
+G_DECLARE_FINAL_TYPE (GumDarwinSymbolicator, gum_darwin_symbolicator,
+                      GUM_DARWIN, SYMBOLICATOR, GObject)
 
 GUM_API GumDarwinSymbolicator * gum_darwin_symbolicator_new_with_path (
     const gchar * path, GumCpuType cpu_type, GError ** error);

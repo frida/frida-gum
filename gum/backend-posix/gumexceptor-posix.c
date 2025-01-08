@@ -4,8 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef GUM_DIET
-
 #include "gumexceptorbackend.h"
 
 #include "guminterceptor.h"
@@ -807,7 +805,5 @@ gum_infer_arm64_memory_operation (cs_insn * insn)
       return GUM_MEMOP_READ;
   }
 }
-
-#endif
 
 #endif
