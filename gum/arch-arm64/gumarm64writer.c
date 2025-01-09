@@ -220,6 +220,7 @@ gum_arm64_writer_init (GumArm64Writer * writer,
   writer->label_defs = NULL;
   writer->label_refs.data = NULL;
   writer->literal_refs.data = NULL;
+  writer->data_endian = GUM_ENDIAN_NATIVE;
 
   gum_arm64_writer_reset (writer, code_address);
 }
@@ -1992,15 +1993,37 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
     if (r->width != GUM_LITERAL_64BIT)
       continue;
 
+    /*
+     * Whilst instructions in aarch64 are always in little endian (even on
+     * big-endian systems), the data is in native endian. Thus since we wish to
+     * support writing code for big-endian systems on little-endian targets and
+     * vice versa, we need to check the writer configuration.
+     */
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (GINT64_FROM_LE (*slot) == r->val)
-        break;
+      if (self->data_endian == GUM_ENDIAN_LITTLE)
+      {
+        if (GINT64_FROM_LE (*slot) == r->val)
+          break;
+      }
+      else
+      {
+        if (GINT64_FROM_BE (*slot) == r->val)
+          break;
+      }
+
     }
 
     if (slot == last_slot)
     {
-      *slot = GINT64_TO_LE (r->val);
+      if (self->data_endian == GUM_ENDIAN_LITTLE)
+      {
+        *slot = GINT64_TO_LE (r->val);
+      }
+      else
+      {
+        *slot = GINT64_TO_BE (r->val);
+      }
       last_slot = slot + 1;
     }
 
@@ -2024,15 +2047,36 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
     if (r->width != GUM_LITERAL_32BIT)
       continue;
 
+    /*
+     * Whilst instructions in aarch64 are always in little endian (even on
+     * big-endian systems), the data is in native endian. Thus since we wish to
+     * support writing code for big-endian systems on little-endian targets and
+     * vice versa, we need to check the writer configuration.
+     */
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (GINT32_FROM_LE (*slot) == r->val)
-        break;
+      if (self->data_endian == GUM_ENDIAN_LITTLE)
+      {
+        if (GINT32_FROM_LE (*slot) == r->val)
+          break;
+      }
+      else
+      {
+        if (GINT32_FROM_BE (*slot) == r->val)
+          break;
+      }
     }
 
     if (slot == last_slot)
     {
-      *slot = GINT32_TO_LE (r->val);
+      if (self->data_endian == GUM_ENDIAN_LITTLE)
+      {
+        *slot = GINT32_TO_LE (r->val);
+      }
+      else
+      {
+        *slot = GINT32_TO_BE (r->val);
+      }
       last_slot = slot + 1;
     }
 
