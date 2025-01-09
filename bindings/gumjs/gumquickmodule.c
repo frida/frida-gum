@@ -254,12 +254,17 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_module_finalize)
 {
   GumModule * m;
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
 
   m = JS_GetOpaque (val, gumjs_get_parent_module (core)->module_class);
   if (m == NULL)
     return;
 
+  _gum_quick_scope_suspend (&scope);
+
   g_object_unref (m);
+
+  _gum_quick_scope_resume (&scope);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_module_get_name)
@@ -782,12 +787,17 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
 {
   GumModuleMap * m;
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
 
   m = JS_GetOpaque (val, gumjs_get_parent_module (core)->module_map_class);
   if (m == NULL)
     return;
 
+  _gum_quick_scope_suspend (&scope);
+
   g_object_unref (m);
+
+  _gum_quick_scope_resume (&scope);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_module_map_get_handle)

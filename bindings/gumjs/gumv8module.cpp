@@ -723,7 +723,11 @@ _gum_v8_module_new_take_handle (GumModule * handle,
 static void
 gum_v8_module_value_free (GumV8ModuleValue * value)
 {
-  g_object_unref (value->handle);
+  {
+    ScriptUnlocker unlocker (value->module->core);
+
+    g_object_unref (value->handle);
+  }
 
   delete value->wrapper;
 
@@ -884,7 +888,11 @@ gum_v8_module_map_new (Local<Object> wrapper,
 static void
 gum_v8_module_map_free (GumV8ModuleMap * map)
 {
-  g_object_unref (map->handle);
+  {
+    ScriptUnlocker unlocker (map->module->core);
+
+    g_object_unref (map->handle);
+  }
 
   delete map->wrapper;
 
