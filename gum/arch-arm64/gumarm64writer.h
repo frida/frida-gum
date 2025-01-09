@@ -33,6 +33,7 @@ G_BEGIN_DECLS
 
 typedef struct _GumArm64Writer GumArm64Writer;
 typedef guint GumArm64IndexMode;
+typedef guint GumArm64DataEndian;
 
 struct _GumArm64Writer
 {
@@ -51,6 +52,15 @@ struct _GumArm64Writer
   GumMetalArray label_refs;
   GumMetalArray literal_refs;
   const guint32 * earliest_literal_insn;
+
+  GumArm64DataEndian data_endian;
+};
+
+enum _GumArm64DataEndian
+{
+  GUM_ENDIAN_LITTLE = __ORDER_LITTLE_ENDIAN__,
+  GUM_ENDIAN_BIG = __ORDER_BIG_ENDIAN__,
+  GUM_ENDIAN_NATIVE = __BYTE_ORDER__,
 };
 
 enum _GumArm64IndexMode
