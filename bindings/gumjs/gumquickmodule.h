@@ -17,6 +17,9 @@ struct _GumQuickModule
 {
   GumQuickCore * core;
 
+  GPtrArray * pending_unrefs;
+  GSource * unref_source;
+
   JSClassID module_class;
   JSClassID module_map_class;
 };

@@ -34,7 +34,6 @@
 # include "gumquickdatabase.h"
 #endif
 
-typedef guint GumScriptState;
 typedef struct _GumUnloadNotifyCallback GumUnloadNotifyCallback;
 typedef void (* GumUnloadNotifyFunc) (GumQuickScript * self,
     gpointer user_data);
@@ -94,15 +93,6 @@ enum
   PROP_BYTECODE,
   PROP_MAIN_CONTEXT,
   PROP_BACKEND
-};
-
-enum _GumScriptState
-{
-  GUM_SCRIPT_STATE_CREATED,
-  GUM_SCRIPT_STATE_LOADING,
-  GUM_SCRIPT_STATE_LOADED,
-  GUM_SCRIPT_STATE_UNLOADING,
-  GUM_SCRIPT_STATE_UNLOADED
 };
 
 struct _GumUnloadNotifyCallback
@@ -1090,6 +1080,12 @@ gum_quick_emit_data_free (GumEmitData * d)
   g_object_unref (d->script);
 
   g_slice_free (GumEmitData, d);
+}
+
+GumScriptState
+_gum_quick_script_get_state (GumQuickScript * self)
+{
+  return self->state;
 }
 
 GumQuickWorker *
