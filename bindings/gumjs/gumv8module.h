@@ -16,6 +16,9 @@ struct GumV8Module
   GHashTable * values;
   GHashTable * maps;
 
+  GPtrArray * pending_unrefs;
+  GSource * unref_source;
+
   v8::Global<v8::FunctionTemplate> * klass;
 
   v8::Global<v8::Object> * import_value;

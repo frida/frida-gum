@@ -13,7 +13,20 @@
 
 G_BEGIN_DECLS
 
+typedef guint GumScriptState;
 typedef struct _GumQuickWorker GumQuickWorker;
+
+enum _GumScriptState
+{
+  GUM_SCRIPT_STATE_CREATED,
+  GUM_SCRIPT_STATE_LOADING,
+  GUM_SCRIPT_STATE_LOADED,
+  GUM_SCRIPT_STATE_UNLOADING,
+  GUM_SCRIPT_STATE_UNLOADED
+};
+
+G_GNUC_INTERNAL GumScriptState _gum_quick_script_get_state (
+    GumQuickScript * self);
 
 G_GNUC_INTERNAL GumQuickWorker * _gum_quick_script_make_worker (
     GumQuickScript * self, const gchar * url, JSValue on_message);
