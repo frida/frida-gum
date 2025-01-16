@@ -132,6 +132,7 @@ if host_os_family == 'darwin'
     'backend-darwin' / 'gumtls-darwin.c',
     'backend-darwin' / 'gummemory-darwin.c',
     'backend-darwin' / 'gumprocess-darwin.c',
+    'backend-darwin' / 'gummoduleregistry-darwin.c',
     'backend-darwin' / 'gummodule-darwin.c',
     'backend-posix' / 'gumexceptor-posix.c',
     'backend-darwin' / 'gumdarwinmapper.c',
