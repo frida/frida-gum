@@ -179,12 +179,30 @@ gum_module_load (const gchar * module_name,
 {
   GumModule * module;
   gpointer handle;
+  static gsize initialized = FALSE;
+  static const struct mach_header * (* get_dlopen_image_header) (void * handle);
 
   handle = dlopen (module_name, RTLD_LAZY);
   if (handle == NULL)
     goto not_found;
 
-  module = gum_process_find_module_by_name (module_name);
+  if (g_once_init_enter (&initialized))
+  {
+    get_dlopen_image_header =
+        dlsym (RTLD_DEFAULT, "_dyld_get_dlopen_image_header");
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  if (get_dlopen_image_header != NULL)
+  {
+    module = gum_process_find_module_by_address (
+        GUM_ADDRESS (get_dlopen_image_header (handle)));
+  }
+  else
+  {
+    module = gum_process_find_module_by_name (module_name);
+  }
   g_assert (module != NULL);
 
   dlclose (handle);
