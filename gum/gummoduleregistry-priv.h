@@ -12,6 +12,8 @@
 G_BEGIN_DECLS
 
 G_GNUC_INTERNAL void _gum_module_registry_activate (GumModuleRegistry * self);
+G_GNUC_INTERNAL void _gum_module_registry_deactivate (GumModuleRegistry * self);
+
 G_GNUC_INTERNAL void _gum_module_registry_register (GumModuleRegistry * self,
     GumModule * module);
 G_GNUC_INTERNAL void _gum_module_registry_unregister (GumModuleRegistry * self,

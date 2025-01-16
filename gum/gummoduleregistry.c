@@ -66,6 +66,8 @@ gum_module_registry_dispose (GObject * object)
 {
   GumModuleRegistry * self = GUM_MODULE_REGISTRY (object);
 
+  _gum_module_registry_deactivate (self);
+
   g_clear_pointer (&self->modules, g_ptr_array_unref);
 
   G_OBJECT_CLASS (gum_module_registry_parent_class)->dispose (object);
@@ -112,11 +114,13 @@ _gum_module_registry_register (GumModuleRegistry * self,
 {
   GUM_MODULE_REGISTRY_LOCK (self);
 
-  g_ptr_array_add (self->modules, module);
+  g_ptr_array_add (self->modules, g_object_ref (module));
 
   GUM_MODULE_REGISTRY_UNLOCK (self);
 
   g_signal_emit (self, gum_module_registry_signals[MODULE_ADDED], 0, module);
+
+  g_object_unref (module);
 }
 
 void
