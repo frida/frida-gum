@@ -109,6 +109,16 @@ gum_deinit_module_registry (void)
 }
 
 void
+_gum_module_registry_reset (GumModuleRegistry * self)
+{
+  GUM_MODULE_REGISTRY_LOCK (self);
+
+  g_ptr_array_remove_range (self->modules, 0, self->modules->len);
+
+  GUM_MODULE_REGISTRY_UNLOCK (self);
+}
+
+void
 _gum_module_registry_register (GumModuleRegistry * self,
                                GumModule * module)
 {

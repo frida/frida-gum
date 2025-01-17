@@ -26,6 +26,9 @@ static void gum_module_registry_on_image_removed (const struct mach_header * mh,
 static void gum_module_registry_on_dyld_notification (
     GumInvocationContext * context, gpointer user_data);
 
+static void gum_add_image (const struct mach_header * mh, const gchar * name);
+static void gum_remove_image (const struct mach_header * mh);
+
 static gsize gum_detect_macho_size (const struct mach_header * mh);
 
 static GumModuleRegistry * _the_registry;
@@ -43,6 +46,7 @@ _gum_module_registry_activate (GumModuleRegistry * self)
     G_GNUC_UNUSED gconstpointer notification_impl;
     G_GNUC_UNUSED cs_insn * first_instruction;
     gsize offset = 0;
+    uint32_t count, i;
 
     if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos))
       return;
@@ -68,6 +72,17 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 
     gum_interceptor_attach (_the_interceptor,
         (gpointer) (notification_impl + offset), _dyld_handler, NULL);
+
+    do
+    {
+      _gum_module_registry_reset (_the_registry);
+
+      count = _dyld_image_count ();
+
+      for (i = 0; i != count; i++)
+        gum_add_image (_dyld_get_image_header (i), _dyld_get_image_name (i));
+    }
+    while (_dyld_image_count () != count);
   }
   else
   {
@@ -95,23 +110,14 @@ static void
 gum_module_registry_on_image_added (const struct mach_header * mh,
                                     intptr_t vmaddr_slide)
 {
-  Dl_info info;
-  GumMemoryRange range;
-
-  dladdr (mh, &info);
-
-  range.base_address = GUM_ADDRESS (mh);
-  range.size = gum_detect_macho_size (mh);
-
-  _gum_module_registry_register (_the_registry,
-      GUM_MODULE (_gum_native_module_make (info.dli_fname, &range, NULL)));
+  gum_add_image (mh, NULL);
 }
 
 static void
 gum_module_registry_on_image_removed (const struct mach_header * mh,
                                       intptr_t vmaddr_slide)
 {
-  _gum_module_registry_unregister (_the_registry, GUM_ADDRESS (mh));
+  gum_remove_image (mh);
 }
 
 static void
@@ -134,10 +140,33 @@ gum_module_registry_on_dyld_notification (GumInvocationContext * context,
   for (i = 0; i != info_count; i++)
   {
     if (mode == dyld_image_adding)
-      gum_module_registry_on_image_added (info[i].imageLoadAddress, 0);
+      gum_add_image (info[i].imageLoadAddress, NULL);
     else
-      gum_module_registry_on_image_removed (info[i].imageLoadAddress, 0);
+      gum_remove_image (info[i].imageLoadAddress);
   }
+}
+
+static void
+gum_add_image (const struct mach_header * mh,
+               const gchar * name)
+{
+  Dl_info info;
+  GumMemoryRange range;
+
+  if (name == NULL)
+    dladdr (mh, &info);
+
+  range.base_address = GUM_ADDRESS (mh);
+  range.size = gum_detect_macho_size (mh);
+
+  _gum_module_registry_register (_the_registry,
+      GUM_MODULE (_gum_native_module_make ((name != NULL) ? name : info.dli_fname, &range, NULL)));
+}
+
+static void
+gum_remove_image (const struct mach_header * mh)
+{
+  _gum_module_registry_unregister (_the_registry, GUM_ADDRESS (mh));
 }
 
 static gsize
