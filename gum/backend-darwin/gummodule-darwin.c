@@ -315,7 +315,9 @@ gum_emit_import (const GumImportDetails * details,
                  gpointer user_data)
 {
   GumEnumerateImportsContext * ctx = user_data;
+  gboolean carry_on;
   GumImportDetails d;
+  GumDarwinModule * module = NULL;
 
   d.type = GUM_IMPORT_UNKNOWN;
   d.name = gum_symbol_name_from_darwin (details->name);
@@ -332,7 +334,6 @@ gum_emit_import (const GumImportDetails * details,
 
     if (d.address != 0)
     {
-      GumDarwinModule * module;
       Dl_info info;
 
       module = gum_darwin_module_resolver_find_module_by_address (ctx->resolver,
@@ -349,36 +350,34 @@ gum_emit_import (const GumImportDetails * details,
     }
   }
 
-  if (d.module != NULL)
+  if (module != NULL)
   {
-    GumDarwinModule * module;
     GumExportDetails exp;
 
-    module = gum_darwin_module_resolver_find_module_by_name (ctx->resolver,
-        d.module);
-    if (module != NULL)
+    if (gum_darwin_module_resolver_find_export_by_mangled_name (ctx->resolver,
+        module, details->name, &exp))
     {
-      if (gum_darwin_module_resolver_find_export_by_mangled_name (ctx->resolver,
-          module, details->name, &exp))
+      switch (exp.type)
       {
-        switch (exp.type)
-        {
-          case GUM_EXPORT_FUNCTION:
-            d.type = GUM_IMPORT_FUNCTION;
-            break;
-          case GUM_EXPORT_VARIABLE:
-            d.type = GUM_IMPORT_VARIABLE;
-            break;
-          default:
-            g_assert_not_reached ();
-        }
-
-        d.address = exp.address;
+        case GUM_EXPORT_FUNCTION:
+          d.type = GUM_IMPORT_FUNCTION;
+          break;
+        case GUM_EXPORT_VARIABLE:
+          d.type = GUM_IMPORT_VARIABLE;
+          break;
+        default:
+          g_assert_not_reached ();
       }
+
+      d.address = exp.address;
     }
   }
 
-  return ctx->func (&d, ctx->user_data);
+  carry_on = ctx->func (&d, ctx->user_data);
+
+  g_clear_object (&module);
+
+  return carry_on;
 }
 
 static GumAddress

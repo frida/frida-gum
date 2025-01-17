@@ -1329,7 +1329,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
   if (resolver == NULL)
     return;
 
-  modules = resolver->modules;
+  gum_darwin_module_resolver_fetch_modules (resolver, &modules, NULL);
+
   for (carry_on = TRUE, i = 0; carry_on && i != modules->len; i++)
   {
     GumModule * module;
@@ -1342,6 +1343,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
 
     g_object_unref (facade);
   }
+
+  g_ptr_array_unref (modules);
 
   g_object_unref (resolver);
 }

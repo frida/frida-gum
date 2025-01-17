@@ -78,7 +78,6 @@ _gum_module_registry_activate (GumModuleRegistry * self)
       _gum_module_registry_reset (_the_registry);
 
       count = _dyld_image_count ();
-
       for (i = 0; i != count; i++)
         gum_add_image (_dyld_get_image_header (i), _dyld_get_image_name (i));
     }
