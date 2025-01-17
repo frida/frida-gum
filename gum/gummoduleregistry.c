@@ -109,6 +109,25 @@ gum_deinit_module_registry (void)
 }
 
 void
+gum_module_registry_enumerate_modules (GumModuleRegistry * self,
+                                       GumFoundModuleFunc func,
+                                       gpointer user_data)
+{
+  guint n, i;
+
+  GUM_MODULE_REGISTRY_LOCK (self);
+
+  n = self->modules->len;
+  for (i = 0; i != n; i++)
+  {
+    if (!func (g_ptr_array_index (self->modules, i), user_data))
+      break;
+  }
+
+  GUM_MODULE_REGISTRY_UNLOCK (self);
+}
+
+void
 _gum_module_registry_reset (GumModuleRegistry * self)
 {
   GUM_MODULE_REGISTRY_LOCK (self);

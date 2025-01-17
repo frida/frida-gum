@@ -7,7 +7,7 @@
 #ifndef __GUM_MODULE_REGISTRY_H__
 #define __GUM_MODULE_REGISTRY_H__
 
-#include <gum/gummodule.h>
+#include <gum/gumprocess.h>
 
 G_BEGIN_DECLS
 
@@ -16,6 +16,9 @@ G_DECLARE_FINAL_TYPE (GumModuleRegistry, gum_module_registry, GUM,
                       MODULE_REGISTRY, GObject)
 
 GUM_API GumModuleRegistry * gum_module_registry_obtain (void);
+
+GUM_API void gum_module_registry_enumerate_modules (GumModuleRegistry * self,
+    GumFoundModuleFunc func, gpointer user_data);
 
 G_END_DECLS
 

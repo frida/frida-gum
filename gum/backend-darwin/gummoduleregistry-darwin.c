@@ -160,7 +160,9 @@ gum_add_image (const struct mach_header * mh,
   range.size = gum_detect_macho_size (mh);
 
   _gum_module_registry_register (_the_registry,
-      GUM_MODULE (_gum_native_module_make ((name != NULL) ? name : info.dli_fname, &range, NULL)));
+      GUM_MODULE (_gum_native_module_make (
+          (name != NULL) ? name : info.dli_fname,
+          &range, NULL)));
 }
 
 static void
