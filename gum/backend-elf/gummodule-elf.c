@@ -12,6 +12,9 @@
 
 #include <dlfcn.h>
 
+#define GUM_NATIVE_MODULE_LOCK(o) g_mutex_lock (&(o)->mutex)
+#define GUM_NATIVE_MODULE_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
+
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumEnumerateRangesContext GumEnumerateRangesContext;
@@ -82,8 +85,6 @@ G_DEFINE_TYPE_EXTENDED (GumNativeModule,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_MODULE,
                             gum_native_module_iface_init))
 
-G_LOCK_DEFINE_STATIC (gum_native_module);
-
 static void
 gum_native_module_class_init (GumNativeModuleClass * klass)
 {
@@ -115,6 +116,7 @@ gum_native_module_iface_init (gpointer g_iface,
 static void
 gum_native_module_init (GumNativeModule * self)
 {
+  g_mutex_init (&self->mutex);
 }
 
 static void
@@ -122,7 +124,7 @@ gum_native_module_dispose (GObject * object)
 {
   GumNativeModule * self = GUM_NATIVE_MODULE (object);
 
-  G_LOCK (gum_native_module);
+  GUM_NATIVE_MODULE_LOCK (self);
 
   g_clear_object (&self->cached_elf_module);
 
@@ -131,7 +133,7 @@ gum_native_module_dispose (GObject * object)
   else
     self->cached_handle = NULL;
 
-  G_UNLOCK (gum_native_module);
+  GUM_NATIVE_MODULE_UNLOCK (self);
 
   G_OBJECT_CLASS (gum_native_module_parent_class)->dispose (object);
 }
@@ -140,6 +142,8 @@ static void
 gum_native_module_finalize (GObject * object)
 {
   GumNativeModule * self = GUM_NATIVE_MODULE (object);
+
+  g_mutex_clear (&self->mutex);
 
   g_free (self->path);
 
@@ -186,7 +190,7 @@ _gum_native_module_make_handleless (const gchar * path,
 gpointer
 _gum_native_module_get_handle (GumNativeModule * self)
 {
-  G_LOCK (gum_native_module);
+  GUM_NATIVE_MODULE_LOCK (self);
 
   if (!self->attempted_handle_creation)
   {
@@ -199,7 +203,7 @@ _gum_native_module_get_handle (GumNativeModule * self)
     }
   }
 
-  G_UNLOCK (gum_native_module);
+  GUM_NATIVE_MODULE_UNLOCK (self);
 
   return self->cached_handle;
 }
@@ -207,7 +211,7 @@ _gum_native_module_get_handle (GumNativeModule * self)
 GumElfModule *
 _gum_native_module_get_elf_module (GumNativeModule * self)
 {
-  G_LOCK (gum_native_module);
+  GUM_NATIVE_MODULE_LOCK (self);
 
   if (!self->attempted_elf_module_creation)
   {
@@ -217,7 +221,7 @@ _gum_native_module_get_elf_module (GumNativeModule * self)
         self->range.base_address, NULL);
   }
 
-  G_UNLOCK (gum_native_module);
+  GUM_NATIVE_MODULE_UNLOCK (self);
 
   return self->cached_elf_module;
 }
