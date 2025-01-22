@@ -16,8 +16,12 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (GumDarwinModuleResolver, gum_darwin_module_resolver,
                       GUM_DARWIN, MODULE_RESOLVER, GObject)
 
-typedef GPtrArray * (* GumDarwinModuleResolverLoadFunc) (guint * serial,
-    gpointer user_data);
+typedef enum {
+  GUM_DARWIN_MODULE_RESOLVER_CREATED,
+  GUM_DARWIN_MODULE_RESOLVER_LOADED,
+} GumDarwinModuleResolverState;
+
+typedef GPtrArray * (* GumDarwinModuleResolverLoadFunc) (gpointer user_data);
 typedef GumAddress (* GumDarwinModuleResolverLookupFunc) (const gchar * symbol,
     gpointer user_data);
 
@@ -25,14 +29,15 @@ struct _GumDarwinModuleResolver
 {
   GObject parent;
 
+  GMutex mutex;
+  GumDarwinModuleResolverState state;
   mach_port_t task;
   GumCpuType cpu_type;
   GumPtrauthSupport ptrauth_support;
   guint page_size;
-#if 0
-  GPtrArray * modules;
+  GPtrArray * last_modules;
+  GPtrArray * sorted_modules;
   GHashTable * module_by_name;
-#endif
   gchar * sysroot;
 
   GumDarwinModuleResolverLoadFunc load_func;
@@ -58,7 +63,7 @@ GUM_API void gum_darwin_module_resolver_set_dynamic_lookup_handler (
     gpointer data, GDestroyNotify data_destroy);
 
 GUM_API void gum_darwin_module_resolver_fetch_modules (
-    GumDarwinModuleResolver * self, GPtrArray ** modules,
+    GumDarwinModuleResolver * self, GPtrArray ** sorted_modules,
     GHashTable ** module_by_name);
 GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module_by_name (
     GumDarwinModuleResolver * self, const gchar * name);

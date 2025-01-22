@@ -15,6 +15,9 @@
 
 #define MAX_MACH_HEADER_SIZE (64 * 1024)
 
+#define GUM_DARWIN_MODULE_RESOLVER_LOCK(o) g_mutex_lock (&(o)->mutex)
+#define GUM_DARWIN_MODULE_RESOLVER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
+
 typedef struct _GumCollectModulesContext GumCollectModulesContext;
 
 enum
@@ -35,6 +38,8 @@ static void gum_darwin_module_resolver_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 static void gum_darwin_module_resolver_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
+static void gum_darwin_module_resolver_rebuild_indexes (
+    GumDarwinModuleResolver * self, GPtrArray * latest_modules);
 
 static void gum_collect_modules (GumCollectModulesContext * ctx);
 static void gum_collect_modules_forensically (GumCollectModulesContext * ctx);
@@ -71,6 +76,9 @@ gum_darwin_module_resolver_class_init (GumDarwinModuleResolverClass * klass)
 static void
 gum_darwin_module_resolver_init (GumDarwinModuleResolver * self)
 {
+  g_mutex_init (&self->mutex);
+
+  self->state = GUM_DARWIN_MODULE_RESOLVER_CREATED;
 }
 
 static void
@@ -96,6 +104,8 @@ gum_darwin_module_resolver_finalize (GObject * object)
   GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (object);
 
   g_free (self->sysroot);
+
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_darwin_module_resolver_parent_class)->finalize (object);
 }
@@ -188,10 +198,8 @@ gum_darwin_module_resolver_load (GumDarwinModuleResolver * self,
   gboolean success = FALSE;
   GumCollectModulesContext ctx;
   int pid;
-  guint i;
-  gsize sysroot_length;
 
-  if (self->modules->len != 0)
+  if (self->state != GUM_DARWIN_MODULE_RESOLVER_CREATED)
     return TRUE;
 
   ctx.resolver = self;
@@ -219,6 +227,8 @@ gum_darwin_module_resolver_load (GumDarwinModuleResolver * self,
     self->load_data = g_ptr_array_ref (ctx.modules);
     self->load_data_destroy = (GDestroyNotify) g_ptr_array_unref;
   }
+
+  self->state = GUM_DARWIN_MODULE_RESOLVER_LOADED;
 
   success = TRUE;
   goto beach;
@@ -250,6 +260,87 @@ gum_darwin_module_resolver_set_dynamic_lookup_handler (
   self->lookup_dynamic_func = func;
   self->lookup_dynamic_data = data;
   self->lookup_dynamic_data_destroy = data_destroy;
+}
+
+void
+gum_darwin_module_resolver_fetch_modules (GumDarwinModuleResolver * self,
+                                          GPtrArray ** sorted_modules,
+                                          GHashTable ** module_by_name)
+{
+  GPtrArray * latest;
+
+  latest = self->load_func (self->load_data);
+  if (latest == self->last_modules)
+  {
+    g_ptr_array_unref (latest);
+  }
+  else
+  {
+    gum_darwin_module_resolver_rebuild_indexes (self, latest);
+    g_clear_pointer (&self->last_modules, g_ptr_array_unref);
+    self->last_modules = latest;
+  }
+
+  if (sorted_modules != NULL)
+    *sorted_modules = g_ptr_array_ref (self->sorted_modules);
+
+  if (module_by_name != NULL)
+    *module_by_name = g_hash_table_ref (self->module_by_name);
+}
+
+static void
+gum_darwin_module_resolver_rebuild_indexes (GumDarwinModuleResolver * self,
+                                            GPtrArray * latest_modules)
+{
+  GPtrArray * sorted;
+  GHashTable * by_name;
+  gsize sysroot_length;
+  guint i;
+
+  sorted = g_ptr_array_new_full (latest_modules->len, g_object_unref);
+  by_name = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+
+  sysroot_length = 0;
+  for (i = 0; i != latest_modules->len; i++)
+  {
+    GumModule * mod;
+    const gchar * path;
+
+    mod = g_ptr_array_index (latest_modules, i);
+    path = gum_module_get_path (mod);
+
+    if (g_str_has_suffix (path, "/usr/lib/dyld_sim"))
+    {
+      sysroot_length = strlen (path) - 17;
+      g_free (self->sysroot);
+      self->sysroot = g_strndup (path, sysroot_length);
+      break;
+    }
+  }
+
+  for (i = 0; i != latest_modules->len; i++)
+  {
+    GumModule * mod;
+    const gchar * path;
+
+    mod = g_ptr_array_index (latest_modules, i);
+    g_ptr_array_add (sorted, g_object_ref (mod));
+
+    path = gum_module_get_path (mod);
+
+    g_hash_table_insert (by_name, g_strdup (gum_module_get_name (mod)), mod);
+    g_hash_table_insert (by_name, g_strdup (path), mod);
+    if (self->sysroot != NULL && g_str_has_prefix (path, self->sysroot))
+      g_hash_table_insert (by_name, g_strdup (path + sysroot_length), mod);
+  }
+
+  g_ptr_array_sort (sorted, (GCompareFunc) gum_darwin_module_compare_base);
+
+  g_clear_pointer (&self->sorted_modules, g_ptr_array_unref);
+  self->sorted_modules = sorted;
+
+  g_clear_pointer (&self->module_by_name, g_hash_table_unref);
+  self->module_by_name = by_name;
 }
 
 GumDarwinModule *
