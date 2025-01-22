@@ -22,6 +22,8 @@ struct _GumLinuxNamedRange
   gsize size;
 };
 
+GUM_API gboolean gum_linux_check_kernel_version (guint major, guint minor,
+    guint micro);
 GUM_API GumCpuType gum_linux_cpu_type_from_file (const gchar * path,
     GError ** error);
 GUM_API GumCpuType gum_linux_cpu_type_from_pid (pid_t pid, GError ** error);

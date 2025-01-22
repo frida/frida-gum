@@ -6,6 +6,7 @@
 
 #include "gummemory.h"
 
+#include "gum/gumlinux.h"
 #include "gumlinux-priv.h"
 #include "gummemory-priv.h"
 #include "valgrind.h"
@@ -14,10 +15,18 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
+static gssize
+gum_libc_process_vm_readv (pid_t pid,
+                          const struct iovec *local_iov,
+                          unsigned long liovcnt,
+                          const struct iovec *remote_iov,
+                          unsigned long riovcnt,
+                          unsigned long flags);
 
 gboolean
 gum_memory_is_readable (gconstpointer address,
@@ -67,18 +76,48 @@ gum_memory_read (gconstpointer address,
   gsize size;
   GumPageProtection prot;
 
-  if (gum_memory_get_protection (address, len, &size, &prot)
-      && (prot & GUM_PAGE_READ) != 0)
+  if (gum_linux_check_kernel_version (3, 2, 0))
   {
-    result_len = MIN (len, size);
-    result = g_memdup (address, result_len);
+    struct iovec local_iov = {
+      .iov_base = g_malloc(len),
+      .iov_len = len
+    };
+    struct iovec remote_iov = {
+      .iov_base = (void*)address,
+      .iov_len = len
+    };
+
+    gssize bytes_read = gum_libc_process_vm_readv (getpid(),
+                                                  &local_iov,
+                                                  1,
+                                                  &remote_iov,
+                                                  1,
+                                                  0);
+
+    if (bytes_read > 0)
+    {
+      result = g_memdup(local_iov.iov_base, bytes_read);
+      result_len = bytes_read;
+      if (n_bytes_read != NULL)
+        *n_bytes_read = result_len;
+    }
+    g_free(local_iov.iov_base);
   }
+  else
+  {
+    if (gum_memory_get_protection (address, len, &size, &prot)
+        && (prot & GUM_PAGE_READ) != 0)
+    {
+      result_len = MIN (len, size);
+      result = g_memdup (address, result_len);
+    }
 
-  if (n_bytes_read != NULL)
-    *n_bytes_read = result_len;
-
+    if (n_bytes_read != NULL)
+      *n_bytes_read = result_len;
+  }
   return result;
 }
+
 
 gboolean
 gum_memory_write (gpointer address,
@@ -243,3 +282,19 @@ gum_memory_get_protection (gconstpointer address,
   return success;
 }
 
+static gssize
+gum_libc_process_vm_readv (pid_t pid,
+                          const struct iovec *local_iov,
+                          unsigned long liovcnt,
+                          const struct iovec *remote_iov,
+                          unsigned long riovcnt,
+                          unsigned long flags)
+{
+  return syscall (SYS_process_vm_readv,
+                 pid,
+                 local_iov,
+                 liovcnt,
+                 remote_iov,
+                 riovcnt,
+                 flags);
+}
