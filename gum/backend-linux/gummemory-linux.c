@@ -123,7 +123,6 @@ gum_memory_read (gconstpointer address,
   return result;
 }
 
-
 gboolean
 gum_memory_write (gpointer address,
                   const guint8 * bytes,
