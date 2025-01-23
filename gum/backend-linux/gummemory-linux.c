@@ -43,9 +43,10 @@
 static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
 
-static gssize gum_libc_process_vm_readv (pid_t pid, const struct iovec * local_iov,
-    unsigned long liovcnt, const struct iovec * remote_iov, unsigned long riovcnt,
-    unsigned long flags);
+static gssize gum_libc_process_vm_readv (pid_t pid,
+    const struct iovec * local_iov, gulong liovcnt,
+    const struct iovec * remote_iov, gulong riovcnt,
+    gulong flags);
 
 gboolean
 gum_memory_is_readable (gconstpointer address,
@@ -311,10 +312,10 @@ gum_memory_get_protection (gconstpointer address,
 static gssize
 gum_libc_process_vm_readv (pid_t pid,
                            const struct iovec * local_iov,
-                           unsigned long liovcnt,
+                           gulong liovcnt,
                            const struct iovec * remote_iov,
-                           unsigned long riovcnt,
-                           unsigned long flags)
+                           gulong riovcnt,
+                           gulong flags)
 {
   return syscall (GUM_SYS_PROCESS_VM_READV, pid, local_iov, liovcnt, remote_iov,
       riovcnt, flags);
