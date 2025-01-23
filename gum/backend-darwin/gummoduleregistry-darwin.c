@@ -32,6 +32,7 @@ static void gum_remove_image (const struct mach_header * mh);
 static gsize gum_detect_macho_size (const struct mach_header * mh);
 
 static GumModuleRegistry * _the_registry;
+static GumDarwinModuleResolver * _the_resolver;
 static GumInterceptor * _the_interceptor;
 static GumInvocationListener * _dyld_handler;
 
@@ -39,6 +40,9 @@ void
 _gum_module_registry_activate (GumModuleRegistry * self)
 {
   _the_registry = self;
+  _the_resolver = gum_darwin_module_resolver_new_with_loader (mach_task_self (),
+      (GumDarwinModuleResolverLoadFunc) gum_module_registry_get_modules,
+      g_object_ref (_the_registry), g_object_unref, NULL);
 
   if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
   {
@@ -103,6 +107,8 @@ _gum_module_registry_deactivate (GumModuleRegistry * self)
     g_object_unref (_the_interceptor);
     _the_interceptor = NULL;
   }
+
+  g_clear_object (&_the_resolver);
 }
 
 static void
@@ -161,7 +167,7 @@ gum_add_image (const struct mach_header * mh,
   _gum_module_registry_register (_the_registry,
       GUM_MODULE (_gum_native_module_make (
           (name != NULL) ? name : info.dli_fname,
-          &range, NULL)));
+          &range, _the_resolver)));
 }
 
 static void

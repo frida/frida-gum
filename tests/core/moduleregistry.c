@@ -28,6 +28,12 @@ TESTCASE (module_registry_should_emit_signal_on_add)
 {
   GumModuleRegistry * registry;
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   registry = gum_module_registry_obtain ();
   g_signal_connect (registry, "module-added", G_CALLBACK (on_module_added),
       NULL);

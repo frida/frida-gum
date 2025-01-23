@@ -199,8 +199,10 @@ gum_darwin_module_resolver_load (GumDarwinModuleResolver * self,
   GumCollectModulesContext ctx;
   int pid;
 
+  GUM_DARWIN_MODULE_RESOLVER_LOCK (self);
+
   if (self->state != GUM_DARWIN_MODULE_RESOLVER_CREATED)
-    return TRUE;
+    goto beach;
 
   ctx.resolver = self;
   ctx.modules = g_ptr_array_new_full (64, g_object_unref);
@@ -243,6 +245,8 @@ beach:
   {
     g_ptr_array_unref (ctx.modules);
 
+    GUM_DARWIN_MODULE_RESOLVER_UNLOCK (self);
+
     return success;
   }
 }
@@ -270,6 +274,9 @@ gum_darwin_module_resolver_fetch_modules (GumDarwinModuleResolver * self,
   GPtrArray * latest;
 
   latest = self->load_func (self->load_data);
+
+  GUM_DARWIN_MODULE_RESOLVER_LOCK (self);
+
   if (latest == self->last_modules)
   {
     g_ptr_array_unref (latest);
@@ -286,6 +293,8 @@ gum_darwin_module_resolver_fetch_modules (GumDarwinModuleResolver * self,
 
   if (module_by_name != NULL)
     *module_by_name = g_hash_table_ref (self->module_by_name);
+
+  GUM_DARWIN_MODULE_RESOLVER_UNLOCK (self);
 }
 
 static void

@@ -16,7 +16,7 @@ G_GNUC_INTERNAL void _gum_module_registry_deactivate (GumModuleRegistry * self);
 
 G_GNUC_INTERNAL void _gum_module_registry_reset (GumModuleRegistry * self);
 G_GNUC_INTERNAL void _gum_module_registry_register (GumModuleRegistry * self,
-    GumModule * module);
+    GumModule * mod);
 G_GNUC_INTERNAL void _gum_module_registry_unregister (GumModuleRegistry * self,
     GumAddress base_address);
 

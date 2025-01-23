@@ -9,14 +9,20 @@
 #include "gum-init.h"
 #include "gummoduleregistry-priv.h"
 
-#define GUM_MODULE_REGISTRY_LOCK(r) g_mutex_lock (&(r)->mutex)
-#define GUM_MODULE_REGISTRY_UNLOCK(r) g_mutex_unlock (&(r)->mutex)
+#define GUM_MODULE_REGISTRY_LOCK(r) g_rec_mutex_lock (&(r)->mutex)
+#define GUM_MODULE_REGISTRY_UNLOCK(r) g_rec_mutex_unlock (&(r)->mutex)
+
+typedef enum {
+  GUM_MODULE_REGISTRY_CREATED,
+  GUM_MODULE_REGISTRY_ACTIVATED,
+} GumModuleRegistryState;
 
 struct _GumModuleRegistry
 {
   GObject parent;
 
-  GMutex mutex;
+  GRecMutex mutex;
+  GumModuleRegistryState state;
   GPtrArray * modules;
 };
 
@@ -55,10 +61,16 @@ gum_module_registry_class_init (GumModuleRegistryClass * klass)
 static void
 gum_module_registry_init (GumModuleRegistry * self)
 {
-  g_mutex_init (&self->mutex);
+  g_rec_mutex_init (&self->mutex);
+  self->state = GUM_MODULE_REGISTRY_CREATED;
   self->modules = g_ptr_array_new_full (0, g_object_unref);
 
+  GUM_MODULE_REGISTRY_LOCK (self);
+
   _gum_module_registry_activate (self);
+  self->state = GUM_MODULE_REGISTRY_ACTIVATED;
+
+  GUM_MODULE_REGISTRY_UNLOCK (self);
 }
 
 static void
@@ -66,9 +78,14 @@ gum_module_registry_dispose (GObject * object)
 {
   GumModuleRegistry * self = GUM_MODULE_REGISTRY (object);
 
+  GUM_MODULE_REGISTRY_LOCK (self);
+
   _gum_module_registry_deactivate (self);
 
-  g_clear_pointer (&self->modules, g_ptr_array_unref);
+  g_ptr_array_unref (self->modules);
+  self->modules = g_ptr_array_new_full (0, g_object_unref);
+
+  GUM_MODULE_REGISTRY_UNLOCK (self);
 
   G_OBJECT_CLASS (gum_module_registry_parent_class)->dispose (object);
 }
@@ -78,7 +95,8 @@ gum_module_registry_finalize (GObject * object)
 {
   GumModuleRegistry * self = GUM_MODULE_REGISTRY (object);
 
-  g_mutex_clear (&self->mutex);
+  g_ptr_array_unref (self->modules);
+  g_rec_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_module_registry_parent_class)->finalize (object);
 }
@@ -106,6 +124,20 @@ static void
 gum_deinit_module_registry (void)
 {
   g_object_unref (gum_module_registry_obtain ());
+}
+
+GPtrArray *
+gum_module_registry_get_modules (GumModuleRegistry * self)
+{
+  GPtrArray * result;
+
+  GUM_MODULE_REGISTRY_LOCK (self);
+
+  result = g_ptr_array_ref (self->modules);
+
+  GUM_MODULE_REGISTRY_UNLOCK (self);
+
+  return result;
 }
 
 void
@@ -139,45 +171,75 @@ _gum_module_registry_reset (GumModuleRegistry * self)
 
 void
 _gum_module_registry_register (GumModuleRegistry * self,
-                               GumModule * module)
+                               GumModule * mod)
 {
+  gboolean being_observed;
+  GPtrArray * modules;
+
   GUM_MODULE_REGISTRY_LOCK (self);
 
-  g_ptr_array_add (self->modules, g_object_ref (module));
+  being_observed = self->state != GUM_MODULE_REGISTRY_CREATED;
+
+  modules = being_observed
+      ? g_ptr_array_copy (self->modules, (GCopyFunc) g_object_ref, NULL)
+      : self->modules;
+  g_ptr_array_add (modules, g_object_ref (mod));
+
+  if (being_observed)
+  {
+    g_ptr_array_unref (self->modules);
+    self->modules = modules;
+  }
 
   GUM_MODULE_REGISTRY_UNLOCK (self);
 
-  g_signal_emit (self, gum_module_registry_signals[MODULE_ADDED], 0, module);
+  if (being_observed)
+    g_signal_emit (self, gum_module_registry_signals[MODULE_ADDED], 0, mod);
 
-  g_object_unref (module);
+  g_object_unref (mod);
 }
 
 void
 _gum_module_registry_unregister (GumModuleRegistry * self,
                                  GumAddress base_address)
 {
-  GumModule * module;
+  gboolean being_observed;
+  GPtrArray * modules;
+  GumModule * mod;
   guint i;
 
   GUM_MODULE_REGISTRY_LOCK (self);
 
-  module = NULL;
+  being_observed = self->state != GUM_MODULE_REGISTRY_CREATED;
+
+  modules = being_observed
+      ? g_ptr_array_copy (self->modules, (GCopyFunc) g_object_ref, NULL)
+      : self->modules;
+
+  mod = NULL;
   for (i = 0; i != self->modules->len; i++)
   {
     GumModule * candidate = g_ptr_array_index (self->modules, i);
 
     if (gum_module_get_range (candidate)->base_address == base_address)
     {
-      module = g_object_ref (candidate);
-      g_ptr_array_remove_index (self->modules, i);
+      mod = g_object_ref (candidate);
+      g_ptr_array_remove_index (modules, i);
       break;
     }
   }
-  g_assert (module != NULL);
+  g_assert (mod != NULL);
+
+  if (being_observed)
+  {
+    g_ptr_array_unref (self->modules);
+    self->modules = modules;
+  }
 
   GUM_MODULE_REGISTRY_UNLOCK (self);
 
-  g_signal_emit (self, gum_module_registry_signals[MODULE_REMOVED], 0, module);
+  if (being_observed)
+    g_signal_emit (self, gum_module_registry_signals[MODULE_REMOVED], 0, mod);
 
-  g_object_unref (module);
+  g_object_unref (mod);
 }

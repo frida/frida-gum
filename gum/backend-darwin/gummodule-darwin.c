@@ -322,14 +322,19 @@ gum_emit_import (const GumImportDetails * details,
   d.type = GUM_IMPORT_UNKNOWN;
   d.name = gum_symbol_name_from_darwin (details->name);
   d.module = details->module;
-  d.address = 0;
+  d.address = details->address;
   d.slot = details->slot;
 
-  if (d.module == NULL)
+  if (d.module != NULL)
   {
-    if (details->address != 0)
-      d.address = details->address;
-    else
+    module = gum_darwin_module_resolver_find_module_by_name (ctx->resolver,
+        d.module);
+  }
+  else
+  {
+    const gboolean inprocess = ctx->resolver->task == mach_task_self ();
+
+    if (d.address == 0 && inprocess)
       d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, d.name));
 
     if (d.address != 0)
@@ -339,14 +344,9 @@ gum_emit_import (const GumImportDetails * details,
       module = gum_darwin_module_resolver_find_module_by_address (ctx->resolver,
           d.address);
       if (module != NULL)
-      {
         d.module = module->name;
-      }
-      else if (ctx->resolver->task == mach_task_self () &&
-          dladdr (GSIZE_TO_POINTER (d.address), &info) != 0)
-      {
+      else if (inprocess && dladdr (GSIZE_TO_POINTER (d.address), &info))
         d.module = info.dli_fname;
-      }
     }
   }
 
