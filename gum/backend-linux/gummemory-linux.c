@@ -6,9 +6,9 @@
 
 #include "gummemory.h"
 
-#include "gum/gumlinux.h"
 #include "gumlinux-priv.h"
 #include "gummemory-priv.h"
+#include "gum/gumlinux.h"
 #include "valgrind.h"
 
 #include <stdio.h>
@@ -20,13 +20,10 @@
 
 static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
-static gssize
-gum_libc_process_vm_readv (pid_t pid,
-                          const struct iovec *local_iov,
-                          unsigned long liovcnt,
-                          const struct iovec *remote_iov,
-                          unsigned long riovcnt,
-                          unsigned long flags);
+
+static gssize gum_libc_process_vm_readv (pid_t pid, const struct iovec * local_iov,
+    unsigned long liovcnt, const struct iovec * remote_iov, unsigned long riovcnt,
+    unsigned long flags);
 
 gboolean
 gum_memory_is_readable (gconstpointer address,
@@ -73,48 +70,56 @@ gum_memory_read (gconstpointer address,
 {
   guint8 * result = NULL;
   gsize result_len = 0;
-  gsize size;
-  GumPageProtection prot;
+  static gboolean kernel_feature_likely_enabled = TRUE;
+  gboolean still_pending = TRUE;
 
-  if (gum_linux_check_kernel_version (3, 2, 0))
+  if (kernel_feature_likely_enabled && gum_linux_check_kernel_version (3, 2, 0))
   {
+    gssize n;
     struct iovec local_iov = {
-      .iov_base = g_malloc(len),
+      .iov_base = g_malloc (len),
       .iov_len = len
     };
     struct iovec remote_iov = {
-      .iov_base = (void*)address,
+      .iov_base = (void *) address,
       .iov_len = len
     };
 
-    gssize bytes_read = gum_libc_process_vm_readv (getpid(),
-                                                  &local_iov,
-                                                  1,
-                                                  &remote_iov,
-                                                  1,
-                                                  0);
-
-    if (bytes_read > 0)
+    n = gum_libc_process_vm_readv (getpid (), &local_iov, 1, &remote_iov, 1, 0);
+    if (n > 0)
     {
-      result = g_memdup(local_iov.iov_base, bytes_read);
-      result_len = bytes_read;
-      if (n_bytes_read != NULL)
-        *n_bytes_read = result_len;
+      result_len = n;
+      result = local_iov.iov_base;
+      if (result_len != len)
+        result = g_realloc (result, result_len);
     }
-    g_free(local_iov.iov_base);
+    else
+    {
+      g_free (local_iov.iov_base);
+    }
+
+    if (n == -1 && errno == ENOSYS)
+      kernel_feature_likely_enabled = FALSE;
+    else
+      still_pending = FALSE;
   }
-  else
+
+  if (still_pending)
   {
-    if (gum_memory_get_protection (address, len, &size, &prot)
-        && (prot & GUM_PAGE_READ) != 0)
+    gsize size;
+    GumPageProtection prot;
+
+    if (gum_memory_get_protection (address, len, &size, &prot) &&
+        (prot & GUM_PAGE_READ) != 0)
     {
       result_len = MIN (len, size);
       result = g_memdup (address, result_len);
     }
-
-    if (n_bytes_read != NULL)
-      *n_bytes_read = result_len;
   }
+
+  if (n_bytes_read != NULL)
+    *n_bytes_read = result_len;
+
   return result;
 }
 
@@ -284,17 +289,12 @@ gum_memory_get_protection (gconstpointer address,
 
 static gssize
 gum_libc_process_vm_readv (pid_t pid,
-                          const struct iovec *local_iov,
-                          unsigned long liovcnt,
-                          const struct iovec *remote_iov,
-                          unsigned long riovcnt,
-                          unsigned long flags)
+                           const struct iovec * local_iov,
+                           unsigned long liovcnt,
+                           const struct iovec * remote_iov,
+                           unsigned long riovcnt,
+                           unsigned long flags)
 {
-  return syscall (SYS_process_vm_readv,
-                 pid,
-                 local_iov,
-                 liovcnt,
-                 remote_iov,
-                 riovcnt,
-                 flags);
+  return syscall (SYS_process_vm_readv, pid, local_iov, liovcnt, remote_iov,
+      riovcnt, flags);
 }

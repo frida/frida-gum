@@ -42,8 +42,8 @@
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
-#include <sys/utsname.h>
 #include <sys/uio.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #ifdef HAVE_SYS_USER_H
 # include <sys/user.h>
@@ -2087,6 +2087,38 @@ gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
 #endif
 }
 
+gboolean
+gum_linux_check_kernel_version (guint major,
+                                guint minor,
+                                guint micro)
+{
+  static gboolean initialized = FALSE;
+  static guint kern_major = G_MAXUINT;
+  static guint kern_minor = G_MAXUINT;
+  static guint kern_micro = G_MAXUINT;
+
+  if (!initialized)
+  {
+    struct utsname un;
+    G_GNUC_UNUSED int res;
+
+    res = uname (&un);
+    g_assert (res == 0);
+
+    sscanf (un.release, "%u.%u.%u", &kern_major, &kern_minor, &kern_micro);
+
+    initialized = TRUE;
+  }
+
+  if (kern_major > major)
+    return TRUE;
+
+  if (kern_major == major && kern_minor > minor)
+    return TRUE;
+
+  return kern_major == major && kern_minor == minor && kern_micro >= micro;
+}
+
 GumCpuType
 gum_linux_cpu_type_from_file (const gchar * path,
                               GError ** error)
@@ -3583,37 +3615,3 @@ gum_libc_syscall_4 (gsize n,
 
   return result;
 }
-
-gboolean
-gum_linux_check_kernel_version (guint major,
-                               guint minor,
-                               guint micro)
-{
-  static gboolean initialized = FALSE;
-  static guint kernel_major = G_MAXUINT;
-  static guint kernel_minor = G_MAXUINT;
-  static guint kernel_micro = G_MAXUINT;
-
-  if (!initialized)
-  {
-    struct utsname un;
-    G_GNUC_UNUSED int res;
-
-    res = uname (&un);
-    g_assert (res == 0);
-
-    /* Linux version string format: "X.Y.Z-extra" */
-    sscanf (un.release, "%u.%u.%u", &kernel_major, &kernel_minor, &kernel_micro);
-
-    initialized = TRUE;
-  }
-
-  if (kernel_major > major)
-    return TRUE;
-
-  if (kernel_major == major && kernel_minor > minor)
-    return TRUE;
-
-  return kernel_major == major && kernel_minor == minor && kernel_micro >= micro;
-}
-
