@@ -18,6 +18,28 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+# define GUM_SYS_PROCESS_VM_READV  347
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+# define GUM_SYS_PROCESS_VM_READV  310
+#elif defined (HAVE_ARM)
+# define GUM_SYS_PROCESS_VM_READV  (__NR_SYSCALL_BASE + 376)
+#elif defined (HAVE_ARM64)
+# define GUM_SYS_PROCESS_VM_READV  270
+#elif defined (HAVE_MIPS)
+# if _MIPS_SIM == _MIPS_SIM_ABI32
+#  define GUM_SYS_PROCESS_VM_READV (__NR_Linux + 345)
+# elif _MIPS_SIM == _MIPS_SIM_ABI64
+#  define GUM_SYS_PROCESS_VM_READV (__NR_Linux + 304)
+# elif _MIPS_SIM == _MIPS_SIM_NABI32
+#  define GUM_SYS_PROCESS_VM_READV (__NR_Linux + 309)
+# else
+#  error Unexpected MIPS ABI
+# endif
+#else
+# error FIXME
+#endif
+
 static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
 
@@ -294,6 +316,6 @@ gum_libc_process_vm_readv (pid_t pid,
                            unsigned long riovcnt,
                            unsigned long flags)
 {
-  return syscall (SYS_process_vm_readv, pid, local_iov, liovcnt, remote_iov,
+  return syscall (GUM_SYS_PROCESS_VM_READV, pid, local_iov, liovcnt, remote_iov,
       riovcnt, flags);
 }
