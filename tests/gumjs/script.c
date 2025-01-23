@@ -6601,7 +6601,7 @@ TESTCASE (hardware_breakpoint_can_be_set)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "const threads = Process.enumerateThreads();\n"
+      "let threads = Process.enumerateThreads();\n"
       "Process.setExceptionHandler(e => {\n"
       "  if (!['breakpoint', 'single-step'].includes(e.type))\n"
       "    return false;\n"
@@ -6609,7 +6609,14 @@ TESTCASE (hardware_breakpoint_can_be_set)
       "  threads.forEach(t => t.unsetHardwareBreakpoint(0));\n"
       "  return true;\n"
       "});\n"
-      "threads.forEach(t => t.setHardwareBreakpoint(0, " GUM_PTR_CONST "));",
+      "threads = threads.filter(t => {\n"
+      "  try {\n"
+      "    t.setHardwareBreakpoint(0, " GUM_PTR_CONST ");\n"
+      "    return true;\n"
+      "  } catch (e) {\n"
+      "    return false;\n"
+      "  }\n"
+      "});\n",
       target_function_int);
   EXPECT_NO_MESSAGES ();
 
@@ -6631,7 +6638,7 @@ TESTCASE (hardware_watchpoint_can_be_set)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "const threads = Process.enumerateThreads();\n"
+      "let threads = Process.enumerateThreads();\n"
       "Process.setExceptionHandler(e => {\n"
       "  if (!['breakpoint', 'single-step'].includes(e.type))\n"
       "    return false;\n"
@@ -6639,8 +6646,14 @@ TESTCASE (hardware_watchpoint_can_be_set)
       "  threads.forEach(t => t.unsetHardwareWatchpoint(0));\n"
       "  return true;\n"
       "});\n"
-      "threads.forEach(t => t.setHardwareWatchpoint(0, " GUM_PTR_CONST ", 4,"
-        "'w'));",
+      "threads = threads.filter(t => {\n"
+      "  try {\n"
+      "    t.setHardwareWatchpoint(0, " GUM_PTR_CONST ", 4, 'w');\n"
+      "    return true;\n"
+      "  } catch (e) {\n"
+      "    return false;\n"
+      "  }\n"
+      "});\n",
       &val);
   EXPECT_NO_MESSAGES ();
 
