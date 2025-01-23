@@ -43,6 +43,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #ifdef HAVE_SYS_USER_H
 # include <sys/user.h>
@@ -2084,6 +2085,38 @@ gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
   _gum_mips_unset_watchpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
       watchpoint_id);
 #endif
+}
+
+gboolean
+gum_linux_check_kernel_version (guint major,
+                                guint minor,
+                                guint micro)
+{
+  static gboolean initialized = FALSE;
+  static guint kern_major = G_MAXUINT;
+  static guint kern_minor = G_MAXUINT;
+  static guint kern_micro = G_MAXUINT;
+
+  if (!initialized)
+  {
+    struct utsname un;
+    G_GNUC_UNUSED int res;
+
+    res = uname (&un);
+    g_assert (res == 0);
+
+    sscanf (un.release, "%u.%u.%u", &kern_major, &kern_minor, &kern_micro);
+
+    initialized = TRUE;
+  }
+
+  if (kern_major > major)
+    return TRUE;
+
+  if (kern_major == major && kern_minor > minor)
+    return TRUE;
+
+  return kern_major == major && kern_minor == minor && kern_micro >= micro;
 }
 
 GumCpuType
