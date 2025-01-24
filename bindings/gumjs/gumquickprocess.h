@@ -24,6 +24,10 @@ struct _GumQuickProcess
   GumQuickThread * thread;
   GumQuickCore * core;
 
+  GHashTable * module_observers;
+
+  JSClassID module_observer_class;
+
   JSValue main_module_value;
 
   GumStalker * stalker;

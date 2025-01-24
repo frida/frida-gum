@@ -5239,13 +5239,15 @@ TESTCASE (process_modules_can_be_observed)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "let addsObserved = 0;"
-      "Process.addModuleObserver({"
+      "const observer = Process.attachModuleObserver({"
       "  onAdded(module) {"
       "    addsObserved++;"
       "  }"
       "});"
-      "send(addsObserved === Process.enumerateModules().length);");
+      "send(addsObserved === Process.enumerateModules().length);"
+      "observer.detach();");
   EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (process_module_can_be_looked_up_from_address)

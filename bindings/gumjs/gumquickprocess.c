@@ -70,8 +70,13 @@ struct _GumQuickRunOnThreadContext
 
 struct _GumQuickModuleObserver
 {
+  JSValue wrapper;
+
   JSValue on_added;
   JSValue on_removed;
+
+  gulong added_handler;
+  gulong removed_handler;
 
   GumQuickProcess * parent;
 };
@@ -108,7 +113,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_address)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (GumModule * module, GumQuickMatchContext * mc);
-GUMJS_DECLARE_FUNCTION (gumjs_process_add_module_observer)
+GUMJS_DECLARE_FUNCTION (gumjs_process_attach_module_observer)
+static void gum_quick_module_observer_destroy (GumQuickModuleObserver * self);
 static void gum_emit_added_module (GumModuleRegistry * registry,
     GumModule * module, GumQuickModuleObserver * observer);
 static void gum_emit_removed_module (GumModuleRegistry * registry,
@@ -132,6 +138,8 @@ static void gum_quick_exception_handler_free (
 static gboolean gum_quick_exception_handler_on_exception (
     GumExceptionDetails * details, GumQuickExceptionHandler * handler);
 
+GUMJS_DECLARE_FUNCTION (gumjs_module_observer_detach)
+
 static const JSCFunctionListEntry gumjs_process_entries[] =
 {
   JS_PROP_STRING_DEF ("arch", GUM_SCRIPT_ARCH, JS_PROP_C_W_E),
@@ -148,7 +156,8 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("findModuleByName", 0, gumjs_process_find_module_by_name),
   JS_CFUNC_DEF ("findModuleByAddress", 0, gumjs_process_find_module_by_address),
   JS_CFUNC_DEF ("_enumerateModules", 0, gumjs_process_enumerate_modules),
-  JS_CFUNC_DEF ("addModuleObserver", 0, gumjs_process_add_module_observer),
+  JS_CFUNC_DEF ("attachModuleObserver", 1,
+      gumjs_process_attach_module_observer),
   JS_CFUNC_DEF ("findRangeByAddress", 0, gumjs_process_find_range_by_address),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_process_enumerate_ranges),
   JS_CFUNC_DEF ("enumerateSystemRanges", 0,
@@ -156,6 +165,16 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("_enumerateMallocRanges", 0,
       gumjs_process_enumerate_malloc_ranges),
   JS_CFUNC_DEF ("setExceptionHandler", 0, gumjs_process_set_exception_handler),
+};
+
+static const JSClassDef gumjs_module_observer_def =
+{
+  .class_name = "ModuleObserver",
+};
+
+static const JSCFunctionListEntry gumjs_module_observer_entries[] =
+{
+  JS_CFUNC_DEF ("detach", 0, gumjs_module_observer_detach),
 };
 
 void
@@ -166,11 +185,14 @@ _gum_quick_process_init (GumQuickProcess * self,
                          GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
-  JSValue obj;
+  JSValue obj, proto;
 
   self->module = module;
   self->thread = thread;
   self->core = core;
+
+  self->module_observers = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_quick_module_observer_destroy);
 
   self->main_module_value = JS_UNINITIALIZED;
 
@@ -191,13 +213,21 @@ _gum_quick_process_init (GumQuickProcess * self,
           gum_process_get_code_signing_policy ())),
       JS_PROP_C_W_E);
   JS_DefinePropertyValueStr (ctx, ns, "Process", obj, JS_PROP_C_W_E);
+
+  _gum_quick_create_class (ctx, &gumjs_module_observer_def, core,
+      &self->module_observer_class, &proto);
+  JS_SetPropertyFunctionList (ctx, proto, gumjs_module_observer_entries,
+      G_N_ELEMENTS (gumjs_module_observer_entries));
 }
 
 void
 _gum_quick_process_flush (GumQuickProcess * self)
 {
   g_clear_pointer (&self->exception_handler, gum_quick_exception_handler_free);
+
   gumjs_free_main_module_value (self);
+
+  g_hash_table_remove_all (self->module_observers);
 }
 
 void
@@ -223,6 +253,8 @@ void
 _gum_quick_process_finalize (GumQuickProcess * self)
 {
   g_clear_object (&self->stalker);
+
+  g_clear_pointer (&self->module_observers, g_hash_table_unref);
 }
 
 static GumQuickProcess *
@@ -509,13 +541,17 @@ gum_emit_module (GumModule * module,
   return _gum_quick_process_match_result (ctx, &result, &mc->result);
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_process_add_module_observer)
+GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
 {
+  JSValue cb_val = args->elements[0];
+  GumQuickProcess * parent;
   JSValue on_added, on_removed;
   gboolean observe_added, observe_removed;
   GumQuickModuleObserver * observer;
   GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
   GumModuleRegistry * registry;
+
+  parent = gumjs_get_parent_module (core);
 
   if (!_gum_quick_args_parse (args, "F{onAdded?,onRemoved?}", &on_added,
         &on_removed))
@@ -534,7 +570,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_add_module_observer)
   observer->on_removed = observe_removed
       ? JS_DupValue (ctx, on_removed)
       : JS_NULL;
-  observer->parent = gumjs_get_parent_module (core);
+  observer->added_handler = 0;
+  observer->removed_handler = 0;
+  observer->parent = parent;
 
   _gum_quick_scope_suspend (&scope);
 
@@ -544,13 +582,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_add_module_observer)
 
   if (observe_added)
   {
-    g_signal_connect (registry, "module-added",
+    observer->added_handler = g_signal_connect (registry, "module-added",
         G_CALLBACK (gum_emit_added_module), observer);
   }
 
   if (observe_removed)
   {
-    g_signal_connect (registry, "module-removed",
+    observer->removed_handler = g_signal_connect (registry, "module-removed",
         G_CALLBACK (gum_emit_removed_module), observer);
   }
 
@@ -572,13 +610,55 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_add_module_observer)
 
   _gum_quick_scope_resume (&scope);
 
-  return JS_UNDEFINED;
+  observer->wrapper = JS_NewObjectClass (ctx, parent->module_observer_class);
+  JS_SetOpaque (observer->wrapper, observer);
+  JS_DefinePropertyValue (ctx, observer->wrapper,
+      GUM_QUICK_CORE_ATOM (core, resource),
+      JS_DupValue (ctx, cb_val),
+      0);
+
+  g_hash_table_add (parent->module_observers, observer);
+
+  return JS_DupValue (ctx, observer->wrapper);
 
 missing_callback:
   {
     _gum_quick_throw_literal (ctx, "at least one callback must be provided");
     return JS_EXCEPTION;
   }
+}
+
+static void
+gum_quick_module_observer_destroy (GumQuickModuleObserver * self)
+{
+  JSContext * ctx = self->parent->core->ctx;
+  GumModuleRegistry * registry;
+
+  registry = gum_module_registry_obtain ();
+
+  if (self->added_handler != 0)
+  {
+    g_signal_handler_disconnect (registry, self->added_handler);
+    JS_FreeValue (ctx, self->on_added);
+  }
+
+  if (self->removed_handler != 0)
+  {
+    g_signal_handler_disconnect (registry, self->removed_handler);
+    JS_FreeValue (ctx, self->on_removed);
+  }
+
+  JS_SetOpaque (self->wrapper, NULL);
+  JS_FreeValue (ctx, self->wrapper);
+
+  g_slice_free (GumQuickModuleObserver, self);
+}
+
+static void
+gum_quick_process_detach_module_observer (GumQuickProcess * self,
+                                          GumQuickModuleObserver * observer)
+{
+  g_hash_table_remove (self->module_observers, observer);
 }
 
 static void
@@ -847,4 +927,21 @@ gum_quick_exception_handler_on_exception (GumExceptionDetails * details,
   _gum_quick_scope_leave (&scope);
 
   return handled;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_observer_detach)
+{
+  GumQuickProcess * parent;
+  GumQuickModuleObserver * observer;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_unwrap (ctx, this_val, parent->module_observer_class,
+      core, (gpointer *) &observer))
+    return JS_EXCEPTION;
+
+  if (observer != NULL)
+    gum_quick_process_detach_module_observer (parent, observer);
+
+  return JS_UNDEFINED;
 }
