@@ -118,7 +118,7 @@ static gboolean gum_emit_module (GumModule * module, GumQuickMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_attach_module_observer)
 static GumQuickModuleObserver * gum_quick_module_observer_ref (
     GumQuickModuleObserver * observer);
-void gum_quick_module_observer_unref (GumQuickModuleObserver * observer);
+static void gum_quick_module_observer_unref (GumQuickModuleObserver * observer);
 static void gum_quick_module_observer_destroy (GumQuickModuleObserver * self);
 static void gum_emit_added_module (GumModuleRegistry * registry,
     GumModule * module, GumQuickModuleObserver * observer);
@@ -650,7 +650,7 @@ gum_quick_module_observer_ref (GumQuickModuleObserver * observer)
   return observer;
 }
 
-void
+static void
 gum_quick_module_observer_unref (GumQuickModuleObserver * observer)
 {
   GumQuickProcess * parent = observer->parent;
