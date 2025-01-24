@@ -213,6 +213,7 @@ gum_arm64_writer_init (GumArm64Writer * writer,
   writer->ref_count = 1;
   writer->flush_on_destroy = TRUE;
 
+  writer->data_endian = __BYTE_ORDER__;
   writer->target_os = gum_process_get_native_os ();
   writer->ptrauth_support = gum_query_ptrauth_support ();
   writer->sign = gum_sign_code_address;
@@ -220,7 +221,6 @@ gum_arm64_writer_init (GumArm64Writer * writer,
   writer->label_defs = NULL;
   writer->label_refs.data = NULL;
   writer->literal_refs.data = NULL;
-  writer->data_endian = GUM_ENDIAN_NATIVE;
 
   gum_arm64_writer_reset (writer, code_address);
 }
@@ -1993,15 +1993,9 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
     if (r->width != GUM_LITERAL_64BIT)
       continue;
 
-    /*
-     * Whilst instructions in aarch64 are always in little endian (even on
-     * big-endian systems), the data is in native endian. Thus since we wish to
-     * support writing code for big-endian systems on little-endian targets and
-     * vice versa, we need to check the writer configuration.
-     */
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (self->data_endian == GUM_ENDIAN_LITTLE)
+      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
       {
         if (GINT64_FROM_LE (*slot) == r->val)
           break;
@@ -2016,7 +2010,7 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     if (slot == last_slot)
     {
-      if (self->data_endian == GUM_ENDIAN_LITTLE)
+      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
       {
         *slot = GINT64_TO_LE (r->val);
       }
@@ -2047,15 +2041,9 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
     if (r->width != GUM_LITERAL_32BIT)
       continue;
 
-    /*
-     * Whilst instructions in aarch64 are always in little endian (even on
-     * big-endian systems), the data is in native endian. Thus since we wish to
-     * support writing code for big-endian systems on little-endian targets and
-     * vice versa, we need to check the writer configuration.
-     */
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (self->data_endian == GUM_ENDIAN_LITTLE)
+      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
       {
         if (GINT32_FROM_LE (*slot) == r->val)
           break;
@@ -2069,7 +2057,7 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     if (slot == last_slot)
     {
-      if (self->data_endian == GUM_ENDIAN_LITTLE)
+      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
       {
         *slot = GINT32_TO_LE (r->val);
       }

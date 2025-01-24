@@ -33,6 +33,13 @@ G_BEGIN_DECLS
 
 typedef struct _GumArm64Writer GumArm64Writer;
 typedef guint GumArm64IndexMode;
+
+/*
+ * Valid values for this field are:
+ * - __ORDER_LITTLE_ENDIAN__
+ * - __ORDER_BIG_ENDIAN__
+ * - __BYTE_ORDER__ (an alias for one of the above)
+ */
 typedef guint GumArm64DataEndian;
 
 struct _GumArm64Writer
@@ -40,6 +47,13 @@ struct _GumArm64Writer
   volatile gint ref_count;
   gboolean flush_on_destroy;
 
+  /*
+   * Whilst instructions in AArch64 are always in little endian (even on
+   * big-endian systems), the data is in native endian. Thus since we wish to
+   * support writing code for big-endian systems on little-endian targets and
+   * vice versa, we need to check the writer configuration before writing data.
+   */
+  GumArm64DataEndian data_endian;
   GumOS target_os;
   GumPtrauthSupport ptrauth_support;
   GumAddress (* sign) (GumAddress value);
@@ -52,15 +66,6 @@ struct _GumArm64Writer
   GumMetalArray label_refs;
   GumMetalArray literal_refs;
   const guint32 * earliest_literal_insn;
-
-  GumArm64DataEndian data_endian;
-};
-
-enum _GumArm64DataEndian
-{
-  GUM_ENDIAN_LITTLE = __ORDER_LITTLE_ENDIAN__,
-  GUM_ENDIAN_BIG = __ORDER_BIG_ENDIAN__,
-  GUM_ENDIAN_NATIVE = __BYTE_ORDER__,
 };
 
 enum _GumArm64IndexMode
