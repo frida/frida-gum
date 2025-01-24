@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022-2024 Håvard Sørbø <havard@hsorbo.no>
@@ -1324,6 +1324,13 @@ gum_darwin_enumerate_modules (mach_port_t task,
   GPtrArray * modules;
   gboolean carry_on;
   guint i;
+
+  if (task == mach_task_self ())
+  {
+    gum_module_registry_enumerate_modules (gum_module_registry_obtain (), func,
+        user_data);
+    return;
+  }
 
   resolver = gum_darwin_module_resolver_new (task, NULL);
   if (resolver == NULL)

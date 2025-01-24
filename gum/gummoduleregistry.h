@@ -21,6 +21,9 @@ GUM_API GPtrArray * gum_module_registry_get_modules (GumModuleRegistry * self);
 GUM_API void gum_module_registry_enumerate_modules (GumModuleRegistry * self,
     GumFoundModuleFunc func, gpointer user_data);
 
+GUM_API void gum_module_registry_lock (GumModuleRegistry * self);
+GUM_API void gum_module_registry_unlock (GumModuleRegistry * self);
+
 G_END_DECLS
 
 #endif

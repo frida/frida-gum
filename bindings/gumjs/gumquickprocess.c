@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
@@ -42,6 +42,7 @@
 
 typedef struct _GumQuickMatchContext GumQuickMatchContext;
 typedef struct _GumQuickRunOnThreadContext GumQuickRunOnThreadContext;
+typedef struct _GumQuickModuleObserver GumQuickModuleObserver;
 typedef struct _GumQuickFindRangeByAddressContext
     GumQuickFindRangeByAddressContext;
 
@@ -65,6 +66,14 @@ struct _GumQuickRunOnThreadContext
 {
   JSValue user_func;
   GumQuickCore * core;
+};
+
+struct _GumQuickModuleObserver
+{
+  JSValue on_added;
+  JSValue on_removed;
+
+  GumQuickProcess * parent;
 };
 
 struct _GumQuickFindRangeByAddressContext
@@ -99,6 +108,13 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_address)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (GumModule * module, GumQuickMatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_add_module_observer)
+static void gum_emit_added_module (GumModuleRegistry * registry,
+    GumModule * module, GumQuickModuleObserver * observer);
+static void gum_emit_removed_module (GumModuleRegistry * registry,
+    GumModule * module, GumQuickModuleObserver * observer);
+static void gum_quick_module_observer_invoke (GumQuickModuleObserver * self,
+    JSValue callback, GumModule * module);
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_range_by_address)
 static gboolean gum_store_range_if_containing_address (
     const GumRangeDetails * details, GumQuickFindRangeByAddressContext * fc);
@@ -496,52 +512,110 @@ gum_emit_module (GumModule * module,
 GUMJS_DEFINE_FUNCTION (gumjs_process_add_module_observer)
 {
   JSValue on_added, on_removed;
+  gboolean observe_added, observe_removed;
+  GumQuickModuleObserver * observer;
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
   GumModuleRegistry * registry;
 
   if (!_gum_quick_args_parse (args, "F{onAdded?,onRemoved?}", &on_added,
         &on_removed))
     return JS_EXCEPTION;
 
+  observe_added = !JS_IsNull (on_added);
+  observe_removed = !JS_IsNull (on_removed);
+
+  if (!observe_added && !observe_removed)
+    goto missing_callback;
+
+  observer = g_slice_new (GumQuickModuleObserver);
+  observer->on_added = observe_added
+      ? JS_DupValue (ctx, on_added)
+      : JS_NULL;
+  observer->on_removed = observe_removed
+      ? JS_DupValue (ctx, on_removed)
+      : JS_NULL;
+  observer->parent = gumjs_get_parent_module (core);
+
+  _gum_quick_scope_suspend (&scope);
+
   registry = gum_module_registry_obtain ();
 
   gum_module_registry_lock (registry);
 
-  if (on_added != JS_NULL)
+  if (observe_added)
   {
     g_signal_connect (registry, "module-added",
         G_CALLBACK (gum_emit_added_module), observer);
   }
 
-  if (on_removed != JS_NULL)
+  if (observe_removed)
   {
     g_signal_connect (registry, "module-removed",
         G_CALLBACK (gum_emit_removed_module), observer);
   }
 
-  gum_module_registry_enumerate_modules (registry, gum_emit_initial_module,
-      observer);
+  if (observe_added)
+  {
+    GPtrArray * mods;
+    guint n, i;
+
+    mods = gum_module_registry_get_modules (registry);
+
+    n = mods->len;
+    for (i = 0; i != n; i++)
+      gum_emit_added_module (registry, g_ptr_array_index (mods, i), observer);
+
+    g_ptr_array_unref (mods);
+  }
 
   gum_module_registry_unlock (registry);
-}
 
-static void
-gum_emit_initial_module (GumModule * module,
-                         gpointer user_data)
-{
+  _gum_quick_scope_resume (&scope);
+
+  return JS_UNDEFINED;
+
+missing_callback:
+  {
+    _gum_quick_throw_literal (ctx, "at least one callback must be provided");
+    return JS_EXCEPTION;
+  }
 }
 
 static void
 gum_emit_added_module (GumModuleRegistry * registry,
                        GumModule * module,
-                       gpointer user_data)
+                       GumQuickModuleObserver * observer)
 {
+  gum_quick_module_observer_invoke (observer, observer->on_added, module);
 }
 
 static void
 gum_emit_removed_module (GumModuleRegistry * registry,
                          GumModule * module,
-                         gpointer user_data)
+                         GumQuickModuleObserver * observer)
 {
+  gum_quick_module_observer_invoke (observer, observer->on_removed, module);
+}
+
+static void
+gum_quick_module_observer_invoke (GumQuickModuleObserver * self,
+                                  JSValue callback,
+                                  GumModule * module)
+{
+  GumQuickProcess * parent = self->parent;
+  JSContext * ctx = parent->core->ctx;
+  GumQuickScope scope;
+  JSValue wrapper;
+
+  _gum_quick_scope_enter (&scope, parent->core);
+
+  wrapper = _gum_quick_module_new_from_handle (ctx, module, parent->module);
+
+  _gum_quick_scope_call_void (&scope, callback, JS_UNDEFINED, 1, &wrapper);
+
+  JS_FreeValue (ctx, wrapper);
+
+  _gum_quick_scope_leave (&scope);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_find_range_by_address)

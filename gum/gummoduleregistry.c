@@ -160,6 +160,18 @@ gum_module_registry_enumerate_modules (GumModuleRegistry * self,
 }
 
 void
+gum_module_registry_lock (GumModuleRegistry * self)
+{
+  GUM_MODULE_REGISTRY_LOCK (self);
+}
+
+void
+gum_module_registry_unlock (GumModuleRegistry * self)
+{
+  GUM_MODULE_REGISTRY_UNLOCK (self);
+}
+
+void
 _gum_module_registry_reset (GumModuleRegistry * self)
 {
   GUM_MODULE_REGISTRY_LOCK (self);
