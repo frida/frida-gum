@@ -100,6 +100,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_attach_module_observer)
 static GumV8ModuleObserver * gum_v8_module_observer_ref (
     GumV8ModuleObserver * observer);
 static void gum_v8_module_observer_unref (GumV8ModuleObserver * observer);
+static void gum_v8_module_observer_destroy (GumV8ModuleObserver * self);
 static void gum_emit_added_module (GumModuleRegistry * registry,
     GumModule * module, GumV8ModuleObserver * observer);
 static void gum_emit_removed_module (GumModuleRegistry * registry,
@@ -195,8 +196,8 @@ _gum_v8_process_init (GumV8Process * self,
       gumjs_process_functions, isolate);
 
   auto observer = _gum_v8_create_class ("ModuleObserver", nullptr, scope,
-      module, isolate);
-  _gum_v8_class_add (observer, gumjs_module_observer_functions, module,
+      process_module, isolate);
+  _gum_v8_class_add (observer, gumjs_module_observer_functions, process_module,
       isolate);
   self->module_observer = new Global<FunctionTemplate> (isolate, observer);
 }
@@ -204,15 +205,28 @@ _gum_v8_process_init (GumV8Process * self,
 void
 _gum_v8_process_realize (GumV8Process * self)
 {
+  auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  auto observer = Local<FunctionTemplate>::New (isolate,
+      *self->module_observer);
+  auto observer_value = observer->GetFunction (context).ToLocalChecked ()
+      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
+  self->module_observer_value =
+      new Global<Object> (isolate, observer_value);
 }
 
 void
 _gum_v8_process_flush (GumV8Process * self)
 {
+  g_hash_table_remove_all (self->module_observers);
+
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 
   delete self->main_module_value;
   self->main_module_value = nullptr;
+
+  g_hash_table_remove_all (self->module_observers);
 }
 
 void
@@ -224,12 +238,20 @@ _gum_v8_process_dispose (GumV8Process * self)
 
   delete self->main_module_value;
   self->main_module_value = nullptr;
+
+  delete self->module_observer_value;
+  self->module_observer_value = nullptr;
+
+  delete self->module_observer;
+  self->module_observer = nullptr;
 }
 
 void
 _gum_v8_process_finalize (GumV8Process * self)
 {
   g_clear_object (&self->stalker);
+
+  g_hash_table_unref (self->module_observers);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
@@ -573,6 +595,33 @@ gum_v8_module_observer_unref (GumV8ModuleObserver * observer)
 }
 
 static void
+gum_v8_module_observer_destroy (GumV8ModuleObserver * self)
+{
+  auto registry = gum_module_registry_obtain ();
+
+  if (self->added_handler != 0)
+  {
+    g_signal_handler_disconnect (registry, self->added_handler);
+    self->added_handler = 0;
+  }
+
+  if (self->removed_handler != 0)
+  {
+    g_signal_handler_disconnect (registry, self->removed_handler);
+    self->removed_handler = 0;
+  }
+
+  gum_v8_module_observer_unref (self);
+}
+
+static void
+gum_v8_process_detach_module_observer (GumV8Process * self,
+                                       GumV8ModuleObserver * observer)
+{
+  g_hash_table_remove (self->module_observers, observer);
+}
+
+static void
 gum_emit_added_module (GumModuleRegistry * registry,
                        GumModule * module,
                        GumV8ModuleObserver * observer)
@@ -604,10 +653,8 @@ gum_v8_module_observer_invoke (GumV8ModuleObserver * self,
 
   auto callback_value = Local<Function>::New (isolate, *callback);
   Local<Value> result;
-  if (callback_value->Call (isolate->GetCurrentContext (), Undefined (isolate),
-        1, &wrapper).ToLocal (&result))
-  {
-  }
+  _gum_v8_ignore_result (callback_value->Call (isolate->GetCurrentContext (),
+        Undefined (isolate), 1, &wrapper).ToLocal (&result));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
