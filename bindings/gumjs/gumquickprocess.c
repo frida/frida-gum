@@ -132,6 +132,7 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("findModuleByName", 0, gumjs_process_find_module_by_name),
   JS_CFUNC_DEF ("findModuleByAddress", 0, gumjs_process_find_module_by_address),
   JS_CFUNC_DEF ("_enumerateModules", 0, gumjs_process_enumerate_modules),
+  JS_CFUNC_DEF ("addModuleObserver", 0, gumjs_process_add_module_observer),
   JS_CFUNC_DEF ("findRangeByAddress", 0, gumjs_process_find_range_by_address),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_process_enumerate_ranges),
   JS_CFUNC_DEF ("enumerateSystemRanges", 0,
@@ -490,6 +491,57 @@ gum_emit_module (GumModule * module,
   JS_FreeValue (ctx, wrapper);
 
   return _gum_quick_process_match_result (ctx, &result, &mc->result);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_add_module_observer)
+{
+  JSValue on_added, on_removed;
+  GumModuleRegistry * registry;
+
+  if (!_gum_quick_args_parse (args, "F{onAdded?,onRemoved?}", &on_added,
+        &on_removed))
+    return JS_EXCEPTION;
+
+  registry = gum_module_registry_obtain ();
+
+  gum_module_registry_lock (registry);
+
+  if (on_added != JS_NULL)
+  {
+    g_signal_connect (registry, "module-added",
+        G_CALLBACK (gum_emit_added_module), observer);
+  }
+
+  if (on_removed != JS_NULL)
+  {
+    g_signal_connect (registry, "module-removed",
+        G_CALLBACK (gum_emit_removed_module), observer);
+  }
+
+  gum_module_registry_enumerate_modules (registry, gum_emit_initial_module,
+      observer);
+
+  gum_module_registry_unlock (registry);
+}
+
+static void
+gum_emit_initial_module (GumModule * module,
+                         gpointer user_data)
+{
+}
+
+static void
+gum_emit_added_module (GumModuleRegistry * registry,
+                       GumModule * module,
+                       gpointer user_data)
+{
+}
+
+static void
+gum_emit_removed_module (GumModuleRegistry * registry,
+                         GumModule * module,
+                         gpointer user_data)
+{
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_find_range_by_address)
