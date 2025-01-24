@@ -70,6 +70,8 @@ struct _GumQuickRunOnThreadContext
 
 struct _GumQuickModuleObserver
 {
+  gint ref_count;
+
   JSValue wrapper;
 
   JSValue on_added;
@@ -114,6 +116,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_address)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (GumModule * module, GumQuickMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_attach_module_observer)
+static GumQuickModuleObserver * gum_quick_module_observer_ref (
+    GumQuickModuleObserver * observer);
+void gum_quick_module_observer_unref (GumQuickModuleObserver * observer);
 static void gum_quick_module_observer_destroy (GumQuickModuleObserver * self);
 static void gum_emit_added_module (GumModuleRegistry * registry,
     GumModule * module, GumQuickModuleObserver * observer);
@@ -564,6 +569,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
     goto missing_callback;
 
   observer = g_slice_new (GumQuickModuleObserver);
+  observer->ref_count = 1;
   observer->on_added = observe_added
       ? JS_DupValue (ctx, on_added)
       : JS_NULL;
@@ -582,14 +588,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
 
   if (observe_added)
   {
-    observer->added_handler = g_signal_connect (registry, "module-added",
-        G_CALLBACK (gum_emit_added_module), observer);
+    observer->added_handler = g_signal_connect_data (registry,
+        "module-added",
+        G_CALLBACK (gum_emit_added_module),
+        gum_quick_module_observer_ref (observer),
+        (GClosureNotify) gum_quick_module_observer_unref,
+        0);
   }
 
   if (observe_removed)
   {
-    observer->removed_handler = g_signal_connect (registry, "module-removed",
-        G_CALLBACK (gum_emit_removed_module), observer);
+    observer->removed_handler = g_signal_connect_data (registry,
+        "module-removed",
+        G_CALLBACK (gum_emit_removed_module),
+        gum_quick_module_observer_ref (observer),
+        (GClosureNotify) gum_quick_module_observer_unref,
+        0);
   }
 
   if (observe_added)
@@ -628,10 +642,41 @@ missing_callback:
   }
 }
 
+static GumQuickModuleObserver *
+gum_quick_module_observer_ref (GumQuickModuleObserver * observer)
+{
+  g_atomic_int_inc (&observer->ref_count);
+
+  return observer;
+}
+
+void
+gum_quick_module_observer_unref (GumQuickModuleObserver * observer)
+{
+  GumQuickProcess * parent = observer->parent;
+  JSContext * ctx = parent->core->ctx;
+  GumQuickScope scope;
+
+  if (!g_atomic_int_dec_and_test (&observer->ref_count))
+    return;
+
+  _gum_quick_scope_enter (&scope, parent->core);
+
+  if (!JS_IsNull (observer->on_added))
+    JS_FreeValue (ctx, observer->on_added);
+  if (!JS_IsNull (observer->on_removed))
+    JS_FreeValue (ctx, observer->on_removed);
+
+  JS_FreeValue (ctx, observer->wrapper);
+
+  _gum_quick_scope_leave (&scope);
+
+  g_slice_free (GumQuickModuleObserver, observer);
+}
+
 static void
 gum_quick_module_observer_destroy (GumQuickModuleObserver * self)
 {
-  JSContext * ctx = self->parent->core->ctx;
   GumModuleRegistry * registry;
 
   registry = gum_module_registry_obtain ();
@@ -639,19 +684,18 @@ gum_quick_module_observer_destroy (GumQuickModuleObserver * self)
   if (self->added_handler != 0)
   {
     g_signal_handler_disconnect (registry, self->added_handler);
-    JS_FreeValue (ctx, self->on_added);
+    self->added_handler = 0;
   }
 
   if (self->removed_handler != 0)
   {
     g_signal_handler_disconnect (registry, self->removed_handler);
-    JS_FreeValue (ctx, self->on_removed);
+    self->removed_handler = 0;
   }
 
   JS_SetOpaque (self->wrapper, NULL);
-  JS_FreeValue (ctx, self->wrapper);
 
-  g_slice_free (GumQuickModuleObserver, self);
+  gum_quick_module_observer_unref (self);
 }
 
 static void
