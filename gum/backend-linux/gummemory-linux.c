@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,20 +20,27 @@
 #include <unistd.h>
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-# define GUM_SYS_PROCESS_VM_READV  347
+# define GUM_SYS_PROCESS_VM_READV   347
+# define GUM_SYS_PROCESS_VM_WRITEV  348
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-# define GUM_SYS_PROCESS_VM_READV  310
+# define GUM_SYS_PROCESS_VM_READV   310
+# define GUM_SYS_PROCESS_VM_WRITEV  311
 #elif defined (HAVE_ARM)
-# define GUM_SYS_PROCESS_VM_READV  (__NR_SYSCALL_BASE + 376)
+# define GUM_SYS_PROCESS_VM_READV   (__NR_SYSCALL_BASE + 376)
+# define GUM_SYS_PROCESS_VM_WRITEV  (__NR_SYSCALL_BASE + 377)
 #elif defined (HAVE_ARM64)
-# define GUM_SYS_PROCESS_VM_READV  270
+# define GUM_SYS_PROCESS_VM_READV   270
+# define GUM_SYS_PROCESS_VM_WRITEV  271
 #elif defined (HAVE_MIPS)
 # if _MIPS_SIM == _MIPS_SIM_ABI32
-#  define GUM_SYS_PROCESS_VM_READV (__NR_Linux + 345)
+#  define GUM_SYS_PROCESS_VM_READV  (__NR_Linux + 345)
+#  define GUM_SYS_PROCESS_VM_WRITEV (__NR_Linux + 346)
 # elif _MIPS_SIM == _MIPS_SIM_ABI64
-#  define GUM_SYS_PROCESS_VM_READV (__NR_Linux + 304)
+#  define GUM_SYS_PROCESS_VM_READV  (__NR_Linux + 304)
+#  define GUM_SYS_PROCESS_VM_WRITEV (__NR_Linux + 305)
 # elif _MIPS_SIM == _MIPS_SIM_NABI32
-#  define GUM_SYS_PROCESS_VM_READV (__NR_Linux + 309)
+#  define GUM_SYS_PROCESS_VM_READV  (__NR_Linux + 309)
+#  define GUM_SYS_PROCESS_VM_WRITEV (__NR_Linux + 310)
 # else
 #  error Unexpected MIPS ABI
 # endif
@@ -44,6 +52,9 @@ static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
 
 static gssize gum_libc_process_vm_readv (pid_t pid, const struct iovec * local,
+    gulong num_local, const struct iovec * remote, gulong num_remote,
+    gulong flags);
+static gssize gum_libc_process_vm_writev (pid_t pid, const struct iovec * local,
     gulong num_local, const struct iovec * remote, gulong num_remote,
     gulong flags);
 
@@ -151,11 +162,38 @@ gum_memory_write (gpointer address,
                   gsize len)
 {
   gboolean success = FALSE;
+  static gboolean kernel_feature_likely_enabled = TRUE;
+  gboolean still_pending = TRUE;
 
-  if (gum_memory_is_writable (address, len))
+  if (kernel_feature_likely_enabled && gum_linux_check_kernel_version (3, 2, 0))
   {
-    memcpy (address, bytes, len);
-    success = TRUE;
+    gssize n;
+    struct iovec local = {
+      .iov_base = (void *) bytes,
+      .iov_len = len
+    };
+    struct iovec remote = {
+      .iov_base = address,
+      .iov_len = len
+    };
+
+    n = gum_libc_process_vm_writev (getpid (), &local, 1, &remote, 1, 0);
+    if (n > 0)
+      success = n == len;
+
+    if (n == -1 && errno == ENOSYS)
+      kernel_feature_likely_enabled = FALSE;
+    else
+      still_pending = FALSE;
+  }
+
+  if (still_pending)
+  {
+    if (gum_memory_is_writable (address, len))
+    {
+      memcpy (address, bytes, len);
+      success = TRUE;
+    }
   }
 
   return success;
@@ -317,5 +355,17 @@ gum_libc_process_vm_readv (pid_t pid,
                            gulong flags)
 {
   return syscall (GUM_SYS_PROCESS_VM_READV, pid, local, num_local, remote,
+      num_remote, flags);
+}
+
+static gssize
+gum_libc_process_vm_writev (pid_t pid,
+                            const struct iovec * local,
+                            gulong num_local,
+                            const struct iovec * remote,
+                            gulong num_remote,
+                            gulong flags)
+{
+  return syscall (GUM_SYS_PROCESS_VM_WRITEV, pid, local, num_local, remote,
       num_remote, flags);
 }
