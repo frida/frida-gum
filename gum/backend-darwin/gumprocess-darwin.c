@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022-2024 Håvard Sørbø <havard@hsorbo.no>
@@ -118,9 +118,7 @@ static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
-#ifdef HAVE_I386
 static void gum_deinit_sysroot (void);
-#endif
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean gum_try_resolve_module_by_name (GumModule * module,
@@ -704,8 +702,6 @@ gum_darwin_cpu_type_from_pid (pid_t pid,
   return TRUE;
 }
 
-#ifdef HAVE_I386
-
 const gchar *
 gum_darwin_query_sysroot (void)
 {
@@ -714,14 +710,28 @@ gum_darwin_query_sysroot (void)
   if (g_once_init_enter (&cached_result))
   {
     gchar * result = NULL;
-    const gchar * program_path;
+    guint n, i;
 
-    program_path = _dyld_get_image_name (0);
-
-    if (g_str_has_suffix (program_path, "/usr/lib/dyld_sim"))
+    n = _dyld_image_count ();
+    for (i = 0; i != n; i++)
     {
-      result = g_strndup (program_path, strlen (program_path) - 17);
-      _gum_register_destructor (gum_deinit_sysroot);
+      const gchar * name, * p;
+
+      name = _dyld_get_image_name (i);
+      if (name == NULL)
+        break;
+
+      p = strstr (name, "/usr/lib/libSystem.B.dylib");
+      if (p != NULL)
+      {
+        if (p != name)
+        {
+          result = g_strndup (name, p - name);
+          _gum_register_destructor (gum_deinit_sysroot);
+        }
+
+        break;
+      }
     }
 
     g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (result) + 1);
@@ -735,16 +745,6 @@ gum_deinit_sysroot (void)
 {
   g_free ((gchar *) gum_darwin_query_sysroot ());
 }
-
-#else
-
-const gchar *
-gum_darwin_query_sysroot (void)
-{
-  return NULL;
-}
-
-#endif
 
 gboolean
 gum_darwin_query_hardened (void)
