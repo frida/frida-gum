@@ -43,9 +43,8 @@
 static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
 
-static gssize gum_libc_process_vm_readv (pid_t pid,
-    const struct iovec * local_iov, gulong liovcnt,
-    const struct iovec * remote_iov, gulong riovcnt,
+static gssize gum_libc_process_vm_readv (pid_t pid, const struct iovec * local,
+    gulong num_local, const struct iovec * remote, gulong num_remote,
     gulong flags);
 
 gboolean
@@ -99,26 +98,26 @@ gum_memory_read (gconstpointer address,
   if (kernel_feature_likely_enabled && gum_linux_check_kernel_version (3, 2, 0))
   {
     gssize n;
-    struct iovec local_iov = {
+    struct iovec local = {
       .iov_base = g_malloc (len),
       .iov_len = len
     };
-    struct iovec remote_iov = {
+    struct iovec remote = {
       .iov_base = (void *) address,
       .iov_len = len
     };
 
-    n = gum_libc_process_vm_readv (getpid (), &local_iov, 1, &remote_iov, 1, 0);
+    n = gum_libc_process_vm_readv (getpid (), &local, 1, &remote, 1, 0);
     if (n > 0)
     {
       result_len = n;
-      result = local_iov.iov_base;
+      result = local.iov_base;
       if (result_len != len)
         result = g_realloc (result, result_len);
     }
     else
     {
-      g_free (local_iov.iov_base);
+      g_free (local.iov_base);
     }
 
     if (n == -1 && errno == ENOSYS)
@@ -311,12 +310,12 @@ gum_memory_get_protection (gconstpointer address,
 
 static gssize
 gum_libc_process_vm_readv (pid_t pid,
-                           const struct iovec * local_iov,
-                           gulong liovcnt,
-                           const struct iovec * remote_iov,
-                           gulong riovcnt,
+                           const struct iovec * local,
+                           gulong num_local,
+                           const struct iovec * remote,
+                           gulong num_remote,
                            gulong flags)
 {
-  return syscall (GUM_SYS_PROCESS_VM_READV, pid, local_iov, liovcnt, remote_iov,
-      riovcnt, flags);
+  return syscall (GUM_SYS_PROCESS_VM_READV, pid, local, num_local, remote,
+      num_remote, flags);
 }
