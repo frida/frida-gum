@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -9,7 +9,7 @@
 
 #include "gum-init.h"
 #include "gumcloak.h"
-#include "gummodule.h"
+#include "gummoduleregistry.h"
 
 #ifndef HAVE_WINDOWS
 # define GUM_OS_LACKS_MODULE_LOOKUP_APIS 1
@@ -317,7 +317,8 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
   ctx.func = func;
   ctx.user_data = user_data;
-  _gum_process_enumerate_modules (gum_emit_module_if_not_cloaked, &ctx);
+  gum_module_registry_enumerate_modules (gum_module_registry_obtain (),
+      gum_emit_module_if_not_cloaked, &ctx);
 }
 
 static gboolean

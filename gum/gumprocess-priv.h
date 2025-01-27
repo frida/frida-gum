@@ -17,8 +17,6 @@ G_GNUC_INTERNAL void _gum_process_enumerate_threads (GumFoundThreadFunc func,
     gpointer user_data);
 G_GNUC_INTERNAL gboolean _gum_process_collect_main_module (GumModule * module,
     gpointer user_data);
-G_GNUC_INTERNAL void _gum_process_enumerate_modules (GumFoundModuleFunc func,
-    gpointer user_data);
 G_GNUC_INTERNAL void _gum_process_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 
