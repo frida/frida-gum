@@ -213,6 +213,7 @@ gum_arm64_writer_init (GumArm64Writer * writer,
   writer->ref_count = 1;
   writer->flush_on_destroy = TRUE;
 
+  writer->data_endian = __BYTE_ORDER__;
   writer->target_os = gum_process_get_native_os ();
   writer->ptrauth_support = gum_query_ptrauth_support ();
   writer->sign = gum_sign_code_address;
@@ -1994,13 +1995,29 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (GINT64_FROM_LE (*slot) == r->val)
-        break;
+      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
+      {
+        if (GINT64_FROM_LE (*slot) == r->val)
+          break;
+      }
+      else
+      {
+        if (GINT64_FROM_BE (*slot) == r->val)
+          break;
+      }
+
     }
 
     if (slot == last_slot)
     {
-      *slot = GINT64_TO_LE (r->val);
+      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
+      {
+        *slot = GINT64_TO_LE (r->val);
+      }
+      else
+      {
+        *slot = GINT64_TO_BE (r->val);
+      }
       last_slot = slot + 1;
     }
 
@@ -2026,13 +2043,28 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (GINT32_FROM_LE (*slot) == r->val)
-        break;
+      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
+      {
+        if (GINT32_FROM_LE (*slot) == r->val)
+          break;
+      }
+      else
+      {
+        if (GINT32_FROM_BE (*slot) == r->val)
+          break;
+      }
     }
 
     if (slot == last_slot)
     {
-      *slot = GINT32_TO_LE (r->val);
+      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
+      {
+        *slot = GINT32_TO_LE (r->val);
+      }
+      else
+      {
+        *slot = GINT32_TO_BE (r->val);
+      }
       last_slot = slot + 1;
     }
 
