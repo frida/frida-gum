@@ -161,6 +161,7 @@ if host_os_family == 'linux'
     'backend-linux' / 'gummemory-linux.c',
     'backend-posix' / 'gummemory-posix.c',
     'backend-linux' / 'gumprocess-linux.c',
+    'backend-linux' / 'gummoduleregistry-linux.c',
     'backend-linux' / 'gummodule-linux.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
