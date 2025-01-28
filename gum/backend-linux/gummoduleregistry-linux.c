@@ -66,6 +66,7 @@ struct _GumProgramRanges
 };
 
 static gboolean gum_register_module (GumModule * module, gpointer user_data);
+static gboolean gum_store_module (GumModule * module, gpointer user_data);
 static gboolean gum_hook_r_debug (const GumExportDetails * details,
     gpointer user_data);
 static void gum_module_registry_on_rtld_brk (GumInvocationContext * context,
@@ -95,17 +96,19 @@ static void gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
     ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress base_address,
     GumMemoryRange * range);
 
+static GumModuleRegistry * gum_registry;
 static GHashTable * gum_current_modules;
-static GumProgramModules gum_program_modules;
-
 static GumInterceptor * gum_rtld_interceptor;
 static GumInvocationListener * gum_rtld_handler;
+
+static GumProgramModules gum_program_modules;
 
 void
 _gum_module_registry_activate (GumModuleRegistry * self)
 {
   GumModule * interpreter;
 
+  gum_registry = self;
   gum_current_modules =
       g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
   gum_enumerate_modules (gum_register_module, self);
@@ -157,18 +160,42 @@ gum_synchronize_modules (void)
   GHashTable * modules;
   GHashTableIter iter;
   gpointer base_address;
+  GumModule * module;
+  GQueue added = G_QUEUE_INIT;
+  GQueue removed = G_QUEUE_INIT;
 
   modules = g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
   gum_enumerate_modules (gum_store_module, modules);
+
+  gum_module_registry_lock (gum_registry);
+
+  g_hash_table_iter_init (&iter, modules);
+  while (g_hash_table_iter_next (&iter, &base_address, (gpointer *) &module))
+  {
+    if (!g_hash_table_contains (gum_current_modules, base_address))
+      g_queue_push_tail (&added, g_object_ref (module));
+  }
 
   g_hash_table_iter_init (&iter, gum_current_modules);
   while (g_hash_table_iter_next (&iter, &base_address, NULL))
   {
     if (!g_hash_table_contains (modules, base_address))
-
+      g_queue_push_tail (&removed, base_address);
   }
 
-  g_hash_table_unref (modules);
+  g_hash_table_unref (gum_current_modules);
+  gum_current_modules = modules;
+
+  gum_module_registry_unlock (gum_registry);
+
+  while ((base_address = g_queue_pop_head (&removed)) != NULL)
+    _gum_module_registry_unregister (gum_registry, GUM_ADDRESS (base_address));
+
+  while ((module = g_queue_pop_head (&added)) != NULL)
+  {
+    _gum_module_registry_register (gum_registry, module);
+    g_object_unref (module);
+  }
 }
 
 static gboolean
@@ -226,7 +253,6 @@ gum_module_registry_on_rtld_brk (GumInvocationContext * context,
 {
   const struct r_debug * dbg = user_data;
 
-  g_printerr ("%s state=%u\n", G_STRFUNC, dbg->r_state);
   if (dbg->r_state == RT_CONSISTENT)
     gum_synchronize_modules ();
 }
