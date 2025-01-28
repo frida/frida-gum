@@ -67,8 +67,7 @@ struct _GumProgramRanges
 
 static gboolean gum_register_module (GumModule * module, gpointer user_data);
 static gboolean gum_store_module (GumModule * module, gpointer user_data);
-static gboolean gum_hook_r_debug (const GumExportDetails * details,
-    gpointer user_data);
+static void gum_hook_r_debug (struct r_debug * dbg);
 static void gum_module_registry_on_rtld_brk (GumInvocationContext * context,
     gpointer user_data);
 
@@ -116,10 +115,18 @@ _gum_module_registry_activate (GumModuleRegistry * self)
   interpreter = gum_query_program_modules ()->interpreter;
   if (interpreter != NULL)
   {
-    GumElfModule * elf =
-        _gum_native_module_get_elf_module (GUM_NATIVE_MODULE (interpreter));
-    if (elf != NULL)
-      gum_elf_module_enumerate_exports (elf, gum_hook_r_debug, NULL);
+    struct r_debug * dbg;
+
+    dbg = GSIZE_TO_POINTER (
+        gum_module_find_symbol_by_name (interpreter, "_r_debug"));
+    if (dbg == NULL)
+    {
+      dbg = GSIZE_TO_POINTER (
+          gum_module_find_symbol_by_name (interpreter, "__dl__r_debug"));
+    }
+
+    if (dbg != NULL)
+      gum_hook_r_debug (dbg);
   }
 }
 
@@ -211,19 +218,12 @@ gum_store_module (GumModule * module,
   return TRUE;
 }
 
-static gboolean
-gum_hook_r_debug (const GumExportDetails * details,
-                  gpointer user_data)
+static void
+gum_hook_r_debug (struct r_debug * dbg)
 {
-  struct r_debug * dbg;
   gconstpointer brk_impl;
   G_GNUC_UNUSED cs_insn * first_instruction;
   gsize offset = 0;
-
-  if (strcmp (details->name, "_r_debug") != 0)
-    return TRUE;
-
-  dbg = GSIZE_TO_POINTER (details->address);
 
   brk_impl = GSIZE_TO_POINTER (dbg->r_brk);
 
@@ -243,8 +243,6 @@ gum_hook_r_debug (const GumExportDetails * details,
 
   gum_interceptor_attach (gum_rtld_interceptor, (gpointer) (brk_impl + offset),
       gum_rtld_handler, NULL);
-
-  return FALSE;
 }
 
 static void
