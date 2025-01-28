@@ -31,18 +31,18 @@ static void gum_remove_image (const struct mach_header * mh);
 
 static gsize gum_detect_macho_size (const struct mach_header * mh);
 
-static GumModuleRegistry * _the_registry;
-static GumDarwinModuleResolver * _the_resolver;
-static GumInterceptor * _the_interceptor;
-static GumInvocationListener * _dyld_handler;
+static GumModuleRegistry * gum_registry;
+static GumDarwinModuleResolver * gum_resolver;
+static GumInterceptor * gum_dyld_interceptor;
+static GumInvocationListener * gum_dyld_handler;
 
 void
 _gum_module_registry_activate (GumModuleRegistry * self)
 {
-  _the_registry = self;
-  _the_resolver = gum_darwin_module_resolver_new_with_loader (mach_task_self (),
-      (GumDarwinModuleResolverLoadFunc) gum_module_registry_get_modules,
-      g_object_ref (_the_registry), g_object_unref, NULL);
+  gum_registry = self;
+  gum_resolver = gum_darwin_module_resolver_new_with_loader (mach_task_self (),
+      (GumDarwinModuleResolverLoadFunc) _gum_module_registry_get_modules,
+      g_object_ref (gum_registry), g_object_unref, NULL);
 
   if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
   {
@@ -70,16 +70,16 @@ _gum_module_registry_activate (GumModuleRegistry * self)
       offset = first_instruction->size;
 #endif
 
-    _the_interceptor = gum_interceptor_obtain ();
-    _dyld_handler = gum_make_probe_listener (
+    gum_dyld_interceptor = gum_interceptor_obtain ();
+    gum_dyld_handler = gum_make_probe_listener (
         gum_module_registry_on_dyld_notification, NULL, NULL);
 
-    gum_interceptor_attach (_the_interceptor,
-        (gpointer) (notification_impl + offset), _dyld_handler, NULL);
+    gum_interceptor_attach (gum_dyld_interceptor,
+        (gpointer) (notification_impl + offset), gum_dyld_handler, NULL);
 
     do
     {
-      _gum_module_registry_reset (_the_registry);
+      _gum_module_registry_reset (gum_registry);
 
       count = _dyld_image_count ();
       for (i = 0; i != count; i++)
@@ -97,18 +97,18 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 void
 _gum_module_registry_deactivate (GumModuleRegistry * self)
 {
-  if (_dyld_handler != NULL)
+  if (gum_dyld_handler != NULL)
   {
-    gum_interceptor_detach (_the_interceptor, _dyld_handler);
+    gum_interceptor_detach (gum_dyld_interceptor, gum_dyld_handler);
 
-    g_object_unref (_dyld_handler);
-    _dyld_handler = NULL;
+    g_object_unref (gum_dyld_handler);
+    gum_dyld_handler = NULL;
 
-    g_object_unref (_the_interceptor);
-    _the_interceptor = NULL;
+    g_object_unref (gum_dyld_interceptor);
+    gum_dyld_interceptor = NULL;
   }
 
-  g_clear_object (&_the_resolver);
+  g_clear_object (&gum_resolver);
 }
 
 static void
@@ -157,6 +157,7 @@ gum_add_image (const struct mach_header * mh,
 {
   Dl_info info;
   GumMemoryRange range;
+  GumNativeModule * mod;
 
   if (name == NULL)
     dladdr (mh, &info);
@@ -164,16 +165,18 @@ gum_add_image (const struct mach_header * mh,
   range.base_address = GUM_ADDRESS (mh);
   range.size = gum_detect_macho_size (mh);
 
-  _gum_module_registry_register (_the_registry,
-      GUM_MODULE (_gum_native_module_make (
-          (name != NULL) ? name : info.dli_fname,
-          &range, _the_resolver)));
+  mod = _gum_native_module_make ((name != NULL) ? name : info.dli_fname, &range,
+      gum_resolver);
+
+  _gum_module_registry_register (gum_registry, GUM_MODULE (mod));
+
+  g_object_unref (mod);
 }
 
 static void
 gum_remove_image (const struct mach_header * mh)
 {
-  _gum_module_registry_unregister (_the_registry, GUM_ADDRESS (mh));
+  _gum_module_registry_unregister (gum_registry, GUM_ADDRESS (mh));
 }
 
 static gsize

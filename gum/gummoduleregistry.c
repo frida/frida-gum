@@ -7,6 +7,7 @@
 #include "gummoduleregistry.h"
 
 #include "gum-init.h"
+#include "gumcloak.h"
 #include "gummoduleregistry-priv.h"
 
 #define GUM_MODULE_REGISTRY_LOCK(r) g_rec_mutex_lock (&(r)->mutex)
@@ -37,6 +38,8 @@ static void gum_module_registry_dispose (GObject * object);
 static void gum_module_registry_finalize (GObject * object);
 
 static void gum_deinit_module_registry (void);
+
+static gboolean gum_is_cloaked_module (GumModule * module);
 
 G_DEFINE_TYPE (GumModuleRegistry, gum_module_registry, G_TYPE_OBJECT)
 
@@ -127,7 +130,7 @@ gum_deinit_module_registry (void)
 }
 
 GPtrArray *
-gum_module_registry_get_modules (GumModuleRegistry * self)
+_gum_module_registry_get_modules (GumModuleRegistry * self)
 {
   GPtrArray * result;
 
@@ -152,7 +155,12 @@ gum_module_registry_enumerate_modules (GumModuleRegistry * self,
   n = self->modules->len;
   for (i = 0; i != n; i++)
   {
-    if (!func (g_ptr_array_index (self->modules, i), user_data))
+    GumModule * mod = g_ptr_array_index (self->modules, i);
+
+    if (gum_is_cloaked_module (mod))
+      continue;
+
+    if (!func (mod, user_data))
       break;
   }
 
@@ -205,10 +213,8 @@ _gum_module_registry_register (GumModuleRegistry * self,
 
   GUM_MODULE_REGISTRY_UNLOCK (self);
 
-  if (being_observed)
+  if (being_observed && !gum_is_cloaked_module (mod))
     g_signal_emit (self, gum_module_registry_signals[MODULE_ADDED], 0, mod);
-
-  g_object_unref (mod);
 }
 
 void
@@ -250,8 +256,18 @@ _gum_module_registry_unregister (GumModuleRegistry * self,
 
   GUM_MODULE_REGISTRY_UNLOCK (self);
 
-  if (being_observed)
+  if (being_observed && !gum_is_cloaked_module (mod))
     g_signal_emit (self, gum_module_registry_signals[MODULE_REMOVED], 0, mod);
 
   g_object_unref (mod);
+}
+
+static gboolean
+gum_is_cloaked_module (GumModule * module)
+{
+  const GumMemoryRange * range;
+
+  range = gum_module_get_range (module);
+
+  return gum_cloak_has_range_containing (range->base_address);
 }

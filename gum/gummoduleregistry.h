@@ -17,7 +17,6 @@ G_DECLARE_FINAL_TYPE (GumModuleRegistry, gum_module_registry, GUM,
 
 GUM_API GumModuleRegistry * gum_module_registry_obtain (void);
 
-GUM_API GPtrArray * gum_module_registry_get_modules (GumModuleRegistry * self);
 GUM_API void gum_module_registry_enumerate_modules (GumModuleRegistry * self,
     GumFoundModuleFunc func, gpointer user_data);
 

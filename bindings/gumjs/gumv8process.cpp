@@ -101,6 +101,8 @@ static GumV8ModuleObserver * gum_v8_module_observer_ref (
     GumV8ModuleObserver * observer);
 static void gum_v8_module_observer_unref (GumV8ModuleObserver * observer);
 static void gum_v8_module_observer_destroy (GumV8ModuleObserver * self);
+static gboolean gum_emit_existing_module (GumModule * module,
+    GumV8ModuleObserver * observer);
 static void gum_emit_added_module (GumModuleRegistry * registry,
     GumModule * module, GumV8ModuleObserver * observer);
 static void gum_emit_removed_module (GumModuleRegistry * registry,
@@ -544,16 +546,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
 
     if (observe_added)
     {
-      auto mods = gum_module_registry_get_modules (registry);
-
-      guint n = mods->len;
-      for (guint i = 0; i != n; i++)
-      {
-        gum_emit_added_module (registry,
-            (GumModule *) g_ptr_array_index (mods, i), observer);
-      }
-
-      g_ptr_array_unref (mods);
+      gum_module_registry_enumerate_modules (registry,
+          (GumFoundModuleFunc) gum_emit_existing_module, observer);
     }
 
     gum_module_registry_unlock (registry);
@@ -619,6 +613,15 @@ gum_v8_process_detach_module_observer (GumV8Process * self,
                                        GumV8ModuleObserver * observer)
 {
   g_hash_table_remove (self->module_observers, observer);
+}
+
+static gboolean
+gum_emit_existing_module (GumModule * module,
+                          GumV8ModuleObserver * observer)
+{
+  gum_v8_module_observer_invoke (observer, observer->on_added, module);
+
+  return TRUE;
 }
 
 static void
