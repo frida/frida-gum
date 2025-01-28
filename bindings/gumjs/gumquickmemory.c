@@ -89,6 +89,7 @@ static JSValue gum_quick_memory_read (JSContext * ctx, GumMemoryValueType type,
 static JSValue gum_quick_memory_write (JSContext * ctx, GumMemoryValueType type,
     GumQuickArgs * args, GumQuickCore * core);
 GUMJS_DECLARE_FUNCTION (gum_quick_memory_read_volatile)
+GUMJS_DECLARE_FUNCTION (gum_quick_memory_write_volatile)
 
 static void gum_quick_memory_on_access (GumMemoryAccessMonitor * monitor,
     const GumMemoryAccessDetails * details, GumQuickMemory * self);
@@ -197,6 +198,7 @@ static const JSCFunctionListEntry gumjs_memory_entries[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
   JS_CFUNC_DEF ("readVolatile", 0, gum_quick_memory_read_volatile),
+  JS_CFUNC_DEF ("writeVolatile", 0, gum_quick_memory_write_volatile),
 
   JS_CFUNC_DEF ("allocAnsiString", 0, gumjs_memory_alloc_ansi_string),
   JS_CFUNC_DEF ("allocUtf8String", 0, gumjs_memory_alloc_utf8_string),
@@ -878,6 +880,35 @@ GUMJS_DEFINE_FUNCTION (gum_quick_memory_read_volatile)
 
   return JS_NewArrayBuffer (ctx, data, n_bytes_read,
       _gum_quick_array_buffer_free, data, FALSE);
+}
+
+GUMJS_DEFINE_FUNCTION (gum_quick_memory_write_volatile)
+{
+  gpointer address;
+  GBytes * bytes;
+  gconstpointer data;
+  gsize size;
+
+  if (!_gum_quick_args_parse (args, "pB", &address, &bytes))
+    return JS_EXCEPTION;
+
+  data = g_bytes_get_data (bytes, &size);
+
+  if (size == 0)
+  {
+    g_bytes_unref (bytes);
+    return JS_TRUE;
+  }
+
+  if (!gum_memory_write (address, (guint8 *) data, size))
+  {
+    g_bytes_unref (bytes);
+    return _gum_quick_throw_literal (ctx, "memory write failed");
+  }
+
+  g_bytes_unref (bytes);
+
+  return JS_TRUE;
 }
 
 #ifdef HAVE_WINDOWS
