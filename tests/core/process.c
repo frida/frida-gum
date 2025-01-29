@@ -1242,7 +1242,7 @@ sleeping_dummy (gpointer data)
   g_mutex_unlock (&sync_data->mutex);
 
   while (!(*done))
-    g_thread_yield ();
+    g_usleep (G_USEC_PER_SEC / 4);
 
   return NULL;
 }
