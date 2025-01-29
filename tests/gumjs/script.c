@@ -5129,7 +5129,7 @@ sleeping_dummy (gpointer data)
   volatile gboolean * done = (gboolean *) data;
 
   while (!(*done))
-    g_thread_yield ();
+    g_usleep (G_USEC_PER_SEC / 4);
 
   return NULL;
 }
