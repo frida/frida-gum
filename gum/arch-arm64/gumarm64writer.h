@@ -36,9 +36,9 @@ typedef guint GumArm64IndexMode;
 
 /*
  * Valid values for this field are:
- * - __ORDER_LITTLE_ENDIAN__
- * - __ORDER_BIG_ENDIAN__
- * - __BYTE_ORDER__ (an alias for one of the above)
+ * - G_LITTLE_ENDIAN
+ * - G_BIG_ENDIAN
+ * - G_BYTE_ORDER (an alias for one of the above)
  */
 typedef guint GumArm64DataEndian;
 

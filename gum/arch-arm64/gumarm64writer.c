@@ -213,7 +213,7 @@ gum_arm64_writer_init (GumArm64Writer * writer,
   writer->ref_count = 1;
   writer->flush_on_destroy = TRUE;
 
-  writer->data_endian = __BYTE_ORDER__;
+  writer->data_endian = G_BYTE_ORDER;
   writer->target_os = gum_process_get_native_os ();
   writer->ptrauth_support = gum_query_ptrauth_support ();
   writer->sign = gum_sign_code_address;
@@ -1995,7 +1995,7 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
+      if (self->data_endian == G_LITTLE_ENDIAN)
       {
         if (GINT64_FROM_LE (*slot) == r->val)
           break;
@@ -2010,7 +2010,7 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     if (slot == last_slot)
     {
-      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
+      if (self->data_endian == G_LITTLE_ENDIAN)
       {
         *slot = GINT64_TO_LE (r->val);
       }
@@ -2043,7 +2043,7 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
+      if (self->data_endian == G_LITTLE_ENDIAN)
       {
         if (GINT32_FROM_LE (*slot) == r->val)
           break;
@@ -2057,7 +2057,7 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 
     if (slot == last_slot)
     {
-      if (self->data_endian == __ORDER_LITTLE_ENDIAN__)
+      if (self->data_endian == G_LITTLE_ENDIAN)
       {
         *slot = GINT32_TO_LE (r->val);
       }
