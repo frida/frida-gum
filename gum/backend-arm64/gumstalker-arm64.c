@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2019 John Coates <john@johncoates.dev>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
@@ -761,8 +761,6 @@ static gpointer gum_slab_reserve (GumSlab * self, gsize size);
 static gpointer gum_slab_try_reserve (GumSlab * self, gsize size);
 
 static gpointer gum_find_thread_exit_implementation (void);
-
-static gboolean gum_is_bl_imm (guint32 insn) G_GNUC_UNUSED;
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -5937,34 +5935,9 @@ static gpointer
 gum_find_thread_exit_implementation (void)
 {
 #if defined (HAVE_DARWIN)
-  guint32 * cursor;
-
-  cursor = GSIZE_TO_POINTER (gum_strip_code_address (
-      gum_module_find_export_by_name (gum_process_get_libc_module (),
-          "pthread_exit")));
-
-  do
-  {
-    guint32 insn = *cursor;
-
-    if (gum_is_bl_imm (insn))
-    {
-      union
-      {
-        gint32 i;
-        guint32 u;
-      } distance;
-
-      distance.u = insn & GUM_INT26_MASK;
-      if ((distance.u & (1 << (26 - 1))) != 0)
-        distance.u |= 0xfc000000;
-
-      return cursor + distance.i;
-    }
-
-    cursor++;
-  }
-  while (TRUE);
+  return gum_arm64_reader_find_next_bl_target (GSIZE_TO_POINTER (
+        gum_strip_code_address (gum_module_find_export_by_name (
+            gum_process_get_libc_module (), "pthread_exit"))));
 #elif defined (HAVE_GLIBC)
   return GSIZE_TO_POINTER (gum_module_find_export_by_name (
         gum_process_get_libc_module (),
@@ -5986,10 +5959,4 @@ gum_find_thread_exit_implementation (void)
 #else
   return NULL;
 #endif
-}
-
-static gboolean
-gum_is_bl_imm (guint32 insn)
-{
-  return (insn & ~GUM_INT26_MASK) == 0x94000000;
 }
