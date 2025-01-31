@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,37 @@
 #include "gumarm64reader.h"
 
 #include <capstone.h>
+
+static gboolean gum_is_bl_imm (guint32 insn);
+
+gpointer
+gum_arm64_reader_find_next_bl_target (gconstpointer address)
+{
+  const guint32 * cursor = address;
+
+  do
+  {
+    guint32 insn = *cursor;
+
+    if (gum_is_bl_imm (insn))
+    {
+      union
+      {
+        gint32 i;
+        guint32 u;
+      } distance;
+
+      distance.u = insn & GUM_INT26_MASK;
+      if ((distance.u & (1 << (26 - 1))) != 0)
+        distance.u |= 0xfc000000;
+
+      return (gpointer) (cursor + distance.i);
+    }
+
+    cursor++;
+  }
+  while (TRUE);
+}
 
 gpointer
 gum_arm64_reader_try_get_relative_jump_target (gconstpointer address)
@@ -115,4 +146,10 @@ gum_arm64_reader_disassemble_instruction_at (gconstpointer address)
   cs_close (&capstone);
 
   return insn;
+}
+
+static gboolean
+gum_is_bl_imm (guint32 insn)
+{
+  return (insn & ~GUM_INT26_MASK) == 0x94000000;
 }
