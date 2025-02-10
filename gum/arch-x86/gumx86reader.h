@@ -16,6 +16,7 @@ G_BEGIN_DECLS
 GUM_API guint gum_x86_reader_insn_length (guint8 * code);
 GUM_API gboolean gum_x86_reader_insn_is_jcc (const cs_insn * insn);
 
+GUM_API gpointer gum_x86_reader_find_next_call_target (gconstpointer address);
 GUM_API gpointer gum_x86_reader_try_get_relative_call_target (
     gconstpointer address);
 GUM_API gpointer gum_x86_reader_try_get_relative_jump_target (
