@@ -12,8 +12,8 @@
 
 #include <dlfcn.h>
 
-#define GUM_NATIVE_MODULE_LOCK(o) g_mutex_lock (&(o)->mutex)
-#define GUM_NATIVE_MODULE_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
+#define GUM_NATIVE_MODULE_LOCK(o) g_rec_mutex_lock (&(o)->mutex)
+#define GUM_NATIVE_MODULE_UNLOCK(o) g_rec_mutex_unlock (&(o)->mutex)
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
@@ -116,7 +116,7 @@ gum_native_module_iface_init (gpointer g_iface,
 static void
 gum_native_module_init (GumNativeModule * self)
 {
-  g_mutex_init (&self->mutex);
+  g_rec_mutex_init (&self->mutex);
 }
 
 static void
@@ -143,7 +143,7 @@ gum_native_module_finalize (GObject * object)
 {
   GumNativeModule * self = GUM_NATIVE_MODULE (object);
 
-  g_mutex_clear (&self->mutex);
+  g_rec_mutex_clear (&self->mutex);
 
   g_free (self->path);
 
