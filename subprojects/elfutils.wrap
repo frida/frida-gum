@@ -1,8 +1,0 @@
-[wrap-git]
-url = https://github.com/frida/elfutils.git
-revision = 1284bbc128473aea220337685985d465607fbac8
-depth = 1
-
-[provide]
-dependency_names = libelf
-
