@@ -1,7 +1,7 @@
 task:
   name: freebsd-x86_64
   freebsd_instance:
-    image_family: freebsd-14-0
+    image_family: freebsd-14-2
   install_script: |
     pkg install -y \
       git \
