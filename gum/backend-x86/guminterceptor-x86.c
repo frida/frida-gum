@@ -61,8 +61,7 @@ static void gum_interceptor_backend_destroy_thunks (
 static void gum_emit_enter_thunk (GumX86Writer * cw);
 static void gum_emit_leave_thunk (GumX86Writer * cw);
 
-static void gum_emit_prolog (GumX86Writer * cw,
-    gssize stack_displacement);
+static void gum_emit_prolog (GumX86Writer * cw, gssize stack_displacement);
 static void gum_emit_epilog (GumX86Writer * cw, GumPointCut point_cut);
 
 GumInterceptorBackend *
