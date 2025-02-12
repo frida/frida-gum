@@ -406,9 +406,11 @@ else
   have_shared_glib = cc.compiles(glib_flavor_src, name: 'compiling with shared GLib', dependencies: [glib_dep])
 endif
 if not static and have_shared_glib and not meson.is_cross_build()
-  gir = find_program('g-ir-scanner', required: false)
+  gir_scanner = find_program('g-ir-scanner', required: false)
+  gir_dep = dependency('gobject-introspection-1.0', required: gir_scanner.found())
 else
-  gir = disabler()
+  gir_scanner = disabler()
+  gir_dep = disabler()
 endif
 
 if get_option('devkits').length() != 0
