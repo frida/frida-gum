@@ -361,26 +361,6 @@ gum = library('frida-gum-' + api_version, gum_sources + gum_enums,
   install: true,
 )
 
-if gir.found()
-  gir_args = [
-    '--quiet',
-    '-DGUM_GIR_COMPILATION',
-  ]
-
-  gnome.generate_gir(gum,
-    sources: gum_sources + gum_headers + [gum_enum_h],
-    namespace: 'Gum',
-    nsversion: api_version,
-    identifier_prefix: 'Gum',
-    symbol_prefix: 'gum',
-    export_packages: 'gum',
-    includes: ['GLib-2.0', 'GObject-2.0', 'Gio-2.0'],
-    header: 'gum/gum.h',
-    extra_args: gir_args + extra_gir_args_private,
-    install: true,
-  )
-endif
-
 uninstalled_variables = {
   'frida_vapidir': meson.project_source_root() / 'vapi',
   'frida_dbghelp_prefix': uninstalled_dbghelp_prefix,
@@ -400,6 +380,33 @@ gum_dep = declare_dependency(link_with: gum,
   dependencies: gum_public_deps,
   variables: uninstalled_variables,
 )
+
+if gir_scanner.found()
+  gum_introspect = executable('gum-introspect', 'gumintrospect.c',
+    c_args: frida_component_cflags,
+    dependencies: [gum_dep, gir_dep],
+  )
+
+  gir_args = [
+    '--quiet',
+    '-DGUM_GIR_COMPILATION',
+    '--program=' + gum_introspect.full_path(),
+  ]
+
+  gnome.generate_gir(gum,
+    sources: [gum_sources, gum_headers, gum_enum_h],
+    namespace: 'Gum',
+    nsversion: api_version,
+    identifier_prefix: 'Gum',
+    symbol_prefix: 'gum',
+    export_packages: 'gum',
+    includes: ['GLib-2.0', 'GObject-2.0', 'Gio-2.0'],
+    header: 'gum/gum.h',
+    extra_args: gir_args + extra_gir_args_private,
+    dependencies: declare_dependency(objects: gum_introspect.extract_objects()),
+    install: true,
+  )
+endif
 
 pkg = import('pkgconfig')
 pkg.generate(gum,
