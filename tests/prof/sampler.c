@@ -210,13 +210,13 @@ spin_for_one_tenth_second (void)
 
 static gint dummy_variable_to_trick_optimizer = 0;
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 nop_function_a (void)
 {
   dummy_variable_to_trick_optimizer += 3;
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 nop_function_b (void)
 {
   dummy_variable_to_trick_optimizer -= 7;

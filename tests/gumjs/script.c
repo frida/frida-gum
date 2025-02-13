@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
@@ -8008,7 +8008,7 @@ TESTCASE (function_can_be_replaced_and_call_original_fast_performance)
       duration_fast / duration_default);
 }
 
-GUM_NOINLINE static int
+GUM_HOOK_TARGET static int
 target_function_int_replacement (int arg)
 {
   if (target_function_original == NULL)
@@ -11958,7 +11958,7 @@ on_outgoing_debug_message (const gchar * message,
   gum_inspector_server_post_message (server, message);
 }
 
-GUM_NOINLINE static int
+GUM_HOOK_TARGET static int
 target_function_int (int arg)
 {
   int result = 0;
@@ -11987,7 +11987,7 @@ target_function_int (int arg)
   return result;
 }
 
-GUM_NOINLINE static float
+GUM_HOOK_TARGET static float
 target_function_float (float arg)
 {
   float result = 0;
@@ -12003,7 +12003,7 @@ target_function_float (float arg)
   return result;
 }
 
-GUM_NOINLINE static double
+GUM_HOOK_TARGET static double
 target_function_double (double arg)
 {
   double result = 0;
@@ -12019,7 +12019,7 @@ target_function_double (double arg)
   return result;
 }
 
-GUM_NOINLINE static const guint8 *
+GUM_HOOK_TARGET static const guint8 *
 target_function_base_plus_offset (const guint8 * base,
                                   int offset)
 {
@@ -12030,7 +12030,7 @@ target_function_base_plus_offset (const guint8 * base,
   return base + offset;
 }
 
-GUM_NOINLINE static const gchar *
+GUM_HOOK_TARGET static const gchar *
 target_function_string (const gchar * arg)
 {
   int i;
@@ -12045,7 +12045,7 @@ target_function_string (const gchar * arg)
   return arg;
 }
 
-GUM_NOINLINE static void
+GUM_HOOK_TARGET static void
 target_function_callbacks (const gint value,
                            void (* first) (const gint * value),
                            void (* second) (const gint * value))
@@ -12060,7 +12060,7 @@ target_function_callbacks (const gint value,
   second (&value);
 }
 
-GUM_NOINLINE static void
+GUM_HOOK_TARGET static void
 target_function_trigger (TestTrigger * trigger)
 {
   g_mutex_lock (&trigger->mutex);
@@ -12074,7 +12074,7 @@ target_function_trigger (TestTrigger * trigger)
   g_mutex_unlock (&trigger->mutex);
 }
 
-GUM_NOINLINE static int
+GUM_HOOK_TARGET static int
 target_function_nested_a (int arg)
 {
   int result = 0;
@@ -12088,7 +12088,7 @@ target_function_nested_a (int arg)
   return target_function_nested_b (result);
 }
 
-GUM_NOINLINE static int
+GUM_HOOK_TARGET static int
 target_function_nested_b (int arg)
 {
   int result = 0;
@@ -12102,7 +12102,7 @@ target_function_nested_b (int arg)
   return target_function_nested_c (result);
 }
 
-GUM_NOINLINE static int
+GUM_HOOK_TARGET static int
 target_function_nested_c (int arg)
 {
   int result = 0;
