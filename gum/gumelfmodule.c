@@ -83,6 +83,7 @@ struct _GumElfModule
   GBytes * file_bytes;
   gconstpointer file_data;
   gsize file_size;
+  GumMemoryRange file_mapped_range;
 
   GumElfEhdr ehdr;
   GArray * phdrs;
@@ -544,12 +545,22 @@ gum_elf_module_load (GumElfModule * self,
 #endif
     if (!gum_maybe_extract_from_apk (self->source_path, &self->file_bytes))
     {
-      GMappedFile * file =
-          g_mapped_file_new (self->source_path, FALSE, &local_error);
+      GMappedFile * file;
+      gconstpointer data;
+      gsize size;
+      GumMemoryRange r;
+
+      file = g_mapped_file_new (self->source_path, FALSE, &local_error);
       if (file == NULL)
         goto unable_to_open;
       self->file_bytes = g_mapped_file_get_bytes (file);
       g_mapped_file_unref (file);
+
+      data = g_bytes_get_data (self->file_bytes, &size);
+      r.base_address = GUM_ADDRESS (data);
+      r.size = GUM_ALIGN_SIZE (size, gum_query_page_size ());
+      gum_cloak_add_range (&r);
+      self->file_mapped_range = r;
     }
   }
 
@@ -1064,6 +1075,12 @@ gum_elf_module_unload (GumElfModule * self)
   g_array_set_size (self->phdrs, 0);
   memset (&self->ehdr, 0, sizeof (self->ehdr));
 
+  if (self->file_mapped_range.base_address != 0)
+  {
+    gum_cloak_remove_range (&self->file_mapped_range);
+    self->file_mapped_range.base_address = 0;
+    self->file_mapped_range.size = 0;
+  }
   g_bytes_unref (self->file_bytes);
   self->file_bytes = NULL;
   self->file_data = NULL;
