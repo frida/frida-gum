@@ -70,7 +70,7 @@ jobs:
         if: matrix.id == 'linux-x86'
         run: |
           sudo apt-get update
-          sudo apt-get install gcc-multilib lib32stdc++-11-dev
+          sudo apt-get install gcc-multilib lib32stdc++-13-dev
       - name: Build
         if: ${{ startsWith(matrix.id, 'windows-') }}
         run: |
