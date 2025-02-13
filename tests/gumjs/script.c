@@ -1434,10 +1434,9 @@ TESTCASE (name_can_be_resolved_to_symbol)
   }
 #endif
 
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(DebugSymbol.fromName(\"target_function_int\").address);");
+  COMPILE_AND_LOAD_SCRIPT ("send(DebugSymbol.fromName(\"gum_init\").address);");
   expected = g_strdup_printf ("\"0x%" G_GINT64_MODIFIER "x\"",
-      GUM_ADDRESS (target_function_int));
+      GUM_ADDRESS (gum_init));
   EXPECT_SEND_MESSAGE_WITH (expected);
   g_free (expected);
   EXPECT_NO_MESSAGES ();
