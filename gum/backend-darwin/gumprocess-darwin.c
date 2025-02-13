@@ -261,13 +261,6 @@ _gum_process_collect_main_module (GumModule * module,
 }
 
 void
-_gum_process_enumerate_modules (GumFoundModuleFunc func,
-                                gpointer user_data)
-{
-  gum_darwin_enumerate_modules (mach_task_self (), func, user_data);
-}
-
-void
 _gum_process_enumerate_ranges (GumPageProtection prot,
                                GumFoundRangeFunc func,
                                gpointer user_data)
@@ -1325,11 +1318,19 @@ gum_darwin_enumerate_modules (mach_port_t task,
   gboolean carry_on;
   guint i;
 
+  if (task == mach_task_self ())
+  {
+    gum_module_registry_enumerate_modules (gum_module_registry_obtain (), func,
+        user_data);
+    return;
+  }
+
   resolver = gum_darwin_module_resolver_new (task, NULL);
   if (resolver == NULL)
     return;
 
-  modules = resolver->modules;
+  gum_darwin_module_resolver_fetch_modules (resolver, &modules, NULL);
+
   for (carry_on = TRUE, i = 0; carry_on && i != modules->len; i++)
   {
     GumModule * module;
@@ -1342,6 +1343,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
 
     g_object_unref (facade);
   }
+
+  g_ptr_array_unref (modules);
 
   g_object_unref (resolver);
 }

@@ -12,7 +12,6 @@
 #include "gumdarwinmodule.h"
 #include "gumleb.h"
 #include "gummodule-darwin.h"
-#include "gummodulefacade.h"
 #include "gummodulemap.h"
 #include "gumobjcapiresolver-priv.h"
 
@@ -548,8 +547,8 @@ gum_darwin_symbolicator_synthesize_details_from_address (
   if (module == NULL)
     goto beach;
 
-  darwin_module = _gum_native_module_get_darwin_module (GUM_NATIVE_MODULE (
-        _gum_module_facade_get_module (GUM_MODULE_FACADE (module))));
+  darwin_module =
+      _gum_native_module_get_darwin_module (GUM_NATIVE_MODULE (module));
 
   functions =
       gum_darwin_symbolicator_get_functions_for_module (self, darwin_module);

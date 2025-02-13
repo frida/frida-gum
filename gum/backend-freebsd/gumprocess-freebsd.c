@@ -13,7 +13,6 @@
 
 #include <dlfcn.h>
 #include <errno.h>
-#include <link.h>
 #include <pthread_np.h>
 #include <stdlib.h>
 #include <strings.h>
@@ -38,28 +37,12 @@
 
 typedef struct _GumModifyThreadContext GumModifyThreadContext;
 
-typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
-typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
-
 struct _GumModifyThreadContext
 {
   gint fd[2];
   pid_t pid;
   lwpid_t target_thread;
   lwpid_t interruptible_thread;
-};
-
-struct _GumEnumerateModulesContext
-{
-  GumFoundModuleFunc func;
-  gpointer user_data;
-};
-
-struct _GumResolveModuleNameContext
-{
-  const gchar * name;
-  gchar * path;
-  GumAddress base;
 };
 
 static void gum_deinit_libc_module (void);
@@ -73,11 +56,6 @@ static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
 static gchar * gum_query_program_path_for_target (int target, GError ** error);
-
-static int gum_emit_module_from_phdr (struct dl_phdr_info * info, size_t size,
-    void * user_data);
-static gpointer gum_create_module_handle (GumNativeModule * module,
-    gpointer user_data);
 
 static GumThreadState gum_thread_state_from_proc (const struct kinfo_proc * p);
 static GumPageProtection gum_page_protection_from_vmentry (int native_prot);
@@ -484,60 +462,6 @@ void
 _gum_process_enumerate_modules (GumFoundModuleFunc func,
                                 gpointer user_data)
 {
-  GumEnumerateModulesContext ctx;
-
-  ctx.func = func;
-  ctx.user_data = user_data;
-
-  dl_iterate_phdr (gum_emit_module_from_phdr, &ctx);
-}
-
-static int
-gum_emit_module_from_phdr (struct dl_phdr_info * info,
-                           size_t size,
-                           void * user_data)
-{
-  GumEnumerateModulesContext * ctx = user_data;
-  GumMemoryRange range;
-  gboolean is_program_itself, carry_on;
-  Elf_Half i;
-  GumNativeModule * module;
-
-  is_program_itself = info->dlpi_addr == 0;
-
-  if (is_program_itself)
-  {
-    gsize page_size_mask = ~((gsize) gum_query_page_size () - 1);
-    range.base_address = GPOINTER_TO_SIZE (info->dlpi_phdr) & page_size_mask;
-  }
-  else
-  {
-    range.base_address = info->dlpi_addr;
-  }
-
-  range.size = 0;
-  for (i = 0; i != info->dlpi_phnum; i++)
-  {
-    const Elf_Phdr * h = &info->dlpi_phdr[i];
-    if (h->p_type == PT_LOAD)
-      range.size += h->p_memsz;
-  }
-
-  module = _gum_native_module_make (info->dlpi_name, &range,
-      gum_create_module_handle, NULL, NULL, (GDestroyNotify) dlclose);
-
-  carry_on = ctx->func (GUM_MODULE (module), ctx->user_data);
-
-  g_object_unref (module);
-
-  return carry_on ? 0 : 1;
-}
-
-static gpointer
-gum_create_module_handle (GumNativeModule * module,
-                          gpointer user_data)
-{
-  return dlopen (module->path, RTLD_LAZY | RTLD_NOLOAD);
 }
 
 void

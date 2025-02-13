@@ -15,6 +15,9 @@
 
 #define MAX_MACH_HEADER_SIZE (64 * 1024)
 
+#define GUM_DARWIN_MODULE_RESOLVER_LOCK(o) g_mutex_lock (&(o)->mutex)
+#define GUM_DARWIN_MODULE_RESOLVER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
+
 typedef struct _GumCollectModulesContext GumCollectModulesContext;
 
 enum
@@ -35,6 +38,8 @@ static void gum_darwin_module_resolver_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 static void gum_darwin_module_resolver_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
+static void gum_darwin_module_resolver_rebuild_indexes (
+    GumDarwinModuleResolver * self, GPtrArray * latest_modules);
 
 static void gum_collect_modules (GumCollectModulesContext * ctx);
 static void gum_collect_modules_forensically (GumCollectModulesContext * ctx);
@@ -71,30 +76,24 @@ gum_darwin_module_resolver_class_init (GumDarwinModuleResolverClass * klass)
 static void
 gum_darwin_module_resolver_init (GumDarwinModuleResolver * self)
 {
-  self->modules = g_ptr_array_new_full (64, g_object_unref);
-  self->module_by_name =
-      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  g_mutex_init (&self->mutex);
+
+  self->state = GUM_DARWIN_MODULE_RESOLVER_CREATED;
 }
 
 static void
 gum_darwin_module_resolver_dispose (GObject * object)
 {
   GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (object);
-  GPtrArray * modules = self->modules;
-  guint i;
 
   gum_darwin_module_resolver_set_dynamic_lookup_handler (self, NULL, NULL,
       NULL);
 
-  g_clear_pointer (&self->module_by_name, g_hash_table_unref);
-
-  if (modules != NULL)
-  {
-    for (i = 0; i != modules->len; i++)
-      _gum_native_module_detach_resolver (g_ptr_array_index (modules, i));
-    g_ptr_array_unref (modules);
-    self->modules = NULL;
-  }
+  if (self->load_data_destroy != NULL)
+    self->load_data_destroy (self->load_data);
+  self->load_func = NULL;
+  self->load_data = NULL;
+  self->load_data_destroy = NULL;
 
   G_OBJECT_CLASS (gum_darwin_module_resolver_parent_class)->dispose (object);
 }
@@ -105,6 +104,8 @@ gum_darwin_module_resolver_finalize (GObject * object)
   GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (object);
 
   g_free (self->sysroot);
+
+  g_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_darwin_module_resolver_parent_class)->finalize (object);
 }
@@ -154,6 +155,33 @@ gum_darwin_module_resolver_new (mach_port_t task,
   resolver = g_object_new (GUM_DARWIN_TYPE_MODULE_RESOLVER,
       "task", task,
       NULL);
+
+  if (!gum_darwin_module_resolver_load (resolver, error))
+  {
+    g_object_unref (resolver);
+    resolver = NULL;
+  }
+
+  return resolver;
+}
+
+GumDarwinModuleResolver *
+gum_darwin_module_resolver_new_with_loader (
+    mach_port_t task,
+    GumDarwinModuleResolverLoadFunc func,
+    gpointer data,
+    GDestroyNotify data_destroy,
+    GError ** error)
+{
+  GumDarwinModuleResolver * resolver;
+
+  resolver = g_object_new (GUM_DARWIN_TYPE_MODULE_RESOLVER,
+      "task", task,
+      NULL);
+  resolver->load_func = func;
+  resolver->load_data = data;
+  resolver->load_data_destroy = data_destroy;
+
   if (!gum_darwin_module_resolver_load (resolver, error))
   {
     g_object_unref (resolver);
@@ -170,11 +198,11 @@ gum_darwin_module_resolver_load (GumDarwinModuleResolver * self,
   gboolean success = FALSE;
   GumCollectModulesContext ctx;
   int pid;
-  guint i;
-  gsize sysroot_length;
 
-  if (self->modules->len != 0)
-    return TRUE;
+  GUM_DARWIN_MODULE_RESOLVER_LOCK (self);
+
+  if (self->state != GUM_DARWIN_MODULE_RESOLVER_CREATED)
+    goto beach;
 
   ctx.resolver = self;
   ctx.modules = g_ptr_array_new_full (64, g_object_unref);
@@ -191,49 +219,18 @@ gum_darwin_module_resolver_load (GumDarwinModuleResolver * self,
   if (!gum_darwin_cpu_type_from_pid (pid, &self->cpu_type))
     goto invalid_task;
 
-  gum_collect_modules (&ctx);
-  if (ctx.modules->len == 0)
-    goto invalid_task;
-
-  sysroot_length = 0;
-  for (i = 0; i != ctx.modules->len; i++)
+  if (self->load_func == NULL)
   {
-    GumModule * module;
-    const gchar * path;
+    gum_collect_modules (&ctx);
+    if (ctx.modules->len == 0)
+      goto invalid_task;
 
-    module = g_ptr_array_index (ctx.modules, i);
-    path = gum_module_get_path (module);
-
-    if (g_str_has_suffix (path, "/usr/lib/dyld_sim"))
-    {
-      sysroot_length = strlen (path) - 17;
-      self->sysroot = g_strndup (path, sysroot_length);
-      break;
-    }
+    self->load_func = (GumDarwinModuleResolverLoadFunc) g_ptr_array_ref;
+    self->load_data = g_ptr_array_ref (ctx.modules);
+    self->load_data_destroy = (GDestroyNotify) g_ptr_array_unref;
   }
 
-  for (i = 0; i != ctx.modules->len; i++)
-  {
-    GumModule * module;
-    const gchar * path;
-
-    module = g_ptr_array_index (ctx.modules, i);
-    g_ptr_array_add (self->modules, g_object_ref (module));
-
-    path = gum_module_get_path (module);
-
-    g_hash_table_insert (self->module_by_name,
-        g_strdup (gum_module_get_name (module)), module);
-    g_hash_table_insert (self->module_by_name, g_strdup (path), module);
-    if (self->sysroot != NULL && g_str_has_prefix (path, self->sysroot))
-    {
-      g_hash_table_insert (self->module_by_name,
-          g_strdup (path + sysroot_length), module);
-    }
-  }
-
-  g_ptr_array_sort (self->modules,
-      (GCompareFunc) gum_darwin_module_compare_base);
+  self->state = GUM_DARWIN_MODULE_RESOLVER_LOADED;
 
   success = TRUE;
   goto beach;
@@ -247,6 +244,8 @@ invalid_task:
 beach:
   {
     g_ptr_array_unref (ctx.modules);
+
+    GUM_DARWIN_MODULE_RESOLVER_UNLOCK (self);
 
     return success;
   }
@@ -267,29 +266,120 @@ gum_darwin_module_resolver_set_dynamic_lookup_handler (
   self->lookup_dynamic_data_destroy = data_destroy;
 }
 
+void
+gum_darwin_module_resolver_fetch_modules (GumDarwinModuleResolver * self,
+                                          GPtrArray ** sorted_modules,
+                                          GHashTable ** module_by_name)
+{
+  GPtrArray * latest;
+
+  latest = self->load_func (self->load_data);
+
+  GUM_DARWIN_MODULE_RESOLVER_LOCK (self);
+
+  if (latest == self->last_modules)
+  {
+    g_ptr_array_unref (latest);
+  }
+  else
+  {
+    gum_darwin_module_resolver_rebuild_indexes (self, latest);
+    g_clear_pointer (&self->last_modules, g_ptr_array_unref);
+    self->last_modules = latest;
+  }
+
+  if (sorted_modules != NULL)
+    *sorted_modules = g_ptr_array_ref (self->sorted_modules);
+
+  if (module_by_name != NULL)
+    *module_by_name = g_hash_table_ref (self->module_by_name);
+
+  GUM_DARWIN_MODULE_RESOLVER_UNLOCK (self);
+}
+
+static void
+gum_darwin_module_resolver_rebuild_indexes (GumDarwinModuleResolver * self,
+                                            GPtrArray * latest_modules)
+{
+  GPtrArray * sorted;
+  GHashTable * by_name;
+  gsize sysroot_length;
+  guint i;
+
+  sorted = g_ptr_array_new_full (latest_modules->len, g_object_unref);
+  by_name = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+
+  sysroot_length = 0;
+  for (i = 0; i != latest_modules->len; i++)
+  {
+    GumModule * mod;
+    const gchar * path;
+
+    mod = g_ptr_array_index (latest_modules, i);
+    path = gum_module_get_path (mod);
+
+    if (g_str_has_suffix (path, "/usr/lib/dyld_sim"))
+    {
+      sysroot_length = strlen (path) - 17;
+      g_free (self->sysroot);
+      self->sysroot = g_strndup (path, sysroot_length);
+      break;
+    }
+  }
+
+  for (i = 0; i != latest_modules->len; i++)
+  {
+    GumModule * mod;
+    const gchar * path;
+
+    mod = g_ptr_array_index (latest_modules, i);
+    g_ptr_array_add (sorted, g_object_ref (mod));
+
+    path = gum_module_get_path (mod);
+
+    g_hash_table_insert (by_name, g_strdup (gum_module_get_name (mod)), mod);
+    g_hash_table_insert (by_name, g_strdup (path), mod);
+    if (self->sysroot != NULL && g_str_has_prefix (path, self->sysroot))
+      g_hash_table_insert (by_name, g_strdup (path + sysroot_length), mod);
+  }
+
+  g_ptr_array_sort (sorted, (GCompareFunc) gum_darwin_module_compare_base);
+
+  g_clear_pointer (&self->sorted_modules, g_ptr_array_unref);
+  self->sorted_modules = sorted;
+
+  g_clear_pointer (&self->module_by_name, g_hash_table_unref);
+  self->module_by_name = by_name;
+}
+
 GumDarwinModule *
 gum_darwin_module_resolver_find_module_by_name (GumDarwinModuleResolver * self,
                                                 const gchar * name)
 {
+  GumDarwinModule * result;
+  GHashTable * module_by_name;
   GumNativeModule * module;
 
-  module = g_hash_table_lookup (self->module_by_name, name);
-  if (module != NULL)
-    return _gum_native_module_get_darwin_module (module);
+  gum_darwin_module_resolver_fetch_modules (self, NULL, &module_by_name);
 
-  if (g_str_has_prefix (name, "/usr/lib/system/"))
+  module = g_hash_table_lookup (module_by_name, name);
+  if (module == NULL && g_str_has_prefix (name, "/usr/lib/system/"))
   {
     gchar * alias =
         g_strconcat ("/usr/lib/system/introspection/", name + 16, NULL);
 
-    module = g_hash_table_lookup (self->module_by_name, alias);
+    module = g_hash_table_lookup (module_by_name, alias);
 
     g_free (alias);
   }
 
-  return (module != NULL)
-      ? _gum_native_module_get_darwin_module (module)
+  result = (module != NULL)
+      ? g_object_ref (_gum_native_module_get_darwin_module (module))
       : NULL;
+
+  g_hash_table_unref (module_by_name);
+
+  return result;
 }
 
 GumDarwinModule *
@@ -297,17 +387,23 @@ gum_darwin_module_resolver_find_module_by_address (
     GumDarwinModuleResolver * self,
     GumAddress address)
 {
-  GumDarwinModule ** entry;
+  GumDarwinModule * result;
+  GPtrArray * modules;
   GumAddress bare_address;
+  GumDarwinModule ** entry;
+
+  gum_darwin_module_resolver_fetch_modules (self, &modules, NULL);
+  g_ptr_array_unref (modules);
 
   bare_address = gum_strip_code_address (address);
 
-  entry = bsearch (&bare_address, self->modules->pdata, self->modules->len,
+  entry = bsearch (&bare_address, modules->pdata, modules->len,
       sizeof (GumModule *), (GCompareFunc) gum_darwin_module_compare_to_key);
-  if (entry == NULL)
-    return NULL;
+  result = (entry != NULL) ? g_object_ref (*entry) : NULL;
 
-  return *entry;
+  g_ptr_array_unref (modules);
+
+  return result;
 }
 
 gboolean
@@ -372,6 +468,8 @@ gum_darwin_module_resolver_find_export_by_mangled_name (
         found = gum_darwin_module_resolve_export (reexport, symbol, &d);
         if (found)
           m = reexport;
+
+        g_object_unref (reexport);
       }
     }
 
@@ -397,7 +495,7 @@ gum_darwin_module_resolver_resolve_export (
   {
     const gchar * target_module_name;
     GumDarwinModule * target_module;
-    gboolean is_reexporting_itself;
+    gboolean is_reexporting_itself, success;
 
     target_module_name = gum_darwin_module_get_dependency_by_ordinal (module,
         export->reexport_library_ordinal);
@@ -415,11 +513,17 @@ gum_darwin_module_resolver_resolve_export (
        * beta 4, and seems like a bug given that dlsym() crashes with a
        * stack-overflow when asked to resolve these.
        */
-      return FALSE;
+      success = FALSE;
+    }
+    else
+    {
+      success = gum_darwin_module_resolver_find_export_by_mangled_name (self,
+          target_module, export->reexport_symbol, result);
     }
 
-    return gum_darwin_module_resolver_find_export_by_mangled_name (self,
-        target_module, export->reexport_symbol, result);
+    g_object_unref (target_module);
+
+    return success;
   }
 
   result->name = gum_symbol_name_from_darwin (export->name);

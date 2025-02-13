@@ -363,6 +363,7 @@ gum_darwin_mapper_constructed (GObject * object)
       self->pthread_key_delete =
           gum_darwin_module_resolver_find_export_address (self->resolver,
               pthread, "pthread_key_delete");
+      g_object_unref (pthread);
     }
   }
 
@@ -796,6 +797,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
         "libdyld.dylib");
     ctx.success = FALSE;
     gum_darwin_module_enumerate_sections (libdyld, gum_find_tlv_get_addr, &ctx);
+    g_object_unref (libdyld);
     if (!ctx.success)
       goto unsupported_dyld_version;
 
@@ -2211,7 +2213,10 @@ gum_darwin_mapper_get_dependency_by_name (GumDarwinMapper * self,
     GumDarwinModule * module =
         gum_darwin_module_resolver_find_module_by_name (resolver, name);
     if (module != NULL)
+    {
       mapping = gum_darwin_mapper_add_existing_mapping (self, module);
+      g_object_unref (module);
+    }
   }
 
   if (mapping == NULL)
@@ -2371,6 +2376,7 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
     {
       value->address = 0;
     }
+    g_clear_object (&local_module);
 
 #ifdef HAVE_ARM64
     if (value->address != 0)

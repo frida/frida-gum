@@ -1151,6 +1151,7 @@ TESTCASE (darwin_module_resolver_should_resolve_chkstk)
   g_assert_true (gum_darwin_module_resolver_find_export_by_mangled_name (
       resolver, libsystem, "____chkstk_darwin", &chkstk));
 
+  g_object_unref (libsystem);
   g_object_unref (resolver);
 }
 

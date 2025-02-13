@@ -7,6 +7,7 @@ core_sources = [
   'cloak.c',
   'memory.c',
   'process.c',
+  'moduleregistry.c',
   'symbolutil.c',
   'apiresolver.c',
   'backtracer.c',
