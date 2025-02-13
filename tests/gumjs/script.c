@@ -224,6 +224,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_threads_have_names)
     TESTENTRY (process_modules_can_be_enumerated)
     TESTENTRY (process_modules_can_be_enumerated_legacy_style)
+    TESTENTRY (process_modules_can_be_observed)
     TESTENTRY (process_module_can_be_looked_up_from_address)
     TESTENTRY (process_module_can_be_looked_up_from_name)
     TESTENTRY (process_ranges_can_be_enumerated)
@@ -5232,6 +5233,21 @@ TESTCASE (process_modules_can_be_enumerated_legacy_style)
 
   COMPILE_AND_LOAD_SCRIPT ("send(Process.enumerateModulesSync().length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (process_modules_can_be_observed)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "let addsObserved = 0;"
+      "const observer = Process.attachModuleObserver({"
+      "  onAdded(module) {"
+      "    addsObserved++;"
+      "  }"
+      "});"
+      "send(addsObserved === Process.enumerateModules().length);"
+      "observer.detach();");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
 }
 
 TESTCASE (process_module_can_be_looked_up_from_address)
