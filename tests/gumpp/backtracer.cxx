@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2011-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,7 +19,7 @@ TESTLIST_BEGIN (gumpp_backtracer)
   TESTENTRY (can_get_stack_trace_from_invocation_context)
 TESTLIST_END ()
 
-gpointer gumpp_test_target_function (GString * str);
+static gpointer gumpp_test_target_function (GString * str);
 
 class BacktraceTestListener : public Gum::InvocationListener
 {
@@ -86,7 +86,7 @@ TESTCASE (can_get_stack_trace_from_invocation_context)
   interceptor->detach (&listener);
 }
 
-gpointer GUM_NOINLINE
+GUM_HOOK_TARGET static gpointer
 gumpp_test_target_function (GString * str)
 {
   g_string_append_c (str, '|');

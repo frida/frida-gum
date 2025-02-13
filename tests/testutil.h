@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2009 Haakon Sporsheim <haakon.sporsheim@gmail.com>
  *
@@ -88,6 +88,13 @@
 #else
 # define TRICKY_MODULE_NAME SYSTEM_MODULE_NAME
 # define TRICKY_MODULE_EXPORT SYSTEM_MODULE_EXPORT
+#endif
+
+#ifdef HAVE_DARWIN
+# define GUM_HOOK_TARGET GUM_NOINLINE \
+    __attribute__ ((section ("__TEXT,__hook_targets"), aligned (16384)))
+#else
+# define GUM_HOOK_TARGET GUM_NOINLINE
 #endif
 
 G_BEGIN_DECLS

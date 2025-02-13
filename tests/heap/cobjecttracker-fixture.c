@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,13 +21,13 @@
 
 typedef struct _MyObject MyObject;
 
-GUM_NOINLINE static MyObject *
+GUM_HOOK_TARGET static MyObject *
 my_object_new (void)
 {
   return (MyObject *) malloc (1);
 }
 
-GUM_NOINLINE static void
+GUM_HOOK_TARGET static void
 my_object_free (MyObject * obj)
 {
   free (obj);

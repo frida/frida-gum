@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -194,25 +194,23 @@ assert_same_xml (TestProfileReportFixture * fixture,
  * Guinea pig functions:
  */
 
-static void GUM_NOINLINE example_b (GumFakeSampler * sampler);
-static void GUM_NOINLINE example_c (GumFakeSampler * sampler);
-static void GUM_NOINLINE example_f (GumFakeSampler * sampler);
-static void GUM_NOINLINE example_g (GumFakeSampler * sampler);
-static void GUM_NOINLINE example_cyclic_b (GumFakeSampler * sampler,
-    gint flag);
+static void example_b (GumFakeSampler * sampler);
+static void example_c (GumFakeSampler * sampler);
+static void example_f (GumFakeSampler * sampler);
+static void example_g (GumFakeSampler * sampler);
+static void example_cyclic_b (GumFakeSampler * sampler, gint flag);
 static void deep_recursive_caller (gint count);
-static void GUM_NOINLINE example_b_dynamic (GumFakeSampler * sampler,
-    guint cost);
+static void example_b_dynamic (GumFakeSampler * sampler, guint cost);
 
 gint dummy_variable_to_trick_optimizer = 0;
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 sleepy_function (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 1000);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_a (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 2);
@@ -220,46 +218,46 @@ example_a (GumFakeSampler * sampler)
   example_b (sampler);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_b (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 3);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_c (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 4);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_d (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 7);
   example_c (sampler);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_e (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 3);
   example_f (sampler);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_f (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 4);
   example_g (sampler);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_g (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 5);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_cyclic_a (GumFakeSampler * sampler,
                   gint flag)
 {
@@ -269,7 +267,7 @@ example_cyclic_a (GumFakeSampler * sampler,
     example_cyclic_b (sampler, 0);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_cyclic_b (GumFakeSampler * sampler,
                   gint flag)
 {
@@ -284,19 +282,19 @@ exclude_simple_stdcall_50 (const gchar * match,
   return strcmp (match, "simple_stdcall_50") != 0;
 }
 
-static void GUM_NOINLINE GUM_CDECL
+GUM_HOOK_TARGET GUM_CDECL static void
 simple_cdecl_42 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 42);
 }
 
-static void GUM_NOINLINE GUM_STDCALL
+GUM_HOOK_TARGET GUM_STDCALL static void
 simple_stdcall_48 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 48);
 }
 
-static void GUM_NOINLINE GUM_STDCALL
+GUM_HOOK_TARGET GUM_STDCALL static void
 simple_stdcall_50 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 50);
@@ -356,7 +354,7 @@ spin_for_one_tenth_second (void)
   g_timer_destroy (timer);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_a_calls_b_thrice (GumFakeSampler * sampler)
 {
   example_b_dynamic (sampler, 1);
@@ -364,14 +362,14 @@ example_a_calls_b_thrice (GumFakeSampler * sampler)
   example_b_dynamic (sampler, 2);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_b_dynamic (GumFakeSampler * sampler,
                    guint cost)
 {
   gum_fake_sampler_advance (sampler, cost);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_worst_case_info (GumFakeSampler * sampler,
                          const gchar * magic,
                          GumSample cost)
@@ -379,7 +377,7 @@ example_worst_case_info (GumFakeSampler * sampler,
   gum_fake_sampler_advance (sampler, cost);
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 example_worst_case_recursive (gint count,
                               GumFakeSampler * sampler)
 {
@@ -427,7 +425,7 @@ inspect_recursive_worst_case_info (GumInvocationContext * context,
 /* These three should be kept in this order to increase the likelihood of
  * function addresses being non-consecutive... */
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 simple_2 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 2);
@@ -435,7 +433,7 @@ simple_2 (GumFakeSampler * sampler)
   dummy_variable_to_trick_optimizer += 2;
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 simple_1 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 1);
@@ -443,7 +441,7 @@ simple_1 (GumFakeSampler * sampler)
   dummy_variable_to_trick_optimizer += 1;
 }
 
-static void GUM_NOINLINE
+GUM_HOOK_TARGET static void
 simple_3 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 3);
