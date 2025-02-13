@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -339,70 +339,69 @@ gum_emit_import (const GumImportDetails * details,
                  gpointer user_data)
 {
   GumEnumerateImportsContext * ctx = user_data;
+  gboolean carry_on;
   GumImportDetails d;
+  GumDarwinModule * module = NULL;
 
   d.type = GUM_IMPORT_UNKNOWN;
   d.name = gum_symbol_name_from_darwin (details->name);
   d.module = details->module;
-  d.address = 0;
+  d.address = details->address;
   d.slot = details->slot;
 
-  if (d.module == NULL)
+  if (d.module != NULL)
   {
-    if (details->address != 0)
-      d.address = details->address;
-    else
+    module = gum_darwin_module_resolver_find_module_by_name (ctx->resolver,
+        d.module);
+  }
+  else
+  {
+    const gboolean inprocess = ctx->resolver->task == mach_task_self ();
+
+    if (d.address == 0 && inprocess)
       d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, d.name));
 
     if (d.address != 0)
     {
-      GumDarwinModule * module;
       Dl_info info;
 
       module = gum_darwin_module_resolver_find_module_by_address (ctx->resolver,
           d.address);
       if (module != NULL)
-      {
         d.module = module->name;
-      }
-      else if (ctx->resolver->task == mach_task_self () &&
-          dladdr (GSIZE_TO_POINTER (d.address), &info) != 0)
-      {
+      else if (inprocess && dladdr (GSIZE_TO_POINTER (d.address), &info))
         d.module = info.dli_fname;
-      }
     }
   }
 
-  if (d.module != NULL)
+  if (module != NULL)
   {
-    GumDarwinModule * module;
     GumExportDetails exp;
 
-    module = gum_darwin_module_resolver_find_module_by_name (ctx->resolver,
-        d.module);
-    if (module != NULL)
+    if (gum_darwin_module_resolver_find_export_by_mangled_name (ctx->resolver,
+        module, details->name, &exp))
     {
-      if (gum_darwin_module_resolver_find_export_by_mangled_name (ctx->resolver,
-          module, details->name, &exp))
+      switch (exp.type)
       {
-        switch (exp.type)
-        {
-          case GUM_EXPORT_FUNCTION:
-            d.type = GUM_IMPORT_FUNCTION;
-            break;
-          case GUM_EXPORT_VARIABLE:
-            d.type = GUM_IMPORT_VARIABLE;
-            break;
-          default:
-            g_assert_not_reached ();
-        }
-
-        d.address = exp.address;
+        case GUM_EXPORT_FUNCTION:
+          d.type = GUM_IMPORT_FUNCTION;
+          break;
+        case GUM_EXPORT_VARIABLE:
+          d.type = GUM_IMPORT_VARIABLE;
+          break;
+        default:
+          g_assert_not_reached ();
       }
+
+      d.address = exp.address;
     }
   }
 
-  return ctx->func (&d, ctx->user_data);
+  carry_on = ctx->func (&d, ctx->user_data);
+
+  g_clear_object (&module);
+
+  return carry_on;
 }
 
 static GumAddress
@@ -423,13 +422,16 @@ gum_resolve_export (const char * module_name,
       module_name);
   if (module != NULL)
   {
+    gboolean found;
     GumExportDetails exp;
 
-    if (gum_darwin_module_resolver_find_export_by_mangled_name (ctx->resolver,
-        module, symbol_name, &exp))
-    {
+    found = gum_darwin_module_resolver_find_export_by_mangled_name (
+        ctx->resolver, module, symbol_name, &exp);
+
+    g_object_unref (module);
+
+    if (found)
       return exp.address;
-    }
   }
 
   return 0;
@@ -473,6 +475,8 @@ gum_native_module_enumerate_exports (GumModule * module,
         {
           ctx.module = reexport;
           gum_darwin_module_enumerate_exports (reexport, gum_emit_export, &ctx);
+
+          g_object_unref (reexport);
         }
       }
     }

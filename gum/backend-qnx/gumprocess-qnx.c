@@ -8,63 +8,25 @@
 #include "gumprocess-priv.h"
 
 #include "gum-init.h"
-#include "gummodule-elf.h"
 #include "gum/gumqnx.h"
 #include "gumqnx-priv.h"
 
 #include <devctl.h>
 #include <dlfcn.h>
 #include <fcntl.h>
-#include <sys/link.h>
+#include <sys/elf.h>
 #include <sys/neutrino.h>
 #include <sys/procfs.h>
 #include <ucontext.h>
 
-#define GUM_QNX_MODULE_FLAG_EXECUTABLE 0x00000200
-
 #define GUM_PSR_THUMB 0x20
-
-typedef struct _GumQnxListHead GumQnxListHead;
-typedef struct _GumQnxModuleList GumQnxModuleList;
-typedef struct _GumQnxModule GumQnxModule;
-
-struct _GumQnxListHead
-{
-  GumQnxListHead * next;
-  GumQnxListHead * prev;
-};
-
-struct _GumQnxModuleList
-{
-  GumQnxListHead list;
-  GumQnxModule * module;
-  GumQnxListHead * root;
-  guint flags;
-};
-
-struct _GumQnxModule
-{
-  Link_map map;
-  gint ref_count;
-  guint flags;
-  const gchar * name;
-  /* ... */
-};
 
 static void gum_deinit_libc_module (void);
 
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
-static gpointer gum_create_module_handle (GumNativeModule * module,
-    gpointer user_data);
 static void gum_enumerate_ranges_of (const gchar * device_path,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
-
-static gboolean gum_maybe_resolve_program_module (const gchar * name,
-    gchar ** path, GumAddress * base);
-static gboolean gum_module_path_equals (const gchar * path,
-    const gchar * name_or_path);
-static gchar * gum_resolve_path (const gchar * path);
 
 static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
     GumCpuContext * ctx);
@@ -283,74 +245,6 @@ _gum_process_collect_main_module (GumModule * module,
   *out = g_object_ref (module);
 
   return FALSE;
-}
-
-void
-_gum_process_enumerate_modules (GumFoundModuleFunc func,
-                                gpointer user_data)
-{
-  GumQnxListHead * handle;
-  GumQnxListHead * cur;
-  gboolean carry_on = TRUE;
-
-  handle = dlopen (NULL, RTLD_NOW);
-
-  for (cur = handle->next; carry_on && cur != handle; cur = cur->next)
-  {
-    const GumQnxModuleList * l = (GumQnxModuleList *) cur;
-    const GumQnxModule * mod = l->module;
-    const Link_map * map = &mod->map;
-    gchar * resolved_path;
-    const gchar * path;
-    GumMemoryRange range;
-    const Elf32_Ehdr * ehdr;
-    const Elf32_Phdr * phdr;
-    guint i;
-    GumNativeModule * module;
-
-    if ((mod->flags & GUM_QNX_MODULE_FLAG_EXECUTABLE) != 0)
-    {
-      resolved_path = gum_qnx_query_program_path_for_self (NULL);
-      g_assert (resolved_path != NULL);
-
-      path = resolved_path;
-    }
-    else
-    {
-      resolved_path = gum_resolve_path (map->l_path);
-
-      path = resolved_path;
-    }
-
-    range.base_address = map->l_addr;
-    range.size = 0;
-    ehdr = GSIZE_TO_POINTER (map->l_addr);
-    phdr = (gconstpointer) ehdr + ehdr->e_ehsize;
-    for (i = 0; i != ehdr->e_phnum; i++)
-    {
-      const Elf32_Phdr * h = &phdr[i];
-      if (h->p_type == PT_LOAD)
-        range.size += h->p_memsz;
-    }
-
-    module = _gum_native_module_make (path, &range, gum_create_module_handle,
-        NULL, NULL, (GDestroyNotify) dlclose);
-
-    carry_on = func (GUM_MODULE (module), user_data);
-
-    g_object_unref (module);
-
-    g_free (resolved_path);
-  }
-
-  dlclose (handle);
-}
-
-static gpointer
-gum_create_module_handle (GumNativeModule * module,
-                          gpointer user_data)
-{
-  return dlopen (module->path, RTLD_LAZY | RTLD_NOLOAD);
 }
 
 void
@@ -725,106 +619,6 @@ beach:
 
     return program_path;
   }
-}
-
-gboolean
-_gum_process_resolve_module_name (const gchar * name,
-                                  gchar ** path,
-                                  GumAddress * base)
-{
-  GumQnxListHead * handle;
-  const GumQnxModule * module;
-
-  handle = dlopen (name, RTLD_LAZY | RTLD_NOLOAD);
-  if (handle == NULL)
-    return gum_maybe_resolve_program_module (name, path, base);
-
-  module = ((GumQnxModuleList *) handle->next->next)->module;
-
-  if (path != NULL)
-    *path = gum_resolve_path (module->map.l_path);
-
-  if (base != NULL)
-    *base = module->map.l_addr;
-
-  dlclose (handle);
-
-  return TRUE;
-}
-
-static gboolean
-gum_maybe_resolve_program_module (const gchar * name,
-                                  gchar ** path,
-                                  GumAddress * base)
-{
-  gchar * program_path;
-
-  program_path = gum_qnx_query_program_path_for_self (NULL);
-  g_assert (program_path != NULL);
-
-  if (!gum_module_path_equals (program_path, name))
-    goto not_the_program;
-
-  if (path != NULL)
-    *path = g_steal_pointer (&program_path);
-
-  if (base != NULL)
-  {
-    GumQnxListHead * handle;
-    const GumQnxModule * program;
-
-    handle = dlopen (NULL, RTLD_NOW);
-
-    program = ((GumQnxModuleList *) handle->next)->module;
-    *base = program->map.l_addr;
-
-    dlclose (handle);
-  }
-
-  g_free (program_path);
-
-  return TRUE;
-
-not_the_program:
-  {
-    g_free (program_path);
-
-    return FALSE;
-  }
-}
-
-static gboolean
-gum_module_path_equals (const gchar * path,
-                        const gchar * name_or_path)
-{
-  gchar * s;
-
-  if (name_or_path[0] == '/')
-    return strcmp (name_or_path, path) == 0;
-
-  if ((s = strrchr (path, '/')) != NULL)
-    return strcmp (name_or_path, s + 1) == 0;
-
-  return strcmp (name_or_path, path) == 0;
-}
-
-static gchar *
-gum_resolve_path (const gchar * path)
-{
-  gchar * target, * parent_dir, * canonical_path;
-
-  target = g_file_read_link (path, NULL);
-  if (target == NULL)
-    return g_strdup (path);
-
-  parent_dir = g_path_get_dirname (path);
-
-  canonical_path = g_canonicalize_filename (target, parent_dir);
-
-  g_free (parent_dir);
-  g_free (target);
-
-  return canonical_path;
 }
 
 static void

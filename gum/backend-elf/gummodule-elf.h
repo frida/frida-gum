@@ -31,7 +31,7 @@ struct _GumNativeModule
   GDestroyNotify create_handle_data_destroy;
   GDestroyNotify destroy_handle;
 
-  GMutex mutex;
+  GRecMutex mutex;
 
   gpointer cached_handle;
   gboolean attempted_handle_creation;

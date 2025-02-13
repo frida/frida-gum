@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -9,7 +9,7 @@
 
 #include "gum-init.h"
 #include "gumcloak.h"
-#include "gummodule.h"
+#include "gummoduleregistry.h"
 
 #ifndef HAVE_WINDOWS
 # define GUM_OS_LACKS_MODULE_LOOKUP_APIS 1
@@ -20,7 +20,6 @@ typedef struct _GumEmitThreadsContext GumEmitThreadsContext;
 typedef struct _GumFindModuleByNameContext GumFindModuleByNameContext;
 typedef struct _GumFindModuleByAddressContext GumFindModuleByAddressContext;
 #endif
-typedef struct _GumEmitModulesContext GumEmitModulesContext;
 typedef struct _GumEmitRangesContext GumEmitRangesContext;
 
 struct _GumEmitThreadsContext
@@ -43,12 +42,6 @@ struct _GumFindModuleByAddressContext
 };
 #endif
 
-struct _GumEmitModulesContext
-{
-  GumFoundModuleFunc func;
-  gpointer user_data;
-};
-
 struct _GumEmitRangesContext
 {
   GumFoundRangeFunc func;
@@ -66,8 +59,6 @@ static gboolean gum_try_resolve_module_by_path (GumModule * module,
 static gboolean gum_try_resolve_module_by_address (GumModule * module,
     gpointer user_data);
 #endif
-static gboolean gum_emit_module_if_not_cloaked (GumModule * module,
-    gpointer user_data);
 static gboolean gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
     gpointer user_data);
 
@@ -303,36 +294,18 @@ gum_try_resolve_module_by_address (GumModule * module,
 
 /**
  * gum_process_enumerate_modules:
- * @func: (scope call): function called with #GumModuleDetails
+ * @func: (scope call): function called with #GumModule
  * @user_data: data to pass to @func
  *
- * Enumerates modules loaded right now, calling @func with #GumModuleDetails
- * about each module found.
+ * Enumerates modules loaded right now, calling @func with each #GumModule
+ * found.
  */
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
-  GumEmitModulesContext ctx;
-
-  ctx.func = func;
-  ctx.user_data = user_data;
-  _gum_process_enumerate_modules (gum_emit_module_if_not_cloaked, &ctx);
-}
-
-static gboolean
-gum_emit_module_if_not_cloaked (GumModule * module,
-                                gpointer user_data)
-{
-  GumEmitModulesContext * ctx = user_data;
-  const GumMemoryRange * range;
-
-  range = gum_module_get_range (module);
-
-  if (gum_cloak_has_range_containing (range->base_address))
-    return TRUE;
-
-  return ctx->func (module, ctx->user_data);
+  gum_module_registry_enumerate_modules (gum_module_registry_obtain (), func,
+      user_data);
 }
 
 /**

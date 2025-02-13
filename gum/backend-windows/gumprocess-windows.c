@@ -93,9 +93,9 @@ gum_process_find_module_by_name (const gchar * name)
   HMODULE handle;
 
   wide_name = g_utf8_to_utf16 (name, -1, NULL, NULL, NULL);
-  found = GetModuleHandleExW (0, (LPCWSTR) wide_name, &handle);
+  handle = GetModuleHandleW ((LPCWSTR) wide_name);
   g_free (wide_name);
-  if (!found)
+  if (handle == NULL)
     return NULL;
 
   return GUM_MODULE (_gum_native_module_make (handle));
@@ -106,9 +106,12 @@ gum_process_find_module_by_address (GumAddress address)
 {
   HMODULE handle;
 
-  if (!GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-      GSIZE_TO_POINTER (address), &handle))
+  if (!GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        GSIZE_TO_POINTER (address), &handle))
+  {
     return NULL;
+  }
 
   return GUM_MODULE (_gum_native_module_make (handle));
 }
@@ -364,51 +367,6 @@ _gum_process_collect_main_module (GumModule * module,
   *out = g_object_ref (module);
 
   return FALSE;
-}
-
-void
-_gum_process_enumerate_modules (GumFoundModuleFunc func,
-                                gpointer user_data)
-{
-  HANDLE this_process;
-  HMODULE first_module;
-  DWORD modules_size = 0;
-  HMODULE * modules = NULL;
-  guint mod_idx;
-
-  this_process = GetCurrentProcess ();
-
-  if (!EnumProcessModules (this_process, &first_module, sizeof (first_module),
-      &modules_size))
-    goto beach;
-
-  modules = g_malloc (modules_size);
-
-  if (!EnumProcessModules (this_process, modules, modules_size, &modules_size))
-    goto beach;
-
-  for (mod_idx = 0; mod_idx != modules_size / sizeof (HMODULE); mod_idx++)
-  {
-    HMODULE handle;
-    GumNativeModule * module;
-    gboolean carry_on;
-
-    if (!GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-          (LPCWSTR) modules[mod_idx], &handle))
-      continue;
-
-    module = _gum_native_module_make (handle);
-
-    carry_on = func (GUM_MODULE (module), user_data);
-
-    g_object_unref (module);
-
-    if (!carry_on)
-      break;
-  }
-
-beach:
-  g_free (modules);
 }
 
 void
