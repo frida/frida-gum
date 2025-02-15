@@ -1970,6 +1970,7 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
 {
   guint num_refs, ref_index;
   gpointer first_slot, last_slot;
+  GumArm64DataEndian data_endian;
 
   if (!gum_arm64_writer_has_literal_refs (self))
     return;
@@ -1981,11 +1982,12 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
   first_slot = self->code;
   last_slot = first_slot;
 
+  data_endian = self->data_endian;
+
   for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
     GumArm64LiteralRef * r;
-    gint64 * slot;
-    gint64 distance;
+    gint64 literal, * slot, distance;
     guint32 insn;
 
     r = gum_metal_array_element_at (&self->literal_refs, ref_index);
@@ -1993,31 +1995,22 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
     if (r->width != GUM_LITERAL_64BIT)
       continue;
 
+    literal = r->val;
+
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (self->data_endian == G_LITTLE_ENDIAN)
-      {
-        if (GINT64_FROM_LE (*slot) == r->val)
-          break;
-      }
-      else
-      {
-        if (GINT64_FROM_BE (*slot) == r->val)
-          break;
-      }
-
+      gint64 candidate = (data_endian == G_LITTLE_ENDIAN)
+          ? GINT64_FROM_LE (*slot)
+          : GINT64_FROM_BE (*slot);
+      if (candidate == literal)
+        break;
     }
 
     if (slot == last_slot)
     {
-      if (self->data_endian == G_LITTLE_ENDIAN)
-      {
-        *slot = GINT64_TO_LE (r->val);
-      }
-      else
-      {
-        *slot = GINT64_TO_BE (r->val);
-      }
+      *slot = (data_endian == G_LITTLE_ENDIAN)
+          ? GINT64_TO_LE (literal)
+          : GINT64_TO_BE (literal);
       last_slot = slot + 1;
     }
 
@@ -2032,7 +2025,7 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
   for (ref_index = 0; ref_index != num_refs; ref_index++)
   {
     GumArm64LiteralRef * r;
-    gint32 * slot;
+    gint32 literal, * slot;
     gint64 distance;
     guint32 insn;
 
@@ -2041,30 +2034,22 @@ gum_arm64_writer_commit_literals (GumArm64Writer * self)
     if (r->width != GUM_LITERAL_32BIT)
       continue;
 
+    literal = r->val;
+
     for (slot = first_slot; slot != last_slot; slot++)
     {
-      if (self->data_endian == G_LITTLE_ENDIAN)
-      {
-        if (GINT32_FROM_LE (*slot) == r->val)
-          break;
-      }
-      else
-      {
-        if (GINT32_FROM_BE (*slot) == r->val)
-          break;
-      }
+      gint32 candidate = (data_endian == G_LITTLE_ENDIAN)
+          ? GINT32_FROM_LE (*slot)
+          : GINT32_FROM_BE (*slot);
+      if (candidate == literal)
+        break;
     }
 
     if (slot == last_slot)
     {
-      if (self->data_endian == G_LITTLE_ENDIAN)
-      {
-        *slot = GINT32_TO_LE (r->val);
-      }
-      else
-      {
-        *slot = GINT32_TO_BE (r->val);
-      }
+      *slot = (data_endian == G_LITTLE_ENDIAN)
+          ? GINT32_TO_LE (literal)
+          : GINT32_TO_BE (literal);
       last_slot = slot + 1;
     }
 

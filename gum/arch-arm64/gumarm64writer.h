@@ -35,12 +35,12 @@ typedef struct _GumArm64Writer GumArm64Writer;
 typedef guint GumArm64IndexMode;
 
 /*
- * Valid values for this field are:
+ * Valid values:
  * - G_LITTLE_ENDIAN
  * - G_BIG_ENDIAN
  * - G_BYTE_ORDER (an alias for one of the above)
  */
-typedef guint GumArm64DataEndian;
+typedef int GumArm64DataEndian;
 
 struct _GumArm64Writer
 {

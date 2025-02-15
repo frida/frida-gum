@@ -124,6 +124,7 @@ typedef GumMipsCpuContext GumCpuContext;
  */
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN || \
     defined (__arm__) || \
+    defined (_M_ARM64) || \
     defined (__aarch64__)
 # define GUM_DEFAULT_CS_ENDIAN CS_MODE_LITTLE_ENDIAN
 #else
