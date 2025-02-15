@@ -8509,7 +8509,7 @@ TESTCASE (memory_can_be_allocated_with_byte_granularity)
   COMPILE_AND_LOAD_SCRIPT (
       "const p = Memory.alloc(5);"
       "send('p', p.readByteArray(5));");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "00 00 00 00 00");
 }
 
 TESTCASE (memory_can_be_allocated_with_page_granularity)
@@ -8526,7 +8526,7 @@ TESTCASE (memory_can_be_allocated_with_page_granularity)
   COMPILE_AND_LOAD_SCRIPT (
       "const p = Memory.alloc(5);"
       "send('p', p.readByteArray(5));");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA("\"p\"", "00 00 00 00 00");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "00 00 00 00 00");
 }
 
 TESTCASE (memory_can_be_allocated_near_address)
