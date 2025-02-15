@@ -26,6 +26,7 @@ TESTCASE (notify_on_read_access)
   ENABLE_MONITOR ();
 
   val = bytes[fixture->offset_in_first_page];
+  g_assert_cmpuint (d->thread_id, ==, gum_process_get_current_thread_id ());
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_READ);
   g_assert_true (d->from != NULL && d->from != d->address);
@@ -46,6 +47,17 @@ TESTCASE (notify_on_read_access)
   val = bytes[fixture->offset_in_second_page];
   g_assert_cmpuint (fixture->number_of_notifies, ==, 2);
   g_assert_cmpuint (val, ==, 0x37);
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->eip);
+  g_assert_true (d->context->esp != 0);
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->rip);
+  g_assert_true (d->context->rsp != 0);
+#else
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->pc);
+  g_assert_true (d->context->sp != 0);
+#endif
 }
 
 TESTCASE (notify_on_write_access)
@@ -59,6 +71,7 @@ TESTCASE (notify_on_write_access)
   ENABLE_MONITOR ();
 
   bytes[fixture->offset_in_first_page] = 0x14;
+  g_assert_cmpuint (d->thread_id, ==, gum_process_get_current_thread_id ());
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_WRITE);
   g_assert_true (d->from != NULL && d->from != d->address);
@@ -67,6 +80,17 @@ TESTCASE (notify_on_write_access)
   val = bytes[fixture->offset_in_first_page];
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpuint (val, ==, 0x14);
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->eip);
+  g_assert_true (d->context->esp != 0);
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->rip);
+  g_assert_true (d->context->rsp != 0);
+#else
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->pc);
+  g_assert_true (d->context->sp != 0);
+#endif
 }
 
 TESTCASE (notify_on_execute_access)
@@ -76,12 +100,24 @@ TESTCASE (notify_on_execute_access)
   ENABLE_MONITOR ();
 
   fixture->nop_function_in_third_page ();
+  g_assert_cmpuint (d->thread_id, ==, gum_process_get_current_thread_id ());
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_EXECUTE);
   g_assert_true (d->from != NULL && d->from == d->address);
 
   fixture->nop_function_in_third_page ();
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->eip);
+  g_assert_true (d->context->esp != 0);
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->rip);
+  g_assert_true (d->context->rsp != 0);
+#else
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->pc);
+  g_assert_true (d->context->sp != 0);
+#endif
 }
 
 TESTCASE (notify_should_include_progress)

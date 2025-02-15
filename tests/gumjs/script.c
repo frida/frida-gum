@@ -204,6 +204,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (memory_scan_handles_bad_arguments)
     TESTENTRY (memory_access_can_be_monitored)
     TESTENTRY (memory_access_can_be_monitored_one_range)
+    TESTENTRY (memory_access_monitor_provides_thread_id)
+    TESTENTRY (memory_access_monitor_provides_cpu_context)
+    TESTENTRY (memory_access_monitor_cpu_context_can_be_modified)
   TESTGROUP_END ()
 
   TESTENTRY (frida_version_is_available)
@@ -642,6 +645,8 @@ static int target_function_int_replacement (int arg);
 static void measure_target_function_int_overhead (void);
 static int compare_measurements (gconstpointer element_a,
     gconstpointer element_b);
+
+static void put_return_instruction (gpointer mem, gpointer user_data);
 
 static gboolean check_exception_handling_testable (void);
 
@@ -8456,6 +8461,129 @@ TESTCASE (memory_access_can_be_monitored_one_range)
       "0,0,1,1]", GPOINTER_TO_SIZE (a + page_size));
 
   gum_free_pages ((gpointer) a);
+}
+
+TESTCASE (memory_access_monitor_provides_thread_id)
+{
+  volatile guint8 * a;
+  guint page_size;
+
+  if (!check_exception_handling_testable ())
+    return;
+
+  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+          "send([details.threadId]);"
+        "}"
+      "});",
+      a, page_size);
+  EXPECT_NO_MESSAGES ();
+
+  a[0] = 1;
+  EXPECT_SEND_MESSAGE_WITH ("[%" G_GSIZE_MODIFIER "u]",
+      gum_process_get_current_thread_id ());
+
+  gum_free_pages ((gpointer) a);
+}
+
+TESTCASE (memory_access_monitor_provides_cpu_context)
+{
+  volatile guint8 * a;
+  guint page_size;
+
+  if (!check_exception_handling_testable ())
+    return;
+
+  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+          "send([details.context.pc.equals(details.from),"
+            "details.context.sp.isNull()]);"
+        "}"
+      "});",
+      a, page_size);
+  EXPECT_NO_MESSAGES ();
+
+  a[0] = 1;
+  EXPECT_SEND_MESSAGE_WITH ("[true,false]");
+
+  gum_free_pages ((gpointer) a);
+}
+
+TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
+{
+  volatile guint8 * a;
+  guint page_size;
+  gsize (* func) (void);
+  gchar * set_return_value_code;
+  const gsize expected_ret = 0xdeadface;
+  gsize ret;
+
+  if (!check_exception_handling_testable ())
+    return;
+
+  a = gum_alloc_n_pages (1, GUM_PAGE_RX);
+  page_size = gum_query_page_size ();
+
+  gum_memory_patch_code ((gpointer) a, 4, put_return_instruction, NULL);
+  func = (gsize (*) (void)) gum_sign_code_pointer ((gpointer) a);
+
+  set_return_value_code = g_strdup_printf (
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+      "details.context.eax = " GUM_PTR_CONST ";"
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+      "details.context.rax = " GUM_PTR_CONST ";"
+#elif defined (HAVE_ARM)
+      "details.context.r0 = " GUM_PTR_CONST ";"
+#elif defined (HAVE_ARM64)
+      "details.context.x0 = " GUM_PTR_CONST ";"
+#elif defined (HAVE_MIPS)
+      "details.context.ra = " GUM_PTR_CONST ";"
+#endif
+      , expected_ret);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
+        "onAccess(details) {"
+            "%s"
+            "send(1337);"
+        "}"
+      "});",
+      a, page_size, set_return_value_code);
+  EXPECT_NO_MESSAGES ();
+
+  ret = func ();
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+  g_assert_cmphex (ret, ==, expected_ret);
+
+  g_free (set_return_value_code);
+  gum_free_pages ((gpointer) a);
+}
+
+static void
+put_return_instruction (gpointer mem,
+                        gpointer user_data)
+{
+#if defined (HAVE_I386)
+  *((guint8 *) mem) = 0xc3;
+#elif defined (HAVE_ARM)
+  *((guint32 *) mem) = GUINT32_TO_LE (0xe1a0f00eU);
+#elif defined (HAVE_ARM64)
+  *((guint32 *) mem) = GUINT32_TO_LE (0xd65f03c0U);
+#elif defined (HAVE_MIPS)
+  guint32 * code = mem;
+  code[0] = 0x03e00008U;
+  code[1] = 0x00000000U;
+#else
+# error Unsupported architecture
+#endif
 }
 
 TESTCASE (pointer_can_be_read)
