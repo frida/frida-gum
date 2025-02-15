@@ -190,6 +190,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (ansi_string_can_be_allocated_in_code_page_936)
     TESTENTRY (ansi_string_can_be_allocated_in_code_page_1252)
 #endif
+    TESTENTRY (read_from_unaccessible_memory_can_be_performed_safely)
     TESTENTRY (write_to_unaccessible_memory_can_be_performed_safely)
     TESTENTRY (invalid_read_results_in_exception)
     TESTENTRY (invalid_write_results_in_exception)
@@ -9342,6 +9343,17 @@ TESTCASE (ansi_string_can_be_allocated_in_code_page_1252)
 }
 
 #endif
+
+TESTCASE (read_from_unaccessible_memory_can_be_performed_safely)
+{
+  const guint8 buf[3] = { 0x13, 0x37, 0x42 };
+
+  COMPILE_AND_LOAD_SCRIPT ("send(0, " GUM_PTR_CONST ".readVolatile(3));", buf);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("0", "13 37 42");
+
+  COMPILE_AND_LOAD_SCRIPT ("ptr(1234).readVolatile(3);");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: memory read failed");
+}
 
 TESTCASE (write_to_unaccessible_memory_can_be_performed_safely)
 {
