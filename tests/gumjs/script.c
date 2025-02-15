@@ -190,6 +190,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (ansi_string_can_be_allocated_in_code_page_936)
     TESTENTRY (ansi_string_can_be_allocated_in_code_page_1252)
 #endif
+    TESTENTRY (write_to_unaccessible_memory_can_be_performed_safely)
     TESTENTRY (invalid_read_results_in_exception)
     TESTENTRY (invalid_write_results_in_exception)
     TESTENTRY (invalid_read_write_execute_results_in_exception)
@@ -9341,6 +9342,20 @@ TESTCASE (ansi_string_can_be_allocated_in_code_page_1252)
 }
 
 #endif
+
+TESTCASE (write_to_unaccessible_memory_can_be_performed_safely)
+{
+  guint8 buf[3] = { 0x13, 0x37, 0x42 };
+
+  COMPILE_AND_LOAD_SCRIPT (GUM_PTR_CONST ".writeVolatile([0x12, 0x27]);", buf);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmphex (buf[0], ==, 0x12);
+  g_assert_cmphex (buf[1], ==, 0x27);
+  g_assert_cmphex (buf[2], ==, 0x42);
+
+  COMPILE_AND_LOAD_SCRIPT ("ptr(1234).writeVolatile([0x12, 0x27]);");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: memory write failed");
+}
 
 TESTCASE (invalid_read_results_in_exception)
 {
