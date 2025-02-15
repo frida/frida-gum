@@ -1227,7 +1227,6 @@ gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
   auto d = Object::New (isolate);
   _gum_v8_object_set (d, "threadId", Number::New (isolate, details->thread_id),
       core);
-
   _gum_v8_object_set_ascii (d, "operation",
       _gum_v8_memory_operation_to_string (details->operation), core);
   _gum_v8_object_set_pointer (d, "from", details->from, core);
@@ -1238,12 +1237,14 @@ gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
   _gum_v8_object_set_uint (d, "pagesCompleted", details->pages_completed, core);
   _gum_v8_object_set_uint (d, "pagesTotal", details->pages_total, core);
 
-  auto cpu_context = _gum_v8_cpu_context_new_mutable (details->context, core);
-  _gum_v8_object_set (d, "context", cpu_context, core);
+  auto context = _gum_v8_cpu_context_new_mutable (details->context, core);
+  _gum_v8_object_set (d, "context", context, core);
 
   auto on_access (Local<Function>::New (isolate, *self->on_access));
   Local<Value> argv[] = { d };
   auto result = on_access->Call (isolate->GetCurrentContext (),
       Undefined (isolate), G_N_ELEMENTS (argv), argv);
   (void) result;
+
+  _gum_v8_cpu_context_free_later (new Global<Object> (isolate, context), core);
 }

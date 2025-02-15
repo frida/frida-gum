@@ -7,7 +7,6 @@
 #ifndef __GUM_MEMORY_ACCESS_MONITOR_H__
 #define __GUM_MEMORY_ACCESS_MONITOR_H__
 
-#include <gum/gummemory.h>
 #include <gum/gumprocess.h>
 
 G_BEGIN_DECLS
