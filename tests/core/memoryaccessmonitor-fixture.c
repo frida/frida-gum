@@ -65,6 +65,8 @@ test_memory_access_monitor_fixture_teardown (TestMAMonitorFixture * fixture,
   if (fixture->monitor != NULL)
     g_object_unref (fixture->monitor);
 
+  g_free (fixture->last_details.context);
+
   gum_memory_free (GSIZE_TO_POINTER (fixture->range.base_address),
       fixture->range.size);
 }
@@ -95,7 +97,10 @@ memory_access_notify_cb (GumMemoryAccessMonitor * monitor,
   TestMAMonitorFixture * fixture = (TestMAMonitorFixture *) user_data;
 
   fixture->number_of_notifies++;
+  g_free (fixture->last_details.context);
   fixture->last_details = *details;
+  fixture->last_details.context =
+      g_memdup2 (details->context, sizeof (GumCpuContext));
 }
 
 #define ENABLE_MONITOR() \
