@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -703,31 +704,14 @@ GUMJS_DEFINE_FUNCTION (gum_v8_memory_write_volatile)
 {
   gpointer address;
   GBytes * bytes;
-  gconstpointer data;
-  gsize size;
-
   if (!_gum_v8_args_parse (args, "pB", &address, &bytes))
     return;
 
-  data = g_bytes_get_data (bytes, &size);
+  gsize size;
+  auto data = g_bytes_get_data (bytes, &size);
 
-  if (size == 0)
-  {
-    g_bytes_unref (bytes);
-    info.GetReturnValue ().Set (TRUE);
-    return;
-  }
-
-  if (!gum_memory_write (address, (guint8 *) data, size))
-  {
-    g_bytes_unref (bytes);
+  if (!gum_memory_write (address, (const guint8 *) data, size))
     _gum_v8_throw_ascii_literal (isolate, "memory write failed");
-    return;
-  }
-
-  g_bytes_unref (bytes);
-
-  info.GetReturnValue ().Set (TRUE);
 }
 
 static void

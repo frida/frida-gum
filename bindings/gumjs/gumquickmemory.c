@@ -2,6 +2,7 @@
  * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -884,31 +885,39 @@ GUMJS_DEFINE_FUNCTION (gum_quick_memory_read_volatile)
 
 GUMJS_DEFINE_FUNCTION (gum_quick_memory_write_volatile)
 {
+  JSValue result;
   gpointer address;
-  GBytes * bytes;
+  GBytes * bytes = NULL;
   gconstpointer data;
   gsize size;
 
   if (!_gum_quick_args_parse (args, "pB", &address, &bytes))
-    return JS_EXCEPTION;
+    goto propagate_exception;
 
   data = g_bytes_get_data (bytes, &size);
 
-  if (size == 0)
+  if (!gum_memory_write (address, data, size))
+    goto write_failed;
+
+  result = JS_UNDEFINED;
+  goto beach;
+
+write_failed:
+  {
+    _gum_quick_throw_literal (ctx, "memory write failed");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    result = JS_EXCEPTION;
+    goto beach;
+  }
+beach:
   {
     g_bytes_unref (bytes);
-    return JS_TRUE;
+
+    return result;
   }
-
-  if (!gum_memory_write (address, (guint8 *) data, size))
-  {
-    g_bytes_unref (bytes);
-    return _gum_quick_throw_literal (ctx, "memory write failed");
-  }
-
-  g_bytes_unref (bytes);
-
-  return JS_TRUE;
 }
 
 #ifdef HAVE_WINDOWS
