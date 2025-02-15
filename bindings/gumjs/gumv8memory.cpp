@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
@@ -678,12 +678,6 @@ GUMJS_DEFINE_FUNCTION (gum_v8_memory_read_volatile)
   gsize length;
   if (!_gum_v8_args_parse (args, "pz", &address, &length))
     return;
-
-  if (length == 0)
-  {
-    info.GetReturnValue ().SetNull ();
-    return;
-  }
 
   gsize n_bytes_read;
   guint8 * data = gum_memory_read (address, length, &n_bytes_read);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
@@ -871,9 +871,6 @@ GUMJS_DEFINE_FUNCTION (gum_quick_memory_read_volatile)
 
   if (!_gum_quick_args_parse (args, "pz", &address, &length))
     return JS_EXCEPTION;
-
-  if (length == 0)
-    return JS_NULL;
 
   data = gum_memory_read (address, length, &n_bytes_read);
   if (data == NULL)
