@@ -71,9 +71,7 @@ TESTCASE (notify_on_write_access)
   ENABLE_MONITOR ();
 
   bytes[fixture->offset_in_first_page] = 0x14;
-
   g_assert_cmpuint (d->thread_id, ==, gum_process_get_current_thread_id ());
-
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_WRITE);
   g_assert_true (d->from != NULL && d->from != d->address);
@@ -102,9 +100,7 @@ TESTCASE (notify_on_execute_access)
   ENABLE_MONITOR ();
 
   fixture->nop_function_in_third_page ();
-
   g_assert_cmpuint (d->thread_id, ==, gum_process_get_current_thread_id ());
-
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
   g_assert_cmpint (d->operation, ==, GUM_MEMOP_EXECUTE);
   g_assert_true (d->from != NULL && d->from == d->address);
