@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -15,11 +15,41 @@ TESTLIST_BEGIN (sampler)
 #endif
   TESTENTRY (multiple_call_counters)
   TESTENTRY (wall_clock)
+  TESTENTRY (user_time)
+  TESTENTRY (user_time_by_id_self)
+  TESTENTRY (user_time_by_id_other)
 TESTLIST_END ()
+
+typedef struct _MallocCountHelperContext MallocCountHelperContext;
+typedef struct _TestThreadSyncData TestThreadSyncData;
+
+struct _MallocCountHelperContext
+{
+  GumSampler * sampler;
+  const GumHeapApi * api;
+  volatile gboolean allowed_to_start;
+  GumSample count;
+};
+
+struct _TestThreadSyncData
+{
+  GMutex mutex;
+  GCond cond;
+  const gchar * name;
+  volatile gboolean started;
+  volatile GumThreadId thread_id;
+  volatile gboolean * volatile done;
+};
 
 static guint spin_for_one_tenth_second (void);
 static void nop_function_a (void);
 static void nop_function_b (void);
+
+static gboolean check_user_time_testable (GumSampler * sampler);
+static GThread * create_sleeping_dummy_thread_sync (const gchar * name,
+    volatile gboolean * done, GumThreadId * thread_id);
+static gpointer sleeping_dummy (gpointer data);
+static void do_work (void);
 
 TESTCASE (cycle)
 {
@@ -63,16 +93,6 @@ TESTCASE (busy_cycle)
     g_test_message ("skipping test because of unsupported OS");
   }
 }
-
-typedef struct _MallocCountHelperContext MallocCountHelperContext;
-
-struct _MallocCountHelperContext
-{
-  GumSampler * sampler;
-  const GumHeapApi * api;
-  volatile gboolean allowed_to_start;
-  GumSample count;
-};
 
 #if defined (HAVE_FRIDA_GLIB) && !defined (HAVE_ASAN)
 
@@ -220,4 +240,151 @@ GUM_HOOK_TARGET static void
 nop_function_b (void)
 {
   dummy_variable_to_trick_optimizer -= 7;
+}
+
+TESTCASE (user_time)
+{
+  GumSample user_time_a, user_time_b;
+
+  fixture->sampler = gum_user_time_sampler_new ();
+  if (!check_user_time_testable (fixture->sampler))
+    return;
+
+  do_work ();
+  user_time_a = gum_sampler_sample (fixture->sampler);
+
+  do_work ();
+  user_time_b = gum_sampler_sample (fixture->sampler);
+  g_assert_cmpuint (user_time_a, !=, 0);
+  g_assert_cmpuint (user_time_b, >, user_time_a);
+}
+
+TESTCASE (user_time_by_id_self)
+{
+  GumSample user_time_a, user_time_b;
+
+  fixture->sampler = gum_user_time_sampler_new_with_thread_id (
+      gum_process_get_current_thread_id ());
+  if (!check_user_time_testable (fixture->sampler))
+    return;
+
+  do_work ();
+  user_time_a = gum_sampler_sample (fixture->sampler);
+
+  do_work ();
+  user_time_b = gum_sampler_sample (fixture->sampler);
+#if defined (HAVE_LINUX) || defined (HAVE_DARWIN) || defined (HAVE_FREEBSD) \
+    || defined (HAVE_WINDOWS)
+  g_assert_cmpuint (user_time_a, !=, 0);
+  g_assert_cmpuint (user_time_b, >, user_time_a);
+#else
+  g_assert_cmpuint (user_time_a, ==, 0);
+  g_assert_cmpuint (user_time_b, ==, 0);
+#endif
+}
+
+TESTCASE (user_time_by_id_other)
+{
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  GumThreadDetails d = { 0, };
+  GumSample user_time_a, user_time_b;
+
+  thread = create_sleeping_dummy_thread_sync ("user_time", &done, &d.id);
+
+  fixture->sampler = gum_user_time_sampler_new_with_thread_id (d.id);
+  if (!check_user_time_testable (fixture->sampler))
+    return;
+
+  g_usleep (250000);
+  user_time_a = gum_sampler_sample (fixture->sampler);
+
+  g_usleep (250000);
+  user_time_b = gum_sampler_sample (fixture->sampler);
+
+  g_assert_cmpuint (user_time_a, !=, 0);
+  g_assert_cmpuint (user_time_b, >, user_time_a);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+static gboolean
+check_user_time_testable (GumSampler * sampler)
+{
+  if (!gum_user_time_sampler_is_available (GUM_USER_TIME_SAMPLER (sampler)))
+  {
+    g_print ("<skipping, unsupported OS> ");
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static GThread *
+create_sleeping_dummy_thread_sync (const gchar * name,
+                                   volatile gboolean * done,
+                                   GumThreadId * thread_id)
+{
+  TestThreadSyncData sync_data;
+  GThread * thread;
+
+  g_mutex_init (&sync_data.mutex);
+  g_cond_init (&sync_data.cond);
+  sync_data.started = FALSE;
+  sync_data.thread_id = 0;
+  sync_data.name = name;
+  sync_data.done = done;
+
+  g_mutex_lock (&sync_data.mutex);
+
+  thread = g_thread_new (name, sleeping_dummy, &sync_data);
+
+  while (!sync_data.started)
+    g_cond_wait (&sync_data.cond, &sync_data.mutex);
+
+  if (thread_id != NULL)
+    *thread_id = sync_data.thread_id;
+
+  g_mutex_unlock (&sync_data.mutex);
+
+  g_cond_clear (&sync_data.cond);
+  g_mutex_clear (&sync_data.mutex);
+
+  return thread;
+}
+
+static gpointer
+sleeping_dummy (gpointer data)
+{
+  TestThreadSyncData * sync_data = data;
+  volatile gboolean * done = sync_data->done;
+
+  gum_ensure_current_thread_is_named (sync_data->name);
+
+  g_mutex_lock (&sync_data->mutex);
+  sync_data->started = TRUE;
+  sync_data->thread_id = gum_process_get_current_thread_id ();
+  g_cond_signal (&sync_data->cond);
+  g_mutex_unlock (&sync_data->mutex);
+
+  do_work ();
+
+  while (!(*done))
+    g_thread_yield ();
+
+  return NULL;
+}
+
+static void
+do_work (void)
+{
+  GTimer * timer;
+
+  timer = g_timer_new ();
+
+  while (g_timer_elapsed (timer, NULL) < 0.1)
+    ;
+
+  g_timer_destroy (timer);
 }
