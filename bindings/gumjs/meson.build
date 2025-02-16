@@ -47,6 +47,7 @@ if quickjs_dep.found()
     'gumquickcodewriter.c',
     'gumquickcoderelocator.c',
     'gumquickcloak.c',
+    'gumquicksampler.c',
   ]
   if sqlite_dep.found()
     gumjs_sources += 'gumquickdatabase.c'
@@ -89,6 +90,7 @@ if v8_dep.found()
     'gumv8codewriter.cpp',
     'gumv8coderelocator.cpp',
     'gumv8cloak.cpp',
+    'gumv8sampler.cpp',
   ]
   if sqlite_dep.found()
     gumjs_sources += 'gumv8database.cpp'
@@ -257,6 +259,7 @@ gumjs_sources += [gumjs_runtime]
 
 gumjs_deps = [
   gum_dep,
+  gum_prof_dep,
 
   quickjs_dep,
   v8_dep,

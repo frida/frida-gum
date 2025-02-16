@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -23,6 +23,7 @@
 #include "gumv8module.h"
 #include "gumv8platform.h"
 #include "gumv8process.h"
+#include "gumv8sampler.h"
 #include "gumv8scope.h"
 #include "gumv8script.h"
 #include "gumv8scriptbackend.h"
@@ -98,6 +99,7 @@ struct _GumV8Script
   GumV8CodeRelocator code_relocator;
   GumV8Stalker stalker;
   GumV8Cloak cloak;
+  GumV8Sampler sampler;
 
   v8::Global<v8::Context> * context;
   GumESProgram * program;

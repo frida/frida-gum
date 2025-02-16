@@ -522,6 +522,17 @@ TESTLIST_BEGIN (script)
     TESTENTRY (worker_termination_should_be_supported)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("Sampler")
+    TESTENTRY (cycles_can_be_sampled)
+    TESTENTRY (busy_cycles_can_be_sampled)
+    TESTENTRY (wall_clock_can_be_sampled)
+    TESTENTRY (user_time_can_be_sampled)
+    TESTENTRY (user_time_can_be_sampled_for_other_threads)
+    TESTENTRY (user_time_find_busy_threads)
+    TESTENTRY (malloc_count_can_be_sampled)
+    TESTENTRY (call_count_can_be_sampled)
+  TESTGROUP_END ()
+
   TESTENTRY (script_can_be_compiled_to_bytecode)
   TESTENTRY (script_should_not_leak_if_destroyed_before_load)
   TESTENTRY (script_memory_usage)
@@ -542,6 +553,7 @@ typedef struct _GumNamedSleeperContext GumNamedSleeperContext;
 typedef struct _TestRunOnThreadSyncContext TestRunOnThreadSyncContext;
 typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
 typedef struct _TestTrigger TestTrigger;
+typedef struct _GumHotNamedSleeperContext GumHotNamedSleeperContext;
 
 struct _GumInvokeTargetContext
 {
@@ -578,6 +590,14 @@ struct _TestTrigger
   volatile gboolean fired;
   GMutex mutex;
   GCond cond;
+};
+
+struct _GumHotNamedSleeperContext
+{
+  GAsyncQueue * controller_messages;
+  GAsyncQueue * sleeper_messages;
+  GumThreadId id;
+  gboolean hot;
 };
 
 static size_t gum_get_size_max (void);
@@ -647,6 +667,13 @@ static int compare_measurements (gconstpointer element_a,
     gconstpointer element_b);
 
 static void put_return_instruction (gpointer mem, gpointer user_data);
+
+static gpointer user_time_thread_proc (gpointer data);
+static gpointer user_time_find_busy_thread_proc (gpointer data);
+static void do_work (void);
+static gboolean check_cycles_testable (void);
+static gboolean check_busy_cycles_testable (void);
+static gboolean check_user_time_testable (void);
 
 static gboolean check_exception_handling_testable (void);
 
@@ -12058,6 +12085,348 @@ TESTCASE (cloaked_items_can_be_queried_added_and_removed)
   EXPECT_NO_MESSAGES ();
 
   free (buffer);
+}
+
+TESTCASE (cycles_can_be_sampled)
+{
+  if (!check_cycles_testable ())
+    return;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const sampler = new CycleSampler();"
+      "const a = sampler.sample();"
+      "const start = Date.now();"
+      "while (Date.now() - start < 100)"
+      "  ;"
+      "const b = sampler.sample();"
+      "send(b > a);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (busy_cycles_can_be_sampled)
+{
+  if (!check_busy_cycles_testable ())
+    return;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const sampler = new BusyCycleSampler();"
+      "const a = sampler.sample();"
+      "const start = Date.now();"
+      "while (Date.now() - start < 100)"
+      "  ;"
+      "const b = sampler.sample();"
+      "send(b > a);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (wall_clock_can_be_sampled)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const sampler = new WallClockSampler();"
+      "const a = sampler.sample();"
+      "Thread.sleep(0.05);"
+      "const b = sampler.sample();"
+      "send(b > a);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (user_time_can_be_sampled)
+{
+  guint64 user_time_a = 0, user_time_b = 0;
+
+  if (!check_user_time_testable ())
+    return;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const sampler = new UserTimeSampler();"
+      "delay();"
+      "const a = sampler.sample();"
+      "delay();"
+      "const b = sampler.sample();"
+      GUM_PTR_CONST ".writeU64(a);"
+      GUM_PTR_CONST ".writeU64(b);"
+      "function delay() {"
+      "  const start = Date.now();"
+      "  while (Date.now() - start < 100)"
+      "    ;"
+      "}",
+      &user_time_a, &user_time_b);
+  EXPECT_NO_MESSAGES ();
+
+  g_assert_true (user_time_a != 0);
+  g_assert_cmpuint (user_time_b, >, user_time_a);
+}
+
+TESTCASE (user_time_can_be_sampled_for_other_threads)
+{
+#if defined (HAVE_LINUX) && !defined (HAVE_PTHREAD_SETNAME_NP)
+  g_print ("<skipping, libc is too old> ");
+#else
+  GumNamedSleeperContext ctx;
+  GThread * thread;
+  GumThreadId thread_id;
+  guint64 user_time_a = 0, user_time_b = 0;
+
+# ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+# endif
+
+# ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+# endif
+
+  if (!check_user_time_testable ())
+    return;
+
+  ctx.controller_messages = g_async_queue_new ();
+  ctx.sleeper_messages = g_async_queue_new ();
+
+  thread = g_thread_new ("user-time", user_time_thread_proc, &ctx);
+  g_assert_cmpstr (g_async_queue_pop (ctx.controller_messages), ==, "ready1");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const threadId = Process.enumerateThreads()"
+      "  .find(t => t.name === 'user-time')"
+      "  .id;"
+      GUM_PTR_CONST ".writeU64(threadId);",
+      &thread_id);
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const sampler = new UserTimeSampler(%" G_GSIZE_MODIFIER "u);"
+      "const sample = sampler.sample();"
+      GUM_PTR_CONST ".writeU64(sample);",
+      thread_id, &user_time_a);
+  EXPECT_NO_MESSAGES ();
+
+  g_async_queue_push (ctx.sleeper_messages, "done1");
+  g_assert_cmpstr (g_async_queue_pop (ctx.controller_messages), ==, "ready2");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const sampler = new UserTimeSampler(%" G_GSIZE_MODIFIER "u);"
+      "const sample = sampler.sample();"
+      GUM_PTR_CONST ".writeU64(sample);",
+      thread_id, &user_time_b);
+  EXPECT_NO_MESSAGES ();
+
+  g_async_queue_push (ctx.sleeper_messages, "done2");
+
+  g_thread_join (thread);
+
+  g_async_queue_unref (ctx.sleeper_messages);
+  g_async_queue_unref (ctx.controller_messages);
+
+  g_assert_true (user_time_a != 0);
+  g_assert_cmpuint (user_time_b, >, user_time_a);
+#endif
+}
+
+static gpointer
+user_time_thread_proc (gpointer data)
+{
+  GumNamedSleeperContext * ctx = data;
+
+  gum_ensure_current_thread_is_named ("user-time");
+
+  do_work ();
+  g_async_queue_push (ctx->controller_messages, "ready1");
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done1");
+
+  do_work ();
+  g_async_queue_push (ctx->controller_messages, "ready2");
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done2");
+
+  return NULL;
+}
+
+TESTCASE (user_time_find_busy_threads)
+{
+#if defined (HAVE_LINUX) && !defined (HAVE_PTHREAD_SETNAME_NP)
+  g_print ("<skipping, libc is too old> ");
+#else
+  guint rand, i;
+  GumHotNamedSleeperContext ctx[NUM_THREADS];
+  GThread * thread[NUM_THREADS];
+
+# ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+# endif
+
+# ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+# endif
+
+  if (!check_user_time_testable ())
+    return;
+
+  rand = g_random_int_range (0, NUM_THREADS);
+
+  for (i = 0; i != NUM_THREADS; i++)
+  {
+    ctx[i].controller_messages = g_async_queue_new ();
+    ctx[i].sleeper_messages = g_async_queue_new ();
+    ctx[i].hot = (i == rand);
+
+    thread[i] = g_thread_new ("user-time", user_time_find_busy_thread_proc,
+        &ctx[i]);
+
+    g_assert_cmpstr (g_async_queue_pop (ctx[i].controller_messages), ==,
+        "ready1");
+    g_async_queue_push (ctx[i].sleeper_messages, "done1");
+
+    g_assert_cmpstr (g_async_queue_pop (ctx[i].controller_messages), ==,
+        "ready2");
+  }
+
+  COMPILE_AND_LOAD_SCRIPT (
+        "const times = Process.enumerateThreads()"
+        "  .filter(t => t.name === 'user-time')"
+        "  .map(t => {"
+        "    const sampler = new UserTimeSampler(t.id);"
+        "    const time = sampler.sample();"
+        "    return { id: t.id, time };"
+        "  });"
+        "const result = times.sort((a, b) => Number(b.time - a.time))[0].id;"
+        "send(result);");
+
+  for (i = 0; i != NUM_THREADS; i++)
+  {
+    g_async_queue_push (ctx[i].sleeper_messages, "done2");
+    g_thread_join (thread[i]);
+    g_async_queue_unref (ctx[i].sleeper_messages);
+    g_async_queue_unref (ctx[i].controller_messages);
+  }
+
+  EXPECT_SEND_MESSAGE_WITH ("%" G_GSIZE_MODIFIER "u", ctx[rand].id);
+#endif
+}
+
+static gpointer
+user_time_find_busy_thread_proc (gpointer data)
+{
+  GumHotNamedSleeperContext * ctx = data;
+
+  gum_ensure_current_thread_is_named ("user-time");
+
+  ctx->id = gum_process_get_current_thread_id ();
+  g_async_queue_push (ctx->controller_messages, "ready1");
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done1");
+
+  if (ctx->hot)
+    do_work ();
+  g_async_queue_push (ctx->controller_messages, "ready2");
+  g_assert_cmpstr (g_async_queue_pop (ctx->sleeper_messages), ==, "done2");
+
+  return NULL;
+}
+
+static void
+do_work (void)
+{
+  GTimer * timer;
+
+  timer = g_timer_new ();
+
+  while (g_timer_elapsed (timer, NULL) < 0.1)
+    ;
+
+  g_timer_destroy (timer);
+}
+
+TESTCASE (malloc_count_can_be_sampled)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const malloc = new NativeFunction(" GUM_PTR_CONST ", 'pointer', "
+        "['size_t']);"
+      "const free = new NativeFunction(" GUM_PTR_CONST ", 'void', "
+        "['pointer']);"
+      "const sampler = new MallocCountSampler();"
+      "const a = sampler.sample();"
+      "free(malloc(37));"
+      "const b = sampler.sample();"
+      "send(b > a);",
+      malloc, free);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (call_count_can_be_sampled)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "const sampler = new CallCountSampler([f]);"
+      "f(42);"
+      "send(Number(sampler.sample()));"
+      "f(42);"
+      "f(42);"
+      "send(Number(sampler.sample()));",
+      target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_NO_MESSAGES ();
+}
+
+static gboolean
+check_cycles_testable (void)
+{
+  gboolean available;
+  GumSampler * sampler;
+
+  sampler = gum_cycle_sampler_new ();
+  available = gum_cycle_sampler_is_available (GUM_CYCLE_SAMPLER (sampler));
+  g_object_unref (sampler);
+
+  if (!available)
+    g_print ("<skipping, unsupported OS> ");
+
+  return available;
+}
+
+static gboolean
+check_busy_cycles_testable (void)
+{
+  gboolean available;
+  GumSampler * sampler;
+
+  sampler = gum_busy_cycle_sampler_new ();
+  available =
+      gum_busy_cycle_sampler_is_available (GUM_BUSY_CYCLE_SAMPLER (sampler));
+  g_object_unref (sampler);
+
+  if (!available)
+    g_print ("<skipping, unsupported OS> ");
+
+  return available;
+}
+
+static gboolean
+check_user_time_testable (void)
+{
+  gboolean available;
+  GumSampler * sampler;
+
+  sampler = gum_user_time_sampler_new ();
+  available =
+      gum_user_time_sampler_is_available (GUM_USER_TIME_SAMPLER (sampler));
+  g_object_unref (sampler);
+
+  if (!available)
+    g_print ("<skipping, unsupported OS> ");
+
+  return available;
 }
 
 static gboolean

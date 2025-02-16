@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
@@ -13,6 +13,7 @@
 #include "guminspectorserver.h"
 #include "gumquickscriptbackend.h"
 #include "gumscriptbackend.h"
+#include "gumusertimesampler.h"
 #include "valgrind.h"
 
 #include <limits.h>
@@ -47,6 +48,7 @@
 
 #define ANY_LINE_NUMBER -1
 #define SCRIPT_MESSAGE_DEFAULT_TIMEOUT_MSEC 500
+#define NUM_THREADS 10
 
 #ifndef SCRIPT_SUITE
 # define SCRIPT_SUITE ""
