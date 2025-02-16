@@ -1227,14 +1227,7 @@ sleeping_dummy (gpointer data)
   TestThreadSyncData * sync_data = data;
   volatile gboolean * done = sync_data->done;
 
-  /*
-   * On Linux g_thread_new() may not actually set the thread name, which is due
-   * to GLib potentially having been prebuilt against an old libc. Therefore we
-   * set the name manually using pthreads.
-   */
-#if defined (HAVE_LINUX) && defined (HAVE_PTHREAD_SETNAME_NP)
-  pthread_setname_np (pthread_self (), sync_data->name);
-#endif
+  gum_ensure_current_thread_is_named (sync_data->name);
 
   g_mutex_lock (&sync_data->mutex);
   sync_data->started = TRUE;

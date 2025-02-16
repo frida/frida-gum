@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -865,4 +865,17 @@ append_indent (GString * str,
 
   for (i = 0; i < indent_level; i++)
     g_string_append (str, "  ");
+}
+
+void
+gum_ensure_current_thread_is_named (const gchar * name)
+{
+  /*
+   * On Linux g_thread_new() may not actually set the thread name, which is due
+   * to GLib potentially having been prebuilt against an old libc. Therefore we
+   * set the name manually using pthreads.
+   */
+#if defined (HAVE_LINUX) && defined (HAVE_PTHREAD_SETNAME_NP)
+  pthread_setname_np (pthread_self (), name);
+#endif
 }
