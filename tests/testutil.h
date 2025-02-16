@@ -127,6 +127,8 @@ gboolean gum_is_debugger_present (void);
 guint8 gum_try_read_and_write_at (guint8 * a, guint i,
     gboolean * exception_raised_on_read, gboolean * exception_raised_on_write);
 
+void gum_ensure_current_thread_is_named (const gchar * name);
+
 G_END_DECLS
 
 #endif
