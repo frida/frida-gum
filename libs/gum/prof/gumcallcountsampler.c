@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -134,29 +134,50 @@ GumSampler *
 gum_call_count_sampler_new_valist (gpointer first_function,
                                    va_list args)
 {
-  GumCallCountSampler * sampler;
-  GumInterceptor * interceptor;
+  GumSampler * sampler;
+  GPtrArray * functions;
   gpointer function;
 
-  if (first_function == NULL)
-    return g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
-
-  interceptor = gum_interceptor_obtain ();
-  gum_interceptor_ignore_current_thread (interceptor);
-  gum_interceptor_begin_transaction (interceptor);
-
-  sampler = g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
+  functions = g_ptr_array_sized_new (16);
 
   for (function = first_function;
       function != NULL;
       function = va_arg (args, gpointer))
   {
-    gum_call_count_sampler_add_function (sampler, function);
+    g_ptr_array_add (functions, function);
   }
 
-  gum_interceptor_end_transaction (interceptor);
-  gum_interceptor_unignore_current_thread (interceptor);
-  g_object_unref (interceptor);
+  sampler = gum_call_count_sampler_newv (functions->pdata, functions->len);
+
+  g_ptr_array_unref (functions);
+
+  return sampler;
+}
+
+GumSampler *
+gum_call_count_sampler_newv (gpointer * functions,
+                             guint n_functions)
+{
+  GumCallCountSampler * sampler;
+
+  sampler = g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
+
+  if (n_functions > 0)
+  {
+    GumInterceptor * interceptor;
+    guint i;
+
+    interceptor = gum_interceptor_obtain ();
+    gum_interceptor_ignore_current_thread (interceptor);
+    gum_interceptor_begin_transaction (interceptor);
+
+    for (i = 0; i != n_functions; i++)
+      gum_call_count_sampler_add_function (sampler, functions[i]);
+
+    gum_interceptor_end_transaction (interceptor);
+    gum_interceptor_unignore_current_thread (interceptor);
+    g_object_unref (interceptor);
+  }
 
   return GUM_SAMPLER (sampler);
 }
@@ -180,32 +201,26 @@ GumSampler *
 gum_call_count_sampler_new_by_name_valist (const gchar * first_function_name,
                                            va_list args)
 {
-  GumInterceptor * interceptor;
-  const gchar * function_name;
-  GumCallCountSampler * sampler;
+  GumSampler * sampler;
+  GPtrArray * functions;
+  const gchar * name;
 
-  interceptor = gum_interceptor_obtain ();
-  gum_interceptor_ignore_current_thread (interceptor);
-  gum_interceptor_begin_transaction (interceptor);
+  functions = g_ptr_array_sized_new (16);
 
-  sampler = g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
-
-  for (function_name = first_function_name; function_name != NULL;
-      function_name = va_arg (args, const gchar *))
+  for (name = first_function_name;
+      name != NULL;
+      name = va_arg (args, const gchar *))
   {
-    gpointer address;
-
-    address = gum_find_function (function_name);
-    g_assert (address != NULL);
-
-    gum_call_count_sampler_add_function (sampler, address);
+    gpointer address = gum_find_function (name);
+    if (address != NULL)
+      g_ptr_array_add (functions, address);
   }
 
-  gum_interceptor_end_transaction (interceptor);
-  gum_interceptor_unignore_current_thread (interceptor);
-  g_object_unref (interceptor);
+  sampler = gum_call_count_sampler_newv (functions->pdata, functions->len);
 
-  return GUM_SAMPLER (sampler);
+  g_ptr_array_unref (functions);
+
+  return sampler;
 }
 
 void
