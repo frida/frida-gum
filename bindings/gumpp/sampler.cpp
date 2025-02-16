@@ -58,7 +58,7 @@ namespace Gum
   extern "C" Sampler * BusyCycleSampler_new () { Runtime::ref (); return new SamplerImpl (gum_busy_cycle_sampler_new ()); }
   extern "C" Sampler * CycleSampler_new () { Runtime::ref (); return new SamplerImpl (gum_cycle_sampler_new ()); }
   extern "C" Sampler * MallocCountSampler_new () { Runtime::ref (); return new SamplerImpl (gum_malloc_count_sampler_new ()); }
-  extern "C" Sampler * WallClockSampler_new () { Runtime::ref (); return new SamplerImpl (gum_wallclock_sampler_new ()); }
+  extern "C" Sampler * WallClockSampler_new () { Runtime::ref (); return new SamplerImpl (gum_wall_clock_sampler_new ()); }
 
   extern "C" CallCountSampler * CallCountSampler_new (void * first_function, ...)
   {

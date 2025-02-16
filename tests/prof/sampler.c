@@ -14,7 +14,7 @@ TESTLIST_BEGIN (sampler)
   TESTENTRY (malloc_count)
 #endif
   TESTENTRY (multiple_call_counters)
-  TESTENTRY (wallclock)
+  TESTENTRY (wall_clock)
 TESTLIST_END ()
 
 static guint spin_for_one_tenth_second (void);
@@ -174,11 +174,11 @@ TESTCASE (multiple_call_counters)
   g_object_unref (sampler1);
 }
 
-TESTCASE (wallclock)
+TESTCASE (wall_clock)
 {
   GumSample sample_a, sample_b;
 
-  fixture->sampler = gum_wallclock_sampler_new ();
+  fixture->sampler = gum_wall_clock_sampler_new ();
 
   sample_a = gum_sampler_sample (fixture->sampler);
   g_usleep (G_USEC_PER_SEC / 30);

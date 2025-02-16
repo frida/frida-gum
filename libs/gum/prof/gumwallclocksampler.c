@@ -7,49 +7,49 @@
 
 #include "gumwallclocksampler.h"
 
-struct _GumWallclockSampler
+struct _GumWallClockSampler
 {
   GObject parent;
 };
 
-static void gum_wallclock_sampler_iface_init (gpointer g_iface,
+static void gum_wall_clock_sampler_iface_init (gpointer g_iface,
     gpointer iface_data);
-static GumSample gum_wallclock_sampler_sample (GumSampler * sampler);
+static GumSample gum_wall_clock_sampler_sample (GumSampler * sampler);
 
-G_DEFINE_TYPE_EXTENDED (GumWallclockSampler,
-                        gum_wallclock_sampler,
+G_DEFINE_TYPE_EXTENDED (GumWallClockSampler,
+                        gum_wall_clock_sampler,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SAMPLER,
-                            gum_wallclock_sampler_iface_init))
+                            gum_wall_clock_sampler_iface_init))
 
 static void
-gum_wallclock_sampler_class_init (GumWallclockSamplerClass * klass)
+gum_wall_clock_sampler_class_init (GumWallClockSamplerClass * klass)
 {
 }
 
 static void
-gum_wallclock_sampler_iface_init (gpointer g_iface,
-                                  gpointer iface_data)
+gum_wall_clock_sampler_iface_init (gpointer g_iface,
+                                   gpointer iface_data)
 {
   GumSamplerInterface * iface = g_iface;
 
-  iface->sample = gum_wallclock_sampler_sample;
+  iface->sample = gum_wall_clock_sampler_sample;
 }
 
 static void
-gum_wallclock_sampler_init (GumWallclockSampler * self)
+gum_wall_clock_sampler_init (GumWallClockSampler * self)
 {
 }
 
 GumSampler *
-gum_wallclock_sampler_new (void)
+gum_wall_clock_sampler_new (void)
 {
-  return g_object_new (GUM_TYPE_WALLCLOCK_SAMPLER, NULL);
+  return g_object_new (GUM_TYPE_WALL_CLOCK_SAMPLER, NULL);
 }
 
 static GumSample
-gum_wallclock_sampler_sample (GumSampler * sampler)
+gum_wall_clock_sampler_sample (GumSampler * sampler)
 {
   return g_get_monotonic_time ();
 }
