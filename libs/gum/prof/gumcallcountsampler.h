@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -19,6 +19,8 @@ G_DECLARE_FINAL_TYPE (GumCallCountSampler, gum_call_count_sampler, GUM,
 GUM_API GumSampler * gum_call_count_sampler_new (gpointer first_function, ...);
 GUM_API GumSampler * gum_call_count_sampler_new_valist (gpointer first_function,
     va_list args);
+GUM_API GumSampler * gum_call_count_sampler_newv (gpointer * functions,
+    guint n_functions);
 GUM_API GumSampler * gum_call_count_sampler_new_by_name (
     const gchar * first_function_name, ...);
 GUM_API GumSampler * gum_call_count_sampler_new_by_name_valist (
