@@ -5918,7 +5918,8 @@ TESTCASE (module_symbol_can_be_found_by_name)
   COMPILE_AND_LOAD_SCRIPT (
       "const sysModuleName = '%s';"
 
-      "const allSymbols = Process.getModuleByName(sysModuleName).enumerateSymbols();"
+      "const allSymbols = Process.getModuleByName(sysModuleName)"
+        ".enumerateSymbols();"
       "const sysModuleExport = allSymbols.find(s => !s.address.isNull()).name;"
 
       "const badModuleName = 'nope_' + sysModuleName;"

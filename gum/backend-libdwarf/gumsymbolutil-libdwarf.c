@@ -1008,7 +1008,6 @@ beach:
   return success;
 }
 
-
 static void
 gum_enumerate_cu_dies (Dwarf_Debug dbg,
                        gboolean is_info,
