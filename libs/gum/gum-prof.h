@@ -16,6 +16,7 @@
 #include <gum/prof/gumprofiler.h>
 #include <gum/prof/gumprofilereport.h>
 #include <gum/prof/gumsampler.h>
+#include <gum/prof/gumusertimesampler.h>
 #include <gum/prof/gumwallclocksampler.h>
 
 #endif
