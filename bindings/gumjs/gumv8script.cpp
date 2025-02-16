@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -540,6 +540,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_stalker_init (&self->stalker, &self->code_writer,
         &self->instruction, &self->core, global_templ);
     _gum_v8_cloak_init (&self->cloak, &self->core, global_templ);
+    _gum_v8_sampler_init (&self->sampler, &self->core, global_templ);
 
     Local<Context> context (Context::New (isolate, NULL, global_templ));
     {
@@ -573,6 +574,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_code_relocator_realize (&self->code_relocator);
     _gum_v8_stalker_realize (&self->stalker);
     _gum_v8_cloak_realize (&self->cloak);
+    _gum_v8_sampler_realize (&self->sampler);
 
     self->program = gum_v8_script_compile (self, isolate, context, error);
   }
@@ -1103,6 +1105,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   {
     ScriptScope scope (self);
 
+    _gum_v8_sampler_dispose (&self->sampler);
     _gum_v8_cloak_dispose (&self->cloak);
     _gum_v8_stalker_dispose (&self->stalker);
     _gum_v8_code_relocator_dispose (&self->code_relocator);
@@ -1136,6 +1139,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   delete self->context;
   self->context = nullptr;
 
+  _gum_v8_sampler_finalize (&self->sampler);
   _gum_v8_cloak_finalize (&self->cloak);
   _gum_v8_stalker_finalize (&self->stalker);
   _gum_v8_code_relocator_finalize (&self->code_relocator);
@@ -1423,6 +1427,7 @@ gum_v8_script_try_unload (GumV8Script * self)
   {
     ScriptScope scope (self);
 
+    _gum_v8_sampler_flush (&self->sampler);
     _gum_v8_stalker_flush (&self->stalker);
     _gum_v8_interceptor_flush (&self->interceptor);
     _gum_v8_socket_flush (&self->socket);

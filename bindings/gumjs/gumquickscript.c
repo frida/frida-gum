@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,6 +20,7 @@
 #include "gumquickmemory.h"
 #include "gumquickmodule.h"
 #include "gumquickprocess.h"
+#include "gumquicksampler.h"
 #include "gumquickscript-priv.h"
 #include "gumquickscript-runtime.h"
 #include "gumquickscriptbackend-priv.h"
@@ -79,6 +80,7 @@ struct _GumQuickScript
   GumQuickCodeRelocator code_relocator;
   GumQuickStalker stalker;
   GumQuickCloak cloak;
+  GumQuickSampler sampler;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
@@ -489,6 +491,7 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_stalker_init (&self->stalker, global_obj, &self->code_writer,
       &self->instruction, core);
   _gum_quick_cloak_init (&self->cloak, global_obj, core);
+  _gum_quick_sampler_init (&self->sampler, global_obj, core);
 
   JS_FreeValue (ctx, global_obj);
 
@@ -523,6 +526,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 
     _gum_quick_scope_enter (&scope, core);
 
+    _gum_quick_sampler_dispose (&self->sampler);
     _gum_quick_cloak_dispose (&self->cloak);
     _gum_quick_stalker_dispose (&self->stalker);
     _gum_quick_code_relocator_dispose (&self->code_relocator);
@@ -566,6 +570,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     core->current_scope = NULL;
   }
 
+  _gum_quick_sampler_finalize (&self->sampler);
   _gum_quick_cloak_finalize (&self->cloak);
   _gum_quick_stalker_finalize (&self->stalker);
   _gum_quick_code_relocator_finalize (&self->code_relocator);
