@@ -139,7 +139,8 @@ def main():
 
     if len(sys.argv) == 2:
         changed_lines = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-        changed_files = [Path(repo_dir / f) for f in changed_lines.keys()]
+        changed_files = [Path(repo_dir / f) for f in changed_lines.keys()
+                         if any(Path(f).is_relative_to(subdir) for subdir in INCLUDED_SUBDIRS)]
         files_to_check = [f for f in changed_files if f.suffix in INCLUDED_EXTENSIONS]
     else:
         changed_lines = None
