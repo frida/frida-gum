@@ -294,6 +294,14 @@ REPORT_TESTCASE (xml_thread_ordering)
 
 TESTCASE (profile_matching_functions)
 {
+#ifdef HAVE_DARWIN
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping due to CoreSymbolication issue, run in slow mode> ");
+    return;
+  }
+#endif
+
   gum_profiler_instrument_functions_matching (fixture->profiler, "simple_*",
       fixture->sampler, exclude_simple_stdcall_50, NULL);
 
