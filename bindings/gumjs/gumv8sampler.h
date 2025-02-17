@@ -9,9 +9,13 @@
 
 #include "gumv8object.h"
 
+#include <gum/gum-prof.h>
+
 struct GumV8Sampler
 {
   GumV8Core * core;
+
+  v8::Global<v8::FunctionTemplate> * klass;
 
   GumV8ObjectManager objects;
 };
@@ -22,5 +26,8 @@ G_GNUC_INTERNAL void _gum_v8_sampler_realize (GumV8Sampler * self);
 G_GNUC_INTERNAL void _gum_v8_sampler_flush (GumV8Sampler * self);
 G_GNUC_INTERNAL void _gum_v8_sampler_dispose (GumV8Sampler * self);
 G_GNUC_INTERNAL void _gum_v8_sampler_finalize (GumV8Sampler * self);
+
+G_GNUC_INTERNAL gboolean _gum_v8_sampler_get (v8::Local<v8::Value> value,
+    GumSampler ** sampler, GumV8Sampler * module);
 
 #endif

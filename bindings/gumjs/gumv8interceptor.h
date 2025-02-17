@@ -58,6 +58,14 @@ struct GumV8InvocationContext
   GumV8Interceptor * module;
 };
 
+struct GumV8InvocationArgs
+{
+  v8::Global<v8::Object> * object;
+  GumInvocationContext * ic;
+
+  GumV8Interceptor * module;
+};
+
 G_GNUC_INTERNAL void _gum_v8_interceptor_init (GumV8Interceptor * self,
     GumV8Core * core, v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_interceptor_realize (GumV8Interceptor * self);
@@ -71,5 +79,12 @@ G_GNUC_INTERNAL void _gum_v8_interceptor_release_invocation_context (
     GumV8Interceptor * self, GumV8InvocationContext * jic);
 G_GNUC_INTERNAL void _gum_v8_invocation_context_reset (
     GumV8InvocationContext * self, GumInvocationContext * handle);
+
+G_GNUC_INTERNAL GumV8InvocationArgs *
+    _gum_v8_interceptor_obtain_invocation_args (GumV8Interceptor * self);
+G_GNUC_INTERNAL void _gum_v8_interceptor_release_invocation_args (
+    GumV8Interceptor * self, GumV8InvocationArgs * args);
+G_GNUC_INTERNAL void _gum_v8_invocation_args_reset (GumV8InvocationArgs * self,
+    GumInvocationContext * ic);
 
 #endif

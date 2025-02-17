@@ -114,14 +114,6 @@ struct GumV8InvocationState
   GumV8InvocationContext * jic;
 };
 
-struct GumV8InvocationArgs
-{
-  Global<Object> * object;
-  GumInvocationContext * ic;
-
-  GumV8Interceptor * module;
-};
-
 struct GumV8InvocationReturnValue
 {
   Global<Object> * object;
@@ -238,8 +230,6 @@ static void gum_v8_invocation_args_release_persistent (
 static void gum_v8_invocation_args_on_weak_notify (
     const WeakCallbackInfo<GumV8InvocationArgs> & info);
 static void gum_v8_invocation_args_free (GumV8InvocationArgs * self);
-static void gum_v8_invocation_args_reset (GumV8InvocationArgs * self,
-    GumInvocationContext * ic);
 static void gumjs_invocation_args_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
 static void gumjs_invocation_args_set_nth (uint32_t index,
@@ -257,10 +247,6 @@ static void gum_v8_invocation_return_value_reset (
     GumV8InvocationReturnValue * self, GumInvocationContext * ic);
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_return_value_replace)
 
-static GumV8InvocationArgs * gum_v8_interceptor_obtain_invocation_args (
-    GumV8Interceptor * self);
-static void gum_v8_interceptor_release_invocation_args (GumV8Interceptor * self,
-    GumV8InvocationArgs * args);
 static GumV8InvocationReturnValue *
     gum_v8_interceptor_obtain_invocation_return_value (GumV8Interceptor * self);
 static void gum_v8_interceptor_release_invocation_return_value (
@@ -900,8 +886,8 @@ gum_v8_js_call_listener_on_enter (GumInvocationListener * listener,
     _gum_v8_invocation_context_reset (jic, ic);
     auto recv = Local<Object>::New (isolate, *jic->object);
 
-    auto args = gum_v8_interceptor_obtain_invocation_args (module);
-    gum_v8_invocation_args_reset (args, ic);
+    auto args = _gum_v8_interceptor_obtain_invocation_args (module);
+    _gum_v8_invocation_args_reset (args, ic);
     auto args_object = Local<Object>::New (isolate, *args->object);
 
     Local<Value> argv[] = { args_object };
@@ -909,8 +895,8 @@ gum_v8_js_call_listener_on_enter (GumInvocationListener * listener,
     if (result.IsEmpty ())
       scope.ProcessAnyPendingException ();
 
-    gum_v8_invocation_args_reset (args, NULL);
-    gum_v8_interceptor_release_invocation_args (module, args);
+    _gum_v8_invocation_args_reset (args, NULL);
+    _gum_v8_interceptor_release_invocation_args (module, args);
 
     _gum_v8_invocation_context_reset (jic, NULL);
     if (self->on_leave != nullptr || jic->dirty)
@@ -1038,8 +1024,8 @@ gum_v8_js_probe_listener_on_enter (GumInvocationListener * listener,
   _gum_v8_invocation_context_reset (jic, ic);
   auto recv = Local<Object>::New (isolate, *jic->object);
 
-  auto args = gum_v8_interceptor_obtain_invocation_args (module);
-  gum_v8_invocation_args_reset (args, ic);
+  auto args = _gum_v8_interceptor_obtain_invocation_args (module);
+  _gum_v8_invocation_args_reset (args, ic);
   auto args_object = Local<Object>::New (isolate, *args->object);
 
   Local<Value> argv[] = { args_object };
@@ -1047,8 +1033,8 @@ gum_v8_js_probe_listener_on_enter (GumInvocationListener * listener,
   if (result.IsEmpty ())
     scope.ProcessAnyPendingException ();
 
-  gum_v8_invocation_args_reset (args, NULL);
-  gum_v8_interceptor_release_invocation_args (module, args);
+  _gum_v8_invocation_args_reset (args, NULL);
+  _gum_v8_interceptor_release_invocation_args (module, args);
 
   _gum_v8_invocation_context_reset (jic, NULL);
   _gum_v8_interceptor_release_invocation_context (module, jic);
@@ -1367,9 +1353,9 @@ gum_v8_invocation_args_free (GumV8InvocationArgs * self)
   g_slice_free (GumV8InvocationArgs, self);
 }
 
-static void
-gum_v8_invocation_args_reset (GumV8InvocationArgs * self,
-                              GumInvocationContext * ic)
+void
+_gum_v8_invocation_args_reset (GumV8InvocationArgs * self,
+                               GumInvocationContext * ic)
 {
   self->ic = ic;
 }
@@ -1526,8 +1512,8 @@ _gum_v8_interceptor_release_invocation_context (GumV8Interceptor * self,
     gum_v8_invocation_context_release_persistent (jic);
 }
 
-static GumV8InvocationArgs *
-gum_v8_interceptor_obtain_invocation_args (GumV8Interceptor * self)
+GumV8InvocationArgs *
+_gum_v8_interceptor_obtain_invocation_args (GumV8Interceptor * self)
 {
   GumV8InvocationArgs * args;
 
@@ -1544,9 +1530,9 @@ gum_v8_interceptor_obtain_invocation_args (GumV8Interceptor * self)
   return args;
 }
 
-static void
-gum_v8_interceptor_release_invocation_args (GumV8Interceptor * self,
-                                            GumV8InvocationArgs * args)
+void
+_gum_v8_interceptor_release_invocation_args (GumV8Interceptor * self,
+                                             GumV8InvocationArgs * args)
 {
   if (args == self->cached_invocation_args)
     self->cached_invocation_args_in_use = FALSE;
