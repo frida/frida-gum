@@ -268,8 +268,6 @@ main (gint argc, gchar * argv[])
   /* Prof */
 #if !defined (HAVE_IOS) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   TESTLIST_REGISTER (sampler);
-#endif
-#ifdef HAVE_WINDOWS
   TESTLIST_REGISTER (profiler);
 #endif
 
