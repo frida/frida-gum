@@ -810,8 +810,11 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
     while ((insn = gum_arm64_relocator_peek_next_write_insn (ar)) != NULL)
     {
+      const cs_arm64_op * source_op = &insn->detail->arm64.operands[1];
+
       if (insn->id == ARM64_INS_MOV &&
-          insn->detail->arm64.operands[1].reg == ARM64_REG_LR)
+          source_op->type == ARM64_OP_REG &&
+          source_op->reg == ARM64_REG_LR)
       {
         arm64_reg dst_reg = insn->detail->arm64.operands[0].reg;
         const guint reg_size = sizeof (gpointer);
