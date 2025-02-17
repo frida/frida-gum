@@ -349,6 +349,8 @@ spin_for_one_tenth_second (void)
   }
   while (g_timer_elapsed (timer, NULL) < 0.1);
 
+  dummy_variable_to_trick_optimizer += b;
+
   g_timer_destroy (timer);
 }
 
