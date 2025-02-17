@@ -528,7 +528,7 @@ G_GNUC_INTERNAL gboolean _gum_quick_{flavor}_{name}_get (JSContext * ctx, JSValu
 
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_init ({wrapper_struct_name} * self, JSContext * ctx, {module_struct_name} * parent);
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_finalize ({wrapper_struct_name} * self);
-G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_gc_mark ({wrapper_struct_name} * self);
+G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_gc_mark (JSRuntime * rt, JSValueConst val, JS_MarkFunc * mark_func);
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);
 """
     return template.format(**params)
