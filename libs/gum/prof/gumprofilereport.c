@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -21,8 +21,9 @@ static void gum_profile_report_finalize (GObject * object);
 
 static void gum_profile_report_node_free (GumProfileReportNode * node);
 
-static void append_node_to_xml_string (GumProfileReportNode * node,
+static void append_node_to_xml_string (GumProfileReportNode * node, guint depth,
     GString * xml);
+static void append_indent (guint level, GString * xml);
 static gint root_node_compare_func (gconstpointer a, gconstpointer b);
 static gint thread_compare_func (gconstpointer a, gconstpointer b);
 
@@ -87,7 +88,7 @@ gum_profile_report_emit_xml (GumProfileReport * self)
   GString * xml;
   guint thread_idx;
 
-  xml = g_string_new ("<ProfileReport>");
+  xml = g_string_new ("<profile-report>\n");
 
   for (thread_idx = 0; thread_idx < self->thread_root_nodes->len; thread_idx++)
   {
@@ -97,18 +98,18 @@ gum_profile_report_emit_xml (GumProfileReport * self)
     root_nodes = (GPtrArray *)
         g_ptr_array_index (self->thread_root_nodes, thread_idx);
 
-    g_string_append (xml, "<Thread>");
+    g_string_append (xml, "  <thread>\n");
 
     for (node_idx = 0; node_idx < root_nodes->len; node_idx++)
     {
-      append_node_to_xml_string ((GumProfileReportNode *)
-          g_ptr_array_index (root_nodes, node_idx), xml);
+      append_node_to_xml_string (g_ptr_array_index (root_nodes, node_idx), 2,
+          xml);
     }
 
-    g_string_append (xml, "</Thread>");
+    g_string_append (xml, "  </thread>\n");
   }
 
-  g_string_append (xml, "</ProfileReport>");
+  g_string_append (xml, "</profile-report>");
 
   return g_string_free (xml, FALSE);
 }
@@ -173,19 +174,44 @@ gum_profile_report_node_free (GumProfileReportNode * node)
 
 static void
 append_node_to_xml_string (GumProfileReportNode * node,
+                           guint depth,
                            GString * xml)
 {
-  g_string_append_printf (xml, "<Node name=\"%s\" total_calls=\"%"
-      G_GUINT64_FORMAT "\" total_duration=\"%" G_GUINT64_FORMAT "\">",
+  append_indent (depth, xml);
+  g_string_append_printf (xml, "<node name=\"%s\" total-calls=\"%"
+      G_GUINT64_FORMAT "\" total-duration=\"%" G_GUINT64_FORMAT "\">\n",
       node->name, node->total_calls, node->total_duration);
 
-  g_string_append_printf (xml, "<WorstCase duration=\"%" G_GUINT64_FORMAT
-      "\">%s</WorstCase>", node->worst_case_duration, node->worst_case_info);
+  append_indent (depth + 1, xml);
+  g_string_append_printf (xml, "<worst-case duration=\"%" G_GUINT64_FORMAT "\"",
+      node->worst_case_duration);
+  if (node->worst_case_info[0] != '\0')
+  {
+    g_string_append_c (xml, '>');
+    g_string_append (xml, node->worst_case_info);
+    g_string_append (xml, "</worst-case>");
+  }
+  else
+  {
+    g_string_append (xml, " />");
+  }
+  g_string_append_c (xml, '\n');
 
   if (node->child != NULL)
-    append_node_to_xml_string (node->child, xml);
+    append_node_to_xml_string (node->child, depth + 1, xml);
 
-  g_string_append (xml, "</Node>");
+  append_indent (depth, xml);
+  g_string_append (xml, "</node>\n");
+}
+
+static void
+append_indent (guint level,
+               GString * xml)
+{
+  guint i;
+
+  for (i = 0; i != level; i++)
+    g_string_append (xml, "  ");
 }
 
 static gint
