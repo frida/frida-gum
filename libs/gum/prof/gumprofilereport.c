@@ -187,8 +187,14 @@ append_node_to_xml_string (GumProfileReportNode * node,
       node->worst_case_duration);
   if (node->worst_case_info[0] != '\0')
   {
+    gchar * escaped_info;
+
     g_string_append_c (xml, '>');
-    g_string_append (xml, node->worst_case_info);
+
+    escaped_info = g_markup_escape_text (node->worst_case_info, -1);
+    g_string_append (xml, escaped_info);
+    g_free (escaped_info);
+
     g_string_append (xml, "</worst-case>");
   }
   else
