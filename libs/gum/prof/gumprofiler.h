@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -39,7 +39,8 @@ GUM_API GumInstrumentReturn gum_profiler_instrument_function (
     GumProfiler * self, gpointer function_address, GumSampler * sampler);
 GUM_API GumInstrumentReturn gum_profiler_instrument_function_with_inspector (
     GumProfiler * self, gpointer function_address, GumSampler * sampler,
-    GumWorstCaseInspectorFunc inspector_func, gpointer user_data);
+    GumWorstCaseInspectorFunc inspector_func, gpointer data,
+    GDestroyNotify data_destroy);
 
 GUM_API GumProfileReport * gum_profiler_generate_report (GumProfiler * self);
 

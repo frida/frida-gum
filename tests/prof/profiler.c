@@ -245,7 +245,7 @@ REPORT_TESTCASE (xml_worst_case_info)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_info, fixture->sampler, inspect_worst_case_info,
-      NULL);
+      NULL, NULL);
 
   example_worst_case_info (fixture->fake_sampler, "early", 1);
   example_worst_case_info (fixture->fake_sampler, "mid", 3);
@@ -356,7 +356,7 @@ TESTCASE (worst_case_info)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_info, fixture->sampler, inspect_worst_case_info,
-      NULL);
+      NULL, NULL);
 
   g_assert_cmpstr (gum_profiler_get_worst_case_info_of (fixture->profiler, 0,
       &example_worst_case_info), ==, "");
@@ -373,7 +373,7 @@ TESTCASE (worst_case_info_on_recursion)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_recursive, fixture->sampler,
-      inspect_recursive_worst_case_info, NULL);
+      inspect_recursive_worst_case_info, NULL, NULL);
 
   example_worst_case_recursive (2, fixture->fake_sampler);
 
