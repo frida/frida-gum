@@ -23,6 +23,7 @@
 #include "gumv8module.h"
 #include "gumv8platform.h"
 #include "gumv8process.h"
+#include "gumv8profiler.h"
 #include "gumv8sampler.h"
 #include "gumv8scope.h"
 #include "gumv8script.h"
@@ -100,6 +101,7 @@ struct _GumV8Script
   GumV8Stalker stalker;
   GumV8Cloak cloak;
   GumV8Sampler sampler;
+  GumV8Profiler profiler;
 
   v8::Global<v8::Context> * context;
   GumESProgram * program;

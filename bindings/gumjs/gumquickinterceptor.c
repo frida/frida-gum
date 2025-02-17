@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -130,13 +130,6 @@ struct _GumQuickInvocationState
   GumQuickInvocationContext * jic;
 };
 
-struct _GumQuickInvocationArgs
-{
-  JSValue wrapper;
-  GumInvocationContext * ic;
-  JSContext * ctx;
-};
-
 struct _GumQuickInvocationRetval
 {
   GumQuickNativePointer native_pointer;
@@ -253,8 +246,6 @@ GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
 static JSValue gum_quick_invocation_args_new (GumQuickInterceptor * parent,
     GumQuickInvocationArgs ** args);
 static void gum_quick_invocation_args_release (GumQuickInvocationArgs * self);
-static void gum_quick_invocation_args_reset (GumQuickInvocationArgs * self,
-    GumInvocationContext * ic);
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_args_finalize)
 static JSValue gumjs_invocation_args_get_property (JSContext * ctx,
     JSValueConst obj, JSAtom atom, JSValueConst receiver);
@@ -274,12 +265,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_invocation_retval_replace)
 static void gum_quick_interceptor_check_invocation_context (
     GumQuickInterceptor * self, GumQuickInvocationContext * jic,
     gboolean * jic_is_dirty);
-static GumQuickInvocationArgs * gum_quick_interceptor_obtain_invocation_args (
-    GumQuickInterceptor * self);
-static void gum_quick_interceptor_release_invocation_args (
-    GumQuickInterceptor * self, GumQuickInvocationArgs * args);
 static GumQuickInvocationRetval *
-gum_quick_interceptor_obtain_invocation_retval (GumQuickInterceptor * self);
+    gum_quick_interceptor_obtain_invocation_retval (GumQuickInterceptor * self);
 static void gum_quick_interceptor_release_invocation_retval (
     GumQuickInterceptor * self, GumQuickInvocationRetval * retval);
 
@@ -917,14 +904,14 @@ gum_quick_js_call_listener_on_enter (GumInvocationListener * listener,
     jic = _gum_quick_interceptor_obtain_invocation_context (parent);
     _gum_quick_invocation_context_reset (jic, ic);
 
-    args = gum_quick_interceptor_obtain_invocation_args (parent);
-    gum_quick_invocation_args_reset (args, ic);
+    args = _gum_quick_interceptor_obtain_invocation_args (parent);
+    _gum_quick_invocation_args_reset (args, ic);
 
     _gum_quick_scope_call_void (&scope, self->on_enter, jic->wrapper, 1,
         &args->wrapper);
 
-    gum_quick_invocation_args_reset (args, NULL);
-    gum_quick_interceptor_release_invocation_args (parent, args);
+    _gum_quick_invocation_args_reset (args, NULL);
+    _gum_quick_interceptor_release_invocation_args (parent, args);
 
     _gum_quick_invocation_context_reset (jic, NULL);
     gum_quick_interceptor_check_invocation_context (parent, jic, &jic_is_dirty);
@@ -1067,14 +1054,14 @@ gum_quick_js_probe_listener_on_enter (GumInvocationListener * listener,
   jic = _gum_quick_interceptor_obtain_invocation_context (parent);
   _gum_quick_invocation_context_reset (jic, ic);
 
-  args = gum_quick_interceptor_obtain_invocation_args (parent);
-  gum_quick_invocation_args_reset (args, ic);
+  args = _gum_quick_interceptor_obtain_invocation_args (parent);
+  _gum_quick_invocation_args_reset (args, ic);
 
   _gum_quick_scope_call_void (&scope, self->on_hit, jic->wrapper, 1,
       &args->wrapper);
 
-  gum_quick_invocation_args_reset (args, NULL);
-  gum_quick_interceptor_release_invocation_args (parent, args);
+  _gum_quick_invocation_args_reset (args, NULL);
+  _gum_quick_interceptor_release_invocation_args (parent, args);
 
   _gum_quick_invocation_context_reset (jic, NULL);
   _gum_quick_interceptor_release_invocation_context (parent, jic);
@@ -1369,9 +1356,9 @@ gum_quick_invocation_args_release (GumQuickInvocationArgs * self)
   JS_FreeValue (self->ctx, self->wrapper);
 }
 
-static void
-gum_quick_invocation_args_reset (GumQuickInvocationArgs * self,
-                                 GumInvocationContext * ic)
+void
+_gum_quick_invocation_args_reset (GumQuickInvocationArgs * self,
+                                  GumInvocationContext * ic)
 {
   self->ic = ic;
 }
@@ -1657,8 +1644,8 @@ gum_quick_interceptor_check_invocation_context (GumQuickInterceptor * self,
     *jic_is_dirty = is_dirty;
 }
 
-static GumQuickInvocationArgs *
-gum_quick_interceptor_obtain_invocation_args (GumQuickInterceptor * self)
+GumQuickInvocationArgs *
+_gum_quick_interceptor_obtain_invocation_args (GumQuickInterceptor * self)
 {
   GumQuickInvocationArgs * args;
 
@@ -1675,9 +1662,9 @@ gum_quick_interceptor_obtain_invocation_args (GumQuickInterceptor * self)
   return args;
 }
 
-static void
-gum_quick_interceptor_release_invocation_args (GumQuickInterceptor * self,
-                                               GumQuickInvocationArgs * args)
+void
+_gum_quick_interceptor_release_invocation_args (GumQuickInterceptor * self,
+                                                GumQuickInvocationArgs * args)
 {
   if (args == self->cached_invocation_args)
     self->cached_invocation_args_in_use = FALSE;

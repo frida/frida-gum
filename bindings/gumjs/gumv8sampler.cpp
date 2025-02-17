@@ -8,8 +8,6 @@
 
 #include "gumv8macros.h"
 
-#include <gum/gum-prof.h>
-
 #define GUMJS_MODULE_NAME Sampler
 
 using namespace v8;
@@ -45,6 +43,7 @@ _gum_v8_sampler_init (GumV8Sampler * self,
   auto sampler = _gum_v8_create_class ("Sampler", gumjs_sampler_construct,
       scope, module, isolate);
   _gum_v8_class_add (sampler, gumjs_sampler_functions, module, isolate);
+  self->klass = new Global<FunctionTemplate> (isolate, sampler);
 
 #define GUM_REGISTER_SAMPLER(id, name) \
   auto G_PASTE (id, _sampler) = _gum_v8_create_class (name "Sampler", \
@@ -78,11 +77,34 @@ void
 _gum_v8_sampler_dispose (GumV8Sampler * self)
 {
   gum_v8_object_manager_free (&self->objects);
+
+  delete self->klass;
+  self->klass = nullptr;
 }
 
 void
 _gum_v8_sampler_finalize (GumV8Sampler * self)
 {
+}
+
+gboolean
+_gum_v8_sampler_get (Local<Value> value,
+                     GumSampler ** sampler,
+                     GumV8Sampler * module)
+{
+  auto isolate = module->core->isolate;
+
+  Local<FunctionTemplate> klass (Local<FunctionTemplate>::New (isolate,
+        *module->klass));
+  if (!klass->HasInstance (value))
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected a Sampler object");
+    return FALSE;
+  }
+
+  *sampler = (GumSampler *)
+      value.As<Object> ()->GetAlignedPointerFromInternalField (0);
+  return TRUE;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_sampler_construct)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -52,6 +52,13 @@ struct _GumQuickInvocationContext
   GumQuickInterceptor * interceptor;
 };
 
+struct _GumQuickInvocationArgs
+{
+  JSValue wrapper;
+  GumInvocationContext * ic;
+  JSContext * ctx;
+};
+
 G_GNUC_INTERNAL void _gum_quick_interceptor_init (GumQuickInterceptor * self,
     JSValue ns, GumQuickCore * core);
 G_GNUC_INTERNAL void _gum_quick_interceptor_flush (GumQuickInterceptor * self);
@@ -61,11 +68,19 @@ G_GNUC_INTERNAL void _gum_quick_interceptor_finalize (
     GumQuickInterceptor * self);
 
 G_GNUC_INTERNAL GumQuickInvocationContext *
-_gum_quick_interceptor_obtain_invocation_context (GumQuickInterceptor * self);
+    _gum_quick_interceptor_obtain_invocation_context (
+        GumQuickInterceptor * self);
 G_GNUC_INTERNAL void _gum_quick_interceptor_release_invocation_context (
     GumQuickInterceptor * self, GumQuickInvocationContext * jic);
 G_GNUC_INTERNAL void _gum_quick_invocation_context_reset (
     GumQuickInvocationContext * self, GumInvocationContext * handle);
+
+G_GNUC_INTERNAL GumQuickInvocationArgs *
+    _gum_quick_interceptor_obtain_invocation_args (GumQuickInterceptor * self);
+G_GNUC_INTERNAL void _gum_quick_interceptor_release_invocation_args (
+    GumQuickInterceptor * self, GumQuickInvocationArgs * args);
+G_GNUC_INTERNAL void _gum_quick_invocation_args_reset (
+    GumQuickInvocationArgs * self, GumInvocationContext * ic);
 
 G_END_DECLS
 

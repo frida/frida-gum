@@ -8,8 +8,6 @@
 
 #include "gumquickmacros.h"
 
-#include <gum/gum-prof.h>
-
 static void gum_quick_sampler_register (GumQuickSampler * self, JSValue ns,
     JSValue parent_proto, const JSClassDef * def, JSCFunction * construct,
     JSClassID * id);
@@ -138,6 +136,16 @@ static GumQuickSampler *
 gumjs_get_parent_module (GumQuickCore * core)
 {
   return _gum_quick_core_load_module_data (core, "sampler");
+}
+
+gboolean
+_gum_quick_sampler_get (JSContext * ctx,
+                        JSValue val,
+                        GumQuickSampler * parent,
+                        GumSampler ** sampler)
+{
+  return _gum_quick_unwrap (ctx, val, parent->sampler_class, parent->core,
+      (gpointer *) sampler);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_sampler_construct)

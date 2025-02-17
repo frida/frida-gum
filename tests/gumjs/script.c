@@ -522,6 +522,10 @@ TESTLIST_BEGIN (script)
     TESTENTRY (worker_termination_should_be_supported)
   TESTGROUP_END ()
 
+  TESTGROUP_BEGIN ("Profiler")
+    TESTENTRY (code_can_be_profiled)
+  TESTGROUP_END ()
+
   TESTGROUP_BEGIN ("Sampler")
     TESTENTRY (cycles_can_be_sampled)
     TESTENTRY (busy_cycles_can_be_sampled)
@@ -702,6 +706,7 @@ static void target_function_trigger (TestTrigger * trigger);
 static int target_function_nested_a (int arg);
 static int target_function_nested_b (int arg);
 static int target_function_nested_c (int arg);
+static void target_function_variable_sleepyness (guint n);
 
 static TargetFunctionInt target_function_original = NULL;
 static GPrivate target_thread_string_value = G_PRIVATE_INIT (g_free);
@@ -12087,6 +12092,71 @@ TESTCASE (cloaked_items_can_be_queried_added_and_removed)
   free (buffer);
 }
 
+TESTCASE (code_can_be_profiled)
+{
+  TestScriptMessageItem * item;
+  JsonNode * message;
+  JsonReader * reader;
+  const gchar * xml;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const profiler = new Profiler();"
+      "const sampler = new WallClockSampler();"
+      "profiler.instrument(" GUM_PTR_CONST ", sampler, {"
+      "  describe(args) {"
+      "    return `n=${args[0].toUInt32()}`;"
+      "  }"
+      "});"
+      "profiler.instrument(" GUM_PTR_CONST ", sampler);"
+      "profiler.instrument(" GUM_PTR_CONST ", sampler);"
+      "profiler.instrument(" GUM_PTR_CONST ", sampler);"
+      "recv('stop', message => {"
+      "  send(profiler.generateReport());"
+      "});",
+      target_function_variable_sleepyness,
+      target_function_nested_a,
+      target_function_nested_b,
+      target_function_nested_c);
+  EXPECT_NO_MESSAGES ();
+
+  target_function_variable_sleepyness (7);
+  target_function_variable_sleepyness (133700);
+  target_function_variable_sleepyness (42);
+  target_function_nested_a (42);
+
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  PUSH_TIMEOUT (2000);
+  item = test_script_fixture_pop_message (fixture);
+  POP_TIMEOUT ();
+  EXPECT_NO_MESSAGES ();
+
+  message = json_from_string (item->message, NULL);
+  reader = json_reader_new (message);
+
+  json_reader_read_member (reader, "type");
+  g_assert_cmpstr (json_reader_get_string_value (reader), ==, "send");
+  json_reader_end_member (reader);
+
+  json_reader_read_member (reader, "payload");
+
+  xml = json_reader_get_string_value (reader);
+
+  if (g_test_verbose ())
+    g_print ("%s\n", xml);
+
+  g_assert_true (g_regex_match_simple (
+        "    <node name=\"target_function_variable_sleepyness\" "
+                 "total-calls=\"3\" total-duration=\"\\d+\">\n"
+        "      <worst-case duration=\"\\d+\">n=133700<\\/worst-case>\n"
+        "    <\\/node>", xml, G_REGEX_DEFAULT, G_REGEX_MATCH_DEFAULT));
+
+  json_reader_end_member (reader);
+
+  g_object_unref (reader);
+  json_node_unref (message);
+  test_script_message_item_free (item);
+}
+
 TESTCASE (cycles_can_be_sampled)
 {
   if (!check_cycles_testable ())
@@ -12631,4 +12701,12 @@ target_function_nested_c (int arg)
   gum_script_dummy_global_to_trick_optimizer += result;
 
   return result;
+}
+
+GUM_HOOK_TARGET static void
+target_function_variable_sleepyness (guint n)
+{
+  gum_script_dummy_global_to_trick_optimizer += n;
+
+  g_usleep (n);
 }

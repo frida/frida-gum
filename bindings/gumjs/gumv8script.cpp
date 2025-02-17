@@ -541,6 +541,8 @@ gum_v8_script_create_context (GumV8Script * self,
         &self->instruction, &self->core, global_templ);
     _gum_v8_cloak_init (&self->cloak, &self->core, global_templ);
     _gum_v8_sampler_init (&self->sampler, &self->core, global_templ);
+    _gum_v8_profiler_init (&self->profiler, &self->sampler, &self->interceptor,
+        &self->core, global_templ);
 
     Local<Context> context (Context::New (isolate, NULL, global_templ));
     {
@@ -575,6 +577,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_stalker_realize (&self->stalker);
     _gum_v8_cloak_realize (&self->cloak);
     _gum_v8_sampler_realize (&self->sampler);
+    _gum_v8_profiler_realize (&self->profiler);
 
     self->program = gum_v8_script_compile (self, isolate, context, error);
   }
@@ -1105,6 +1108,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   {
     ScriptScope scope (self);
 
+    _gum_v8_profiler_dispose (&self->profiler);
     _gum_v8_sampler_dispose (&self->sampler);
     _gum_v8_cloak_dispose (&self->cloak);
     _gum_v8_stalker_dispose (&self->stalker);
@@ -1139,6 +1143,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   delete self->context;
   self->context = nullptr;
 
+  _gum_v8_profiler_finalize (&self->profiler);
   _gum_v8_sampler_finalize (&self->sampler);
   _gum_v8_cloak_finalize (&self->cloak);
   _gum_v8_stalker_finalize (&self->stalker);
@@ -1427,6 +1432,7 @@ gum_v8_script_try_unload (GumV8Script * self)
   {
     ScriptScope scope (self);
 
+    _gum_v8_profiler_flush (&self->profiler);
     _gum_v8_sampler_flush (&self->sampler);
     _gum_v8_stalker_flush (&self->stalker);
     _gum_v8_interceptor_flush (&self->interceptor);

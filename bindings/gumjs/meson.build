@@ -47,6 +47,7 @@ if quickjs_dep.found()
     'gumquickcodewriter.c',
     'gumquickcoderelocator.c',
     'gumquickcloak.c',
+    'gumquickprofiler.c',
     'gumquicksampler.c',
   ]
   if sqlite_dep.found()
@@ -90,6 +91,7 @@ if v8_dep.found()
     'gumv8codewriter.cpp',
     'gumv8coderelocator.cpp',
     'gumv8cloak.cpp',
+    'gumv8profiler.cpp',
     'gumv8sampler.cpp',
   ]
   if sqlite_dep.found()
