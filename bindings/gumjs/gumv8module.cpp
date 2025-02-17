@@ -8,7 +8,6 @@
 
 #include "gumv8macros.h"
 #include "gumv8matchcontext.h"
-#include "gumv8script-priv.h"
 
 #include <gum/gum-init.h>
 #include <string.h>
@@ -71,8 +70,6 @@ struct GumV8ModuleFilter
 
   GumV8Module * module;
 };
-
-static gboolean gum_v8_module_do_unrefs (gpointer user_data);
 
 GUMJS_DECLARE_FUNCTION (gumjs_module_load)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_global_export_by_name)
@@ -186,9 +183,6 @@ _gum_v8_module_init (GumV8Module * self,
 
   self->core = core;
 
-  self->pending_unrefs = NULL;
-  self->unref_source = NULL;
-
   auto module = External::New (isolate, self);
 
   auto klass = _gum_v8_create_class ("Module", nullptr, scope, module, isolate);
@@ -251,8 +245,6 @@ _gum_v8_module_realize (GumV8Module * self)
 void
 _gum_v8_module_dispose (GumV8Module * self)
 {
-  g_assert (self->pending_unrefs == NULL);
-
   g_hash_table_unref (self->values);
   self->values = NULL;
 
@@ -284,71 +276,6 @@ _gum_v8_module_dispose (GumV8Module * self)
 void
 _gum_v8_module_finalize (GumV8Module * self)
 {
-}
-
-static void
-gum_v8_module_schedule_unref (GumV8Module * self,
-                              GObject * object)
-{
-  auto core = self->core;
-
-  if (core->script->state == GUM_SCRIPT_STATE_UNLOADING)
-  {
-    g_object_unref (object);
-    return;
-  }
-
-  if (self->pending_unrefs == NULL)
-    self->pending_unrefs = g_ptr_array_new_with_free_func (g_object_unref);
-
-  g_ptr_array_add (self->pending_unrefs, object);
-
-  if (self->unref_source == NULL)
-  {
-    auto source = g_idle_source_new ();
-    g_source_set_callback (source, gum_v8_module_do_unrefs, self, NULL);
-    g_source_attach (source,
-        gum_script_scheduler_get_js_context (core->scheduler));
-    self->unref_source = source;
-
-    _gum_v8_core_pin (core);
-  }
-}
-
-static gboolean
-gum_v8_module_do_unrefs (gpointer user_data)
-{
-  auto self = (GumV8Module *) user_data;
-  auto core = self->core;
-
-  while (TRUE)
-  {
-    GPtrArray * pending;
-    {
-      Locker locker (core->isolate);
-
-      pending = (GPtrArray *) g_steal_pointer (&self->pending_unrefs);
-
-      if (pending == NULL)
-      {
-        g_source_unref (self->unref_source);
-        self->unref_source = NULL;
-      }
-    }
-
-    if (pending == NULL)
-      break;
-
-    g_ptr_array_unref (pending);
-  }
-
-  {
-    ScriptScope scope (core->script);
-
-    _gum_v8_core_unpin (core);
-  }
-
-  return G_SOURCE_REMOVE;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_load)
@@ -796,7 +723,7 @@ _gum_v8_module_new_take_handle (GumModule * handle,
 static void
 gum_v8_module_value_free (GumV8ModuleValue * value)
 {
-  gum_v8_module_schedule_unref (value->module, G_OBJECT (value->handle));
+  g_object_unref (value->handle);
 
   delete value->wrapper;
 
@@ -957,7 +884,7 @@ gum_v8_module_map_new (Local<Object> wrapper,
 static void
 gum_v8_module_map_free (GumV8ModuleMap * map)
 {
-  gum_v8_module_schedule_unref (map->module, G_OBJECT (map->handle));
+  g_object_unref (map->handle);
 
   delete map->wrapper;
 

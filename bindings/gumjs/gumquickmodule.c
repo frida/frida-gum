@@ -7,7 +7,6 @@
 #include "gumquickmodule.h"
 
 #include "gumquickmacros.h"
-#include "gumquickscript-priv.h"
 
 typedef struct _GumQuickMatchContext GumQuickMatchContext;
 typedef struct _GumQuickModuleFilter GumQuickModuleFilter;
@@ -28,8 +27,6 @@ struct _GumQuickModuleFilter
 
   GumQuickModule * parent;
 };
-
-static gboolean gum_quick_module_do_unrefs (gpointer user_data);
 
 GUMJS_DECLARE_FUNCTION (gumjs_module_load)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_global_export_by_name)
@@ -133,9 +130,6 @@ _gum_quick_module_init (GumQuickModule * self,
 
   self->core = core;
 
-  self->pending_unrefs = NULL;
-  self->unref_source = NULL;
-
   _gum_quick_core_store_module_data (core, "module", self);
 
   _gum_quick_create_class (ctx, &gumjs_module_def, core, &self->module_class,
@@ -164,79 +158,11 @@ _gum_quick_module_init (GumQuickModule * self,
 void
 _gum_quick_module_dispose (GumQuickModule * self)
 {
-  g_assert (self->pending_unrefs == NULL);
 }
 
 void
 _gum_quick_module_finalize (GumQuickModule * self)
 {
-}
-
-static void
-gum_quick_module_schedule_unref (GumQuickModule * self,
-                                 GObject * object)
-{
-  GumQuickCore * core = self->core;
-
-  if (_gum_quick_script_get_state (core->script) == GUM_SCRIPT_STATE_UNLOADING)
-  {
-    g_object_unref (object);
-    return;
-  }
-
-  if (self->pending_unrefs == NULL)
-    self->pending_unrefs = g_ptr_array_new_with_free_func (g_object_unref);
-
-  g_ptr_array_add (self->pending_unrefs, object);
-
-  if (self->unref_source == NULL)
-  {
-    GSource * source;
-
-    source = g_idle_source_new ();
-    g_source_set_callback (source, gum_quick_module_do_unrefs, self, NULL);
-    g_source_attach (source,
-        gum_script_scheduler_get_js_context (core->scheduler));
-    self->unref_source = source;
-
-    _gum_quick_core_pin (core);
-  }
-}
-
-static gboolean
-gum_quick_module_do_unrefs (gpointer user_data)
-{
-  GumQuickModule * self = user_data;
-  GumQuickCore * core = self->core;
-  GumQuickScope scope;
-
-  while (TRUE)
-  {
-    GPtrArray * pending;
-
-    g_rec_mutex_lock (core->mutex);
-
-    pending = g_steal_pointer (&self->pending_unrefs);
-
-    if (pending == NULL)
-    {
-      g_source_unref (self->unref_source);
-      self->unref_source = NULL;
-    }
-
-    g_rec_mutex_unlock (core->mutex);
-
-    if (pending == NULL)
-      break;
-
-    g_ptr_array_unref (pending);
-  }
-
-  _gum_quick_scope_enter (&scope, core);
-  _gum_quick_core_unpin (core);
-  _gum_quick_scope_leave (&scope);
-
-  return G_SOURCE_REMOVE;
 }
 
 JSValue
@@ -327,16 +253,13 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 
 GUMJS_DEFINE_FINALIZER (gumjs_module_finalize)
 {
-  GumQuickModule * parent;
   GumModule * m;
 
-  parent = gumjs_get_parent_module (core);
-
-  m = JS_GetOpaque (val, parent->module_class);
+  m = JS_GetOpaque (val, gumjs_get_parent_module (core)->module_class);
   if (m == NULL)
     return;
 
-  gum_quick_module_schedule_unref (parent, G_OBJECT (m));
+  g_object_unref (m);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_module_get_name)
@@ -858,16 +781,13 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
 
 GUMJS_DEFINE_FINALIZER (gumjs_module_map_finalize)
 {
-  GumQuickModule * parent;
   GumModuleMap * m;
 
-  parent = gumjs_get_parent_module (core);
-
-  m = JS_GetOpaque (val, parent->module_map_class);
+  m = JS_GetOpaque (val, gumjs_get_parent_module (core)->module_map_class);
   if (m == NULL)
     return;
 
-  gum_quick_module_schedule_unref (parent, G_OBJECT (m));
+  g_object_unref (m);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_module_map_get_handle)
