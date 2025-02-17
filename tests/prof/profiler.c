@@ -264,13 +264,16 @@ REPORT_TESTCASE (xml_worst_case_info)
 
 REPORT_TESTCASE (xml_thread_ordering)
 {
+  GThread * t1, * t2;
   instrument_simple_functions (fixture);
 
   simple_1 (fixture->fake_sampler);
-  g_thread_join (g_thread_new ("profiler-test-helper-a",
-      (GThreadFunc) simple_2, fixture->fake_sampler));
-  g_thread_join (g_thread_new ("profiler-test-helper-b",
-      (GThreadFunc) simple_3, fixture->fake_sampler));
+  t1 = g_thread_new ("profiler-test-helper-a", (GThreadFunc) simple_2,
+      fixture->fake_sampler);
+  t2 = g_thread_new ("profiler-test-helper-b", (GThreadFunc) simple_3,
+      fixture->fake_sampler);
+  g_thread_join (t1);
+  g_thread_join (t2);
 
   assert_same_xml (fixture,
       "<profile-report>\n"
