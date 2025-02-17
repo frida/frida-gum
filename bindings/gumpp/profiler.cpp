@@ -49,7 +49,8 @@ namespace Gum
 
     virtual bool instrument_function_with_inspector (void * function_address, Sampler * sampler, InspectorCallbacks * inspector_callbacks)
     {
-      return gum_profiler_instrument_function_with_inspector (handle, function_address, GUM_SAMPLER (sampler->get_handle ()), inspector_cb, inspector_callbacks) == GUM_INSTRUMENT_OK;
+      return gum_profiler_instrument_function_with_inspector (handle, function_address, GUM_SAMPLER (sampler->get_handle ()), inspector_cb,
+          inspector_callbacks, NULL) == GUM_INSTRUMENT_OK;
     }
 
     virtual ProfileReport * generate_report ()
