@@ -375,6 +375,8 @@ example_worst_case_info (GumFakeSampler * sampler,
                          GumSample cost)
 {
   gum_fake_sampler_advance (sampler, cost);
+
+  dummy_variable_to_trick_optimizer += GPOINTER_TO_SIZE (magic) & 7;
 }
 
 GUM_HOOK_TARGET static void
