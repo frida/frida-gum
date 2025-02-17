@@ -7,8 +7,6 @@
 
 #include "profiler-fixture.c"
 
-#ifdef HAVE_WINDOWS
-
 TESTLIST_BEGIN (profiler)
 #ifdef HAVE_I386
   TESTENTRY (i_can_has_instrumentability)
@@ -371,5 +369,3 @@ TESTCASE (worst_case_info_on_recursion)
   g_assert_cmpstr (gum_profiler_get_worst_case_info_of (fixture->profiler, 0,
       &example_worst_case_recursive), ==, "2");
 }
-
-#endif /* HAVE_WINDOWS */

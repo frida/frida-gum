@@ -7,8 +7,6 @@
 
 #include "gumprofiler.h"
 
-#ifdef HAVE_WINDOWS
-
 #include "fakesampler.h"
 #include "lowlevelhelpers.h"
 #include "testutil.h"
@@ -479,5 +477,3 @@ instrument_simple_functions (TestProfileReportFixture * fixture)
   INSTRUMENT_FUNCTION (simple_1);
   INSTRUMENT_FUNCTION (simple_3);
 }
-
-#endif /* HAVE_WINDOWS */
