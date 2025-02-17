@@ -418,8 +418,10 @@ gum_profiler_generate_report (GumProfiler * self)
   GumProfileReport * report;
 
   report = gum_profile_report_new ();
+  GUM_PROFILER_LOCK ();
   g_hash_table_foreach (self->function_by_address, add_to_report_if_root_node,
       report);
+  GUM_PROFILER_UNLOCK ();
   _gum_profile_report_sort (report);
 
   return report;
