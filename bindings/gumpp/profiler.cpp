@@ -39,7 +39,8 @@ namespace Gum
 
     virtual void instrument_functions_matching (const char * match_str, Sampler * sampler, FunctionMatchCallbacks * match_callbacks)
     {
-      gum_profiler_instrument_functions_matching (handle, match_str, GUM_SAMPLER (sampler->get_handle ()), match_callbacks != NULL ? match_cb : NULL, match_callbacks);
+      gum_profiler_instrument_functions_matching (handle, match_str, GUM_SAMPLER (sampler->get_handle ()),
+          match_callbacks != NULL ? match_cb : NULL, match_callbacks);
     }
 
     virtual bool instrument_function (void * function_address, Sampler * sampler)
