@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -151,16 +151,16 @@ REPORT_TESTCASE (xml_basic)
   example_a (fixture->fake_sampler);
 
   assert_same_xml (fixture,
-      "<ProfileReport>"
-        "<Thread>"
-          "<Node name=\"example_a\" total_calls=\"1\" total_duration=\"9\">"
-            "<WorstCase duration=\"9\"></WorstCase>"
-            "<Node name=\"example_c\" total_calls=\"1\" total_duration=\"4\">"
-              "<WorstCase duration=\"4\"></WorstCase>"
-            "</Node>"
-          "</Node>"
-        "</Thread>"
-      "</ProfileReport>");
+      "<profile-report>\n"
+      "  <thread>\n"
+      "    <node name=\"example_a\" total-calls=\"1\" total-duration=\"9\">\n"
+      "      <worst-case duration=\"9\" />\n"
+      "      <node name=\"example_c\" total-calls=\"1\" total-duration=\"4\">\n"
+      "        <worst-case duration=\"4\" />\n"
+      "      </node>\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "</profile-report>");
 }
 
 REPORT_TESTCASE (xml_loop)
@@ -170,18 +170,18 @@ REPORT_TESTCASE (xml_loop)
   example_cyclic_a (fixture->fake_sampler, 1);
 
   assert_same_xml (fixture,
-      "<ProfileReport>"
-        "<Thread>"
-          "<Node name=\"example_cyclic_a\" total_calls=\"2\" "
-              "total_duration=\"4\">"
-            "<WorstCase duration=\"4\"></WorstCase>"
-            "<Node name=\"example_cyclic_b\" total_calls=\"1\" "
-                "total_duration=\"3\">"
-              "<WorstCase duration=\"3\"></WorstCase>"
-            "</Node>"
-          "</Node>"
-        "</Thread>"
-      "</ProfileReport>");
+      "<profile-report>\n"
+      "  <thread>\n"
+      "    <node name=\"example_cyclic_a\" total-calls=\"2\" "
+                 "total-duration=\"4\">\n"
+      "      <worst-case duration=\"4\" />\n"
+      "      <node name=\"example_cyclic_b\" total-calls=\"1\" "
+                 "total-duration=\"3\">\n"
+      "        <worst-case duration=\"3\" />\n"
+      "      </node>\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "</profile-report>");
 }
 
 REPORT_TESTCASE (xml_loop_implicit)
@@ -192,26 +192,26 @@ REPORT_TESTCASE (xml_loop_implicit)
   example_cyclic_b (fixture->fake_sampler, 0);
 
   assert_same_xml (fixture,
-      "<ProfileReport>"
-        "<Thread>"
-          "<Node name=\"example_cyclic_b\" total_calls=\"2\" "
-              "total_duration=\"6\">"
-            "<WorstCase duration=\"3\"></WorstCase>"
-            "<Node name=\"example_cyclic_a\" total_calls=\"3\" "
-                "total_duration=\"5\">"
-              "<WorstCase duration=\"4\"></WorstCase>"
-            "</Node>"
-          "</Node>"
-          "<Node name=\"example_cyclic_a\" total_calls=\"3\" "
-              "total_duration=\"5\">"
-            "<WorstCase duration=\"4\"></WorstCase>"
-            "<Node name=\"example_cyclic_b\" total_calls=\"2\" "
-                "total_duration=\"6\">"
-              "<WorstCase duration=\"3\"></WorstCase>"
-            "</Node>"
-          "</Node>"
-        "</Thread>"
-      "</ProfileReport>");
+      "<profile-report>\n"
+      "  <thread>\n"
+      "    <node name=\"example_cyclic_b\" total-calls=\"2\" "
+              "total-duration=\"6\">\n"
+      "      <worst-case duration=\"3\" />\n"
+      "      <node name=\"example_cyclic_a\" total-calls=\"3\" "
+                "total-duration=\"5\">\n"
+      "        <worst-case duration=\"4\" />\n"
+      "      </node>\n"
+      "    </node>\n"
+      "    <node name=\"example_cyclic_a\" total-calls=\"3\" "
+              "total-duration=\"5\">\n"
+      "      <worst-case duration=\"4\" />\n"
+      "      <node name=\"example_cyclic_b\" total-calls=\"2\" "
+                "total-duration=\"6\">\n"
+      "        <worst-case duration=\"3\" />\n"
+      "      </node>\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "</profile-report>");
 }
 
 REPORT_TESTCASE (xml_multiple_threads)
@@ -223,24 +223,24 @@ REPORT_TESTCASE (xml_multiple_threads)
       (GThreadFunc) example_d, fixture->fake_sampler));
 
   assert_same_xml (fixture,
-      "<ProfileReport>"
-        "<Thread>"
-          "<Node name=\"example_d\" total_calls=\"1\" total_duration=\"11\">"
-            "<WorstCase duration=\"11\"></WorstCase>"
-            "<Node name=\"example_c\" total_calls=\"1\" total_duration=\"4\">"
-              "<WorstCase duration=\"4\"></WorstCase>"
-            "</Node>"
-          "</Node>"
-        "</Thread>"
-        "<Thread>"
-          "<Node name=\"example_a\" total_calls=\"1\" total_duration=\"9\">"
-            "<WorstCase duration=\"9\"></WorstCase>"
-            "<Node name=\"example_c\" total_calls=\"1\" total_duration=\"4\">"
-              "<WorstCase duration=\"4\"></WorstCase>"
-            "</Node>"
-          "</Node>"
-        "</Thread>"
-      "</ProfileReport>");
+      "<profile-report>\n"
+      "  <thread>\n"
+      "    <node name=\"example_d\" total-calls=\"1\" total-duration=\"11\">\n"
+      "      <worst-case duration=\"11\" />\n"
+      "      <node name=\"example_c\" total-calls=\"1\" total-duration=\"4\">\n"
+      "        <worst-case duration=\"4\" />\n"
+      "      </node>\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "  <thread>\n"
+      "    <node name=\"example_a\" total-calls=\"1\" total-duration=\"9\">\n"
+      "      <worst-case duration=\"9\" />\n"
+      "      <node name=\"example_c\" total-calls=\"1\" total-duration=\"4\">\n"
+      "        <worst-case duration=\"4\" />\n"
+      "      </node>\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "</profile-report>");
 }
 
 REPORT_TESTCASE (xml_worst_case_info)
@@ -254,14 +254,14 @@ REPORT_TESTCASE (xml_worst_case_info)
   example_worst_case_info (fixture->fake_sampler, "late", 2);
 
   assert_same_xml (fixture,
-      "<ProfileReport>"
-        "<Thread>"
-          "<Node name=\"example_worst_case_info\" total_calls=\"3\" "
-              "total_duration=\"6\">"
-            "<WorstCase duration=\"3\">mid</WorstCase>"
-          "</Node>"
-        "</Thread>"
-      "</ProfileReport>");
+      "<profile-report>\n"
+      "  <thread>\n"
+      "    <node name=\"example_worst_case_info\" total-calls=\"3\" "
+               "total-duration=\"6\">\n"
+      "      <worst-case duration=\"3\">mid</worst-case>\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "</profile-report>");
 }
 
 REPORT_TESTCASE (xml_thread_ordering)
@@ -275,23 +275,23 @@ REPORT_TESTCASE (xml_thread_ordering)
       (GThreadFunc) simple_3, fixture->fake_sampler));
 
   assert_same_xml (fixture,
-      "<ProfileReport>"
-        "<Thread>"
-          "<Node name=\"simple_3\" total_calls=\"1\" total_duration=\"3\">"
-            "<WorstCase duration=\"3\"></WorstCase>"
-          "</Node>"
-        "</Thread>"
-        "<Thread>"
-          "<Node name=\"simple_2\" total_calls=\"1\" total_duration=\"2\">"
-            "<WorstCase duration=\"2\"></WorstCase>"
-          "</Node>"
-        "</Thread>"
-        "<Thread>"
-          "<Node name=\"simple_1\" total_calls=\"1\" total_duration=\"1\">"
-            "<WorstCase duration=\"1\"></WorstCase>"
-          "</Node>"
-        "</Thread>"
-      "</ProfileReport>");
+      "<profile-report>\n"
+      "  <thread>\n"
+      "    <node name=\"simple_3\" total-calls=\"1\" total-duration=\"3\">\n"
+      "      <worst-case duration=\"3\" />\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "  <thread>\n"
+      "    <node name=\"simple_2\" total-calls=\"1\" total-duration=\"2\">\n"
+      "      <worst-case duration=\"2\" />\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "  <thread>\n"
+      "    <node name=\"simple_1\" total-calls=\"1\" total-duration=\"1\">\n"
+      "      <worst-case duration=\"1\" />\n"
+      "    </node>\n"
+      "  </thread>\n"
+      "</profile-report>");
 }
 
 TESTCASE (profile_matching_functions)
