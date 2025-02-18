@@ -14,6 +14,7 @@
 #include <gum/gummodule.h>
 
 #define GUM_THREAD_ID_INVALID ((GumThreadId) -1)
+#define GUM_TYPE_THREAD_DETAILS (gum_thread_details_get_type ())
 
 G_BEGIN_DECLS
 
@@ -114,6 +115,11 @@ GUM_API gboolean gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
 
 GUM_API const gchar * gum_code_signing_policy_to_string (
     GumCodeSigningPolicy policy);
+
+GUM_API GType gum_thread_details_get_type (void) G_GNUC_CONST;
+GUM_API GumThreadDetails * gum_thread_details_copy (
+    const GumThreadDetails * details);
+GUM_API void gum_thread_details_free (GumThreadDetails * details);
 
 G_END_DECLS
 
