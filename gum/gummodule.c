@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -173,4 +173,31 @@ gum_symbol_entry_compare (const GumSymbolEntry * lhs,
                           const GumSymbolEntry * rhs)
 {
   return strcmp (lhs->name, rhs->name);
+}
+
+const gchar *
+gum_symbol_type_to_string (GumSymbolType type)
+{
+  switch (type)
+  {
+    /* Common */
+    case GUM_SYMBOL_UNKNOWN:            return "unknown";
+    case GUM_SYMBOL_SECTION:            return "section";
+
+    /* Mach-O */
+    case GUM_SYMBOL_UNDEFINED:          return "undefined";
+    case GUM_SYMBOL_ABSOLUTE:           return "absolute";
+    case GUM_SYMBOL_PREBOUND_UNDEFINED: return "prebound-undefined";
+    case GUM_SYMBOL_INDIRECT:           return "indirect";
+
+    /* ELF */
+    case GUM_SYMBOL_OBJECT:             return "object";
+    case GUM_SYMBOL_FUNCTION:           return "function";
+    case GUM_SYMBOL_FILE:               return "file";
+    case GUM_SYMBOL_COMMON:             return "common";
+    case GUM_SYMBOL_TLS:                return "tls";
+  }
+
+  g_assert_not_reached ();
+  return NULL;
 }

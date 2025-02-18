@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -169,6 +169,8 @@ GUM_API GumAddress gum_module_find_global_export_by_name (
     const gchar * symbol_name);
 GUM_API GumAddress gum_module_find_symbol_by_name (GumModule * self,
     const gchar * symbol_name);
+
+GUM_API const gchar * gum_symbol_type_to_string (GumSymbolType type);
 
 G_END_DECLS
 
