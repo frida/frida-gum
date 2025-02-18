@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
@@ -5706,6 +5706,7 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
   GUM_SETUP_ATOM_NAMED (cachedInput, "$i");
   GUM_SETUP_ATOM_NAMED (cachedOutput, "$o");
   GUM_SETUP_ATOM (context);
+  GUM_SETUP_ATOM (entrypoint);
   GUM_SETUP_ATOM (exceptions);
   GUM_SETUP_ATOM (file);
   GUM_SETUP_ATOM (handle);
@@ -5720,6 +5721,7 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
   GUM_SETUP_ATOM (nativeContext);
   GUM_SETUP_ATOM (offset);
   GUM_SETUP_ATOM (operation);
+  GUM_SETUP_ATOM (parameter);
   GUM_SETUP_ATOM (path);
   GUM_SETUP_ATOM (pc);
   GUM_SETUP_ATOM (port);
@@ -5727,6 +5729,7 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
   GUM_SETUP_ATOM (prototype);
   GUM_SETUP_ATOM (read);
   GUM_SETUP_ATOM_NAMED (resource, "$r");
+  GUM_SETUP_ATOM (routine);
   GUM_SETUP_ATOM (scheduling);
   GUM_SETUP_ATOM (section);
   GUM_SETUP_ATOM (size);

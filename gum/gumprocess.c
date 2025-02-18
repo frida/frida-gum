@@ -138,19 +138,21 @@ gum_process_set_code_signing_policy (GumCodeSigningPolicy policy)
  * gum_process_enumerate_threads:
  * @func: (scope call): function called with #GumThreadDetails
  * @user_data: data to pass to @func
+ * @flags: flags specifying the desired level of detail
  *
  * Enumerates all threads, calling @func with #GumThreadDetails about each
  * thread found.
  */
 void
 gum_process_enumerate_threads (GumFoundThreadFunc func,
-                               gpointer user_data)
+                               gpointer user_data,
+                               GumThreadFlags flags)
 {
   GumEmitThreadsContext ctx;
 
   ctx.func = func;
   ctx.user_data = user_data;
-  _gum_process_enumerate_threads (gum_emit_thread_if_not_cloaked, &ctx);
+  _gum_process_enumerate_threads (gum_emit_thread_if_not_cloaked, &ctx, flags);
 }
 
 static gboolean

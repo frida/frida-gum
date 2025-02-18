@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -14,7 +14,7 @@
 G_BEGIN_DECLS
 
 G_GNUC_INTERNAL void _gum_process_enumerate_threads (GumFoundThreadFunc func,
-    gpointer user_data);
+    gpointer user_data, GumThreadFlags flags);
 G_GNUC_INTERNAL gboolean _gum_process_collect_main_module (GumModule * module,
     gpointer user_data);
 G_GNUC_INTERNAL void _gum_process_enumerate_ranges (GumPageProtection prot,

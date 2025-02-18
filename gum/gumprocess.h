@@ -21,6 +21,7 @@ G_BEGIN_DECLS
 typedef guint GumProcessId;
 typedef gsize GumThreadId;
 typedef struct _GumThreadDetails GumThreadDetails;
+typedef struct _GumThreadEntrypoint GumThreadEntrypoint;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
 
 typedef enum {
@@ -39,6 +40,21 @@ typedef enum {
 } GumModifyThreadFlags;
 
 typedef enum {
+  GUM_THREAD_FLAGS_NAME                 = (1 << 0),
+  GUM_THREAD_FLAGS_STATE                = (1 << 1),
+  GUM_THREAD_FLAGS_CPU_CONTEXT          = (1 << 2),
+  GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE   = (1 << 3),
+  GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER = (1 << 4),
+
+  GUM_THREAD_FLAGS_NONE                 = 0,
+  GUM_THREAD_FLAGS_ALL                  = GUM_THREAD_FLAGS_NAME |
+                                          GUM_THREAD_FLAGS_STATE |
+                                          GUM_THREAD_FLAGS_CPU_CONTEXT |
+                                          GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
+                                          GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER,
+} GumThreadFlags;
+
+typedef enum {
   GUM_THREAD_RUNNING = 1,
   GUM_THREAD_STOPPED,
   GUM_THREAD_WAITING,
@@ -46,12 +62,20 @@ typedef enum {
   GUM_THREAD_HALTED
 } GumThreadState;
 
+struct _GumThreadEntrypoint
+{
+  GumAddress routine;
+  GumAddress parameter;
+};
+
 struct _GumThreadDetails
 {
+  GumThreadFlags flags;
   GumThreadId id;
   const gchar * name;
   GumThreadState state;
   GumCpuContext cpu_context;
+  GumThreadEntrypoint entrypoint;
 };
 
 typedef enum {
@@ -86,7 +110,7 @@ GUM_API gboolean gum_process_has_thread (GumThreadId thread_id);
 GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
     GumModifyThreadFunc func, gpointer user_data, GumModifyThreadFlags flags);
 GUM_API void gum_process_enumerate_threads (GumFoundThreadFunc func,
-    gpointer user_data);
+    gpointer user_data, GumThreadFlags flags);
 GUM_API GumModule * gum_process_get_main_module (void);
 GUM_API GumModule * gum_process_get_libc_module (void);
 GUM_API GumModule * gum_process_find_module_by_name (const gchar * name);

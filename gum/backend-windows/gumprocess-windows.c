@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -13,12 +13,23 @@
 #include <intrin.h>
 #include <psapi.h>
 #include <tlhelp32.h>
+#include <winternl.h>
 
 #ifndef _MSC_VER
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
+typedef enum {
+  GUM_THREAD_QUERY_BASIC_INFORMATION,
+  GUM_THREAD_QUERY_SET_WIN32_START_ADDRESS = 9,
+} GumThreadInfoClass;
+
+typedef NTSTATUS (WINAPI * GumQueryInformationThreadFunc) (HANDLE thread,
+    GumThreadInfoClass klass, PVOID thread_information,
+    ULONG thread_information_length, PULONG return_length);
+typedef struct _GumThreadBasicInformation GumThreadBasicInformation;
+typedef struct _GumThreadEnvironmentBlock GumThreadEnvironmentBlock;
 typedef struct _GumSetHardwareBreakpointContext GumSetHardwareBreakpointContext;
 typedef struct _GumSetHardwareWatchpointContext GumSetHardwareWatchpointContext;
 typedef void (* GumModifyDebugRegistersFunc) (CONTEXT * ctx,
@@ -31,6 +42,29 @@ typedef BOOL (WINAPI * GumIsWow64ProcessFunc) (HANDLE process, BOOL * is_wow64);
 typedef BOOL (WINAPI * GumGetProcessInformationFunc) (HANDLE process,
     PROCESS_INFORMATION_CLASS process_information_class,
     void * process_information, DWORD process_information_size);
+
+struct _GumThreadBasicInformation
+{
+  NTSTATUS exit_status;
+  GumThreadEnvironmentBlock * teb;
+  CLIENT_ID client_id;
+  ULONG_PTR affinity_mask;
+  KPRIORITY priority;
+  LONG base_priority;
+};
+
+struct _GumThreadEnvironmentBlock
+{
+  gpointer current_seh_frame;
+  ULONG_PTR stack_high;
+  ULONG_PTR stack_low;
+#if GLIB_SIZEOF_VOID_P == 4
+  gpointer padding[896];
+#else
+  gpointer padding[652];
+#endif
+  ULONG_PTR deallocation_stack;
+};
 
 struct _GumSetHardwareBreakpointContext
 {
@@ -59,6 +93,8 @@ static void gum_do_unset_hardware_watchpoint (CONTEXT * ctx,
     gpointer user_data);
 static gboolean gum_modify_debug_registers (GumThreadId thread_id,
     GumModifyDebugRegistersFunc func, gpointer user_data, GError ** error);
+
+static GumQueryInformationThreadFunc gum_get_query_information_thread (void);
 
 static GumModule * gum_libc_module;
 
@@ -263,13 +299,10 @@ beach:
 
 static gboolean
 gum_windows_get_thread_details (DWORD thread_id,
-                                GumThreadDetails * details)
+                                GumThreadDetails * thread)
 {
   gboolean success = FALSE;
-  static gsize initialized = FALSE;
-  static GumGetThreadDescriptionFunc get_thread_description;
-  static DWORD desired_access;
-  HANDLE thread = NULL;
+  HANDLE handle = NULL;
 #ifdef _MSC_VER
   __declspec (align (64))
 #endif
@@ -279,49 +312,27 @@ gum_windows_get_thread_details (DWORD thread_id,
 #endif
         = { 0, };
 
-  memset (details, 0, sizeof (GumThreadDetails));
+  memset (thread, 0, sizeof (GumThreadDetails));
 
-  if (g_once_init_enter (&initialized))
-  {
-    get_thread_description = (GumGetThreadDescriptionFunc) GetProcAddress (
-        GetModuleHandleW (L"kernel32.dll"),
-        "GetThreadDescription");
+  thread->flags = GUM_THREAD_FLAGS_STATE | GUM_THREAD_FLAGS_CPU_CONTEXT;
 
-    desired_access = THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME;
-    if (get_thread_description != NULL)
-      desired_access |= THREAD_QUERY_LIMITED_INFORMATION;
-
-    g_once_init_leave (&initialized, TRUE);
-  }
-
-  thread = OpenThread (desired_access, FALSE, thread_id);
-  if (thread == NULL)
+  handle = OpenThread (THREAD_QUERY_LIMITED_INFORMATION | THREAD_GET_CONTEXT |
+      THREAD_SUSPEND_RESUME, FALSE, thread_id);
+  if (handle == NULL)
     goto beach;
 
-  details->id = thread_id;
+  thread->id = thread_id;
 
-  if (get_thread_description != NULL)
-  {
-    WCHAR * name_utf16;
-
-    if (!SUCCEEDED (get_thread_description (thread, &name_utf16)))
-      goto beach;
-
-    if (name_utf16[0] != L'\0')
-    {
-      details->name = g_utf16_to_utf8 ((const gunichar2 *) name_utf16, -1, NULL,
-          NULL, NULL);
-    }
-
-    LocalFree (name_utf16);
-  }
+  thread->name = gum_windows_query_thread_name (handle);
+  if (thread->name != NULL)
+    thread->flags |= GUM_THREAD_FLAGS_NAME;
 
   if (thread_id == GetCurrentThreadId ())
   {
-    details->state = GUM_THREAD_RUNNING;
+    thread->state = GUM_THREAD_RUNNING;
 
     RtlCaptureContext (&context);
-    gum_windows_parse_context (&context, &details->cpu_context);
+    gum_windows_parse_context (&context, &thread->cpu_context);
 
     success = TRUE;
   }
@@ -329,31 +340,31 @@ gum_windows_get_thread_details (DWORD thread_id,
   {
     DWORD previous_suspend_count;
 
-    previous_suspend_count = SuspendThread (thread);
+    previous_suspend_count = SuspendThread (handle);
     if (previous_suspend_count == (DWORD) -1)
       goto beach;
 
     if (previous_suspend_count == 0)
-      details->state = GUM_THREAD_RUNNING;
+      thread->state = GUM_THREAD_RUNNING;
     else
-      details->state = GUM_THREAD_STOPPED;
+      thread->state = GUM_THREAD_STOPPED;
 
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-    if (GetThreadContext (thread, &context))
+    if (GetThreadContext (handle, &context))
     {
-      gum_windows_parse_context (&context, &details->cpu_context);
+      gum_windows_parse_context (&context, &thread->cpu_context);
       success = TRUE;
     }
 
-    ResumeThread (thread);
+    ResumeThread (handle);
   }
 
 beach:
-  if (thread != NULL)
-    CloseHandle (thread);
+  if (handle != NULL)
+    CloseHandle (handle);
 
   if (!success)
-    g_free ((gpointer) details->name);
+    g_free ((gpointer) thread->name);
 
   return success;
 }
@@ -500,10 +511,20 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
     g_once_init_leave (&initialized, TRUE);
   }
 
-  if (get_stack_limits == NULL)
-    return 0;
+  if (get_stack_limits != NULL)
+  {
+    get_stack_limits (&low, &high);
+  }
+  else
+  {
+    GumThreadBasicInformation tbi;
 
-  get_stack_limits (&low, &high);
+    (gum_get_query_information_thread ()) (GetCurrentThread (),
+        GUM_THREAD_QUERY_BASIC_INFORMATION, &tbi, sizeof (tbi), NULL);
+
+    low = tbi.teb->deallocation_stack;
+    high = tbi.teb->stack_high;
+  }
 
   range = &ranges[0];
   range->base_address = low;
@@ -948,6 +969,71 @@ beach:
 
     return result;
   }
+}
+
+gchar *
+gum_windows_query_thread_name (HANDLE thread)
+{
+  gchar * name = NULL;
+  static gsize initialized = FALSE;
+  static GumGetThreadDescriptionFunc get_thread_description;
+  WCHAR * name_utf16 = NULL;
+
+  if (g_once_init_enter (&initialized))
+  {
+    get_thread_description = (GumGetThreadDescriptionFunc) GetProcAddress (
+        GetModuleHandleW (L"kernel32.dll"),
+        "GetThreadDescription");
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  if (get_thread_description == NULL)
+    goto beach;
+
+  if (!SUCCEEDED (get_thread_description (thread, &name_utf16)))
+    goto beach;
+
+  if (name_utf16[0] == L'\0')
+    goto beach;
+
+  name = g_utf16_to_utf8 ((const gunichar2 *) name_utf16, -1, NULL, NULL, NULL);
+
+beach:
+  if (name_utf16 != NULL)
+    LocalFree (name_utf16);
+
+  return name;
+}
+
+GumAddress
+gum_windows_query_thread_entrypoint_routine (HANDLE thread)
+{
+  GumAddress routine = 0;
+
+  (gum_get_query_information_thread ()) (thread,
+      GUM_THREAD_QUERY_SET_WIN32_START_ADDRESS, &routine, sizeof (routine),
+      NULL);
+
+  return routine;
+}
+
+static GumQueryInformationThreadFunc
+gum_get_query_information_thread (void)
+{
+  static gsize initialized = FALSE;
+  static GumQueryInformationThreadFunc query_information_thread = NULL;
+
+  if (g_once_init_enter (&initialized))
+  {
+    query_information_thread = (GumQueryInformationThreadFunc) GetProcAddress (
+        GetModuleHandleW (L"ntdll.dll"),
+        "NtQueryInformationThread");
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  return query_information_thread;
 }
 
 void

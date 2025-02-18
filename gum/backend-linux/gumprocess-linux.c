@@ -863,7 +863,8 @@ gum_put_ack (gint fd,
 
 void
 _gum_process_enumerate_threads (GumFoundThreadFunc func,
-                                gpointer user_data)
+                                gpointer user_data,
+                                GumThreadFlags flags)
 {
   GDir * dir;
   const gchar * name;
@@ -874,23 +875,39 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
 
   while (carry_on && (name = g_dir_read_name (dir)) != NULL)
   {
-    GumThreadDetails details;
-    gchar * thread_name;
+    GumThreadDetails t = { 0, };
+    gchar * thread_name = NULL;
 
-    details.id = atoi (name);
+    t.id = atoi (name);
 
-    thread_name = gum_linux_query_thread_name (details.id);
-    details.name = thread_name;
-
-    if (gum_linux_query_thread_state (details.id, &details.state))
+    if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
     {
-      if (gum_process_modify_thread (details.id, gum_store_cpu_context,
-            &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
+      thread_name = gum_linux_query_thread_name (t.id);
+      if (thread_name != NULL)
       {
-        carry_on = func (&details, user_data);
+        t.name = thread_name;
+        t.flags |= GUM_THREAD_FLAGS_NAME;
       }
     }
 
+    if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+    {
+      if (!gum_linux_query_thread_state (t.id, &t.state))
+        goto next;
+      t.flags |= GUM_THREAD_FLAGS_STATE;
+    }
+
+    if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+    {
+      if (!gum_process_modify_thread (t.id, gum_store_cpu_context,
+            &t.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
+        goto next;
+      t.flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+    }
+
+    carry_on = func (&t, user_data);
+
+next:
     g_free (thread_name);
   }
 
