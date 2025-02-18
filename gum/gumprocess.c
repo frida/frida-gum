@@ -66,6 +66,9 @@ static GumTeardownRequirement gum_teardown_requirement =
     GUM_TEARDOWN_REQUIREMENT_FULL;
 static GumCodeSigningPolicy gum_code_signing_policy = GUM_CODE_SIGNING_OPTIONAL;
 
+G_DEFINE_BOXED_TYPE (GumThreadDetails, gum_thread_details,
+                     gum_thread_details_copy, gum_thread_details_free)
+
 GumOS
 gum_process_get_native_os (void)
 {
@@ -422,4 +425,22 @@ gum_code_signing_policy_to_string (GumCodeSigningPolicy policy)
 
   g_assert_not_reached ();
   return NULL;
+}
+
+GumThreadDetails *
+gum_thread_details_copy (const GumThreadDetails * details)
+{
+  GumThreadDetails * d;
+
+  d = g_slice_dup (GumThreadDetails, details);
+  d->name = g_strdup (details->name);
+
+  return d;
+}
+
+void
+gum_thread_details_free (GumThreadDetails * details)
+{
+  g_free ((gpointer) details->name);
+  g_slice_free (GumThreadDetails, details);
 }
