@@ -105,7 +105,6 @@ gum_native_module_finalize (GObject * object)
   GumNativeModule * self = GUM_NATIVE_MODULE (object);
 
   g_free (self->path);
-  FreeLibrary (self->handle);
 
   G_OBJECT_CLASS (gum_native_module_parent_class)->finalize (object);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,8 +21,6 @@ gum_module_load (const gchar * module_name,
 
   module = gum_process_find_module_by_name (module_name);
   g_assert (module != NULL);
-
-  dlclose (handle);
 
   return module;
 

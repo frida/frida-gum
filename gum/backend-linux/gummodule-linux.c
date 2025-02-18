@@ -34,8 +34,6 @@ gum_module_load (const gchar * module_name,
   module = gum_process_find_module_by_name (module_name);
   g_assert (module != NULL);
 
-  dlclose (handle);
-
   return module;
 
 not_found:

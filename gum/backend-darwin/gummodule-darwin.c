@@ -211,8 +211,6 @@ gum_module_load (const gchar * module_name,
   }
   g_assert (module != NULL);
 
-  dlclose (handle);
-
   return module;
 
 not_found:
