@@ -13,7 +13,16 @@
 
 G_BEGIN_DECLS
 
+typedef struct _GumLinuxPThreadIter GumLinuxPThreadIter;
+typedef struct _GumLinuxPThreadSpec GumLinuxPThreadSpec;
 typedef struct _GumLinuxNamedRange GumLinuxNamedRange;
+
+struct _GumLinuxPThreadIter
+{
+  gpointer list;
+  gpointer node;
+  const GumLinuxPThreadSpec * spec;
+};
 
 struct _GumLinuxNamedRange
 {
@@ -29,12 +38,27 @@ GUM_API GumCpuType gum_linux_cpu_type_from_file (const gchar * path,
 GUM_API GumCpuType gum_linux_cpu_type_from_pid (pid_t pid, GError ** error);
 GUM_API GumCpuType gum_linux_cpu_type_from_auxv (gconstpointer auxv,
     gsize auxv_size);
-GUM_API gchar * gum_linux_query_thread_name (GumThreadId id);
-GUM_API gboolean gum_linux_query_thread_state (GumThreadId tid,
-    GumThreadState * state);
+GUM_API void gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
+    const GumLinuxPThreadSpec * spec);
+GUM_API gboolean gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
+    pthread_t * thread);
 GUM_API void gum_linux_enumerate_ranges (pid_t pid, GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 GUM_API GHashTable * gum_linux_collect_named_ranges (void);
+GUM_API gchar * gum_linux_query_thread_name (GumThreadId id);
+GUM_API gboolean gum_linux_query_thread_state (GumThreadId tid,
+    GumThreadState * state);
+GUM_API gboolean gum_linux_query_thread_cpu_context (GumThreadId tid,
+    GumCpuContext * ctx);
+GUM_API GumThreadId gum_linux_query_pthread_tid (pthread_t thread,
+    const GumLinuxPThreadSpec * spec);
+GUM_API gpointer gum_linux_query_pthread_start_routine (pthread_t thread,
+    const GumLinuxPThreadSpec * spec);
+GUM_API gpointer gum_linux_query_pthread_start_parameter (pthread_t thread,
+    const GumLinuxPThreadSpec * spec);
+GUM_API void gum_linux_lock_pthread_list (const GumLinuxPThreadSpec * spec);
+GUM_API void gum_linux_unlock_pthread_list (const GumLinuxPThreadSpec * spec);
+GUM_API const GumLinuxPThreadSpec * gum_linux_query_pthread_spec (void);
 
 GUM_API gboolean gum_linux_module_path_matches (const gchar * path,
     const gchar * name_or_path);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1010,6 +1010,73 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
                                            gpointer address)
 {
   return gum_arm64_reader_try_get_relative_jump_target (address);
+}
+
+gsize
+_gum_interceptor_backend_detect_hook_size (gconstpointer code,
+                                           csh capstone,
+                                           cs_insn * insn)
+{
+  const cs_arm64 * arm64 = &insn->detail->arm64;
+  const uint8_t * start, * cursor;
+  size_t size;
+  uint64_t addr;
+  arm64_reg expecting_branch_to_trampoline_in_reg = ARM64_REG_INVALID;
+  gsize inline_data_size = 0;
+  gboolean expecting_call_to_shared_deflector = FALSE;
+
+  start = code;
+  cursor = start;
+  size = 16;
+  addr = GPOINTER_TO_SIZE (cursor);
+
+  if (!cs_disasm_iter (capstone, &cursor, &size, &addr, insn))
+    return 0;
+  switch (insn->id)
+  {
+    case ARM64_INS_B:
+      return cursor - start;
+    case ARM64_INS_ADRP:
+    case ARM64_INS_LDR:
+      switch (arm64->operands[0].reg)
+      {
+        case ARM64_REG_X16:
+        case ARM64_REG_X17:
+          expecting_branch_to_trampoline_in_reg = arm64->operands[0].reg;
+          if (insn->id == ARM64_INS_LDR)
+            inline_data_size = 8;
+          break;
+        default:
+          break;
+      }
+      break;
+    case ARM64_INS_STP:
+      expecting_call_to_shared_deflector =
+          arm64->operands[0].reg == ARM64_REG_X0 &&
+          arm64->operands[1].reg == ARM64_REG_LR;
+      break;
+    default:
+      break;
+  }
+
+  if (!cs_disasm_iter (capstone, &cursor, &size, &addr, insn))
+    return 0;
+  switch (insn->id)
+  {
+    case ARM64_INS_BR:
+    case ARM64_INS_BRAAZ:
+      if (arm64->operands[0].reg == expecting_branch_to_trampoline_in_reg)
+        return (cursor - start) + inline_data_size;
+      break;
+    case ARM64_INS_BL:
+      if (expecting_call_to_shared_deflector)
+        return cursor - start;
+      break;
+    default:
+      break;
+  }
+
+  return 0;
 }
 
 static void

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -42,6 +42,7 @@
 #include <gum/gumstalker.h>
 #include <gum/gumsymbolutil.h>
 #include <gum/gumsysinternals.h>
+#include <gum/gumthreadregistry.h>
 #include <gum/gumtls.h>
 
 G_BEGIN_DECLS

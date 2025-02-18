@@ -72,6 +72,17 @@ namespace Gum {
 		ABORT_SAFELY,
 	}
 
+	public enum ThreadFlags {
+		NAME,
+		STATE,
+		CPU_CONTEXT,
+		ENTRYPOINT_ROUTINE,
+		ENTRYPOINT_PARAMETER,
+
+		NONE,
+		ALL,
+	}
+
 	public enum OS {
 		WINDOWS,
 		MACOS,
@@ -296,7 +307,7 @@ namespace Gum {
 		public Gum.ThreadId get_current_thread_id ();
 		public bool has_thread (Gum.ThreadId thread_id);
 		public bool modify_thread (Gum.ThreadId thread_id, Gum.ModifyThreadFunc func, Gum.ModifyThreadFlags flags = NONE);
-		public void enumerate_threads (Gum.FoundThreadFunc func);
+		public void enumerate_threads (Gum.FoundThreadFunc func, Gum.ThreadFlags flags = ALL);
 		public unowned Module get_main_module ();
 		public unowned Module? get_libc_module ();
 		public Module? find_module_by_name (string name);
@@ -561,10 +572,17 @@ namespace Gum {
 		HALTED
 	}
 
+	public struct ThreadEntrypoint {
+		Gum.Address routine;
+		Gum.Address parameter;
+	}
+
 	public struct ThreadDetails {
+		public Gum.ThreadFlags flags;
 		public Gum.ThreadId id;
 		public Gum.ThreadState state;
-		public CpuContext cpu_context;
+		public Gum.CpuContext cpu_context;
+		public Gum.ThreadEntrypoint entrypoint;
 	}
 
 	[CCode (cprefix = "GUM_IMPORT_")]
