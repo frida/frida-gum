@@ -38,6 +38,7 @@ gum_headers = [
   'gumswiftapiresolver.h',
   'gumsymbolutil.h',
   'gumsysinternals.h',
+  'gumthreadregistry.h',
   'gumtls.h',
 ]
 
@@ -68,6 +69,7 @@ gum_sources = [
   'gummodulemap.c',
   'gumprintf.c',
   'gumprocess.c',
+  'gumthreadregistry.c',
   'gummodule.c',
   'gummodulefacade.c',
   'gummoduleregistry.c',
@@ -133,6 +135,7 @@ if host_os_family == 'darwin'
     'backend-darwin' / 'gumtls-darwin.c',
     'backend-darwin' / 'gummemory-darwin.c',
     'backend-darwin' / 'gumprocess-darwin.c',
+    'backend-darwin' / 'gumthreadregistry-darwin.c',
     'backend-darwin' / 'gummoduleregistry-darwin.c',
     'backend-darwin' / 'gummodule-darwin.c',
     'backend-posix' / 'gumexceptor-posix.c',
@@ -162,8 +165,10 @@ if host_os_family == 'linux'
     'backend-linux' / 'gummemory-linux.c',
     'backend-posix' / 'gummemory-posix.c',
     'backend-linux' / 'gumprocess-linux.c',
+    'backend-linux' / 'gumthreadregistry-linux.c',
     'backend-linux' / 'gummoduleregistry-linux.c',
     'backend-linux' / 'gummodule-linux.c',
+    'backend-linux' / 'gumsystemtap.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
   ]
