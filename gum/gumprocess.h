@@ -15,8 +15,6 @@
 
 #define GUM_THREAD_ID_INVALID ((GumThreadId) -1)
 
-#define GUM_TYPE_MODULE_DETAILS (gum_module_details_get_type ())
-
 G_BEGIN_DECLS
 
 typedef guint GumProcessId;
