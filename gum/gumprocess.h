@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
@@ -116,8 +116,6 @@ GUM_API gboolean gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
 
 GUM_API const gchar * gum_code_signing_policy_to_string (
     GumCodeSigningPolicy policy);
-
-GUM_API const gchar * gum_symbol_type_to_string (GumSymbolType type);
 
 G_END_DECLS
 
