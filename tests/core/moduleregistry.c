@@ -47,7 +47,7 @@ on_module_added (GumModuleRegistry * registry,
                  GumModule * module,
                  gpointer user_data)
 {
-  g_printerr ("%s: path=\"%s\n", G_STRFUNC, gum_module_get_path (module));
+  g_printerr ("%s: path=\"%s\"\n", G_STRFUNC, gum_module_get_path (module));
 }
 
 static void
@@ -55,5 +55,5 @@ on_module_removed (GumModuleRegistry * registry,
                    GumModule * module,
                    gpointer user_data)
 {
-  g_printerr ("%s: path=\"%s\n", G_STRFUNC, gum_module_get_path (module));
+  g_printerr ("%s: path=\"%s\"\n", G_STRFUNC, gum_module_get_path (module));
 }
