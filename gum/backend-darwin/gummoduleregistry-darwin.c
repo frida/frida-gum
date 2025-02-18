@@ -44,7 +44,7 @@ _gum_module_registry_activate (GumModuleRegistry * self)
   gum_registry = self;
   gum_resolver = gum_darwin_module_resolver_new_with_loader (mach_task_self (),
       (GumDarwinModuleResolverLoadFunc) _gum_module_registry_get_modules,
-      g_object_ref (gum_registry), g_object_unref, NULL);
+      gum_registry, NULL, NULL);
 
   if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos))
     return;
