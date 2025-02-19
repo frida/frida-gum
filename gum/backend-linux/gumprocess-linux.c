@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023-2024 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
@@ -296,6 +296,7 @@ static void gum_deinit_libc_module (void);
 static const Dl_info * gum_try_init_libc_info (void);
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
+static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static void gum_do_set_hardware_breakpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
 static void gum_do_unset_hardware_breakpoint (GumThreadId thread_id,
@@ -308,9 +309,6 @@ static void gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
 static void gum_proc_maps_iter_init_for_path (GumProcMapsIter * iter,
     const gchar * path);
 
-static gchar * gum_thread_read_name (GumThreadId thread_id);
-static gboolean gum_thread_read_state (GumThreadId tid, GumThreadState * state);
-static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static GumPageProtection gum_page_protection_from_proc_perms_string (
     const gchar * perms);
 
@@ -881,10 +879,10 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
 
     details.id = atoi (name);
 
-    thread_name = gum_thread_read_name (details.id);
+    thread_name = gum_linux_query_thread_name (details.id);
     details.name = thread_name;
 
-    if (gum_thread_read_state (details.id, &details.state))
+    if (gum_linux_query_thread_state (details.id, &details.state))
     {
       if (gum_process_modify_thread (details.id, gum_store_cpu_context,
             &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
@@ -1088,6 +1086,65 @@ _gum_try_translate_vdso_name (gchar * name)
   }
 
   return FALSE;
+}
+
+gchar *
+gum_linux_query_thread_name (GumThreadId id)
+{
+  gchar * name = NULL;
+  gchar * path;
+  gchar * comm = NULL;
+
+  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/comm", id);
+  if (!g_file_get_contents (path, &comm, NULL, NULL))
+    goto beach;
+  name = g_strchomp (g_steal_pointer (&comm));
+
+beach:
+  g_free (comm);
+  g_free (path);
+
+  return name;
+}
+
+gboolean
+gum_linux_query_thread_state (GumThreadId tid,
+                              GumThreadState * state)
+{
+  gboolean success = FALSE;
+  gchar * path, * info = NULL;
+
+  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/stat", tid);
+  if (g_file_get_contents (path, &info, NULL, NULL))
+  {
+    gchar * p;
+
+    p = strrchr (info, ')') + 2;
+
+    *state = gum_thread_state_from_proc_status_character (*p);
+    success = TRUE;
+  }
+
+  g_free (info);
+  g_free (path);
+
+  return success;
+}
+
+static GumThreadState
+gum_thread_state_from_proc_status_character (gchar c)
+{
+  switch (g_ascii_toupper (c))
+  {
+    case 'R': return GUM_THREAD_RUNNING;
+    case 'S': return GUM_THREAD_WAITING;
+    case 'D': return GUM_THREAD_UNINTERRUPTIBLE;
+    case 'Z': return GUM_THREAD_UNINTERRUPTIBLE;
+    case 'T': return GUM_THREAD_STOPPED;
+    case 'W':
+    default:
+      return GUM_THREAD_UNINTERRUPTIBLE;
+  }
 }
 
 void
@@ -2336,66 +2393,6 @@ gum_unparse_gp_regs (const GumCpuContext * ctx,
 #else
 # error Unsupported architecture
 #endif
-}
-
-static gchar *
-gum_thread_read_name (GumThreadId thread_id)
-{
-  gchar * name = NULL;
-  gchar * path;
-  gchar * comm = NULL;
-
-  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/comm",
-      thread_id);
-  if (!g_file_get_contents (path, &comm, NULL, NULL))
-    goto beach;
-  name = g_strchomp (g_steal_pointer (&comm));
-
-beach:
-  g_free (comm);
-  g_free (path);
-
-  return name;
-}
-
-static gboolean
-gum_thread_read_state (GumThreadId tid,
-                       GumThreadState * state)
-{
-  gboolean success = FALSE;
-  gchar * path, * info = NULL;
-
-  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/stat", tid);
-  if (g_file_get_contents (path, &info, NULL, NULL))
-  {
-    gchar * p;
-
-    p = strrchr (info, ')') + 2;
-
-    *state = gum_thread_state_from_proc_status_character (*p);
-    success = TRUE;
-  }
-
-  g_free (info);
-  g_free (path);
-
-  return success;
-}
-
-static GumThreadState
-gum_thread_state_from_proc_status_character (gchar c)
-{
-  switch (g_ascii_toupper (c))
-  {
-    case 'R': return GUM_THREAD_RUNNING;
-    case 'S': return GUM_THREAD_WAITING;
-    case 'D': return GUM_THREAD_UNINTERRUPTIBLE;
-    case 'Z': return GUM_THREAD_UNINTERRUPTIBLE;
-    case 'T': return GUM_THREAD_STOPPED;
-    case 'W':
-    default:
-      return GUM_THREAD_UNINTERRUPTIBLE;
-  }
 }
 
 static GumPageProtection

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2012-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,6 +29,9 @@ GUM_API GumCpuType gum_linux_cpu_type_from_file (const gchar * path,
 GUM_API GumCpuType gum_linux_cpu_type_from_pid (pid_t pid, GError ** error);
 GUM_API GumCpuType gum_linux_cpu_type_from_auxv (gconstpointer auxv,
     gsize auxv_size);
+GUM_API gchar * gum_linux_query_thread_name (GumThreadId id);
+GUM_API gboolean gum_linux_query_thread_state (GumThreadId tid,
+    GumThreadState * state);
 GUM_API void gum_linux_enumerate_ranges (pid_t pid, GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 GUM_API GHashTable * gum_linux_collect_named_ranges (void);
