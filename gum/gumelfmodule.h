@@ -898,6 +898,8 @@ typedef struct _GumElfRelocationDetails GumElfRelocationDetails;
 typedef struct _GumElfDynamicEntryDetails GumElfDynamicEntryDetails;
 typedef struct _GumElfSymbolDetails GumElfSymbolDetails;
 
+typedef struct _GumElfNoteHeader GumElfNoteHeader;
+
 typedef gboolean (* GumFoundElfSegmentFunc) (
     const GumElfSegmentDetails * details, gpointer user_data);
 typedef gboolean (* GumFoundElfSectionFunc) (
@@ -958,6 +960,13 @@ struct _GumElfSymbolDetails
   GumElfSymbolBind bind;
   guint16 shdr_index;
   const GumElfSectionDetails * section;
+};
+
+struct _GumElfNoteHeader
+{
+  guint32 name_size;
+  guint32 desc_size;
+  guint32 type;
 };
 
 GUM_API GumElfModule * gum_elf_module_new_from_file (const gchar * path,
