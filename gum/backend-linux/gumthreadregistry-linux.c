@@ -7,18 +7,38 @@
 #include "gumthreadregistry-priv.h"
 
 #include "guminterceptor.h"
-#include "gumsystemtap.h"
 #include "gum/gumlinux.h"
+#ifndef HAVE_ANDROID
+# include "gumsystemtap.h"
+#endif
+
+#ifdef HAVE_ANDROID
+# include <capstone.h>
+#endif
+
+typedef struct _GumPThreadSpec GumPThreadSpec;
+
+struct _GumPThreadSpec
+{
+  gpointer start_impl;
+  gpointer terminate_impl;
+  guint thread_func_offset;
+};
 
 static void gum_add_existing_threads (GumThreadRegistry * registry);
-static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
-    gpointer user_data);
 static void gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
     gpointer user_data);
+
+static gboolean gum_compute_pthread_spec (GumPThreadSpec * spec);
+#ifdef HAVE_ANDROID
+#else
+static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
+    gpointer user_data);
+#endif
 
 static GumThreadRegistry * gum_registry;
 
@@ -33,12 +53,31 @@ static int (* gum_pthread_getname_np) (pthread_t thread, char * name,
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
 {
+  GumPThreadSpec pthread;
   GumModule * libc;
-  gpointer setname_impl, start_impl, terminate_impl;
+  gpointer setname_impl;
 
   gum_registry = self;
 
+  if (!gum_compute_pthread_spec (&pthread))
+    g_error ("Unsupported Linux system; please file a bug");
+
+  g_printerr ("Using start_impl=libc!0x%x terminate_impl=libc!0x%x thread_func_offset=0x%x\n",
+      (guint) (GUM_ADDRESS (pthread.start_impl) - gum_module_get_range (gum_process_get_libc_module ())->base_address),
+      (guint) (GUM_ADDRESS (pthread.terminate_impl) - gum_module_get_range (gum_process_get_libc_module ())->base_address),
+      pthread.thread_func_offset);
+
   gum_thread_interceptor = gum_interceptor_obtain ();
+
+  gum_start_handler = gum_make_probe_listener (
+      gum_thread_registry_on_pthread_start, gum_registry, NULL);
+  gum_interceptor_attach (gum_thread_interceptor, pthread.start_impl,
+      gum_start_handler, NULL);
+
+  gum_terminate_handler = gum_make_probe_listener (
+      gum_thread_registry_on_pthread_terminate, gum_registry, NULL);
+  gum_interceptor_attach (gum_thread_interceptor, pthread.terminate_impl,
+      gum_terminate_handler, NULL);
 
   libc = gum_process_get_libc_module ();
 
@@ -46,35 +85,6 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
         libc, "pthread_getname_np"));
   setname_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
         libc, "pthread_setname_np"));
-
-  start_impl = NULL;
-  gum_system_tap_enumerate_probes (libc, gum_find_thread_start, &start_impl);
-  if (start_impl != NULL)
-  {
-    gum_start_handler = gum_make_probe_listener (
-        gum_thread_registry_on_pthread_start, gum_registry, NULL);
-    gum_interceptor_attach (gum_thread_interceptor, start_impl,
-        gum_start_handler, NULL);
-  }
-  else
-  {
-    /* TODO */
-    g_abort ();
-  }
-
-#if defined (HAVE_GLIBC)
-  terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
-        "__call_tls_dtors"));
-#elif defined (HAVE_ANDROID)
-  terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
-        "pthread_exit"));
-#else
-# error TODO
-#endif
-  gum_terminate_handler = gum_make_probe_listener (
-      gum_thread_registry_on_pthread_terminate, gum_registry, NULL);
-  gum_interceptor_attach (gum_thread_interceptor, terminate_impl,
-      gum_terminate_handler, NULL);
 
   if (setname_impl != NULL)
   {
@@ -140,21 +150,6 @@ gum_add_existing_threads (GumThreadRegistry * registry)
   g_dir_close (dir);
 }
 
-static gboolean
-gum_find_thread_start (const GumSystemTapProbeDetails * probe,
-                       gpointer user_data)
-{
-  gpointer * start_impl = user_data;
-
-  if (strcmp (probe->name, "pthread_start") == 0)
-  {
-    *start_impl = GSIZE_TO_POINTER (probe->address);
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
 static void
 gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
                                       gpointer user_data)
@@ -218,3 +213,120 @@ gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
   _gum_thread_registry_unregister (registry,
       gum_process_get_current_thread_id ());
 }
+
+#ifdef HAVE_ANDROID
+
+static gboolean
+gum_compute_pthread_spec (GumPThreadSpec * spec)
+{
+  GumModule * libc;
+  gpointer start_prologue;
+  csh capstone;
+  const uint8_t * code;
+  size_t size;
+  cs_insn * insn;
+  uint64_t addr;
+
+  libc = gum_process_get_libc_module ();
+
+  start_prologue = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (libc,
+        "_ZL15__pthread_startPv"));
+  if (start_prologue == NULL)
+    return FALSE;
+
+  gum_cs_arch_register_native ();
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  code = start_prologue;
+  size = 1024;
+  addr = GPOINTER_TO_SIZE (start_prologue);
+
+  insn = cs_malloc (capstone);
+
+  spec->start_impl = NULL;
+
+#if defined (HAVE_ARM64)
+  {
+    gpointer ldp_location;
+    arm64_reg func_reg;
+
+    ldp_location = NULL;
+    func_reg = ARM64_REG_INVALID;
+
+    while (spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm64 * arm64 = &insn->detail->arm64;
+
+      switch (insn->id)
+      {
+        case ARM64_INS_LDP:
+          ldp_location = (gpointer) (code - 4);
+          func_reg = arm64->operands[0].reg;
+          spec->thread_func_offset = arm64->operands[2].mem.disp;
+          break;
+        case ARM64_INS_BLR:
+          if (arm64->operands[0].reg == func_reg)
+            spec->start_impl = ldp_location;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+#else
+# error Unsupported architecture
+#endif
+
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  if (spec->start_impl == NULL)
+    return FALSE;
+
+  spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
+        "pthread_exit"));
+
+  return spec->terminate_impl != NULL;
+}
+
+#else
+
+static gboolean
+gum_compute_pthread_spec (GumPThreadSpec * spec)
+{
+  GumModule * libc;
+
+  libc = gum_process_get_libc_module ();
+
+  spec->start_impl = NULL;
+  gum_system_tap_enumerate_probes (libc, gum_find_thread_start,
+      &spec->start_impl);
+  if (spec->start_impl == NULL)
+    return FALSE;
+
+  spec->thread_func_offset = 0; /* TODO */
+
+  spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "__call_tls_dtors"));
+  return spec->terminate_impl != NULL;
+}
+
+static gboolean
+gum_find_thread_start (const GumSystemTapProbeDetails * probe,
+                       gpointer user_data)
+{
+  gpointer * start_impl = user_data;
+
+  if (strcmp (probe->name, "pthread_start") == 0)
+  {
+    *start_impl = GSIZE_TO_POINTER (probe->address);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+#endif
