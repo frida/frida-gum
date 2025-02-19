@@ -656,10 +656,8 @@ gum_quick_module_observer_unref (GumQuickModuleObserver * observer)
 
   _gum_quick_scope_enter (&scope, parent->core);
 
-  if (!JS_IsNull (observer->on_added))
-    JS_FreeValue (ctx, observer->on_added);
-  if (!JS_IsNull (observer->on_removed))
-    JS_FreeValue (ctx, observer->on_removed);
+  JS_FreeValue (ctx, observer->on_added);
+  JS_FreeValue (ctx, observer->on_removed);
 
   JS_FreeValue (ctx, observer->wrapper);
 
