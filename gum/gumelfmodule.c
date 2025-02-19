@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C)      2021 Paul Schmidt <p.schmidt@tu-bs.de>
  *
@@ -929,7 +929,9 @@ gum_elf_module_load_section_details (GumElfModule * self,
     d->name = name;
     d->type = shdr->type;
     d->flags = shdr->flags;
-    d->address = gum_elf_module_translate_to_online (self, shdr->addr);
+    d->address = ((shdr->flags & GUM_ELF_SECTION_FLAG_ALLOC) != 0)
+        ? gum_elf_module_translate_to_online (self, shdr->addr)
+        : shdr->addr;
     d->offset = shdr->offset;
     d->size = shdr->size;
     d->link = shdr->link;
