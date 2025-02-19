@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -270,6 +270,26 @@ typedef enum {
   GUM_ELF_SECTION_GNU_VERNEED    = 0x6ffffffe,
   GUM_ELF_SECTION_GNU_VERSYM     = 0x6fffffff,
 } GumElfSectionType;
+
+typedef enum {
+  GUM_ELF_SECTION_FLAG_WRITE            = (1U << 0),
+  GUM_ELF_SECTION_FLAG_ALLOC            = (1U << 1),
+  GUM_ELF_SECTION_FLAG_EXECINSTR        = (1U << 2),
+  GUM_ELF_SECTION_FLAG_MERGE            = (1U << 4),
+  GUM_ELF_SECTION_FLAG_STRINGS          = (1U << 5),
+  GUM_ELF_SECTION_FLAG_INFO_LINK        = (1U << 6),
+  GUM_ELF_SECTION_FLAG_LINK_ORDER       = (1U << 7),
+  GUM_ELF_SECTION_FLAG_OS_NONCONFORMING = (1U << 8),
+  GUM_ELF_SECTION_FLAG_GROUP            = (1U << 9),
+  GUM_ELF_SECTION_FLAG_TLS              = (1U << 10),
+  GUM_ELF_SECTION_FLAG_COMPRESSED       = (1U << 11),
+  GUM_ELF_SECTION_FLAG_GNU_RETAIN       = (1U << 21),
+  GUM_ELF_SECTION_FLAG_ORDERED          = (1U << 30),
+  GUM_ELF_SECTION_FLAG_EXCLUDE          = (1U << 31),
+} GumElfSectionFlags;
+
+#define GUM_ELF_SECTION_MASK_OS        0x0ff00000
+#define GUM_ELF_SECTION_MASK_PROCESSOR 0xf0000000
 
 typedef enum {
   GUM_ELF_DYNAMIC_NULL,
