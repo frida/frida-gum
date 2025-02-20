@@ -284,7 +284,11 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
         case ARM_INS_BLX:
           if (arm->operands[0].type == ARM_OP_REG &&
               arm->operands[0].reg == func_reg)
-            spec->start_impl = ldrd_location;
+          {
+            spec->start_impl = is_thumb
+                ? GSIZE_TO_POINTER (GPOINTER_TO_SIZE (ldrd_location) | 1)
+                : ldrd_location;
+          }
           break;
         default:
           break;
