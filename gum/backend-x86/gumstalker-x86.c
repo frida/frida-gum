@@ -375,6 +375,8 @@ struct _GumExecBlock
 enum _GumExecBlockFlags
 {
   GUM_EXEC_BLOCK_ACTIVATION_TARGET = 1 << 0,
+
+  GUM_EXEC_BLOCK_DEBUG_MARK        = 1 << 10,  
 };
 
 struct _GumSlab
@@ -3185,6 +3187,13 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
 
   return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size +
       gum_stalker_get_ic_entry_size (self->exec_context->stalker);
+}
+
+void
+gum_stalker_iterator_set_block_debug(GumStalkerIterator *self)
+{
+  GumExecBlock *block = self->exec_block;
+  block->flags |= GUM_EXEC_BLOCK_DEBUG_MARK;
 }
 
 void

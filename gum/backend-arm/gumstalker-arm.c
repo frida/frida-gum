@@ -43,6 +43,9 @@
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
 
+#define GUM_EXEC_BLOCK_TEST_DEBUG_FLAGS(block) \
+  ((gum_exec_block_get_active_block(block)->flags & GUM_EXEC_BLOCK_DEBUG_MARK)!=0)
+
 typedef struct _GumInfectContext GumInfectContext;
 typedef struct _GumDisinfectContext GumDisinfectContext;
 typedef struct _GumActivation GumActivation;
@@ -243,6 +246,8 @@ enum _GumExecBlockFlags
   GUM_EXEC_BLOCK_HAS_EXCLUSIVE_LOAD    = 1 << 2,
   GUM_EXEC_BLOCK_HAS_EXCLUSIVE_STORE   = 1 << 3,
   GUM_EXEC_BLOCK_USES_EXCLUSIVE_ACCESS = 1 << 4,
+
+  GUM_EXEC_BLOCK_DEBUG_MARK            = 1 << 10,  
 };
 
 struct _GumExecFrame
@@ -541,6 +546,8 @@ static void gum_exec_ctx_thumb_load_real_register_into (GumExecCtx * ctx,
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static void gum_exec_block_clear (GumExecBlock * block);
+static void gum_exec_block_cleanup_scratch_block_dirty(GumExecBlock *block, guint8 *scratch_base);
+static GumExecBlock *gum_exec_block_get_active_block(GumExecBlock *block);
 static void gum_exec_block_commit (GumExecBlock * block);
 static void gum_exec_block_invalidate (GumExecBlock * block);
 static gpointer gum_exec_block_encode_instruction_pointer (
@@ -2013,7 +2020,7 @@ gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
   if ((target_block->flags & GUM_EXEC_BLOCK_ACTIVATION_TARGET) != 0)
     return FALSE;
 
-  if (target_block->recycle_count < ctx->stalker->trust_threshold)
+  if (ctx->stalker->trust_threshold < 0 || target_block->recycle_count < ctx->stalker->trust_threshold)
     return FALSE;
 
   return TRUE;
@@ -2144,11 +2151,12 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   {
     const gint trust_threshold = ctx->stalker->trust_threshold;
     gboolean still_up_to_date;
+    GumExecBlock *active_block = gum_exec_block_get_active_block(block);
 
     still_up_to_date =
         (trust_threshold >= 0 && block->recycle_count >= trust_threshold) ||
-        memcmp (block->real_start, gum_exec_block_get_snapshot_start (block),
-            block->real_size) == 0;
+        memcmp(block->real_start, gum_exec_block_get_snapshot_start(active_block),
+               block->real_size) == 0;
 
     gum_spinlock_release (&ctx->code_lock);
 
@@ -2244,6 +2252,10 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
   }
   else
   {
+    guint8 *scratch_base = ctx->scratch_slab->slab.data;
+    // cleanup scratch written compile affect.
+    gum_exec_block_cleanup_scratch_block_dirty(block, scratch_base);
+    
     GumExecBlock * storage_block;
     GumAddress external_code_address;
 
@@ -2621,6 +2633,13 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
       gc->instruction->end - block->real_start);
 
   return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size;
+}
+
+void 
+gum_stalker_iterator_set_block_debug(GumStalkerIterator *self)
+{
+  GumExecBlock *block = self->exec_block;
+  block->flags |= GUM_EXEC_BLOCK_DEBUG_MARK;
 }
 
 void
@@ -3355,6 +3374,7 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
                                   GDestroyNotify data_destroy)
 {
   GumExecBlock * block = self->exec_block;
+  GumExecBlock *active_block = gum_exec_block_get_active_block(block);
   GumGeneratorContext * gc = self->generator_context;
   GumCalloutEntry entry, * live_entry;
   GumAddress entry_address;
@@ -3373,12 +3393,12 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     live_entry = gum_exec_block_write_thumb_inline_data (cw, &entry,
         sizeof (entry), &entry_address);
 
-    gum_exec_block_thumb_open_prolog (block, gc);
+    gum_exec_block_thumb_open_prolog(active_block, gc);
     gum_thumb_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_stalker_invoke_callout), 2,
         GUM_ARG_ADDRESS, entry_address,
         GUM_ARG_REGISTER, ARM_REG_R10);
-    gum_exec_block_thumb_close_prolog (block, gc);
+    gum_exec_block_thumb_close_prolog(active_block, gc);
   }
   else
   {
@@ -3387,16 +3407,16 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     live_entry = gum_exec_block_write_arm_inline_data (cw, &entry,
         sizeof (entry), &entry_address);
 
-    gum_exec_block_arm_open_prolog (block, gc);
+    gum_exec_block_arm_open_prolog(active_block, gc);
     gum_arm_writer_put_call_address_with_arguments (cw,
         GUM_ADDRESS (gum_stalker_invoke_callout), 2,
         GUM_ARG_ADDRESS, entry_address,
         GUM_ARG_REGISTER, ARM_REG_R10);
-    gum_exec_block_arm_close_prolog (block, gc);
+    gum_exec_block_arm_close_prolog(active_block, gc);
   }
 
-  live_entry->next = gum_exec_block_get_last_callout_entry (block);
-  gum_exec_block_set_last_callout_entry (block,
+  live_entry->next = gum_exec_block_get_last_callout_entry(active_block);
+  gum_exec_block_set_last_callout_entry (active_block,
       GSIZE_TO_POINTER (entry_address));
 }
 
@@ -4252,6 +4272,32 @@ gum_exec_block_clear (GumExecBlock * block)
 
   block->storage_block = NULL;
 }
+
+static GumExecBlock *
+gum_exec_block_get_active_block(GumExecBlock *block)
+{
+  return block->storage_block == NULL ? block : block->storage_block;
+}
+
+static void
+gum_exec_block_cleanup_scratch_block_dirty(GumExecBlock *block, guint8 *scratch_base)
+{
+  guint last_callout_offset = block->last_callout_offset;
+  if (last_callout_offset == 0)
+    return;
+  GumCalloutEntry *entry = (GumCalloutEntry *)(scratch_base + last_callout_offset);
+
+  // last_callout_offset base on scratch_base
+  for (;
+       entry != NULL;
+       entry = entry->next == NULL ? NULL : (GumCalloutEntry *)(scratch_base + ((guint8 *)entry->next - block->code_start)))
+  {
+    if (entry->data_destroy != NULL)
+      entry->data_destroy(entry->data);
+  }
+  block->last_callout_offset = 0;
+}
+
 
 static void
 gum_exec_block_commit (GumExecBlock * block)
