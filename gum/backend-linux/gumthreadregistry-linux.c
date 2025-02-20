@@ -62,6 +62,8 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   if (!gum_compute_pthread_spec (&pthread))
     g_error ("Unsupported Linux system; please file a bug");
 
+  g_printerr ("Found libc at %p\n",
+      GSIZE_TO_POINTER (gum_module_get_range (gum_process_get_libc_module ())->base_address));
   g_printerr ("Using start_impl=libc!0x%x terminate_impl=libc!0x%x thread_func_offset=0x%x\n",
       (guint) (GUM_ADDRESS (pthread.start_impl) - gum_module_get_range (gum_process_get_libc_module ())->base_address),
       (guint) (GUM_ADDRESS (pthread.terminate_impl) - gum_module_get_range (gum_process_get_libc_module ())->base_address),
@@ -221,6 +223,9 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 {
   GumModule * libc;
   gpointer start_prologue;
+#ifdef HAVE_ARM
+  gboolean is_thumb;
+#endif
   csh capstone;
   const uint8_t * code;
   size_t size;
@@ -235,18 +240,58 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
     return FALSE;
 
   gum_cs_arch_register_native ();
+#ifdef HAVE_ARM
+  is_thumb = (GPOINTER_TO_SIZE (start_prologue) & 1) != 0;
+  cs_open (GUM_DEFAULT_CS_ARCH,
+      is_thumb
+        ? CS_MODE_THUMB | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN
+        : GUM_DEFAULT_CS_MODE,
+      &capstone);
+  code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (start_prologue) & ~1);
+#else
   cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  code = start_prologue;
+#endif
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
-  code = start_prologue;
   size = 1024;
-  addr = GPOINTER_TO_SIZE (start_prologue);
+  addr = GPOINTER_TO_SIZE (code);
 
   insn = cs_malloc (capstone);
 
   spec->start_impl = NULL;
 
-#if defined (HAVE_ARM64)
+#if defined (HAVE_ARM)
+  {
+    gpointer ldrd_location;
+    arm_reg func_reg;
+
+    ldrd_location = NULL;
+    func_reg = ARM_REG_INVALID;
+
+    while (spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm * arm = &insn->detail->arm;
+
+      switch (insn->id)
+      {
+        case ARM_INS_LDRD:
+          ldrd_location = (gpointer) (code - insn->size);
+          func_reg = arm->operands[0].reg;
+          spec->thread_func_offset = arm->operands[2].mem.disp;
+          break;
+        case ARM_INS_BLX:
+          if (arm->operands[0].type == ARM_OP_REG &&
+              arm->operands[0].reg == func_reg)
+            spec->start_impl = ldrd_location;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM64)
   {
     gpointer ldp_location;
     arm64_reg func_reg;
@@ -262,7 +307,7 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
       switch (insn->id)
       {
         case ARM64_INS_LDP:
-          ldp_location = (gpointer) (code - 4);
+          ldp_location = (gpointer) (code - insn->size);
           func_reg = arm64->operands[0].reg;
           spec->thread_func_offset = arm64->operands[2].mem.disp;
           break;
