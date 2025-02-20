@@ -261,13 +261,36 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 
   spec->start_impl = NULL;
 
-#if defined (HAVE_ARM)
+#if defined (HAVE_I386)
   {
-    gpointer ldrd_location;
-    arm_reg func_reg;
+    gpointer mov_location = NULL;
 
-    ldrd_location = NULL;
-    func_reg = ARM_REG_INVALID;
+    while (spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      switch (insn->id)
+      {
+        case X86_INS_MOV:
+          mov_location = (gpointer) (code - insn->size);
+          break;
+        case X86_INS_CALL:
+          if (x86->operands[0].type == X86_OP_MEM)
+          {
+            spec->start_impl = mov_location;
+            spec->thread_func_offset = x86->operands[0].mem.disp;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM)
+  {
+    gpointer ldrd_location = NULL;
+    arm_reg func_reg = ARM_REG_INVALID;
 
     while (spec->start_impl == NULL &&
         cs_disasm_iter (capstone, &code, &size, &addr, insn))
@@ -297,11 +320,8 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
   }
 #elif defined (HAVE_ARM64)
   {
-    gpointer ldp_location;
-    arm64_reg func_reg;
-
-    ldp_location = NULL;
-    func_reg = ARM64_REG_INVALID;
+    gpointer ldp_location = NULL;
+    arm64_reg func_reg = ARM64_REG_INVALID;
 
     while (spec->start_impl == NULL &&
         cs_disasm_iter (capstone, &code, &size, &addr, insn))
