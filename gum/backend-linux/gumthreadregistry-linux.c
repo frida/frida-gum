@@ -18,6 +18,8 @@
 #endif
 
 typedef struct _GumPThreadSpec GumPThreadSpec;
+typedef struct _GumGlibcThread GumGlibcThread;
+typedef struct _GumGlibcList GumGlibcList;
 
 struct _GumPThreadSpec
 {
@@ -26,6 +28,25 @@ struct _GumPThreadSpec
   guint start_arg_offset;
 
   gpointer terminate_impl;
+};
+
+struct _GumGlibcList
+{
+  GumGlibcList * next;
+  GumGlibcList * prev;
+};
+
+struct _GumGlibcThread
+{
+  union
+  {
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+    guint8 tcb_header[704];
+#endif
+    gpointer padding[24];
+  } header;
+  GumGlibcList list;
+  pid_t tid;
 };
 
 static void gum_add_existing_threads (GumThreadRegistry * registry);
@@ -54,6 +75,17 @@ static GumInvocationListener * gum_terminate_handler = NULL;
 static int (* gum_pthread_getname_np) (pthread_t thread, char * name,
     size_t size);
 
+static gpointer
+hello_proc (gpointer data)
+{
+  while (TRUE)
+  {
+    g_printerr ("Hello! TID=%d\n", gettid ());
+    g_usleep (G_USEC_PER_SEC);
+  }
+  return NULL;
+}
+
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
 {
@@ -61,6 +93,8 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   gpointer setname_impl;
 
   gum_registry = self;
+
+  g_thread_unref (g_thread_new ("hello", hello_proc, GSIZE_TO_POINTER (1337)));
 
   if (!gum_compute_pthread_spec (&gum_pthread))
     g_error ("Unsupported Linux system; please file a bug");
@@ -132,12 +166,37 @@ _gum_thread_registry_deactivate (GumThreadRegistry * self)
 static void
 gum_add_existing_threads (GumThreadRegistry * registry)
 {
+  gpointer rtld_global;
+  GumGlibcList * stack_used, * stack_user, * cur;
   GDir * dir;
   const gchar * name;
   gboolean carry_on = TRUE;
 
   dir = g_dir_open ("/proc/self/task", 0, NULL);
   g_assert (dir != NULL);
+
+  rtld_global =
+      GSIZE_TO_POINTER (gum_module_find_global_export_by_name ("_rtld_global"));
+  g_printerr ("rtld_global=%p\n", rtld_global);
+
+  stack_used = (GumGlibcList *) ((guint8 *) rtld_global + 0x10b8);
+  stack_user = (GumGlibcList *) ((guint8 *) rtld_global + 0x10c8);
+
+  for (cur = stack_used->next; cur != stack_used; cur = cur->next)
+  {
+    GumGlibcThread * thread = (GumGlibcThread *)
+        ((gchar *) cur - G_STRUCT_OFFSET (GumGlibcThread, list));
+
+    g_printerr ("[stack_used] Found pthread_t %p with TID %u\n", thread, thread->tid);
+  }
+
+  for (cur = stack_user->next; cur != stack_user; cur = cur->next)
+  {
+    GumGlibcThread * thread = (GumGlibcThread *)
+        ((gchar *) cur - G_STRUCT_OFFSET (GumGlibcThread, list));
+
+    g_printerr ("[stack_user] Found pthread_t %p with TID %u\n", thread, thread->tid);
+  }
 
   while (carry_on && (name = g_dir_read_name (dir)) != NULL)
   {
