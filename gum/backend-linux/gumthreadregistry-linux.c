@@ -12,6 +12,7 @@
 # include "gumsystemtap.h"
 #endif
 
+#include <string.h>
 #ifdef HAVE_ANDROID
 # include <capstone.h>
 #endif
@@ -21,8 +22,10 @@ typedef struct _GumPThreadSpec GumPThreadSpec;
 struct _GumPThreadSpec
 {
   gpointer start_impl;
+  guint start_routine_offset;
+  guint start_arg_offset;
+
   gpointer terminate_impl;
-  guint thread_func_offset;
 };
 
 static void gum_add_existing_threads (GumThreadRegistry * registry);
@@ -41,6 +44,7 @@ static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
 #endif
 
 static GumThreadRegistry * gum_registry;
+static GumPThreadSpec gum_pthread;
 
 static GumInterceptor * gum_thread_interceptor;
 static GumInvocationListener * gum_start_handler = NULL;
@@ -53,32 +57,32 @@ static int (* gum_pthread_getname_np) (pthread_t thread, char * name,
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
 {
-  GumPThreadSpec pthread;
   GumModule * libc;
   gpointer setname_impl;
 
   gum_registry = self;
 
-  if (!gum_compute_pthread_spec (&pthread))
+  if (!gum_compute_pthread_spec (&gum_pthread))
     g_error ("Unsupported Linux system; please file a bug");
 
   g_printerr ("Found libc at %p\n",
       GSIZE_TO_POINTER (gum_module_get_range (gum_process_get_libc_module ())->base_address));
-  g_printerr ("Using start_impl=libc!0x%x terminate_impl=libc!0x%x thread_func_offset=0x%x\n",
-      (guint) (GUM_ADDRESS (pthread.start_impl) - gum_module_get_range (gum_process_get_libc_module ())->base_address),
-      (guint) (GUM_ADDRESS (pthread.terminate_impl) - gum_module_get_range (gum_process_get_libc_module ())->base_address),
-      pthread.thread_func_offset);
+  g_printerr ("Using start_impl=libc!0x%x terminate_impl=libc!0x%x start_routine_offset=0x%x start_arg_offset=0x%x\n",
+      (guint) (GUM_ADDRESS (gum_pthread.start_impl) - gum_module_get_range (gum_process_get_libc_module ())->base_address),
+      (guint) (GUM_ADDRESS (gum_pthread.terminate_impl) - gum_module_get_range (gum_process_get_libc_module ())->base_address),
+      gum_pthread.start_routine_offset,
+      gum_pthread.start_arg_offset);
 
   gum_thread_interceptor = gum_interceptor_obtain ();
 
   gum_start_handler = gum_make_probe_listener (
       gum_thread_registry_on_pthread_start, gum_registry, NULL);
-  gum_interceptor_attach (gum_thread_interceptor, pthread.start_impl,
+  gum_interceptor_attach (gum_thread_interceptor, gum_pthread.start_impl,
       gum_start_handler, NULL);
 
   gum_terminate_handler = gum_make_probe_listener (
       gum_thread_registry_on_pthread_terminate, gum_registry, NULL);
-  gum_interceptor_attach (gum_thread_interceptor, pthread.terminate_impl,
+  gum_interceptor_attach (gum_thread_interceptor, gum_pthread.terminate_impl,
       gum_terminate_handler, NULL);
 
   libc = gum_process_get_libc_module ();
@@ -144,7 +148,7 @@ gum_add_existing_threads (GumThreadRegistry * registry)
     t.state = GUM_THREAD_RUNNING;
     bzero (&t.cpu_context, sizeof (GumCpuContext));
 
-    _gum_thread_registry_register (registry, &t);
+    _gum_thread_registry_register (registry, &t, NULL, NULL);
 
     g_free ((gpointer) t.name);
   }
@@ -157,16 +161,21 @@ gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
                                       gpointer user_data)
 {
   GumThreadRegistry * registry = user_data;
+  pthread_t thread;
   GumThreadDetails t;
   gchar name[64];
   gchar * name_malloc_data = NULL;
+  gpointer routine, arg;
+
+  thread = pthread_self ();
+  g_printerr ("\n=== %s thread=0x%lx\n", G_STRFUNC, thread);
 
   t.id = gum_process_get_current_thread_id ();
 
   t.name = NULL;
   if (gum_pthread_getname_np != NULL)
   {
-    gum_pthread_getname_np (pthread_self (), name, sizeof (name));
+    gum_pthread_getname_np (thread, name, sizeof (name));
     if (name[0] != '\0')
       t.name = name;
   }
@@ -180,7 +189,11 @@ gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
 
   bzero (&t.cpu_context, sizeof (GumCpuContext));
 
-  _gum_thread_registry_register (registry, &t);
+  routine =
+      *((gpointer *) ((guint8 *) thread + gum_pthread.start_routine_offset));
+  arg = *((gpointer *) ((guint8 *) thread + gum_pthread.start_arg_offset));
+
+  _gum_thread_registry_register (registry, &t, routine, arg);
 
   g_free (name_malloc_data);
 }
@@ -197,7 +210,7 @@ gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
   thread = GPOINTER_TO_SIZE (gum_invocation_context_get_nth_argument (ic, 0));
   name = gum_invocation_context_get_nth_argument (ic, 1);
 
-  /* TODO: Support setting name from a different thread. */
+  /* XXX: Should we handle rename from a different thread? */
   if (thread != pthread_self ())
     return;
 
@@ -260,8 +273,17 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
   insn = cs_malloc (capstone);
 
   spec->start_impl = NULL;
+  spec->start_routine_offset = 0;
+  spec->start_arg_offset = 0;
 
 #if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_CS_XSP_REG X86_REG_ESP
+#  define GUM_CS_XBP_REG X86_REG_EBP
+# else
+#  define GUM_CS_XSP_REG X86_REG_RSP
+#  define GUM_CS_XBP_REG X86_REG_RBP
+# endif
   {
     gpointer mov_location = NULL;
 
@@ -273,15 +295,33 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
       switch (insn->id)
       {
         case X86_INS_MOV:
-          mov_location = (gpointer) (code - insn->size);
+        {
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (src->type == X86_OP_MEM &&
+              src->mem.segment == X86_REG_INVALID &&
+              src->mem.base != GUM_CS_XSP_REG &&
+              src->mem.base != GUM_CS_XBP_REG &&
+              src->mem.index == X86_REG_INVALID)
+          {
+            mov_location = (gpointer) (code - insn->size);
+            spec->start_arg_offset = src->mem.disp;
+          }
+
           break;
+        }
         case X86_INS_CALL:
-          if (x86->operands[0].type == X86_OP_MEM)
+        {
+          const cs_x86_op * target = &x86->operands[0];
+
+          if (target->type == X86_OP_MEM && mov_location != NULL)
           {
             spec->start_impl = mov_location;
-            spec->thread_func_offset = x86->operands[0].mem.disp;
+            spec->start_routine_offset = target->mem.disp;
           }
+
           break;
+        }
         default:
           break;
       }
@@ -302,7 +342,8 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
         case ARM_INS_LDRD:
           ldrd_location = (gpointer) (code - insn->size);
           func_reg = arm->operands[0].reg;
-          spec->thread_func_offset = arm->operands[2].mem.disp;
+          spec->start_routine_offset = arm->operands[2].mem.disp;
+          spec->start_arg_offset = spec->start_routine_offset + 4;
           break;
         case ARM_INS_BLX:
           if (arm->operands[0].type == ARM_OP_REG &&
@@ -333,7 +374,8 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
         case ARM64_INS_LDP:
           ldp_location = (gpointer) (code - insn->size);
           func_reg = arm64->operands[0].reg;
-          spec->thread_func_offset = arm64->operands[2].mem.disp;
+          spec->start_routine_offset = arm64->operands[2].mem.disp;
+          spec->start_arg_offset = spec->start_routine_offset + 8;
           break;
         case ARM64_INS_BLR:
           if (arm64->operands[0].reg == func_reg)
@@ -376,8 +418,6 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
   if (spec->start_impl == NULL)
     return FALSE;
 
-  spec->thread_func_offset = 0; /* TODO */
-
   spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
         gum_process_get_libc_module (), "__call_tls_dtors"));
   return spec->terminate_impl != NULL;
@@ -387,11 +427,19 @@ static gboolean
 gum_find_thread_start (const GumSystemTapProbeDetails * probe,
                        gpointer user_data)
 {
-  gpointer * start_impl = user_data;
+  GumPThreadSpec * spec = user_data;
 
   if (strcmp (probe->name, "pthread_start") == 0)
   {
-    *start_impl = GSIZE_TO_POINTER (probe->address);
+    gchar ** args;
+
+    spec->start_impl = GSIZE_TO_POINTER (probe->address);
+
+    args = g_strsplit (probe->args, " ", 0);
+    spec->start_routine_offset = atoi (strchr (args[1], '@') + 1);
+    spec->start_arg_offset = atoi (strchr (args[2], '@') + 1);
+    g_strfreev (args);
+
     return FALSE;
   }
 
