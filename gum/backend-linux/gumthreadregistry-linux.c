@@ -12,13 +12,11 @@
 # include "gumsystemtap.h"
 #endif
 
+#include <capstone.h>
 #include <string.h>
 #include <unistd.h>
 #include <linux/futex.h>
 #include <sys/syscall.h>
-#ifdef HAVE_ANDROID
-# include <capstone.h>
-#endif
 
 typedef struct _GumPThreadSpec GumPThreadSpec;
 typedef struct _GumGlibcThread GumGlibcThread;
@@ -64,8 +62,8 @@ static void gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
     gpointer user_data);
 
 static gboolean gum_compute_pthread_spec (GumPThreadSpec * spec);
-#ifdef HAVE_ANDROID
-#else
+#ifndef HAVE_ANDROID
+static gboolean gum_detect_rtld_global_offsets (GumPThreadSpec * spec);
 static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
     gpointer user_data);
 #endif
@@ -496,19 +494,87 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 static gboolean
 gum_compute_pthread_spec (GumPThreadSpec * spec)
 {
-  GumModule * libc;
-
-  libc = gum_process_get_libc_module ();
+  gum_detect_rtld_global_offsets (spec);
 
   spec->start_impl = NULL;
-  gum_system_tap_enumerate_probes (libc, gum_find_thread_start,
-      &spec->start_impl);
+  gum_system_tap_enumerate_probes (gum_process_get_libc_module (),
+      gum_find_thread_start, &spec->start_impl);
   if (spec->start_impl == NULL)
     return FALSE;
 
   spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
         gum_process_get_libc_module (), "__call_tls_dtors"));
   return spec->terminate_impl != NULL;
+}
+
+static gboolean
+gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
+{
+  GumModule * libc;
+  guint8 * libc_base;
+  gpointer create_prologue;
+#ifdef HAVE_ARM
+  gboolean is_thumb;
+#endif
+  csh capstone;
+  const uint8_t * code;
+  size_t size;
+  cs_insn * insn;
+  uint64_t addr;
+
+  libc = gum_process_get_libc_module ();
+  libc_base = GSIZE_TO_POINTER (gum_module_get_range (libc)->base_address);
+
+  create_prologue = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (libc,
+        "pthread_create@GLIBC_2.2.5"));
+  g_printerr ("create_prologue=%p\n", create_prologue);
+
+  gum_cs_arch_register_native ();
+#ifdef HAVE_ARM
+  is_thumb = (GPOINTER_TO_SIZE (create_prologue) & 1) != 0;
+  cs_open (GUM_DEFAULT_CS_ARCH,
+      is_thumb
+        ? CS_MODE_THUMB | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN
+        : GUM_DEFAULT_CS_MODE,
+      &capstone);
+  code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (create_prologue) & ~1);
+#else
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  code = create_prologue;
+#endif
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  size = 16384;
+  addr = GPOINTER_TO_SIZE (code);
+
+  insn = cs_malloc (capstone);
+
+#if defined (HAVE_I386)
+  {
+    while (cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      switch (insn->id)
+      {
+        case X86_INS_CMPXCHG:
+          g_printerr ("libc!0x%lx\t%s %s\n", code - libc_base, insn->mnemonic, insn->op_str);
+          break;
+        default:
+          //g_printerr ("%s %s\n", insn->mnemonic, insn->op_str);
+          break;
+      }
+    }
+
+    g_printerr ("lost track at %p\n", code);
+  }
+#else
+# error Unsupported architecture
+#endif
+
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  return FALSE;
 }
 
 static gboolean
