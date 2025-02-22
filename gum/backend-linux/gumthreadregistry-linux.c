@@ -25,6 +25,8 @@ typedef int GumGlibcLock;
 
 struct _GumPThreadSpec
 {
+  guint lock_offset;
+
   gpointer start_impl;
   guint start_routine_offset;
   guint start_arg_offset;
@@ -549,15 +551,45 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
 
   insn = cs_malloc (capstone);
 
+  spec->lock_offset = 0;
+
 #if defined (HAVE_I386)
   {
     while (cs_disasm_iter (capstone, &code, &size, &addr, insn))
     {
+      const cs_x86 * x86 = &insn->detail->x86;
+
       switch (insn->id)
       {
         case X86_INS_CMPXCHG:
-          g_printerr ("libc!0x%lx\t%s %s\n", code - libc_base, insn->mnemonic, insn->op_str);
+        {
+          const cs_x86_op * dst = &x86->operands[0];
+
+          if (spec->lock_offset == 0 &&
+              dst->mem.base != X86_REG_RIP)
+          {
+            g_printerr ("libc!0x%lx\t%s %s\n", code - libc_base, insn->mnemonic,
+                insn->op_str);
+            spec->lock_offset = dst->mem.disp;
+          }
+
           break;
+        }
+        case X86_INS_LEA:
+        {
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (src->mem.base != X86_REG_RIP &&
+              src->mem.base != X86_REG_RBP &&
+              src->mem.disp < spec->lock_offset &&
+              spec->lock_offset - src->mem.disp <= 64)
+          {
+            g_printerr ("libc!0x%lx\t%s %s\n", code - libc_base, insn->mnemonic,
+                insn->op_str);
+          }
+
+          break;
+        }
         default:
           //g_printerr ("%s %s\n", insn->mnemonic, insn->op_str);
           break;
