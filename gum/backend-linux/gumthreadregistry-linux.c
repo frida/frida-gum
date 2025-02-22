@@ -13,6 +13,9 @@
 #endif
 
 #include <string.h>
+#include <unistd.h>
+#include <linux/futex.h>
+#include <sys/syscall.h>
 #ifdef HAVE_ANDROID
 # include <capstone.h>
 #endif
@@ -20,6 +23,7 @@
 typedef struct _GumPThreadSpec GumPThreadSpec;
 typedef struct _GumGlibcThread GumGlibcThread;
 typedef struct _GumGlibcList GumGlibcList;
+typedef int GumGlibcLock;
 
 struct _GumPThreadSpec
 {
@@ -49,6 +53,8 @@ struct _GumGlibcThread
   pid_t tid;
 };
 
+static gpointer hello_proc (gpointer data);
+static gpointer hello2_proc (gpointer data);
 static void gum_add_existing_threads (GumThreadRegistry * registry);
 static void gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
     gpointer user_data);
@@ -64,6 +70,9 @@ static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
     gpointer user_data);
 #endif
 
+static void glibc_lock_acquire (GumGlibcLock * lock);
+static void glibc_lock_release (GumGlibcLock * lock);
+
 static GumThreadRegistry * gum_registry;
 static GumPThreadSpec gum_pthread;
 
@@ -74,17 +83,6 @@ static GumInvocationListener * gum_terminate_handler = NULL;
 
 static int (* gum_pthread_getname_np) (pthread_t thread, char * name,
     size_t size);
-
-static gpointer
-hello_proc (gpointer data)
-{
-  while (TRUE)
-  {
-    g_printerr ("Hello! TID=%d\n", gettid ());
-    g_usleep (G_USEC_PER_SEC);
-  }
-  return NULL;
-}
 
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
@@ -137,6 +135,32 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   gum_add_existing_threads (gum_registry);
 }
 
+static gpointer
+hello_proc (gpointer data)
+{
+  g_thread_unref (g_thread_new ("hello", hello2_proc, GSIZE_TO_POINTER (1337)));
+
+  while (TRUE)
+  {
+    g_printerr ("Hello! TID=%d\n", gettid ());
+    g_usleep (G_USEC_PER_SEC);
+  }
+
+  return NULL;
+}
+
+static gpointer
+hello2_proc (gpointer data)
+{
+  while (TRUE)
+  {
+    g_printerr ("Hello2! TID=%d\n", gettid ());
+    g_usleep (G_USEC_PER_SEC);
+  }
+
+  return NULL;
+}
+
 void
 _gum_thread_registry_deactivate (GumThreadRegistry * self)
 {
@@ -168,6 +192,7 @@ gum_add_existing_threads (GumThreadRegistry * registry)
 {
   gpointer rtld_global;
   GumGlibcList * stack_used, * stack_user, * cur;
+  GumGlibcLock * lock;
   GDir * dir;
   const gchar * name;
   gboolean carry_on = TRUE;
@@ -177,10 +202,12 @@ gum_add_existing_threads (GumThreadRegistry * registry)
 
   rtld_global =
       GSIZE_TO_POINTER (gum_module_find_global_export_by_name ("_rtld_global"));
-  g_printerr ("rtld_global=%p\n", rtld_global);
 
   stack_used = (GumGlibcList *) ((guint8 *) rtld_global + 0x10b8);
   stack_user = (GumGlibcList *) ((guint8 *) rtld_global + 0x10c8);
+  lock = (GumGlibcLock *) ((guint8 *) rtld_global + 0x10f8);
+
+  glibc_lock_acquire (lock);
 
   for (cur = stack_used->next; cur != stack_used; cur = cur->next)
   {
@@ -197,6 +224,8 @@ gum_add_existing_threads (GumThreadRegistry * registry)
 
     g_printerr ("[stack_user] Found pthread_t %p with TID %u\n", thread, thread->tid);
   }
+
+  glibc_lock_release (lock);
 
   while (carry_on && (name = g_dir_read_name (dir)) != NULL)
   {
@@ -503,6 +532,29 @@ gum_find_thread_start (const GumSystemTapProbeDetails * probe,
   }
 
   return TRUE;
+}
+
+static void
+glibc_lock_acquire (GumGlibcLock * lock)
+{
+  if (!__sync_bool_compare_and_swap (lock, 0, 1))
+  {
+    if (__atomic_load_n (lock, __ATOMIC_RELAXED) == 2)
+      goto wait;
+
+    while (__atomic_exchange_n (lock, 2, __ATOMIC_ACQUIRE) != 0)
+    {
+wait:
+      syscall (SYS_futex, lock, FUTEX_WAIT_PRIVATE, 2, NULL);
+    }
+  }
+}
+
+static void
+glibc_lock_release (GumGlibcLock * lock)
+{
+  if (__atomic_exchange_n (lock, 0, __ATOMIC_RELEASE) != 1)
+    syscall (SYS_futex, lock, FUTEX_WAKE_PRIVATE, 1);
 }
 
 #endif
