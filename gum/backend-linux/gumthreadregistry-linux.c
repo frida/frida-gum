@@ -25,7 +25,9 @@ typedef int GumGlibcLock;
 
 struct _GumPThreadSpec
 {
-  guint lock_offset;
+  guint stack_used_offset;
+  guint stack_user_offset;
+  guint stack_lock_offset;
 
   gpointer start_impl;
   guint start_routine_offset;
@@ -72,6 +74,8 @@ static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
 
 static void glibc_lock_acquire (GumGlibcLock * lock);
 static void glibc_lock_release (GumGlibcLock * lock);
+
+static gint gum_ptr_compare (gconstpointer a, gconstpointer b);
 
 static GumThreadRegistry * gum_registry;
 static GumPThreadSpec gum_pthread;
@@ -203,9 +207,12 @@ gum_add_existing_threads (GumThreadRegistry * registry)
   rtld_global =
       GSIZE_TO_POINTER (gum_module_find_global_export_by_name ("_rtld_global"));
 
-  stack_used = (GumGlibcList *) ((guint8 *) rtld_global + 0x10b8);
-  stack_user = (GumGlibcList *) ((guint8 *) rtld_global + 0x10c8);
-  lock = (GumGlibcLock *) ((guint8 *) rtld_global + 0x10f8);
+  stack_used = (GumGlibcList *)
+      ((guint8 *) rtld_global + gum_pthread.stack_used_offset);
+  stack_user = (GumGlibcList *)
+      ((guint8 *) rtld_global + gum_pthread.stack_user_offset);
+  lock = (GumGlibcLock *)
+      ((guint8 *) rtld_global + gum_pthread.stack_lock_offset);
 
   glibc_lock_acquire (lock);
 
@@ -496,11 +503,12 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 static gboolean
 gum_compute_pthread_spec (GumPThreadSpec * spec)
 {
-  gum_detect_rtld_global_offsets (spec);
+  if (!gum_detect_rtld_global_offsets (spec))
+    return FALSE;
 
   spec->start_impl = NULL;
   gum_system_tap_enumerate_probes (gum_process_get_libc_module (),
-      gum_find_thread_start, &spec->start_impl);
+      gum_find_thread_start, spec);
   if (spec->start_impl == NULL)
     return FALSE;
 
@@ -512,8 +520,7 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 static gboolean
 gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
 {
-  GumModule * libc;
-  guint8 * libc_base;
+  gboolean success = FALSE;
   gpointer create_prologue;
 #ifdef HAVE_ARM
   gboolean is_thumb;
@@ -523,13 +530,10 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
   size_t size;
   cs_insn * insn;
   uint64_t addr;
+  GPtrArray * offsets;
 
-  libc = gum_process_get_libc_module ();
-  libc_base = GSIZE_TO_POINTER (gum_module_get_range (libc)->base_address);
-
-  create_prologue = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (libc,
-        "pthread_create@GLIBC_2.2.5"));
-  g_printerr ("create_prologue=%p\n", create_prologue);
+  create_prologue = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (
+        gum_process_get_libc_module (), "pthread_create@GLIBC_2.2.5"));
 
   gum_cs_arch_register_native ();
 #ifdef HAVE_ARM
@@ -551,11 +555,16 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
 
   insn = cs_malloc (capstone);
 
-  spec->lock_offset = 0;
+  spec->stack_used_offset = 0;
+  spec->stack_user_offset = 0;
+  spec->stack_lock_offset = 0;
+
+  offsets = g_ptr_array_sized_new (4);
 
 #if defined (HAVE_I386)
   {
-    while (cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    while (offsets->len != 3 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
     {
       const cs_x86 * x86 = &insn->detail->x86;
 
@@ -565,12 +574,10 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
         {
           const cs_x86_op * dst = &x86->operands[0];
 
-          if (spec->lock_offset == 0 &&
+          if (spec->stack_lock_offset == 0 &&
               dst->mem.base != X86_REG_RIP)
           {
-            g_printerr ("libc!0x%lx\t%s %s\n", code - libc_base, insn->mnemonic,
-                insn->op_str);
-            spec->lock_offset = dst->mem.disp;
+            spec->stack_lock_offset = dst->mem.disp;
           }
 
           break;
@@ -578,35 +585,44 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
         case X86_INS_LEA:
         {
           const cs_x86_op * src = &x86->operands[1];
+          int64_t disp = src->mem.disp;
 
           if (src->mem.base != X86_REG_RIP &&
               src->mem.base != X86_REG_RBP &&
-              src->mem.disp < spec->lock_offset &&
-              spec->lock_offset - src->mem.disp <= 64)
+              disp < spec->stack_lock_offset &&
+              disp >= spec->stack_lock_offset - 128)
           {
-            g_printerr ("libc!0x%lx\t%s %s\n", code - libc_base, insn->mnemonic,
-                insn->op_str);
+            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
+              g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
           }
 
           break;
         }
         default:
-          //g_printerr ("%s %s\n", insn->mnemonic, insn->op_str);
           break;
       }
     }
-
-    g_printerr ("lost track at %p\n", code);
   }
 #else
 # error Unsupported architecture
 #endif
 
+  g_ptr_array_sort (offsets, gum_ptr_compare);
+
+  if (offsets->len == 3)
+  {
+    spec->stack_used_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 0));
+    spec->stack_user_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 1));
+    success = TRUE;
+  }
+
+  g_ptr_array_unref (offsets);
+
   cs_free (insn, 1);
 
   cs_close (&capstone);
 
-  return FALSE;
+  return success;
 }
 
 static gboolean
@@ -653,6 +669,16 @@ glibc_lock_release (GumGlibcLock * lock)
 {
   if (__atomic_exchange_n (lock, 0, __ATOMIC_RELEASE) != 1)
     syscall (SYS_futex, lock, FUTEX_WAKE_PRIVATE, 1);
+}
+
+static gint
+gum_ptr_compare (gconstpointer a,
+                 gconstpointer b)
+{
+  const gpointer * ptr_a = a;
+  const gpointer * ptr_b = b;
+
+  return GPOINTER_TO_INT (*ptr_a) - GPOINTER_TO_INT (*ptr_b);
 }
 
 #endif
