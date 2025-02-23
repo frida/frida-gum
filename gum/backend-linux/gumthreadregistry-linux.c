@@ -476,7 +476,7 @@ gum_enumerate_threads (GumPThreadSpec * spec,
       GumThreadDetails t = { 0, };
       gboolean carry_on;
 
-      t.flags = GUM_THREAD_FLAGS_HAS_ENTRYPOINT;
+      t.flags = 0;
       t.id = thread->tid;
       t.name = gum_linux_query_thread_name (t.id);
       if (t.name != NULL)
@@ -486,6 +486,8 @@ gum_enumerate_threads (GumPThreadSpec * spec,
           *((gpointer *) ((guint8 *) thread + spec->start_routine_offset)));
       t.entrypoint.parameter = GUM_ADDRESS (
           *((gpointer *) ((guint8 *) thread + spec->start_parameter_offset)));
+      if (t.entrypoint.routine != 0)
+        t.flags |= GUM_THREAD_FLAGS_HAS_ENTRYPOINT;
 
       carry_on = func (&t, user_data);
 
