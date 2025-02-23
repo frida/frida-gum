@@ -18,16 +18,29 @@
 #include <linux/futex.h>
 #include <sys/syscall.h>
 
+typedef struct _GumPThreadDetails GumPThreadDetails;
 typedef struct _GumPThreadSpec GumPThreadSpec;
 typedef struct _GumGlibcThread GumGlibcThread;
 typedef struct _GumGlibcList GumGlibcList;
 typedef int GumGlibcLock;
 
+typedef gboolean (* GumFoundPThreadFunc) (const GumPThreadDetails * pthread,
+    gpointer user_data);
+
+struct _GumPThreadDetails
+{
+  GumThreadDetails thread;
+  gpointer start_routine;
+  gpointer start_arg;
+};
+
 struct _GumPThreadSpec
 {
-  guint stack_used_offset;
-  guint stack_user_offset;
-  guint stack_lock_offset;
+#ifndef HAVE_ANDROID
+  GumGlibcList * stack_used;
+  GumGlibcList * stack_user;
+  GumGlibcLock * stack_lock;
+#endif
 
   gpointer start_impl;
   guint start_routine_offset;
@@ -57,7 +70,8 @@ struct _GumGlibcThread
 
 static gpointer hello_proc (gpointer data);
 static gpointer hello2_proc (gpointer data);
-static void gum_add_existing_threads (GumThreadRegistry * registry);
+static gboolean gum_add_existing_thread (const GumPThreadDetails * pthread,
+    gpointer user_data);
 static void gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
@@ -65,15 +79,20 @@ static void gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
 static void gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
     gpointer user_data);
 
+static void gum_lock_thread_list (GumPThreadSpec * spec);
+static void gum_unlock_thread_list (GumPThreadSpec * spec);
+static void gum_enumerate_threads (GumPThreadSpec * spec,
+    GumFoundPThreadFunc func, gpointer user_data);
+
 static gboolean gum_compute_pthread_spec (GumPThreadSpec * spec);
 #ifndef HAVE_ANDROID
-static gboolean gum_detect_rtld_global_offsets (GumPThreadSpec * spec);
+static gboolean gum_detect_rtld_globals (GumPThreadSpec * spec);
 static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
     gpointer user_data);
-#endif
 
 static void glibc_lock_acquire (GumGlibcLock * lock);
 static void glibc_lock_release (GumGlibcLock * lock);
+#endif
 
 static gint gum_ptr_compare (gconstpointer a, gconstpointer b);
 
@@ -109,34 +128,42 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
       gum_pthread.start_routine_offset,
       gum_pthread.start_arg_offset);
 
-  gum_thread_interceptor = gum_interceptor_obtain ();
-
-  gum_start_handler = gum_make_probe_listener (
-      gum_thread_registry_on_pthread_start, gum_registry, NULL);
-  gum_interceptor_attach (gum_thread_interceptor, gum_pthread.start_impl,
-      gum_start_handler, NULL);
-
-  gum_terminate_handler = gum_make_probe_listener (
-      gum_thread_registry_on_pthread_terminate, gum_registry, NULL);
-  gum_interceptor_attach (gum_thread_interceptor, gum_pthread.terminate_impl,
-      gum_terminate_handler, NULL);
-
   libc = gum_process_get_libc_module ();
-
   gum_pthread_getname_np = GSIZE_TO_POINTER (gum_module_find_export_by_name (
         libc, "pthread_getname_np"));
   setname_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
         libc, "pthread_setname_np"));
 
+  gum_start_handler = gum_make_probe_listener (
+      gum_thread_registry_on_pthread_start, gum_registry, NULL);
+  gum_terminate_handler = gum_make_probe_listener (
+      gum_thread_registry_on_pthread_terminate, gum_registry, NULL);
   if (setname_impl != NULL)
   {
     gum_rename_handler = gum_make_probe_listener (
         gum_thread_registry_on_pthread_setname, gum_registry, NULL);
+  }
+
+  gum_thread_interceptor = gum_interceptor_obtain ();
+  gum_interceptor_begin_transaction (gum_thread_interceptor);
+
+  gum_lock_thread_list (&gum_pthread);
+
+  gum_interceptor_attach (gum_thread_interceptor, gum_pthread.start_impl,
+      gum_start_handler, NULL);
+  gum_interceptor_attach (gum_thread_interceptor, gum_pthread.terminate_impl,
+      gum_terminate_handler, NULL);
+  if (setname_impl != NULL)
+  {
     gum_interceptor_attach (gum_thread_interceptor, setname_impl,
         gum_rename_handler, NULL);
   }
 
-  gum_add_existing_threads (gum_registry);
+  gum_interceptor_end_transaction (gum_thread_interceptor);
+
+  gum_enumerate_threads (&gum_pthread, gum_add_existing_thread, gum_registry);
+
+  gum_unlock_thread_list (&gum_pthread);
 }
 
 static gpointer
@@ -191,64 +218,16 @@ _gum_thread_registry_deactivate (GumThreadRegistry * self)
   g_clear_object (&gum_thread_interceptor);
 }
 
-static void
-gum_add_existing_threads (GumThreadRegistry * registry)
+static gboolean
+gum_add_existing_thread (const GumPThreadDetails * pthread,
+                         gpointer user_data)
 {
-  gpointer rtld_global;
-  GumGlibcList * stack_used, * stack_user, * cur;
-  GumGlibcLock * lock;
-  GDir * dir;
-  const gchar * name;
-  gboolean carry_on = TRUE;
+  GumThreadRegistry * registry = user_data;
 
-  dir = g_dir_open ("/proc/self/task", 0, NULL);
-  g_assert (dir != NULL);
+  _gum_thread_registry_register (registry, &pthread->thread,
+      pthread->start_routine, pthread->start_arg);
 
-  rtld_global =
-      GSIZE_TO_POINTER (gum_module_find_global_export_by_name ("_rtld_global"));
-
-  stack_used = (GumGlibcList *)
-      ((guint8 *) rtld_global + gum_pthread.stack_used_offset);
-  stack_user = (GumGlibcList *)
-      ((guint8 *) rtld_global + gum_pthread.stack_user_offset);
-  lock = (GumGlibcLock *)
-      ((guint8 *) rtld_global + gum_pthread.stack_lock_offset);
-
-  glibc_lock_acquire (lock);
-
-  for (cur = stack_used->next; cur != stack_used; cur = cur->next)
-  {
-    GumGlibcThread * thread = (GumGlibcThread *)
-        ((gchar *) cur - G_STRUCT_OFFSET (GumGlibcThread, list));
-
-    g_printerr ("[stack_used] Found pthread_t %p with TID %u\n", thread, thread->tid);
-  }
-
-  for (cur = stack_user->next; cur != stack_user; cur = cur->next)
-  {
-    GumGlibcThread * thread = (GumGlibcThread *)
-        ((gchar *) cur - G_STRUCT_OFFSET (GumGlibcThread, list));
-
-    g_printerr ("[stack_user] Found pthread_t %p with TID %u\n", thread, thread->tid);
-  }
-
-  glibc_lock_release (lock);
-
-  while (carry_on && (name = g_dir_read_name (dir)) != NULL)
-  {
-    GumThreadDetails t;
-
-    t.id = atoi (name);
-    t.name = gum_linux_query_thread_name (t.id);
-    t.state = GUM_THREAD_RUNNING;
-    bzero (&t.cpu_context, sizeof (GumCpuContext));
-
-    _gum_thread_registry_register (registry, &t, NULL, NULL);
-
-    g_free ((gpointer) t.name);
-  }
-
-  g_dir_close (dir);
+  return TRUE;
 }
 
 static void
@@ -500,10 +479,69 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 
 #else
 
+static void
+gum_lock_thread_list (GumPThreadSpec * spec)
+{
+  glibc_lock_acquire (spec->stack_lock);
+}
+
+static void
+gum_unlock_thread_list (GumPThreadSpec * spec)
+{
+  glibc_lock_release (spec->stack_lock);
+}
+
+static void
+gum_enumerate_threads (GumPThreadSpec * spec,
+                       GumFoundPThreadFunc func,
+                       gpointer user_data)
+{
+  GumGlibcList * lists[] = {
+    spec->stack_user,
+    spec->stack_used,
+  };
+  guint i;
+
+  for (i = 0; i != G_N_ELEMENTS (lists); i++)
+  {
+    GumGlibcList * list = lists[i];
+    GumGlibcList * cur;
+
+    for (cur = list->next; cur != list; cur = cur->next)
+    {
+      GumGlibcThread * thread = (GumGlibcThread *)
+          ((gchar *) cur - G_STRUCT_OFFSET (GumGlibcThread, list));
+      GumPThreadDetails pt;
+      GumThreadDetails * t;
+      gboolean carry_on;
+
+      g_printerr ("[lists[%u]] Found pthread_t %p with TID %u\n", i, thread, thread->tid);
+
+      t = &pt.thread;
+      t->id = thread->tid;
+      t->name = gum_linux_query_thread_name (t->id);
+      t->state = GUM_THREAD_RUNNING;
+      bzero (&t->cpu_context, sizeof (GumCpuContext));
+
+      pt.start_routine =
+          *((gpointer *) ((guint8 *) thread + spec->start_routine_offset));
+      pt.start_arg =
+          *((gpointer *) ((guint8 *) thread + spec->start_arg_offset));
+
+      carry_on = func (&pt, user_data);
+
+      g_free ((gpointer) t->name);
+
+      if (!carry_on)
+        return;
+    }
+  }
+}
+
 static gboolean
 gum_compute_pthread_spec (GumPThreadSpec * spec)
 {
-  if (!gum_detect_rtld_global_offsets (spec))
+  if (!gum_detect_rtld_globals (spec))
     return FALSE;
 
   spec->start_impl = NULL;
@@ -518,7 +556,7 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 }
 
 static gboolean
-gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
+gum_detect_rtld_globals (GumPThreadSpec * spec)
 {
   gboolean success = FALSE;
   gpointer create_prologue;
@@ -530,6 +568,7 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
   size_t size;
   cs_insn * insn;
   uint64_t addr;
+  guint stack_lock_offset;
   GPtrArray * offsets;
 
   create_prologue = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (
@@ -555,10 +594,7 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
 
   insn = cs_malloc (capstone);
 
-  spec->stack_used_offset = 0;
-  spec->stack_user_offset = 0;
-  spec->stack_lock_offset = 0;
-
+  stack_lock_offset = 0;
   offsets = g_ptr_array_sized_new (4);
 
 #if defined (HAVE_I386)
@@ -574,11 +610,8 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
         {
           const cs_x86_op * dst = &x86->operands[0];
 
-          if (spec->stack_lock_offset == 0 &&
-              dst->mem.base != X86_REG_RIP)
-          {
-            spec->stack_lock_offset = dst->mem.disp;
-          }
+          if (stack_lock_offset == 0 && dst->mem.base != X86_REG_RIP)
+            stack_lock_offset = dst->mem.disp;
 
           break;
         }
@@ -589,8 +622,8 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
 
           if (src->mem.base != X86_REG_RIP &&
               src->mem.base != X86_REG_RBP &&
-              disp < spec->stack_lock_offset &&
-              disp >= spec->stack_lock_offset - 128)
+              disp < stack_lock_offset &&
+              disp >= stack_lock_offset - 128)
           {
             if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
               g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
@@ -611,8 +644,22 @@ gum_detect_rtld_global_offsets (GumPThreadSpec * spec)
 
   if (offsets->len == 3)
   {
-    spec->stack_used_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 0));
-    spec->stack_user_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 1));
+    guint stack_used_offset, stack_user_offset;
+    gpointer rtld_global;
+
+    stack_used_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 0));
+    stack_user_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 1));
+
+    rtld_global = GSIZE_TO_POINTER (
+        gum_module_find_global_export_by_name ("_rtld_global"));
+
+    spec->stack_used = (GumGlibcList *)
+        ((guint8 *) rtld_global + stack_used_offset);
+    spec->stack_user = (GumGlibcList *)
+        ((guint8 *) rtld_global + stack_user_offset);
+    spec->stack_lock = (GumGlibcLock *)
+        ((guint8 *) rtld_global + stack_lock_offset);
+
     success = TRUE;
   }
 
