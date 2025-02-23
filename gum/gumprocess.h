@@ -21,6 +21,7 @@ G_BEGIN_DECLS
 typedef guint GumProcessId;
 typedef gsize GumThreadId;
 typedef struct _GumThreadDetails GumThreadDetails;
+typedef struct _GumThreadEntrypoint GumThreadEntrypoint;
 typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
 
 typedef enum {
@@ -39,6 +40,13 @@ typedef enum {
 } GumModifyThreadFlags;
 
 typedef enum {
+  GUM_THREAD_FLAGS_HAS_NAME        = (1 << 0),
+  GUM_THREAD_FLAGS_HAS_STATE       = (1 << 1),
+  GUM_THREAD_FLAGS_HAS_CPU_CONTEXT = (1 << 2),
+  GUM_THREAD_FLAGS_HAS_ENTRYPOINT  = (1 << 3),
+} GumThreadFlags;
+
+typedef enum {
   GUM_THREAD_RUNNING = 1,
   GUM_THREAD_STOPPED,
   GUM_THREAD_WAITING,
@@ -46,12 +54,20 @@ typedef enum {
   GUM_THREAD_HALTED
 } GumThreadState;
 
+struct _GumThreadEntrypoint
+{
+  GumAddress routine;
+  GumAddress parameter;
+};
+
 struct _GumThreadDetails
 {
+  GumThreadFlags flags;
   GumThreadId id;
   const gchar * name;
   GumThreadState state;
   GumCpuContext cpu_context;
+  GumThreadEntrypoint entrypoint;
 };
 
 typedef enum {

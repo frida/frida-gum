@@ -874,20 +874,26 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
 
   while (carry_on && (name = g_dir_read_name (dir)) != NULL)
   {
-    GumThreadDetails details;
+    GumThreadDetails t = { 0, };
     gchar * thread_name;
 
-    details.id = atoi (name);
+    t.flags = GUM_THREAD_FLAGS_HAS_STATE | GUM_THREAD_FLAGS_HAS_CPU_CONTEXT;
 
-    thread_name = gum_linux_query_thread_name (details.id);
-    details.name = thread_name;
+    t.id = atoi (name);
 
-    if (gum_linux_query_thread_state (details.id, &details.state))
+    thread_name = gum_linux_query_thread_name (t.id);
+    if (thread_name != NULL)
     {
-      if (gum_process_modify_thread (details.id, gum_store_cpu_context,
-            &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
+      t.flags |= GUM_THREAD_FLAGS_HAS_NAME;
+      t.name = thread_name;
+    }
+
+    if (gum_linux_query_thread_state (t.id, &t.state))
+    {
+      if (gum_process_modify_thread (t.id, gum_store_cpu_context,
+            &t.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
       {
-        carry_on = func (&details, user_data);
+        carry_on = func (&t, user_data);
       }
     }
 

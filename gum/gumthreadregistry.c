@@ -170,9 +170,7 @@ gum_thread_registry_unlock (GumThreadRegistry * self)
 
 void
 _gum_thread_registry_register (GumThreadRegistry * self,
-                               const GumThreadDetails * thread,
-                               gpointer start_routine,
-                               gpointer start_arg)
+                               const GumThreadDetails * thread)
 {
   gboolean being_observed;
 
