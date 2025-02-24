@@ -1969,6 +1969,7 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
   gsize size;
   guint64 n, i;
   gconstpointer start, end;
+  gpointer aligned_start = NULL;
   const gchar * strings;
   gconstpointer cursor;
   GError ** error = NULL;
@@ -1990,6 +1991,15 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
   end = (const guint8 *) start + (n * shdr->entsize);
   GUM_CHECK_BOUNDS (start, end, "symbols");
 
+  if (((uint64_t)start % sizeof(gpointer)) != 0)
+  {
+    // We need to align the start address to the size of a pointer
+    // to avoid SIGBUS on some architectures
+    aligned_start = g_memdup2 (start, shdr->size);
+    start = aligned_start;
+    end = (const guint8 *) start + (n * shdr->entsize);
+  }
+
   strings = (const gchar *) data + strings_shdr->offset;
 
   cursor = start;
@@ -2007,15 +2017,20 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
       details.name = "";
 
     if (!func (&details, user_data))
+    {
+      g_free (aligned_start);
       return;
+    }
 
     cursor = (const guint8 *) cursor + shdr->entsize;
   }
 
 propagate_error:
+  g_free (aligned_start);
   return;
 
 consider_fallback:
+  g_free (aligned_start);
   {
     GumElfModule * fallback = gum_elf_module_try_get_fallback_elf_module (self);
     if (fallback != NULL)
