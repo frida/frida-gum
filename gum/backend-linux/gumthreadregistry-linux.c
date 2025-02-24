@@ -14,6 +14,7 @@
 
 #include <capstone.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 #include <linux/futex.h>
 #include <sys/syscall.h>
@@ -73,6 +74,8 @@ static void gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
     gpointer user_data);
+static void gum_compute_thread_details_from_pthread (pthread_t thread,
+    const GumPThreadSpec * spec, GumThreadDetails * details, gpointer * storage);
 
 static void gum_lock_thread_list (GumPThreadSpec * spec);
 static void gum_unlock_thread_list (GumPThreadSpec * spec);
@@ -193,45 +196,15 @@ gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
                                       gpointer user_data)
 {
   GumThreadRegistry * registry = user_data;
-  pthread_t thread;
-  GumThreadDetails t = { 0, };
-  gchar name[64];
-  gchar * name_malloc_data = NULL;
+  GumThreadDetails thread;
+  gpointer storage;
 
-  thread = pthread_self ();
+  gum_compute_thread_details_from_pthread (pthread_self (), &gum_pthread,
+      &thread, &storage);
 
-  t.flags = GUM_THREAD_FLAGS_HAS_ENTRYPOINT;
+  _gum_thread_registry_register (registry, &thread);
 
-  t.id = gum_process_get_current_thread_id ();
-
-  t.name = NULL;
-  if (gum_pthread_getname_np != NULL)
-  {
-    gum_pthread_getname_np (thread, name, sizeof (name));
-    if (name[0] != '\0')
-    {
-      t.flags |= GUM_THREAD_FLAGS_HAS_NAME;
-      t.name = name;
-    }
-  }
-  else
-  {
-    name_malloc_data = gum_linux_query_thread_name (t.id);
-    if (name_malloc_data != NULL)
-    {
-      t.flags |= GUM_THREAD_FLAGS_HAS_NAME;
-      t.name = name_malloc_data;
-    }
-  }
-
-  t.entrypoint.routine = GUM_ADDRESS (
-      *((gpointer *) ((guint8 *) thread + gum_pthread.start_routine_offset)));
-  t.entrypoint.parameter = GUM_ADDRESS (
-      *((gpointer *) ((guint8 *) thread + gum_pthread.start_parameter_offset)));
-
-  _gum_thread_registry_register (registry, &t);
-
-  g_free (name_malloc_data);
+  g_free (storage);
 }
 
 static void
@@ -263,6 +236,55 @@ gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
 
   _gum_thread_registry_unregister (registry,
       gum_process_get_current_thread_id ());
+}
+
+static void
+gum_compute_thread_details_from_pthread (pthread_t thread,
+                                         const GumPThreadSpec * spec,
+                                         GumThreadDetails * details,
+                                         gpointer * storage)
+{
+  GumGlibcThread * t = GSIZE_TO_POINTER (thread);
+  gchar * name;
+
+  bzero (details, sizeof (GumThreadDetails));
+  *storage = NULL;
+
+  details->id = t->tid;
+
+  details->name = NULL;
+  if (gum_pthread_getname_np != NULL)
+  {
+    gsize name_max_size = 64;
+
+    name = g_malloc (name_max_size);
+    gum_pthread_getname_np (thread, name, name_max_size);
+    if (name[0] != '\0')
+    {
+      details->name = name;
+      *storage = g_steal_pointer (&name);
+    }
+  }
+  else
+  {
+    name = gum_linux_query_thread_name (t->tid);
+    if (name != NULL)
+    {
+      details->name = name;
+      *storage = g_steal_pointer (&name);
+    }
+  }
+  if (details->name != NULL)
+    details->flags |= GUM_THREAD_FLAGS_HAS_NAME;
+
+  details->entrypoint.routine = GUM_ADDRESS (
+      *((gpointer *) ((guint8 *) t + spec->start_routine_offset)));
+  details->entrypoint.parameter = GUM_ADDRESS (
+      *((gpointer *) ((guint8 *) t + spec->start_parameter_offset)));
+  if (details->entrypoint.routine != 0)
+    details->flags |= GUM_THREAD_FLAGS_HAS_ENTRYPOINT;
+
+  g_free (name);
 }
 
 #ifdef HAVE_ANDROID
@@ -471,27 +493,17 @@ gum_enumerate_threads (GumPThreadSpec * spec,
 
     for (cur = list->prev; cur != list; cur = cur->prev)
     {
-      GumGlibcThread * thread = (GumGlibcThread *)
-          ((gchar *) cur - G_STRUCT_OFFSET (GumGlibcThread, list));
-      GumThreadDetails t = { 0, };
+      pthread_t pth = GPOINTER_TO_SIZE (
+          ((gchar *) cur - G_STRUCT_OFFSET (GumGlibcThread, list)));
+      GumThreadDetails thread;
+      gpointer storage;
       gboolean carry_on;
 
-      t.flags = 0;
-      t.id = thread->tid;
-      t.name = gum_linux_query_thread_name (t.id);
-      if (t.name != NULL)
-        t.flags |= GUM_THREAD_FLAGS_HAS_NAME;
+      gum_compute_thread_details_from_pthread (pth, spec, &thread, &storage);
 
-      t.entrypoint.routine = GUM_ADDRESS (
-          *((gpointer *) ((guint8 *) thread + spec->start_routine_offset)));
-      t.entrypoint.parameter = GUM_ADDRESS (
-          *((gpointer *) ((guint8 *) thread + spec->start_parameter_offset)));
-      if (t.entrypoint.routine != 0)
-        t.flags |= GUM_THREAD_FLAGS_HAS_ENTRYPOINT;
+      carry_on = func (&thread, user_data);
 
-      carry_on = func (&t, user_data);
-
-      g_free ((gpointer) t.name);
+      g_free (storage);
 
       if (!carry_on)
         return;
