@@ -104,6 +104,7 @@ if host_os_family == 'windows'
     'backend-windows' / 'gummemory-windows.c',
     'backend-windows' / 'gummemoryaccessmonitor-windows.c',
     'backend-windows' / 'gumprocess-windows.c',
+    'backend-windows' / 'gumthreadregistry-windows.c',
     'backend-windows' / 'gummoduleregistry-windows.c',
     'backend-windows' / 'gummodule-windows.c',
     'backend-windows' / 'gumtls-windows.c',
