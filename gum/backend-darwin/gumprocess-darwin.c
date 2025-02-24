@@ -1212,7 +1212,7 @@ gum_darwin_enumerate_threads (mach_port_t task,
       thread_basic_info_data_t info;
       mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
       GumDarwinUnifiedThreadState state;
-      gchar thread_name[64];
+      gchar thread_name[GUM_DARWIN_MAX_THREAD_NAME_SIZE];
 
       kr = thread_info (thread, THREAD_BASIC_INFO, (thread_info_t) &info,
           &info_count);

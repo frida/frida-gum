@@ -7,6 +7,7 @@
 
 #include "gumthreadregistry-priv.h"
 
+#include "gumdarwin-priv.h"
 #include "guminterceptor.h"
 
 #include <capstone.h>
@@ -28,6 +29,8 @@ struct _GumPThreadSpec
 
   guint mach_port_offset;
   guint name_offset;
+  guint start_routine_offset;
+  guint start_parameter_offset;
 };
 
 struct _GumPThread
@@ -76,8 +79,8 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   gum_hook_installed = TRUE;
 
   gum_thread_interceptor = gum_interceptor_obtain ();
-  gum_rename_handler = gum_make_probe_listener (gum_thread_registry_on_setname,
-      gum_registry, NULL);
+  gum_rename_handler = gum_make_call_listener (NULL,
+      gum_thread_registry_on_setname, gum_registry, NULL);
   gum_interceptor_attach (gum_thread_interceptor,
       GSIZE_TO_POINTER (gum_module_find_export_by_name (
           gum_process_get_libc_module (), "pthread_setname_np")),
@@ -131,18 +134,9 @@ gum_thread_registry_on_thread_event (unsigned int event,
     case PTHREAD_INTROSPECTION_THREAD_START:
     {
       GumThreadDetails t;
-      gchar name[64];
 
-      t.id = pthread_mach_thread_np (thread);
-
-      t.name = NULL;
-      pthread_getname_np (thread, name, sizeof (name));
-      if (name[0] != '\0')
-        t.name = name;
-
-      t.state = GUM_THREAD_RUNNING;
-
-      bzero (&t.cpu_context, sizeof (GumCpuContext));
+      gum_compute_thread_details_from_pthread ((GumPThread *) thread,
+          &gum_pthread, &t);
 
       _gum_thread_registry_register (gum_registry, &t);
 
@@ -169,11 +163,15 @@ gum_thread_registry_on_setname (GumInvocationContext * ic,
   GumThreadRegistry * registry = user_data;
   pthread_t thread;
   GumThreadId id;
-  const gchar * name;
+  const char * name;
 
   thread = pthread_self ();
+
   id = pthread_mach_thread_np (thread);
-  name = gum_invocation_context_get_nth_argument (ic, 0);
+
+  name = (char *) pthread_self () + gum_pthread.name_offset;
+  if (name[0] == '\0')
+    name = NULL;
 
   _gum_thread_registry_rename (registry, id, name);
 }
@@ -214,7 +212,12 @@ gum_compute_thread_details_from_pthread (GumPThread * thread,
     details->flags |= GUM_THREAD_FLAGS_HAS_NAME;
   }
 
-  /* TODO: Fill in routine. */
+  details->entrypoint.routine = GUM_ADDRESS (
+      *((gpointer *) ((guint8 *) thread + spec->start_routine_offset)));
+  details->entrypoint.parameter = GUM_ADDRESS (
+      *((gpointer *) ((guint8 *) thread + spec->start_parameter_offset)));
+  if (details->entrypoint.routine != 0)
+    details->flags |= GUM_THREAD_FLAGS_HAS_ENTRYPOINT;
 }
 
 static gboolean
@@ -235,6 +238,10 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 
   if (!gum_detect_pthread_name_offset (capstone, insn, &spec->name_offset))
     goto beach;
+
+  spec->start_routine_offset =
+      spec->name_offset + GUM_DARWIN_MAX_THREAD_NAME_SIZE;
+  spec->start_parameter_offset = spec->start_routine_offset + sizeof (gpointer);
 
   success = TRUE;
 

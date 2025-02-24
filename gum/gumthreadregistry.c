@@ -198,50 +198,6 @@ already_registered:
 }
 
 void
-_gum_thread_registry_rename (GumThreadRegistry * self,
-                             GumThreadId id,
-                             const gchar * name)
-{
-  guint i;
-  GumThreadDetails * existing_thread, * thread;
-  gchar * previous_name;
-
-  GUM_THREAD_REGISTRY_LOCK (self);
-
-  if (!gum_thread_registry_index_of (self, id, &i))
-    goto not_registered;
-
-  existing_thread = g_ptr_array_index (self->threads, i);
-  previous_name = g_strdup (existing_thread->name);
-
-  thread = g_slice_dup (GumThreadDetails, existing_thread);
-  thread->name = g_strdup (name);
-  g_ptr_array_remove_index (self->threads, i);
-  g_ptr_array_insert (self->threads, i, thread);
-
-  thread = gum_thread_details_copy (thread);
-
-  GUM_THREAD_REGISTRY_UNLOCK (self);
-
-  if (!gum_cloak_has_thread (id))
-  {
-    g_signal_emit (self, gum_thread_registry_signals[THREAD_RENAMED], 0,
-        thread, previous_name);
-  }
-
-  gum_thread_details_free (thread);
-  g_free (previous_name);
-
-  return;
-
-not_registered:
-  {
-    GUM_THREAD_REGISTRY_UNLOCK (self);
-    return;
-  }
-}
-
-void
 _gum_thread_registry_unregister (GumThreadRegistry * self,
                                  GumThreadId id)
 {
@@ -262,6 +218,54 @@ _gum_thread_registry_unregister (GumThreadRegistry * self,
         thread);
 
   gum_thread_details_free (thread);
+
+  return;
+
+not_registered:
+  {
+    GUM_THREAD_REGISTRY_UNLOCK (self);
+    return;
+  }
+}
+
+void
+_gum_thread_registry_rename (GumThreadRegistry * self,
+                             GumThreadId id,
+                             const gchar * name)
+{
+  guint i;
+  GumThreadDetails * existing_thread, * thread;
+  gchar * previous_name;
+
+  GUM_THREAD_REGISTRY_LOCK (self);
+
+  if (!gum_thread_registry_index_of (self, id, &i))
+    goto not_registered;
+
+  existing_thread = g_ptr_array_index (self->threads, i);
+  previous_name = g_strdup (existing_thread->name);
+
+  thread = g_slice_dup (GumThreadDetails, existing_thread);
+  if (name != NULL)
+    thread->flags |= GUM_THREAD_FLAGS_HAS_NAME;
+  else
+    thread->flags &= ~GUM_THREAD_FLAGS_HAS_NAME;
+  thread->name = g_strdup (name);
+  g_ptr_array_remove_index (self->threads, i);
+  g_ptr_array_insert (self->threads, i, thread);
+
+  thread = gum_thread_details_copy (thread);
+
+  GUM_THREAD_REGISTRY_UNLOCK (self);
+
+  if (!gum_cloak_has_thread (id))
+  {
+    g_signal_emit (self, gum_thread_registry_signals[THREAD_RENAMED], 0,
+        thread, previous_name);
+  }
+
+  gum_thread_details_free (thread);
+  g_free (previous_name);
 
   return;
 
