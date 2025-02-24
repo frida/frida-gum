@@ -40,6 +40,14 @@ struct _GumPThread
   TAILQ_ENTRY (_GumPThread) tl_plist;
 };
 
+typedef enum {
+  GUM_OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION = 0x10000,
+  GUM_OS_UNFAIR_LOCK_ADAPTIVE_SPIN        = 0x40000,
+} GumUnfairLockOptions;
+
+extern void os_unfair_lock_lock_with_options (os_unfair_lock_t lock,
+    GumUnfairLockOptions options);
+
 static gboolean gum_add_existing_thread (const GumThreadDetails * thread,
     gpointer user_data);
 static void gum_thread_registry_on_thread_event (unsigned int event,
@@ -74,19 +82,27 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   if (!gum_compute_pthread_spec (&gum_pthread))
     g_error ("Unsupported Apple system; please file a bug");
 
+  gum_rename_handler = gum_make_call_listener (NULL,
+      gum_thread_registry_on_setname, gum_registry, NULL);
+
+  gum_thread_interceptor = gum_interceptor_obtain ();
+
+  os_unfair_lock_lock_with_options (gum_pthread.thread_list_lock,
+      GUM_OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION |
+      GUM_OS_UNFAIR_LOCK_ADAPTIVE_SPIN);
+
   gum_previous_hook =
       pthread_introspection_hook_install (gum_thread_registry_on_thread_event);
   gum_hook_installed = TRUE;
 
-  gum_thread_interceptor = gum_interceptor_obtain ();
-  gum_rename_handler = gum_make_call_listener (NULL,
-      gum_thread_registry_on_setname, gum_registry, NULL);
   gum_interceptor_attach (gum_thread_interceptor,
       GSIZE_TO_POINTER (gum_module_find_export_by_name (
           gum_process_get_libc_module (), "pthread_setname_np")),
       gum_rename_handler, NULL);
 
   gum_enumerate_threads (&gum_pthread, gum_add_existing_thread, gum_registry);
+
+  os_unfair_lock_unlock (gum_pthread.thread_list_lock);
 }
 
 void
