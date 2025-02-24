@@ -19,19 +19,11 @@
 #include <linux/futex.h>
 #include <sys/syscall.h>
 
-typedef struct _GumPThreadDetails GumPThreadDetails;
 typedef struct _GumPThreadSpec GumPThreadSpec;
 typedef struct _GumPThread GumPThread;
 
 typedef struct _GumGlibcList GumGlibcList;
 typedef int GumGlibcLock;
-
-struct _GumPThreadDetails
-{
-  GumThreadDetails thread;
-  gpointer start_routine;
-  gpointer start_parameter;
-};
 
 struct _GumPThreadSpec
 {
@@ -80,9 +72,9 @@ static gboolean gum_add_existing_thread (const GumThreadDetails * thread,
     gpointer user_data);
 static void gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
     gpointer user_data);
-static void gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
-    gpointer user_data);
 static void gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
+    gpointer user_data);
+static void gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_compute_thread_details_from_pthread (GumPThread * pthread,
     const GumPThreadSpec * spec, GumThreadDetails * details, gpointer * storage);
@@ -218,27 +210,6 @@ gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
 }
 
 static void
-gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
-                                        gpointer user_data)
-{
-  GumThreadRegistry * registry = user_data;
-  pthread_t thread;
-  const char * name;
-  GumThreadId id;
-
-  thread = GPOINTER_TO_SIZE (gum_invocation_context_get_nth_argument (ic, 0));
-  name = gum_invocation_context_get_nth_argument (ic, 1);
-
-  /* XXX: Should we handle rename from a different thread? */
-  if (thread != pthread_self ())
-    return;
-
-  id = gum_process_get_current_thread_id ();
-
-  _gum_thread_registry_rename (registry, id, name);
-}
-
-static void
 gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
                                           gpointer user_data)
 {
@@ -246,6 +217,20 @@ gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
 
   _gum_thread_registry_unregister (registry,
       gum_process_get_current_thread_id ());
+}
+
+static void
+gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
+                                        gpointer user_data)
+{
+  GumThreadRegistry * registry = user_data;
+  GumPThread * thread;
+  const char * name;
+
+  thread = gum_invocation_context_get_nth_argument (ic, 0);
+  name = gum_invocation_context_get_nth_argument (ic, 1);
+
+  _gum_thread_registry_rename (registry, thread->tid, name);
 }
 
 static void
