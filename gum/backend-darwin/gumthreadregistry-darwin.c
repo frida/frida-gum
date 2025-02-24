@@ -277,7 +277,64 @@ gum_detect_pthread_basics (csh capstone,
   num_locations = 0;
   mach_port_offset = 0;
 
-#if defined (HAVE_ARM64)
+#if defined (HAVE_I386)
+  {
+    while ((num_locations != 2 || mach_port_offset == 0) &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      switch (insn->id)
+      {
+        case X86_INS_LEA:
+        {
+          const cs_x86_op * dst = &x86->operands[0];
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (num_locations == 0 &&
+              dst->reg == X86_REG_RDI &&
+              src->mem.base == X86_REG_RIP)
+          {
+            locations[num_locations++] =
+                GSIZE_TO_POINTER (addr + src->mem.disp);
+          }
+
+          break;
+        }
+        case X86_INS_MOV:
+        {
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (num_locations == 1 &&
+              src->type == X86_OP_MEM &&
+              src->mem.base == X86_REG_RIP)
+          {
+            locations[num_locations++] =
+                GSIZE_TO_POINTER (addr + src->mem.disp);
+          }
+
+          break;
+        }
+        case X86_INS_CMP:
+        {
+          const cs_x86_op * lhs = &x86->operands[0];
+          const cs_x86_op * rhs = &x86->operands[1];
+
+          if (mach_port_offset == 0 &&
+              lhs->type == X86_OP_MEM &&
+              rhs->type == X86_OP_REG)
+          {
+            mach_port_offset = lhs->mem.disp;
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM64)
   {
     const uint8_t * adrp_location = NULL;
     arm64_reg adrp_reg = ARM64_REG_INVALID;
@@ -379,7 +436,34 @@ gum_detect_pthread_name_offset (csh capstone,
   size = 512;
   addr = GPOINTER_TO_SIZE (code);
 
-#if defined (HAVE_ARM64)
+#if defined (HAVE_I386)
+  {
+    while (cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      switch (insn->id)
+      {
+        case X86_INS_ADD:
+        {
+          const cs_x86_op * dst = &x86->operands[0];
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (dst->type == X86_OP_REG &&
+              src->type == X86_OP_IMM)
+          {
+            *name_offset = src->imm;
+            return TRUE;
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM64)
   {
     while (cs_disasm_iter (capstone, &code, &size, &addr, insn))
     {
