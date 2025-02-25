@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -263,13 +263,10 @@ beach:
 
 static gboolean
 gum_windows_get_thread_details (DWORD thread_id,
-                                GumThreadDetails * details)
+                                GumThreadDetails * thread)
 {
   gboolean success = FALSE;
-  static gsize initialized = FALSE;
-  static GumGetThreadDescriptionFunc get_thread_description;
-  static DWORD desired_access;
-  HANDLE thread = NULL;
+  HANDLE handle = NULL;
 #ifdef _MSC_VER
   __declspec (align (64))
 #endif
@@ -279,49 +276,27 @@ gum_windows_get_thread_details (DWORD thread_id,
 #endif
         = { 0, };
 
-  memset (details, 0, sizeof (GumThreadDetails));
+  memset (thread, 0, sizeof (GumThreadDetails));
 
-  if (g_once_init_enter (&initialized))
-  {
-    get_thread_description = (GumGetThreadDescriptionFunc) GetProcAddress (
-        GetModuleHandleW (L"kernel32.dll"),
-        "GetThreadDescription");
+  thread->flags = GUM_THREAD_FLAGS_HAS_STATE | GUM_THREAD_FLAGS_HAS_CPU_CONTEXT;
 
-    desired_access = THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME;
-    if (get_thread_description != NULL)
-      desired_access |= THREAD_QUERY_LIMITED_INFORMATION;
-
-    g_once_init_leave (&initialized, TRUE);
-  }
-
-  thread = OpenThread (desired_access, FALSE, thread_id);
-  if (thread == NULL)
+  handle = OpenThread (THREAD_QUERY_LIMITED_INFORMATION | THREAD_GET_CONTEXT |
+      THREAD_SUSPEND_RESUME, FALSE, thread_id);
+  if (handle == NULL)
     goto beach;
 
-  details->id = thread_id;
+  thread->id = thread_id;
 
-  if (get_thread_description != NULL)
-  {
-    WCHAR * name_utf16;
-
-    if (!SUCCEEDED (get_thread_description (thread, &name_utf16)))
-      goto beach;
-
-    if (name_utf16[0] != L'\0')
-    {
-      details->name = g_utf16_to_utf8 ((const gunichar2 *) name_utf16, -1, NULL,
-          NULL, NULL);
-    }
-
-    LocalFree (name_utf16);
-  }
+  thread->name = gum_windows_query_thread_name (handle);
+  if (thread->name != NULL)
+    thread->flags |= GUM_THREAD_FLAGS_HAS_NAME;
 
   if (thread_id == GetCurrentThreadId ())
   {
-    details->state = GUM_THREAD_RUNNING;
+    thread->state = GUM_THREAD_RUNNING;
 
     RtlCaptureContext (&context);
-    gum_windows_parse_context (&context, &details->cpu_context);
+    gum_windows_parse_context (&context, &thread->cpu_context);
 
     success = TRUE;
   }
@@ -329,31 +304,31 @@ gum_windows_get_thread_details (DWORD thread_id,
   {
     DWORD previous_suspend_count;
 
-    previous_suspend_count = SuspendThread (thread);
+    previous_suspend_count = SuspendThread (handle);
     if (previous_suspend_count == (DWORD) -1)
       goto beach;
 
     if (previous_suspend_count == 0)
-      details->state = GUM_THREAD_RUNNING;
+      thread->state = GUM_THREAD_RUNNING;
     else
-      details->state = GUM_THREAD_STOPPED;
+      thread->state = GUM_THREAD_STOPPED;
 
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-    if (GetThreadContext (thread, &context))
+    if (GetThreadContext (handle, &context))
     {
-      gum_windows_parse_context (&context, &details->cpu_context);
+      gum_windows_parse_context (&context, &thread->cpu_context);
       success = TRUE;
     }
 
-    ResumeThread (thread);
+    ResumeThread (handle);
   }
 
 beach:
-  if (thread != NULL)
-    CloseHandle (thread);
+  if (handle != NULL)
+    CloseHandle (handle);
 
   if (!success)
-    g_free ((gpointer) details->name);
+    g_free ((gpointer) thread->name);
 
   return success;
 }
@@ -948,6 +923,41 @@ beach:
 
     return result;
   }
+}
+
+gchar *
+gum_windows_query_thread_name (HANDLE thread)
+{
+  gchar * name = NULL;
+  static gsize initialized = FALSE;
+  static GumGetThreadDescriptionFunc get_thread_description;
+  WCHAR * name_utf16 = NULL;
+
+  if (g_once_init_enter (&initialized))
+  {
+    get_thread_description = (GumGetThreadDescriptionFunc) GetProcAddress (
+        GetModuleHandleW (L"kernel32.dll"),
+        "GetThreadDescription");
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  if (get_thread_description == NULL)
+    goto beach;
+
+  if (!SUCCEEDED (get_thread_description (thread, &name_utf16)))
+    goto beach;
+
+  if (name_utf16[0] == L'\0')
+    goto beach;
+
+  name = g_utf16_to_utf8 ((const gunichar2 *) name_utf16, -1, NULL, NULL, NULL);
+
+beach:
+  if (name_utf16 != NULL)
+    LocalFree (name_utf16);
+
+  return name;
 }
 
 void

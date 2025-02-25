@@ -7,11 +7,18 @@
 #include "gumthreadregistry-priv.h"
 
 #include "guminterceptor.h"
+#include "gum/gumwindows.h"
 
+#include <tlhelp32.h>
+
+static gboolean gum_add_existing_thread (const GumThreadDetails * thread,
+    gpointer user_data);
 static void gum_thread_registry_on_thread_start (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_thread_registry_on_thread_terminate (GumInvocationContext * ic,
     gpointer user_data);
+
+static void gum_enumerate_threads (GumFoundThreadFunc func, gpointer user_data);
 
 static GumInterceptor * gum_thread_interceptor;
 static GumInvocationListener * gum_start_handler;
@@ -33,6 +40,7 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   gum_terminate_handler = gum_make_probe_listener (
       gum_thread_registry_on_thread_terminate, self, NULL);
 
+  gum_interceptor_begin_transaction (gum_thread_interceptor);
   gum_interceptor_attach (gum_thread_interceptor,
       GSIZE_TO_POINTER (gum_module_find_export_by_name (kernel32,
           "BaseThreadInitThunk")),
@@ -41,6 +49,9 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
       GSIZE_TO_POINTER (gum_module_find_export_by_name (ntdll,
           "RtlExitUserThread")),
       gum_terminate_handler, NULL);
+  gum_interceptor_end_transaction (gum_thread_interceptor);
+
+  gum_enumerate_threads (gum_add_existing_thread, self);
 
   g_object_unref (kernel32);
   g_object_unref (ntdll);
@@ -71,6 +82,17 @@ _gum_thread_registry_deactivate (GumThreadRegistry * self)
   g_clear_object (&gum_thread_interceptor);
 }
 
+static gboolean
+gum_add_existing_thread (const GumThreadDetails * thread,
+                         gpointer user_data)
+{
+  GumThreadRegistry * registry = user_data;
+
+  _gum_thread_registry_register (registry, thread);
+
+  return TRUE;
+}
+
 static void
 gum_thread_registry_on_thread_start (GumInvocationContext * ic,
                                      gpointer user_data)
@@ -97,4 +119,59 @@ gum_thread_registry_on_thread_terminate (GumInvocationContext * ic,
 
   _gum_thread_registry_unregister (registry,
       gum_process_get_current_thread_id ());
+}
+
+static void
+gum_enumerate_threads (GumFoundThreadFunc func,
+                       gpointer user_data)
+{
+  DWORD this_process_id;
+  HANDLE snapshot;
+  THREADENTRY32 entry;
+  gboolean carry_on;
+
+  this_process_id = GetCurrentProcessId ();
+
+  snapshot = CreateToolhelp32Snapshot (TH32CS_SNAPTHREAD, 0);
+  if (snapshot == INVALID_HANDLE_VALUE)
+    goto beach;
+
+  entry.dwSize = sizeof (entry);
+  if (!Thread32First (snapshot, &entry))
+    goto beach;
+
+  carry_on = TRUE;
+  do
+  {
+    if (RTL_CONTAINS_FIELD (&entry, entry.dwSize, th32OwnerProcessID) &&
+        entry.th32OwnerProcessID == this_process_id)
+    {
+      HANDLE handle;
+
+      handle = OpenThread (THREAD_QUERY_LIMITED_INFORMATION, FALSE,
+          entry.th32ThreadID);
+      if (handle != NULL)
+      {
+        GumThreadDetails thread = { 0, };
+
+        thread.id = entry.th32ThreadID;
+
+        thread.name = gum_windows_query_thread_name (handle);
+        if (thread.name != NULL)
+          thread.flags |= GUM_THREAD_FLAGS_HAS_NAME;
+
+        carry_on = func (&thread, user_data);
+
+        g_free ((gpointer) thread.name);
+        CloseHandle (handle);
+      }
+    }
+
+    entry.dwSize = sizeof (entry);
+  }
+  while (carry_on && Thread32Next (snapshot, &entry));
+
+beach:
+  if (snapshot != INVALID_HANDLE_VALUE)
+    CloseHandle (snapshot);
 }
