@@ -10,6 +10,15 @@
 #include "gum/gumwindows.h"
 
 #include <tlhelp32.h>
+#include <winternl.h>
+
+typedef enum {
+  GUM_THREAD_QUERY_SET_WIN32_START_ADDRESS = 9,
+} GumThreadInfoClass;
+
+typedef NTSTATUS (WINAPI * GumQueryInformationThreadFunc) (HANDLE thread,
+    GumThreadInfoClass klass, PVOID thread_information,
+    ULONG thread_information_length, PULONG return_length);
 
 static gboolean gum_add_existing_thread (const GumThreadDetails * thread,
     gpointer user_data);
@@ -24,6 +33,8 @@ static GumInterceptor * gum_thread_interceptor;
 static GumInvocationListener * gum_start_handler;
 static GumInvocationListener * gum_terminate_handler;
 
+static GumQueryInformationThreadFunc gum_query_information_thread;
+
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
 {
@@ -34,6 +45,9 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
 
   ntdll = gum_process_find_module_by_name ("ntdll.dll");
   kernel32 = gum_process_find_module_by_name ("kernel32.dll");
+
+  gum_query_information_thread = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name (ntdll, "NtQueryInformationThread"));
 
   gum_start_handler = gum_make_probe_listener (
       gum_thread_registry_on_thread_start, self, NULL);
@@ -148,17 +162,26 @@ gum_enumerate_threads (GumFoundThreadFunc func,
     {
       HANDLE handle;
 
-      handle = OpenThread (THREAD_QUERY_LIMITED_INFORMATION, FALSE,
-          entry.th32ThreadID);
+      handle = OpenThread (THREAD_QUERY_INFORMATION, FALSE, entry.th32ThreadID);
       if (handle != NULL)
       {
         GumThreadDetails thread = { 0, };
+        gsize start_address;
 
         thread.id = entry.th32ThreadID;
 
         thread.name = gum_windows_query_thread_name (handle);
         if (thread.name != NULL)
           thread.flags |= GUM_THREAD_FLAGS_HAS_NAME;
+
+        start_address = 0;
+        if (gum_query_information_thread (handle,
+            GUM_THREAD_QUERY_SET_WIN32_START_ADDRESS, &start_address,
+            sizeof (start_address), NULL) == 0)
+        {
+          thread.entrypoint.routine = start_address;
+          thread.flags |= GUM_THREAD_FLAGS_HAS_ENTRYPOINT;
+        }
 
         carry_on = func (&thread, user_data);
 
