@@ -386,6 +386,7 @@ gum_detect_rtld_globals (GumPThreadSpec * spec)
 #endif
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
   size = 16384;
   addr = GPOINTER_TO_SIZE (code);
 
@@ -609,6 +610,7 @@ gum_compute_pthread_spec (GumPThreadSpec * spec)
 #endif
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
   size = 1024;
   addr = GPOINTER_TO_SIZE (code);
 

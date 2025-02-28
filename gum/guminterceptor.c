@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
@@ -773,6 +773,14 @@ gum_interceptor_is_locked (GumInterceptor * self)
 
   GUM_INTERCEPTOR_UNLOCK (self);
   return FALSE;
+}
+
+gsize
+gum_interceptor_detect_hook_size (gconstpointer code,
+                                  csh capstone,
+                                  cs_insn * insn)
+{
+  return _gum_interceptor_backend_detect_hook_size (code, capstone, insn);
 }
 
 gpointer

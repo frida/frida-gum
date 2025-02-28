@@ -1708,6 +1708,7 @@ gum_detect_pthread_basics (csh capstone,
         gum_process_get_libc_module (), "pthread_from_mach_thread_np"));
 
   code = gum_strip_code_pointer (pfmt_prologue);
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
   size = 256;
   addr = GPOINTER_TO_SIZE (code);
 
@@ -1870,6 +1871,7 @@ gum_detect_pthread_name_offset (csh capstone,
         gum_process_get_libc_module (), "pthread_setname_np"));
 
   code = gum_strip_code_pointer (setname_prologue);
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
   size = 512;
   addr = GPOINTER_TO_SIZE (code);
 
