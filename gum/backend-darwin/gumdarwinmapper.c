@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1295,8 +1295,7 @@ gum_emit_resolve_if_needed (const GumDarwinBindDetails * details,
   entry = self->module->base_address + details->segment->vm_address +
       details->offset;
 
-  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX,
-      gum_darwin_mapper_make_code_address (self, value.resolver));
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX, value.resolver);
   gum_x86_writer_put_call_reg (cw, GUM_X86_XCX);
   gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX, details->addend);
   gum_x86_writer_put_add_reg_reg (cw, GUM_X86_XAX, GUM_X86_XCX);
@@ -1595,8 +1594,7 @@ gum_emit_arm_resolve_if_needed (const GumDarwinBindDetails * details,
   entry = self->module->base_address + details->segment->vm_address +
       details->offset;
 
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R1,
-      gum_darwin_mapper_make_code_address (self, value.resolver));
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R1, value.resolver);
   gum_thumb_writer_put_blx_reg (tw, ARM_REG_R1);
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R1, details->addend);
   gum_thumb_writer_put_add_reg_reg_reg (tw, ARM_REG_R0, ARM_REG_R0, ARM_REG_R1);
@@ -1844,9 +1842,8 @@ gum_emit_arm64_resolve_if_needed (const GumDarwinBindDetails * details,
   entry = self->module->base_address + details->segment->vm_address +
       details->offset;
 
-  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X1,
-      gum_darwin_mapper_make_code_address (self, value.resolver));
-  gum_arm64_writer_put_blr_reg (aw, ARM64_REG_X1);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X1, value.resolver);
+  gum_arm64_writer_put_blr_reg_no_auth (aw, ARM64_REG_X1);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X1, details->addend);
   gum_arm64_writer_put_add_reg_reg_reg (aw, ARM64_REG_X0, ARM64_REG_X0,
       ARM64_REG_X1);
