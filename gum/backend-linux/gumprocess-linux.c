@@ -2942,12 +2942,20 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
 #  define GUM_CS_XBP_REG X86_REG_RBP
 # endif
   {
+    GArray * sizes;
+    guint insn_index;
+    guint mov_index = 0;
     gpointer mov_location = NULL;
 
-    while (spec->start_impl == NULL &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
+
+    for (insn_index = 0; spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn); insn_index++)
     {
+      guint16 size = insn->size;
       const cs_x86 * x86 = &insn->detail->x86;
+
+      g_array_append_val (sizes, size);
 
       switch (insn->id)
       {
@@ -2961,6 +2969,7 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
               src->mem.base != GUM_CS_XBP_REG &&
               src->mem.index == X86_REG_INVALID)
           {
+            mov_index = insn_index;
             mov_location = (gpointer) (code - insn->size);
             spec->start_parameter_offset = src->mem.disp;
           }
@@ -2973,7 +2982,16 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
 
           if (target->type == X86_OP_MEM && mov_location != NULL)
           {
-            spec->start_impl = mov_location;
+            guint hook_delta, i;
+            gpointer hook_location;
+
+            hook_delta = 0;
+            for (i = mov_index - 1 - 2; i != mov_index - 1; i++)
+              hook_delta += g_array_index (sizes, guint16, i);
+
+            hook_location = mov_location - hook_delta;
+
+            spec->start_impl = hook_location;
             spec->start_routine_offset = target->mem.disp;
           }
 
@@ -2983,6 +3001,8 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
           break;
       }
     }
+
+    g_array_unref (sizes);
   }
 #elif defined (HAVE_ARM)
   {
@@ -2997,10 +3017,9 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
     for (insn_index = 0; spec->start_impl == NULL &&
         cs_disasm_iter (capstone, &code, &size, &addr, insn); insn_index++)
     {
+      guint16 size = insn->size;
       const cs_arm * arm = &insn->detail->arm;
-      guint16 size;
 
-      size = insn->size;
       g_array_append_val (sizes, size);
 
       switch (insn->id)
