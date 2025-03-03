@@ -135,6 +135,7 @@ typedef arm_debug_state64_t GumDarwinNativeDebugState;
 
 typedef struct _GumDarwinAllImageInfos GumDarwinAllImageInfos;
 typedef struct _GumDarwinMappingDetails GumDarwinMappingDetails;
+typedef struct _GumDarwinPThreadIter GumDarwinPThreadIter;
 typedef struct _GumDarwinPThreadSpec GumDarwinPThreadSpec;
 typedef struct _GumDarwinPThreadList GumDarwinPThreadList;
 typedef struct _GumDarwinPThread GumDarwinPThread;
@@ -164,6 +165,12 @@ struct _GumDarwinMappingDetails
 
   guint64 offset;
   guint64 size;
+};
+
+struct _GumDarwinPThreadIter
+{
+  gpointer node;
+  const GumDarwinPThreadSpec * spec;
 };
 
 struct _GumDarwinPThreadSpec
@@ -212,6 +219,10 @@ GUM_API gboolean gum_darwin_modify_thread (mach_port_t thread,
     GumModifyThreadFunc func, gpointer user_data, GumModifyThreadFlags flags);
 GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
     GumFoundThreadFunc func, gpointer user_data, GumThreadFlags flags);
+GUM_API void gum_darwin_pthread_iter_init (GumDarwinPThreadIter * iter,
+    const GumDarwinPThreadSpec * spec);
+GUM_API gboolean gum_darwin_pthread_iter_next (GumDarwinPThreadIter * self,
+    pthread_t * thread);
 GUM_API GumModule * gum_darwin_find_module_by_name (mach_port_t task,
     const gchar * name);
 GUM_API void gum_darwin_enumerate_modules (mach_port_t task,

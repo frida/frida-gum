@@ -1236,15 +1236,16 @@ gum_darwin_enumerate_threads (mach_port_t task,
                 GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER)) != 0)
   {
     const GumDarwinPThreadSpec * spec;
-    struct _GumDarwinPThread * cur = NULL;
+    GumDarwinPThreadIter iter;
+    pthread_t pth;
 
     spec = gum_darwin_query_pthread_spec ();
 
     gum_darwin_lock_pthread_list (spec);
 
-    TAILQ_FOREACH (cur, spec->thread_list, tl_plist)
+    gum_darwin_pthread_iter_init (&iter, spec);
+    while (gum_darwin_pthread_iter_next (&iter, &pth))
     {
-      pthread_t pth = (pthread_t) cur;
       mach_port_t thread;
       GumThreadDetails entry = { 0, };
       gpointer start_routine;
@@ -1343,6 +1344,32 @@ gum_darwin_enumerate_threads (mach_port_t task,
   for (i = 0; i != count; i++)
     mach_port_deallocate (self, threads[i]);
   vm_deallocate (self, (vm_address_t) threads, count * sizeof (thread_t));
+}
+
+void
+gum_darwin_pthread_iter_init (GumDarwinPThreadIter * iter,
+                              const GumDarwinPThreadSpec * spec)
+{
+  iter->node = NULL;
+  iter->spec = spec;
+}
+
+gboolean
+gum_darwin_pthread_iter_next (GumDarwinPThreadIter * self,
+                              pthread_t * thread)
+{
+  struct _GumDarwinPThread * pth = self->node;
+
+  if (pth != NULL)
+    pth = TAILQ_NEXT (pth, tl_plist);
+  else
+    pth = TAILQ_FIRST (self->spec->thread_list);
+  if (pth == NULL)
+    return FALSE;
+  self->node = pth;
+
+  *thread = (pthread_t) pth;
+  return TRUE;
 }
 
 GumModule *

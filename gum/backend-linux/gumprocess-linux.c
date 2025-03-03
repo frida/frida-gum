@@ -1190,7 +1190,6 @@ gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
 
   *thread = GPOINTER_TO_SIZE (
       ((gchar *) node - G_STRUCT_OFFSET (GumLinuxPThread, list)));
-
   return TRUE;
 #elif defined (HAVE_ANDROID)
   GumLinuxPThread * list = self->list;
@@ -1213,13 +1212,11 @@ gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
   {
     node = node->prev;
   }
-  self->node = node;
-
   if (node == NULL)
     return FALSE;
+  self->node = node;
 
   *thread = GPOINTER_TO_SIZE (node);
-
   return TRUE;
 #endif
 }

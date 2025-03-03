@@ -33,7 +33,8 @@ static GumInvocationListener * gum_rename_handler;
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
 {
-  struct _GumDarwinPThread * pth = NULL;
+  GumDarwinPThreadIter iter;
+  pthread_t thread;
 
   gum_registry = self;
 
@@ -55,11 +56,12 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
           gum_process_get_libc_module (), "pthread_setname_np")),
       gum_rename_handler, NULL);
 
-  TAILQ_FOREACH (pth, gum_pthread->thread_list, tl_plist)
+  gum_darwin_pthread_iter_init (&iter, gum_pthread);
+  while (gum_darwin_pthread_iter_next (&iter, &thread))
   {
     GumThreadDetails t;
 
-    gum_compute_thread_details_from_pthread ((pthread_t) pth, gum_pthread, &t);
+    gum_compute_thread_details_from_pthread (thread, gum_pthread, &t);
 
     _gum_thread_registry_register (self, &t);
   }
