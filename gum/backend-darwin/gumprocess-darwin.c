@@ -1281,20 +1281,20 @@ gum_darwin_enumerate_threads (mach_port_t task,
       }
 
       start_routine = gum_darwin_query_pthread_start_routine (pth, spec);
-
-      if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+      if (start_routine != NULL)
       {
-        entry.entrypoint.routine = GUM_ADDRESS (start_routine);
-        if (entry.entrypoint.routine != 0)
+        if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+        {
+          entry.entrypoint.routine = GUM_ADDRESS (start_routine);
           entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
-      }
+        }
 
-      if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0 &&
-          start_routine != NULL)
-      {
-        entry.entrypoint.parameter =
-            GUM_ADDRESS (gum_darwin_query_pthread_start_parameter (pth, spec));
-        entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
+        if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
+        {
+          entry.entrypoint.parameter =
+              GUM_ADDRESS (gum_darwin_query_pthread_start_parameter (pth, spec));
+          entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
+        }
       }
 
       g_array_append_val (entries, entry);

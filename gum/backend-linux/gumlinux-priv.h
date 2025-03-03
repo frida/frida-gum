@@ -30,7 +30,6 @@ struct _GumProcMapsIter
 
 struct _GumLinuxPThreadSpec
 {
-  int (* get_name) (pthread_t thread, char * name, size_t size);
   int (* set_name) (pthread_t thread, const char * name);
 
 #if defined (HAVE_GLIBC)

@@ -13,15 +13,11 @@
 #include <strings.h>
 #include <pthread/introspection.h>
 
-static gboolean gum_add_existing_thread (const GumThreadDetails * thread,
-    gpointer user_data);
 static void gum_thread_registry_on_thread_event (unsigned int event,
     pthread_t thread, void * addr, size_t size);
 static void gum_thread_registry_on_setname (GumInvocationContext * ic,
     gpointer user_data);
 
-static void gum_enumerate_threads (const GumDarwinPThreadSpec * spec,
-    GumFoundThreadFunc func, gpointer user_data);
 static void gum_compute_thread_details_from_pthread (pthread_t thread,
     const GumDarwinPThreadSpec * spec, GumThreadDetails * details);
 
@@ -37,6 +33,8 @@ static GumInvocationListener * gum_rename_handler;
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
 {
+  struct _GumDarwinPThread * pth = NULL;
+
   gum_registry = self;
 
   gum_pthread = gum_darwin_query_pthread_spec ();
@@ -57,7 +55,14 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
           gum_process_get_libc_module (), "pthread_setname_np")),
       gum_rename_handler, NULL);
 
-  gum_enumerate_threads (gum_pthread, gum_add_existing_thread, gum_registry);
+  TAILQ_FOREACH (pth, gum_pthread->thread_list, tl_plist)
+  {
+    GumThreadDetails t;
+
+    gum_compute_thread_details_from_pthread ((pthread_t) pth, gum_pthread, &t);
+
+    _gum_thread_registry_register (self, &t);
+  }
 
   gum_darwin_unlock_pthread_list (gum_pthread);
 }
@@ -83,17 +88,6 @@ _gum_thread_registry_deactivate (GumThreadRegistry * self)
 
     gum_hook_installed = FALSE;
   }
-}
-
-static gboolean
-gum_add_existing_thread (const GumThreadDetails * thread,
-                         gpointer user_data)
-{
-  GumThreadRegistry * registry = user_data;
-
-  _gum_thread_registry_register (registry, thread);
-
-  return TRUE;
 }
 
 static void
@@ -149,28 +143,12 @@ gum_thread_registry_on_setname (GumInvocationContext * ic,
 }
 
 static void
-gum_enumerate_threads (const GumDarwinPThreadSpec * spec,
-                       GumFoundThreadFunc func,
-                       gpointer user_data)
-{
-  struct _GumDarwinPThread * pth = NULL;
-
-  TAILQ_FOREACH (pth, spec->thread_list, tl_plist)
-  {
-    GumThreadDetails thread;
-
-    gum_compute_thread_details_from_pthread ((pthread_t) pth, spec, &thread);
-
-    if (!func (&thread, user_data))
-      return;
-  }
-}
-
-static void
 gum_compute_thread_details_from_pthread (pthread_t thread,
                                          const GumDarwinPThreadSpec * spec,
                                          GumThreadDetails * details)
 {
+  gpointer start_routine;
+
   bzero (details, sizeof (GumThreadDetails));
 
   details->id = gum_darwin_query_pthread_port (thread, spec);
@@ -179,12 +157,12 @@ gum_compute_thread_details_from_pthread (pthread_t thread,
   if (details->name != NULL)
     details->flags |= GUM_THREAD_FLAGS_NAME;
 
-  details->entrypoint.routine =
-      GUM_ADDRESS (gum_darwin_query_pthread_start_routine (thread, spec));
-  if (details->entrypoint.routine != 0)
+  start_routine = gum_darwin_query_pthread_start_routine (thread, spec);
+  if (start_routine != NULL)
   {
-    details->entrypoint.parameter =
-        GUM_ADDRESS (gum_darwin_query_pthread_start_parameter (thread, spec));
+    details->entrypoint.routine = GUM_ADDRESS (start_routine);
+    details->entrypoint.parameter = GUM_ADDRESS (
+        gum_darwin_query_pthread_start_parameter (thread, spec));
     details->flags |=
         GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
         GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;

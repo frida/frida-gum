@@ -293,15 +293,14 @@ static gint gum_linux_do_modify_thread (gpointer data);
 static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack);
 static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 
-static void gum_store_cpu_context (GumThreadId thread_id,
-    GumCpuContext * cpu_context, gpointer user_data);
-
 static GumModule * gum_try_init_libc_module (void);
 static void gum_deinit_libc_module (void);
 static const Dl_info * gum_try_init_libc_info (void);
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
+static void gum_store_cpu_context (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
 static void gum_do_set_hardware_breakpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
 static void gum_do_unset_hardware_breakpoint (GumThreadId thread_id,
@@ -883,19 +882,90 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
                                 gpointer user_data,
                                 GumThreadFlags flags)
 {
-  const GumLinuxPThreadSpec * spec = gum_linux_query_pthread_spec ();
+  GArray * entries;
+  const GumLinuxPThreadSpec * spec;
+  GumLinuxPThreadIter iter;
+  pthread_t thread;
+  guint i;
+
+  entries = g_array_new (FALSE, FALSE, sizeof (GumThreadDetails));
+
+  spec = gum_linux_query_pthread_spec ();
 
   gum_linux_lock_pthread_list (spec);
-  gum_linux_enumerate_threads_unlocked (func, user_data, flags, spec);
-  gum_linux_unlock_pthread_list (spec);
-}
 
-static void
-gum_store_cpu_context (GumThreadId thread_id,
-                       GumCpuContext * cpu_context,
-                       gpointer user_data)
-{
-  memcpy (user_data, cpu_context, sizeof (GumCpuContext));
+  gum_linux_pthread_iter_init (&iter, spec);
+  while (gum_linux_pthread_iter_next (&iter, &thread))
+  {
+    GumThreadDetails entry = { 0, };
+    gpointer start_routine;
+
+    entry.id = gum_linux_query_pthread_tid (thread, spec);
+
+    start_routine = gum_linux_query_pthread_start_routine (thread, spec);
+    if (start_routine != NULL)
+    {
+      if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+      {
+        entry.entrypoint.routine = GUM_ADDRESS (start_routine);
+        entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
+      }
+
+      if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
+      {
+        entry.entrypoint.parameter = GUM_ADDRESS (
+            gum_linux_query_pthread_start_parameter (thread, spec));
+        entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
+      }
+    }
+
+    g_array_append_val (entries, entry);
+  }
+
+  gum_linux_unlock_pthread_list (spec);
+
+  for (i = 0; i != entries->len; i++)
+  {
+    GumThreadDetails * entry;
+    gchar * name = NULL;
+    gboolean carry_on = TRUE;
+
+    entry = &g_array_index (entries, GumThreadDetails, i);
+
+    if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
+    {
+      name = gum_linux_query_thread_name (entry->id);
+      if (name != NULL)
+      {
+        entry->name = name;
+        entry->flags |= GUM_THREAD_FLAGS_NAME;
+      }
+    }
+
+    if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+    {
+      if (!gum_linux_query_thread_state (entry->id, &entry->state))
+        goto skip;
+      entry->flags |= GUM_THREAD_FLAGS_STATE;
+    }
+
+    if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+    {
+      if (!gum_linux_query_thread_cpu_context (entry->id, &entry->cpu_context))
+        goto skip;
+      entry->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+    }
+
+    carry_on = func (entry, user_data);
+
+skip:
+    g_free (name);
+
+    if (!carry_on)
+      break;
+  }
+
+  g_array_unref (entries);
 }
 
 gboolean
@@ -1082,65 +1152,75 @@ _gum_try_translate_vdso_name (gchar * name)
 }
 
 void
-gum_linux_enumerate_threads_unlocked (GumFoundThreadFunc func,
-                                      gpointer user_data,
-                                      GumThreadFlags flags,
-                                      const GumLinuxPThreadSpec * spec)
+gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
+                             const GumLinuxPThreadSpec * spec)
+{
+  iter->list = NULL;
+  iter->node = NULL;
+  iter->spec = spec;
+}
+
+gboolean
+gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
+                             pthread_t * thread)
 {
 #if defined (HAVE_GLIBC)
-  GumGlibcList * lists[] = {
-    spec->stack_user,
-    spec->stack_used,
-  };
-  guint i;
+  GumGlibcList * list = self->list;
+  GumGlibcList * node = self->node;
 
-  for (i = 0; i != G_N_ELEMENTS (lists); i++)
+  if (node != NULL)
   {
-    GumGlibcList * list = lists[i];
-    GumGlibcList * cur;
-
-    for (cur = list->prev; cur != list; cur = cur->prev)
-    {
-      pthread_t pthread = GPOINTER_TO_SIZE (
-          ((gchar *) cur - G_STRUCT_OFFSET (GumLinuxPThread, list)));
-      GumThreadDetails t;
-      gpointer storage;
-      gboolean carry_on;
-
-      if (!gum_linux_query_pthread_details (pthread, flags, spec, &t, &storage))
-        continue;
-
-      carry_on = func (&t, user_data);
-
-      g_free (storage);
-
-      if (!carry_on)
-        return;
-    }
+    node = node->prev;
+    self->node = node;
   }
+
+  while (node == list)
+  {
+    if (list == NULL)
+      list = self->spec->stack_user;
+    else if (list == self->spec->stack_user)
+      list = self->spec->stack_used;
+    else
+      return FALSE;
+    node = list->prev;
+
+    self->list = list;
+    self->node = node;
+  }
+
+  *thread = GPOINTER_TO_SIZE (
+      ((gchar *) node - G_STRUCT_OFFSET (GumLinuxPThread, list)));
+
+  return TRUE;
 #elif defined (HAVE_ANDROID)
-  GumLinuxPThread * tail, * cur;
+  GumLinuxPThread * list = self->list;
+  GumLinuxPThread * node = self->node;
 
-  for (tail = NULL, cur = *spec->thread_list; cur != NULL; cur = cur->next)
-    tail = cur;
-
-  for (cur = tail; cur != NULL; cur = cur->prev)
+  if (list == NULL)
   {
-    pthread_t pthread = GPOINTER_TO_SIZE (cur);
-    GumThreadDetails t;
-    gpointer storage;
-    gboolean carry_on;
+    GumLinuxPThread * tail, * cur;
 
-    if (!gum_linux_query_pthread_details (pthread, flags, spec, &t, &storage))
-      continue;
+    tail = NULL;
+    for (cur = *self->spec->thread_list; cur != NULL; cur = cur->next)
+      tail = cur;
 
-    carry_on = func (&t, user_data);
+    list = tail;
+    self->list = list;
 
-    g_free (storage);
-
-    if (!carry_on)
-      return;
+    node = list;
   }
+  else
+  {
+    node = node->prev;
+  }
+  self->node = node;
+
+  if (node == NULL)
+    return FALSE;
+
+  *thread = GPOINTER_TO_SIZE (node);
+
+  return TRUE;
 #endif
 }
 
@@ -1278,100 +1358,43 @@ gum_thread_state_from_proc_status_character (gchar c)
   }
 }
 
+gboolean
+gum_linux_query_thread_cpu_context (GumThreadId tid,
+                                    GumCpuContext * ctx)
+{
+  return gum_process_modify_thread (tid, gum_store_cpu_context, ctx,
+      GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY);
+}
+
+static void
+gum_store_cpu_context (GumThreadId thread_id,
+                       GumCpuContext * cpu_context,
+                       gpointer user_data)
+{
+  memcpy (user_data, cpu_context, sizeof (GumCpuContext));
+}
+
 GumThreadId
-gum_linux_query_pthread_tid (pthread_t pthread,
+gum_linux_query_pthread_tid (pthread_t thread,
                              const GumLinuxPThreadSpec * spec)
 {
-  GumLinuxPThread * pth = GSIZE_TO_POINTER (pthread);
+  GumLinuxPThread * pth = GSIZE_TO_POINTER (thread);
 
   return pth->tid;
 }
 
-gboolean
-gum_linux_query_pthread_details (pthread_t pthread,
-                                 GumThreadFlags flags,
-                                 const GumLinuxPThreadSpec * spec,
-                                 GumThreadDetails * thread,
-                                 gpointer * storage)
+gpointer
+gum_linux_query_pthread_start_routine (pthread_t thread,
+                                       const GumLinuxPThreadSpec * spec)
 {
-  gboolean success = FALSE;
-  GumLinuxPThread * pth = GSIZE_TO_POINTER (pthread);
-  gchar * name = NULL;
-  gpointer start_routine;
+  return *((gpointer *) ((guint8 *) thread + spec->start_routine_offset));
+}
 
-  bzero (thread, sizeof (GumThreadDetails));
-  *storage = NULL;
-
-  thread->id = gum_linux_query_pthread_tid (pthread, spec);
-
-  if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
-  {
-    if (spec->get_name != NULL)
-    {
-      gsize name_max_size = 64;
-
-      name = g_malloc (name_max_size);
-      spec->get_name (pthread, name, name_max_size);
-      if (name[0] != '\0')
-      {
-        thread->name = name;
-        *storage = g_steal_pointer (&name);
-      }
-    }
-    else
-    {
-      name = gum_linux_query_thread_name (thread->id);
-      if (name != NULL)
-      {
-        thread->name = name;
-        *storage = g_steal_pointer (&name);
-      }
-    }
-    if (thread->name != NULL)
-      thread->flags |= GUM_THREAD_FLAGS_NAME;
-  }
-
-  if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
-  {
-    if (!gum_linux_query_thread_state (thread->id, &thread->state))
-      goto beach;
-    thread->flags |= GUM_THREAD_FLAGS_STATE;
-  }
-
-  if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
-  {
-    if (!gum_process_modify_thread (thread->id, gum_store_cpu_context,
-          &thread->cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
-      goto beach;
-    thread->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
-  }
-
-  start_routine = *((gpointer *) ((guint8 *) pth + spec->start_routine_offset));
-
-  if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0 &&
-      start_routine != NULL)
-  {
-    thread->entrypoint.routine = GUM_ADDRESS (start_routine);
-    thread->flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
-  }
-
-  if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0 &&
-      start_routine != NULL)
-  {
-    thread->entrypoint.parameter = GUM_ADDRESS (
-        *((gpointer *) ((guint8 *) pth + spec->start_parameter_offset)));
-    thread->flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
-  }
-
-  success = TRUE;
-
-beach:
-  g_free (name);
-
-  if (!success)
-    g_clear_pointer (storage, g_free);
-
-  return success;
+gpointer
+gum_linux_query_pthread_start_parameter (pthread_t thread,
+                                         const GumLinuxPThreadSpec * spec)
+{
+  return *((gpointer *) ((guint8 *) thread + spec->start_parameter_offset));
 }
 
 guint
@@ -2624,8 +2647,6 @@ gum_linux_query_pthread_spec (void)
     GumModule * libc;
 
     libc = gum_process_get_libc_module ();
-    spec.get_name = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
-          "pthread_getname_np"));
     spec.set_name = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
           "pthread_setname_np"));
 

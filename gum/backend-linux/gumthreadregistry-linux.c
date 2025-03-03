@@ -10,14 +10,16 @@
 #include "gumlinux-priv.h"
 #include "gum/gumlinux.h"
 
-static gboolean gum_add_existing_thread (const GumThreadDetails * thread,
-    gpointer user_data);
 static void gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
     gpointer user_data);
+
+static void gum_compute_thread_details_from_pthread (pthread_t thread,
+    const GumLinuxPThreadSpec * spec, GumThreadDetails * details,
+    gpointer * storage);
 
 static GumThreadRegistry * gum_registry;
 static const GumLinuxPThreadSpec * gum_pthread;
@@ -30,6 +32,9 @@ static GumInvocationListener * gum_rename_handler = NULL;
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
 {
+  GumLinuxPThreadIter iter;
+  pthread_t thread;
+
   gum_registry = self;
   gum_pthread = gum_linux_query_pthread_spec ();
 
@@ -60,11 +65,18 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
 
   gum_interceptor_end_transaction (gum_thread_interceptor);
 
-  gum_linux_enumerate_threads_unlocked (gum_add_existing_thread, gum_registry,
-      GUM_THREAD_FLAGS_NAME |
-      GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
-      GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER,
-      gum_pthread);
+  gum_linux_pthread_iter_init (&iter, gum_pthread);
+  while (gum_linux_pthread_iter_next (&iter, &thread))
+  {
+    GumThreadDetails t;
+    gpointer storage;
+
+    gum_compute_thread_details_from_pthread (thread, gum_pthread, &t, &storage);
+
+    _gum_thread_registry_register (self, &t);
+
+    g_free (storage);
+  }
 
   gum_linux_unlock_pthread_list (gum_pthread);
 }
@@ -95,17 +107,6 @@ _gum_thread_registry_deactivate (GumThreadRegistry * self)
   g_clear_object (&gum_thread_interceptor);
 }
 
-static gboolean
-gum_add_existing_thread (const GumThreadDetails * thread,
-                         gpointer user_data)
-{
-  GumThreadRegistry * registry = user_data;
-
-  _gum_thread_registry_register (registry, thread);
-
-  return TRUE;
-}
-
 static void
 gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
                                       gpointer user_data)
@@ -114,11 +115,8 @@ gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
   GumThreadDetails thread;
   gpointer storage;
 
-  gum_linux_query_pthread_details (pthread_self (),
-      GUM_THREAD_FLAGS_NAME |
-      GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
-      GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER,
-      gum_pthread, &thread, &storage);
+  gum_compute_thread_details_from_pthread (pthread_self (), gum_pthread,
+      &thread, &storage);
 
   _gum_thread_registry_register (registry, &thread);
 
@@ -148,4 +146,39 @@ gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
 
   _gum_thread_registry_rename (registry,
       gum_linux_query_pthread_tid (pthread, gum_pthread), name);
+}
+
+static void
+gum_compute_thread_details_from_pthread (pthread_t thread,
+                                         const GumLinuxPThreadSpec * spec,
+                                         GumThreadDetails * details,
+                                         gpointer * storage)
+{
+  gchar * name;
+  gpointer start_routine;
+
+  bzero (details, sizeof (GumThreadDetails));
+  *storage = NULL;
+
+  details->id = gum_linux_query_pthread_tid (thread, spec);
+
+  name = gum_linux_query_thread_name (details->id);
+  if (name != NULL)
+  {
+    details->name = name;
+    details->flags |= GUM_THREAD_FLAGS_NAME;
+
+    *storage = g_steal_pointer (&name);
+  }
+
+  start_routine = gum_linux_query_pthread_start_routine (thread, spec);
+  if (start_routine != NULL)
+  {
+    details->entrypoint.routine = GUM_ADDRESS (start_routine);
+    details->entrypoint.parameter = GUM_ADDRESS (
+        gum_linux_query_pthread_start_parameter (thread, spec));
+    details->flags |=
+        GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
+        GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
+  }
 }
