@@ -2723,6 +2723,7 @@ gum_detect_rtld_globals (GumLinuxPThreadSpec * spec)
   code = create_prologue;
 #endif
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
 
   insn = cs_malloc (capstone);
 
@@ -2920,6 +2921,7 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
   code = start_prologue;
 #endif
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
 
   insn = cs_malloc (capstone);
 
@@ -2984,17 +2986,27 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
   }
 #elif defined (HAVE_ARM)
   {
+    GArray * sizes;
+    guint insn_index;
+    guint ldrd_index = 0;
     gpointer ldrd_location = NULL;
     arm_reg func_reg = ARM_REG_INVALID;
 
-    while (spec->start_impl == NULL &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
+
+    for (insn_index = 0; spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn); insn_index++)
     {
       const cs_arm * arm = &insn->detail->arm;
+      guint16 size;
+
+      size = insn->size;
+      g_array_append_val (sizes, size);
 
       switch (insn->id)
       {
         case ARM_INS_LDRD:
+          ldrd_index = insn_index;
           ldrd_location = (gpointer) (code - insn->size);
           func_reg = arm->operands[0].reg;
           spec->start_routine_offset = arm->operands[2].mem.disp;
@@ -3004,15 +3016,26 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
           if (arm->operands[0].type == ARM_OP_REG &&
               arm->operands[0].reg == func_reg)
           {
+            guint hook_delta, i;
+            gpointer hook_location;
+
+            hook_delta = 0;
+            for (i = ldrd_index - 1 - 4; i != ldrd_index - 1; i++)
+              hook_delta += g_array_index (sizes, guint16, i);
+
+            hook_location = ldrd_location - hook_delta;
+
             spec->start_impl = is_thumb
-                ? GSIZE_TO_POINTER (GPOINTER_TO_SIZE (ldrd_location) | 1)
-                : ldrd_location;
+                ? GSIZE_TO_POINTER (GPOINTER_TO_SIZE (hook_location) | 1)
+                : hook_location;
           }
           break;
         default:
           break;
       }
     }
+
+    g_array_unref (sizes);
   }
 #elif defined (HAVE_ARM64)
   {
@@ -3034,7 +3057,7 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
           break;
         case ARM64_INS_BLR:
           if (arm64->operands[0].reg == func_reg)
-            spec->start_impl = ldp_location;
+            spec->start_impl = (guint8 *) ldp_location - (4 * sizeof (guint32));
           break;
         default:
           break;

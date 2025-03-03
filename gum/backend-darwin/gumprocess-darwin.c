@@ -1667,6 +1667,7 @@ gum_compute_pthread_spec (GumDarwinPThreadSpec * spec)
   gum_cs_arch_register_native ();
   cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
 
   insn = cs_malloc (capstone);
 
