@@ -213,7 +213,15 @@ gum_module_registry_unload_dll_on_leave (GumInvocationContext * ic,
         (LPCWSTR) invocation->module_handle,
         &handle))
   {
-    _gum_module_registry_unregister (self,
-        GUM_ADDRESS (invocation->module_handle));
+    gum_module_registry_lock (self);
+
+    if (g_hash_table_contains (gum_current_modules, invocation->module_handle))
+    {
+      g_hash_table_remove (gum_current_modules, invocation->module_handle);
+      _gum_module_registry_unregister (self,
+          GUM_ADDRESS (invocation->module_handle));
+    }
+
+    gum_module_registry_unlock (self);
   }
 }
