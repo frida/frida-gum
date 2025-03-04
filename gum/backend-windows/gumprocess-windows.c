@@ -81,8 +81,8 @@ struct _GumSetHardwareWatchpointContext
 };
 
 static void gum_deinit_libc_module (void);
-static gboolean gum_windows_get_thread_details (DWORD thread_id,
-    GumThreadDetails * details);
+static gboolean gum_windows_query_thread_details (DWORD thread_id,
+    GumThreadFlags flags, GumThreadDetails * details, gpointer * storage);
 static gboolean gum_process_enumerate_heap_ranges (HANDLE heap,
     GumFoundMallocRangeFunc func, gpointer user_data);
 static void gum_do_set_hardware_breakpoint (CONTEXT * ctx, gpointer user_data);
@@ -258,11 +258,13 @@ beach:
 
 void
 _gum_process_enumerate_threads (GumFoundThreadFunc func,
-                                gpointer user_data)
+                                gpointer user_data,
+                                GumThreadFlags flags)
 {
   DWORD this_process_id;
   HANDLE snapshot;
   THREADENTRY32 entry;
+  gboolean carry_on;
 
   this_process_id = GetCurrentProcessId ();
 
@@ -274,23 +276,26 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   if (!Thread32First (snapshot, &entry))
     goto beach;
 
+  carry_on = TRUE;
   do
   {
     if (RTL_CONTAINS_FIELD (&entry, entry.dwSize, th32OwnerProcessID) &&
         entry.th32OwnerProcessID == this_process_id)
     {
-      GumThreadDetails details;
+      GumThreadDetails thread;
+      gpointer storage;
 
-      if (gum_windows_get_thread_details (entry.th32ThreadID, &details))
+      if (gum_windows_query_thread_details (entry.th32ThreadID, flags, &thread,
+            &storage))
       {
-        if (!func (&details, user_data))
-          break;
+        carry_on = func (&thread, user_data);
+        g_free (storage);
       }
     }
 
     entry.dwSize = sizeof (entry);
   }
-  while (Thread32Next (snapshot, &entry));
+  while (carry_on && Thread32Next (snapshot, &entry));
 
 beach:
   if (snapshot != INVALID_HANDLE_VALUE)
@@ -298,11 +303,15 @@ beach:
 }
 
 static gboolean
-gum_windows_get_thread_details (DWORD thread_id,
-                                GumThreadDetails * thread)
+gum_windows_query_thread_details (DWORD thread_id,
+                                  GumThreadFlags flags,
+                                  GumThreadDetails * thread,
+                                  gpointer * storage)
 {
   gboolean success = FALSE;
   HANDLE handle = NULL;
+  gchar * name = NULL;
+  gboolean resume_still_pending = FALSE;
 #ifdef _MSC_VER
   __declspec (align (64))
 #endif
@@ -313,53 +322,91 @@ gum_windows_get_thread_details (DWORD thread_id,
         = { 0, };
 
   memset (thread, 0, sizeof (GumThreadDetails));
+  *storage = NULL;
 
-  thread->flags = GUM_THREAD_FLAGS_STATE | GUM_THREAD_FLAGS_CPU_CONTEXT;
+  thread->id = thread_id;
 
-  handle = OpenThread (THREAD_QUERY_LIMITED_INFORMATION | THREAD_GET_CONTEXT |
+  handle = OpenThread (THREAD_QUERY_INFORMATION | THREAD_GET_CONTEXT |
       THREAD_SUSPEND_RESUME, FALSE, thread_id);
   if (handle == NULL)
     goto beach;
 
-  thread->id = thread_id;
-
-  thread->name = gum_windows_query_thread_name (handle);
-  if (thread->name != NULL)
-    thread->flags |= GUM_THREAD_FLAGS_NAME;
-
-  if (thread_id == GetCurrentThreadId ())
+  if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
   {
-    thread->state = GUM_THREAD_RUNNING;
-
-    RtlCaptureContext (&context);
-    gum_windows_parse_context (&context, &thread->cpu_context);
-
-    success = TRUE;
-  }
-  else
-  {
-    DWORD previous_suspend_count;
-
-    previous_suspend_count = SuspendThread (handle);
-    if (previous_suspend_count == (DWORD) -1)
-      goto beach;
-
-    if (previous_suspend_count == 0)
-      thread->state = GUM_THREAD_RUNNING;
-    else
-      thread->state = GUM_THREAD_STOPPED;
-
-    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-    if (GetThreadContext (handle, &context))
+    name = gum_windows_query_thread_name (handle);
+    if (name != NULL)
     {
-      gum_windows_parse_context (&context, &thread->cpu_context);
-      success = TRUE;
-    }
+      thread->name = name;
+      thread->flags |= GUM_THREAD_FLAGS_NAME;
 
-    ResumeThread (handle);
+      *storage = g_steal_pointer (&name);
+    }
   }
+
+  if ((flags & (GUM_THREAD_FLAGS_STATE | GUM_THREAD_FLAGS_CPU_CONTEXT)) != 0)
+  {
+    if (thread_id == GetCurrentThreadId ())
+    {
+      if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+      {
+        thread->state = GUM_THREAD_RUNNING;
+        thread->flags |= GUM_THREAD_FLAGS_STATE;
+      }
+
+      if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+      {
+        RtlCaptureContext (&context);
+        gum_windows_parse_context (&context, &thread->cpu_context);
+        thread->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+      }
+    }
+    else
+    {
+      DWORD previous_suspend_count;
+
+      previous_suspend_count = SuspendThread (handle);
+      if (previous_suspend_count == (DWORD) -1)
+        goto beach;
+      resume_still_pending = TRUE;
+
+      if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+      {
+        if (previous_suspend_count == 0)
+          thread->state = GUM_THREAD_RUNNING;
+        else
+          thread->state = GUM_THREAD_STOPPED;
+        thread->flags |= GUM_THREAD_FLAGS_STATE;
+      }
+
+      if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+      {
+        context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+        if (!GetThreadContext (handle, &context))
+          goto beach;
+        gum_windows_parse_context (&context, &thread->cpu_context);
+        thread->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+      }
+
+      ResumeThread (handle);
+      resume_still_pending = FALSE;
+    }
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+  {
+    thread->entrypoint.routine =
+        gum_windows_query_thread_entrypoint_routine (handle);
+    thread->flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
+  }
+
+  success = TRUE;
 
 beach:
+  g_free (name);
+
+  if (resume_still_pending)
+    ResumeThread (handle);
+
   if (handle != NULL)
     CloseHandle (handle);
 
