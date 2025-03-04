@@ -191,6 +191,7 @@ if host_os_family == 'freebsd'
     'backend-freebsd' / 'gummemory-freebsd.c',
     'backend-posix' / 'gummemory-posix.c',
     'backend-freebsd' / 'gumprocess-freebsd.c',
+    'backend-freebsd' / 'gumthreadregistry-freebsd.c',
     'backend-freebsd' / 'gummoduleregistry-freebsd.c',
     'backend-freebsd' / 'gummodule-freebsd.c',
     'backend-posix' / 'gumtls-posix.c',
@@ -204,6 +205,7 @@ if host_os_family == 'qnx'
   ]
   gum_sources += [
     'backend-qnx' / 'gumprocess-qnx.c',
+    'backend-qnx' / 'gumthreadregistry-qnx.c',
     'backend-qnx' / 'gummoduleregistry-qnx.c',
     'backend-qnx' / 'gummodule-qnx.c',
     'backend-qnx' / 'gummemory-qnx.c',
