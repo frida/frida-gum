@@ -2770,6 +2770,49 @@ gum_detect_rtld_globals (GumLinuxPThreadSpec * spec)
       }
     }
   }
+#elif defined (HAVE_ARM64)
+  {
+    while (offsets->len != 3 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm64 * arm64 = &insn->detail->arm64;
+
+      switch (insn->id)
+      {
+        case ARM64_INS_MOV:
+        {
+          const cs_arm64_op * src = &arm64->operands[1];
+
+          if (stack_lock_offset == 0 &&
+              src->type == ARM64_OP_IMM &&
+              src->imm >= 0x1100 && src->imm < 0x1200)
+          {
+            stack_lock_offset = src->imm;
+          }
+
+          break;
+        }
+        case ARM64_INS_LDR:
+        {
+          const arm64_op_mem * src = &arm64->operands[1].mem;
+          int64_t disp = src->disp;
+
+          if (src->base != ARM64_REG_SP &&
+              src->base != ARM64_REG_FP &&
+              disp < stack_lock_offset &&
+              disp >= stack_lock_offset - 128)
+          {
+            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
+              g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
 #else
 # error Unsupported architecture
 #endif
@@ -2818,9 +2861,18 @@ gum_find_thread_start (const GumSystemTapProbeDetails * probe,
 
     spec->start_impl = GSIZE_TO_POINTER (probe->address);
 
+#ifdef HAVE_I386
     args = g_strsplit (probe->args, " ", 0);
+
     spec->start_routine_offset = atoi (strchr (args[1], '@') + 1);
     spec->start_parameter_offset = atoi (strchr (args[2], '@') + 1);
+#else
+    args = g_strsplit (probe->args, ", ", 0);
+
+    spec->start_routine_offset = atoi (args[1]);
+    spec->start_parameter_offset = atoi (args[2]);
+#endif
+
     g_strfreev (args);
 
     return FALSE;

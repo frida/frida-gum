@@ -1844,7 +1844,6 @@ gum_detect_pthread_basics (csh capstone,
           const arm64_op_mem * src = &arm64->operands[1].mem;
 
           if (mach_port_offset == 0 &&
-              arm64->operands[1].type == ARM64_OP_MEM &&
               src->base != ARM64_REG_SP &&
               src->base != ARM64_REG_FP &&
               src->index == ARM64_REG_INVALID &&
