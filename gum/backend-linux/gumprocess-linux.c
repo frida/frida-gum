@@ -343,6 +343,7 @@ static void gum_unparse_gp_regs (const GumCpuContext * ctx, GumGPRegs * regs);
 static gboolean gum_detect_rtld_globals (GumLinuxPThreadSpec * spec);
 static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
     gpointer user_data);
+static gboolean gum_find_thread_start_manually (GumLinuxPThreadSpec * spec);
 
 static void glibc_lock_acquire (GumGlibcLock * lock);
 static void glibc_lock_release (GumGlibcLock * lock);
@@ -2733,7 +2734,7 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
 
   gum_system_tap_enumerate_probes (gum_process_get_libc_module (),
       gum_find_thread_start, spec);
-  if (spec->start_impl == NULL)
+  if (spec->start_impl == NULL && !gum_find_thread_start_manually (spec))
     return FALSE;
 
   spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
@@ -2873,7 +2874,7 @@ gum_detect_rtld_globals (GumLinuxPThreadSpec * spec)
 
   g_ptr_array_sort (offsets, gum_ptr_compare);
 
-  if (offsets->len == 3)
+  if (offsets->len >= 2)
   {
     guint stack_used_offset, stack_user_offset;
     gpointer rtld_global;
@@ -2933,6 +2934,101 @@ gum_find_thread_start (const GumSystemTapProbeDetails * probe,
   }
 
   return TRUE;
+}
+
+static gboolean
+gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  guint8 * create_prologue, * start_prologue;
+  csh capstone;
+  cs_insn * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t addr;
+
+  create_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "pthread_create"));
+
+  {
+    const guint8 frame_setup_code[] = { 0x55, 0x89, 0xe5 };
+    guint8 * cursor;
+
+    start_prologue = NULL;
+    for (cursor = create_prologue - sizeof (frame_setup_code);
+        cursor != create_prologue - 2048;
+        cursor--)
+    {
+      if (memcmp (cursor, frame_setup_code, sizeof (frame_setup_code)) == 0)
+      {
+        start_prologue = cursor;
+        break;
+      }
+    }
+    if (start_prologue == NULL)
+      return FALSE;
+  }
+
+  gum_cs_arch_register_native ();
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
+
+  insn = cs_malloc (capstone);
+
+  code = start_prologue;
+  size = 2048;
+  addr = GPOINTER_TO_SIZE (code);
+
+  {
+    while (spec->start_routine_offset == 0 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      switch (insn->id)
+      {
+        case X86_INS_CMP:
+        {
+          const cs_x86_op * a = &x86->operands[0];
+
+          if (a->type == X86_OP_MEM && a->mem.disp >= 0x400 && a->size == 1)
+            spec->start_impl = (uint8_t *) code - insn->size;
+
+          break;
+        }
+        case X86_INS_PUSH:
+        {
+          const cs_x86_op * op = &x86->operands[0];
+
+          if (spec->start_impl != NULL && op->type == X86_OP_MEM)
+            spec->start_parameter_offset = op->mem.disp;
+
+          break;
+        }
+        case X86_INS_CALL:
+        {
+          const cs_x86_op * op = &x86->operands[0];
+
+          if (spec->start_impl != NULL && op->type == X86_OP_MEM)
+            spec->start_routine_offset = op->mem.disp;
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  return spec->start_routine_offset != 0;
+#else
+  return FALSE;
+#endif
 }
 
 static void
