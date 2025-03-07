@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+typedef guint32 u32;
 #include <linux/futex.h>
 #ifdef HAVE_PTHREAD_ATTR_GETSTACK
 # include <pthread.h>
@@ -55,6 +56,12 @@
 
 #ifndef O_CLOEXEC
 # define O_CLOEXEC 0x80000
+#endif
+
+#ifndef FUTEX_WAIT_PRIVATE
+# define FUTEX_PRIVATE_FLAG 128
+# define FUTEX_WAIT_PRIVATE (FUTEX_WAIT | FUTEX_PRIVATE_FLAG)
+# define FUTEX_WAKE_PRIVATE (FUTEX_WAKE | FUTEX_PRIVATE_FLAG)
 #endif
 
 #define GUM_PSR_THUMB 0x20
