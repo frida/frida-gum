@@ -2884,6 +2884,36 @@ gum_detect_rtld_globals (GumLinuxPThreadSpec * spec)
       }
     }
   }
+#elif defined (HAVE_MIPS)
+  {
+    while (offsets->len != 3 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_mips * mips = &insn->detail->mips;
+
+      switch (insn->id)
+      {
+        case MIPS_INS_ADDIU:
+        {
+          int64_t imm = mips->operands[2].imm;
+
+          if (stack_lock_offset == 0 && imm >= 0x900 && imm < 0xb00)
+          {
+            stack_lock_offset = imm;
+          }
+          else if (imm < stack_lock_offset && imm >= stack_lock_offset - 128)
+          {
+            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (imm), NULL))
+              g_ptr_array_add (offsets, GSIZE_TO_POINTER (imm));
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
 #else
 # error FIXME
 #endif
