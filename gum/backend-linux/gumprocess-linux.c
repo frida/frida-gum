@@ -136,7 +136,9 @@ typedef struct _GumTcbHead GumTcbHead;
 
 typedef gint (* GumCloneFunc) (gpointer arg);
 
-#ifdef HAVE_MUSL
+#if defined (HAVE_GLIBC)
+typedef struct _GumMoveInsn GumMoveInsn;
+#elif defined (HAVE_MUSL)
 typedef struct _GumMuslStartArgs GumMuslStartArgs;
 #endif
 
@@ -286,7 +288,14 @@ struct _GumTcbHead
 #endif
 };
 
-#ifdef HAVE_MUSL
+#if defined (HAVE_GLIBC)
+struct _GumMoveInsn
+{
+  GumAddress address;
+  guint index;
+  gint64 disp;
+};
+#elif defined (HAVE_MUSL)
 struct _GumMuslStartArgs
 {
   gpointer start_func;
@@ -2939,7 +2948,7 @@ gum_find_thread_start (const GumSystemTapProbeDetails * probe,
 static gboolean
 gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
 {
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_I386)
   guint8 * create_prologue, * start_prologue;
   csh capstone;
   cs_insn * insn;
@@ -2951,7 +2960,13 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
         gum_process_get_libc_module (), "pthread_create"));
 
   {
-    const guint8 frame_setup_code[] = { 0x55, 0x89, 0xe5 };
+    const guint8 frame_setup_code[] = {
+      0x55,       /* push xbp     */
+#if GLIB_SIZEOF_VOID_P == 8
+      0x48,
+#endif
+      0x89, 0xe5, /* mov xbp, xsp */
+    };
     guint8 * cursor;
 
     start_prologue = NULL;
@@ -2981,10 +2996,20 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
   addr = GPOINTER_TO_SIZE (code);
 
   {
+    GHashTable * moves;
+    GArray * sizes;
+
+    moves = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
+
     while (spec->start_routine_offset == 0 &&
         cs_disasm_iter (capstone, &code, &size, &addr, insn))
     {
+      guint i = sizes->len;
+      guint16 size = insn->size;
       const cs_x86 * x86 = &insn->detail->x86;
+
+      g_array_append_val (sizes, size);
 
       switch (insn->id)
       {
@@ -2993,25 +3018,63 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
           const cs_x86_op * a = &x86->operands[0];
 
           if (a->type == X86_OP_MEM && a->mem.disp >= 0x400 && a->size == 1)
+          {
             spec->start_impl = (uint8_t *) code - insn->size;
+          }
 
           break;
         }
-        case X86_INS_PUSH:
+        case X86_INS_MOV:
         {
-          const cs_x86_op * op = &x86->operands[0];
+          const cs_x86_op * dst = &x86->operands[0];
+          const cs_x86_op * src = &x86->operands[1];
 
-          if (spec->start_impl != NULL && op->type == X86_OP_MEM)
-            spec->start_parameter_offset = op->mem.disp;
+          if (spec->start_impl != NULL &&
+              dst->type == X86_OP_REG && dst->reg == X86_REG_RDI &&
+              src->type == X86_OP_MEM)
+          {
+            spec->start_parameter_offset = src->mem.disp;
+            spec->start_routine_offset = src->mem.disp - sizeof (gpointer);
+          }
+          else if (spec->start_impl == NULL &&
+              dst->type == X86_OP_REG &&
+              src->type == X86_OP_MEM)
+          {
+            GumMoveInsn * mov = g_new (GumMoveInsn, 1);
+            mov->address = addr;
+            mov->index = i;
+            mov->disp = src->mem.disp;
+            g_hash_table_insert (moves, GUINT_TO_POINTER (dst->reg), mov);
+          }
 
           break;
         }
         case X86_INS_CALL:
         {
-          const cs_x86_op * op = &x86->operands[0];
+          const cs_x86_op * target = &x86->operands[0];
 
-          if (spec->start_impl != NULL && op->type == X86_OP_MEM)
-            spec->start_routine_offset = op->mem.disp;
+          if (spec->start_impl != NULL && target->type == X86_OP_MEM)
+          {
+            spec->start_routine_offset = target->mem.disp;
+            spec->start_parameter_offset = target->mem.disp + sizeof (gpointer);
+          }
+          else if (spec->start_impl == NULL && target->type == X86_OP_REG)
+          {
+            GumMoveInsn * mov =
+                g_hash_table_lookup (moves, GUINT_TO_POINTER (target->reg));
+            if (mov != NULL)
+            {
+              guint hook_delta, i;
+
+              hook_delta = 0;
+              for (i = mov->index - 1 - 4; i != mov->index - 1; i++)
+                hook_delta += g_array_index (sizes, guint16, i);
+
+              spec->start_impl = GSIZE_TO_POINTER (mov->address - hook_delta);
+              spec->start_routine_offset = mov->disp;
+              spec->start_parameter_offset = mov->disp + sizeof (gpointer);
+            }
+          }
 
           break;
         }
@@ -3019,6 +3082,9 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
           break;
       }
     }
+
+    g_array_unref (sizes);
+    g_hash_table_unref (moves);
   }
 
   cs_free (insn, 1);
