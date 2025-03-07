@@ -2985,7 +2985,7 @@ gum_find_thread_start (const GumSystemTapProbeDetails * probe,
 static gboolean
 gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
 {
-#if defined (HAVE_I386)
+#if defined (HAVE_I386) || defined (HAVE_MIPS)
   guint8 * create_prologue, * start_prologue;
   csh capstone;
   cs_insn * insn;
@@ -2996,6 +2996,7 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
   create_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (
         gum_process_get_libc_module (), "pthread_create"));
 
+#if defined (HAVE_I386)
   {
     const guint8 frame_setup_code[] = {
       0x55,       /* push xbp     */
@@ -3020,6 +3021,29 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
     if (start_prologue == NULL)
       return FALSE;
   }
+#elif defined (HAVE_MIPS)
+  {
+    const guint32 setup_frame_insn = 0x0399e021U;
+    guint32 * cursor;
+
+    start_prologue = NULL;
+    for (cursor = (guint32 *) (create_prologue - 4);
+        cursor != (guint32 *) (create_prologue - 2048);
+        cursor--)
+    {
+      if (*cursor == setup_frame_insn)
+      {
+        start_prologue = (guint8 *) (cursor - 2);
+        break;
+      }
+    }
+    if (start_prologue == NULL)
+      return FALSE;
+  }
+#endif
+
+  g_printerr ("found start_prologue at libc!0x%x\n",
+      (guint) (GUM_ADDRESS (start_prologue) - gum_module_get_range (gum_process_get_libc_module ())->base_address));
 
   gum_cs_arch_register_native ();
   cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
@@ -3032,6 +3056,7 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
   size = 2048;
   addr = GPOINTER_TO_SIZE (code);
 
+#if defined (HAVE_I386)
   {
     GHashTable * moves;
     GArray * sizes;
@@ -3123,6 +3148,33 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
     g_array_unref (sizes);
     g_hash_table_unref (moves);
   }
+#elif defined (HAVE_MIPS)
+  {
+    GHashTable * moves;
+
+    moves = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+
+    while (spec->start_routine_offset == 0 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      //const cs_mips * mips = &insn->detail->mips;
+
+      switch (insn->id)
+      {
+        case MIPS_INS_JALR:
+          g_printerr ("libc!0x%x\t%s %s\n",
+              (guint) (addr - 4 - gum_module_get_range (gum_process_get_libc_module ())->base_address),
+              insn->mnemonic,
+              insn->op_str);
+          break;
+        default:
+          break;
+      }
+    }
+
+    g_hash_table_unref (moves);
+  }
+#endif
 
   cs_free (insn, 1);
 
