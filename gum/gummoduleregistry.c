@@ -36,6 +36,7 @@ enum
 
 static void gum_module_registry_dispose (GObject * object);
 static void gum_module_registry_finalize (GObject * object);
+static void gum_module_registry_activate (GumModuleRegistry * self);
 
 static void gum_deinit_module_registry (void);
 
@@ -67,13 +68,6 @@ gum_module_registry_init (GumModuleRegistry * self)
   g_rec_mutex_init (&self->mutex);
   self->state = GUM_MODULE_REGISTRY_CREATED;
   self->modules = g_ptr_array_new_full (0, g_object_unref);
-
-  GUM_MODULE_REGISTRY_LOCK (self);
-
-  _gum_module_registry_activate (self);
-  self->state = GUM_MODULE_REGISTRY_ACTIVATED;
-
-  GUM_MODULE_REGISTRY_UNLOCK (self);
 }
 
 static void
@@ -107,20 +101,39 @@ gum_module_registry_finalize (GObject * object)
 GumModuleRegistry *
 gum_module_registry_obtain (void)
 {
+  GumModuleRegistry * registry;
   static gsize cached_result = 0;
+  gboolean activate = FALSE;
 
   if (g_once_init_enter (&cached_result))
   {
     GumModuleRegistry * registry;
 
     registry = g_object_new (GUM_TYPE_MODULE_REGISTRY, NULL);
-
     _gum_register_destructor (gum_deinit_module_registry);
+
+    activate = TRUE;
 
     g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (registry));
   }
 
-  return GSIZE_TO_POINTER (cached_result);
+  registry = GSIZE_TO_POINTER (cached_result);
+
+  if (activate)
+    gum_module_registry_activate (registry);
+
+  return registry;
+}
+
+static void
+gum_module_registry_activate (GumModuleRegistry * self)
+{
+  GUM_MODULE_REGISTRY_LOCK (self);
+
+  _gum_module_registry_activate (self);
+  self->state = GUM_MODULE_REGISTRY_ACTIVATED;
+
+  GUM_MODULE_REGISTRY_UNLOCK (self);
 }
 
 static void

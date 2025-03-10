@@ -6946,8 +6946,10 @@ simulate_crash_handler (gpointer user_data)
   GumCrashExceptorContext * ctx = user_data;
   GumScriptBackend * backend = ctx->backend;
 
-  gum_process_enumerate_threads (suspend_all_threads, backend);
-  gum_process_enumerate_threads (resume_all_threads, backend);
+  gum_process_enumerate_threads (suspend_all_threads, backend,
+      GUM_THREAD_FLAGS_NONE);
+  gum_process_enumerate_threads (resume_all_threads, backend,
+      GUM_THREAD_FLAGS_NONE);
 
   return NULL;
 }

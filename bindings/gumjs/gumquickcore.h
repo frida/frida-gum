@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -135,6 +135,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (cachedInput);
   GUM_DECLARE_ATOM (cachedOutput);
   GUM_DECLARE_ATOM (context);
+  GUM_DECLARE_ATOM (entrypoint);
   GUM_DECLARE_ATOM (exceptions);
   GUM_DECLARE_ATOM (file);
   GUM_DECLARE_ATOM (handle);
@@ -149,6 +150,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (nativeContext);
   GUM_DECLARE_ATOM (offset);
   GUM_DECLARE_ATOM (operation);
+  GUM_DECLARE_ATOM (parameter);
   GUM_DECLARE_ATOM (path);
   GUM_DECLARE_ATOM (pc);
   GUM_DECLARE_ATOM (port);
@@ -156,6 +158,7 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (prototype);
   GUM_DECLARE_ATOM (read);
   GUM_DECLARE_ATOM (resource);
+  GUM_DECLARE_ATOM (routine);
   GUM_DECLARE_ATOM (scheduling);
   GUM_DECLARE_ATOM (section);
   GUM_DECLARE_ATOM (size);

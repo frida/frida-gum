@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
@@ -775,6 +775,14 @@ gum_interceptor_is_locked (GumInterceptor * self)
   return FALSE;
 }
 
+gsize
+gum_interceptor_detect_hook_size (gconstpointer code,
+                                  csh capstone,
+                                  cs_insn * insn)
+{
+  return _gum_interceptor_backend_detect_hook_size (code, capstone, insn);
+}
+
 gpointer
 _gum_interceptor_peek_top_caller_return_address (void)
 {
@@ -1015,7 +1023,8 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       if (!rwx_supported)
       {
         suspend_op.current_thread_id = gum_process_get_current_thread_id ();
-        _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op);
+        _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
+            GUM_THREAD_FLAGS_NONE);
       }
 
       for (cur = addresses; cur != NULL; cur = cur->next)

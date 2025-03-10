@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -654,6 +654,15 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
   }
 
   return target;
+}
+
+gsize
+_gum_interceptor_backend_detect_hook_size (gconstpointer code,
+                                           csh capstone,
+                                           cs_insn * insn)
+{
+  /* TODO: implement hook size detection */
+  return 0;
 }
 
 static void
