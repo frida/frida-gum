@@ -145,6 +145,7 @@ typedef gint (* GumCloneFunc) (gpointer arg);
 
 #if defined (HAVE_GLIBC)
 typedef struct _GumMoveInsn GumMoveInsn;
+typedef struct _GumLoadInsn GumLoadInsn;
 #elif defined (HAVE_MUSL)
 typedef struct _GumMuslStartArgs GumMuslStartArgs;
 #endif
@@ -296,13 +297,23 @@ struct _GumTcbHead
 };
 
 #if defined (HAVE_GLIBC)
+
 struct _GumMoveInsn
 {
   GumAddress address;
   guint index;
   gint64 disp;
 };
+
+struct _GumLoadInsn
+{
+  GumAddress address;
+  mips_reg base;
+  gint64 disp;
+};
+
 #elif defined (HAVE_MUSL)
+
 struct _GumMuslStartArgs
 {
   gpointer start_func;
@@ -310,6 +321,7 @@ struct _GumMuslStartArgs
   volatile int control;
   gulong sig_mask[GUM_NSIG / 8 / sizeof (long)];
 };
+
 #endif
 
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
@@ -3042,9 +3054,6 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
   }
 #endif
 
-  g_printerr ("found start_prologue at libc!0x%x\n",
-      (guint) (GUM_ADDRESS (start_prologue) - gum_module_get_range (gum_process_get_libc_module ())->base_address));
-
   gum_cs_arch_register_native ();
   cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
@@ -3150,29 +3159,52 @@ gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
   }
 #elif defined (HAVE_MIPS)
   {
-    GHashTable * moves;
+    GHashTable * loads;
 
-    moves = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+    loads = g_hash_table_new_full (NULL, NULL, NULL, g_free);
 
     while (spec->start_routine_offset == 0 &&
         cs_disasm_iter (capstone, &code, &size, &addr, insn))
     {
-      //const cs_mips * mips = &insn->detail->mips;
+      const cs_mips * mips = &insn->detail->mips;
 
       switch (insn->id)
       {
-        case MIPS_INS_JALR:
-          g_printerr ("libc!0x%x\t%s %s\n",
-              (guint) (addr - 4 - gum_module_get_range (gum_process_get_libc_module ())->base_address),
-              insn->mnemonic,
-              insn->op_str);
+        case MIPS_INS_LW:
+        {
+          const cs_mips_op * dst = &mips->operands[0];
+          const cs_mips_op * src = &mips->operands[1];
+          GumLoadInsn * load;
+
+          load = g_new (GumLoadInsn, 1);
+          load->address = addr - 4;
+          load->base = src->mem.base;
+          load->disp = src->mem.disp;
+          g_hash_table_insert (loads, GUINT_TO_POINTER (dst->reg), load);
+
           break;
+        }
+        case MIPS_INS_JALR:
+        {
+          const cs_mips_op * target = &mips->operands[0];
+
+          GumLoadInsn * load =
+              g_hash_table_lookup (loads, GUINT_TO_POINTER (target->reg));
+          if (load != NULL && load->base != MIPS_REG_GP)
+          {
+            spec->start_impl = GSIZE_TO_POINTER (load->address - (3 * 4));
+            spec->start_routine_offset = load->disp;
+            spec->start_parameter_offset = load->disp + sizeof (gpointer);
+          }
+
+          break;
+        }
         default:
           break;
       }
     }
 
-    g_hash_table_unref (moves);
+    g_hash_table_unref (loads);
   }
 #endif
 
