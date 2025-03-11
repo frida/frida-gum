@@ -95,8 +95,6 @@ G_GNUC_INTERNAL gpointer _gum_interceptor_backend_get_function_address (
     GumFunctionContext * ctx);
 G_GNUC_INTERNAL gpointer _gum_interceptor_backend_resolve_redirect (
     GumInterceptorBackend * self, gpointer address);
-G_GNUC_INTERNAL gboolean _gum_interceptor_backend_can_intercept (
-    GumInterceptorBackend * self, gpointer function_address);
 
 G_GNUC_INTERNAL gpointer _gum_interceptor_peek_top_caller_return_address (void);
 G_GNUC_INTERNAL gpointer _gum_interceptor_translate_top_return_address (
