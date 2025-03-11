@@ -21,10 +21,13 @@ struct GumV8Process
   GumV8Thread * thread;
   GumV8Core * core;
 
+  GHashTable * thread_observers;
   GHashTable * module_observers;
 
+  v8::Global<v8::FunctionTemplate> * thread_observer;
   v8::Global<v8::FunctionTemplate> * module_observer;
 
+  v8::Global<v8::Object> * thread_observer_value;
   v8::Global<v8::Object> * module_observer_value;
   v8::Global<v8::Object> * main_module_value;
 

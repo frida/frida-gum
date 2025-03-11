@@ -41,6 +41,7 @@
 #endif
 
 typedef struct _GumQuickMatchContext GumQuickMatchContext;
+typedef struct _GumQuickThreadObserver GumQuickThreadObserver;
 typedef struct _GumQuickRunOnThreadContext GumQuickRunOnThreadContext;
 typedef struct _GumQuickModuleObserver GumQuickModuleObserver;
 typedef struct _GumQuickFindRangeByAddressContext
@@ -59,6 +60,23 @@ struct _GumQuickMatchContext
   GumQuickMatchResult result;
 
   JSContext * ctx;
+  GumQuickProcess * parent;
+};
+
+struct _GumQuickThreadObserver
+{
+  gint ref_count;
+
+  JSValue wrapper;
+
+  JSValue on_added;
+  JSValue on_removed;
+  JSValue on_renamed;
+
+  gulong added_handler;
+  gulong removed_handler;
+  gulong renamed_handler;
+
   GumQuickProcess * parent;
 };
 
@@ -102,6 +120,22 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     GumQuickMatchContext * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_attach_thread_observer)
+static GumQuickThreadObserver * gum_quick_thread_observer_ref (
+    GumQuickThreadObserver * observer);
+static void gum_quick_thread_observer_unref (GumQuickThreadObserver * observer);
+static void gum_quick_thread_observer_destroy (GumQuickThreadObserver * self);
+static gboolean gum_emit_existing_thread (const GumThreadDetails * thread,
+    GumQuickThreadObserver * observer);
+static void gum_emit_added_thread (GumThreadRegistry * registry,
+    const GumThreadDetails * thread, GumQuickThreadObserver * observer);
+static void gum_emit_removed_thread (GumThreadRegistry * registry,
+    const GumThreadDetails * thread, GumQuickThreadObserver * observer);
+static void gum_emit_renamed_thread (GumThreadRegistry * registry,
+    const GumThreadDetails * thread, const gchar * previous_name,
+    GumQuickThreadObserver * observer);
+static void gum_quick_thread_observer_invoke (GumQuickThreadObserver * self,
+    JSValue callback, const GumThreadDetails * thread, guint n_extra_args, ...);
 GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread)
 static void gum_quick_run_on_thread_context_free (
     GumQuickRunOnThreadContext * rc);
@@ -145,6 +179,8 @@ static void gum_quick_exception_handler_free (
 static gboolean gum_quick_exception_handler_on_exception (
     GumExceptionDetails * details, GumQuickExceptionHandler * handler);
 
+GUMJS_DECLARE_FUNCTION (gumjs_thread_observer_detach)
+
 GUMJS_DECLARE_FUNCTION (gumjs_module_observer_detach)
 
 static const JSCFunctionListEntry gumjs_process_entries[] =
@@ -159,6 +195,8 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("isDebuggerAttached", 0, gumjs_process_is_debugger_attached),
   JS_CFUNC_DEF ("getCurrentThreadId", 0, gumjs_process_get_current_thread_id),
   JS_CFUNC_DEF ("_enumerateThreads", 0, gumjs_process_enumerate_threads),
+  JS_CFUNC_DEF ("attachThreadObserver", 0,
+      gumjs_process_attach_thread_observer),
   JS_CFUNC_DEF ("_runOnThread", 0, gumjs_process_run_on_thread),
   JS_CFUNC_DEF ("findModuleByName", 0, gumjs_process_find_module_by_name),
   JS_CFUNC_DEF ("findModuleByAddress", 0, gumjs_process_find_module_by_address),
@@ -172,6 +210,16 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("_enumerateMallocRanges", 0,
       gumjs_process_enumerate_malloc_ranges),
   JS_CFUNC_DEF ("setExceptionHandler", 0, gumjs_process_set_exception_handler),
+};
+
+static const JSClassDef gumjs_thread_observer_def =
+{
+  .class_name = "ThreadObserver",
+};
+
+static const JSCFunctionListEntry gumjs_thread_observer_entries[] =
+{
+  JS_CFUNC_DEF ("detach", 0, gumjs_thread_observer_detach),
 };
 
 static const JSClassDef gumjs_module_observer_def =
@@ -198,6 +246,8 @@ _gum_quick_process_init (GumQuickProcess * self,
   self->thread = thread;
   self->core = core;
 
+  self->thread_observers = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_quick_thread_observer_destroy);
   self->module_observers = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_quick_module_observer_destroy);
 
@@ -221,6 +271,11 @@ _gum_quick_process_init (GumQuickProcess * self,
       JS_PROP_C_W_E);
   JS_DefinePropertyValueStr (ctx, ns, "Process", obj, JS_PROP_C_W_E);
 
+  _gum_quick_create_class (ctx, &gumjs_thread_observer_def, core,
+      &self->thread_observer_class, &proto);
+  JS_SetPropertyFunctionList (ctx, proto, gumjs_thread_observer_entries,
+      G_N_ELEMENTS (gumjs_thread_observer_entries));
+
   _gum_quick_create_class (ctx, &gumjs_module_observer_def, core,
       &self->module_observer_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_module_observer_entries,
@@ -235,6 +290,7 @@ _gum_quick_process_flush (GumQuickProcess * self)
   gumjs_free_main_module_value (self);
 
   g_hash_table_remove_all (self->module_observers);
+  g_hash_table_remove_all (self->thread_observers);
 }
 
 void
@@ -262,6 +318,7 @@ _gum_quick_process_finalize (GumQuickProcess * self)
   g_clear_object (&self->stalker);
 
   g_clear_pointer (&self->module_observers, g_hash_table_unref);
+  g_clear_pointer (&self->thread_observers, g_hash_table_unref);
 }
 
 static GumQuickProcess *
@@ -364,6 +421,266 @@ gum_emit_thread (const GumThreadDetails * details,
   JS_FreeValue (ctx, thread);
 
   return _gum_quick_process_match_result (ctx, &result, &mc->result);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_attach_thread_observer)
+{
+  JSValue cb_val = args->elements[0];
+  GumQuickProcess * parent;
+  JSValue on_added, on_removed, on_renamed;
+  gboolean observe_added, observe_removed, observe_renamed;
+  GumQuickThreadObserver * observer;
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+  GumThreadRegistry * registry;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_args_parse (args, "F{onAdded?,onRemoved?,onRenamed?}",
+        &on_added, &on_removed, &on_renamed))
+    return JS_EXCEPTION;
+
+  observe_added = !JS_IsNull (on_added);
+  observe_removed = !JS_IsNull (on_removed);
+  observe_renamed = !JS_IsNull (on_renamed);
+
+  if (!observe_added && !observe_removed && !observe_renamed)
+    goto missing_callback;
+
+  observer = g_slice_new (GumQuickThreadObserver);
+  observer->ref_count = 1;
+  observer->on_added = observe_added
+      ? JS_DupValue (ctx, on_added)
+      : JS_NULL;
+  observer->on_removed = observe_removed
+      ? JS_DupValue (ctx, on_removed)
+      : JS_NULL;
+  observer->on_renamed = observe_renamed
+      ? JS_DupValue (ctx, on_renamed)
+      : JS_NULL;
+  observer->added_handler = 0;
+  observer->removed_handler = 0;
+  observer->renamed_handler = 0;
+  observer->parent = parent;
+
+  _gum_quick_scope_suspend (&scope);
+
+  registry = gum_thread_registry_obtain ();
+
+  gum_thread_registry_lock (registry);
+
+  if (observe_added)
+  {
+    observer->added_handler = g_signal_connect_data (registry,
+        "thread-added",
+        G_CALLBACK (gum_emit_added_thread),
+        gum_quick_thread_observer_ref (observer),
+        (GClosureNotify) gum_quick_thread_observer_unref,
+        0);
+  }
+
+  if (observe_removed)
+  {
+    observer->removed_handler = g_signal_connect_data (registry,
+        "thread-removed",
+        G_CALLBACK (gum_emit_removed_thread),
+        gum_quick_thread_observer_ref (observer),
+        (GClosureNotify) gum_quick_thread_observer_unref,
+        0);
+  }
+
+  if (observe_renamed)
+  {
+    observer->renamed_handler = g_signal_connect_data (registry,
+        "thread-renamed",
+        G_CALLBACK (gum_emit_renamed_thread),
+        gum_quick_thread_observer_ref (observer),
+        (GClosureNotify) gum_quick_thread_observer_unref,
+        0);
+  }
+
+  if (observe_added)
+  {
+    gum_thread_registry_enumerate_threads (registry,
+        (GumFoundThreadFunc) gum_emit_existing_thread, observer);
+  }
+
+  gum_thread_registry_unlock (registry);
+
+  _gum_quick_scope_resume (&scope);
+
+  observer->wrapper = JS_NewObjectClass (ctx, parent->thread_observer_class);
+  JS_SetOpaque (observer->wrapper, observer);
+  JS_DefinePropertyValue (ctx, observer->wrapper,
+      GUM_QUICK_CORE_ATOM (core, resource),
+      JS_DupValue (ctx, cb_val),
+      0);
+
+  g_hash_table_add (parent->thread_observers, observer);
+
+  return JS_DupValue (ctx, observer->wrapper);
+
+missing_callback:
+  {
+    _gum_quick_throw_literal (ctx, "at least one callback must be provided");
+    return JS_EXCEPTION;
+  }
+}
+
+static GumQuickThreadObserver *
+gum_quick_thread_observer_ref (GumQuickThreadObserver * observer)
+{
+  g_atomic_int_inc (&observer->ref_count);
+
+  return observer;
+}
+
+static void
+gum_quick_thread_observer_unref (GumQuickThreadObserver * observer)
+{
+  GumQuickProcess * parent = observer->parent;
+  JSContext * ctx = parent->core->ctx;
+  GumQuickScope scope;
+
+  if (!g_atomic_int_dec_and_test (&observer->ref_count))
+    return;
+
+  _gum_quick_scope_enter (&scope, parent->core);
+
+  JS_FreeValue (ctx, observer->on_added);
+  JS_FreeValue (ctx, observer->on_removed);
+  JS_FreeValue (ctx, observer->on_renamed);
+
+  JS_FreeValue (ctx, observer->wrapper);
+
+  _gum_quick_scope_leave (&scope);
+
+  g_slice_free (GumQuickThreadObserver, observer);
+}
+
+static void
+gum_quick_thread_observer_destroy (GumQuickThreadObserver * self)
+{
+  GumThreadRegistry * registry;
+  gulong * handlers[] = {
+    &self->added_handler,
+    &self->removed_handler,
+    &self->renamed_handler,
+  };
+  guint i;
+
+  registry = gum_thread_registry_obtain ();
+
+  for (i = 0; i != G_N_ELEMENTS (handlers); i++)
+  {
+    gulong * handler = handlers[i];
+
+    if (*handler != 0)
+    {
+      g_signal_handler_disconnect (registry, *handler);
+      *handler = 0;
+    }
+  }
+
+  JS_SetOpaque (self->wrapper, NULL);
+
+  gum_quick_thread_observer_unref (self);
+}
+
+static void
+gum_quick_process_detach_thread_observer (GumQuickProcess * self,
+                                          GumQuickThreadObserver * observer)
+{
+  g_hash_table_remove (self->thread_observers, observer);
+}
+
+static gboolean
+gum_emit_existing_thread (const GumThreadDetails * thread,
+                          GumQuickThreadObserver * observer)
+{
+  gum_quick_thread_observer_invoke (observer, observer->on_added, thread, 0);
+
+  return TRUE;
+}
+
+static void
+gum_emit_added_thread (GumThreadRegistry * registry,
+                       const GumThreadDetails * thread,
+                       GumQuickThreadObserver * observer)
+{
+  gum_quick_thread_observer_invoke (observer, observer->on_added, thread, 0);
+}
+
+static void
+gum_emit_removed_thread (GumThreadRegistry * registry,
+                         const GumThreadDetails * thread,
+                         GumQuickThreadObserver * observer)
+{
+  gum_quick_thread_observer_invoke (observer, observer->on_removed, thread, 0);
+}
+
+static void
+gum_emit_renamed_thread (GumThreadRegistry * registry,
+                         const GumThreadDetails * thread,
+                         const gchar * previous_name,
+                         GumQuickThreadObserver * observer)
+{
+  gum_quick_thread_observer_invoke (observer, observer->on_renamed, thread, 1,
+      G_TYPE_STRING, previous_name);
+}
+
+static void
+gum_quick_thread_observer_invoke (GumQuickThreadObserver * self,
+                                  JSValue callback,
+                                  const GumThreadDetails * thread,
+                                  guint n_extra_args,
+                                  ...)
+{
+  GumQuickProcess * parent = self->parent;
+  JSContext * ctx = parent->core->ctx;
+  GumQuickScope scope;
+  JSValue thread_val;
+  guint argc;
+  JSValue * argv;
+  va_list args;
+  guint i;
+
+  _gum_quick_scope_enter (&scope, parent->core);
+
+  thread_val = _gum_quick_thread_new (ctx, thread, parent->thread);
+
+  argc = 1 + n_extra_args;
+
+  argv = g_newa (JSValue, argc);
+  argv[0] = thread_val;
+
+  va_start (args, n_extra_args);
+  for (i = 0; i != n_extra_args; i++)
+  {
+    GType type;
+    JSValue val;
+
+    type = va_arg (args, GType);
+
+    if (type == G_TYPE_STRING)
+    {
+      const gchar * str = va_arg (args, gchar *);
+      val = (str != NULL) ? JS_NewString (ctx, str) : JS_NULL;
+    }
+    else
+    {
+      g_assert_not_reached ();
+    }
+
+    argv[1 + i] = val;
+  }
+  va_end (args);
+
+  _gum_quick_scope_call_void (&scope, callback, JS_UNDEFINED, argc, argv);
+
+  for (i = 0; i != 1 + n_extra_args; i++)
+    JS_FreeValue (ctx, argv[i]);
+
+  _gum_quick_scope_leave (&scope);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
@@ -977,6 +1294,23 @@ gum_quick_exception_handler_on_exception (GumExceptionDetails * details,
   _gum_quick_scope_leave (&scope);
 
   return handled;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_thread_observer_detach)
+{
+  GumQuickProcess * parent;
+  GumQuickThreadObserver * observer;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!_gum_quick_unwrap (ctx, this_val, parent->thread_observer_class,
+      core, (gpointer *) &observer))
+    return JS_EXCEPTION;
+
+  if (observer != NULL)
+    gum_quick_process_detach_thread_observer (parent, observer);
+
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_observer_detach)
