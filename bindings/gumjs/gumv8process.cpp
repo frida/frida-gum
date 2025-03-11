@@ -55,6 +55,22 @@ struct GumV8ExceptionHandler
   GumV8Core * core;
 };
 
+struct GumV8ThreadObserver
+{
+  gint ref_count;
+
+  Global<Function> * on_added;
+  Global<Function> * on_removed;
+  Global<Function> * on_renamed;
+  Global<Object> * resource;
+
+  gulong added_handler;
+  gulong removed_handler;
+  gulong renamed_handler;
+
+  GumV8Process * parent;
+};
+
 struct GumV8RunOnThreadContext
 {
   Global<Function> * user_func;
@@ -85,6 +101,23 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     GumV8MatchContext<GumV8Process> * mc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_attach_thread_observer)
+static GumV8ThreadObserver * gum_v8_thread_observer_ref (
+    GumV8ThreadObserver * observer);
+static void gum_v8_thread_observer_unref (GumV8ThreadObserver * observer);
+static void gum_v8_thread_observer_destroy (GumV8ThreadObserver * self);
+static gboolean gum_emit_existing_thread (const GumThreadDetails * thread,
+    GumV8ThreadObserver * observer);
+static void gum_emit_added_thread (GumThreadRegistry * registry,
+    const GumThreadDetails * thread, GumV8ThreadObserver * observer);
+static void gum_emit_removed_thread (GumThreadRegistry * registry,
+    const GumThreadDetails * thread, GumV8ThreadObserver * observer);
+static void gum_emit_renamed_thread (GumThreadRegistry * registry,
+    const GumThreadDetails * thread, const gchar * previous_name,
+    GumV8ThreadObserver * observer);
+static void gum_v8_thread_observer_invoke (GumV8ThreadObserver * self,
+    Global<Function> * callback, const GumThreadDetails * thread,
+    guint n_extra_args, ...);
 GUMJS_DECLARE_FUNCTION (gumjs_process_run_on_thread)
 static void gum_v8_run_on_thread_context_free (GumV8RunOnThreadContext * rc);
 static void gum_do_call_on_thread (const GumCpuContext * cpu_context,
@@ -123,6 +156,8 @@ static void gum_v8_exception_handler_free (
 static gboolean gum_v8_exception_handler_on_exception (
     GumExceptionDetails * details, GumV8ExceptionHandler * handler);
 
+GUMJS_DECLARE_FUNCTION (gumjs_thread_observer_detach)
+
 GUMJS_DECLARE_FUNCTION (gumjs_module_observer_detach)
 
 static const GumV8Property gumjs_process_values[] =
@@ -140,6 +175,7 @@ static const GumV8Function gumjs_process_functions[] =
   { "isDebuggerAttached", gumjs_process_is_debugger_attached },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id },
   { "_enumerateThreads", gumjs_process_enumerate_threads },
+  { "attachThreadObserver", gumjs_process_attach_thread_observer },
   { "_runOnThread", gumjs_process_run_on_thread },
   { "findModuleByName", gumjs_process_find_module_by_name },
   { "findModuleByAddress", gumjs_process_find_module_by_address },
@@ -149,6 +185,13 @@ static const GumV8Function gumjs_process_functions[] =
   { "enumerateSystemRanges", gumjs_process_enumerate_system_ranges },
   { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
   { "setExceptionHandler", gumjs_process_set_exception_handler },
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_thread_observer_functions[] =
+{
+  { "detach", gumjs_thread_observer_detach },
+
   { NULL, NULL }
 };
 
@@ -174,6 +217,8 @@ _gum_v8_process_init (GumV8Process * self,
 
   self->stalker = NULL;
 
+  self->thread_observers = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_thread_observer_destroy);
   self->module_observers = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_module_observer_destroy);
 
@@ -197,11 +242,19 @@ _gum_v8_process_init (GumV8Process * self,
   _gum_v8_module_add (process_module, process,
       gumjs_process_functions, isolate);
 
-  auto observer = _gum_v8_create_class ("ModuleObserver", nullptr, scope,
+  auto thread_observer = _gum_v8_create_class ("ThreadObserver", nullptr, scope,
       process_module, isolate);
-  _gum_v8_class_add (observer, gumjs_module_observer_functions, process_module,
-      isolate);
-  self->module_observer = new Global<FunctionTemplate> (isolate, observer);
+  _gum_v8_class_add (thread_observer, gumjs_thread_observer_functions,
+      process_module, isolate);
+  self->thread_observer =
+      new Global<FunctionTemplate> (isolate, thread_observer);
+
+  auto module_observer = _gum_v8_create_class ("ModuleObserver", nullptr, scope,
+      process_module, isolate);
+  _gum_v8_class_add (module_observer, gumjs_module_observer_functions,
+      process_module, isolate);
+  self->module_observer =
+      new Global<FunctionTemplate> (isolate, module_observer);
 }
 
 void
@@ -210,25 +263,33 @@ _gum_v8_process_realize (GumV8Process * self)
   auto isolate = self->core->isolate;
   auto context = isolate->GetCurrentContext ();
 
-  auto observer = Local<FunctionTemplate>::New (isolate,
-      *self->module_observer);
-  auto observer_value = observer->GetFunction (context).ToLocalChecked ()
-      ->NewInstance (context, 0, nullptr).ToLocalChecked ();
-  self->module_observer_value =
-      new Global<Object> (isolate, observer_value);
+  {
+    auto observer = Local<FunctionTemplate>::New (isolate,
+        *self->thread_observer);
+    auto val = observer->GetFunction (context).ToLocalChecked ()
+        ->NewInstance (context, 0, nullptr).ToLocalChecked ();
+    self->thread_observer_value = new Global<Object> (isolate, val);
+  }
+
+  {
+    auto observer = Local<FunctionTemplate>::New (isolate,
+        *self->module_observer);
+    auto val = observer->GetFunction (context).ToLocalChecked ()
+        ->NewInstance (context, 0, nullptr).ToLocalChecked ();
+    self->module_observer_value = new Global<Object> (isolate, val);
+  }
 }
 
 void
 _gum_v8_process_flush (GumV8Process * self)
 {
   g_hash_table_remove_all (self->module_observers);
+  g_hash_table_remove_all (self->thread_observers);
 
   g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 
   delete self->main_module_value;
   self->main_module_value = nullptr;
-
-  g_hash_table_remove_all (self->module_observers);
 }
 
 void
@@ -244,8 +305,14 @@ _gum_v8_process_dispose (GumV8Process * self)
   delete self->module_observer_value;
   self->module_observer_value = nullptr;
 
+  delete self->thread_observer_value;
+  self->thread_observer_value = nullptr;
+
   delete self->module_observer;
   self->module_observer = nullptr;
+
+  delete self->thread_observer;
+  self->thread_observer = nullptr;
 }
 
 void
@@ -254,6 +321,7 @@ _gum_v8_process_finalize (GumV8Process * self)
   g_clear_object (&self->stalker);
 
   g_hash_table_unref (self->module_observers);
+  g_hash_table_unref (self->thread_observers);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
@@ -325,6 +393,241 @@ gum_emit_thread (const GumThreadDetails * details,
                  GumV8MatchContext<GumV8Process> * mc)
 {
   return mc->OnMatch (_gum_v8_thread_new (details, mc->parent->thread));
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_attach_thread_observer)
+{
+  Local<Function> on_added, on_removed, on_renamed;
+  if (!_gum_v8_args_parse (args, "F{onAdded?,onRemoved?,onRenamed?}",
+        &on_added, &on_removed, &on_renamed))
+    return;
+  auto callback_val = info[0];
+
+  bool observe_added = !on_added.IsEmpty ();
+  bool observe_removed = !on_removed.IsEmpty ();
+  bool observe_renamed = !on_renamed.IsEmpty ();
+
+  if (!observe_added && !observe_removed && !observe_renamed)
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "at least one callback must be provided");
+  }
+
+  auto observer = g_slice_new (GumV8ThreadObserver);
+  observer->ref_count = 1;
+  observer->on_added = observe_added
+      ? new Global<Function> (isolate, on_added)
+      : nullptr;
+  observer->on_removed = observe_removed
+      ? new Global<Function> (isolate, on_removed)
+      : nullptr;
+  observer->on_renamed = observe_renamed
+      ? new Global<Function> (isolate, on_renamed)
+      : nullptr;
+  observer->resource = new Global<Object> (isolate, callback_val.As<Object> ());
+  observer->added_handler = 0;
+  observer->removed_handler = 0;
+  observer->renamed_handler = 0;
+  observer->parent = module;
+
+  {
+    ScriptUnlocker unlocker (core);
+
+    auto registry = gum_thread_registry_obtain ();
+
+    gum_thread_registry_lock (registry);
+
+    if (observe_added)
+    {
+      observer->added_handler = g_signal_connect_data (registry,
+          "thread-added",
+          G_CALLBACK (gum_emit_added_thread),
+          gum_v8_thread_observer_ref (observer),
+          (GClosureNotify) gum_v8_thread_observer_unref,
+          (GConnectFlags) 0);
+    }
+
+    if (observe_removed)
+    {
+      observer->removed_handler = g_signal_connect_data (registry,
+          "thread-removed",
+          G_CALLBACK (gum_emit_removed_thread),
+          gum_v8_thread_observer_ref (observer),
+          (GClosureNotify) gum_v8_thread_observer_unref,
+          (GConnectFlags) 0);
+    }
+
+    if (observe_renamed)
+    {
+      observer->renamed_handler = g_signal_connect_data (registry,
+          "thread-renamed",
+          G_CALLBACK (gum_emit_renamed_thread),
+          gum_v8_thread_observer_ref (observer),
+          (GClosureNotify) gum_v8_thread_observer_unref,
+          (GConnectFlags) 0);
+    }
+
+    if (observe_added)
+    {
+      gum_thread_registry_enumerate_threads (registry,
+          (GumFoundThreadFunc) gum_emit_existing_thread, observer);
+    }
+
+    gum_thread_registry_unlock (registry);
+  }
+
+  auto observer_template_value (Local<Object>::New (isolate,
+      *module->thread_observer_value));
+  auto observer_value (observer_template_value->Clone ());
+  observer_value->SetAlignedPointerInInternalField (0, observer);
+
+  g_hash_table_add (module->thread_observers, observer);
+
+  info.GetReturnValue ().Set (observer_value);
+}
+
+static GumV8ThreadObserver *
+gum_v8_thread_observer_ref (GumV8ThreadObserver * observer)
+{
+  g_atomic_int_inc (&observer->ref_count);
+
+  return observer;
+}
+
+static void
+gum_v8_thread_observer_unref (GumV8ThreadObserver * observer)
+{
+  if (!g_atomic_int_dec_and_test (&observer->ref_count))
+    return;
+
+  {
+    ScriptScope scope (observer->parent->core->script);
+
+    delete observer->on_added;
+    delete observer->on_removed;
+    delete observer->on_renamed;
+    delete observer->resource;
+  }
+
+  g_slice_free (GumV8ThreadObserver, observer);
+}
+
+static void
+gum_v8_thread_observer_destroy (GumV8ThreadObserver * self)
+{
+  auto registry = gum_thread_registry_obtain ();
+
+  gulong * handlers[] = {
+    &self->added_handler,
+    &self->removed_handler,
+    &self->renamed_handler,
+  };
+  for (guint i = 0; i != G_N_ELEMENTS (handlers); i++)
+  {
+    gulong * handler = handlers[i];
+
+    if (*handler != 0)
+    {
+      g_signal_handler_disconnect (registry, *handler);
+      *handler = 0;
+    }
+  }
+
+  gum_v8_thread_observer_unref (self);
+}
+
+static void
+gum_v8_process_detach_thread_observer (GumV8Process * self,
+                                       GumV8ThreadObserver * observer)
+{
+  g_hash_table_remove (self->thread_observers, observer);
+}
+
+static gboolean
+gum_emit_existing_thread (const GumThreadDetails * thread,
+                          GumV8ThreadObserver * observer)
+{
+  gum_v8_thread_observer_invoke (observer, observer->on_added, thread, 0);
+
+  return TRUE;
+}
+
+static void
+gum_emit_added_thread (GumThreadRegistry * registry,
+                       const GumThreadDetails * thread,
+                       GumV8ThreadObserver * observer)
+{
+  gum_v8_thread_observer_invoke (observer, observer->on_added, thread, 0);
+}
+
+static void
+gum_emit_removed_thread (GumThreadRegistry * registry,
+                         const GumThreadDetails * thread,
+                         GumV8ThreadObserver * observer)
+{
+  gum_v8_thread_observer_invoke (observer, observer->on_removed, thread, 0);
+}
+
+static void
+gum_emit_renamed_thread (GumThreadRegistry * registry,
+                         const GumThreadDetails * thread,
+                         const gchar * previous_name,
+                         GumV8ThreadObserver * observer)
+{
+  gum_v8_thread_observer_invoke (observer, observer->on_renamed, thread, 1,
+      G_TYPE_STRING, previous_name);
+}
+
+static void
+gum_v8_thread_observer_invoke (GumV8ThreadObserver * self,
+                               Global<Function> * callback,
+                               const GumThreadDetails * thread,
+                               guint n_extra_args,
+                               ...)
+{
+  auto parent = self->parent;
+  auto core = parent->core;
+
+  ScriptScope scope (core->script);
+  auto isolate = core->isolate;
+
+  guint argc = 1 + n_extra_args;
+  auto argv = g_newa (Local<Value>, argc);
+  for (guint i = 0; i != argc; i++)
+    new (&argv[i]) Local<Value> ();
+
+  argv[0] = _gum_v8_thread_new (thread, parent->thread);
+
+  va_list args;
+  va_start (args, n_extra_args);
+  for (guint i = 0; i != n_extra_args; i++)
+  {
+    GType type = va_arg (args, GType);
+
+    Local<Value> val;
+    if (type == G_TYPE_STRING)
+    {
+      const gchar * str = va_arg (args, gchar *);
+      val = (str != NULL)
+          ? String::NewFromUtf8 (isolate, str).ToLocalChecked ().As<Value> ()
+          : Null (isolate).As<Value> ();
+    }
+    else
+    {
+      g_assert_not_reached ();
+    }
+
+    argv[1 + i] = val;
+  }
+  va_end (args);
+
+  auto callback_value = Local<Function>::New (isolate, *callback);
+  Local<Value> result;
+  _gum_v8_ignore_result (callback_value->Call (isolate->GetCurrentContext (),
+        Undefined (isolate), argc, argv).ToLocal (&result));
+
+  for (guint i = 0; i != argc; i++)
+    argv[i].~Local<Value> ();
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
@@ -839,6 +1142,17 @@ gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
   _gum_v8_cpu_context_free_later (new Global<Object> (isolate, context), core);
 
   return handled;
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_thread_observer_detach,
+                           GumV8ThreadObserver)
+{
+  if (self != NULL)
+  {
+    wrapper->SetAlignedPointerInInternalField (0, NULL);
+
+    gum_v8_process_detach_thread_observer (module, self);
+  }
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_observer_detach,
