@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
@@ -95,6 +95,8 @@ G_GNUC_INTERNAL gpointer _gum_interceptor_backend_get_function_address (
     GumFunctionContext * ctx);
 G_GNUC_INTERNAL gpointer _gum_interceptor_backend_resolve_redirect (
     GumInterceptorBackend * self, gpointer address);
+G_GNUC_INTERNAL gsize _gum_interceptor_backend_detect_hook_size (
+    gconstpointer code, csh capstone, cs_insn * insn);
 
 G_GNUC_INTERNAL gpointer _gum_interceptor_peek_top_caller_return_address (void);
 G_GNUC_INTERNAL gpointer _gum_interceptor_translate_top_return_address (

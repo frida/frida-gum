@@ -314,6 +314,61 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
   return target;
 }
 
+gsize
+_gum_interceptor_backend_detect_hook_size (gconstpointer code,
+                                           csh capstone,
+                                           cs_insn * insn)
+{
+  gsize hook_size;
+  const uint8_t * cursor;
+  size_t size;
+  uint64_t addr;
+  const cs_x86_op * dst;
+
+  cursor = code;
+  size = 16;
+  addr = GPOINTER_TO_SIZE (cursor);
+
+  if (!cs_disasm_iter (capstone, &cursor, &size, &addr, insn))
+    return 0;
+  if (insn->id != X86_INS_JMP)
+    return 0;
+  dst = &insn->detail->x86.operands[0];
+  switch (dst->type)
+  {
+    case X86_OP_IMM:
+      hook_size = insn->size;
+      break;
+    case X86_OP_MEM:
+      if (dst->mem.segment == X86_REG_INVALID &&
+          dst->mem.base == X86_REG_RIP &&
+          dst->mem.index == X86_REG_INVALID &&
+          dst->mem.scale == 1 &&
+          dst->mem.disp == 2)
+      {
+        const gsize inline_data_size = dst->mem.disp + sizeof (gpointer);
+
+        cursor += inline_data_size;
+        addr += inline_data_size;
+
+        hook_size = insn->size + inline_data_size;
+      }
+      else
+      {
+        return 0;
+      }
+      break;
+    default:
+      return 0;
+  }
+
+  while (cs_disasm_iter (capstone, &cursor, &size, &addr, insn) &&
+      insn->id == X86_INS_NOP)
+    hook_size += insn->size;
+
+  return hook_size;
+}
+
 static void
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {
