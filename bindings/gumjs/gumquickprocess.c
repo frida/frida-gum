@@ -163,7 +163,7 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("findModuleByName", 0, gumjs_process_find_module_by_name),
   JS_CFUNC_DEF ("findModuleByAddress", 0, gumjs_process_find_module_by_address),
   JS_CFUNC_DEF ("_enumerateModules", 0, gumjs_process_enumerate_modules),
-  JS_CFUNC_DEF ("attachModuleObserver", 1,
+  JS_CFUNC_DEF ("attachModuleObserver", 0,
       gumjs_process_attach_module_observer),
   JS_CFUNC_DEF ("findRangeByAddress", 0, gumjs_process_find_range_by_address),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_process_enumerate_ranges),
