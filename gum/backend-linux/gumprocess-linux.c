@@ -16,7 +16,11 @@
 #include "gumlinux-priv.h"
 #include "gummodulemap.h"
 #include "valgrind.h"
+#ifndef HAVE_ANDROID
+# include "gumsystemtap.h"
+#endif
 
+#include <capstone.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sched.h>
@@ -24,6 +28,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+typedef guint32 u32;
+#include <linux/futex.h>
 #ifdef HAVE_PTHREAD_ATTR_GETSTACK
 # include <pthread.h>
 #endif
@@ -50,6 +56,12 @@
 
 #ifndef O_CLOEXEC
 # define O_CLOEXEC 0x80000
+#endif
+
+#ifndef FUTEX_WAIT_PRIVATE
+# define FUTEX_PRIVATE_FLAG 128
+# define FUTEX_WAIT_PRIVATE (FUTEX_WAIT | FUTEX_PRIVATE_FLAG)
+# define FUTEX_WAKE_PRIVATE (FUTEX_WAKE | FUTEX_PRIVATE_FLAG)
 #endif
 
 #define GUM_PSR_THUMB 0x20
@@ -104,6 +116,8 @@ typedef union _GumRegs GumRegs;
 # define NT_PRSTATUS 1
 #endif
 
+#define GUM_NSIG 65
+
 #define GUM_TEMP_FAILURE_RETRY(expression) \
     ({ \
       gssize __result; \
@@ -128,6 +142,14 @@ typedef struct _GumUserDesc GumUserDesc;
 typedef struct _GumTcbHead GumTcbHead;
 
 typedef gint (* GumCloneFunc) (gpointer arg);
+
+#if defined (HAVE_GLIBC)
+typedef struct _GumMoveInsn GumMoveInsn;
+typedef struct _GumLdrInsn GumLdrInsn;
+typedef struct _GumLoadInsn GumLoadInsn;
+#elif defined (HAVE_MUSL)
+typedef struct _GumMuslStartArgs GumMuslStartArgs;
+#endif
 
 struct _GumModifyThreadContext
 {
@@ -275,6 +297,40 @@ struct _GumTcbHead
 #endif
 };
 
+#if defined (HAVE_GLIBC)
+
+struct _GumMoveInsn
+{
+  GumAddress address;
+  guint index;
+  gint64 disp;
+};
+
+struct _GumLdrInsn
+{
+  GumAddress address;
+  gint64 disp;
+};
+
+struct _GumLoadInsn
+{
+  GumAddress address;
+  mips_reg base;
+  gint64 disp;
+};
+
+#elif defined (HAVE_MUSL)
+
+struct _GumMuslStartArgs
+{
+  gpointer start_func;
+  gpointer start_arg;
+  volatile int control;
+  gulong sig_mask[GUM_NSIG / 8 / sizeof (long)];
+};
+
+#endif
+
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
     Dl_info * info);
 
@@ -288,15 +344,14 @@ static gint gum_linux_do_modify_thread (gpointer data);
 static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack);
 static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 
-static void gum_store_cpu_context (GumThreadId thread_id,
-    GumCpuContext * cpu_context, gpointer user_data);
-
 static GumModule * gum_try_init_libc_module (void);
 static void gum_deinit_libc_module (void);
 static const Dl_info * gum_try_init_libc_info (void);
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
+static void gum_store_cpu_context (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
 static void gum_do_set_hardware_breakpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
 static void gum_do_unset_hardware_breakpoint (GumThreadId thread_id,
@@ -318,6 +373,23 @@ static gssize gum_set_regs (pid_t pid, guint type, gconstpointer data,
 
 static void gum_parse_gp_regs (const GumGPRegs * regs, GumCpuContext * ctx);
 static void gum_unparse_gp_regs (const GumCpuContext * ctx, GumGPRegs * regs);
+
+#if defined (HAVE_GLIBC)
+static gboolean gum_detect_rtld_globals (GumLinuxPThreadSpec * spec);
+static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
+    gpointer user_data);
+static gboolean gum_find_thread_start_manually (GumLinuxPThreadSpec * spec);
+
+static void glibc_lock_acquire (GumGlibcLock * lock);
+static void glibc_lock_release (GumGlibcLock * lock);
+
+static gint gum_ptr_compare (gconstpointer a, gconstpointer b);
+#endif
+static gboolean gum_detect_pthread_internals (GumLinuxPThreadSpec * spec);
+#ifdef HAVE_MUSL
+static GumMuslStartArgs * gum_query_pthread_start_args (pthread_t thread,
+    const GumLinuxPThreadSpec * spec);
+#endif
 
 static gssize gum_libc_clone (GumCloneFunc child_func, gpointer child_stack,
     gint flags, gpointer arg, pid_t * parent_tidptr, GumUserDesc * tls,
@@ -863,46 +935,93 @@ gum_put_ack (gint fd,
 
 void
 _gum_process_enumerate_threads (GumFoundThreadFunc func,
-                                gpointer user_data)
+                                gpointer user_data,
+                                GumThreadFlags flags)
 {
-  GDir * dir;
-  const gchar * name;
-  gboolean carry_on = TRUE;
+  GArray * entries;
+  const GumLinuxPThreadSpec * spec;
+  GumLinuxPThreadIter iter;
+  pthread_t thread;
+  guint i;
 
-  dir = g_dir_open ("/proc/self/task", 0, NULL);
-  g_assert (dir != NULL);
+  entries = g_array_new (FALSE, FALSE, sizeof (GumThreadDetails));
 
-  while (carry_on && (name = g_dir_read_name (dir)) != NULL)
+  spec = gum_linux_query_pthread_spec ();
+
+  gum_linux_lock_pthread_list (spec);
+
+  gum_linux_pthread_iter_init (&iter, spec);
+  while (gum_linux_pthread_iter_next (&iter, &thread))
   {
-    GumThreadDetails details;
-    gchar * thread_name;
+    GumThreadDetails entry = { 0, };
+    gpointer start_routine;
 
-    details.id = atoi (name);
+    entry.id = gum_linux_query_pthread_tid (thread, spec);
 
-    thread_name = gum_linux_query_thread_name (details.id);
-    details.name = thread_name;
-
-    if (gum_linux_query_thread_state (details.id, &details.state))
+    start_routine = gum_linux_query_pthread_start_routine (thread, spec);
+    if (start_routine != NULL)
     {
-      if (gum_process_modify_thread (details.id, gum_store_cpu_context,
-            &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
+      if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
       {
-        carry_on = func (&details, user_data);
+        entry.entrypoint.routine = GUM_ADDRESS (start_routine);
+        entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
+      }
+
+      if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
+      {
+        entry.entrypoint.parameter = GUM_ADDRESS (
+            gum_linux_query_pthread_start_parameter (thread, spec));
+        entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
       }
     }
 
-    g_free (thread_name);
+    g_array_append_val (entries, entry);
   }
 
-  g_dir_close (dir);
-}
+  gum_linux_unlock_pthread_list (spec);
 
-static void
-gum_store_cpu_context (GumThreadId thread_id,
-                       GumCpuContext * cpu_context,
-                       gpointer user_data)
-{
-  memcpy (user_data, cpu_context, sizeof (GumCpuContext));
+  for (i = 0; i != entries->len; i++)
+  {
+    GumThreadDetails * entry;
+    gchar * name = NULL;
+    gboolean carry_on = TRUE;
+
+    entry = &g_array_index (entries, GumThreadDetails, i);
+
+    if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
+    {
+      name = gum_linux_query_thread_name (entry->id);
+      if (name != NULL)
+      {
+        entry->name = name;
+        entry->flags |= GUM_THREAD_FLAGS_NAME;
+      }
+    }
+
+    if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+    {
+      if (!gum_linux_query_thread_state (entry->id, &entry->state))
+        goto skip;
+      entry->flags |= GUM_THREAD_FLAGS_STATE;
+    }
+
+    if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+    {
+      if (!gum_linux_query_thread_cpu_context (entry->id, &entry->cpu_context))
+        goto skip;
+      entry->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+    }
+
+    carry_on = func (entry, user_data);
+
+skip:
+    g_free (name);
+
+    if (!carry_on)
+      break;
+  }
+
+  g_array_unref (entries);
 }
 
 gboolean
@@ -1088,63 +1207,95 @@ _gum_try_translate_vdso_name (gchar * name)
   return FALSE;
 }
 
-gchar *
-gum_linux_query_thread_name (GumThreadId id)
+void
+gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
+                             const GumLinuxPThreadSpec * spec)
 {
-  gchar * name = NULL;
-  gchar * path;
-  gchar * comm = NULL;
-
-  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/comm", id);
-  if (!g_file_get_contents (path, &comm, NULL, NULL))
-    goto beach;
-  name = g_strchomp (g_steal_pointer (&comm));
-
-beach:
-  g_free (comm);
-  g_free (path);
-
-  return name;
+  iter->list = NULL;
+  iter->node = NULL;
+  iter->spec = spec;
 }
 
 gboolean
-gum_linux_query_thread_state (GumThreadId tid,
-                              GumThreadState * state)
+gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
+                             pthread_t * thread)
 {
-  gboolean success = FALSE;
-  gchar * path, * info = NULL;
+#if defined (HAVE_GLIBC)
+  GumGlibcList * list = self->list;
+  GumGlibcList * node = self->node;
 
-  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/stat", tid);
-  if (g_file_get_contents (path, &info, NULL, NULL))
+  if (node != NULL)
   {
-    gchar * p;
-
-    p = strrchr (info, ')') + 2;
-
-    *state = gum_thread_state_from_proc_status_character (*p);
-    success = TRUE;
+    node = node->prev;
+    self->node = node;
   }
 
-  g_free (info);
-  g_free (path);
-
-  return success;
-}
-
-static GumThreadState
-gum_thread_state_from_proc_status_character (gchar c)
-{
-  switch (g_ascii_toupper (c))
+  while (node == list)
   {
-    case 'R': return GUM_THREAD_RUNNING;
-    case 'S': return GUM_THREAD_WAITING;
-    case 'D': return GUM_THREAD_UNINTERRUPTIBLE;
-    case 'Z': return GUM_THREAD_UNINTERRUPTIBLE;
-    case 'T': return GUM_THREAD_STOPPED;
-    case 'W':
-    default:
-      return GUM_THREAD_UNINTERRUPTIBLE;
+    if (list == NULL)
+      list = self->spec->stack_user;
+    else if (list == self->spec->stack_user)
+      list = self->spec->stack_used;
+    else
+      return FALSE;
+    node = list->prev;
+
+    self->list = list;
+    self->node = node;
   }
+
+  *thread = GPOINTER_TO_SIZE (
+      ((gchar *) node - G_STRUCT_OFFSET (GumLinuxPThread, list)));
+  return TRUE;
+#elif defined (HAVE_MUSL)
+  GumLinuxPThread * list = self->list;
+  GumLinuxPThread * node = self->node;
+
+  if (list == NULL)
+  {
+    list = self->spec->main_thread;
+    self->list = list;
+
+    node = list;
+  }
+  else
+  {
+    node = node->next;
+    if (node == list)
+      return FALSE;
+  }
+  self->node = node;
+
+  *thread = (pthread_t) node;
+  return TRUE;
+#elif defined (HAVE_ANDROID)
+  GumLinuxPThread * list = self->list;
+  GumLinuxPThread * node = self->node;
+
+  if (list == NULL)
+  {
+    GumLinuxPThread * tail, * cur;
+
+    tail = NULL;
+    for (cur = *self->spec->thread_list; cur != NULL; cur = cur->next)
+      tail = cur;
+
+    list = tail;
+    self->list = list;
+
+    node = list;
+  }
+  else
+  {
+    node = node->prev;
+  }
+  if (node == NULL)
+    return FALSE;
+  self->node = node;
+
+  *thread = GPOINTER_TO_SIZE (node);
+  return TRUE;
+#endif
 }
 
 void
@@ -1220,6 +1371,118 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
                                      gpointer user_data)
 {
   /* Not implemented */
+}
+
+gchar *
+gum_linux_query_thread_name (GumThreadId id)
+{
+  gchar * name = NULL;
+  gchar * path;
+  gchar * comm = NULL;
+
+  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/comm", id);
+  if (!g_file_get_contents (path, &comm, NULL, NULL))
+    goto beach;
+  name = g_strchomp (g_steal_pointer (&comm));
+
+beach:
+  g_free (comm);
+  g_free (path);
+
+  return name;
+}
+
+gboolean
+gum_linux_query_thread_state (GumThreadId tid,
+                              GumThreadState * state)
+{
+  gboolean success = FALSE;
+  gchar * path, * info = NULL;
+
+  path = g_strdup_printf ("/proc/self/task/%" G_GSIZE_FORMAT "/stat", tid);
+  if (g_file_get_contents (path, &info, NULL, NULL))
+  {
+    gchar * p;
+
+    p = strrchr (info, ')') + 2;
+
+    *state = gum_thread_state_from_proc_status_character (*p);
+    success = TRUE;
+  }
+
+  g_free (info);
+  g_free (path);
+
+  return success;
+}
+
+static GumThreadState
+gum_thread_state_from_proc_status_character (gchar c)
+{
+  switch (g_ascii_toupper (c))
+  {
+    case 'R': return GUM_THREAD_RUNNING;
+    case 'S': return GUM_THREAD_WAITING;
+    case 'D': return GUM_THREAD_UNINTERRUPTIBLE;
+    case 'Z': return GUM_THREAD_UNINTERRUPTIBLE;
+    case 'T': return GUM_THREAD_STOPPED;
+    case 'W':
+    default:
+      return GUM_THREAD_UNINTERRUPTIBLE;
+  }
+}
+
+gboolean
+gum_linux_query_thread_cpu_context (GumThreadId tid,
+                                    GumCpuContext * ctx)
+{
+  return gum_process_modify_thread (tid, gum_store_cpu_context, ctx,
+      GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY);
+}
+
+static void
+gum_store_cpu_context (GumThreadId thread_id,
+                       GumCpuContext * cpu_context,
+                       gpointer user_data)
+{
+  memcpy (user_data, cpu_context, sizeof (GumCpuContext));
+}
+
+GumThreadId
+gum_linux_query_pthread_tid (pthread_t thread,
+                             const GumLinuxPThreadSpec * spec)
+{
+  GumLinuxPThread * pth = GSIZE_TO_POINTER (thread);
+
+  return pth->tid;
+}
+
+gpointer
+gum_linux_query_pthread_start_routine (pthread_t thread,
+                                       const GumLinuxPThreadSpec * spec)
+{
+#ifdef HAVE_MUSL
+  GumMuslStartArgs * args = gum_query_pthread_start_args (thread, spec);
+  if (args == NULL)
+    return NULL;
+  return args->start_func;
+#else
+  return *((gpointer *) ((guint8 *) thread + spec->start_routine_offset));
+#endif
+}
+
+gpointer
+gum_linux_query_pthread_start_parameter (pthread_t thread,
+                                         const GumLinuxPThreadSpec * spec)
+{
+#ifdef HAVE_MUSL
+  GumMuslStartArgs * args = gum_query_pthread_start_args (thread, spec);
+  if (args == NULL)
+    return NULL;
+  return args->start_arg;
+#else
+  return *((gpointer *) ((guint8 *) thread + spec->start_parameter_offset));
+#endif
 }
 
 guint
@@ -2460,6 +2723,1253 @@ gum_set_regs (pid_t pid,
 
   return gum_libc_ptrace (PTRACE_SETREGS, pid, NULL, (gpointer) data);
 }
+
+const GumLinuxPThreadSpec *
+gum_linux_query_pthread_spec (void)
+{
+  static GumLinuxPThreadSpec spec;
+  static gsize initialized = FALSE;
+
+  if (g_once_init_enter (&initialized))
+  {
+    GumModule * libc;
+
+    libc = gum_process_get_libc_module ();
+    spec.set_name = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
+          "pthread_setname_np"));
+
+    if (!gum_detect_pthread_internals (&spec))
+      g_error ("Unsupported Linux system; please file a bug");
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  return &spec;
+}
+
+#if defined (HAVE_GLIBC)
+
+void
+gum_linux_lock_pthread_list (const GumLinuxPThreadSpec * spec)
+{
+  glibc_lock_acquire (spec->stack_lock);
+}
+
+void
+gum_linux_unlock_pthread_list (const GumLinuxPThreadSpec * spec)
+{
+  glibc_lock_release (spec->stack_lock);
+}
+
+static gboolean
+gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
+{
+  if (!gum_detect_rtld_globals (spec))
+    return FALSE;
+
+  gum_system_tap_enumerate_probes (gum_process_get_libc_module (),
+      gum_find_thread_start, spec);
+  if (spec->start_impl == NULL && !gum_find_thread_start_manually (spec))
+    return FALSE;
+
+  spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "__call_tls_dtors"));
+  return spec->terminate_impl != NULL;
+}
+
+static gboolean
+gum_detect_rtld_globals (GumLinuxPThreadSpec * spec)
+{
+  gboolean success = FALSE;
+  gpointer create_prologue;
+#ifdef HAVE_ARM
+  gboolean is_thumb;
+#endif
+  csh capstone;
+  cs_insn * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t addr;
+  guint stack_lock_offset;
+  GPtrArray * offsets;
+
+  create_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "pthread_create"));
+
+  gum_cs_arch_register_native ();
+#ifdef HAVE_ARM
+  is_thumb = (GPOINTER_TO_SIZE (create_prologue) & 1) != 0;
+  cs_open (GUM_DEFAULT_CS_ARCH,
+      is_thumb
+        ? CS_MODE_THUMB | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN
+        : GUM_DEFAULT_CS_MODE,
+      &capstone);
+  code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (create_prologue) & ~1);
+#else
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  code = create_prologue;
+#endif
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
+
+  insn = cs_malloc (capstone);
+
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
+  size = 16384;
+  addr = GPOINTER_TO_SIZE (code);
+
+  stack_lock_offset = 0;
+  offsets = g_ptr_array_sized_new (4);
+
+#if defined (HAVE_I386)
+  {
+    while (offsets->len != 3 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      switch (insn->id)
+      {
+        case X86_INS_CMPXCHG:
+        {
+          const cs_x86_op * dst = &x86->operands[0];
+
+          if (stack_lock_offset == 0 && dst->mem.base != X86_REG_RIP)
+            stack_lock_offset = dst->mem.disp;
+
+          break;
+        }
+        case X86_INS_LEA:
+        {
+          const cs_x86_op * src = &x86->operands[1];
+          int64_t disp = src->mem.disp;
+
+          if (src->mem.base != X86_REG_RIP &&
+              src->mem.base != X86_REG_RBP &&
+              disp < stack_lock_offset &&
+              disp >= stack_lock_offset - 128)
+          {
+            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
+              g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM)
+  {
+    while (offsets->len != 5 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm * arm = &insn->detail->arm;
+
+      switch (insn->id)
+      {
+        case ARM_INS_ADD:
+        {
+          const cs_arm_op * val = &arm->operands[2];
+          int32_t imm = val->imm;
+
+          if (val->type == ARM_OP_IMM &&
+              imm >= 0x900 && imm < 0x1000)
+          {
+            if (stack_lock_offset == 0)
+            {
+              stack_lock_offset = imm;
+            }
+            else
+            {
+              if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (imm), NULL))
+                g_ptr_array_add (offsets, GSIZE_TO_POINTER (imm));
+            }
+          }
+
+          break;
+        }
+        case ARM_INS_LDR:
+        {
+          const arm_op_mem * src = &arm->operands[1].mem;
+          int64_t disp = src->disp;
+
+          if (src->base != ARM_REG_SP &&
+              disp < stack_lock_offset &&
+              disp >= stack_lock_offset - 32)
+          {
+            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
+              g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM64)
+  {
+    while (offsets->len != 5 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm64 * arm64 = &insn->detail->arm64;
+
+      switch (insn->id)
+      {
+        case ARM64_INS_MOV:
+        {
+          const cs_arm64_op * src = &arm64->operands[1];
+          int32_t imm = src->imm;
+
+          if (src->type == ARM64_OP_IMM &&
+              imm >= 0x1100 && imm < 0x1200)
+          {
+            if (stack_lock_offset == 0)
+            {
+              stack_lock_offset = imm;
+            }
+            else
+            {
+              if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (imm), NULL))
+                g_ptr_array_add (offsets, GSIZE_TO_POINTER (imm));
+            }
+          }
+
+          break;
+        }
+        case ARM64_INS_LDR:
+        {
+          const arm64_op_mem * src = &arm64->operands[1].mem;
+          int64_t disp = src->disp;
+
+          if (src->base != ARM64_REG_SP &&
+              src->base != ARM64_REG_FP &&
+              disp < stack_lock_offset &&
+              disp >= stack_lock_offset - 128)
+          {
+            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
+              g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_MIPS)
+  {
+    while (offsets->len != 3 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_mips * mips = &insn->detail->mips;
+
+      switch (insn->id)
+      {
+        case MIPS_INS_ADDIU:
+        {
+          int64_t imm = mips->operands[2].imm;
+
+          if (stack_lock_offset == 0 && imm >= 0x900 && imm < 0xb00)
+          {
+            stack_lock_offset = imm;
+          }
+          else if (imm < stack_lock_offset && imm >= stack_lock_offset - 128)
+          {
+            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (imm), NULL))
+              g_ptr_array_add (offsets, GSIZE_TO_POINTER (imm));
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#endif
+
+  g_ptr_array_sort (offsets, gum_ptr_compare);
+
+  if (offsets->len >= 2)
+  {
+    guint stack_used_offset, stack_user_offset;
+    gpointer rtld_global;
+
+    stack_used_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 0));
+    stack_user_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 1));
+
+    rtld_global = GSIZE_TO_POINTER (
+        gum_module_find_global_export_by_name ("_rtld_global"));
+
+    spec->stack_used = (GumGlibcList *)
+        ((guint8 *) rtld_global + stack_used_offset);
+    spec->stack_user = (GumGlibcList *)
+        ((guint8 *) rtld_global + stack_user_offset);
+    spec->stack_lock = (GumGlibcLock *)
+        ((guint8 *) rtld_global + stack_lock_offset);
+
+    success = TRUE;
+  }
+
+  g_ptr_array_unref (offsets);
+
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  return success;
+}
+
+static gboolean
+gum_find_thread_start (const GumSystemTapProbeDetails * probe,
+                       gpointer user_data)
+{
+  GumLinuxPThreadSpec * spec = user_data;
+
+  if (strcmp (probe->name, "pthread_start") == 0)
+  {
+    gchar ** args;
+
+    spec->start_impl = GSIZE_TO_POINTER (probe->address);
+
+#ifdef HAVE_I386
+    args = g_strsplit (probe->args, " ", 0);
+
+    spec->start_routine_offset = atoi (strchr (args[1], '@') + 1);
+    spec->start_parameter_offset = atoi (strchr (args[2], '@') + 1);
+#else
+    args = g_strsplit (probe->args, ", ", 0);
+
+    spec->start_routine_offset = atoi (args[1]);
+    spec->start_parameter_offset = atoi (args[2]);
+#endif
+
+    g_strfreev (args);
+
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
+{
+  guint8 * create_prologue, * start_prologue;
+#ifdef HAVE_ARM
+  gboolean is_thumb;
+#endif
+  csh capstone;
+  cs_insn * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t addr;
+
+  create_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "pthread_create"));
+
+#if defined (HAVE_I386)
+  {
+    const guint8 frame_setup_code[] = {
+      0x55,       /* push xbp     */
+# if GLIB_SIZEOF_VOID_P == 8
+      0x48,
+# endif
+      0x89, 0xe5, /* mov xbp, xsp */
+    };
+    guint8 * cursor;
+
+    start_prologue = NULL;
+    for (cursor = create_prologue - sizeof (frame_setup_code);
+        cursor != create_prologue - 2048;
+        cursor--)
+    {
+      if (memcmp (cursor, frame_setup_code, sizeof (frame_setup_code)) == 0)
+      {
+        start_prologue = cursor;
+        break;
+      }
+    }
+    if (start_prologue == NULL)
+      return FALSE;
+  }
+#elif defined (HAVE_ARM)
+  {
+    const guint16 setup_frame_insn = 0xb580;
+    guint16 * cursor;
+
+    is_thumb = (GPOINTER_TO_SIZE (create_prologue) & 1) != 0;
+    if (!is_thumb)
+      return FALSE; /* TODO: implement when needed */
+
+    create_prologue =
+        GSIZE_TO_POINTER (GPOINTER_TO_SIZE (create_prologue) & ~1);
+
+    start_prologue = NULL;
+    for (cursor = (guint16 *) (create_prologue - 2);
+        cursor != (guint16 *) (create_prologue - 2048);
+        cursor--)
+    {
+      if (*cursor == setup_frame_insn)
+      {
+        start_prologue = (guint8 *) cursor;
+        break;
+      }
+    }
+    if (start_prologue == NULL)
+      return FALSE;
+  }
+#elif defined (HAVE_ARM64)
+  {
+    const guint32 setup_frame_insn = 0x910003fd;
+    guint32 * cursor;
+
+    start_prologue = NULL;
+    for (cursor = (guint32 *) (create_prologue - 4);
+        cursor != (guint32 *) (create_prologue - 2048);
+        cursor--)
+    {
+      if (GUINT32_FROM_LE (*cursor) == setup_frame_insn)
+      {
+        start_prologue = (guint8 *) cursor;
+        break;
+      }
+    }
+    if (start_prologue == NULL)
+      return FALSE;
+  }
+#elif defined (HAVE_MIPS)
+  {
+    const guint32 setup_frame_insn = 0x0399e021U;
+    guint32 * cursor;
+
+    start_prologue = NULL;
+    for (cursor = (guint32 *) (create_prologue - 4);
+        cursor != (guint32 *) (create_prologue - 2048);
+        cursor--)
+    {
+      if (*cursor == setup_frame_insn)
+      {
+        start_prologue = (guint8 *) (cursor - 2);
+        break;
+      }
+    }
+    if (start_prologue == NULL)
+      return FALSE;
+  }
+#endif
+
+  gum_cs_arch_register_native ();
+#ifdef HAVE_ARM
+  cs_open (GUM_DEFAULT_CS_ARCH,
+      is_thumb
+        ? CS_MODE_THUMB | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN
+        : GUM_DEFAULT_CS_MODE,
+      &capstone);
+#else
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+#endif
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
+
+  insn = cs_malloc (capstone);
+
+  code = start_prologue;
+  size = 2048;
+  addr = GPOINTER_TO_SIZE (code);
+
+#if defined (HAVE_I386)
+  {
+    GHashTable * moves;
+    GArray * sizes;
+
+    moves = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
+
+    while (spec->start_routine_offset == 0 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      guint i = sizes->len;
+      guint16 size = insn->size;
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      g_array_append_val (sizes, size);
+
+      switch (insn->id)
+      {
+        case X86_INS_CMP:
+        {
+          const cs_x86_op * a = &x86->operands[0];
+
+          if (a->type == X86_OP_MEM && a->mem.disp >= 0x400 && a->size == 1)
+          {
+            spec->start_impl = (uint8_t *) code - insn->size;
+          }
+
+          break;
+        }
+        case X86_INS_MOV:
+        {
+          const cs_x86_op * dst = &x86->operands[0];
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (spec->start_impl != NULL &&
+              dst->type == X86_OP_REG && dst->reg == X86_REG_RDI &&
+              src->type == X86_OP_MEM)
+          {
+            spec->start_parameter_offset = src->mem.disp;
+            spec->start_routine_offset = src->mem.disp - sizeof (gpointer);
+          }
+          else if (spec->start_impl == NULL &&
+              dst->type == X86_OP_REG &&
+              src->type == X86_OP_MEM)
+          {
+            GumMoveInsn * mov = g_new (GumMoveInsn, 1);
+            mov->address = addr - insn->size;
+            mov->index = i;
+            mov->disp = src->mem.disp;
+            g_hash_table_insert (moves, GUINT_TO_POINTER (dst->reg), mov);
+          }
+
+          break;
+        }
+        case X86_INS_CALL:
+        {
+          const cs_x86_op * target = &x86->operands[0];
+
+          if (spec->start_impl != NULL && target->type == X86_OP_MEM)
+          {
+            spec->start_routine_offset = target->mem.disp;
+            spec->start_parameter_offset = target->mem.disp + sizeof (gpointer);
+          }
+          else if (spec->start_impl == NULL && target->type == X86_OP_REG)
+          {
+            GumMoveInsn * mov =
+                g_hash_table_lookup (moves, GUINT_TO_POINTER (target->reg));
+            if (mov != NULL)
+            {
+              guint hook_delta, i;
+
+              hook_delta = 0;
+              for (i = mov->index - 4; i != mov->index; i++)
+                hook_delta += g_array_index (sizes, guint16, i);
+
+              spec->start_impl = GSIZE_TO_POINTER (mov->address - hook_delta);
+              spec->start_routine_offset = mov->disp;
+              spec->start_parameter_offset = mov->disp + sizeof (gpointer);
+            }
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    g_array_unref (sizes);
+    g_hash_table_unref (moves);
+  }
+#elif defined (HAVE_ARM)
+  {
+    GArray * sizes;
+    guint insn_index;
+    guint ldrd_index = 0;
+    gpointer ldrd_location = NULL;
+    arm_reg func_reg = ARM_REG_INVALID;
+
+    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
+
+    for (insn_index = 0; spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn); insn_index++)
+    {
+      guint16 size = insn->size;
+      const cs_arm * arm = &insn->detail->arm;
+
+      g_array_append_val (sizes, size);
+
+      switch (insn->id)
+      {
+        case ARM_INS_LDRD:
+          ldrd_index = insn_index;
+          ldrd_location = (gpointer) (code - insn->size);
+          func_reg = arm->operands[0].reg;
+          spec->start_routine_offset = arm->operands[2].mem.disp;
+          spec->start_parameter_offset = spec->start_routine_offset + 4;
+          break;
+        case ARM_INS_BLX:
+          if (arm->operands[0].type == ARM_OP_REG &&
+              arm->operands[0].reg == func_reg)
+          {
+            guint hook_delta, i;
+            gpointer hook_location;
+
+            hook_delta = 0;
+            for (i = ldrd_index - 4; i != ldrd_index; i++)
+              hook_delta += g_array_index (sizes, guint16, i);
+
+            hook_location = ldrd_location - hook_delta;
+
+            spec->start_impl = is_thumb
+                ? GSIZE_TO_POINTER (GPOINTER_TO_SIZE (hook_location) | 1)
+                : hook_location;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    g_array_unref (sizes);
+  }
+#elif defined (HAVE_ARM64)
+  {
+    GHashTable * loads;
+
+    loads = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+
+    while (spec->start_routine_offset == 0 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm64 * arm64 = &insn->detail->arm64;
+
+      switch (insn->id)
+      {
+        case ARM64_INS_LDR:
+        {
+          GumLdrInsn * ldr = g_new (GumLdrInsn, 1);
+          ldr->address = addr - insn->size;
+          ldr->disp = arm64->operands[1].mem.disp;
+          g_hash_table_insert (loads, GUINT_TO_POINTER (arm64->operands[0].reg),
+              ldr);
+
+          break;
+        }
+        case ARM64_INS_BLR:
+        {
+          const cs_arm64_op * target = &arm64->operands[0];
+          GumLdrInsn * ldr;
+
+          ldr = g_hash_table_lookup (loads, GUINT_TO_POINTER (target->reg));
+          if (ldr != NULL)
+          {
+            spec->start_impl = GSIZE_TO_POINTER (ldr->address - (4 * 4));
+            spec->start_routine_offset = ldr->disp;
+            spec->start_parameter_offset = ldr->disp + sizeof (gpointer);
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    g_hash_table_unref (loads);
+  }
+#elif defined (HAVE_MIPS)
+  {
+    GHashTable * loads;
+
+    loads = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+
+    while (spec->start_routine_offset == 0 &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_mips * mips = &insn->detail->mips;
+
+      switch (insn->id)
+      {
+        case MIPS_INS_LW:
+        {
+          const cs_mips_op * dst = &mips->operands[0];
+          const cs_mips_op * src = &mips->operands[1];
+          GumLoadInsn * load;
+
+          load = g_new (GumLoadInsn, 1);
+          load->address = addr - 4;
+          load->base = src->mem.base;
+          load->disp = src->mem.disp;
+          g_hash_table_insert (loads, GUINT_TO_POINTER (dst->reg), load);
+
+          break;
+        }
+        case MIPS_INS_JALR:
+        {
+          const cs_mips_op * target = &mips->operands[0];
+
+          GumLoadInsn * load =
+              g_hash_table_lookup (loads, GUINT_TO_POINTER (target->reg));
+          if (load != NULL && load->base != MIPS_REG_GP)
+          {
+            spec->start_impl = GSIZE_TO_POINTER (load->address - (3 * 4));
+            spec->start_routine_offset = load->disp;
+            spec->start_parameter_offset = load->disp + sizeof (gpointer);
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    g_hash_table_unref (loads);
+  }
+#endif
+
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  return spec->start_routine_offset != 0;
+}
+
+static void
+glibc_lock_acquire (GumGlibcLock * lock)
+{
+  if (!__sync_bool_compare_and_swap (lock, 0, 1))
+  {
+    if (__atomic_load_n (lock, __ATOMIC_RELAXED) == 2)
+      goto wait;
+
+    while (__atomic_exchange_n (lock, 2, __ATOMIC_ACQUIRE) != 0)
+    {
+wait:
+      syscall (SYS_futex, lock, FUTEX_WAIT_PRIVATE, 2, NULL);
+    }
+  }
+}
+
+static void
+glibc_lock_release (GumGlibcLock * lock)
+{
+  if (__atomic_exchange_n (lock, 0, __ATOMIC_RELEASE) != 1)
+    syscall (SYS_futex, lock, FUTEX_WAKE_PRIVATE, 1);
+}
+
+static gint
+gum_ptr_compare (gconstpointer a,
+                 gconstpointer b)
+{
+  const gpointer * ptr_a = a;
+  const gpointer * ptr_b = b;
+
+  return GPOINTER_TO_INT (*ptr_a) - GPOINTER_TO_INT (*ptr_b);
+}
+
+#elif defined (HAVE_MUSL)
+
+void
+gum_linux_lock_pthread_list (const GumLinuxPThreadSpec * spec)
+{
+  spec->tl_lock ();
+}
+
+void
+gum_linux_unlock_pthread_list (const GumLinuxPThreadSpec * spec)
+{
+  spec->tl_unlock ();
+}
+
+static gboolean
+gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
+{
+  int main_tid;
+  GumLinuxPThread * cur;
+  GumModule * libc;
+  gpointer create_prologue;
+#ifdef HAVE_ARM
+  gboolean is_thumb;
+#endif
+  csh capstone;
+  cs_insn * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t addr;
+
+  main_tid = getpid ();
+  for (cur = (GumLinuxPThread *) pthread_self ();
+      cur->tid != main_tid;
+      cur = cur->next)
+  {
+  }
+  spec->main_thread = cur;
+
+  libc = gum_process_get_libc_module ();
+
+  create_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
+        "pthread_create"));
+
+  gum_cs_arch_register_native ();
+#ifdef HAVE_ARM
+  is_thumb = (GPOINTER_TO_SIZE (create_prologue) & 1) != 0;
+  cs_open (GUM_DEFAULT_CS_ARCH,
+      is_thumb
+        ? CS_MODE_THUMB | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN
+        : GUM_DEFAULT_CS_MODE,
+      &capstone);
+  code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (create_prologue) & ~1);
+#else
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  code = create_prologue;
+#endif
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
+
+  insn = cs_malloc (capstone);
+
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
+  size = 1024;
+  addr = GPOINTER_TO_SIZE (code);
+
+#if defined (HAVE_I386)
+  {
+    gconstpointer btr_end = NULL;
+    GPtrArray * potential_start_funcs;
+
+    potential_start_funcs = g_ptr_array_sized_new (4);
+
+    while ((spec->tl_lock == NULL || spec->start_impl == NULL) &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      switch (insn->id)
+      {
+        case X86_INS_BTR:
+          btr_end = code;
+          break;
+        case X86_INS_CALL:
+        {
+          const cs_x86_op * target = &x86->operands[0];
+          if (code - insn->size == btr_end &&
+              target->type == X86_OP_IMM)
+          {
+            spec->tl_lock = GSIZE_TO_POINTER (target->imm);
+          }
+
+          break;
+        }
+        case X86_INS_LEA:
+        {
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (src->mem.base == X86_REG_RIP)
+          {
+            g_ptr_array_add (potential_start_funcs,
+                GSIZE_TO_POINTER (addr + src->mem.disp));
+          }
+
+          break;
+        }
+        case X86_INS_CMOVE:
+          if (potential_start_funcs->len >= 2)
+          {
+            spec->start_impl = g_ptr_array_index (potential_start_funcs,
+                potential_start_funcs->len - 1);
+            spec->start_c11_impl = g_ptr_array_index (potential_start_funcs,
+                potential_start_funcs->len - 2);
+          }
+
+          break;
+        default:
+          break;
+      }
+    }
+
+    g_ptr_array_unref (potential_start_funcs);
+
+    if (spec->tl_lock == NULL)
+      goto beach;
+
+    code = (gpointer) spec->tl_lock;
+    size = 512;
+    addr = GPOINTER_TO_SIZE (code);
+    while (spec->tl_unlock == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      if (insn->id == X86_INS_RET)
+        spec->tl_unlock = (gpointer) code;
+    }
+  }
+#elif defined (HAVE_ARM64)
+  {
+    GHashTable * regvals;
+    gboolean expecting_tl_lock_call = FALSE;
+
+    regvals = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+
+    while ((spec->tl_lock == NULL || spec->start_impl == NULL) &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm64 * arm64 = &insn->detail->arm64;
+
+      switch (insn->id)
+      {
+        case ARM64_INS_AND:
+        {
+          const cs_arm64_op * val = &arm64->operands[2];
+
+          if (spec->tl_lock == NULL &&
+              val->type == ARM64_OP_IMM &&
+              val->imm == G_GUINT64_CONSTANT (0xfffffffeffffffff))
+          {
+            expecting_tl_lock_call = TRUE;
+          }
+
+          break;
+        }
+        case ARM64_INS_BL:
+        {
+          const cs_arm64_op * target = &arm64->operands[0];
+
+          if (expecting_tl_lock_call)
+          {
+            spec->tl_lock = GSIZE_TO_POINTER (target->imm);
+
+            expecting_tl_lock_call = FALSE;
+          }
+
+          break;
+        }
+        case ARM64_INS_ADRP:
+        {
+          const cs_arm64_op * dst = &arm64->operands[0];
+          const cs_arm64_op * val = &arm64->operands[1];
+
+          g_hash_table_insert (regvals, GUINT_TO_POINTER (dst->reg),
+              GSIZE_TO_POINTER (val->imm));
+
+          break;
+        }
+        case ARM64_INS_ADD:
+        {
+          const cs_arm64_op * dst = &arm64->operands[0];
+          const cs_arm64_op * n = &arm64->operands[1];
+          const cs_arm64_op * m = &arm64->operands[2];
+          gsize old_val, new_val;
+
+          old_val = GPOINTER_TO_SIZE (
+              g_hash_table_lookup (regvals, GUINT_TO_POINTER (n->reg)));
+
+          if (m->type == ARM64_OP_IMM)
+          {
+            new_val = old_val + m->imm;
+          }
+          else
+          {
+            new_val = old_val + GPOINTER_TO_SIZE (
+                g_hash_table_lookup (regvals, GUINT_TO_POINTER (m->reg)));
+          }
+
+          g_hash_table_insert (regvals, GUINT_TO_POINTER (dst->reg),
+              GSIZE_TO_POINTER (new_val));
+
+          break;
+        }
+        case ARM64_INS_CSEL:
+        {
+          const cs_arm64_op * n = &arm64->operands[1];
+          const cs_arm64_op * m = &arm64->operands[2];
+
+          spec->start_impl =
+              g_hash_table_lookup (regvals, GUINT_TO_POINTER (n->reg));
+          spec->start_c11_impl =
+              g_hash_table_lookup (regvals, GUINT_TO_POINTER (m->reg));
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    g_hash_table_unref (regvals);
+
+    if (spec->tl_lock == NULL)
+      goto beach;
+
+    code = (gpointer) spec->tl_lock;
+    size = 512;
+    addr = GPOINTER_TO_SIZE (code);
+    while (spec->tl_unlock == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      if (insn->id == ARM64_INS_RET)
+        spec->tl_unlock = (gpointer) code;
+    }
+  }
+#else
+# error FIXME
+#endif
+
+beach:
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  if (spec->tl_unlock == NULL || spec->start_impl == NULL)
+    return FALSE;
+
+  spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
+        "pthread_exit"));
+
+  return spec->terminate_impl != NULL;
+}
+
+static GumMuslStartArgs *
+gum_query_pthread_start_args (pthread_t thread,
+                              const GumLinuxPThreadSpec * spec)
+{
+  GumLinuxPThread * pth = (GumLinuxPThread *) thread;
+  guint8 * stack;
+
+  if (pth == spec->main_thread)
+    return NULL;
+
+  stack = pth->stack;
+  stack -= GPOINTER_TO_SIZE (stack) % sizeof (gpointer);
+  return (GumMuslStartArgs *) (stack - sizeof (GumMuslStartArgs));
+}
+
+#elif defined (HAVE_ANDROID)
+
+void
+gum_linux_lock_pthread_list (const GumLinuxPThreadSpec * spec)
+{
+  pthread_rwlock_rdlock (spec->thread_list_lock);
+}
+
+void
+gum_linux_unlock_pthread_list (const GumLinuxPThreadSpec * spec)
+{
+  pthread_rwlock_unlock (spec->thread_list_lock);
+}
+
+static gboolean
+gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
+{
+  GumModule * libc;
+  gpointer start_prologue;
+#ifdef HAVE_ARM
+  gboolean is_thumb;
+#endif
+  csh capstone;
+  cs_insn * insn;
+  const uint8_t * code;
+  size_t size;
+  uint64_t addr;
+
+  libc = gum_process_get_libc_module ();
+
+  spec->thread_list = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (libc,
+      "_ZL13g_thread_list"));
+  spec->thread_list_lock = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (
+        libc, "_ZL18g_thread_list_lock"));
+  if (spec->thread_list == NULL || spec->thread_list_lock == NULL)
+    return FALSE;
+
+  start_prologue = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (libc,
+        "_ZL15__pthread_startPv"));
+  if (start_prologue == NULL)
+    return FALSE;
+
+  gum_cs_arch_register_native ();
+#ifdef HAVE_ARM
+  is_thumb = (GPOINTER_TO_SIZE (start_prologue) & 1) != 0;
+  cs_open (GUM_DEFAULT_CS_ARCH,
+      is_thumb
+        ? CS_MODE_THUMB | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN
+        : GUM_DEFAULT_CS_MODE,
+      &capstone);
+  code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (start_prologue) & ~1);
+#else
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  code = start_prologue;
+#endif
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
+
+  insn = cs_malloc (capstone);
+
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
+  size = 1024;
+  addr = GPOINTER_TO_SIZE (code);
+
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_CS_XSP_REG X86_REG_ESP
+#  define GUM_CS_XBP_REG X86_REG_EBP
+# else
+#  define GUM_CS_XSP_REG X86_REG_RSP
+#  define GUM_CS_XBP_REG X86_REG_RBP
+# endif
+  {
+    GArray * sizes;
+    guint insn_index;
+    guint mov_index = 0;
+    gpointer mov_location = NULL;
+
+    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
+
+    for (insn_index = 0; spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn); insn_index++)
+    {
+      guint16 size = insn->size;
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      g_array_append_val (sizes, size);
+
+      switch (insn->id)
+      {
+        case X86_INS_MOV:
+        {
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (src->type == X86_OP_MEM &&
+              src->mem.segment == X86_REG_INVALID &&
+              src->mem.base != GUM_CS_XSP_REG &&
+              src->mem.base != GUM_CS_XBP_REG &&
+              src->mem.index == X86_REG_INVALID)
+          {
+            mov_index = insn_index;
+            mov_location = (gpointer) (code - insn->size);
+            spec->start_parameter_offset = src->mem.disp;
+          }
+
+          break;
+        }
+        case X86_INS_CALL:
+        {
+          const cs_x86_op * target = &x86->operands[0];
+
+          if (target->type == X86_OP_MEM && mov_location != NULL)
+          {
+            guint hook_delta, i;
+            gpointer hook_location;
+
+            hook_delta = 0;
+            for (i = mov_index - 2; i != mov_index; i++)
+              hook_delta += g_array_index (sizes, guint16, i);
+
+            hook_location = mov_location - hook_delta;
+
+            spec->start_impl = hook_location;
+            spec->start_routine_offset = target->mem.disp;
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    g_array_unref (sizes);
+  }
+#elif defined (HAVE_ARM)
+  {
+    GArray * sizes;
+    guint insn_index;
+    guint ldrd_index = 0;
+    gpointer ldrd_location = NULL;
+    arm_reg func_reg = ARM_REG_INVALID;
+
+    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
+
+    for (insn_index = 0; spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn); insn_index++)
+    {
+      guint16 size = insn->size;
+      const cs_arm * arm = &insn->detail->arm;
+
+      g_array_append_val (sizes, size);
+
+      switch (insn->id)
+      {
+        case ARM_INS_LDRD:
+          ldrd_index = insn_index;
+          ldrd_location = (gpointer) (code - insn->size);
+          func_reg = arm->operands[0].reg;
+          spec->start_routine_offset = arm->operands[2].mem.disp;
+          spec->start_parameter_offset = spec->start_routine_offset + 4;
+          break;
+        case ARM_INS_BLX:
+          if (arm->operands[0].type == ARM_OP_REG &&
+              arm->operands[0].reg == func_reg)
+          {
+            guint hook_delta, i;
+            gpointer hook_location;
+
+            hook_delta = 0;
+            for (i = ldrd_index - 4; i != ldrd_index; i++)
+              hook_delta += g_array_index (sizes, guint16, i);
+
+            hook_location = ldrd_location - hook_delta;
+
+            spec->start_impl = is_thumb
+                ? GSIZE_TO_POINTER (GPOINTER_TO_SIZE (hook_location) | 1)
+                : hook_location;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    g_array_unref (sizes);
+  }
+#elif defined (HAVE_ARM64)
+  {
+    gpointer ldp_location = NULL;
+    arm64_reg func_reg = ARM64_REG_INVALID;
+
+    while (spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm64 * arm64 = &insn->detail->arm64;
+
+      switch (insn->id)
+      {
+        case ARM64_INS_LDP:
+          ldp_location = (gpointer) (code - insn->size);
+          func_reg = arm64->operands[0].reg;
+          spec->start_routine_offset = arm64->operands[2].mem.disp;
+          spec->start_parameter_offset = spec->start_routine_offset + 8;
+          break;
+        case ARM64_INS_BLR:
+          if (arm64->operands[0].reg == func_reg)
+            spec->start_impl = (guint8 *) ldp_location - (4 * sizeof (guint32));
+          break;
+        default:
+          break;
+      }
+    }
+  }
+#else
+# error FIXME
+#endif
+
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  if (spec->start_impl == NULL)
+    return FALSE;
+
+  spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (libc,
+        "pthread_exit"));
+
+  return spec->terminate_impl != NULL;
+}
+
+#endif
 
 static gssize
 gum_libc_clone (GumCloneFunc child_func,

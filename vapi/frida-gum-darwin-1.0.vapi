@@ -16,7 +16,7 @@ namespace Gum.Darwin {
 	public Gum.Address find_entrypoint (Gum.DarwinPort task);
 
 	public bool modify_thread (Gum.DarwinPort thread, Gum.ModifyThreadFunc func, Gum.ModifyThreadFlags flags = NONE);
-	public void enumerate_threads (Gum.DarwinPort task, Gum.FoundThreadFunc func);
+	public void enumerate_threads (Gum.DarwinPort task, Gum.FoundThreadFunc func, Gum.ThreadFlags flags = ALL);
 	public void enumerate_modules (Gum.DarwinPort task, Gum.FoundModuleFunc func);
 	public void enumerate_ranges (Gum.DarwinPort task, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 

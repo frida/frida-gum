@@ -21,6 +21,8 @@ G_BEGIN_DECLS
 #define DYLD_IMAGE_INFO_32_SIZE 12
 #define DYLD_IMAGE_INFO_64_SIZE 24
 
+#define GUM_DARWIN_MAX_THREAD_NAME_SIZE 64
+
 typedef union _DyldInfo DyldInfo;
 typedef struct _DyldInfoLegacy DyldInfoLegacy;
 typedef struct _DyldInfo32 DyldInfo32;

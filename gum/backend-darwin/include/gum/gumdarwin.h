@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -18,7 +18,9 @@
 
 #include <TargetConditionals.h>
 #include <mach/mach.h>
+#include <os/lock.h>
 #include <sys/param.h>
+#include <sys/queue.h>
 #if TARGET_OS_OSX
 # include <mach/mach_vm.h>
 #else
@@ -133,6 +135,12 @@ typedef arm_debug_state64_t GumDarwinNativeDebugState;
 
 typedef struct _GumDarwinAllImageInfos GumDarwinAllImageInfos;
 typedef struct _GumDarwinMappingDetails GumDarwinMappingDetails;
+typedef struct _GumDarwinPThreadIter GumDarwinPThreadIter;
+typedef struct _GumDarwinPThreadSpec GumDarwinPThreadSpec;
+typedef struct _GumDarwinPThreadList GumDarwinPThreadList;
+typedef struct _GumDarwinPThread GumDarwinPThread;
+
+TAILQ_HEAD (_GumDarwinPThreadList, _GumDarwinPThread);
 
 struct _GumDarwinAllImageInfos
 {
@@ -157,6 +165,30 @@ struct _GumDarwinMappingDetails
 
   guint64 offset;
   guint64 size;
+};
+
+struct _GumDarwinPThreadIter
+{
+  gpointer node;
+  const GumDarwinPThreadSpec * spec;
+};
+
+struct _GumDarwinPThreadSpec
+{
+  struct _GumDarwinPThreadList * thread_list;
+  os_unfair_lock_t thread_list_lock;
+
+  guint mach_port_offset;
+  guint name_offset;
+  guint start_routine_offset;
+  guint start_parameter_offset;
+};
+
+struct _GumDarwinPThread
+{
+  long sig;
+  gpointer __cleanup_stack;
+  TAILQ_ENTRY (_GumDarwinPThread) tl_plist;
 };
 
 GUM_API gboolean gum_darwin_check_xnu_version (guint major, guint minor,
@@ -186,13 +218,32 @@ GUM_API GumAddress gum_darwin_find_entrypoint (mach_port_t task);
 GUM_API gboolean gum_darwin_modify_thread (mach_port_t thread,
     GumModifyThreadFunc func, gpointer user_data, GumModifyThreadFlags flags);
 GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
-    GumFoundThreadFunc func, gpointer user_data);
+    GumFoundThreadFunc func, gpointer user_data, GumThreadFlags flags);
+GUM_API void gum_darwin_pthread_iter_init (GumDarwinPThreadIter * iter,
+    const GumDarwinPThreadSpec * spec);
+GUM_API gboolean gum_darwin_pthread_iter_next (GumDarwinPThreadIter * self,
+    pthread_t * thread);
 GUM_API GumModule * gum_darwin_find_module_by_name (mach_port_t task,
     const gchar * name);
 GUM_API void gum_darwin_enumerate_modules (mach_port_t task,
     GumFoundModuleFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_ranges (mach_port_t task,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
+GUM_API gboolean gum_darwin_query_thread_state (mach_port_t thread,
+    GumThreadState * state);
+GUM_API gboolean gum_darwin_query_thread_cpu_context (mach_port_t thread,
+    GumCpuContext * ctx);
+GUM_API mach_port_t gum_darwin_query_pthread_port (pthread_t thread,
+    const GumDarwinPThreadSpec * spec);
+GUM_API const gchar * gum_darwin_query_pthread_name (pthread_t thread,
+    const GumDarwinPThreadSpec * spec);
+GUM_API gpointer gum_darwin_query_pthread_start_routine (pthread_t thread,
+    const GumDarwinPThreadSpec * spec);
+GUM_API gpointer gum_darwin_query_pthread_start_parameter (pthread_t thread,
+    const GumDarwinPThreadSpec * spec);
+GUM_API void gum_darwin_lock_pthread_list (const GumDarwinPThreadSpec * spec);
+GUM_API void gum_darwin_unlock_pthread_list (const GumDarwinPThreadSpec * spec);
+GUM_API const GumDarwinPThreadSpec * gum_darwin_query_pthread_spec (void);
 
 GUM_API gboolean gum_darwin_find_slide (GumAddress module_address,
     const guint8 * module, gsize module_size, gint64 * slide);
