@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
@@ -196,12 +196,12 @@ TESTCASE (process_threads)
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_process_enumerate_threads (thread_found_cb, &ctx);
+  gum_process_enumerate_threads (thread_found_cb, &ctx, GUM_THREAD_FLAGS_ALL);
   g_assert_cmpuint (ctx.number_of_calls, >=, 2);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_process_enumerate_threads (thread_found_cb, &ctx);
+  gum_process_enumerate_threads (thread_found_cb, &ctx, GUM_THREAD_FLAGS_ALL);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 
   done = TRUE;
@@ -222,13 +222,13 @@ TESTCASE (process_threads_exclude_cloaked)
       &done, &ctx.needle);
 
   ctx.found = FALSE;
-  gum_process_enumerate_threads (thread_check_cb, &ctx);
+  gum_process_enumerate_threads (thread_check_cb, &ctx, GUM_THREAD_FLAGS_ALL);
   g_assert_true (ctx.found);
 
   gum_cloak_add_thread (ctx.needle);
 
   ctx.found = FALSE;
-  gum_process_enumerate_threads (thread_check_cb, &ctx);
+  gum_process_enumerate_threads (thread_check_cb, &ctx, GUM_THREAD_FLAGS_ALL);
   g_assert_false (ctx.found);
 
   gum_cloak_remove_thread (ctx.needle);
@@ -250,7 +250,8 @@ TESTCASE (process_threads_should_include_name)
     return;
 
   thread = create_sleeping_dummy_thread_sync ("named", &done, &d.id);
-  gum_process_enumerate_threads (thread_collect_if_matching_id, &d);
+  gum_process_enumerate_threads (thread_collect_if_matching_id, &d,
+      GUM_THREAD_FLAGS_ALL);
 
   g_assert_cmpstr (d.name, ==, "named");
 

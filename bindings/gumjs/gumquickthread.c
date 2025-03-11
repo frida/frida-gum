@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2024 DaVinci <nstefanclaudel13@gmail.com>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -207,22 +207,60 @@ _gum_quick_thread_new (JSContext * ctx,
       GUM_QUICK_CORE_ATOM (core, id),
       JS_NewInt64 (ctx, details->id),
       JS_PROP_C_W_E);
-  if (details->name != NULL)
+
+  if ((details->flags & GUM_THREAD_FLAGS_NAME) != 0)
   {
     JS_DefinePropertyValue (ctx, thread,
         GUM_QUICK_CORE_ATOM (core, name),
         JS_NewString (ctx, details->name),
         JS_PROP_C_W_E);
   }
-  JS_DefinePropertyValue (ctx, thread,
-      GUM_QUICK_CORE_ATOM (core, state),
-      _gum_quick_thread_state_new (ctx, details->state),
-      JS_PROP_C_W_E);
-  JS_DefinePropertyValue (ctx, thread,
-      GUM_QUICK_CORE_ATOM (core, context),
-      _gum_quick_cpu_context_new (ctx, (GumCpuContext *) &details->cpu_context,
-          GUM_CPU_CONTEXT_READONLY, core, NULL),
-      JS_PROP_C_W_E);
+
+  if ((details->flags & GUM_THREAD_FLAGS_STATE) != 0)
+  {
+    JS_DefinePropertyValue (ctx, thread,
+        GUM_QUICK_CORE_ATOM (core, state),
+        _gum_quick_thread_state_new (ctx, details->state),
+        JS_PROP_C_W_E);
+  }
+
+  if ((details->flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+  {
+    JS_DefinePropertyValue (ctx, thread,
+        GUM_QUICK_CORE_ATOM (core, context),
+        _gum_quick_cpu_context_new (ctx,
+          (GumCpuContext *) &details->cpu_context, GUM_CPU_CONTEXT_READONLY,
+          core, NULL),
+        JS_PROP_C_W_E);
+  }
+
+  if ((details->flags & (GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
+          GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER)) != 0)
+  {
+    const GumThreadEntrypoint * ep = &details->entrypoint;
+    JSValue obj;
+
+    obj = JS_NewObject (ctx);
+    if ((details->flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+    {
+      JS_DefinePropertyValue (ctx, obj,
+          GUM_QUICK_CORE_ATOM (core, routine),
+          _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (ep->routine),
+            core),
+          JS_PROP_C_W_E);
+    }
+    if ((details->flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
+    {
+      JS_DefinePropertyValue (ctx, obj,
+          GUM_QUICK_CORE_ATOM (core, parameter),
+          _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (ep->parameter),
+            core),
+          JS_PROP_C_W_E);
+    }
+
+    JS_DefinePropertyValue (ctx, thread, GUM_QUICK_CORE_ATOM (core, entrypoint),
+        obj, JS_PROP_C_W_E);
+  }
 
   return thread;
 }

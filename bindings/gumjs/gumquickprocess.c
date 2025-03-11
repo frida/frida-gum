@@ -344,7 +344,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   mc.ctx = ctx;
   mc.parent = gumjs_get_parent_module (core);
 
-  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc);
+  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc,
+      GUM_THREAD_FLAGS_ALL);
 
   return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
 }

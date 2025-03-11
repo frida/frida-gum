@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -337,7 +337,8 @@ gum_wait_for_child_signal (pid_t pid,
 
 void
 _gum_process_enumerate_threads (GumFoundThreadFunc func,
-                                gpointer user_data)
+                                gpointer user_data,
+                                GumThreadFlags flags)
 {
   int mib[4];
   struct kinfo_proc * threads = NULL;
@@ -375,18 +376,34 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   for (i = 0; i != n; i++)
   {
     struct kinfo_proc * p = &threads[i];
-    GumThreadDetails details;
+    GumThreadDetails thread = { 0, };
 
-    details.id = p->ki_tid;
-    details.name = (p->ki_tdname[0] != '\0') ? p->ki_tdname : NULL;
-    details.state = gum_thread_state_from_proc (p);
-    if (!gum_process_modify_thread (details.id, gum_store_cpu_context,
-          &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
+    thread.id = p->ki_tid;
+
+    if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
     {
-      bzero (&details.cpu_context, sizeof (details.cpu_context));
+      if (p->ki_tdname[0] != '\0')
+      {
+        thread.name = p->ki_tdname;
+        thread.flags |= GUM_THREAD_FLAGS_NAME;
+      }
     }
 
-    if (!func (&details, user_data))
+    if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+    {
+      thread.state = gum_thread_state_from_proc (p);
+      thread.flags |= GUM_THREAD_FLAGS_STATE;
+    }
+
+    if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+    {
+      if (!gum_process_modify_thread (thread.id, gum_store_cpu_context,
+            &thread.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
+        continue;
+      thread.flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+    }
+
+    if (!func (&thread, user_data))
       break;
   }
 

@@ -2,7 +2,7 @@
  * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
- * Copyright (C) 2022-2024 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2022-2025 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
@@ -18,6 +18,7 @@
 #include "gummodule-darwin.h"
 #include "gummodulefacade.h"
 
+#include <capstone.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -100,8 +101,15 @@ struct _GumFindModuleByNameContext
   GumModule * module;
 };
 
+typedef enum {
+  GUM_OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION = 0x10000,
+  GUM_OS_UNFAIR_LOCK_ADAPTIVE_SPIN        = 0x40000,
+} GumUnfairLockOptions;
+
 extern int __proc_info (int callnum, int pid, int flavor, uint64_t arg,
     void * buffer, int buffersize);
+extern void os_unfair_lock_lock_with_options (os_unfair_lock_t lock,
+    GumUnfairLockOptions options);
 
 static void gum_deinit_libc_module (void);
 static void gum_do_set_hardware_breakpoint (GumDarwinNativeDebugState * ds,
@@ -125,6 +133,12 @@ static gboolean gum_try_resolve_module_by_name (GumModule * module,
     gpointer user_data);
 static gboolean gum_try_resolve_module_by_path (GumModule * module,
     gpointer user_data);
+
+static gboolean gum_compute_pthread_spec (GumDarwinPThreadSpec * spec);
+static gboolean gum_detect_pthread_basics (csh capstone, cs_insn * insn,
+    GumDarwinPThreadSpec * spec);
+static gboolean gum_detect_pthread_name_offset (csh capstone, cs_insn * insn,
+    guint * name_offset);
 
 static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
 
@@ -237,9 +251,10 @@ gum_process_modify_thread (GumThreadId thread_id,
 
 void
 _gum_process_enumerate_threads (GumFoundThreadFunc func,
-                                gpointer user_data)
+                                gpointer user_data,
+                                GumThreadFlags flags)
 {
-  gum_darwin_enumerate_threads (mach_task_self (), func, user_data);
+  gum_darwin_enumerate_threads (mach_task_self (), func, user_data, flags);
 }
 
 gboolean
@@ -1191,74 +1206,170 @@ beach:
 void
 gum_darwin_enumerate_threads (mach_port_t task,
                               GumFoundThreadFunc func,
-                              gpointer user_data)
+                              gpointer user_data,
+                              GumThreadFlags flags)
 {
   mach_port_t self;
   thread_act_array_t threads;
   mach_msg_type_number_t count;
-  kern_return_t kr;
+  GArray * entries;
+  GPtrArray * names;
+  GHashTable * pending_ports;
+  guint i;
+  GHashTableIter iter;
+  gpointer key;
 
   self = mach_task_self ();
 
-  kr = task_threads (task, &threads, &count);
-  if (kr == KERN_SUCCESS)
+  if (task_threads (task, &threads, &count) != KERN_SUCCESS)
+    return;
+
+  entries = g_array_sized_new (FALSE, FALSE, sizeof (GumThreadDetails), count);
+  names = g_ptr_array_new_full (count, g_free);
+  pending_ports = g_hash_table_new (NULL, NULL);
+  for (i = 0; i != count; i++)
+    g_hash_table_add (pending_ports, GUINT_TO_POINTER (threads[i]));
+
+  if (task == self &&
+      (flags & (GUM_THREAD_FLAGS_NAME |
+                GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
+                GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER)) != 0)
   {
-    guint i;
+    const GumDarwinPThreadSpec * spec;
+    GumDarwinPThreadIter iter;
+    pthread_t pth;
 
-    for (i = 0; i != count; i++)
+    spec = gum_darwin_query_pthread_spec ();
+
+    gum_darwin_lock_pthread_list (spec);
+
+    gum_darwin_pthread_iter_init (&iter, spec);
+    while (gum_darwin_pthread_iter_next (&iter, &pth))
     {
-      thread_t thread = threads[i];
-      GumThreadDetails details;
-      thread_basic_info_data_t info;
-      mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
-      GumDarwinUnifiedThreadState state;
-      gchar thread_name[64];
+      mach_port_t thread;
+      GumThreadDetails entry = { 0, };
+      gpointer start_routine;
 
-      kr = thread_info (thread, THREAD_BASIC_INFO, (thread_info_t) &info,
-          &info_count);
-      if (kr != KERN_SUCCESS)
-        continue;
+      thread = gum_darwin_query_pthread_port (pth, spec);
+      g_hash_table_remove (pending_ports, GUINT_TO_POINTER (thread));
 
-#ifdef HAVE_WATCHOS
-      bzero (&state, sizeof (state));
-#else
+      entry.id = thread;
+
+      if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
       {
-        mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
-        thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
-
-        kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
-            &state_count);
-        if (kr != KERN_SUCCESS)
-          continue;
-      }
-#endif
-
-      details.id = (GumThreadId) thread;
-
-      details.name = NULL;
-      if (task == self)
-      {
-        pthread_t th = pthread_from_mach_thread_np (thread);
-        if (th != NULL)
+        gchar * name = g_strdup (gum_darwin_query_pthread_name (pth, spec));
+        if (name != NULL)
         {
-          pthread_getname_np (th, thread_name, sizeof (thread_name));
-          if (thread_name[0] != '\0')
-            details.name = thread_name;
+          entry.name = name;
+          entry.flags |= GUM_THREAD_FLAGS_NAME;
+
+          g_ptr_array_add (names, name);
         }
       }
 
-      details.state = gum_thread_state_from_darwin (info.run_state);
+      if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+      {
+        if (!gum_darwin_query_thread_state (thread, &entry.state))
+          continue;
+        entry.flags |= GUM_THREAD_FLAGS_STATE;
+      }
 
-      gum_darwin_parse_unified_thread_state (&state, &details.cpu_context);
+      if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+      {
+        if (!gum_darwin_query_thread_cpu_context (thread, &entry.cpu_context))
+          continue;
+        entry.flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+      }
 
-      if (!func (&details, user_data))
-        break;
+      start_routine = gum_darwin_query_pthread_start_routine (pth, spec);
+      if (start_routine != NULL)
+      {
+        if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+        {
+          entry.entrypoint.routine = GUM_ADDRESS (start_routine);
+          entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
+        }
+
+        if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
+        {
+          entry.entrypoint.parameter = GUM_ADDRESS (
+              gum_darwin_query_pthread_start_parameter (pth, spec));
+          entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
+        }
+      }
+
+      g_array_append_val (entries, entry);
     }
 
-    for (i = 0; i != count; i++)
-      mach_port_deallocate (self, threads[i]);
-    vm_deallocate (self, (vm_address_t) threads, count * sizeof (thread_t));
+    gum_darwin_unlock_pthread_list (spec);
   }
+
+  g_hash_table_iter_init (&iter, pending_ports);
+  while (g_hash_table_iter_next (&iter, &key, NULL))
+  {
+    thread_t thread = GPOINTER_TO_UINT (key);
+    GumThreadDetails entry = { 0, };
+
+    entry.id = thread;
+
+    if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+    {
+      if (!gum_darwin_query_thread_state (thread, &entry.state))
+        continue;
+      entry.flags |= GUM_THREAD_FLAGS_STATE;
+    }
+
+    if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+    {
+      if (!gum_darwin_query_thread_cpu_context (thread, &entry.cpu_context))
+        continue;
+      entry.flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+    }
+
+    g_array_append_val (entries, entry);
+  }
+
+  for (i = 0; i != entries->len; i++)
+  {
+    GumThreadDetails * entry = &g_array_index (entries, GumThreadDetails, i);
+
+    if (!func (entry, user_data))
+      break;
+  }
+
+  g_hash_table_unref (pending_ports);
+  g_ptr_array_unref (names);
+  g_array_unref (entries);
+
+  for (i = 0; i != count; i++)
+    mach_port_deallocate (self, threads[i]);
+  vm_deallocate (self, (vm_address_t) threads, count * sizeof (thread_t));
+}
+
+void
+gum_darwin_pthread_iter_init (GumDarwinPThreadIter * iter,
+                              const GumDarwinPThreadSpec * spec)
+{
+  iter->node = NULL;
+  iter->spec = spec;
+}
+
+gboolean
+gum_darwin_pthread_iter_next (GumDarwinPThreadIter * self,
+                              pthread_t * thread)
+{
+  struct _GumDarwinPThread * pth = self->node;
+
+  if (pth != NULL)
+    pth = TAILQ_NEXT (pth, tl_plist);
+  else
+    pth = TAILQ_FIRST (self->spec->thread_list);
+  if (pth == NULL)
+    return FALSE;
+  self->node = pth;
+
+  *thread = (pthread_t) pth;
+  return TRUE;
 }
 
 GumModule *
@@ -1472,6 +1583,386 @@ _gum_darwin_clamp_range_size (GumMemoryRange * range,
         (range->size - delta + (vm_kernel_page_size - 1)) &
             ~(vm_kernel_page_size - 1));
   }
+}
+
+gboolean
+gum_darwin_query_thread_state (mach_port_t thread,
+                               GumThreadState * state)
+{
+  thread_basic_info_data_t info;
+  mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
+
+  if (thread_info (thread, THREAD_BASIC_INFO, (thread_info_t) &info,
+        &info_count) != KERN_SUCCESS)
+    return FALSE;
+
+  *state = gum_thread_state_from_darwin (info.run_state);
+  return TRUE;
+}
+
+gboolean
+gum_darwin_query_thread_cpu_context (mach_port_t thread,
+                                     GumCpuContext * ctx)
+{
+#ifdef HAVE_WATCHOS
+  bzero (ctx, sizeof (GumCpuContext));
+#else
+  GumDarwinUnifiedThreadState state;
+  mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
+
+  if (thread_get_state (thread, GUM_DARWIN_THREAD_STATE_FLAVOR,
+        (thread_state_t) &state, &state_count) != KERN_SUCCESS)
+    return FALSE;
+
+  gum_darwin_parse_unified_thread_state (&state, ctx);
+  return TRUE;
+#endif
+}
+
+mach_port_t
+gum_darwin_query_pthread_port (pthread_t thread,
+                               const GumDarwinPThreadSpec * spec)
+{
+  return *((mach_port_t *) ((guint8 *) thread + spec->mach_port_offset));
+}
+
+const gchar *
+gum_darwin_query_pthread_name (pthread_t thread,
+                               const GumDarwinPThreadSpec * spec)
+{
+  const gchar * name;
+
+  name = (char *) thread + spec->name_offset;
+  if (name[0] == '\0')
+    return NULL;
+
+  return name;
+}
+
+gpointer
+gum_darwin_query_pthread_start_routine (pthread_t thread,
+                                        const GumDarwinPThreadSpec * spec)
+{
+  return *((gpointer *) ((guint8 *) thread + spec->start_routine_offset));
+}
+
+gpointer
+gum_darwin_query_pthread_start_parameter (pthread_t thread,
+                                          const GumDarwinPThreadSpec * spec)
+{
+ return *((gpointer *) ((guint8 *) thread + spec->start_parameter_offset));
+}
+
+void
+gum_darwin_lock_pthread_list (const GumDarwinPThreadSpec * spec)
+{
+  os_unfair_lock_lock_with_options (spec->thread_list_lock,
+      GUM_OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION |
+      GUM_OS_UNFAIR_LOCK_ADAPTIVE_SPIN);
+}
+
+void
+gum_darwin_unlock_pthread_list (const GumDarwinPThreadSpec * spec)
+{
+  os_unfair_lock_unlock (spec->thread_list_lock);
+}
+
+const GumDarwinPThreadSpec *
+gum_darwin_query_pthread_spec (void)
+{
+  static GumDarwinPThreadSpec spec;
+  static gsize initialized = FALSE;
+
+  if (g_once_init_enter (&initialized))
+  {
+    if (!gum_compute_pthread_spec (&spec))
+      g_error ("Unsupported Apple system; please file a bug");
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  return &spec;
+}
+
+static gboolean
+gum_compute_pthread_spec (GumDarwinPThreadSpec * spec)
+{
+  gboolean success = FALSE;
+  csh capstone;
+  cs_insn * insn;
+
+  gum_cs_arch_register_native ();
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
+
+  insn = cs_malloc (capstone);
+
+  if (!gum_detect_pthread_basics (capstone, insn, spec))
+    goto beach;
+
+  if (!gum_detect_pthread_name_offset (capstone, insn, &spec->name_offset))
+    goto beach;
+
+  spec->start_routine_offset =
+      spec->name_offset + GUM_DARWIN_MAX_THREAD_NAME_SIZE;
+  spec->start_parameter_offset = spec->start_routine_offset + sizeof (gpointer);
+
+  success = TRUE;
+
+beach:
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  return success;
+}
+
+static gboolean
+gum_detect_pthread_basics (csh capstone,
+                           cs_insn * insn,
+                           GumDarwinPThreadSpec * spec)
+{
+  gboolean success = FALSE;
+  gpointer pfmt_prologue;
+  const uint8_t * code;
+  size_t size;
+  uint64_t addr;
+  gpointer locations[2];
+  guint num_locations;
+  guint mach_port_offset;
+
+  pfmt_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "pthread_from_mach_thread_np"));
+
+  code = gum_strip_code_pointer (pfmt_prologue);
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
+  size = 256;
+  addr = GPOINTER_TO_SIZE (code);
+
+  num_locations = 0;
+  mach_port_offset = 0;
+
+#if defined (HAVE_I386)
+  {
+    while ((num_locations != 2 || mach_port_offset == 0) &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      switch (insn->id)
+      {
+        case X86_INS_LEA:
+        {
+          const cs_x86_op * dst = &x86->operands[0];
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (num_locations == 0 &&
+              dst->reg == X86_REG_RDI &&
+              src->mem.base == X86_REG_RIP)
+          {
+            locations[num_locations++] =
+                GSIZE_TO_POINTER (addr + src->mem.disp);
+          }
+
+          break;
+        }
+        case X86_INS_MOV:
+        {
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (num_locations == 1 &&
+              src->type == X86_OP_MEM &&
+              src->mem.base == X86_REG_RIP)
+          {
+            locations[num_locations++] =
+                GSIZE_TO_POINTER (addr + src->mem.disp);
+          }
+
+          break;
+        }
+        case X86_INS_CMP:
+        {
+          const cs_x86_op * lhs = &x86->operands[0];
+          const cs_x86_op * rhs = &x86->operands[1];
+
+          if (mach_port_offset == 0 &&
+              lhs->type == X86_OP_MEM &&
+              rhs->type == X86_OP_REG)
+          {
+            mach_port_offset = lhs->mem.disp;
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM64)
+  {
+    const uint8_t * adrp_location = NULL;
+    arm64_reg adrp_reg = ARM64_REG_INVALID;
+    gsize accumulated_value = 0;
+
+    while ((num_locations != 2 || mach_port_offset == 0) &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm64 * arm64 = &insn->detail->arm64;
+
+      switch (insn->id)
+      {
+        case ARM64_INS_ADRP:
+        {
+          adrp_location = code - insn->size;
+          adrp_reg = arm64->operands[0].reg;
+          accumulated_value = arm64->operands[1].imm;
+
+          break;
+        }
+        case ARM64_INS_ADD:
+        {
+          const uint8_t * add_location = code - insn->size;
+          const cs_arm64_op * dst = &arm64->operands[0];
+          const cs_arm64_op * n = &arm64->operands[1];
+          const cs_arm64_op * m = &arm64->operands[2];
+
+          if (adrp_location != NULL &&
+              add_location - 4 == adrp_location &&
+              dst->reg == adrp_reg &&
+              n->reg == dst->reg &&
+              m->type == ARM64_OP_IMM)
+          {
+            accumulated_value += m->imm;
+          }
+
+          break;
+        }
+        case ARM64_INS_LDR:
+        {
+          const arm64_op_mem * src = &arm64->operands[1].mem;
+
+          if (mach_port_offset == 0 &&
+              src->base != ARM64_REG_SP &&
+              src->base != ARM64_REG_FP &&
+              src->index == ARM64_REG_INVALID &&
+              src->disp != 0)
+          {
+            mach_port_offset = src->disp;
+          }
+
+          break;
+        }
+        default:
+        {
+          if (num_locations != 2 && accumulated_value != 0)
+          {
+            locations[num_locations++] = GSIZE_TO_POINTER (accumulated_value);
+            accumulated_value = 0;
+          }
+
+          break;
+        }
+      }
+    }
+  }
+#else
+# error Unsupported architecture
+#endif
+
+  if (num_locations == 2)
+  {
+    spec->thread_list_lock = locations[0];
+    spec->thread_list = locations[1];
+
+    spec->mach_port_offset = mach_port_offset;
+
+    success = TRUE;
+  }
+
+  return success;
+}
+
+static gboolean
+gum_detect_pthread_name_offset (csh capstone,
+                                cs_insn * insn,
+                                guint * name_offset)
+{
+  gpointer setname_prologue;
+  const uint8_t * code;
+  size_t size;
+  uint64_t addr;
+
+  setname_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        gum_process_get_libc_module (), "pthread_setname_np"));
+
+  code = gum_strip_code_pointer (setname_prologue);
+  code += gum_interceptor_detect_hook_size (code, capstone, insn);
+  size = 512;
+  addr = GPOINTER_TO_SIZE (code);
+
+#if defined (HAVE_I386)
+  {
+    while (cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_x86 * x86 = &insn->detail->x86;
+
+      switch (insn->id)
+      {
+        case X86_INS_ADD:
+        {
+          const cs_x86_op * dst = &x86->operands[0];
+          const cs_x86_op * src = &x86->operands[1];
+
+          if (dst->type == X86_OP_REG &&
+              src->type == X86_OP_IMM)
+          {
+            *name_offset = src->imm;
+            return TRUE;
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#elif defined (HAVE_ARM64)
+  {
+    while (cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm64 * arm64 = &insn->detail->arm64;
+
+      switch (insn->id)
+      {
+        case ARM64_INS_ADD:
+        {
+          const cs_arm64_op * dst = &arm64->operands[0];
+          const cs_arm64_op * n = &arm64->operands[1];
+          const cs_arm64_op * m = &arm64->operands[2];
+
+          if (dst->reg == ARM64_REG_X0 &&
+              n->reg != ARM64_REG_SP &&
+              m->type == ARM64_OP_IMM)
+          {
+            *name_offset = m->imm;
+            return TRUE;
+          }
+
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+#else
+# error Unsupported architecture
+#endif
+
+  return FALSE;
 }
 
 gboolean

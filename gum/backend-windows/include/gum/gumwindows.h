@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,6 +20,8 @@ G_BEGIN_DECLS
 GUM_API GumCpuType gum_windows_query_native_cpu_type (void);
 GUM_API GumCpuType gum_windows_cpu_type_from_pid (guint pid, GError ** error);
 
+GUM_API gchar * gum_windows_query_thread_name (HANDLE thread);
+GUM_API GumAddress gum_windows_query_thread_entrypoint_routine (HANDLE thread);
 GUM_API void gum_windows_parse_context (const CONTEXT * context,
     GumCpuContext * cpu_context);
 GUM_API void gum_windows_unparse_context (const GumCpuContext * cpu_context,

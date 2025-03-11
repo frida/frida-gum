@@ -314,7 +314,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
       &mc.on_complete))
     return;
 
-  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc);
+  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc,
+      GUM_THREAD_FLAGS_ALL);
 
   mc.OnComplete ();
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2024 DaVinci <nstefanclaudel13@gmail.com>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -211,15 +211,40 @@ _gum_v8_thread_new (const GumThreadDetails * details,
   thread->SetInternalField (0, BigInt::NewFromUnsigned (isolate, details->id));
 
   _gum_v8_object_set (thread, "id", Number::New (isolate, details->id), core);
-  if (details->name != NULL)
+
+  if ((details->flags & GUM_THREAD_FLAGS_NAME) != 0)
+  {
     _gum_v8_object_set_utf8 (thread, "name", details->name, core);
-  _gum_v8_object_set (thread, "state", _gum_v8_string_new_ascii (isolate,
-      _gum_v8_thread_state_to_string (details->state)), core);
-  auto cpu_context =
-      _gum_v8_cpu_context_new_immutable (&details->cpu_context, core);
-  _gum_v8_object_set (thread, "context", cpu_context, core);
-  _gum_v8_cpu_context_free_later (new Global<Object> (isolate, cpu_context),
-      core);
+  }
+
+  if ((details->flags & GUM_THREAD_FLAGS_STATE) != 0)
+  {
+    _gum_v8_object_set (thread, "state", _gum_v8_string_new_ascii (isolate,
+        _gum_v8_thread_state_to_string (details->state)), core);
+  }
+
+  if ((details->flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+  {
+    auto cpu_context =
+        _gum_v8_cpu_context_new_immutable (&details->cpu_context, core);
+    _gum_v8_object_set (thread, "context", cpu_context, core);
+    _gum_v8_cpu_context_free_later (new Global<Object> (isolate, cpu_context),
+        core);
+  }
+
+  if ((details->flags & (GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
+          GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER)) != 0)
+  {
+    const GumThreadEntrypoint * ep = &details->entrypoint;
+
+    auto obj = Object::New (isolate);
+    if ((details->flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+      _gum_v8_object_set_pointer (obj, "routine", ep->routine, core);
+    if ((details->flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
+      _gum_v8_object_set_pointer (obj, "parameter", ep->parameter, core);
+
+    _gum_v8_object_set (thread, "entrypoint", obj, core);
+  }
 
   return thread;
 }
