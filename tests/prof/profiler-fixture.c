@@ -280,19 +280,19 @@ exclude_simple_stdcall_50 (const gchar * match,
   return strcmp (match, "simple_stdcall_50") != 0;
 }
 
-GUM_HOOK_TARGET GUM_CDECL static void
+GUM_HOOK_TARGET static void GUM_CDECL
 simple_cdecl_42 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 42);
 }
 
-GUM_HOOK_TARGET GUM_STDCALL static void
+GUM_HOOK_TARGET static void GUM_STDCALL
 simple_stdcall_48 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 48);
 }
 
-GUM_HOOK_TARGET GUM_STDCALL static void
+GUM_HOOK_TARGET static void GUM_STDCALL
 simple_stdcall_50 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 50);
