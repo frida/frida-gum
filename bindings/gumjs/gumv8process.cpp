@@ -593,16 +593,19 @@ gum_v8_module_observer_destroy (GumV8ModuleObserver * self)
 {
   auto registry = gum_module_registry_obtain ();
 
-  if (self->added_handler != 0)
+  gulong * handlers[] = {
+    &self->added_handler,
+    &self->removed_handler,
+  };
+  for (guint i = 0; i != G_N_ELEMENTS (handlers); i++)
   {
-    g_signal_handler_disconnect (registry, self->added_handler);
-    self->added_handler = 0;
-  }
+    gulong * handler = handlers[i];
 
-  if (self->removed_handler != 0)
-  {
-    g_signal_handler_disconnect (registry, self->removed_handler);
-    self->removed_handler = 0;
+    if (*handler != 0)
+    {
+      g_signal_handler_disconnect (registry, *handler);
+      *handler = 0;
+    }
   }
 
   gum_v8_module_observer_unref (self);
