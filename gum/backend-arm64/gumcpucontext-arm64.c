@@ -12,11 +12,11 @@ gum_cpu_context_get_nth_argument (GumCpuContext * self,
 {
   if (n < 8)
   {
-    return (gpointer) self->x[n];
+    return GSIZE_TO_POINTER (self->x[n]);
   }
   else
   {
-    gpointer * stack_argument = (gpointer *) self->sp;
+    gpointer * stack_argument = GSIZE_TO_POINTER (self->sp);
 
     return stack_argument[n - 8];
   }
@@ -29,11 +29,11 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
 {
   if (n < 8)
   {
-    self->x[n] = (guint64) value;
+    self->x[n] = GPOINTER_TO_SIZE (value);
   }
   else
   {
-    gpointer * stack_argument = (gpointer *) self->sp;
+    gpointer * stack_argument = GSIZE_TO_POINTER (self->sp);
 
     stack_argument[n - 8] = value;
   }
@@ -42,12 +42,12 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
 gpointer
 gum_cpu_context_get_return_value (GumCpuContext * self)
 {
-  return (gpointer) self->x[0];
+  return GSIZE_TO_POINTER (self->x[0]);
 }
 
 void
 gum_cpu_context_replace_return_value (GumCpuContext * self,
                                       gpointer value)
 {
-  self->x[0] = (guint64) value;
+  self->x[0] = GPOINTER_TO_SIZE (value);
 }

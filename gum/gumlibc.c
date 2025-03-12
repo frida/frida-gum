@@ -19,7 +19,7 @@ gum_memset (gpointer dst,
   return dst;
 }
 
-#if defined (_MSC_VER) || !defined (HAVE_ARM64)
+#if defined (_MSC_VER) || !(defined (HAVE_ARM64) && defined (__LP64__))
 
 gpointer
 gum_memcpy (gpointer dst,
