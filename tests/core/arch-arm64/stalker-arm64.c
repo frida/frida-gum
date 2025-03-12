@@ -1085,7 +1085,7 @@ TESTCASE (exclude_bl)
       code_template, sizeof (code_template));
 
   func_a_address = fixture->code + (16 * 4);
-  memory_range.base_address = (GumAddress) func_a_address;
+  memory_range.base_address = GUM_ADDRESS (func_a_address);
   memory_range.size = 4 * 2;
   gum_stalker_exclude (fixture->stalker, &memory_range);
 

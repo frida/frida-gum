@@ -47,7 +47,11 @@
 #define GUM_RESTORATION_PROLOG_SIZE        4
 #define GUM_EXCLUSIVE_ACCESS_MAX_DEPTH     8
 
-#define GUM_IC_MAGIC_EMPTY                 0xbaadd00ddeadface
+#if defined (__LP64__) || defined (_WIN64)
+# define GUM_IC_MAGIC_EMPTY         G_GUINT64_CONSTANT (0xbaadd00ddeadface)
+#else
+# define GUM_IC_MAGIC_EMPTY         0xbaadd00dU
+#endif
 
 #define GUM_INSTRUCTION_OFFSET_NONE (-1)
 
@@ -487,7 +491,7 @@ extern _Unwind_Reason_Code __gxx_personality_v0 (int version,
     _Unwind_Exception * unwind_exception, _Unwind_Context * context)
     __attribute__ ((weak));
 extern const void * _Unwind_Find_FDE (const void * pc, struct dwarf_eh_bases *);
-extern unsigned long _Unwind_GetIP (struct _Unwind_Context *);
+extern _Unwind_Ptr _Unwind_GetIP (struct _Unwind_Context *);
 
 static void gum_stalker_ensure_unwind_apis_instrumented (void);
 static void gum_stalker_deinit_unwind_apis_instrumentation (void);

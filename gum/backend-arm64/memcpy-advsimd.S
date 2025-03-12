@@ -11,7 +11,7 @@
  * ARMv8-a, AArch64, Advanced SIMD, unaligned accesses.
  *
  */
-
+#if defined (__LP64__) || defined (_WIN64)
 #include "asmdefs.h"
 
 #define dstin	x0
@@ -201,3 +201,4 @@ L(copy64_from_start):
 	ret
 
 END gum_memcpy
+#endif
