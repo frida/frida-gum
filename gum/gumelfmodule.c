@@ -2414,45 +2414,65 @@ static guint16
 gum_elf_module_read_uint16 (GumElfModule * self,
                             const guint16 * v)
 {
+  guint16 aligned_val;
+
+  memcpy (&aligned_val, v, sizeof (aligned_val));
+
   return (self->ehdr.identity.data_encoding == GUM_ELF_DATA_ENCODING_LSB)
-      ? GUINT16_FROM_LE (*v)
-      : GUINT16_FROM_BE (*v);
+      ? GUINT16_FROM_LE (aligned_val)
+      : GUINT16_FROM_BE (aligned_val);
 }
 
 static gint32
 gum_elf_module_read_int32 (GumElfModule * self,
                            const gint32 * v)
 {
+  gint32 aligned_val;
+
+  memcpy (&aligned_val, v, sizeof (aligned_val));
+
   return (self->ehdr.identity.data_encoding == GUM_ELF_DATA_ENCODING_LSB)
-      ? GINT32_FROM_LE (*v)
-      : GINT32_FROM_BE (*v);
+      ? GINT32_FROM_LE (aligned_val)
+      : GINT32_FROM_BE (aligned_val);
 }
 
 static guint32
 gum_elf_module_read_uint32 (GumElfModule * self,
                             const guint32 * v)
 {
+  guint32 aligned_val;
+
+  memcpy (&aligned_val, v, sizeof (aligned_val));
+
   return (self->ehdr.identity.data_encoding == GUM_ELF_DATA_ENCODING_LSB)
-      ? GUINT32_FROM_LE (*v)
-      : GUINT32_FROM_BE (*v);
+      ? GUINT32_FROM_LE (aligned_val)
+      : GUINT32_FROM_BE (aligned_val);
 }
 
 static gint64
 gum_elf_module_read_int64 (GumElfModule * self,
                            const gint64 * v)
 {
+  gint64 aligned_val;
+
+  memcpy (&aligned_val, v, sizeof (aligned_val));
+
   return (self->ehdr.identity.data_encoding == GUM_ELF_DATA_ENCODING_LSB)
-      ? GINT64_FROM_LE (*v)
-      : GINT64_FROM_BE (*v);
+      ? GINT64_FROM_LE (aligned_val)
+      : GINT64_FROM_BE (aligned_val);
 }
 
 static guint64
 gum_elf_module_read_uint64 (GumElfModule * self,
                             const guint64 * v)
 {
+  guint64 aligned_val;
+
+  memcpy (&aligned_val, v, sizeof (aligned_val));
+
   return (self->ehdr.identity.data_encoding == GUM_ELF_DATA_ENCODING_LSB)
-      ? GUINT64_FROM_LE (*v)
-      : GUINT64_FROM_BE (*v);
+      ? GUINT64_FROM_LE (aligned_val)
+      : GUINT64_FROM_BE (aligned_val);
 }
 
 static GBytes *
