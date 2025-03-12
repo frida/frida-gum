@@ -138,7 +138,8 @@ print_thread (const GumThreadDetails * thread,
 static gpointer
 hello_proc (gpointer data)
 {
-  g_thread_unref (g_thread_new ("hello2", hello2_proc, GSIZE_TO_POINTER (1337)));
+  g_thread_unref (
+      g_thread_new ("hello2", hello2_proc, GSIZE_TO_POINTER (1337)));
 
   while (TRUE)
   {
