@@ -134,7 +134,6 @@ union _GumEvent
 gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);
 void gum_stalker_iterator_keep (GumStalkerIterator * self);
-void gum_stalker_iterator_set_block_debug(GumStalkerIterator *self);
 GumMemoryAccess gum_stalker_iterator_get_memory_access (
     GumStalkerIterator * self);
 void gum_stalker_iterator_put_callout (GumStalkerIterator * self,

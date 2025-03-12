@@ -231,7 +231,6 @@ GUM_API void gum_stalker_transformer_transform_block (
 GUM_API gboolean gum_stalker_iterator_next (GumStalkerIterator * self,
     const cs_insn ** insn);
 GUM_API void gum_stalker_iterator_keep (GumStalkerIterator * self);
-GUM_API void gum_stalker_iterator_set_block_debug(GumStalkerIterator *self);
 GUM_API GumMemoryAccess gum_stalker_iterator_get_memory_access (
     GumStalkerIterator * self);
 GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,

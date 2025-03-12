@@ -114,7 +114,6 @@ GUMJS_DECLARE_FINALIZER (gumjs_default_iterator_finalize)
 GUMJS_DECLARE_GETTER (gumjs_default_iterator_get_memory_access)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_keep)
-GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_set_block_debug)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_put_callout)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_put_chaining_return)
 
@@ -126,7 +125,6 @@ GUMJS_DECLARE_FINALIZER (gumjs_special_iterator_finalize)
 GUMJS_DECLARE_GETTER (gumjs_special_iterator_get_memory_access)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_keep)
-GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_block_debug_mark)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_put_callout)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_put_chaining_return)
 
@@ -206,7 +204,6 @@ static const JSCFunctionListEntry gumjs_default_iterator_entries[] =
   JS_CFUNC_DEF ("putCallout", 0, gumjs_default_iterator_put_callout),
   JS_CFUNC_DEF ("putChainingReturn", 0,
       gumjs_default_iterator_put_chaining_return),
-  JS_CFUNC_DEF ("_setBlockDebug", 0, gumjs_default_iterator_set_block_debug),
 };
 
 static const JSClassDef gumjs_special_iterator_def =
@@ -224,7 +221,6 @@ static const JSCFunctionListEntry gumjs_special_iterator_entries[] =
   JS_CFUNC_DEF ("putCallout", 0, gumjs_special_iterator_put_callout),
   JS_CFUNC_DEF ("putChainingReturn", 0,
       gumjs_special_iterator_put_chaining_return),
-  JS_CFUNC_DEF ("_setBlockDebug", 0, gumjs_special_iterator_block_debug_mark),
 };
 
 static const JSClassExoticMethods gumjs_probe_args_exotic_methods =
@@ -983,15 +979,6 @@ gum_quick_stalker_iterator_next (GumQuickIterator * self,
 }
 
 static JSValue
-gum_quick_stalker_iterator_block_debug_mark (GumQuickIterator *self,
-                                JSContext *ctx)
-{
-  gum_stalker_iterator_set_block_debug(self->handle);
-
-  return JS_UNDEFINED;
-}
-
-static JSValue
 gum_quick_stalker_iterator_keep (GumQuickIterator * self,
                                  JSContext * ctx)
 {
@@ -1143,16 +1130,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_default_iterator_next)
   return gum_quick_stalker_iterator_next (&self->iterator, ctx);
 }
 
-GUMJS_DEFINE_FUNCTION(gumjs_default_iterator_set_block_debug)
-{
-  GumQuickDefaultIterator *self;
-
-  if (!gum_quick_default_iterator_get(ctx, this_val, core, &self))
-    return JS_EXCEPTION;
-
-  return gum_quick_stalker_iterator_block_debug_mark(&self->iterator, ctx);
-}
-
 GUMJS_DEFINE_FUNCTION (gumjs_default_iterator_keep)
 {
   GumQuickDefaultIterator * self;
@@ -1280,16 +1257,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_special_iterator_next)
     return JS_EXCEPTION;
 
   return gum_quick_stalker_iterator_next (&self->iterator, ctx);
-}
-
-GUMJS_DEFINE_FUNCTION(gumjs_special_iterator_block_debug_mark)
-{
-  GumQuickSpecialIterator *self;
-
-  if (!gum_quick_special_iterator_get(ctx, this_val, core, &self))
-    return JS_EXCEPTION;
-
-  return gum_quick_stalker_iterator_block_debug_mark(&self->iterator, ctx);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_special_iterator_keep)

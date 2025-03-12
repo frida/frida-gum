@@ -43,9 +43,6 @@
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
 
-#define GUM_EXEC_BLOCK_TEST_DEBUG_FLAGS(block) \
-  ((gum_exec_block_get_active_block(block)->flags & GUM_EXEC_BLOCK_DEBUG_MARK)!=0)
-
 typedef struct _GumInfectContext GumInfectContext;
 typedef struct _GumDisinfectContext GumDisinfectContext;
 typedef struct _GumActivation GumActivation;
@@ -246,8 +243,6 @@ enum _GumExecBlockFlags
   GUM_EXEC_BLOCK_HAS_EXCLUSIVE_LOAD    = 1 << 2,
   GUM_EXEC_BLOCK_HAS_EXCLUSIVE_STORE   = 1 << 3,
   GUM_EXEC_BLOCK_USES_EXCLUSIVE_ACCESS = 1 << 4,
-
-  GUM_EXEC_BLOCK_DEBUG_MARK            = 1 << 10,  
 };
 
 struct _GumExecFrame
@@ -2633,13 +2628,6 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
       gc->instruction->end - block->real_start);
 
   return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size;
-}
-
-void 
-gum_stalker_iterator_set_block_debug(GumStalkerIterator *self)
-{
-  GumExecBlock *block = self->exec_block;
-  block->flags |= GUM_EXEC_BLOCK_DEBUG_MARK;
 }
 
 void
