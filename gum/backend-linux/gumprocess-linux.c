@@ -1917,6 +1917,17 @@ gum_linux_cpu_type_from_auxv (gconstpointer auxv,
   GumCpuType cpu32, cpu64;
   gsize i;
 
+  /*
+   * If we are building for ILP32, then the logic below doesn't work since
+   * although our target process is 64-bit, the address space is constrained
+   * to 32-bits. Thus, none of the high bits will be set. On this platform,
+   * however, we only support ILP32 processes and so we can assume that they
+   * are all 64-bit.
+   */
+#if defined (HAVE_ARM64) && !(defined (__LP64__) || defined (_WIN64))
+  return GUM_CPU_ARM64;
+#endif
+
 #if defined (HAVE_I386)
   cpu32 = GUM_CPU_IA32;
   cpu64 = GUM_CPU_AMD64;
