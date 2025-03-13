@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -84,7 +84,8 @@ TESTCASE (full_cycle_with_interceptor)
 #endif
 
   gum_interceptor_attach (interceptor, open_impl,
-      GUM_INVOCATION_LISTENER (collector), NULL);
+      GUM_INVOCATION_LISTENER (collector), NULL,
+      GUM_ATTACH_FLAGS_NONE);
 
   g_assert_cmpuint (collector->last_on_enter.len, ==, 0);
   g_assert_cmpuint (collector->last_on_leave.len, ==, 0);

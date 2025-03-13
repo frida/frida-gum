@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021 Francesco Tamagni <mrmacete@protonmail.ch>
- * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -65,7 +65,8 @@ gum_objc_dispose_class_pair_monitor_init (GumObjcDisposeClassPairMonitor * self)
 
   self->interceptor = gum_interceptor_obtain ();
   gum_interceptor_attach (self->interceptor, dispose_impl,
-      GUM_INVOCATION_LISTENER (self), NULL);
+      GUM_INVOCATION_LISTENER (self), NULL,
+      GUM_ATTACH_FLAGS_NONE);
 }
 
 static void

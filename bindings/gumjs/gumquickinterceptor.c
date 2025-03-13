@@ -554,7 +554,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   listener->parent = self;
 
   attach_ret = gum_interceptor_attach (self->interceptor, target,
-      GUM_INVOCATION_LISTENER (listener), listener_function_data);
+      GUM_INVOCATION_LISTENER (listener), listener_function_data,
+      GUM_ATTACH_FLAGS_NONE);
 
   if (attach_ret != GUM_ATTACH_OK)
     goto unable_to_attach;
