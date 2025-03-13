@@ -491,7 +491,11 @@ extern _Unwind_Reason_Code __gxx_personality_v0 (int version,
     _Unwind_Exception * unwind_exception, _Unwind_Context * context)
     __attribute__ ((weak));
 extern const void * _Unwind_Find_FDE (const void * pc, struct dwarf_eh_bases *);
+#if defined (HAVE_ARM64) && !(defined (__LP64__) || defined (_WIN64))
 extern _Unwind_Ptr _Unwind_GetIP (struct _Unwind_Context *);
+#else
+extern unsigned long _Unwind_GetIP (struct _Unwind_Context *);
+#endif
 
 static void gum_stalker_ensure_unwind_apis_instrumented (void);
 static void gum_stalker_deinit_unwind_apis_instrumentation (void);
