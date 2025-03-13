@@ -120,9 +120,9 @@ gum_hook_loader (GumModuleRegistry * registry)
 
   gum_interceptor_begin_transaction (gum_ldr_interceptor);
   gum_interceptor_attach (gum_ldr_interceptor, load_impl, gum_load_handler,
-      NULL, GUM_ATTACH_FLAGS_NONE);
+      NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
   gum_interceptor_attach (gum_ldr_interceptor, unload_impl, gum_unload_handler,
-      NULL, GUM_ATTACH_FLAGS_NONE);
+      NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
   gum_interceptor_end_transaction (gum_ldr_interceptor);
 }
 
