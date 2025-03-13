@@ -58,7 +58,6 @@ jobs:
           - { id: macos-arm64,    runner: '"macos-latest"'                      }
           - { id: linux-x86_64,   runner: '"ubuntu-latest"'                     }
           - { id: linux-x86,      runner: '"ubuntu-latest"'                     }
-          - { id: freebsd-arm64,  runner: '["self-hosted", "freebsd", "arm64"]' }
       fail-fast: false
     runs-on: ${{ fromJSON(matrix.runner) }}
     steps:
