@@ -642,7 +642,6 @@ static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static void gum_exec_block_maybe_create_new_code_slabs (GumExecCtx * ctx);
 static void gum_exec_block_maybe_create_new_data_slab (GumExecCtx * ctx);
 static void gum_exec_block_clear (GumExecBlock * block);
-static void gum_exec_block_unlink_block_list (GumExecCtx *ctx, GumExecBlock *block);
 static gconstpointer gum_exec_block_check_address_for_exclusion (
     GumExecBlock * block, gconstpointer address);
 static void gum_exec_block_commit (GumExecBlock * block);
@@ -2635,8 +2634,6 @@ gum_exec_ctx_recompile_block (GumExecCtx * ctx,
 
   gum_spinlock_acquire (&ctx->code_lock);
 
-  gum_exec_block_unlink_block_list(ctx, block);
-  
   new_block = gum_exec_block_new(ctx);
   new_block->real_start = real_address;
   gum_exec_block_maybe_inherit_exclusive_access_state(new_block, new_block->next);
@@ -3897,19 +3894,6 @@ gum_exec_block_clear (GumExecBlock * block)
   block->storage_block = NULL;
 }
 
-static void
-gum_exec_block_unlink_block_list (GumExecCtx *ctx,
-                                  GumExecBlock *block)
-{
-  for (GumExecBlock *cur = ctx->block_list; cur != NULL; cur = cur->next)
-  {
-    if (cur->next == block)
-    {
-      cur->next = block->next;
-      break;
-    }
-  }
-}
 
 static gconstpointer
 gum_exec_block_check_address_for_exclusion (GumExecBlock * block,
