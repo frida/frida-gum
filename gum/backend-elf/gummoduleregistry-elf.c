@@ -121,7 +121,7 @@ gum_hook_rtld_notifier (const GumRtldNotifierDetails * details,
   }
 
   gum_interceptor_attach (gum_rtld_interceptor, impl + offset,
-      *handler, NULL, GUM_ATTACH_FLAGS_NONE);
+      *handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
 }
 
 static void

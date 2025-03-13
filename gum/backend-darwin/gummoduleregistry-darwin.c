@@ -77,7 +77,7 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 
     gum_interceptor_attach (gum_dyld_interceptor,
         (gpointer) (notification_impl + offset), gum_dyld_handler, NULL,
-        GUM_ATTACH_FLAGS_NONE);
+        GUM_ATTACH_FLAGS_UNIGNORABLE);
 
     do
     {
