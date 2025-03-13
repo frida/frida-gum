@@ -284,7 +284,7 @@ gum_symbol_cache_invalidator_init (GumSymbolCacheInvalidator * self)
     gum_interceptor_attach (self->interceptor,
         (gpointer) (notification_impl + offset),
         GUM_INVOCATION_LISTENER (self), NULL,
-        GUM_ATTACH_FLAGS_NONE);
+        GUM_ATTACH_FLAGS_UNIGNORABLE);
   }
   else if (g_once_init_enter (&registered))
   {
