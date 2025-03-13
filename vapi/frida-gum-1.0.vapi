@@ -149,7 +149,8 @@ namespace Gum {
 	public class Interceptor : GLib.Object {
 		public static Interceptor obtain ();
 
-		public Gum.AttachReturn attach (void * function_address, Gum.InvocationListener listener, void * listener_function_data = null);
+		public Gum.AttachReturn attach (void * function_address, Gum.InvocationListener listener,
+			void * listener_function_data = null, Gum.AttachFlags flags = NONE);
 		public void detach (Gum.InvocationListener listener);
 
 		public Gum.ReplaceReturn replace (void * function_address, void * replacement_function, void * replacement_data = null,
@@ -725,6 +726,12 @@ namespace Gum {
 		public unowned string symbol_name;
 		public unowned string file_name;
 		public uint line_number;
+	}
+
+	[Flags]
+	public enum AttachFlags {
+		NONE,
+		UNIGNORABLE,
 	}
 
 	[CCode (cprefix = "GUM_ATTACH_")]

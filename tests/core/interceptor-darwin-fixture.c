@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -119,7 +119,8 @@ interceptor_fixture_try_attach (TestInterceptorFixture * h,
   ctx->leave_char = leave_char;
 
   result = gum_interceptor_attach (h->interceptor, test_func,
-      GUM_INVOCATION_LISTENER (ctx->listener), NULL);
+      GUM_INVOCATION_LISTENER (ctx->listener), NULL,
+      GUM_ATTACH_FLAGS_NONE);
   if (result == GUM_ATTACH_OK)
   {
     h->listener_context[listener_index] = ctx;

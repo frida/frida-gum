@@ -228,7 +228,8 @@ gum_call_count_sampler_add_function (GumCallCountSampler * self,
                                      gpointer function)
 {
   gum_interceptor_attach (self->interceptor, function,
-      GUM_INVOCATION_LISTENER (self), NULL);
+      GUM_INVOCATION_LISTENER (self), NULL,
+      GUM_ATTACH_FLAGS_NONE);
 }
 
 GumSample

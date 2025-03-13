@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -283,7 +283,8 @@ gum_symbol_cache_invalidator_init (GumSymbolCacheInvalidator * self)
 
     gum_interceptor_attach (self->interceptor,
         (gpointer) (notification_impl + offset),
-        GUM_INVOCATION_LISTENER (self), NULL);
+        GUM_INVOCATION_LISTENER (self), NULL,
+        GUM_ATTACH_FLAGS_NONE);
   }
   else if (g_once_init_enter (&registered))
   {

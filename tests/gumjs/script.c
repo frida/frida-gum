@@ -7839,7 +7839,8 @@ interceptor_attacher_worker (gpointer data)
   for (i = 0; i != 300; i++)
   {
     result = gum_interceptor_attach (interceptor, target_function_int,
-        GUM_INVOCATION_LISTENER (listener), NULL);
+        GUM_INVOCATION_LISTENER (listener), NULL,
+        GUM_ATTACH_FLAGS_NONE);
     if (result == GUM_ATTACH_OK)
     {
       g_usleep (G_USEC_PER_SEC / 25);

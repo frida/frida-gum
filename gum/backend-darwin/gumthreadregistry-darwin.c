@@ -54,7 +54,7 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   gum_interceptor_attach (gum_thread_interceptor,
       GSIZE_TO_POINTER (gum_module_find_export_by_name (
           gum_process_get_libc_module (), "pthread_setname_np")),
-      gum_rename_handler, NULL);
+      gum_rename_handler, NULL, GUM_ATTACH_FLAGS_NONE);
 
   gum_darwin_pthread_iter_init (&iter, gum_pthread);
   while (gum_darwin_pthread_iter_next (&iter, &thread))

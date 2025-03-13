@@ -44,7 +44,8 @@ namespace Gum
       }
       g_mutex_unlock (&mutex);
 
-      GumAttachReturn attach_ret = gum_interceptor_attach (handle, function_address, GUM_INVOCATION_LISTENER (proxy->get_handle ()), listener_function_data);
+      GumAttachReturn attach_ret = gum_interceptor_attach (handle, function_address, GUM_INVOCATION_LISTENER (proxy->get_handle ()),
+          listener_function_data, GUM_ATTACH_FLAGS_NONE);
       return (attach_ret == GUM_ATTACH_OK);
     }
 

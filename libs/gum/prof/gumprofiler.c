@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -374,7 +374,7 @@ gum_profiler_instrument_function_with_inspector (
   ctx = g_new0 (GumFunctionContext, 1);
 
   attach_ret = gum_interceptor_attach (self->interceptor, function_address,
-      GUM_INVOCATION_LISTENER (self), ctx);
+      GUM_INVOCATION_LISTENER (self), ctx, GUM_ATTACH_FLAGS_NONE);
   if (attach_ret != GUM_ATTACH_OK)
     goto error;
 

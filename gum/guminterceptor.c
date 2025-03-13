@@ -102,6 +102,7 @@ struct _ListenerEntry
   GumInvocationListenerInterface * listener_interface;
   GumInvocationListener * listener_instance;
   gpointer function_data;
+  gboolean unignorable;
 };
 
 struct _InterceptorThreadContext
@@ -125,6 +126,7 @@ struct _GumInvocationStackEntry
   guint8 listener_invocation_data[GUM_MAX_LISTENERS_PER_FUNCTION]
       [GUM_MAX_LISTENER_DATA];
   gboolean calling_replacement;
+  gboolean only_invoke_unignorable_listeners;
   gint original_system_error;
 };
 
@@ -186,7 +188,7 @@ static gboolean gum_function_context_is_empty (
     GumFunctionContext * function_ctx);
 static void gum_function_context_add_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener,
-    gpointer function_data);
+    gpointer function_data, gboolean unignorable);
 static void gum_function_context_remove_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener);
 static void listener_entry_free (ListenerEntry * entry);
@@ -212,7 +214,7 @@ static void interceptor_thread_context_forget_listener_data (
     InterceptorThreadContext * self, GumInvocationListener * listener);
 static GumInvocationStackEntry * gum_invocation_stack_push (
     GumInvocationStack * stack, GumFunctionContext * function_ctx,
-    gpointer caller_ret_addr);
+    gpointer caller_ret_addr, gboolean only_invoke_unignorable_listeners);
 static gpointer gum_invocation_stack_pop (GumInvocationStack * stack);
 static GumInvocationStackEntry * gum_invocation_stack_peek_top (
     GumInvocationStack * stack);
@@ -355,7 +357,8 @@ GumAttachReturn
 gum_interceptor_attach (GumInterceptor * self,
                         gpointer function_address,
                         GumInvocationListener * listener,
-                        gpointer listener_function_data)
+                        gpointer listener_function_data,
+                        GumAttachFlags flags)
 {
   GumAttachReturn result = GUM_ATTACH_OK;
   GumFunctionContext * function_ctx;
@@ -378,7 +381,7 @@ gum_interceptor_attach (GumInterceptor * self,
     goto already_attached;
 
   gum_function_context_add_listener (function_ctx, listener,
-      listener_function_data);
+      listener_function_data, (flags & GUM_ATTACH_FLAGS_UNIGNORABLE) != 0);
 
   goto beach;
 
@@ -1331,7 +1334,8 @@ gum_function_context_is_empty (GumFunctionContext * function_ctx)
 static void
 gum_function_context_add_listener (GumFunctionContext * function_ctx,
                                    GumInvocationListener * listener,
-                                   gpointer function_data)
+                                   gpointer function_data,
+                                   gboolean unignorable)
 {
   ListenerEntry * entry;
   GPtrArray * old_entries, * new_entries;
@@ -1341,6 +1345,7 @@ gum_function_context_add_listener (GumFunctionContext * function_ctx,
   entry->listener_interface = GUM_INVOCATION_LISTENER_GET_IFACE (listener);
   entry->listener_instance = listener;
   entry->function_data = function_data;
+  entry->unignorable = unignorable;
 
   old_entries =
       (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
@@ -1360,9 +1365,10 @@ gum_function_context_add_listener (GumFunctionContext * function_ctx,
       (GDestroyNotify) g_ptr_array_unref, old_entries);
 
   if (entry->listener_interface->on_leave != NULL)
-  {
     function_ctx->has_on_leave_listener = TRUE;
-  }
+
+  if (unignorable)
+    function_ctx->has_unignorable_listener = TRUE;
 }
 
 static void
@@ -1376,7 +1382,7 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
                                       GumInvocationListener * listener)
 {
   ListenerEntry ** slot;
-  gboolean has_on_leave_listener;
+  gboolean has_on_leave_listener, has_unignorable_listener;
   GPtrArray * listener_entries;
   guint i;
 
@@ -1386,18 +1392,24 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
   *slot = NULL;
 
   has_on_leave_listener = FALSE;
+  has_unignorable_listener = FALSE;
   listener_entries =
       (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
   for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry * entry = g_ptr_array_index (listener_entries, i);
-    if (entry != NULL && entry->listener_interface->on_leave != NULL)
-    {
+
+    if (entry == NULL)
+      continue;
+
+    if (entry->listener_interface->on_leave != NULL)
       has_on_leave_listener = TRUE;
-      break;
-    }
+
+    if (entry->unignorable)
+      has_unignorable_listener = TRUE;
   }
   function_ctx->has_on_leave_listener = has_on_leave_listener;
+  function_ctx->has_unignorable_listener = has_unignorable_listener;
 }
 
 static gboolean
@@ -1460,6 +1472,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   GumInvocationContext * invocation_ctx = NULL;
   gint system_error;
   gboolean invoke_listeners = TRUE;
+  gboolean only_invoke_unignorable_listeners = FALSE;
   gboolean will_trap_on_leave = FALSE;
 
   g_atomic_int_inc (&function_ctx->trampoline_usage_counter);
@@ -1507,18 +1520,24 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     invoke_listeners = (interceptor_ctx->ignore_level <= 0);
   }
 
+  if (!invoke_listeners && function_ctx->has_unignorable_listener)
+  {
+    invoke_listeners = TRUE;
+    only_invoke_unignorable_listeners = TRUE;
+  }
+
   will_trap_on_leave = function_ctx->replacement_function != NULL ||
       (invoke_listeners && function_ctx->has_on_leave_listener);
   if (will_trap_on_leave)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
-        *caller_ret_addr);
+        *caller_ret_addr, only_invoke_unignorable_listeners);
     invocation_ctx = &stack_entry->invocation_context;
   }
   else if (invoke_listeners)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
-        function_ctx->function_address);
+        function_ctx->function_address, only_invoke_unignorable_listeners);
     invocation_ctx = &stack_entry->invocation_context;
   }
 
@@ -1544,6 +1563,9 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
       listener_entry = g_ptr_array_index (listener_entries, i);
       if (listener_entry == NULL)
+        continue;
+
+      if (only_invoke_unignorable_listeners && !listener_entry->unignorable)
         continue;
 
       state.point_cut = GUM_POINT_ENTER;
@@ -1611,6 +1633,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx;
   GPtrArray * listener_entries;
+  gboolean only_invoke_unignorable_listeners;
   guint i;
 
 #ifdef HAVE_WINDOWS
@@ -1645,6 +1668,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   listener_entries =
       (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
+  only_invoke_unignorable_listeners =
+      stack_entry->only_invoke_unignorable_listeners;
   for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry * listener_entry;
@@ -1652,6 +1677,9 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
     listener_entry = g_ptr_array_index (listener_entries, i);
     if (listener_entry == NULL)
+      continue;
+
+    if (only_invoke_unignorable_listeners && !listener_entry->unignorable)
       continue;
 
     state.point_cut = GUM_POINT_LEAVE;
@@ -1940,7 +1968,8 @@ interceptor_thread_context_forget_listener_data (
 static GumInvocationStackEntry *
 gum_invocation_stack_push (GumInvocationStack * stack,
                            GumFunctionContext * function_ctx,
-                           gpointer caller_ret_addr)
+                           gpointer caller_ret_addr,
+                           gboolean only_invoke_unignorable_listeners)
 {
   GumInvocationStackEntry * entry;
   GumInvocationContext * ctx;
@@ -1950,6 +1979,7 @@ gum_invocation_stack_push (GumInvocationStack * stack,
       &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
   entry->function_ctx = function_ctx;
   entry->caller_ret_addr = caller_ret_addr;
+  entry->only_invoke_unignorable_listeners = only_invoke_unignorable_listeners;
 
   ctx = &entry->invocation_context;
   ctx->function = gum_sign_code_pointer (function_ctx->function_address);

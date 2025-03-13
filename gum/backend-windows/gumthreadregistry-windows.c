@@ -63,15 +63,15 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   gum_interceptor_attach (gum_thread_interceptor,
       GSIZE_TO_POINTER (gum_module_find_export_by_name (kernel32,
           "BaseThreadInitThunk")),
-      gum_start_handler, NULL);
+      gum_start_handler, NULL, GUM_ATTACH_FLAGS_NONE);
   gum_interceptor_attach (gum_thread_interceptor,
       GSIZE_TO_POINTER (gum_module_find_export_by_name (ntdll,
           "RtlExitUserThread")),
-      gum_terminate_handler, NULL);
+      gum_terminate_handler, NULL, GUM_ATTACH_FLAGS_NONE);
   if (set_description_impl != NULL)
   {
     gum_interceptor_attach (gum_thread_interceptor, set_description_impl,
-        gum_rename_handler, NULL);
+        gum_rename_handler, NULL, GUM_ATTACH_FLAGS_NONE);
   }
 
   gum_interceptor_end_transaction (gum_thread_interceptor);
