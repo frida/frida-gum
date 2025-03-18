@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -14,10 +14,11 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <linux/unistd.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
-#include <unistd.h>
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 # define GUM_SYS_PROCESS_VM_READV   347
