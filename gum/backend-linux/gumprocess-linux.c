@@ -387,6 +387,10 @@ static gint gum_ptr_compare (gconstpointer a, gconstpointer b);
 #endif
 static gboolean gum_detect_pthread_internals (GumLinuxPThreadSpec * spec);
 #ifdef HAVE_MUSL
+# ifdef HAVE_ARM
+static gpointer gum_parse_ldrpc (const uint8_t * code, csh capstone,
+    cs_insn * insn);
+# endif
 static GumMuslStartArgs * gum_query_pthread_start_args (pthread_t thread,
     const GumLinuxPThreadSpec * spec);
 #endif
@@ -3609,6 +3613,96 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
         spec->tl_unlock = (gpointer) code;
     }
   }
+#elif defined (HAVE_ARM)
+  {
+    gboolean expecting_tl_lock_call = FALSE;
+
+    while ((spec->tl_lock == NULL || spec->start_impl == NULL) &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_arm * arm = &insn->detail->arm;
+
+      switch (insn->id)
+      {
+        case ARM_INS_BIC:
+        {
+          const cs_arm_op * val = &arm->operands[2];
+
+          if (spec->tl_lock == NULL &&
+              val->type == ARM_OP_IMM &&
+              val->imm == 1)
+          {
+            expecting_tl_lock_call = TRUE;
+          }
+
+          break;
+        }
+        case ARM_INS_BL:
+        {
+          const cs_arm_op * target = &arm->operands[0];
+
+          if (expecting_tl_lock_call)
+          {
+            spec->tl_lock = GSIZE_TO_POINTER (target->imm | (is_thumb ? 1 : 0));
+
+            expecting_tl_lock_call = FALSE;
+          }
+
+          break;
+        }
+        case ARM_INS_CMP:
+        {
+          const cs_arm_op * val = &arm->operands[1];
+
+          if (spec->tl_lock != NULL &&
+              val->type == ARM_OP_IMM &&
+              val->imm == 0xffffffffU)
+          {
+            if (!cs_disasm_iter (capstone, &code, &size, &addr, insn))
+              goto beach;
+            if (insn->id != ARM_INS_B || arm->cc != ARM_CC_EQ)
+              goto beach;
+
+            spec->start_c11_impl = gum_parse_ldrpc (
+                GSIZE_TO_POINTER (arm->operands[0].imm), capstone, insn);
+            if (spec->start_c11_impl == NULL)
+              goto beach;
+
+            spec->start_impl = gum_parse_ldrpc (code, capstone, insn);
+            if (spec->start_impl == NULL)
+              goto beach;
+          }
+        }
+        default:
+          break;
+      }
+    }
+
+    if (spec->tl_lock == NULL)
+      goto beach;
+
+    code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (spec->tl_lock) & ~1);
+    size = 512;
+    addr = GPOINTER_TO_SIZE (code);
+    while (spec->tl_unlock == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      if (insn->id == ARM_INS_POP)
+      {
+        while (cs_disasm_iter (capstone, &code, &size, &addr, insn))
+        {
+          if (insn->id == ARM_INS_LDR &&
+              insn->detail->arm.operands[0].reg == ARM_REG_R2)
+          {
+            break;
+          }
+        }
+
+        spec->tl_unlock =
+            GSIZE_TO_POINTER ((addr - insn->size) | (is_thumb ? 1 : 0));
+      }
+    }
+  }
 #elif defined (HAVE_ARM64)
   {
     GHashTable * regvals;
@@ -3733,6 +3827,52 @@ beach:
 
   return spec->terminate_impl != NULL;
 }
+
+# ifdef HAVE_ARM
+
+static gpointer
+gum_parse_ldrpc (const uint8_t * code,
+                 csh capstone,
+                 cs_insn * insn)
+{
+  const cs_arm * arm = &insn->detail->arm;
+  size_t size;
+  uint64_t addr;
+  arm_reg dst_reg;
+  const cs_arm_op * src;
+  gsize pc, location;
+  guint32 delta;
+  const cs_arm_op * op1;
+
+  size = 8;
+  addr = GPOINTER_TO_SIZE (code);
+  pc = addr + 4;
+  if (!cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    return NULL;
+  if (insn->id != ARM_INS_LDR)
+    return NULL;
+  dst_reg = arm->operands[0].reg;
+  src = &arm->operands[1];
+  if (src->mem.base != ARM_REG_PC)
+    return NULL;
+  location = (pc & ~(4 - 1)) + src->mem.disp;
+  delta = *((gssize *) GSIZE_TO_POINTER (location));
+
+  pc = addr + 4;
+  if (!cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    return NULL;
+  if (insn->id != ARM_INS_ADD || arm->op_count != 2)
+    return NULL;
+  if (arm->operands[0].reg != dst_reg)
+    return NULL;
+  op1 = &arm->operands[1];
+  if (op1->type != ARM_OP_REG || op1->reg != ARM_REG_PC)
+    return NULL;
+
+  return GSIZE_TO_POINTER (pc + delta);
+}
+
+# endif
 
 static GumMuslStartArgs *
 gum_query_pthread_start_args (pthread_t thread,
