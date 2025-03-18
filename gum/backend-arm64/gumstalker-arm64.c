@@ -580,11 +580,8 @@ static void gum_exec_ctx_query_block_switch_callback (GumExecCtx * ctx,
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
-static void gum_exec_ctx_recompile_block (GumExecCtx * ctx,
-    GumExecBlock * block);
-static void gum_exec_ctx_write_scratch_slab (GumExecCtx * ctx,
-    GumExecBlock * block, guint * input_size, guint * output_size,
-    guint * slow_size);
+static GumExecBlock * gum_exec_ctx_recompile_block(GumExecCtx *ctx,
+                                                   GumExecBlock *block);
 static void gum_exec_ctx_compile_block (GumExecCtx * ctx, GumExecBlock * block,
     gconstpointer input_code, gpointer output_code, GumAddress output_pc,
     guint * input_size, guint * output_size, guint * slow_size);
@@ -1669,7 +1666,7 @@ gum_stalker_recompile (GumStalker * self,
   if (block == NULL)
     return;
 
-  gum_exec_ctx_recompile_block (ctx, block);
+  block = gum_exec_ctx_recompile_block(ctx, block);
 }
 
 gpointer
@@ -2415,7 +2412,7 @@ gum_exec_ctx_may_now_backpatch (GumExecCtx * ctx,
   if ((target_block->flags & GUM_EXEC_BLOCK_ACTIVATION_TARGET) != 0)
     return FALSE;
 
-  if (target_block->recycle_count < ctx->stalker->trust_threshold)
+  if (ctx->stalker->trust_threshold < 0 || target_block->recycle_count < ctx->stalker->trust_threshold)
     return FALSE;
 
   return TRUE;
@@ -2562,7 +2559,7 @@ gum_exec_ctx_recompile_and_switch_block (GumExecCtx * ctx,
   if (gum_exec_ctx_maybe_unfollow (ctx, start_address))
     return;
 
-  gum_exec_ctx_recompile_block (ctx, block);
+  block = gum_exec_ctx_recompile_block (ctx, block);
 
   ctx->current_block = block;
   ctx->resume_at = block->code_start;
@@ -2594,7 +2591,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     still_up_to_date =
         (trust_threshold >= 0 && block->recycle_count >= trust_threshold) ||
         memcmp (block->real_start, gum_exec_block_get_snapshot_start (block),
-            block->real_size) == 0;
+               block->real_size) == 0;
 
     gum_spinlock_release (&ctx->code_lock);
 
@@ -2605,7 +2602,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     }
     else
     {
-      gum_exec_ctx_recompile_block (ctx, block);
+      block = gum_exec_ctx_recompile_block (ctx, block);
     }
   }
   else
@@ -2631,136 +2628,34 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   return block;
 }
 
-static void
+
+static GumExecBlock*
 gum_exec_ctx_recompile_block (GumExecCtx * ctx,
                               GumExecBlock * block)
 {
-  GumStalker * stalker = ctx->stalker;
-  guint8 * internal_code = block->code_start;
-  guint8 * scratch_base = ctx->scratch_slab->slab.data;
-  guint input_size, output_size, slow_size;
-  gsize new_block_size, new_snapshot_size;
+  gpointer real_address = block->real_start;
+  GumExecBlock *new_block;
 
   gum_spinlock_acquire (&ctx->code_lock);
 
-  gum_exec_ctx_write_scratch_slab (ctx, block, &input_size, &output_size,
-      &slow_size);
+  new_block = gum_exec_block_new(ctx);
+  new_block->real_start = real_address;
+  gum_exec_block_maybe_inherit_exclusive_access_state(new_block, new_block->next);
+  gum_exec_ctx_compile_block(ctx, new_block, real_address, new_block->code_start,
+                             GUM_ADDRESS(new_block->code_start), &new_block->real_size, &new_block->code_size,
+                             &new_block->slow_size);
+  gum_exec_block_commit(new_block);
+  gum_exec_block_propagate_exclusive_access_state(new_block);
 
-  new_snapshot_size =
-      gum_stalker_snapshot_space_needed_for (stalker, input_size);
-
-  new_block_size = output_size + new_snapshot_size;
-
-  gum_stalker_thaw (stalker, internal_code, block->capacity);
-
-  if (new_block_size <= block->capacity)
-  {
-    block->real_size = input_size;
-    block->code_size = output_size;
-
-    memcpy (internal_code, scratch_base, output_size);
-    memcpy (gum_exec_block_get_snapshot_start (block), block->real_start,
-        new_snapshot_size);
-
-    gum_stalker_freeze (stalker, internal_code, new_block_size);
-  }
-  else
-  {
-    GumExecBlock * storage_block;
-    GumArm64Writer * cw = &ctx->code_writer;
-    GumAddress external_code_address;
-
-    storage_block = gum_exec_block_new (ctx);
-    storage_block->real_start = block->real_start;
-    gum_exec_ctx_compile_block (ctx, storage_block, block->real_start,
-        storage_block->code_start, GUM_ADDRESS (storage_block->code_start),
-        &storage_block->real_size, &storage_block->code_size,
-        &storage_block->slow_size);
-    gum_exec_block_commit (storage_block);
-    block->storage_block = storage_block;
-
-    gum_stalker_thaw (stalker, internal_code, block->capacity);
-    gum_arm64_writer_reset (cw, internal_code);
-
-    external_code_address = GUM_ADDRESS (storage_block->code_start);
-    if (gum_arm64_writer_can_branch_directly_between (cw,
-        GUM_ADDRESS (internal_code), external_code_address))
-    {
-      gum_arm64_writer_put_b_imm (cw, external_code_address);
-      gum_arm64_writer_put_b_imm (cw, external_code_address + sizeof (guint32));
-    }
-    else
-    {
-      gconstpointer already_saved = cw->code + 1;
-
-      gum_arm64_writer_put_b_label (cw, already_saved);
-      gum_arm64_writer_put_stp_reg_reg_reg_offset (cw, ARM64_REG_X16,
-          ARM64_REG_X17, ARM64_REG_SP, -(16 + GUM_RED_ZONE_SIZE),
-          GUM_INDEX_PRE_ADJUST);
-      gum_arm64_writer_put_label (cw, already_saved);
-      gum_arm64_writer_put_ldr_reg_address (cw, ARM64_REG_X16,
-          external_code_address);
-      gum_arm64_writer_put_br_reg_no_auth (cw, ARM64_REG_X16);
-    }
-
-    gum_arm64_writer_flush (cw);
-    gum_stalker_freeze (stalker, internal_code, block->capacity);
-  }
-
+  gum_metal_hash_table_replace(ctx->mappings, real_address, new_block);
+  
   gum_spinlock_release (&ctx->code_lock);
 
-  gum_exec_ctx_maybe_emit_compile_event (ctx, block);
-}
+  gum_exec_ctx_maybe_emit_compile_event(ctx, new_block);
 
-static void
-gum_exec_ctx_write_scratch_slab (GumExecCtx * ctx,
-                                 GumExecBlock * block,
-                                 guint * input_size,
-                                 guint * output_size,
-                                 guint * slow_size)
-{
-  GumStalker * stalker = ctx->stalker;
-  guint8 * internal_code = block->code_start;
-  GumSlowSlab * slow_slab;
-  gsize slow_available;
-  gpointer slow_start;
-  GumCodeSlab * prev_code_slab;
-  GumSlowSlab * prev_slow_slab;
-  guint8 * scratch_base;
+  gum_exec_block_clear(block);
 
-  gum_exec_block_maybe_create_new_code_slabs (ctx);
-  gum_exec_block_maybe_create_new_data_slab (ctx);
-
-  slow_slab = ctx->slow_slab;
-
-  slow_available = gum_slab_available (&slow_slab->slab);
-
-  gum_scratch_slab_init (ctx->scratch_slab, GUM_SCRATCH_SLAB_SIZE);
-
-  slow_start = gum_slab_cursor (&slow_slab->slab);
-  slow_available = gum_slab_available (&slow_slab->slab);
-  gum_stalker_thaw (stalker, slow_start, slow_available);
-
-  if (block->storage_block != NULL)
-    gum_exec_block_clear (block->storage_block);
-  gum_exec_block_clear (block);
-
-  prev_code_slab = block->code_slab;
-  prev_slow_slab = block->slow_slab;
-
-  block->code_slab = ctx->scratch_slab;
-  block->slow_slab = ctx->slow_slab;
-  block->slow_start = gum_slab_cursor (&slow_slab->slab);
-  scratch_base = ctx->scratch_slab->slab.data;
-  ctx->scratch_slab->invalidator = prev_code_slab->invalidator;
-
-  gum_exec_ctx_compile_block (ctx, block, block->real_start, scratch_base,
-      GUM_ADDRESS (internal_code), input_size, output_size, slow_size);
-  gum_slab_reserve (&slow_slab->slab, *slow_size);
-  gum_stalker_freeze (stalker, slow_start, *slow_size);
-
-  block->code_slab = prev_code_slab;
-  block->slow_slab = prev_slow_slab;
+  return new_block;
 }
 
 static void
@@ -4002,6 +3897,7 @@ gum_exec_block_clear (GumExecBlock * block)
 
   block->storage_block = NULL;
 }
+
 
 static gconstpointer
 gum_exec_block_check_address_for_exclusion (GumExecBlock * block,
