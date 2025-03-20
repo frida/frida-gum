@@ -538,6 +538,7 @@ gum_thumb_relocator_can_relocate (gpointer address,
     if (n < min_bytes)
     {
       gboolean followed_by_padding =
+          (last_insn->address % 4) == 0 && last_insn->size == 2 &&
           ((rl.input_cur[0] == 0x00 && rl.input_cur[1] == 0xbf) ||
            (rl.input_cur[0] == 0xd4 && rl.input_cur[1] == 0xd4));
       if (followed_by_padding)
