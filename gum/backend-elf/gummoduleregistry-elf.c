@@ -35,11 +35,24 @@ _gum_module_registry_activate (GumModuleRegistry * self)
       g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
   gum_rtld_interceptor = gum_interceptor_obtain ();
 
+  _gum_module_registry_enumerate_loaded_modules (gum_register_module, self);
+
   gum_interceptor_begin_transaction (gum_rtld_interceptor);
   _gum_module_registry_enumerate_rtld_notifiers (gum_hook_rtld_notifier, self);
   gum_interceptor_end_transaction (gum_rtld_interceptor);
 
-  _gum_module_registry_enumerate_loaded_modules (gum_register_module, self);
+  /*
+   * Ideally we'd want to hook the notifiers first, and then add the initial
+   * modules, given that we're holding the registry lock, so any call to a
+   * notifier will end up waiting. However, in the event that there's not enough
+   * space in the function prologue, Interceptor/CodeAllocator will have to look
+   * for a nearby ELF header it can jump through. And to do that it needs to be
+   * able to enumerate the modules, and that's why we need to populate the list
+   * first. This means there's a small window where a notifier may have been
+   * invoked, but we didn't catch it. So we need to synchronize our modules here
+   * just in case that happened.
+   */
+  gum_module_registry_synchronize_modules ();
 }
 
 void
