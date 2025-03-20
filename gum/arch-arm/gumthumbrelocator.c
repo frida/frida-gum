@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -489,6 +489,7 @@ gum_thumb_relocator_can_relocate (gpointer address,
   guint8 * buf;
   GumThumbWriter cw;
   GumThumbRelocator rl;
+  const cs_insn * last_insn = NULL;
   guint reloc_bytes;
 
   buf = g_alloca (3 * min_bytes);
@@ -504,6 +505,7 @@ gum_thumb_relocator_can_relocate (gpointer address,
     reloc_bytes = gum_thumb_relocator_read_one (&rl, &insn);
     if (reloc_bytes == 0)
       break;
+    last_insn = insn;
 
     n = reloc_bytes;
 
@@ -535,10 +537,10 @@ gum_thumb_relocator_can_relocate (gpointer address,
   {
     if (n < min_bytes)
     {
-      gboolean followed_by_nop;
-
-      followed_by_nop = rl.input_cur[0] == 0x00 && rl.input_cur[1] == 0xbf;
-      if (followed_by_nop)
+      gboolean followed_by_padding =
+          ((rl.input_cur[0] == 0x00 && rl.input_cur[1] == 0xbf) ||
+           (rl.input_cur[0] == 0xd4 && rl.input_cur[1] == 0xd4));
+      if (followed_by_padding)
         n += 2;
     }
   }
