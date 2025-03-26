@@ -342,6 +342,7 @@ static gboolean gum_linux_modify_thread (GumThreadId thread_id,
 static gpointer gum_linux_handle_modify_thread_comms (gpointer data);
 static gint gum_linux_do_modify_thread (gpointer data);
 static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack);
+static gboolean gum_await_any_ack (gint fd, GumModifyThreadAck * out_ack);
 static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 
 static GumModule * gum_try_init_libc_module (void);
@@ -667,15 +668,22 @@ gum_linux_handle_modify_thread_comms (gpointer data)
   GumLinuxModifyThreadContext * ctx = data;
   gint fd = ctx->fd[0];
   gboolean success = FALSE;
+  GumModifyThreadAck ack;
 
   gum_put_ack (fd, GUM_ACK_READY);
 
-  if (gum_await_ack (fd, GUM_ACK_READ_REGISTERS))
+  if (!gum_await_any_ack (fd, &ack))
+    return GSIZE_TO_POINTER (FALSE);
+
+  if (ack == GUM_ACK_READ_REGISTERS)
   {
     ctx->func (ctx->thread_id, &ctx->regs_data, ctx->user_data);
     gum_put_ack (fd, GUM_ACK_MODIFIED_REGISTERS);
-
-    success = gum_await_ack (fd, GUM_ACK_WROTE_REGISTERS);
+   	
+    if (!gum_await_any_ack (fd, &ack))
+      return GSIZE_TO_POINTER (FALSE);
+   	
+    success = (ack == GUM_ACK_WROTE_REGISTERS);
   }
 
   return GSIZE_TO_POINTER (success);
@@ -925,6 +933,23 @@ gum_await_ack (gint fd,
     return FALSE;
 
   return value == expected_ack;
+}
+
+static gboolean
+gum_await_any_ack (gint fd,
+                   GumModifyThreadAck * out_ack)
+{
+  guint8 value;
+  gssize res;
+
+  res = GUM_TEMP_FAILURE_RETRY (gum_libc_read (fd, &value, sizeof (value)));
+  if (res == -1)
+    return FALSE;
+
+  if (out_ack != NULL)
+    *out_ack = (GumModifyThreadAck) value;
+
+  return TRUE;
 }
 
 static void
