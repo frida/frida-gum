@@ -1771,9 +1771,6 @@ gum_thread_set_hardware_breakpoint (GumThreadId thread_id,
   bpc.breakpoint_id = breakpoint_id;
   bpc.address = address;
 
-  gum_linux_modify_thread (thread_id, GUM_REGS_DEBUG_BREAK,
-      gum_do_set_hardware_breakpoint, &bpc, error);
-
   return gum_linux_modify_thread (thread_id, GUM_REGS_DEBUG_BREAK,
       gum_do_set_hardware_breakpoint, &bpc, error);
 }
