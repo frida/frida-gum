@@ -238,7 +238,8 @@ union _GumRegs
 
 enum _GumModifyThreadAck
 {
-  GUM_ACK_READY = 1,
+  GUM_ACK_INVALID,
+  GUM_ACK_READY,
   GUM_ACK_READ_REGISTERS,
   GUM_ACK_MODIFIED_REGISTERS,
   GUM_ACK_WROTE_REGISTERS,
@@ -357,7 +358,8 @@ static gboolean gum_linux_modify_thread (GumThreadId thread_id,
     gpointer user_data, GError ** error);
 static gpointer gum_linux_handle_modify_thread_comms (gpointer data);
 static gint gum_linux_do_modify_thread (gpointer data);
-static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack);
+static gboolean gum_await_ack (gint fd, GumModifyThreadAck expected_ack,
+    GumModifyThreadAck * received_ack);
 static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 
 static GumModule * gum_try_init_libc_module (void);
@@ -549,6 +551,8 @@ gum_linux_modify_thread (GumThreadId thread_id,
   gpointer stack = NULL;
   gpointer tls = NULL;
   GumUserDesc * desc;
+  guint32 result;
+  GumModifyThreadAck ack;
 
   ctx.thread_id = thread_id;
   ctx.regs_type = regs_type;
@@ -644,15 +648,17 @@ gum_linux_modify_thread (GumThreadId thread_id,
 
   if (thread_id == gum_process_get_current_thread_id ())
   {
-    success = GPOINTER_TO_UINT (g_thread_join (g_thread_new (
+    result = GPOINTER_TO_UINT (g_thread_join (g_thread_new (
             "gum-modify-thread-worker",
             gum_linux_handle_modify_thread_comms,
             &ctx)));
   }
   else
   {
-    success = GPOINTER_TO_UINT (gum_linux_handle_modify_thread_comms (&ctx));
+    result = GPOINTER_TO_UINT (gum_linux_handle_modify_thread_comms (&ctx));
   }
+  success = (result & 0xffff) != 0;
+  ack = (GumModifyThreadAck) (result >> 16);
 
   _gum_release_dumpability ();
 
@@ -677,8 +683,38 @@ clone_failed:
   }
 attach_failed:
   {
+    const gchar * detail;
+
+    switch (ack)
+    {
+      case GUM_ACK_INVALID:
+        detail = "read from socket";
+        break;
+      case GUM_ACK_FAILED_TO_ATTACH:
+        detail = "attach to thread";
+        break;
+      case GUM_ACK_FAILED_TO_WAIT:
+        detail = "wait for thread";
+        break;
+      case GUM_ACK_FAILED_TO_STOP:
+        detail = "verify thread is stopped";
+        break;
+      case GUM_ACK_FAILED_TO_READ:
+        detail = "read registers";
+        break;
+      case GUM_ACK_FAILED_TO_WRITE:
+        detail = "write registers";
+        break;
+      case GUM_ACK_FAILED_TO_DETACH:
+        detail = "detach from thread";
+        break;
+      default:
+        detail = "communicate with helper thread";
+        break;
+    }
+
     g_set_error (error, GUM_ERROR, GUM_ERROR_PERMISSION_DENIED,
-        "Unable to PTRACE_ATTACH");
+        "Unable to %s", detail);
     goto beach;
   }
 beach:
@@ -701,18 +737,22 @@ gum_linux_handle_modify_thread_comms (gpointer data)
   GumLinuxModifyThreadContext * ctx = data;
   gint fd = ctx->fd[0];
   gboolean success = FALSE;
+  GumModifyThreadAck received_ack;
+  guint32 result;
 
   gum_put_ack (fd, GUM_ACK_READY);
 
-  if (gum_await_ack (fd, GUM_ACK_READ_REGISTERS))
+  if (gum_await_ack (fd, GUM_ACK_READ_REGISTERS, &received_ack))
   {
     ctx->func (ctx->thread_id, &ctx->regs_data, ctx->user_data);
     gum_put_ack (fd, GUM_ACK_MODIFIED_REGISTERS);
 
-    success = gum_await_ack (fd, GUM_ACK_WROTE_REGISTERS);
+    success = gum_await_ack (fd, GUM_ACK_WROTE_REGISTERS, &received_ack);
   }
 
-  return GSIZE_TO_POINTER (success);
+  result = (received_ack << 16) | (success ? 1 : 0);
+
+  return GUINT_TO_POINTER (result);
 }
 
 static gint
@@ -742,7 +782,7 @@ gum_linux_do_modify_thread (gpointer data)
 
   fd = ctx->fd[1];
 
-  gum_await_ack (fd, GUM_ACK_READY);
+  gum_await_ack (fd, GUM_ACK_READY, NULL);
 
   res = gum_libc_ptrace (PTRACE_ATTACH, ctx->thread_id, NULL, NULL);
   if (res == -1)
@@ -835,7 +875,7 @@ gum_linux_do_modify_thread (gpointer data)
   }
   gum_put_ack (fd, GUM_ACK_READ_REGISTERS);
 
-  gum_await_ack (fd, GUM_ACK_MODIFIED_REGISTERS);
+  gum_await_ack (fd, GUM_ACK_MODIFIED_REGISTERS, NULL);
   if (ctx->regs_type == GUM_REGS_GENERAL_PURPOSE)
   {
     res = gum_set_regs (ctx->thread_id, NT_PRSTATUS, &ctx->regs_data,
@@ -949,14 +989,22 @@ beach:
 
 static gboolean
 gum_await_ack (gint fd,
-               GumModifyThreadAck expected_ack)
+               GumModifyThreadAck expected_ack,
+               GumModifyThreadAck * received_ack)
 {
   guint8 value;
   gssize res;
 
   res = GUM_TEMP_FAILURE_RETRY (gum_libc_read (fd, &value, sizeof (value)));
   if (res == -1)
+  {
+    if (received_ack != NULL)
+      *received_ack = GUM_ACK_INVALID;
     return FALSE;
+  }
+
+  if (received_ack != NULL)
+    *received_ack = (GumModifyThreadAck) value;
 
   return value == expected_ack;
 }
