@@ -393,7 +393,6 @@ gum_darwin_module_resolver_find_module_by_address (
   GumDarwinModule ** entry;
 
   gum_darwin_module_resolver_fetch_modules (self, &modules, NULL);
-  g_ptr_array_unref (modules);
 
   bare_address = gum_strip_code_address (address);
 
