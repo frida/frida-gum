@@ -216,7 +216,7 @@ TESTCASE (ldr_x_address)
   gum_arm64_writer_flush (&fixture->aw);
   assert_output_n_equals (0, 0x58000027);
   g_assert_cmphex (
-      GUINT64_FROM_LE (*((guint64 *) (((guint8 *) fixture->output) + 4))),
+      *((guint64 *) (((guint8 *) fixture->output) + 4)),
       ==, 0x123456789abcdef0);
 }
 
@@ -227,7 +227,7 @@ TESTCASE (ldr_d_address)
   gum_arm64_writer_flush (&fixture->aw);
   assert_output_n_equals (0, 0x5c000021);
   g_assert_cmphex (
-      GUINT64_FROM_LE (*((guint64 *) (((guint8 *) fixture->output) + 4))),
+      *((guint64 *) (((guint8 *) fixture->output) + 4)),
       ==, 0x123456789abcdef0);
 }
 
