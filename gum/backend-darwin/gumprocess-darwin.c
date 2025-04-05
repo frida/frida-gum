@@ -1841,9 +1841,18 @@ gum_detect_pthread_basics (csh capstone,
         }
         case ARM64_INS_LDR:
         {
+          const uint8_t * ldr_location = code - insn->size;
           const arm64_op_mem * src = &arm64->operands[1].mem;
 
-          if (mach_port_offset == 0 &&
+          if (adrp_location != NULL &&
+              ldr_location - 4 == adrp_location &&
+              src->base == adrp_reg &&
+              src->index == ARM64_REG_INVALID &&
+              src->disp !=0)
+          {
+            accumulated_value += src->disp;
+          }
+          else if (mach_port_offset == 0 &&
               src->base != ARM64_REG_SP &&
               src->base != ARM64_REG_FP &&
               src->index == ARM64_REG_INVALID &&
