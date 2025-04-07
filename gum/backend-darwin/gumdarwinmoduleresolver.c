@@ -390,7 +390,7 @@ gum_darwin_module_resolver_find_module_by_address (
   GumDarwinModule * result;
   GPtrArray * modules;
   GumAddress bare_address;
-  GumDarwinModule ** entry;
+  GumNativeModule ** entry;
 
   gum_darwin_module_resolver_fetch_modules (self, &modules, NULL);
 
@@ -398,7 +398,9 @@ gum_darwin_module_resolver_find_module_by_address (
 
   entry = bsearch (&bare_address, modules->pdata, modules->len,
       sizeof (GumModule *), (GCompareFunc) gum_darwin_module_compare_to_key);
-  result = (entry != NULL) ? g_object_ref (*entry) : NULL;
+  result = (entry != NULL)
+      ? g_object_ref (_gum_native_module_get_darwin_module (*entry))
+      : NULL;
 
   g_ptr_array_unref (modules);
 
