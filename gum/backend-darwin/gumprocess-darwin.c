@@ -1224,6 +1224,21 @@ gum_darwin_enumerate_threads (mach_port_t task,
   if (task_threads (task, &threads, &count) != KERN_SUCCESS)
     return;
 
+  if (flags == GUM_THREAD_FLAGS_NONE)
+  {
+    for (i = 0; i != count; i++)
+    {
+      GumThreadDetails entry = { 0, };
+
+      entry.id = threads[i];
+
+      if (!func (&entry, user_data))
+        break;
+    }
+
+    goto beach;
+  }
+
   entries = g_array_sized_new (FALSE, FALSE, sizeof (GumThreadDetails), count);
   names = g_ptr_array_new_full (count, g_free);
   pending_ports = g_hash_table_new (NULL, NULL);
@@ -1341,6 +1356,7 @@ gum_darwin_enumerate_threads (mach_port_t task,
   g_ptr_array_unref (names);
   g_array_unref (entries);
 
+beach:
   for (i = 0; i != count; i++)
     mach_port_deallocate (self, threads[i]);
   vm_deallocate (self, (vm_address_t) threads, count * sizeof (thread_t));
