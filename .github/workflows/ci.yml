@@ -267,3 +267,35 @@ jobs:
         run: |
           tar -C build/tests -cf /tmp/runner.tar gum-tests data/
           /opt/sabrelite/run.sh /tmp/runner.tar /opt/frida/gum-tests
+
+  # This job is used to check that the targetfunctions are built correctly for
+  # all supported architectures. We do this because the binary artifacts are
+  # checked in, and we want to ensure that they are up-to-date with respect to
+  # the source for all architectures.
+  check-targetfunctions:
+    strategy:
+      matrix:
+        arch: [x86, x86_64, armhf, armbe8, arm64, arm64be, arm64beilp32, mips, mipsel, mips64, mips64el]
+    runs-on: ubuntu-latest
+    container: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: |
+          ./tests/core/targetfunctions/rebuild.sh ${{ matrix.arch }}
+      - name: Check for unexpected changes
+        run: |
+          git config --global --add safe.directory "$(realpath .)"
+          status_output="$(git status --porcelain)"
+          if [ -n "$status_output" ]; then
+            echo "Unexpected changes detected:"
+            echo "$status_output"
+            echo "Diff:"
+            git diff
+            exit 1
+          else
+            echo "No unexpected changes detected."
+          fi

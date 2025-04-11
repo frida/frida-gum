@@ -12,6 +12,12 @@ if host_os_family != 'windows'
     shlib_extension = 'so'
   endif
 
+  if host_abi == 'arm' or host_abi == 'armhf'
+    if host_machine.endian() == 'big'
+      host_abi = 'armbe8'
+    endif
+  endif
+
   foreach l : test_function_libraries
     name = '@0@-@1@-@2@.@3@'.format(l, host_os, host_abi, shlib_extension)
     test_function_filenames += [name]
