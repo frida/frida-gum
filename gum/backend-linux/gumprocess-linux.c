@@ -54,6 +54,10 @@ typedef guint32 u32;
 # include <sys/user.h>
 #endif
 
+#ifdef HAVE_GLIBC
+# include <gnu/libc-version.h>
+#endif
+
 #ifndef O_CLOEXEC
 # define O_CLOEXEC 0x80000
 #endif
@@ -81,6 +85,18 @@ typedef struct _GumMipsDebugRegs GumDebugRegs;
 #else
 # error Unsupported architecture
 #endif
+
+#ifdef HAVE_GLIBC
+# define GUM_MAX_LIST_WALK_ATTEMPTS        10
+# define GUM_LINUX_MAX_THREADS             256
+# define GUM_MAX_FIND_LIST_HEAD_ATTEMPTS   5
+# define GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS 10
+# define GUM_MAX_PTHREAD_SIZE              2048
+# define GUM_TID_CHECK_TIMES               5
+# define GUM_MAX_INSTRUCTION_SIZE          15
+# define GUM_THREAD_STACK_SIZE             0x20000
+#endif
+
 typedef guint GumMipsWatchStyle;
 typedef struct _GumMips32WatchRegs GumMips32WatchRegs;
 typedef struct _GumMips64WatchRegs GumMips64WatchRegs;
@@ -144,9 +160,8 @@ typedef struct _GumTcbHead GumTcbHead;
 typedef gint (* GumCloneFunc) (gpointer arg);
 
 #if defined (HAVE_GLIBC)
-typedef struct _GumMoveInsn GumMoveInsn;
-typedef struct _GumLdrInsn GumLdrInsn;
-typedef struct _GumLoadInsn GumLoadInsn;
+typedef struct _GumLinuxThreadCtx GumLinuxThreadCtx;
+typedef struct _GumLinuxGlobalsFragment GumLinuxGlobalsFragment;
 #elif defined (HAVE_MUSL)
 typedef struct _GumMuslStartArgs GumMuslStartArgs;
 #endif
@@ -299,24 +314,28 @@ struct _GumTcbHead
 
 #if defined (HAVE_GLIBC)
 
-struct _GumMoveInsn
+struct _GumLinuxThreadCtx
 {
-  GumAddress address;
-  guint index;
-  gint64 disp;
+  pthread_t thread;
+  void * stack;
+
+  GMutex mutex;
+  GCond cond;
+  gboolean start;
+  gboolean exit;
+
+  GumThreadId tid;
+  gpointer ret;
 };
 
-struct _GumLdrInsn
+struct _GumLinuxGlobalsFragment
 {
-  GumAddress address;
-  gint64 disp;
-};
-
-struct _GumLoadInsn
-{
-  GumAddress address;
-  mips_reg base;
-  gint64 disp;
+  GumGlibcList _dl_stack_used;
+  GumGlibcList _dl_stack_user;
+  GumGlibcList _dl_stack_cache;
+  size_t _dl_stack_cache_actsize;
+  uintptr_t _dl_in_flight_stack;
+  int _dl_stack_cache_lock;
 };
 
 #elif defined (HAVE_MUSL)
@@ -349,6 +368,11 @@ static void gum_deinit_libc_module (void);
 static const Dl_info * gum_try_init_libc_info (void);
 
 static void gum_linux_named_range_free (GumLinuxNamedRange * range);
+#ifdef HAVE_GLIBC
+static gboolean gum_linux_get_threads_from_list (
+    const GumLinuxPThreadSpec * spec, const GumGlibcList * anchor,
+    GList ** threads);
+#endif
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
@@ -374,18 +398,31 @@ static gssize gum_set_regs (pid_t pid, guint type, gconstpointer data,
 static void gum_parse_gp_regs (const GumGPRegs * regs, GumCpuContext * ctx);
 static void gum_unparse_gp_regs (const GumCpuContext * ctx, GumGPRegs * regs);
 
+static gboolean gum_detect_pthread_internals (GumLinuxPThreadSpec * spec);
 #if defined (HAVE_GLIBC)
-static gboolean gum_detect_rtld_globals (GumLinuxPThreadSpec * spec);
-static gboolean gum_find_thread_start (const GumSystemTapProbeDetails * probe,
-    gpointer user_data);
-static gboolean gum_find_thread_start_manually (GumLinuxPThreadSpec * spec);
-
+static gboolean gum_linux_find_list_head (GumLinuxPThreadSpec * spec);
+static gboolean gum_linux_find_list_head_offset (GumLinuxPThreadSpec * spec,
+    GumLinuxThreadCtx * first, GumLinuxThreadCtx * second);
+static gboolean gum_linux_find_start_offsets (GumLinuxPThreadSpec * spec);
+static gboolean gum_linux_find_tid_offset (GumLinuxPThreadSpec * spec);
+static gboolean gum_linux_check_thread_offset (gsize offset, gboolean * match);
+static gboolean gum_linux_find_list_anchor (GumLinuxPThreadSpec * spec,
+    gboolean custom_stack);
+static gboolean gum_linux_find_lock (GumLinuxPThreadSpec * spec);
+static gboolean gum_linux_get_libc_version (guint * major, guint * minor);
+static gboolean gum_linux_find_start_impl (GumLinuxPThreadSpec * spec);
+static gboolean gum_linux_is_call (cs_insn * insn);
+static gboolean gum_linux_create_thread (GumLinuxThreadCtx * ctx,
+    gboolean custom_stack);
+static gboolean gum_linux_dispose_thread (GumLinuxThreadCtx * ctx);
+static gpointer gum_linux_thread_proc (gpointer param);
+static gboolean gum_linux_thread_read_flink (const GumLinuxPThreadSpec * spec,
+    pthread_t current, pthread_t * next);
+static gboolean gum_linux_thread_read_blink (const GumLinuxPThreadSpec * spec,
+    pthread_t current, pthread_t * prev);
 static void glibc_lock_acquire (GumGlibcLock * lock);
 static void glibc_lock_release (GumGlibcLock * lock);
-
-static gint gum_ptr_compare (gconstpointer a, gconstpointer b);
 #endif
-static gboolean gum_detect_pthread_internals (GumLinuxPThreadSpec * spec);
 #ifdef HAVE_MUSL
 # ifdef HAVE_ARM
 static gpointer gum_parse_ldrpc (const uint8_t * code, csh capstone,
@@ -1211,6 +1248,105 @@ _gum_try_translate_vdso_name (gchar * name)
   return FALSE;
 }
 
+#if defined (HAVE_GLIBC)
+
+void
+gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
+                             const GumLinuxPThreadSpec * spec)
+{
+  gsize i;
+  GList * used_list = NULL;
+  gboolean walked_used_list = FALSE;
+  GList * user_list = NULL;
+  gboolean walked_user_list = FALSE;
+  gboolean success = FALSE;
+
+  for (i = 0; i != GUM_MAX_LIST_WALK_ATTEMPTS; i++)
+  {
+    if (gum_linux_get_threads_from_list (spec, spec->stack_used, &used_list))
+    {
+      walked_used_list = TRUE;
+      break;
+    }
+  }
+  if (!walked_used_list)
+    goto beach;
+
+  for (i = 0; i != GUM_MAX_LIST_WALK_ATTEMPTS; i++)
+  {
+    if (gum_linux_get_threads_from_list (spec, spec->stack_user, &user_list))
+    {
+      walked_user_list = TRUE;
+      break;
+    }
+  }
+  if (!walked_user_list)
+    goto beach;
+
+  iter->list = g_list_concat (used_list, user_list);
+
+  success = TRUE;
+
+beach:
+  if (!success)
+  {
+    g_list_free (used_list);
+    g_list_free (user_list);
+  }
+}
+
+static gboolean
+gum_linux_get_threads_from_list (const GumLinuxPThreadSpec * spec,
+                                 const GumGlibcList * anchor,
+                                 GList ** threads)
+{
+  gboolean success = FALSE;
+  GList * list = NULL;
+  pthread_t first, current;
+  guint num_threads = 0;
+  pthread_t next, prev;
+
+  first = (pthread_t) ((gpointer) anchor - spec->flink_offset);
+  current = first;
+
+  do
+  {
+    if (!gum_linux_thread_read_flink (spec, current, &next))
+      goto beach;
+
+    if (!gum_linux_thread_read_blink (spec, next, &prev))
+      goto beach;
+
+    if (prev != current)
+      goto beach;
+
+    list = g_list_append (list, GSIZE_TO_POINTER (current));
+
+    current = next;
+    num_threads++;
+
+    /*
+     * If we find more than the maximum expected number of threads without
+     * getting back to the start of the list, then terminate to avoid an
+     * infinite loop.
+     */
+    if (num_threads == GUM_LINUX_MAX_THREADS)
+      goto beach;
+  }
+  while (current != first);
+
+  *threads = list;
+  success = TRUE;
+
+beach:
+  if (!success)
+    g_list_free (list);
+
+  return success;
+}
+
+#else
+
 void
 gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
                              const GumLinuxPThreadSpec * spec)
@@ -1220,38 +1356,31 @@ gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
   iter->spec = spec;
 }
 
+#endif
+
+#if defined (HAVE_GLIBC)
+
 gboolean
 gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
                              pthread_t * thread)
 {
-#if defined (HAVE_GLIBC)
-  GumGlibcList * list = self->list;
-  GumGlibcList * node = self->node;
+  GList * first = self->list;
+  if (first == NULL)
+    return FALSE;
 
-  if (node != NULL)
-  {
-    node = node->prev;
-    self->node = node;
-  }
+  *thread = (pthread_t) (first->data);
+  self->list = g_list_next (self->list);
+  g_list_free_1 (first);
 
-  while (node == list)
-  {
-    if (list == NULL)
-      list = self->spec->stack_user;
-    else if (list == self->spec->stack_user)
-      list = self->spec->stack_used;
-    else
-      return FALSE;
-    node = list->prev;
-
-    self->list = list;
-    self->node = node;
-  }
-
-  *thread = GPOINTER_TO_SIZE (
-      ((gchar *) node - G_STRUCT_OFFSET (GumLinuxPThread, list)));
   return TRUE;
+}
+
 #elif defined (HAVE_MUSL)
+
+gboolean
+gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
+                             pthread_t * thread)
+{
   GumLinuxPThread * list = self->list;
   GumLinuxPThread * node = self->node;
 
@@ -1272,7 +1401,14 @@ gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
 
   *thread = (pthread_t) node;
   return TRUE;
+}
+
 #elif defined (HAVE_ANDROID)
+
+gboolean
+gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
+                             pthread_t * thread)
+{
   GumLinuxPThread * list = self->list;
   GumLinuxPThread * node = self->node;
 
@@ -1299,8 +1435,9 @@ gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
 
   *thread = GPOINTER_TO_SIZE (node);
   return TRUE;
-#endif
 }
+
+#endif
 
 void
 _gum_process_enumerate_ranges (GumPageProtection prot,
@@ -1452,6 +1589,15 @@ gum_store_cpu_context (GumThreadId thread_id,
   memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
 
+#ifdef HAVE_GLIBC
+GumThreadId
+gum_linux_query_pthread_tid (pthread_t thread,
+                             const GumLinuxPThreadSpec * spec)
+{
+  gint * tid = GSIZE_TO_POINTER (thread) + spec->tid_offset;
+  return *tid;
+}
+#else
 GumThreadId
 gum_linux_query_pthread_tid (pthread_t thread,
                              const GumLinuxPThreadSpec * spec)
@@ -1460,6 +1606,7 @@ gum_linux_query_pthread_tid (pthread_t thread,
 
   return pth->tid;
 }
+#endif
 
 gpointer
 gum_linux_query_pthread_start_routine (pthread_t thread,
@@ -2767,682 +2914,773 @@ gum_linux_query_pthread_spec (void)
 void
 gum_linux_lock_pthread_list (const GumLinuxPThreadSpec * spec)
 {
-  glibc_lock_acquire (spec->stack_lock);
+  if (spec->stack_lock != NULL)
+    glibc_lock_acquire (spec->stack_lock);
 }
 
 void
 gum_linux_unlock_pthread_list (const GumLinuxPThreadSpec * spec)
 {
-  glibc_lock_release (spec->stack_lock);
+  if (spec->stack_lock != NULL)
+    glibc_lock_release (spec->stack_lock);
 }
 
 static gboolean
 gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
 {
-  if (!gum_detect_rtld_globals (spec))
+  guint tries;
+  gboolean found_list_head = FALSE;
+  gboolean found_custom_stack_list_anchor = FALSE;
+  gboolean found_default_stack_list_anchor = FALSE;
+
+  /*
+   * We create two threads in quick succession in the hopes that they will be
+   * placed adjacent to each other in the thread list. There is a chance that
+   * the application may create a thread of its own during the interval and
+   * hence a race condition. Therefore we will retry a few times to find the
+   * list head.
+   */
+  for (tries = 0; tries != GUM_MAX_FIND_LIST_HEAD_ATTEMPTS; tries++)
+  {
+    if (gum_linux_find_list_head (spec))
+    {
+      found_list_head = TRUE;
+      break;
+    }
+  }
+  if (!found_list_head)
     return FALSE;
 
-  gum_system_tap_enumerate_probes (gum_process_get_libc_module (),
-      gum_find_thread_start, spec);
-  if (spec->start_impl == NULL && !gum_find_thread_start_manually (spec))
+  if (!gum_linux_find_start_offsets (spec))
+    return FALSE;
+
+  if (!gum_linux_find_tid_offset (spec))
+    return FALSE;
+
+  for (tries = 0; tries != GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS; tries++)
+  {
+    if (gum_linux_find_list_anchor (spec, TRUE))
+    {
+      found_custom_stack_list_anchor = TRUE;
+      break;
+    }
+  }
+  if (!found_custom_stack_list_anchor)
+    return FALSE;
+
+  for (tries = 0; tries != GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS; tries++)
+  {
+    if (gum_linux_find_list_anchor (spec, FALSE))
+    {
+      found_default_stack_list_anchor = TRUE;
+      break;
+    }
+  }
+  if (!found_default_stack_list_anchor)
+    return FALSE;
+
+  if (!gum_linux_find_lock (spec))
+    return FALSE;
+
+  if (!gum_linux_find_start_impl (spec))
     return FALSE;
 
   spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        gum_process_get_libc_module (), "__call_tls_dtors"));
-  return spec->terminate_impl != NULL;
-}
-
-static gboolean
-gum_detect_rtld_globals (GumLinuxPThreadSpec * spec)
-{
-  gboolean success = FALSE;
-  gpointer create_prologue;
-#ifdef HAVE_ARM
-  gboolean is_thumb;
-#endif
-  csh capstone;
-  cs_insn * insn;
-  const uint8_t * code;
-  size_t size;
-  uint64_t addr;
-  guint stack_lock_offset;
-  GPtrArray * offsets;
-
-  create_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        gum_process_get_libc_module (), "pthread_create"));
-
-  gum_cs_arch_register_native ();
-#ifdef HAVE_ARM
-  is_thumb = (GPOINTER_TO_SIZE (create_prologue) & 1) != 0;
-  cs_open (GUM_DEFAULT_CS_ARCH,
-      is_thumb
-        ? CS_MODE_THUMB | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN
-        : GUM_DEFAULT_CS_MODE,
-      &capstone);
-  code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (create_prologue) & ~1);
-#else
-  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
-  code = create_prologue;
-#endif
-  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
-  cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
-
-  insn = cs_malloc (capstone);
-
-  code += gum_interceptor_detect_hook_size (code, capstone, insn);
-  size = 16384;
-  addr = GPOINTER_TO_SIZE (code);
-
-  stack_lock_offset = 0;
-  offsets = g_ptr_array_sized_new (4);
-
-#if defined (HAVE_I386)
-  {
-    while (offsets->len != 3 &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
-    {
-      const cs_x86 * x86 = &insn->detail->x86;
-
-      switch (insn->id)
-      {
-        case X86_INS_CMPXCHG:
-        {
-          const cs_x86_op * dst = &x86->operands[0];
-
-          if (stack_lock_offset == 0 && dst->mem.base != X86_REG_RIP)
-            stack_lock_offset = dst->mem.disp;
-
-          break;
-        }
-        case X86_INS_LEA:
-        {
-          const cs_x86_op * src = &x86->operands[1];
-          int64_t disp = src->mem.disp;
-
-          if (src->mem.base != X86_REG_RIP &&
-              src->mem.base != X86_REG_RBP &&
-              disp < stack_lock_offset &&
-              disp >= stack_lock_offset - 128)
-          {
-            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
-              g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
-          }
-
-          break;
-        }
-        default:
-          break;
-      }
-    }
-  }
-#elif defined (HAVE_ARM)
-  {
-    while (offsets->len != 5 &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
-    {
-      const cs_arm * arm = &insn->detail->arm;
-
-      switch (insn->id)
-      {
-        case ARM_INS_ADD:
-        {
-          const cs_arm_op * val = &arm->operands[2];
-          int32_t imm = val->imm;
-
-          if (val->type == ARM_OP_IMM &&
-              imm >= 0x900 && imm < 0x1000)
-          {
-            if (stack_lock_offset == 0)
-            {
-              stack_lock_offset = imm;
-            }
-            else
-            {
-              if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (imm), NULL))
-                g_ptr_array_add (offsets, GSIZE_TO_POINTER (imm));
-            }
-          }
-
-          break;
-        }
-        case ARM_INS_LDR:
-        {
-          const arm_op_mem * src = &arm->operands[1].mem;
-          int64_t disp = src->disp;
-
-          if (src->base != ARM_REG_SP &&
-              disp < stack_lock_offset &&
-              disp >= stack_lock_offset - 32)
-          {
-            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
-              g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
-          }
-
-          break;
-        }
-        default:
-          break;
-      }
-    }
-  }
-#elif defined (HAVE_ARM64)
-  {
-    while (offsets->len != 5 &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
-    {
-      const cs_arm64 * arm64 = &insn->detail->arm64;
-
-      switch (insn->id)
-      {
-        case ARM64_INS_MOV:
-        {
-          const cs_arm64_op * src = &arm64->operands[1];
-          int32_t imm = src->imm;
-
-          if (src->type == ARM64_OP_IMM &&
-              imm >= 0x1100 && imm < 0x1200)
-          {
-            if (stack_lock_offset == 0)
-            {
-              stack_lock_offset = imm;
-            }
-            else
-            {
-              if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (imm), NULL))
-                g_ptr_array_add (offsets, GSIZE_TO_POINTER (imm));
-            }
-          }
-
-          break;
-        }
-        case ARM64_INS_LDR:
-        {
-          const arm64_op_mem * src = &arm64->operands[1].mem;
-          int64_t disp = src->disp;
-
-          if (src->base != ARM64_REG_SP &&
-              src->base != ARM64_REG_FP &&
-              disp < stack_lock_offset &&
-              disp >= stack_lock_offset - 128)
-          {
-            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (disp), NULL))
-              g_ptr_array_add (offsets, GSIZE_TO_POINTER (disp));
-          }
-
-          break;
-        }
-        default:
-          break;
-      }
-    }
-  }
-#elif defined (HAVE_MIPS)
-  {
-    while (offsets->len != 3 &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
-    {
-      const cs_mips * mips = &insn->detail->mips;
-
-      switch (insn->id)
-      {
-        case MIPS_INS_ADDIU:
-        {
-          int64_t imm = mips->operands[2].imm;
-
-          if (stack_lock_offset == 0 && imm >= 0x900 && imm < 0xb00)
-          {
-            stack_lock_offset = imm;
-          }
-          else if (imm < stack_lock_offset && imm >= stack_lock_offset - 128)
-          {
-            if (!g_ptr_array_find (offsets, GSIZE_TO_POINTER (imm), NULL))
-              g_ptr_array_add (offsets, GSIZE_TO_POINTER (imm));
-          }
-
-          break;
-        }
-        default:
-          break;
-      }
-    }
-  }
-#endif
-
-  g_ptr_array_sort (offsets, gum_ptr_compare);
-
-  if (offsets->len >= 2)
-  {
-    guint stack_used_offset, stack_user_offset;
-    gpointer rtld_global;
-
-    stack_used_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 0));
-    stack_user_offset = GPOINTER_TO_UINT (g_ptr_array_index (offsets, 1));
-
-    rtld_global = GSIZE_TO_POINTER (
-        gum_module_find_global_export_by_name ("_rtld_global"));
-
-    spec->stack_used = (GumGlibcList *)
-        ((guint8 *) rtld_global + stack_used_offset);
-    spec->stack_user = (GumGlibcList *)
-        ((guint8 *) rtld_global + stack_user_offset);
-    spec->stack_lock = (GumGlibcLock *)
-        ((guint8 *) rtld_global + stack_lock_offset);
-
-    success = TRUE;
-  }
-
-  g_ptr_array_unref (offsets);
-
-  cs_free (insn, 1);
-
-  cs_close (&capstone);
-
-  return success;
-}
-
-static gboolean
-gum_find_thread_start (const GumSystemTapProbeDetails * probe,
-                       gpointer user_data)
-{
-  GumLinuxPThreadSpec * spec = user_data;
-
-  if (strcmp (probe->name, "pthread_start") == 0)
-  {
-    gchar ** args;
-
-    spec->start_impl = GSIZE_TO_POINTER (probe->address);
-
-#ifdef HAVE_I386
-    args = g_strsplit (probe->args, " ", 0);
-
-    spec->start_routine_offset = atoi (strchr (args[1], '@') + 1);
-    spec->start_parameter_offset = atoi (strchr (args[2], '@') + 1);
-#else
-    args = g_strsplit (probe->args, ", ", 0);
-
-    spec->start_routine_offset = atoi (args[1]);
-    spec->start_parameter_offset = atoi (args[2]);
-#endif
-
-    g_strfreev (args);
-
+      gum_process_get_libc_module (), "__call_tls_dtors"));
+  if (spec->terminate_impl == NULL)
     return FALSE;
-  }
 
   return TRUE;
 }
 
 static gboolean
-gum_find_thread_start_manually (GumLinuxPThreadSpec * spec)
+gum_linux_find_list_head (GumLinuxPThreadSpec * spec)
 {
-  guint8 * create_prologue, * start_prologue;
+  gboolean success = FALSE;
+  GumLinuxThreadCtx first, second;
+  gboolean created_first = FALSE;
+  gboolean created_second = FALSE;
+
+  created_first = gum_linux_create_thread (&first, TRUE);
+  if (!created_first)
+    goto beach;
+
+  created_second = gum_linux_create_thread (&second, TRUE);
+  if (!created_second)
+    goto beach;
+
+  if (!gum_linux_find_list_head_offset (spec, &first, &second))
+    goto beach;
+
+  success = TRUE;
+
+beach:
+  if (created_second)
+  {
+    if (!gum_linux_dispose_thread (&second))
+      success = FALSE;
+  }
+
+  if (created_first)
+  {
+    if (!gum_linux_dispose_thread (&first))
+      success = FALSE;
+  }
+
+  return success;
+}
+
+static gboolean
+gum_linux_find_list_head_offset (GumLinuxPThreadSpec * spec,
+                                 GumLinuxThreadCtx * first,
+                                 GumLinuxThreadCtx * second)
+{
+  gboolean success = FALSE;
+  gboolean found_flink = FALSE;
+  gsize offset;
+  gpointer * candidate_address, expected_value;
+  guint8 * candidate_data;
+  gsize bytes_read;
+
+  /*
+   * Threads are added to the list head. So the second thread's flink, should
+   * point to the first thread's list head.
+   */
+  for (offset = 0; offset < GUM_MAX_PTHREAD_SIZE; offset += sizeof (gpointer))
+  {
+    candidate_address = GSIZE_TO_POINTER (second->thread) + offset;
+    expected_value = GSIZE_TO_POINTER (first->thread) + offset;
+
+    candidate_data = gum_memory_read (candidate_address, sizeof (gpointer),
+        &bytes_read);
+    if (candidate_data == NULL || bytes_read != sizeof (gpointer))
+      goto beach;
+
+    found_flink = *(gpointer *) candidate_data == expected_value;
+
+    g_free (candidate_data);
+    candidate_data = NULL;
+
+    if (found_flink)
+    {
+      spec->flink_offset = offset;
+      break;
+    }
+  }
+  if (!found_flink)
+    goto beach;
+
+  /*
+   * The first thread's blink, should point to the second thread's list head.
+   * And the blink should immediately follow the flink.
+   */
+  candidate_address = GSIZE_TO_POINTER (first->thread) + spec->flink_offset +
+      sizeof (gpointer);
+
+  expected_value = GSIZE_TO_POINTER (second->thread) + spec->flink_offset;
+
+  candidate_data = gum_memory_read (candidate_address, sizeof (gpointer),
+      &bytes_read);
+  if (candidate_data == NULL || bytes_read != sizeof (gpointer))
+    goto beach;
+
+  if (*(gpointer **) candidate_data == expected_value)
+  {
+    success = TRUE;
+    spec->blink_offset = spec->flink_offset + sizeof (gpointer);
+  }
+
+beach:
+  g_free (candidate_data);
+
+  return success;
+}
+
+static gboolean
+gum_linux_find_start_offsets (GumLinuxPThreadSpec * spec)
+{
+  gboolean success = FALSE;
+  gboolean created_thread;
+  GumLinuxThreadCtx ctx;
+  gsize offset;
+  gboolean found_start_routine = FALSE;
+  gboolean found_start_param = FALSE;
+
+  created_thread = gum_linux_create_thread (&ctx, TRUE);
+  if (!created_thread)
+    goto beach;
+
+  for (offset = 0; offset < GUM_MAX_PTHREAD_SIZE; offset += sizeof (gpointer))
+  {
+    gpointer * candidate_address;
+    guint8 * candidate_data;
+    gsize bytes_read;
+    gpointer value;
+
+    candidate_address = GSIZE_TO_POINTER (ctx.thread) + offset;
+
+    candidate_data = gum_memory_read (candidate_address, sizeof (gpointer),
+        &bytes_read);
+    if (candidate_data == NULL || bytes_read != sizeof (gpointer))
+      goto beach;
+
+    value = *((gpointer *) candidate_data);
+
+    g_free (candidate_data);
+
+    if (value == gum_linux_thread_proc)
+    {
+      found_start_routine = TRUE;
+      spec->start_routine_offset = offset;
+    }
+
+    if (value == &ctx)
+    {
+      found_start_param = TRUE;
+      spec->start_parameter_offset = offset;
+    }
+
+    if (found_start_routine && found_start_param)
+      break;
+  }
+
+  if (!found_start_routine || !found_start_param)
+    goto beach;
+
+  success = TRUE;
+
+beach:
+  if (created_thread)
+  {
+    if (!gum_linux_dispose_thread (&ctx))
+      success = FALSE;
+  }
+
+  return success;
+}
+
+static gboolean
+gum_linux_find_tid_offset (GumLinuxPThreadSpec * spec)
+{
+  gboolean success = FALSE;
+  gboolean created_thread;
+  GumLinuxThreadCtx ctx;
+  gsize offset;
+  guint matches = 0;
+  gboolean found_tid_offset = FALSE;
+
+  created_thread = gum_linux_create_thread (&ctx, TRUE);
+  if (!created_thread)
+    goto beach;
+
+  for (offset = 0; offset < GUM_MAX_PTHREAD_SIZE; offset += sizeof (gint))
+  {
+    gpointer * candidate_address;
+    guint8 * candidate_data;
+    gsize bytes_read;
+    gint value;
+
+    candidate_address = GSIZE_TO_POINTER (ctx.thread) + offset;
+
+    candidate_data = gum_memory_read (candidate_address, sizeof (gint),
+        &bytes_read);
+    if (candidate_data == NULL || bytes_read != sizeof (gint))
+      goto beach;
+
+    value = *((gint *) candidate_data);
+
+    g_free (candidate_data);
+
+    if (value == ctx.tid)
+    {
+      gsize i;
+
+      /*
+       * The TID is quite small, so there is the chance of a false positive,
+       * create some more threads and check it is right.
+       */
+      for (i = 0; i != GUM_TID_CHECK_TIMES; i++)
+      {
+        gboolean match;
+
+        if (!gum_linux_check_thread_offset (offset, &match))
+          goto beach;
+
+        if (!match)
+          break;
+
+        matches++;
+      }
+
+      if (matches == GUM_TID_CHECK_TIMES)
+      {
+        found_tid_offset = TRUE;
+        spec->tid_offset = offset;
+        break;
+      }
+    }
+  }
+
+  if (!found_tid_offset)
+    goto beach;
+
+  success = TRUE;
+
+beach:
+  if (created_thread)
+  {
+    if (!gum_linux_dispose_thread (&ctx))
+      success = FALSE;
+  }
+
+  return success;
+}
+
+static gboolean
+gum_linux_check_thread_offset (gsize offset,
+                               gboolean * match)
+{
+  gboolean success = FALSE;
+  gboolean created_thread;
+  GumLinuxThreadCtx ctx;
+  gpointer * tid_addr;
+  guint8 * tid_data;
+  gsize bytes_read;
+  gint tid;
+
+  created_thread = gum_linux_create_thread (&ctx, TRUE);
+  if (!created_thread)
+    goto beach;
+
+  tid_addr = GSIZE_TO_POINTER (ctx.thread) + offset;
+
+  tid_data = gum_memory_read (tid_addr, sizeof (gint), &bytes_read);
+  if (tid_data == NULL || bytes_read != sizeof (gint))
+    goto beach;
+
+  tid = *((gint *) tid_data);
+
+  g_free (tid_data);
+
+  *match = tid == ctx.tid;
+
+  success = TRUE;
+
+beach:
+  if (created_thread)
+  {
+    if (!gum_linux_dispose_thread (&ctx))
+      success = FALSE;
+  }
+
+  return success;
+}
+
+static gboolean
+gum_linux_find_list_anchor (GumLinuxPThreadSpec * spec,
+                            gboolean custom_stack)
+{
+  gboolean success = FALSE;
+  gboolean created_thread;
+  GumLinuxThreadCtx ctx;
+  pthread_t current, next, prev;
+  guint num_threads = 0;
+  gpointer anchor = NULL;
+
+  created_thread = gum_linux_create_thread (&ctx, custom_stack);
+  if (!created_thread)
+    goto beach;
+
+  current = ctx.thread;
+
+  do
+  {
+    GumThreadId tid;
+
+    /*
+     * If we get the TID from our thread and check if exists then if it doesn't
+     * we have probably found the list anchor. But we check we don't find more
+     * than one that fails.
+     */
+    tid = gum_linux_query_pthread_tid (current, spec);
+    if (!gum_process_has_thread (tid))
+    {
+      if (anchor == NULL)
+        anchor = GSIZE_TO_POINTER (current) + spec->flink_offset;
+      else
+        goto beach;
+    }
+
+    if (!gum_linux_thread_read_flink (spec, current, &next))
+      goto beach;
+
+    if (!gum_linux_thread_read_blink (spec, next, &prev))
+      goto beach;
+
+    if (prev != current)
+      goto beach;
+
+    current = next;
+    num_threads++;
+
+    /*
+     * If we find more than the maximum expected number of threads without
+     * getting back to the start of the list, then terminate to avoid an
+     * infinite loop.
+     */
+    if (num_threads == GUM_LINUX_MAX_THREADS)
+      goto beach;
+  }
+  while (current != ctx.thread);
+
+  if (custom_stack)
+    spec->stack_user = anchor;
+  else
+    spec->stack_used = anchor;
+
+  success = TRUE;
+
+beach:
+  if (created_thread)
+  {
+    if (!gum_linux_dispose_thread (&ctx))
+      success = FALSE;
+  }
+
+  return success;
+}
+
+static gboolean
+gum_linux_find_lock (GumLinuxPThreadSpec * spec)
+{
+  guint major;
+  guint minor;
+  gpointer addr_from_stack_used;
+  gpointer addr_from_stack_user;
+
+  if (!gum_linux_get_libc_version (&major, &minor))
+    return FALSE;
+
+  /*
+   * Prior to glibc 2.33, the location of the lock is unpredicatable, so we
+   * will just have to make do without and accept the possibility of a
+   * potential race.
+   */
+  if (major < 2 || (major == 2 && minor < 33))
+    return TRUE;
+
+  if (spec->stack_used == NULL || spec->stack_user == NULL)
+    return FALSE;
+
+  addr_from_stack_used = ((gpointer) spec->stack_used) -
+      G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_used);
+  addr_from_stack_user = ((gpointer) spec->stack_user) -
+      G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_user);
+
+  if (addr_from_stack_used != addr_from_stack_user)
+    return FALSE;
+
+  spec->stack_lock = (GumGlibcLock *) (addr_from_stack_used +
+      G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_cache_lock));
+
+  return TRUE;
+}
+
+static gboolean
+gum_linux_get_libc_version (guint * major,
+                            guint * minor)
+{
+  gboolean success = FALSE;
+  const gchar * version;
+  gchar ** parts, * end;
+  guint64 maj, min;
+
+  version = gnu_get_libc_version ();
+
+  parts = g_strsplit (version, ".", 2);
+  if (parts[0] == NULL || parts[1] == NULL)
+    goto beach;
+
+  maj = g_ascii_strtoull (parts[0], &end, 10);
+  if (*end != '\0')
+    goto beach;
+
+  min = g_ascii_strtoull (parts[1], &end, 10);
+  if (*end != '\0')
+    goto beach;
+
+  *major = maj;
+  *minor = min;
+
+  success = TRUE;
+
+beach:
+  g_strfreev (parts);
+
+  return success;
+}
+
+static gboolean
+gum_linux_find_start_impl (GumLinuxPThreadSpec * spec)
+{
+  gboolean success = FALSE;
+  gboolean created_thread;
+  GumLinuxThreadCtx ctx;
 #ifdef HAVE_ARM
   gboolean is_thumb;
 #endif
   csh capstone;
   cs_insn * insn;
   const uint8_t * code;
-  size_t size;
-  uint64_t addr;
+  gsize i;
+  gboolean found_start = FALSE;
 
-  create_prologue = GSIZE_TO_POINTER (gum_module_find_export_by_name (
-        gum_process_get_libc_module (), "pthread_create"));
-
-#if defined (HAVE_I386)
-  {
-    const guint8 frame_setup_code[] = {
-      0x55,       /* push xbp     */
-# if GLIB_SIZEOF_VOID_P == 8
-      0x48,
-# endif
-      0x89, 0xe5, /* mov xbp, xsp */
-    };
-    guint8 * cursor;
-
-    start_prologue = NULL;
-    for (cursor = create_prologue - sizeof (frame_setup_code);
-        cursor != create_prologue - 2048;
-        cursor--)
-    {
-      if (memcmp (cursor, frame_setup_code, sizeof (frame_setup_code)) == 0)
-      {
-        start_prologue = cursor;
-        break;
-      }
-    }
-    if (start_prologue == NULL)
-      return FALSE;
-  }
-#elif defined (HAVE_ARM)
-  {
-    const guint16 setup_frame_insn = 0xb580;
-    guint16 * cursor;
-
-    is_thumb = (GPOINTER_TO_SIZE (create_prologue) & 1) != 0;
-    if (!is_thumb)
-      return FALSE; /* TODO: implement when needed */
-
-    create_prologue =
-        GSIZE_TO_POINTER (GPOINTER_TO_SIZE (create_prologue) & ~1);
-
-    start_prologue = NULL;
-    for (cursor = (guint16 *) (create_prologue - 2);
-        cursor != (guint16 *) (create_prologue - 2048);
-        cursor--)
-    {
-      if (*cursor == setup_frame_insn)
-      {
-        start_prologue = (guint8 *) cursor;
-        break;
-      }
-    }
-    if (start_prologue == NULL)
-      return FALSE;
-  }
-#elif defined (HAVE_ARM64)
-  {
-    const guint32 setup_frame_insn = 0x910003fd;
-    guint32 * cursor;
-
-    start_prologue = NULL;
-    for (cursor = (guint32 *) (create_prologue - 4);
-        cursor != (guint32 *) (create_prologue - 2048);
-        cursor--)
-    {
-      if (GUINT32_FROM_LE (*cursor) == setup_frame_insn)
-      {
-        start_prologue = (guint8 *) cursor;
-        break;
-      }
-    }
-    if (start_prologue == NULL)
-      return FALSE;
-  }
-#elif defined (HAVE_MIPS)
-  {
-    const guint32 setup_frame_insn = 0x0399e021U;
-    guint32 * cursor;
-
-    start_prologue = NULL;
-    for (cursor = (guint32 *) (create_prologue - 4);
-        cursor != (guint32 *) (create_prologue - 2048);
-        cursor--)
-    {
-      if (*cursor == setup_frame_insn)
-      {
-        start_prologue = (guint8 *) (cursor - 2);
-        break;
-      }
-    }
-    if (start_prologue == NULL)
-      return FALSE;
-  }
-#endif
+  created_thread = gum_linux_create_thread (&ctx, TRUE);
+  if (!created_thread)
+    goto beach;
 
   gum_cs_arch_register_native ();
 #ifdef HAVE_ARM
+  is_thumb = (GPOINTER_TO_SIZE (ctx.ret) & 1) != 0;
   cs_open (GUM_DEFAULT_CS_ARCH,
       is_thumb
         ? CS_MODE_THUMB | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN
         : GUM_DEFAULT_CS_MODE,
       &capstone);
+  code = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (ctx.ret) & ~1);
 #else
   cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  code = ctx.ret;
 #endif
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
   cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
 
-  insn = cs_malloc (capstone);
-
-  code = start_prologue;
-  size = 2048;
-  addr = GPOINTER_TO_SIZE (code);
-
-#if defined (HAVE_I386)
+  for (i = 0; i != GUM_MAX_INSTRUCTION_SIZE; i++)
   {
-    GHashTable * moves;
-    GArray * sizes;
-
-    moves = g_hash_table_new_full (NULL, NULL, NULL, g_free);
-    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
-
-    while (spec->start_routine_offset == 0 &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    if (cs_disasm (capstone, code - i, i, GPOINTER_TO_SIZE (code - i), 1, &insn)
+        == 0)
     {
-      guint i = sizes->len;
-      guint16 size = insn->size;
-      const cs_x86 * x86 = &insn->detail->x86;
-
-      g_array_append_val (sizes, size);
-
-      switch (insn->id)
-      {
-        case X86_INS_CMP:
-        {
-          const cs_x86_op * a = &x86->operands[0];
-
-          if (a->type == X86_OP_MEM && a->mem.disp >= 0x400 && a->size == 1)
-          {
-            spec->start_impl = (uint8_t *) code - insn->size;
-          }
-
-          break;
-        }
-        case X86_INS_MOV:
-        {
-          const cs_x86_op * dst = &x86->operands[0];
-          const cs_x86_op * src = &x86->operands[1];
-
-          if (spec->start_impl != NULL &&
-              dst->type == X86_OP_REG && dst->reg == X86_REG_RDI &&
-              src->type == X86_OP_MEM)
-          {
-            spec->start_parameter_offset = src->mem.disp;
-            spec->start_routine_offset = src->mem.disp - sizeof (gpointer);
-          }
-          else if (spec->start_impl == NULL &&
-              dst->type == X86_OP_REG &&
-              src->type == X86_OP_MEM)
-          {
-            GumMoveInsn * mov = g_new (GumMoveInsn, 1);
-            mov->address = addr - insn->size;
-            mov->index = i;
-            mov->disp = src->mem.disp;
-            g_hash_table_insert (moves, GUINT_TO_POINTER (dst->reg), mov);
-          }
-
-          break;
-        }
-        case X86_INS_CALL:
-        {
-          const cs_x86_op * target = &x86->operands[0];
-
-          if (spec->start_impl != NULL && target->type == X86_OP_MEM)
-          {
-            spec->start_routine_offset = target->mem.disp;
-            spec->start_parameter_offset = target->mem.disp + sizeof (gpointer);
-          }
-          else if (spec->start_impl == NULL && target->type == X86_OP_REG)
-          {
-            GumMoveInsn * mov =
-                g_hash_table_lookup (moves, GUINT_TO_POINTER (target->reg));
-            if (mov != NULL)
-            {
-              guint hook_delta, i;
-
-              hook_delta = 0;
-              for (i = mov->index - 4; i != mov->index; i++)
-                hook_delta += g_array_index (sizes, guint16, i);
-
-              spec->start_impl = GSIZE_TO_POINTER (mov->address - hook_delta);
-              spec->start_routine_offset = mov->disp;
-              spec->start_parameter_offset = mov->disp + sizeof (gpointer);
-            }
-          }
-
-          break;
-        }
-        default:
-          break;
-      }
+      continue;
     }
 
-    g_array_unref (sizes);
-    g_hash_table_unref (moves);
-  }
-#elif defined (HAVE_ARM)
-  {
-    GArray * sizes;
-    guint insn_index;
-    guint ldrd_index = 0;
-    gpointer ldrd_location = NULL;
-    arm_reg func_reg = ARM_REG_INVALID;
+    if (insn->size != i)
+      continue;
 
-    sizes = g_array_sized_new (FALSE, FALSE, sizeof (guint16), 32);
-
-    for (insn_index = 0; spec->start_impl == NULL &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn); insn_index++)
+    if (gum_linux_is_call (insn))
     {
-      guint16 size = insn->size;
-      const cs_arm * arm = &insn->detail->arm;
-
-      g_array_append_val (sizes, size);
-
-      switch (insn->id)
-      {
-        case ARM_INS_LDRD:
-          ldrd_index = insn_index;
-          ldrd_location = (gpointer) (code - insn->size);
-          func_reg = arm->operands[0].reg;
-          spec->start_routine_offset = arm->operands[2].mem.disp;
-          spec->start_parameter_offset = spec->start_routine_offset + 4;
-          break;
-        case ARM_INS_BLX:
-          if (arm->operands[0].type == ARM_OP_REG &&
-              arm->operands[0].reg == func_reg)
-          {
-            guint hook_delta, i;
-            gpointer hook_location;
-
-            hook_delta = 0;
-            for (i = ldrd_index - 4; i != ldrd_index; i++)
-              hook_delta += g_array_index (sizes, guint16, i);
-
-            hook_location = ldrd_location - hook_delta;
-
-            spec->start_impl = is_thumb
-                ? GSIZE_TO_POINTER (GPOINTER_TO_SIZE (hook_location) | 1)
-                : hook_location;
-          }
-          break;
-        default:
-          break;
-      }
+      found_start = TRUE;
+      spec->start_impl = GSIZE_TO_POINTER (insn->address);
+      break;
     }
 
-    g_array_unref (sizes);
+    cs_free (insn, 1);
+    insn = NULL;
   }
-#elif defined (HAVE_ARM64)
-  {
-    GHashTable * loads;
+  if (!found_start)
+    goto beach;
 
-    loads = g_hash_table_new_full (NULL, NULL, NULL, g_free);
+  success = TRUE;
 
-    while (spec->start_routine_offset == 0 &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
-    {
-      const cs_arm64 * arm64 = &insn->detail->arm64;
-
-      switch (insn->id)
-      {
-        case ARM64_INS_LDR:
-        {
-          GumLdrInsn * ldr = g_new (GumLdrInsn, 1);
-          ldr->address = addr - insn->size;
-          ldr->disp = arm64->operands[1].mem.disp;
-          g_hash_table_insert (loads, GUINT_TO_POINTER (arm64->operands[0].reg),
-              ldr);
-
-          break;
-        }
-        case ARM64_INS_BLR:
-        {
-          const cs_arm64_op * target = &arm64->operands[0];
-          GumLdrInsn * ldr;
-
-          ldr = g_hash_table_lookup (loads, GUINT_TO_POINTER (target->reg));
-          if (ldr != NULL)
-          {
-            spec->start_impl = GSIZE_TO_POINTER (ldr->address - (4 * 4));
-            spec->start_routine_offset = ldr->disp;
-            spec->start_parameter_offset = ldr->disp + sizeof (gpointer);
-          }
-
-          break;
-        }
-        default:
-          break;
-      }
-    }
-
-    g_hash_table_unref (loads);
-  }
-#elif defined (HAVE_MIPS)
-  {
-    GHashTable * loads;
-
-    loads = g_hash_table_new_full (NULL, NULL, NULL, g_free);
-
-    while (spec->start_routine_offset == 0 &&
-        cs_disasm_iter (capstone, &code, &size, &addr, insn))
-    {
-      const cs_mips * mips = &insn->detail->mips;
-
-      switch (insn->id)
-      {
-        case MIPS_INS_LW:
-        {
-          const cs_mips_op * dst = &mips->operands[0];
-          const cs_mips_op * src = &mips->operands[1];
-          GumLoadInsn * load;
-
-          load = g_new (GumLoadInsn, 1);
-          load->address = addr - 4;
-          load->base = src->mem.base;
-          load->disp = src->mem.disp;
-          g_hash_table_insert (loads, GUINT_TO_POINTER (dst->reg), load);
-
-          break;
-        }
-        case MIPS_INS_JALR:
-        {
-          const cs_mips_op * target = &mips->operands[0];
-
-          GumLoadInsn * load =
-              g_hash_table_lookup (loads, GUINT_TO_POINTER (target->reg));
-          if (load != NULL && load->base != MIPS_REG_GP)
-          {
-            spec->start_impl = GSIZE_TO_POINTER (load->address - (3 * 4));
-            spec->start_routine_offset = load->disp;
-            spec->start_parameter_offset = load->disp + sizeof (gpointer);
-          }
-
-          break;
-        }
-        default:
-          break;
-      }
-    }
-
-    g_hash_table_unref (loads);
-  }
-#endif
-
-  cs_free (insn, 1);
+beach:
+  if (insn != NULL)
+    cs_free (insn, 1);
 
   cs_close (&capstone);
 
-  return spec->start_routine_offset != 0;
+  if (created_thread)
+  {
+    if (!gum_linux_dispose_thread (&ctx))
+      success = FALSE;
+  }
+
+  return success;
+}
+
+static gboolean
+gum_linux_is_call (cs_insn * insn)
+{
+  switch (insn->id)
+  {
+#if defined (HAVE_I386)
+    case X86_INS_CALL:
+      return TRUE;
+#elif defined (HAVE_ARM)
+    case ARM_INS_BL:
+    case ARM_INS_BLX:
+      return TRUE;
+#elif defined (HAVE_ARM64)
+    case ARM64_INS_BL:
+    case ARM64_INS_BLR:
+    case ARM64_INS_BLRAA:
+    case ARM64_INS_BLRAAZ:
+    case ARM64_INS_BLRAB:
+    case ARM64_INS_BLRABZ:
+      return TRUE;
+#elif defined (HAVE_MIPS)
+    case MIPS_INS_JAL:
+    case MIPS_INS_JALR:
+      return TRUE;
+#else
+# error FIXME
+#endif
+    default:
+      break;
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_linux_create_thread (GumLinuxThreadCtx * ctx,
+                         gboolean custom_stack)
+{
+  pthread_attr_t attr;
+  guint page_size;
+  guint num_pages;
+
+  if (pthread_attr_init (&attr) != 0)
+    return FALSE;
+
+  if (custom_stack)
+  {
+    page_size = gum_query_page_size ();
+
+    num_pages = GUM_THREAD_STACK_SIZE / page_size;
+    if (GUM_THREAD_STACK_SIZE % page_size != 0)
+      num_pages++;
+
+    ctx->stack = gum_alloc_n_pages (num_pages, GUM_PAGE_RW);
+    if (ctx->stack == NULL)
+      return FALSE;
+
+    if (pthread_attr_setstack (&attr, ctx->stack, GUM_THREAD_STACK_SIZE) != 0)
+      return FALSE;
+  }
+  else
+  {
+    ctx->stack = NULL;
+  }
+
+  g_mutex_init (&ctx->mutex);
+  g_cond_init (&ctx->cond);
+  ctx->start = FALSE;
+  ctx->exit = FALSE;
+
+  if (pthread_create (&ctx->thread, &attr, gum_linux_thread_proc, ctx) != 0)
+    return FALSE;
+
+  g_mutex_lock (&ctx->mutex);
+  while (!ctx->start)
+    g_cond_wait (&ctx->cond, &ctx->mutex);
+  g_mutex_unlock (&ctx->mutex);
+
+  return TRUE;
+}
+
+static gboolean
+gum_linux_dispose_thread (GumLinuxThreadCtx * ctx)
+{
+  g_mutex_lock (&ctx->mutex);
+  ctx->exit = TRUE;
+  g_cond_signal (&ctx->cond);
+  g_mutex_unlock (&ctx->mutex);
+
+  if (pthread_join (ctx->thread, NULL) != 0)
+    return FALSE;
+
+  if (ctx->stack != NULL)
+    gum_free_pages (ctx->stack);
+
+  return TRUE;
+}
+
+static gpointer
+gum_linux_thread_proc (gpointer param)
+{
+  GumLinuxThreadCtx * ctx = param;
+
+  ctx->tid = gum_process_get_current_thread_id ();
+  ctx->ret = __builtin_extract_return_addr (__builtin_return_address (0));
+
+  g_mutex_lock (&ctx->mutex);
+
+  ctx->start = TRUE;
+  g_cond_signal (&ctx->cond);
+
+  while (!ctx->exit)
+    g_cond_wait (&ctx->cond, &ctx->mutex);
+
+  g_mutex_unlock (&ctx->mutex);
+
+  return NULL;
+}
+
+static gboolean
+gum_linux_thread_read_flink (const GumLinuxPThreadSpec * spec,
+                             pthread_t current,
+                             pthread_t * next)
+{
+  gboolean success = FALSE;
+  gpointer flink;
+  guint8 * data;
+  gsize bytes_read;
+  gpointer next_flink;
+  pthread_t thread;
+
+  flink = GSIZE_TO_POINTER (current) + spec->flink_offset;
+
+  data = gum_memory_read (flink, sizeof (gpointer), &bytes_read);
+  if (data == NULL || bytes_read != sizeof (gpointer))
+    goto beach;
+
+  next_flink = *(gpointer *) data;
+  thread = (pthread_t) (next_flink - spec->flink_offset);
+  if (thread == current)
+    goto beach;
+
+  *next = thread;
+  success = TRUE;
+
+beach:
+  g_free (data);
+
+  return success;
+}
+
+static gboolean
+gum_linux_thread_read_blink (const GumLinuxPThreadSpec * spec,
+                             pthread_t current,
+                             pthread_t * prev)
+{
+  gboolean success = FALSE;
+  gpointer blink;
+  guint8 * data;
+  gsize bytes_read;
+  gpointer next_blink;
+  pthread_t thread;
+
+  blink = GSIZE_TO_POINTER (current) + spec->blink_offset;
+
+  data = gum_memory_read (blink, sizeof (gpointer), &bytes_read);
+  if (data == NULL || bytes_read != sizeof (gpointer))
+    goto beach;
+
+  next_blink = *(gpointer *) data;
+  /*
+   * Our blink points to the start of the list head (the flink comes first),
+   * not the blink field within it.
+   */
+  thread = (pthread_t) (next_blink - spec->flink_offset);
+  if (thread == current)
+    goto beach;
+
+  *prev = thread;
+  success = TRUE;
+
+beach:
+  g_free (data);
+
+  return success;
 }
 
 static void
@@ -3466,16 +3704,6 @@ glibc_lock_release (GumGlibcLock * lock)
 {
   if (__atomic_exchange_n (lock, 0, __ATOMIC_RELEASE) != 1)
     syscall (SYS_futex, lock, FUTEX_WAKE_PRIVATE, 1);
-}
-
-static gint
-gum_ptr_compare (gconstpointer a,
-                 gconstpointer b)
-{
-  const gpointer * ptr_a = a;
-  const gpointer * ptr_b = b;
-
-  return GPOINTER_TO_INT (*ptr_a) - GPOINTER_TO_INT (*ptr_b);
 }
 
 #elif defined (HAVE_MUSL)
