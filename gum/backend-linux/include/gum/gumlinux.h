@@ -17,19 +17,16 @@ typedef struct _GumLinuxPThreadIter GumLinuxPThreadIter;
 typedef struct _GumLinuxPThreadSpec GumLinuxPThreadSpec;
 typedef struct _GumLinuxNamedRange GumLinuxNamedRange;
 
+struct _GumLinuxPThreadIter
+{
 #ifdef HAVE_GLIBC
-struct _GumLinuxPThreadIter
-{
   GList * list;
-};
 #else
-struct _GumLinuxPThreadIter
-{
   gpointer list;
   gpointer node;
   const GumLinuxPThreadSpec * spec;
-};
 #endif
+};
 
 struct _GumLinuxNamedRange
 {

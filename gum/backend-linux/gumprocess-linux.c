@@ -55,7 +55,7 @@ typedef guint32 u32;
 #endif
 
 #ifdef HAVE_GLIBC
-#include <gnu/libc-version.h>
+# include <gnu/libc-version.h>
 #endif
 
 #ifndef O_CLOEXEC
@@ -87,14 +87,14 @@ typedef struct _GumMipsDebugRegs GumDebugRegs;
 #endif
 
 #ifdef HAVE_GLIBC
-#define MAX_LIST_WALK_ATTEMPTS 10
-#define GUM_LINUX_MAX_THREADS 256
-#define FIND_LIST_HEAD_ATTEMPTS 5
-#define FIND_LIST_ANCHOR_ATTEMPTS 10
-#define MAX_PTHREAD_SIZE 2048
-#define TID_CHECK_TIMES 5
-#define MAX_INSTRUCTION_SIZE 15
-#define THREAD_STACK_SIZE 0x20000
+# define GUM_MAX_LIST_WALK_ATTEMPTS        10
+# define GUM_LINUX_MAX_THREADS             256
+# define GUM_MAX_FIND_LIST_HEAD_ATTEMPTS   5
+# define GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS 10
+# define GUM_MAX_PTHREAD_SIZE              2048
+# define GUM_TID_CHECK_TIMES               5
+# define GUM_MAX_INSTRUCTION_SIZE          15
+# define GUM_THREAD_STACK_SIZE             0x20000
 #endif
 
 typedef guint GumMipsWatchStyle;
@@ -313,6 +313,7 @@ struct _GumTcbHead
 };
 
 #if defined (HAVE_GLIBC)
+
 struct _GumLinuxThreadCtx
 {
   pthread_t thread;
@@ -327,26 +328,14 @@ struct _GumLinuxThreadCtx
   gpointer ret;
 };
 
-struct _GumLinuxGlobalsFragment {
-    /* List of active thread stacks, with memory managed by glibc.  */
-    GumGlibcList _dl_stack_used;
-
-    /* List of thread stacks that were allocated by the application.  */
-    GumGlibcList _dl_stack_user;
-
-    /* List of queued thread stacks.  */
-    GumGlibcList _dl_stack_cache;
-
-    /* Total size of all stacks in the cache (sum over stackblock_size).  */
-    size_t _dl_stack_cache_actsize;
-
-    /* We need to record what list operations we are going to do so
-       that, in case of an asynchronous interruption due to a fork()
-       call, we can correct for the work.  */
-    uintptr_t _dl_in_flight_stack;
-
-    /* Mutex protecting the stack lists.  */
-    int _dl_stack_cache_lock;
+struct _GumLinuxGlobalsFragment
+{
+  GumGlibcList _dl_stack_used;
+  GumGlibcList _dl_stack_user;
+  GumGlibcList _dl_stack_cache;
+  size_t _dl_stack_cache_actsize;
+  uintptr_t _dl_in_flight_stack;
+  int _dl_stack_cache_lock;
 };
 
 #elif defined (HAVE_MUSL)
@@ -377,13 +366,13 @@ static void gum_put_ack (gint fd, GumModifyThreadAck ack);
 static GumModule * gum_try_init_libc_module (void);
 static void gum_deinit_libc_module (void);
 static const Dl_info * gum_try_init_libc_info (void);
+
+static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 #ifdef HAVE_GLIBC
 static gboolean gum_linux_get_threads_from_list (
     const GumLinuxPThreadSpec * spec, const GumGlibcList * anchor,
     GList ** threads);
 #endif
-
-static void gum_linux_named_range_free (GumLinuxNamedRange * range);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
@@ -1260,17 +1249,19 @@ _gum_try_translate_vdso_name (gchar * name)
 }
 
 #if defined (HAVE_GLIBC)
+
 void
 gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
                              const GumLinuxPThreadSpec * spec)
 {
+  gsize i;
   GList * used_list = NULL;
   gboolean walked_used_list = FALSE;
   GList * user_list = NULL;
   gboolean walked_user_list = FALSE;
-  gboolean result = FALSE;
+  gboolean success = FALSE;
 
-  for (gsize i = 0; i < MAX_LIST_WALK_ATTEMPTS; i++)
+  for (i = 0; i != GUM_MAX_LIST_WALK_ATTEMPTS; i++)
   {
     if (gum_linux_get_threads_from_list (spec, spec->stack_used, &used_list))
     {
@@ -1278,11 +1269,10 @@ gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
       break;
     }
   }
-
   if (!walked_used_list)
-    goto cleanup;
+    goto beach;
 
-  for (gsize i = 0; i < MAX_LIST_WALK_ATTEMPTS; i++)
+  for (i = 0; i != GUM_MAX_LIST_WALK_ATTEMPTS; i++)
   {
     if (gum_linux_get_threads_from_list (spec, spec->stack_user, &user_list))
     {
@@ -1290,20 +1280,19 @@ gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
       break;
     }
   }
-
   if (!walked_user_list)
-    goto cleanup;
+    goto beach;
 
   iter->list = g_list_concat (used_list, user_list);
 
-  result = TRUE;
-cleanup:
-  if (!result)
+  success = TRUE;
+
+beach:
+  if (!success)
   {
     g_list_free (used_list);
     g_list_free (user_list);
   }
-  return;
 }
 
 static gboolean
@@ -1311,52 +1300,53 @@ gum_linux_get_threads_from_list (const GumLinuxPThreadSpec * spec,
                                  const GumGlibcList * anchor,
                                  GList ** threads)
 {
+  gboolean success = FALSE;
   GList * list = NULL;
-  pthread_t first;
-  pthread_t current;
+  pthread_t first, current;
   guint num_threads = 0;
-  pthread_t next;
-  pthread_t prev;
-  gboolean result = FALSE;
+  pthread_t next, prev;
 
   first = (pthread_t) ((gpointer) anchor - spec->flink_offset);
   current = first;
 
   do
   {
-    /*
-     * If we find more than the maximum expected number of threads without
-     * getting back to the start of the list, then terminate to avoid an
-     * infinite loop.
-     */
-    if (num_threads > GUM_LINUX_MAX_THREADS)
-      goto cleanup;
-
     if (!gum_linux_thread_read_flink (spec, current, &next))
-      goto cleanup;
+      goto beach;
 
     if (!gum_linux_thread_read_blink (spec, next, &prev))
-      goto cleanup;
+      goto beach;
 
     if (prev != current)
-      goto cleanup;
+      goto beach;
 
     list = g_list_append (list, GSIZE_TO_POINTER (current));
 
     current = next;
     num_threads++;
-  } while (current != first);
+
+    /*
+     * If we find more than the maximum expected number of threads without
+     * getting back to the start of the list, then terminate to avoid an
+     * infinite loop.
+     */
+    if (num_threads == GUM_LINUX_MAX_THREADS)
+      goto beach;
+  }
+  while (current != first);
 
   *threads = list;
-  result = TRUE;
+  success = TRUE;
 
-cleanup:
-  if (result == FALSE)
+beach:
+  if (!success)
     g_list_free (list);
 
-  return result;
+  return success;
 }
+
 #else
+
 void
 gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
                              const GumLinuxPThreadSpec * spec)
@@ -1365,9 +1355,11 @@ gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
   iter->node = NULL;
   iter->spec = spec;
 }
+
 #endif
 
 #if defined (HAVE_GLIBC)
+
 gboolean
 gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
                              pthread_t * thread)
@@ -1379,9 +1371,12 @@ gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
   *thread = (pthread_t) (first->data);
   self->list = g_list_next (self->list);
   g_list_free_1 (first);
+
   return TRUE;
 }
+
 #elif defined (HAVE_MUSL)
+
 gboolean
 gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
                              pthread_t * thread)
@@ -1407,7 +1402,9 @@ gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
   *thread = (pthread_t) node;
   return TRUE;
 }
+
 #elif defined (HAVE_ANDROID)
+
 gboolean
 gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
                              pthread_t * thread)
@@ -1439,6 +1436,7 @@ gum_linux_pthread_iter_next (GumLinuxPThreadIter * self,
   *thread = GPOINTER_TO_SIZE (node);
   return TRUE;
 }
+
 #endif
 
 void
@@ -2912,6 +2910,7 @@ gum_linux_query_pthread_spec (void)
 }
 
 #if defined (HAVE_GLIBC)
+
 void
 gum_linux_lock_pthread_list (const GumLinuxPThreadSpec * spec)
 {
@@ -2941,7 +2940,7 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
    * hence a race condition. Therefore we will retry a few times to find the
    * list head.
    */
-  for (tries = 0; tries < FIND_LIST_HEAD_ATTEMPTS; tries++)
+  for (tries = 0; tries != GUM_MAX_FIND_LIST_HEAD_ATTEMPTS; tries++)
   {
     if (gum_linux_find_list_head (spec))
     {
@@ -2949,7 +2948,6 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
       break;
     }
   }
-
   if (!found_list_head)
     return FALSE;
 
@@ -2959,7 +2957,7 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
   if (!gum_linux_find_tid_offset (spec))
     return FALSE;
 
-  for (tries = 0; tries < FIND_LIST_ANCHOR_ATTEMPTS; tries++)
+  for (tries = 0; tries != GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS; tries++)
   {
     if (gum_linux_find_list_anchor (spec, TRUE))
     {
@@ -2967,11 +2965,10 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
       break;
     }
   }
-
   if (!found_custom_stack_list_anchor)
     return FALSE;
 
-  for (tries = 0; tries < FIND_LIST_ANCHOR_ATTEMPTS; tries++)
+  for (tries = 0; tries != GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS; tries++)
   {
     if (gum_linux_find_list_anchor (spec, FALSE))
     {
@@ -2979,7 +2976,6 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
       break;
     }
   }
-
   if (!found_default_stack_list_anchor)
     return FALSE;
 
@@ -3000,39 +2996,38 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
 static gboolean
 gum_linux_find_list_head (GumLinuxPThreadSpec * spec)
 {
-  GumLinuxThreadCtx first;
-  GumLinuxThreadCtx second;
+  gboolean success = FALSE;
+  GumLinuxThreadCtx first, second;
   gboolean created_first = FALSE;
   gboolean created_second = FALSE;
-  gboolean result = FALSE;
 
   created_first = gum_linux_create_thread (&first, TRUE);
   if (!created_first)
-    goto cleanup;
+    goto beach;
 
   created_second = gum_linux_create_thread (&second, TRUE);
   if (!created_second)
-    goto cleanup;
+    goto beach;
 
   if (!gum_linux_find_list_head_offset (spec, &first, &second))
-    goto cleanup;
+    goto beach;
 
-  result = TRUE;
+  success = TRUE;
 
-cleanup:
+beach:
   if (created_second)
   {
     if (!gum_linux_dispose_thread (&second))
-      result = FALSE;
+      success = FALSE;
   }
 
   if (created_first)
   {
     if (!gum_linux_dispose_thread (&first))
-      result = FALSE;
+      success = FALSE;
   }
 
-  return result;
+  return success;
 }
 
 static gboolean
@@ -3040,183 +3035,176 @@ gum_linux_find_list_head_offset (GumLinuxPThreadSpec * spec,
                                  GumLinuxThreadCtx * first,
                                  GumLinuxThreadCtx * second)
 {
-  gsize offset;
-  gpointer * candidate_address;
-  guint8 * candidate_data;
-  gpointer expected_value;
-  gsize bytes_read;
+  gboolean success = FALSE;
   gboolean found_flink = FALSE;
-  gboolean result = FALSE;
+  gsize offset;
+  gpointer * candidate_address, expected_value;
+  guint8 * candidate_data;
+  gsize bytes_read;
 
   /*
    * Threads are added to the list head. So the second thread's flink, should
    * point to the first thread's list head.
    */
-  for (offset = 0; offset < MAX_PTHREAD_SIZE; offset += sizeof (gpointer))
+  for (offset = 0; offset < GUM_MAX_PTHREAD_SIZE; offset += sizeof (gpointer))
   {
     candidate_address = GSIZE_TO_POINTER (second->thread) + offset;
     expected_value = GSIZE_TO_POINTER (first->thread) + offset;
 
     candidate_data = gum_memory_read (candidate_address, sizeof (gpointer),
         &bytes_read);
+    if (candidate_data == NULL || bytes_read != sizeof (gpointer))
+      goto beach;
 
-    if (candidate_data == NULL)
-      goto cleanup;
+    found_flink = *(gpointer *) candidate_data == expected_value;
 
-    if (bytes_read != sizeof (gpointer))
-      goto cleanup;
+    g_free (candidate_data);
+    candidate_data = NULL;
 
-    if (* (gpointer *) candidate_data == expected_value)
+    if (found_flink)
     {
       spec->flink_offset = offset;
-      found_flink = TRUE;
       break;
     }
   }
-
   if (!found_flink)
-    goto cleanup;
+    goto beach;
 
   /*
-   * The first thread's blink, should point to the second thread's list head. And the
-   * blink should immediately follow the flink
+   * The first thread's blink, should point to the second thread's list head.
+   * And the blink should immediately follow the flink.
    */
-  candidate_address = GSIZE_TO_POINTER (first->thread) + spec->flink_offset
-      + sizeof (gpointer);
+  candidate_address = GSIZE_TO_POINTER (first->thread) + spec->flink_offset +
+      sizeof (gpointer);
 
   expected_value = GSIZE_TO_POINTER (second->thread) + spec->flink_offset;
 
   candidate_data = gum_memory_read (candidate_address, sizeof (gpointer),
       &bytes_read);
+  if (candidate_data == NULL || bytes_read != sizeof (gpointer))
+    goto beach;
 
-  if (candidate_data == NULL)
-    goto cleanup;
-
-  if (bytes_read != sizeof (gpointer))
-    goto cleanup;
-
-  if (* (gpointer **) candidate_data == expected_value)
+  if (*(gpointer **) candidate_data == expected_value)
   {
+    success = TRUE;
     spec->blink_offset = spec->flink_offset + sizeof (gpointer);
-    result = TRUE;
   }
 
-cleanup:
-  if (candidate_data != NULL)
-    g_free (candidate_data);
+beach:
+  g_free (candidate_data);
 
-  return result;
+  return success;
 }
 
 static gboolean
 gum_linux_find_start_offsets (GumLinuxPThreadSpec * spec)
 {
-  GumLinuxThreadCtx ctx;
+  gboolean success = FALSE;
   gboolean created_thread;
+  GumLinuxThreadCtx ctx;
   gsize offset;
-  gpointer * candidate_address;
-  guint8 * candidate_data;
-  gsize bytes_read;
-  gpointer value;
   gboolean found_start_routine = FALSE;
   gboolean found_start_param = FALSE;
-  gboolean result = FALSE;
 
   created_thread = gum_linux_create_thread (&ctx, TRUE);
   if (!created_thread)
-    goto cleanup;
+    goto beach;
 
-  for (offset = 0; offset < MAX_PTHREAD_SIZE; offset += sizeof (gpointer))
+  for (offset = 0; offset < GUM_MAX_PTHREAD_SIZE; offset += sizeof (gpointer))
   {
+    gpointer * candidate_address;
+    guint8 * candidate_data;
+    gsize bytes_read;
+    gpointer value;
+
     candidate_address = GSIZE_TO_POINTER (ctx.thread) + offset;
 
     candidate_data = gum_memory_read (candidate_address, sizeof (gpointer),
         &bytes_read);
-
-    if (candidate_data == NULL)
-      goto cleanup;
-
-    if (bytes_read != sizeof (gpointer))
-      goto cleanup;
+    if (candidate_data == NULL || bytes_read != sizeof (gpointer))
+      goto beach;
 
     value = *((gpointer *) candidate_data);
 
+    g_free (candidate_data);
+
     if (value == gum_linux_thread_proc)
     {
-      spec->start_routine_offset = offset;
       found_start_routine = TRUE;
+      spec->start_routine_offset = offset;
     }
 
     if (value == &ctx)
     {
-      spec->start_parameter_offset = offset;
       found_start_param = TRUE;
+      spec->start_parameter_offset = offset;
     }
 
     if (found_start_routine && found_start_param)
       break;
   }
 
-  if (!found_start_routine)
-    goto cleanup;
+  if (!found_start_routine || !found_start_param)
+    goto beach;
 
-  if (!found_start_param)
-    goto cleanup;
+  success = TRUE;
 
-  result = TRUE;
-cleanup:
+beach:
   if (created_thread)
   {
     if (!gum_linux_dispose_thread (&ctx))
-      result = FALSE;
+      success = FALSE;
   }
-  return result;
+
+  return success;
 }
 
 static gboolean
 gum_linux_find_tid_offset (GumLinuxPThreadSpec * spec)
 {
-  GumLinuxThreadCtx ctx;
+  gboolean success = FALSE;
   gboolean created_thread;
+  GumLinuxThreadCtx ctx;
   gsize offset;
-  gpointer * candidate_address;
-  guint8 * candidate_data;
-  gsize bytes_read;
-  gint value;
-  gboolean match;
   guint matches = 0;
   gboolean found_tid_offset = FALSE;
-  gboolean result = FALSE;
 
   created_thread = gum_linux_create_thread (&ctx, TRUE);
   if (!created_thread)
-    goto cleanup;
+    goto beach;
 
-  for (offset = 0; offset < MAX_PTHREAD_SIZE; offset += sizeof (gint))
+  for (offset = 0; offset < GUM_MAX_PTHREAD_SIZE; offset += sizeof (gint))
   {
+    gpointer * candidate_address;
+    guint8 * candidate_data;
+    gsize bytes_read;
+    gint value;
+
     candidate_address = GSIZE_TO_POINTER (ctx.thread) + offset;
 
     candidate_data = gum_memory_read (candidate_address, sizeof (gint),
         &bytes_read);
-
-    if (candidate_data == NULL)
-      goto cleanup;
-
-    if (bytes_read != sizeof (gint))
-      goto cleanup;
+    if (candidate_data == NULL || bytes_read != sizeof (gint))
+      goto beach;
 
     value = *((gint *) candidate_data);
 
+    g_free (candidate_data);
+
     if (value == ctx.tid)
     {
+      gsize i;
+
       /*
        * The TID is quite small, so there is the chance of a false positive,
        * create some more threads and check it is right.
        */
-      for (gsize i = 0; i < TID_CHECK_TIMES; i++)
+      for (i = 0; i != GUM_TID_CHECK_TIMES; i++)
       {
+        gboolean match;
+
         if (!gum_linux_check_thread_offset (offset, &match))
-          goto cleanup;
+          goto beach;
 
         if (!match)
           break;
@@ -3224,98 +3212,90 @@ gum_linux_find_tid_offset (GumLinuxPThreadSpec * spec)
         matches++;
       }
 
-      if (matches == TID_CHECK_TIMES)
+      if (matches == GUM_TID_CHECK_TIMES)
       {
-        spec->tid_offset = offset;
         found_tid_offset = TRUE;
+        spec->tid_offset = offset;
         break;
       }
     }
   }
 
   if (!found_tid_offset)
-    goto cleanup;
+    goto beach;
 
-  result = TRUE;
-cleanup:
+  success = TRUE;
+
+beach:
   if (created_thread)
   {
     if (!gum_linux_dispose_thread (&ctx))
-      result = FALSE;
+      success = FALSE;
   }
-  return result;
+
+  return success;
 }
 
 static gboolean
 gum_linux_check_thread_offset (gsize offset,
                                gboolean * match)
 {
-  GumLinuxThreadCtx ctx;
+  gboolean success = FALSE;
   gboolean created_thread;
+  GumLinuxThreadCtx ctx;
   gpointer * tid_addr;
   guint8 * tid_data;
   gsize bytes_read;
   gint tid;
-  gboolean result = FALSE;
 
   created_thread = gum_linux_create_thread (&ctx, TRUE);
   if (!created_thread)
-    goto cleanup;
+    goto beach;
 
   tid_addr = GSIZE_TO_POINTER (ctx.thread) + offset;
 
-  tid_data = gum_memory_read (tid_addr, sizeof (gint),
-      &bytes_read);
-
-  if (tid_data == NULL)
-    goto cleanup;
-
-  if (bytes_read != sizeof (gint))
-    goto cleanup;
+  tid_data = gum_memory_read (tid_addr, sizeof (gint), &bytes_read);
+  if (tid_data == NULL || bytes_read != sizeof (gint))
+    goto beach;
 
   tid = *((gint *) tid_data);
-  if (tid == ctx.tid)
-    *match = TRUE;
 
-  result = TRUE;
+  g_free (tid_data);
 
-cleanup:
+  *match = tid == ctx.tid;
+
+  success = TRUE;
+
+beach:
   if (created_thread)
   {
     if (!gum_linux_dispose_thread (&ctx))
-      result = FALSE;
+      success = FALSE;
   }
-  return result;
+
+  return success;
 }
 
 static gboolean
-gum_linux_find_list_anchor (GumLinuxPThreadSpec * spec, gboolean custom_stack)
+gum_linux_find_list_anchor (GumLinuxPThreadSpec * spec,
+                            gboolean custom_stack)
 {
-  GumLinuxThreadCtx ctx;
+  gboolean success = FALSE;
   gboolean created_thread;
+  GumLinuxThreadCtx ctx;
+  pthread_t current, next, prev;
   guint num_threads = 0;
-  pthread_t current;
-  pthread_t next;
-  pthread_t prev;
-  GumThreadId tid;
   gpointer anchor = NULL;
-  gboolean result = FALSE;
 
   created_thread = gum_linux_create_thread (&ctx, custom_stack);
   if (!created_thread)
-    goto cleanup;
+    goto beach;
 
   current = ctx.thread;
 
   do
   {
-    /*
-     * If we find more than the maximum expected number of threads without
-     * getting back to the start of the list, then terminate to avoid an
-     * infinite loop.
-     */
-    if (num_threads > GUM_LINUX_MAX_THREADS)
-      goto cleanup;
+    GumThreadId tid;
 
     /*
      * If we get the TID from our thread and check if exists then if it doesn't
@@ -3328,35 +3308,46 @@ gum_linux_find_list_anchor (GumLinuxPThreadSpec * spec, gboolean custom_stack)
       if (anchor == NULL)
         anchor = GSIZE_TO_POINTER (current) + spec->flink_offset;
       else
-        goto cleanup;
+        goto beach;
     }
 
     if (!gum_linux_thread_read_flink (spec, current, &next))
-      goto cleanup;
+      goto beach;
 
     if (!gum_linux_thread_read_blink (spec, next, &prev))
-      goto cleanup;
+      goto beach;
 
     if (prev != current)
-      goto cleanup;
+      goto beach;
 
     current = next;
     num_threads++;
-  } while (current != ctx.thread);
+
+    /*
+     * If we find more than the maximum expected number of threads without
+     * getting back to the start of the list, then terminate to avoid an
+     * infinite loop.
+     */
+    if (num_threads == GUM_LINUX_MAX_THREADS)
+      goto beach;
+  }
+  while (current != ctx.thread);
 
   if (custom_stack)
     spec->stack_user = anchor;
   else
     spec->stack_used = anchor;
 
-  result = TRUE;
-cleanup:
+  success = TRUE;
+
+beach:
   if (created_thread)
   {
     if (!gum_linux_dispose_thread (&ctx))
-      result = FALSE;
+      success = FALSE;
   }
-  return result;
+
+  return success;
 }
 
 static gboolean
@@ -3375,16 +3366,10 @@ gum_linux_find_lock (GumLinuxPThreadSpec * spec)
    * will just have to make do without and accept the possibility of a
    * potential race.
    */
-  if (major < 2)
+  if (major < 2 || (major == 2 && minor < 33))
     return TRUE;
 
-  if (major == 2 && minor < 33)
-    return TRUE;
-
-  if (spec->stack_used == NULL)
-    return FALSE;
-
-  if (spec->stack_user == NULL)
+  if (spec->stack_used == NULL || spec->stack_user == NULL)
     return FALSE;
 
   addr_from_stack_used = ((gpointer) spec->stack_used)
@@ -3395,8 +3380,8 @@ gum_linux_find_lock (GumLinuxPThreadSpec * spec)
   if (addr_from_stack_used != addr_from_stack_user)
     return FALSE;
 
-  spec->stack_lock = (GumGlibcLock *) (addr_from_stack_used
-      + G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_cache_lock));
+  spec->stack_lock = (GumGlibcLock *) (addr_from_stack_used +
+      G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_cache_lock));
 
   return TRUE;
 }
@@ -3405,54 +3390,54 @@ static gboolean
 gum_linux_get_libc_version (guint * major,
                             guint * minor)
 {
+  gboolean success = FALSE;
   const gchar * version;
-  gchar ** parts;
-  gchar * end;
-  guint64 maj;
-  guint64 min;
-  gboolean result = FALSE;
+  gchar ** parts, * end;
+  guint64 maj, min;
 
   version = gnu_get_libc_version ();
-  parts = g_strsplit (version, ".", 2);
 
+  parts = g_strsplit (version, ".", 2);
   if (parts[0] == NULL || parts[1] == NULL)
-    goto cleanup;
+    goto beach;
 
   maj = g_ascii_strtoull (parts[0], &end, 10);
   if (*end != '\0')
-    goto cleanup;
+    goto beach;
 
   min = g_ascii_strtoull (parts[1], &end, 10);
   if (*end != '\0')
-    goto cleanup;
+    goto beach;
 
   *major = maj;
   *minor = min;
 
-  result = TRUE;
+  success = TRUE;
 
-cleanup:
+beach:
   g_strfreev (parts);
-  return result;
+
+  return success;
 }
 
 static gboolean
 gum_linux_find_start_impl (GumLinuxPThreadSpec * spec)
 {
-  GumLinuxThreadCtx ctx;
+  gboolean success = FALSE;
   gboolean created_thread;
-  #ifdef HAVE_ARM
+  GumLinuxThreadCtx ctx;
+#ifdef HAVE_ARM
   gboolean is_thumb;
 #endif
   csh capstone;
   cs_insn * insn;
   const uint8_t * code;
+  gsize i;
   gboolean found_start = FALSE;
-  gboolean result = FALSE;
 
   created_thread = gum_linux_create_thread (&ctx, TRUE);
   if (!created_thread)
-    goto cleanup;
+    goto beach;
 
   gum_cs_arch_register_native ();
 #ifdef HAVE_ARM
@@ -3470,7 +3455,7 @@ gum_linux_find_start_impl (GumLinuxPThreadSpec * spec)
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
   cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
 
-  for (gsize i = 0; i < MAX_INSTRUCTION_SIZE; i++)
+  for (i = 0; i != GUM_MAX_INSTRUCTION_SIZE; i++)
   {
     if (cs_disasm (capstone, code - i, i, GPOINTER_TO_SIZE (code - i), 1, &insn)
         == 0)
@@ -3491,13 +3476,12 @@ gum_linux_find_start_impl (GumLinuxPThreadSpec * spec)
     cs_free (insn, 1);
     insn = NULL;
   }
-
   if (!found_start)
-    goto cleanup;
+    goto beach;
 
-  result = TRUE;
+  success = TRUE;
 
-cleanup:
+beach:
   if (insn != NULL)
     cs_free (insn, 1);
 
@@ -3506,9 +3490,10 @@ cleanup:
   if (created_thread)
   {
     if (!gum_linux_dispose_thread (&ctx))
-      result = FALSE;
+      success = FALSE;
   }
-  return result;
+
+  return success;
 }
 
 static gboolean
@@ -3519,13 +3504,10 @@ gum_linux_is_call (cs_insn * insn)
 #if defined (HAVE_I386)
     case X86_INS_CALL:
       return TRUE;
-
 #elif defined (HAVE_ARM)
-  // ARM - BL/BLX
     case ARM_INS_BL:
     case ARM_INS_BLX:
       return TRUE;
-
 #elif defined (HAVE_ARM64)
     case ARM64_INS_BL:
     case ARM64_INS_BLR:
@@ -3541,13 +3523,16 @@ gum_linux_is_call (cs_insn * insn)
 #else
 # error FIXME
 #endif
+    default:
+      break;
   }
 
   return FALSE;
 }
 
 static gboolean
-gum_linux_create_thread (GumLinuxThreadCtx * ctx, gboolean custom_stack)
+gum_linux_create_thread (GumLinuxThreadCtx * ctx,
+                         gboolean custom_stack)
 {
   pthread_attr_t attr;
   guint page_size;
@@ -3560,17 +3545,19 @@ gum_linux_create_thread (GumLinuxThreadCtx * ctx, gboolean custom_stack)
   {
     page_size = gum_query_page_size ();
 
-    num_pages = THREAD_STACK_SIZE / page_size;
-    if (THREAD_STACK_SIZE % page_size != 0)
+    num_pages = GUM_THREAD_STACK_SIZE / page_size;
+    if (GUM_THREAD_STACK_SIZE % page_size != 0)
       num_pages++;
 
     ctx->stack = gum_alloc_n_pages (num_pages, GUM_PAGE_RW);
     if (ctx->stack == NULL)
       return FALSE;
 
-    if (pthread_attr_setstack (&attr, ctx->stack, THREAD_STACK_SIZE) != 0)
+    if (pthread_attr_setstack (&attr, ctx->stack, GUM_THREAD_STACK_SIZE) != 0)
       return FALSE;
-  } else {
+  }
+  else
+  {
     ctx->stack = NULL;
   }
 
@@ -3580,14 +3567,11 @@ gum_linux_create_thread (GumLinuxThreadCtx * ctx, gboolean custom_stack)
   ctx->exit = FALSE;
 
   if (pthread_create (&ctx->thread, &attr, gum_linux_thread_proc, ctx) != 0)
-  {
     return FALSE;
-  }
 
   g_mutex_lock (&ctx->mutex);
   while (!ctx->start)
-      g_cond_wait (&ctx->cond, &ctx->mutex);
-
+    g_cond_wait (&ctx->cond, &ctx->mutex);
   g_mutex_unlock (&ctx->mutex);
 
   return TRUE;
@@ -3613,12 +3597,13 @@ gum_linux_dispose_thread (GumLinuxThreadCtx * ctx)
 static gpointer
 gum_linux_thread_proc (gpointer param)
 {
-  GumLinuxThreadCtx * ctx = (GumLinuxThreadCtx *) param;
+  GumLinuxThreadCtx * ctx = param;
 
   ctx->tid = gum_process_get_current_thread_id ();
   ctx->ret = __builtin_extract_return_addr (__builtin_return_address (0));
 
   g_mutex_lock (&ctx->mutex);
+
   ctx->start = TRUE;
   g_cond_signal (&ctx->cond);
 
@@ -3626,6 +3611,7 @@ gum_linux_thread_proc (gpointer param)
     g_cond_wait (&ctx->cond, &ctx->mutex);
 
   g_mutex_unlock (&ctx->mutex);
+
   return NULL;
 }
 
@@ -3634,35 +3620,31 @@ gum_linux_thread_read_flink (const GumLinuxPThreadSpec * spec,
                              pthread_t current,
                              pthread_t * next)
 {
+  gboolean success = FALSE;
   gpointer flink;
   guint8 * data;
   gsize bytes_read;
   gpointer next_flink;
   pthread_t thread;
-  gboolean result = FALSE;
 
   flink = GSIZE_TO_POINTER (current) + spec->flink_offset;
 
   data = gum_memory_read (flink, sizeof (gpointer), &bytes_read);
-  if (data == NULL)
-    goto cleanup;
-
-  if (bytes_read != sizeof (gpointer))
-    goto cleanup;
+  if (data == NULL || bytes_read != sizeof (gpointer))
+    goto beach;
 
   next_flink = *(gpointer *) data;
   thread = (pthread_t) (next_flink - spec->flink_offset);
   if (thread == current)
-    goto cleanup;
+    goto beach;
 
   *next = thread;
-  result = TRUE;
+  success = TRUE;
 
-  cleanup:
-  if (data != NULL)
-    g_free (data);
+beach:
+  g_free (data);
 
-  return result;
+  return success;
 }
 
 static gboolean
@@ -3670,39 +3652,35 @@ gum_linux_thread_read_blink (const GumLinuxPThreadSpec * spec,
                              pthread_t current,
                              pthread_t * prev)
 {
+  gboolean success = FALSE;
   gpointer blink;
   guint8 * data;
   gsize bytes_read;
   gpointer next_blink;
   pthread_t thread;
-  gboolean result = FALSE;
 
   blink = GSIZE_TO_POINTER (current) + spec->blink_offset;
 
   data = gum_memory_read (blink, sizeof (gpointer), &bytes_read);
-  if (data == NULL)
-    goto cleanup;
-
-  if (bytes_read != sizeof (gpointer))
-    goto cleanup;
+  if (data == NULL || bytes_read != sizeof (gpointer))
+    goto beach;
 
   next_blink = *(gpointer *) data;
   /*
    * Our blink points to the start of the list head (the flink comes first),
-   * not the blink field within it
+   * not the blink field within it.
    */
   thread = (pthread_t) (next_blink - spec->flink_offset);
   if (thread == current)
-    goto cleanup;
+    goto beach;
 
   *prev = thread;
-  result = TRUE;
+  success = TRUE;
 
-  cleanup:
-  if (data != NULL)
-    g_free (data);
+beach:
+  g_free (data);
 
-  return result;
+  return success;
 }
 
 static void
