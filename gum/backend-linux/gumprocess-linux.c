@@ -3372,10 +3372,10 @@ gum_linux_find_lock (GumLinuxPThreadSpec * spec)
   if (spec->stack_used == NULL || spec->stack_user == NULL)
     return FALSE;
 
-  addr_from_stack_used = ((gpointer) spec->stack_used)
-      - G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_used);
-  addr_from_stack_user = ((gpointer) spec->stack_user)
-      - G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_user);
+  addr_from_stack_used = ((gpointer) spec->stack_used) -
+      G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_used);
+  addr_from_stack_user = ((gpointer) spec->stack_user) -
+      G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_user);
 
   if (addr_from_stack_used != addr_from_stack_user)
     return FALSE;
