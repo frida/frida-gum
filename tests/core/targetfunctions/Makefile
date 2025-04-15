@@ -21,7 +21,7 @@ build:
 		--libdir "$(data_dir)" \
 		--strip \
 		-Dstem_suffix="-$(host_machine)" \
-		-Dbuild.pkg_config_path="$(pkg_config_path)" \
+		-Dpkg_config_path="$(pkg_config_path)" \
 		--wipe \
 		build
 	$(MESON) install -C build
