@@ -16,9 +16,6 @@
 #include "gumlinux-priv.h"
 #include "gummodulemap.h"
 #include "valgrind.h"
-#ifndef HAVE_ANDROID
-# include "gumsystemtap.h"
-#endif
 
 #include <capstone.h>
 #include <errno.h>
