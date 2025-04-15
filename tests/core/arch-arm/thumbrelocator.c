@@ -245,8 +245,8 @@ TESTCASE (adr_should_be_rewritten)
     GUINT16_TO_LE (0x001c),   /* <immediate       */
     GUINT16_TO_LE (0x0000),   /*  goes here>      */
 #else
-    GUINT16_TO_BE (0x0000),   /*  goes here>      */
-    GUINT16_TO_BE (0x001c),   /* <immediate       */
+    GUINT16_TO_BE (0x0000),   /* <immediate       */
+    GUINT16_TO_BE (0x001c),   /*  goes here>      */
 #endif
   };
   gchar expected_output[10 * sizeof (guint16)];
@@ -288,8 +288,8 @@ TESTCASE (adr_unaligned_should_be_rewritten)
     GUINT16_TO_LE (0x001c),   /* <immediate       */
     GUINT16_TO_LE (0x0000),   /*  goes here>      */
 #else
-    GUINT16_TO_BE (0x0000),   /*  goes here>      */
-    GUINT16_TO_BE (0x001c),   /* <immediate       */
+    GUINT16_TO_BE (0x0000),   /* <immediate       */
+    GUINT16_TO_BE (0x001c),   /*  goes here>      */
 #endif
   };
   gchar expected_output[10 * sizeof (guint16)];
