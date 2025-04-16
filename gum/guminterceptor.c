@@ -1105,6 +1105,8 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 #endif
         }
       }
+
+      gum_metal_array_free (&suspend_op.suspended_threads);
     }
     else
     {
