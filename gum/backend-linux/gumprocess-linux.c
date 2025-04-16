@@ -85,7 +85,7 @@ typedef struct _GumMipsDebugRegs GumDebugRegs;
 
 #ifdef HAVE_GLIBC
 # define GUM_MAX_LIST_WALK_ATTEMPTS        10
-# define GUM_LINUX_MAX_THREADS             256
+# define GUM_LINUX_MAX_THREADS             (256 * 1024)
 # define GUM_MAX_FIND_LIST_HEAD_ATTEMPTS   5
 # define GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS 10
 # define GUM_MAX_PTHREAD_SIZE              2048
