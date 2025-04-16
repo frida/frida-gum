@@ -354,10 +354,13 @@ gum_find_r_debug (GumModule * module,
                   gpointer user_data)
 {
   struct r_debug ** dbg = user_data;
+  GumElfModule * elf;
 
-  gum_elf_module_enumerate_dynamic_entries (
-      _gum_native_module_get_elf_module (GUM_NATIVE_MODULE (module)),
-      gum_find_debug_entry, dbg);
+  elf = _gum_native_module_get_elf_module (GUM_NATIVE_MODULE (module));
+  if (elf == NULL)
+    return TRUE;
+
+  gum_elf_module_enumerate_dynamic_entries (elf, gum_find_debug_entry, dbg);
 
   return *dbg == NULL;
 }
