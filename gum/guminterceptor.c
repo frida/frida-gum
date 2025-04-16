@@ -1022,13 +1022,13 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       GumPageProtection protection;
       GumSuspendOperation suspend_op = { 0, };
 
-      gum_metal_array_init (&suspend_op.suspended_threads,
-          sizeof (GumThreadId));
-
       protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
 
       if (!rwx_supported)
       {
+        gum_metal_array_init (&suspend_op.suspended_threads,
+            sizeof (GumThreadId));
+
         suspend_op.current_thread_id = gum_process_get_current_thread_id ();
         _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
             GUM_THREAD_FLAGS_NONE);
@@ -1104,9 +1104,9 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
               MACH_PORT_RIGHT_SEND, -1);
 #endif
         }
-      }
 
-      gum_metal_array_free (&suspend_op.suspended_threads);
+        gum_metal_array_free (&suspend_op.suspended_threads);
+      }
     }
     else
     {
