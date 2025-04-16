@@ -13,6 +13,7 @@
 #include "guminterceptor-priv.h"
 #include "gumlibc.h"
 #include "gummemory.h"
+#include "gummetalarray.h"
 #include "gumprocess-priv.h"
 #include "gumtls.h"
 
@@ -94,7 +95,7 @@ struct _GumUpdateTask
 struct _GumSuspendOperation
 {
   GumThreadId current_thread_id;
-  GQueue suspended_threads;
+  GumMetalArray suspended_threads;
 };
 
 struct _ListenerEntry
@@ -1019,12 +1020,15 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     if (rwx_supported || !code_segment_supported)
     {
       GumPageProtection protection;
-      GumSuspendOperation suspend_op = { 0, G_QUEUE_INIT };
+      GumSuspendOperation suspend_op = { 0, };
 
       protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
 
       if (!rwx_supported)
       {
+        gum_metal_array_init (&suspend_op.suspended_threads,
+            sizeof (GumThreadId));
+
         suspend_op.current_thread_id = gum_process_get_current_thread_id ();
         _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
             GUM_THREAD_FLAGS_NONE);
@@ -1084,17 +1088,23 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
       if (!rwx_supported)
       {
-        gpointer raw_id;
+        guint num_suspended, i;
 
-        while (
-            (raw_id = g_queue_pop_tail (&suspend_op.suspended_threads)) != NULL)
+        num_suspended = suspend_op.suspended_threads.length;
+
+        for (i = 0; i != num_suspended; i++)
         {
-          gum_thread_resume (GPOINTER_TO_SIZE (raw_id), NULL);
+          GumThreadId * raw_id = gum_metal_array_element_at (
+              &suspend_op.suspended_threads, i);
+
+          gum_thread_resume (*raw_id, NULL);
 #ifdef HAVE_DARWIN
-          mach_port_mod_refs (mach_task_self (), GPOINTER_TO_SIZE (raw_id),
+          mach_port_mod_refs (mach_task_self (), *raw_id,
               MACH_PORT_RIGHT_SEND, -1);
 #endif
         }
+
+        gum_metal_array_free (&suspend_op.suspended_threads);
       }
     }
     else
@@ -1196,6 +1206,7 @@ gum_maybe_suspend_thread (const GumThreadDetails * details,
                           gpointer user_data)
 {
   GumSuspendOperation * op = user_data;
+  GumThreadId * suspended_id;
 
   if (details->id == op->current_thread_id)
     goto skip;
@@ -1206,7 +1217,8 @@ gum_maybe_suspend_thread (const GumThreadDetails * details,
 #ifdef HAVE_DARWIN
   mach_port_mod_refs (mach_task_self (), details->id, MACH_PORT_RIGHT_SEND, 1);
 #endif
-  g_queue_push_tail (&op->suspended_threads, GSIZE_TO_POINTER (details->id));
+  suspended_id = gum_metal_array_append (&op->suspended_threads);
+  *suspended_id = details->id;
 
 skip:
   return TRUE;
