@@ -551,16 +551,26 @@ gum_elf_module_load (GumElfModule * self,
       GumMemoryRange r;
 
       file = g_mapped_file_new (self->source_path, FALSE, &local_error);
-      if (file == NULL)
-        goto unable_to_open;
-      self->file_bytes = g_mapped_file_get_bytes (file);
-      g_mapped_file_unref (file);
+      if (file != NULL)
+      {
+        self->file_bytes = g_mapped_file_get_bytes (file);
+        g_mapped_file_unref (file);
 
-      data = g_bytes_get_data (self->file_bytes, &size);
-      r.base_address = GUM_ADDRESS (data);
-      r.size = GUM_ALIGN_SIZE (size, gum_query_page_size ());
-      gum_cloak_add_range (&r);
-      self->file_mapped_range = r;
+        data = g_bytes_get_data (self->file_bytes, &size);
+        r.base_address = GUM_ADDRESS (data);
+        r.size = GUM_ALIGN_SIZE (size, gum_query_page_size ());
+        gum_cloak_add_range (&r);
+        self->file_mapped_range = r;
+      }
+      else
+      {
+        if (self->source_mode == GUM_ELF_SOURCE_MODE_OFFLINE)
+          goto unable_to_open;
+
+        self->file_bytes = g_bytes_new_static (
+            GSIZE_TO_POINTER (self->base_address),
+            G_MAXSIZE - self->base_address);
+      }
     }
   }
 
