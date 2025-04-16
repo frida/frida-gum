@@ -1088,8 +1088,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
       if (!rwx_supported)
       {
-        guint i;
-        guint num_suspended;
+        guint num_suspended, i;
 
         num_suspended = suspend_op.suspended_threads.length;
 
