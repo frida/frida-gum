@@ -258,7 +258,7 @@ struct _GumExecCtx
    * CALL/RET instructions, so we instead keep a count of the depth of the stack
    * here when GUM_CALL or GUM_RET events are enabled.
    */
-  gint depth;
+  gsize depth;
 
 #ifdef HAVE_LINUX
   GumMetalHashTable * excluded_calls;
