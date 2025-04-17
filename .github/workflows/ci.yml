@@ -282,11 +282,12 @@ jobs:
             RUN find . | cpio -o --format=newc -R root:root > /root/initramfs.img
 
             COPY launch.sh /root/launch.sh
-            RUN chmod +x /root/launch.sh            
+            RUN chmod +x /root/launch.sh
+            ENTRYPOINT ["/root/launch.sh"]
             EOF
 
             docker build -t ci-image -f /workspace/Dockerfile.ci /workspace
-            docker run --rm -v /workspace:/workspace ci-image /root/launch.sh     
+            docker run --rm -v /workspace:/workspace ci-image
 
   mobile:
     strategy:
