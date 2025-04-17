@@ -223,7 +223,7 @@ struct _GumExecCtx
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
   gpointer pending_return_location;
-  guint pending_calls;
+  gsize pending_calls;
 
   gpointer resume_at;
   gpointer return_at;
