@@ -3786,7 +3786,7 @@ gum_exec_ctx_try_handle_exception (GumExecCtx * ctx,
   if (cpu_context->sp % GUM_STACK_ALIGNMENT == 0)
     return FALSE;
 
-  switch (*insn)
+  switch (GUINT32_FROM_LE (*insn))
   {
     /* STP */
     case 0xa9bf07e0: /* stp x0, x1, [sp, #-0x10]! */
