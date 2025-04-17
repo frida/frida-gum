@@ -72,7 +72,9 @@
 #  define GUM_TEST_SHLIB_ARCH "arm"
 # endif
 #elif defined (HAVE_ARM64)
-# ifdef HAVE_PTRAUTH
+# if G_BYTE_ORDER == G_BIG_ENDIAN
+#  define GUM_TEST_SHLIB_ARCH "arm64be"
+# elif defined (HAVE_PTRAUTH)
 #  define GUM_TEST_SHLIB_ARCH "arm64e"
 # else
 #  define GUM_TEST_SHLIB_ARCH "arm64"

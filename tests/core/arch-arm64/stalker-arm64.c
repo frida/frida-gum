@@ -205,10 +205,10 @@ static GThread * create_sleeping_dummy_thread_sync (gboolean * done,
 static gpointer sleeping_dummy (gpointer data);
 
 static const guint32 flat_code[] = {
-    0xcb000000, /* sub w0, w0, w0 */
-    0x91000400, /* add w0, w0, #1 */
-    0x91000400, /* add w0, w0, #1 */
-    0xd65f03c0  /* ret            */
+    GUINT32_TO_LE (0xcb000000), /* sub w0, w0, w0 */
+    GUINT32_TO_LE (0x91000400), /* add w0, w0, #1 */
+    GUINT32_TO_LE (0x91000400), /* add w0, w0, #1 */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret            */
 };
 
 static StalkerTestFunc
@@ -370,30 +370,30 @@ TESTCASE (call_probe)
 {
   const guint32 code_template[] =
   {
-    0xa9bf7bf3, /* push {x19, lr} */
-    0xd2801553, /* mov x19, #0xaa */
-    0xd2800883, /* mov x3, #0x44  */
-    0xd2800662, /* mov x2, #0x33  */
-    0xd2800441, /* mov x1, #0x22  */
-    0xd2800220, /* mov x0, #0x11  */
-    0xa9bf07e0, /* push {x0, x1}  */
-    0x94000009, /* bl func_a      */
-    0xa8c107e0, /* pop {x0, x1}   */
-    0xd2801103, /* mov x3, #0x88  */
-    0xd2800ee2, /* mov x2, #0x77  */
-    0xd2800cc1, /* mov x1, #0x66  */
-    0xd2800aa0, /* mov x0, #0x55  */
-    0x94000005, /* bl func_b      */
-    0xa8c17bf3, /* pop {x19, lr}  */
-    0xd65f03c0, /* ret            */
+    GUINT32_TO_LE (0xa9bf7bf3), /* push {x19, lr} */
+    GUINT32_TO_LE (0xd2801553), /* mov x19, #0xaa */
+    GUINT32_TO_LE (0xd2800883), /* mov x3, #0x44  */
+    GUINT32_TO_LE (0xd2800662), /* mov x2, #0x33  */
+    GUINT32_TO_LE (0xd2800441), /* mov x1, #0x22  */
+    GUINT32_TO_LE (0xd2800220), /* mov x0, #0x11  */
+    GUINT32_TO_LE (0xa9bf07e0), /* push {x0, x1}  */
+    GUINT32_TO_LE (0x94000009), /* bl func_a      */
+    GUINT32_TO_LE (0xa8c107e0), /* pop {x0, x1}   */
+    GUINT32_TO_LE (0xd2801103), /* mov x3, #0x88  */
+    GUINT32_TO_LE (0xd2800ee2), /* mov x2, #0x77  */
+    GUINT32_TO_LE (0xd2800cc1), /* mov x1, #0x66  */
+    GUINT32_TO_LE (0xd2800aa0), /* mov x0, #0x55  */
+    GUINT32_TO_LE (0x94000005), /* bl func_b      */
+    GUINT32_TO_LE (0xa8c17bf3), /* pop {x19, lr}  */
+    GUINT32_TO_LE (0xd65f03c0), /* ret            */
 
     /* func_a: */
-    0xd2801100, /* mov x0, #0x88  */
-    0xd65f03c0, /* ret            */
+    GUINT32_TO_LE (0xd2801100), /* mov x0, #0x88  */
+    GUINT32_TO_LE (0xd65f03c0), /* ret            */
 
     /* func_b: */
-    0xd2801320, /* mov x0, #0x99  */
-    0xd65f03c0, /* ret            */
+    GUINT32_TO_LE (0xd2801320), /* mov x0, #0x99  */
+    GUINT32_TO_LE (0xd65f03c0), /* ret            */
   };
   StalkerTestFunc func;
   guint8 * func_a;
@@ -515,14 +515,14 @@ TESTCASE (transformer_should_be_able_to_skip_call)
 {
   guint32 code_template[] =
   {
-    0xa9bf7bfd, /* push {x29, x30} */
-    0xd280a280, /* mov x0, #1300   */
-    0x94000003, /* bl bump_number  */
-    0xa8c17bfd, /* pop {x29, x30}  */
-    0xd65f03c0, /* ret             */
+    GUINT32_TO_LE (0xa9bf7bfd), /* push {x29, x30} */
+    GUINT32_TO_LE (0xd280a280), /* mov x0, #1300   */
+    GUINT32_TO_LE (0x94000003), /* bl bump_number  */
+    GUINT32_TO_LE (0xa8c17bfd), /* pop {x29, x30}  */
+    GUINT32_TO_LE (0xd65f03c0), /* ret             */
     /* bump_number:                */
-    0x91009400, /* add x0, x0, #37 */
-    0xd65f03c0, /* ret             */
+    GUINT32_TO_LE (0x91009400), /* add x0, x0, #37 */
+    GUINT32_TO_LE (0xd65f03c0), /* ret             */
   };
   StalkerTestFunc func;
   gint ret;
@@ -558,14 +558,14 @@ TESTCASE (transformer_should_be_able_to_replace_call_with_callout)
 {
   guint32 code_template[] =
   {
-    0xa9bf7bfd, /* push {x29, x30} */
-    0xd280a280, /* mov x0, #1300   */
-    0x94000003, /* bl bump_number  */
-    0xa8c17bfd, /* pop {x29, x30}  */
-    0xd65f03c0, /* ret             */
+    GUINT32_TO_LE (0xa9bf7bfd), /* push {x29, x30} */
+    GUINT32_TO_LE (0xd280a280), /* mov x0, #1300   */
+    GUINT32_TO_LE (0x94000003), /* bl bump_number  */
+    GUINT32_TO_LE (0xa8c17bfd), /* pop {x29, x30}  */
+    GUINT32_TO_LE (0xd65f03c0), /* ret             */
     /* bump_number:                */
-    0x91009400, /* add x0, x0, #37 */
-    0xd65f03c0, /* ret             */
+    GUINT32_TO_LE (0x91009400), /* add x0, x0, #37 */
+    GUINT32_TO_LE (0xd65f03c0), /* ret             */
   };
   StalkerTestFunc func;
   gint ret;
@@ -604,11 +604,11 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
 {
   guint32 code_template[] =
   {
-    0xd280a280, /* mov x0, #1300   */
-    0x14000001, /* b bump_number   */
+    GUINT32_TO_LE (0xd280a280), /* mov x0, #1300   */
+    GUINT32_TO_LE (0x14000001), /* b bump_number   */
     /* bump_number:                */
-    0x91009400, /* add x0, x0, #37 */
-    0xd65f03c0, /* ret             */
+    GUINT32_TO_LE (0x91009400), /* add x0, x0, #37 */
+    GUINT32_TO_LE (0xd65f03c0), /* ret             */
   };
   StalkerTestFunc func;
   gint ret;
@@ -1050,30 +1050,30 @@ TESTCASE (exclude_bl)
 {
   const guint32 code_template[] =
   {
-    0xa9bf7bf3, /* push {x19, lr} */
-    0xd2801553, /* mov x19, #0xaa */
-    0xd2800883, /* mov x3, #0x44  */
-    0xd2800662, /* mov x2, #0x33  */
-    0xd2800441, /* mov x1, #0x22  */
-    0xd2800220, /* mov x0, #0x11  */
-    0xa9bf07e0, /* push {x0, x1}  */
-    0x94000009, /* bl func_a      */
-    0xa8c107e0, /* pop {x0, x1}   */
-    0xd2801103, /* mov x3, #0x88  */
-    0xd2800ee2, /* mov x2, #0x77  */
-    0xd2800cc1, /* mov x1, #0x66  */
-    0xd2800aa0, /* mov x0, #0x55  */
-    0x94000005, /* bl func_b      */
-    0xa8c17bf3, /* pop {x19, lr}  */
-    0xd65f03c0, /* ret            */
+    GUINT32_TO_LE (0xa9bf7bf3), /* push {x19, lr} */
+    GUINT32_TO_LE (0xd2801553), /* mov x19, #0xaa */
+    GUINT32_TO_LE (0xd2800883), /* mov x3, #0x44  */
+    GUINT32_TO_LE (0xd2800662), /* mov x2, #0x33  */
+    GUINT32_TO_LE (0xd2800441), /* mov x1, #0x22  */
+    GUINT32_TO_LE (0xd2800220), /* mov x0, #0x11  */
+    GUINT32_TO_LE (0xa9bf07e0), /* push {x0, x1}  */
+    GUINT32_TO_LE (0x94000009), /* bl func_a      */
+    GUINT32_TO_LE (0xa8c107e0), /* pop {x0, x1}   */
+    GUINT32_TO_LE (0xd2801103), /* mov x3, #0x88  */
+    GUINT32_TO_LE (0xd2800ee2), /* mov x2, #0x77  */
+    GUINT32_TO_LE (0xd2800cc1), /* mov x1, #0x66  */
+    GUINT32_TO_LE (0xd2800aa0), /* mov x0, #0x55  */
+    GUINT32_TO_LE (0x94000005), /* bl func_b      */
+    GUINT32_TO_LE (0xa8c17bf3), /* pop {x19, lr}  */
+    GUINT32_TO_LE (0xd65f03c0), /* ret            */
 
     /* func_a: */
-    0xd2801100, /* mov x0, #0x88  */
-    0xd65f03c0, /* ret            */
+    GUINT32_TO_LE (0xd2801100), /* mov x0, #0x88  */
+    GUINT32_TO_LE (0xd65f03c0), /* ret            */
 
     /* func_b: */
-    0xd2801320, /* mov x0, #0x99  */
-    0xd65f03c0, /* ret            */
+    GUINT32_TO_LE (0xd2801320), /* mov x0, #0x99  */
+    GUINT32_TO_LE (0xd65f03c0), /* ret            */
   };
   StalkerTestFunc func;
   guint8 * func_a_address;
@@ -1672,27 +1672,27 @@ TESTCASE (follow_misaligned_stack)
 {
   const guint32 code_template[] =
   {
-    0xa9bf7bf4, /* stp x20, lr, [sp, #-0x10]! */
-    0xd10023ff, /* sub sp, sp, #8             */
-    0x14000002, /* b part_two                 */
-    0xd4200540, /* brk #42                    */
+    GUINT32_TO_LE (0xa9bf7bf4), /* stp x20, lr, [sp, #-0x10]! */
+    GUINT32_TO_LE (0xd10023ff), /* sub sp, sp, #8             */
+    GUINT32_TO_LE (0x14000002), /* b part_two                 */
+    GUINT32_TO_LE (0xd4200540), /* brk #42                    */
     /* part_two:                              */
-    0x94000009, /* bl get_base_value          */
-    0x10000070, /* adr x16, part_three        */
-    0xd61f0200, /* br x16                     */
-    0xd4200560, /* brk #43                    */
+    GUINT32_TO_LE (0x94000009), /* bl get_base_value          */
+    GUINT32_TO_LE (0x10000070), /* adr x16, part_three        */
+    GUINT32_TO_LE (0xd61f0200), /* br x16                     */
+    GUINT32_TO_LE (0xd4200560), /* brk #43                    */
     /* part_three:                            */
-    0x100000f0, /* adr x16, add_other_value   */
-    0xd63f0200, /* blr x16                    */
-    0x910023ff, /* add sp, sp, #8             */
-    0xa8c17bf4, /* ldp x20, lr, [sp], #0x10   */
-    0xd65f03c0, /* ret                        */
+    GUINT32_TO_LE (0x100000f0), /* adr x16, add_other_value   */
+    GUINT32_TO_LE (0xd63f0200), /* blr x16                    */
+    GUINT32_TO_LE (0x910023ff), /* add sp, sp, #8             */
+    GUINT32_TO_LE (0xa8c17bf4), /* ldp x20, lr, [sp], #0x10   */
+    GUINT32_TO_LE (0xd65f03c0), /* ret                        */
     /* get_base_value:                        */
-    0xd2800500, /* mov x0, #40                */
-    0xd65f03c0, /* ret                        */
+    GUINT32_TO_LE (0xd2800500), /* mov x0, #40                */
+    GUINT32_TO_LE (0xd65f03c0), /* ret                        */
     /* add_other_value:                       */
-    0x91000800, /* add x0, x0, #2             */
-    0xd65f03c0, /* ret                        */
+    GUINT32_TO_LE (0x91000800), /* add x0, x0, #2             */
+    GUINT32_TO_LE (0xd65f03c0), /* ret                        */
   };
   StalkerTestFunc func;
 
@@ -1915,25 +1915,25 @@ TESTCASE (exclusive_load_store_should_not_be_disturbed)
 {
   guint32 code_template[] =
   {
-    0x58000200, /* ldr x0, [pointer_to_value] */
+    GUINT32_TO_LE (0x58000200), /* ldr x0, [pointer_to_value] */
     /* retry:                                 */
-    0xc85f7c01, /* ldxr x1, [x0]              */
-    0xf100043f, /* cmp x1, #1                 */
-    0x54000160, /* b.eq nope                  */
-    0xf100083f, /* cmp x1, #2                 */
-    0x54000120, /* b.eq nope                  */
-    0xf1000c3f, /* cmp x1, #3                 */
-    0x540000e0, /* b.eq nope                  */
-    0xf100103f, /* cmp x1, #4                 */
-    0x540000a0, /* b.eq nope                  */
-    0x91000421, /* add x1, x1, #1             */
-    0xc8027c01, /* stxr w2, x1, [x0]          */
-    0x35fffea2, /* cbnz w2, retry             */
-    0xd65f03c0, /* ret                        */
-    /* nope:                                  */
-    0xd5033f5f, /* clrex                      */
-    0xd65f03c0, /* ret                        */
-    /* pointer_to_value:                      */
+    GUINT32_TO_LE (0xc85f7c01), /* ldxr x1, [x0]              */
+    GUINT32_TO_LE (0xf100043f), /* cmp x1, #1                 */
+    GUINT32_TO_LE (0x54000160), /* b.eq nope                  */
+    GUINT32_TO_LE (0xf100083f), /* cmp x1, #2                 */
+    GUINT32_TO_LE (0x54000120), /* b.eq nope                  */
+    GUINT32_TO_LE (0xf1000c3f), /* cmp x1, #3                 */
+    GUINT32_TO_LE (0x540000e0), /* b.eq nope                  */
+    GUINT32_TO_LE (0xf100103f), /* cmp x1, #4                 */
+    GUINT32_TO_LE (0x540000a0), /* b.eq nope                  */
+    GUINT32_TO_LE (0x91000421), /* add x1, x1, #1             */
+    GUINT32_TO_LE (0xc8027c01), /* stxr w2, x1, [x0]          */
+    GUINT32_TO_LE (0x35fffea2), /* cbnz w2, retry             */
+    GUINT32_TO_LE (0xd65f03c0), /* ret                        */
+    /* nope:                                                  */
+    GUINT32_TO_LE (0xd5033f5f), /* clrex                      */
+    GUINT32_TO_LE (0xd65f03c0), /* ret                        */
+    /* pointer_to_value:                                      */
     0x44332211, 0x88776655,
   };
   StalkerTestFunc func;
@@ -2008,7 +2008,7 @@ do_patch_instruction (gpointer mem,
   guint32 * insn = mem;
   guint32 new_insn = GPOINTER_TO_SIZE (user_data);
 
-  *insn = new_insn;
+  *insn = GUINT32_TO_LE (new_insn);
 }
 
 #ifndef HAVE_WINDOWS

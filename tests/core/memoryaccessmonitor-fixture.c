@@ -85,7 +85,7 @@ put_return_instruction (gpointer mem,
   *((guint32 *) mem) = 0x0ef0a0e1;
 #endif
 #elif defined (HAVE_ARM64)
-  *((guint32 *) mem) = 0xd65f03c0;
+  *((guint32 *) mem) = GUINT32_TO_LE (0xd65f03c0);
 #endif
 }
 
