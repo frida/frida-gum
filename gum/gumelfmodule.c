@@ -2397,7 +2397,8 @@ gum_elf_module_check_str_bounds (GumElfModule * self,
 consider_file_data:
   {
     if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
-        GUM_ADDRESS (base) == self->base_address)
+        GUM_ADDRESS (base) == self->base_address &&
+        base != self->file_data)
     {
       return gum_elf_module_check_str_bounds (self, str, self->file_data,
           self->file_size, name, error);
