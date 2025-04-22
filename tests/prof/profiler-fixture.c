@@ -424,6 +424,12 @@ inspect_recursive_worst_case_info (GumInvocationContext * context,
 #endif
 }
 
+GUM_HOOK_TARGET static void
+dummy (GumFakeSampler * sampler)
+{
+  (void) sampler;
+}
+
 /* These three should be kept in this order to increase the likelihood of
  * function addresses being non-consecutive... */
 

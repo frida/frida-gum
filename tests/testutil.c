@@ -582,42 +582,9 @@ recover_from_exception (void)
 # endif
 
 static gum_jmp_buf gum_try_read_and_write_context;
-static struct sigaction gum_test_old_sigsegv;
-static struct sigaction gum_test_old_sigbus;
 
-static gboolean gum_test_should_forward_signal_to (gpointer handler);
-
-static void
-gum_test_on_signal (int sig,
-                    siginfo_t * siginfo,
-                    void * context)
-{
-  struct sigaction * action;
-
-  action = (sig == SIGSEGV) ? &gum_test_old_sigsegv : &gum_test_old_sigbus;
-  if ((action->sa_flags & SA_SIGINFO) != 0)
-  {
-    if (gum_test_should_forward_signal_to (action->sa_sigaction))
-      action->sa_sigaction (sig, siginfo, context);
-  }
-  else
-  {
-    if (gum_test_should_forward_signal_to (action->sa_handler))
-      action->sa_handler (sig);
-  }
-
-  GUM_LONGJMP (gum_try_read_and_write_context, 1337);
-}
-
-static gboolean
-gum_test_should_forward_signal_to (gpointer handler)
-{
-  if (handler == NULL)
-    return FALSE;
-
-  return GUM_MEMORY_RANGE_INCLUDES (_test_util_own_range,
-      GUM_ADDRESS (handler));
-}
+static gboolean gum_test_on_signal (GumExceptionDetails * details,
+    gpointer user_data);
 
 guint8
 gum_try_read_and_write_at (guint8 * a,
@@ -625,7 +592,6 @@ gum_try_read_and_write_at (guint8 * a,
                            gboolean * exception_raised_on_read,
                            gboolean * exception_raised_on_write)
 {
-  struct sigaction action;
   guint8 dummy_value_to_trick_optimizer = 0;
   GumExceptor * exceptor;
 
@@ -635,12 +601,7 @@ gum_try_read_and_write_at (guint8 * a,
     *exception_raised_on_write = FALSE;
 
   exceptor = gum_exceptor_obtain ();
-
-  action.sa_sigaction = gum_test_on_signal;
-  sigemptyset (&action.sa_mask);
-  action.sa_flags = SA_SIGINFO;
-  sigaction (SIGSEGV, &action, &gum_test_old_sigsegv);
-  sigaction (SIGBUS, &action, &gum_test_old_sigbus);
+  gum_exceptor_add (exceptor, gum_test_on_signal, NULL);
 
 # ifdef HAVE_ANDROID
   /* Work-around for Bionic bug up to and including Android L */
@@ -677,14 +638,18 @@ gum_try_read_and_write_at (guint8 * a,
   sigprocmask (SIG_SETMASK, &mask, NULL);
 # endif
 
-  sigaction (SIGSEGV, &gum_test_old_sigsegv, NULL);
-  memset (&gum_test_old_sigsegv, 0, sizeof (gum_test_old_sigsegv));
-  sigaction (SIGBUS, &gum_test_old_sigbus, NULL);
-  memset (&gum_test_old_sigbus, 0, sizeof (gum_test_old_sigbus));
+  gum_exceptor_remove (exceptor, gum_test_on_signal, NULL);
 
   g_object_unref (exceptor);
 
   return dummy_value_to_trick_optimizer;
+}
+
+static gboolean
+gum_test_on_signal (GumExceptionDetails * details,
+                    gpointer user_data)
+{
+  GUM_LONGJMP (gum_try_read_and_write_context, 1337);
 }
 
 #endif

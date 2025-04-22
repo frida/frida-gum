@@ -4793,7 +4793,7 @@ TESTCASE (socket_type_can_be_inspected)
 # ifdef HAVE_QNX
       "/usr/lib/ldqnx.so.2",
 # else
-      "/etc/hosts",
+      "/etc/passwd",
 # endif
       O_RDONLY);
   g_assert_cmpint (fd, >=, 0);
@@ -5250,6 +5250,7 @@ TESTCASE (basic_block_can_be_invalidated_for_current_thread)
   StalkerDummyChannel channel;
   GThread * thread;
   GumThreadId thread_id;
+  gpointer target_function_int_addr;
 
 #if (defined (HAVE_ANDROID) && defined (HAVE_ARM)) || defined (HAVE_QNX)
   if (!g_test_slow ())
@@ -5265,9 +5266,17 @@ TESTCASE (basic_block_can_be_invalidated_for_current_thread)
       run_stalked_through_block_invalidated_in_callout, &channel);
   thread_id = sdc_await_thread_id (&channel);
 
+#ifdef HAVE_ARM
+  target_function_int_addr =
+      GSIZE_TO_POINTER (GPOINTER_TO_SIZE (target_function_int) & ~1);
+#else
+  target_function_int_addr = target_function_int;
+#endif
+
   COMPILE_AND_LOAD_SCRIPT (
       "const targetThreadId = %" G_GSIZE_FORMAT ";"
       "const targetFuncInt = " GUM_PTR_CONST ";"
+      "const targetFuncIntAddr = " GUM_PTR_CONST ";"
 
       "let instrumentationVersion = 0;"
       "let calls = 0;"
@@ -5277,7 +5286,7 @@ TESTCASE (basic_block_can_be_invalidated_for_current_thread)
       "    let i = 0;"
       "    let instruction;"
       "    while ((instruction = iterator.next()) !== null) {"
-      "      if (i === 0 && instruction.address.equals(targetFuncInt)) {"
+      "      if (i === 0 && instruction.address.equals(targetFuncIntAddr)) {"
       "        const v = instrumentationVersion++;"
       "        iterator.putCallout(() => {"
       "          send(`f() version=${v}`);"
@@ -5302,7 +5311,8 @@ TESTCASE (basic_block_can_be_invalidated_for_current_thread)
       "send('ready');",
 
       thread_id,
-      target_function_int);
+      target_function_int,
+      target_function_int_addr);
   EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
 
   EXPECT_NO_MESSAGES ();
@@ -5349,6 +5359,7 @@ TESTCASE (basic_block_can_be_invalidated_for_specific_thread)
   StalkerDummyChannel channel;
   GThread * thread;
   GumThreadId thread_id;
+  gpointer target_function_int_addr;
 
 #if (defined (HAVE_ANDROID) && defined (HAVE_ARM)) || defined (HAVE_QNX)
   if (!g_test_slow ())
@@ -5364,9 +5375,17 @@ TESTCASE (basic_block_can_be_invalidated_for_specific_thread)
       run_stalked_through_block_invalidated_by_request, &channel);
   thread_id = sdc_await_thread_id (&channel);
 
+#ifdef HAVE_ARM
+  target_function_int_addr =
+      GSIZE_TO_POINTER (GPOINTER_TO_SIZE (target_function_int) & ~1);
+#else
+  target_function_int_addr = target_function_int;
+#endif
+
   COMPILE_AND_LOAD_SCRIPT (
       "const targetThreadId = %" G_GSIZE_FORMAT ";"
       "const targetFuncInt = " GUM_PTR_CONST ";"
+      "const targetFuncIntAddr = " GUM_PTR_CONST ";"
 
       "let instrumentationVersion = 0;"
 
@@ -5375,7 +5394,7 @@ TESTCASE (basic_block_can_be_invalidated_for_specific_thread)
       "    let i = 0;"
       "    let instruction;"
       "    while ((instruction = iterator.next()) !== null) {"
-      "      if (i === 0 && instruction.address.equals(targetFuncInt)) {"
+      "      if (i === 0 && instruction.address.equals(targetFuncIntAddr)) {"
       "        const v = instrumentationVersion++;"
       "        iterator.putCallout(() => {"
       "          send(`f() version=${v}`);"
@@ -5402,7 +5421,8 @@ TESTCASE (basic_block_can_be_invalidated_for_specific_thread)
       "send('ready');",
 
       thread_id,
-      target_function_int);
+      target_function_int,
+      target_function_int_addr);
   EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
 
   EXPECT_NO_MESSAGES ();
@@ -7406,7 +7426,8 @@ TESTCASE (general_purpose_register_can_be_written)
 
 TESTCASE (vector_register_can_be_read)
 {
-#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || defined (HAVE_ARM64)
+#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || \
+    (defined (HAVE_ARM64) && G_BYTE_ORDER == G_LITTLE_ENDIAN)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter() {"
@@ -7425,7 +7446,8 @@ TESTCASE (vector_register_can_be_read)
 
 TESTCASE (double_register_can_be_read)
 {
-#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || defined (HAVE_ARM64)
+#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || \
+    (defined (HAVE_ARM64) && G_BYTE_ORDER == G_LITTLE_ENDIAN)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter() {"
@@ -7443,7 +7465,8 @@ TESTCASE (double_register_can_be_read)
 
 TESTCASE (float_register_can_be_read)
 {
-#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || defined (HAVE_ARM64)
+#if (defined (HAVE_ARM) && defined (__ARM_PCS_VFP)) || \
+    (defined (HAVE_ARM64) && G_BYTE_ORDER == G_LITTLE_ENDIAN)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter() {"
@@ -8243,6 +8266,12 @@ TESTCASE (function_can_be_replaced_fast_performance)
 
   target_function_original = NULL;
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   timer = g_timer_new ();
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -8282,6 +8311,12 @@ TESTCASE (function_can_be_replaced_and_call_original_fast_performance)
   guint i;
 
   target_function_original = NULL;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
 
   timer = g_timer_new ();
 
@@ -11718,7 +11753,7 @@ TESTCASE (user_time_can_be_sampled)
       "function delay() {"
       "  const start = Date.now();"
       "  while (Date.now() - start < 100)"
-      "    ;"
+      "    for (let i = 0; i !== 1000000; i++);"
       "}",
       &user_time_a, &user_time_b);
   EXPECT_NO_MESSAGES ();
@@ -11763,7 +11798,7 @@ TESTCASE (user_time_can_be_sampled_for_other_threads)
       "const threadId = Process.enumerateThreads()"
       "  .find(t => t.name === 'user-time')"
       "  .id;"
-      GUM_PTR_CONST ".writeU64(threadId);",
+      GUM_PTR_CONST ".writeULong(threadId);",
       &thread_id);
   EXPECT_NO_MESSAGES ();
 
@@ -11907,8 +11942,13 @@ do_work (void)
 
   timer = g_timer_new ();
 
-  while (g_timer_elapsed (timer, NULL) < 0.1)
-    ;
+  while (g_timer_elapsed (timer, NULL) < 0.5)
+  {
+    guint i;
+
+    for (i = 0; i != 1000000; i++)
+      ;
+  }
 
   g_timer_destroy (timer);
 }

@@ -264,15 +264,27 @@ REPORT_TESTCASE (xml_worst_case_info)
 
 REPORT_TESTCASE (xml_thread_ordering)
 {
-  GThread * t1, * t2;
+  GThread * t1, * t2, * td;
   instrument_simple_functions (fixture);
 
   simple_1 (fixture->fake_sampler);
+
+  /*
+   * These threads must run in series since our fake sampler isn't re-entrant.
+   */
   t1 = g_thread_new ("profiler-test-helper-a", (GThreadFunc) simple_2,
       fixture->fake_sampler);
+  g_thread_join (t1);
+
+  /*
+   * Some OSes (QNX) aggressively recycle thread IDs. Avoid t1 and t2 having
+   * the same thread ID by creating a new thread in the interim. We don't join
+   * this thread until later so that it can't be reaped.
+   */
+  td = g_thread_new ("dummy", (GThreadFunc) dummy, fixture->fake_sampler);
+
   t2 = g_thread_new ("profiler-test-helper-b", (GThreadFunc) simple_3,
       fixture->fake_sampler);
-  g_thread_join (t1);
   g_thread_join (t2);
 
   assert_same_xml (fixture,
@@ -293,6 +305,8 @@ REPORT_TESTCASE (xml_thread_ordering)
       "    </node>\n"
       "  </thread>\n"
       "</profile-report>");
+
+  g_thread_join (td);
 }
 
 TESTCASE (profile_matching_functions)

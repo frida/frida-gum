@@ -1006,6 +1006,12 @@ TESTCASE (fast_interceptor_performance)
   gpointer result;
   gdouble duration_default, duration_fast;
 
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   timer = g_timer_new ();
 
   /* Normal Interceptor */
