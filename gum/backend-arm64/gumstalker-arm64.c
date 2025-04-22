@@ -223,7 +223,7 @@ struct _GumExecCtx
   gboolean unfollow_called_while_still_following;
   GumExecBlock * current_block;
   gpointer pending_return_location;
-  guint pending_calls;
+  gsize pending_calls;
 
   gpointer resume_at;
   gpointer return_at;
@@ -258,7 +258,7 @@ struct _GumExecCtx
    * CALL/RET instructions, so we instead keep a count of the depth of the stack
    * here when GUM_CALL or GUM_RET events are enabled.
    */
-  gint depth;
+  gsize depth;
 
 #ifdef HAVE_LINUX
   GumMetalHashTable * excluded_calls;
@@ -3786,7 +3786,7 @@ gum_exec_ctx_try_handle_exception (GumExecCtx * ctx,
   if (cpu_context->sp % GUM_STACK_ALIGNMENT == 0)
     return FALSE;
 
-  switch (*insn)
+  switch (GUINT32_FROM_LE (*insn))
   {
     /* STP */
     case 0xa9bf07e0: /* stp x0, x1, [sp, #-0x10]! */

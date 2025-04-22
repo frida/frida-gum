@@ -64,13 +64,17 @@
 #  define GUM_TEST_SHLIB_ARCH "x86_64"
 # endif
 #elif defined (HAVE_ARM)
-# ifdef __ARM_PCS_VFP
+# if G_BYTE_ORDER == G_BIG_ENDIAN
+#  define GUM_TEST_SHLIB_ARCH "armbe8"
+# elif defined (__ARM_PCS_VFP)
 #  define GUM_TEST_SHLIB_ARCH "armhf"
 # else
 #  define GUM_TEST_SHLIB_ARCH "arm"
 # endif
 #elif defined (HAVE_ARM64)
-# ifdef HAVE_PTRAUTH
+# if G_BYTE_ORDER == G_BIG_ENDIAN
+#  define GUM_TEST_SHLIB_ARCH "arm64be"
+# elif defined (HAVE_PTRAUTH)
 #  define GUM_TEST_SHLIB_ARCH "arm64e"
 # else
 #  define GUM_TEST_SHLIB_ARCH "arm64"

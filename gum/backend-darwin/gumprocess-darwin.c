@@ -1224,6 +1224,21 @@ gum_darwin_enumerate_threads (mach_port_t task,
   if (task_threads (task, &threads, &count) != KERN_SUCCESS)
     return;
 
+  if (flags == GUM_THREAD_FLAGS_NONE)
+  {
+    for (i = 0; i != count; i++)
+    {
+      GumThreadDetails entry = { 0, };
+
+      entry.id = threads[i];
+
+      if (!func (&entry, user_data))
+        break;
+    }
+
+    goto beach;
+  }
+
   entries = g_array_sized_new (FALSE, FALSE, sizeof (GumThreadDetails), count);
   names = g_ptr_array_new_full (count, g_free);
   pending_ports = g_hash_table_new (NULL, NULL);
@@ -1341,6 +1356,7 @@ gum_darwin_enumerate_threads (mach_port_t task,
   g_ptr_array_unref (names);
   g_array_unref (entries);
 
+beach:
   for (i = 0; i != count; i++)
     mach_port_deallocate (self, threads[i]);
   vm_deallocate (self, (vm_address_t) threads, count * sizeof (thread_t));
@@ -1841,9 +1857,18 @@ gum_detect_pthread_basics (csh capstone,
         }
         case ARM64_INS_LDR:
         {
+          const uint8_t * ldr_location = code - insn->size;
           const arm64_op_mem * src = &arm64->operands[1].mem;
 
-          if (mach_port_offset == 0 &&
+          if (adrp_location != NULL &&
+              ldr_location - 4 == adrp_location &&
+              src->base == adrp_reg &&
+              src->index == ARM64_REG_INVALID &&
+              src->disp !=0)
+          {
+            accumulated_value += src->disp;
+          }
+          else if (mach_port_offset == 0 &&
               src->base != ARM64_REG_SP &&
               src->base != ARM64_REG_FP &&
               src->index == ARM64_REG_INVALID &&

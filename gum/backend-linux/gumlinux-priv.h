@@ -16,7 +16,9 @@ G_BEGIN_DECLS
 
 typedef struct _GumProcMapsIter GumProcMapsIter;
 
+#ifndef HAVE_GLIBC
 typedef struct _GumLinuxPThread GumLinuxPThread;
+#endif
 typedef struct _GumGlibcList GumGlibcList;
 typedef int GumGlibcLock;
 
@@ -33,9 +35,12 @@ struct _GumLinuxPThreadSpec
   int (* set_name) (pthread_t thread, const char * name);
 
 #if defined (HAVE_GLIBC)
+  gsize flink_offset;
+  gsize blink_offset;
   GumGlibcList * stack_used;
   GumGlibcList * stack_user;
   GumGlibcLock * stack_lock;
+  gsize tid_offset;
 #elif defined (HAVE_MUSL)
   GumLinuxPThread * main_thread;
   void (* tl_lock) (void);
@@ -59,29 +64,20 @@ struct _GumGlibcList
   GumGlibcList * prev;
 };
 
+#ifndef HAVE_GLIBC
 struct _GumLinuxPThread
 {
-#if defined (HAVE_GLIBC)
-  union
-  {
-# if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-    guint8 tcb_header[704];
-# endif
-    gpointer padding[24];
-  } header;
-  GumGlibcList list;
-  pid_t tid;
-#elif defined (HAVE_MUSL)
+# if defined (HAVE_MUSL)
   gpointer self;
-# ifdef HAVE_I386
+#  ifdef HAVE_I386
   gpointer dtv;
-# endif
+#  endif
   GumLinuxPThread * prev;
   GumLinuxPThread * next;
   gpointer sysinfo;
-# ifdef HAVE_I386
+#  ifdef HAVE_I386
   gsize canary;
-# endif
+#  endif
   int tid;
   int errno_val;
   volatile int detach_state;
@@ -93,12 +89,13 @@ struct _GumLinuxPThread
   guint8 * map_base;
   gsize map_size;
   gpointer stack;
-#elif defined (HAVE_ANDROID)
+# elif defined (HAVE_ANDROID)
   GumLinuxPThread * next;
   GumLinuxPThread * prev;
   pid_t tid;
-#endif
+# endif
 };
+#endif
 
 G_GNUC_INTERNAL const Dl_info * _gum_process_get_libc_info (void);
 

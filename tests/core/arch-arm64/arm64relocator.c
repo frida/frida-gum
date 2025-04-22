@@ -73,7 +73,7 @@ TESTCASE (ldr_x_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 8;
-  *((guint64 *) (expected_output + 8)) = GUINT64_TO_LE (calculated_pc);
+  *((guint64 *) (expected_output + 8)) = calculated_pc;
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_LDR);
@@ -103,7 +103,7 @@ TESTCASE (ldr_w_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 8;
-  *((guint64 *) (expected_output + 8)) = GUINT64_TO_LE (calculated_pc);
+  *((guint64 *) (expected_output + 8)) = calculated_pc;
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_LDR);
@@ -135,7 +135,7 @@ TESTCASE (ldr_d_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 8;
-  *((guint64 *) (expected_output + 16)) = GUINT64_TO_LE (calculated_pc);
+  *((guint64 *) (expected_output + 16)) = calculated_pc;
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_LDR);
@@ -165,7 +165,7 @@ TESTCASE (ldrsw_x_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 8;
-  *((guint64 *) (expected_output + 8)) = GUINT64_TO_LE (calculated_pc);
+  *((guint64 *) (expected_output + 8)) = calculated_pc;
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_LDRSW);
@@ -194,7 +194,7 @@ TESTCASE (adr_should_be_rewritten)
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 0x14e6;
-  *((guint64 *) (expected_output + 4)) = GUINT64_TO_LE (calculated_pc);
+  *((guint64 *) (expected_output + 4)) = calculated_pc;
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_ADR);
@@ -224,7 +224,7 @@ TESTCASE (adrp_should_be_rewritten)
       sizeof (expected_output_instructions));
   calculated_pc =
       (fixture->rl.input_pc & ~G_GUINT64_CONSTANT (4096 - 1)) + 0x14e6000;
-  *((guint64 *) (expected_output + 4)) = GUINT64_TO_LE (calculated_pc);
+  *((guint64 *) (expected_output + 4)) = calculated_pc;
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_ADRP);
@@ -367,10 +367,18 @@ branch_scenario_execute (BranchScenario * bs,
   SETUP_RELOCATOR_WITH (bs->input);
 
   calculated_pc = fixture->rl.input_pc + bs->expected_pc_distance;
+
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
   bs->expected_output[bs->pc_offset + 0] =
       GUINT32_TO_LE ((calculated_pc >> 0) & 0xffffffff);
   bs->expected_output[bs->pc_offset + 1] =
       GUINT32_TO_LE ((calculated_pc >> 32) & 0xffffffff);
+#else
+  bs->expected_output[bs->pc_offset + 1] =
+      GUINT32_TO_BE ((calculated_pc >> 0) & 0xffffffff);
+  bs->expected_output[bs->pc_offset + 0] =
+      GUINT32_TO_BE ((calculated_pc >> 32) & 0xffffffff);
+#endif
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, bs->instruction_id);

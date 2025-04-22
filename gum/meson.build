@@ -169,7 +169,6 @@ if host_os_family == 'linux'
     'backend-linux' / 'gumthreadregistry-linux.c',
     'backend-linux' / 'gummoduleregistry-linux.c',
     'backend-linux' / 'gummodule-linux.c',
-    'backend-linux' / 'gumsystemtap.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
   ]
