@@ -59,24 +59,6 @@ option('database',
   description: 'Build JavaScript bindings with Database API included'
 )
 
-option('frida_objc_bridge',
-  type: 'feature',
-  value: 'auto',
-  description: 'Build JavaScript bindings with ObjC bridge included'
-)
-
-option('frida_swift_bridge',
-  type: 'feature',
-  value: 'auto',
-  description: 'Build JavaScript bindings with Swift bridge included'
-)
-
-option('frida_java_bridge',
-  type: 'feature',
-  value: 'auto',
-  description: 'Build JavaScript bindings with Java bridge included'
-)
-
 option('devkits',
   type: 'array',
   choices: ['gum', 'gumjs'],

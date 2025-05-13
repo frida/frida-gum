@@ -86,15 +86,6 @@ private:
   GMutex mutex;
   bool disposing;
   GumV8Bundle * runtime_bundle;
-#ifdef HAVE_OBJC_BRIDGE
-  GumV8Bundle * objc_bundle;
-#endif
-#ifdef HAVE_SWIFT_BRIDGE
-  GumV8Bundle * swift_bundle;
-#endif
-#ifdef HAVE_JAVA_BRIDGE
-  GumV8Bundle * java_bundle;
-#endif
   GumScriptScheduler * scheduler;
   std::unordered_set<v8::Isolate *> dying_isolates;
   std::unordered_set<std::shared_ptr<GumV8Operation>> js_ops;

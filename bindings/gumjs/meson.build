@@ -165,9 +165,6 @@ gumjs_runtime_sources = [
   'runtime' / 'console.js',
   'runtime' / 'hexdump.js',
   'runtime' / 'worker.js',
-  'runtime' / 'objc.js',
-  'runtime' / 'swift.js',
-  'runtime' / 'java.js',
   'runtime' / 'cmodule-tcc' / 'inttypes.h',
   'runtime' / 'cmodule-tcc' / 'stdint.h',
   'runtime' / 'cmodule-tcc' / 'stdio.h',
@@ -192,18 +189,10 @@ gumjs_runtime_outputs = [
   'gumcmodule-runtime.h',
 ]
 if quickjs_dep.found()
-  gumjs_runtime_outputs += [
-    'gumquickscript-runtime.h',
-    'gumquickscript-objc.h',
-    'gumquickscript-java.h',
-  ]
+  gumjs_runtime_outputs += 'gumquickscript-runtime.h'
 endif
 if v8_dep.found()
-  gumjs_runtime_outputs += [
-    'gumv8script-runtime.h',
-    'gumv8script-objc.h',
-    'gumv8script-java.h',
-  ]
+  gumjs_runtime_outputs += 'gumv8script-runtime.h'
 endif
 
 install_headers(gumjs_headers, subdir: install_header_basedir / 'gumjs')

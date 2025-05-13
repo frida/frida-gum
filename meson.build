@@ -616,18 +616,6 @@ if have_gumjs
   sqlite_dep = dependency('sqlite3', required: get_option('database'))
   cdata.set('HAVE_SQLITE', sqlite_dep.found())
 
-  if get_option('frida_objc_bridge').allowed()
-    cdata.set('HAVE_OBJC_BRIDGE', 1)
-  endif
-
-  if get_option('frida_swift_bridge').allowed()
-    cdata.set('HAVE_SWIFT_BRIDGE', 1)
-  endif
-
-  if get_option('frida_java_bridge').allowed()
-    cdata.set('HAVE_JAVA_BRIDGE', 1)
-  endif
-
   libsoup_dep = dependency('libsoup-3.0', default_options: [
     'gssapi=disabled',
     'ntlm=disabled',

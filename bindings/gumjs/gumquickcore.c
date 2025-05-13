@@ -16,15 +16,6 @@
 #include "gumquickscript-priv.h"
 #include "gumquickstalker.h"
 #include "gumsourcemap.h"
-#ifdef HAVE_OBJC_BRIDGE
-# include "gumquickscript-objc.h"
-#endif
-#ifdef HAVE_SWIFT_BRIDGE
-# include "gumquickscript-swift.h"
-#endif
-#ifdef HAVE_JAVA_BRIDGE
-# include "gumquickscript-java.h"
-#endif
 
 #include <string.h>
 #ifdef _MSC_VER
@@ -180,9 +171,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
-GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
-GUMJS_DECLARE_FUNCTION (gumjs_frida_swift_load)
-GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_FUNCTION (gumjs_script_evaluate)
 GUMJS_DECLARE_FUNCTION (gumjs_script_load)
@@ -404,9 +392,6 @@ static const JSCFunctionListEntry gumjs_frida_entries[] =
 {
   JS_PROP_STRING_DEF ("version", FRIDA_VERSION, JS_PROP_C_W_E),
   JS_CGETSET_DEF ("heapSize", gumjs_frida_get_heap_size, NULL),
-  JS_CFUNC_DEF ("_loadObjC", 0, gumjs_frida_objc_load),
-  JS_CFUNC_DEF ("_loadSwift", 0, gumjs_frida_swift_load),
-  JS_CFUNC_DEF ("_loadJava", 0, gumjs_frida_java_load),
 };
 
 static const JSCFunctionListEntry gumjs_script_entries[] =
@@ -2077,42 +2062,6 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
   return JS_NewUint32 (ctx, gum_peek_private_memory_usage ());
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
-{
-  JSValue loaded = JS_FALSE;
-
-#ifdef HAVE_OBJC_BRIDGE
-  gum_quick_bundle_load (gumjs_objc_modules, ctx);
-  loaded = JS_TRUE;
-#endif
-
-  return loaded;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
-{
-  JSValue loaded = JS_FALSE;
-
-#ifdef HAVE_SWIFT_BRIDGE
-  gum_quick_bundle_load (gumjs_swift_modules, ctx);
-  loaded = JS_TRUE;
-#endif
-
-  return loaded;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
-{
-  JSValue loaded = JS_FALSE;
-
-#ifdef HAVE_JAVA_BRIDGE
-  gum_quick_bundle_load (gumjs_java_modules, ctx);
-  loaded = JS_TRUE;
-#endif
-
-  return loaded;
-}
-
 GUMJS_DEFINE_FUNCTION (gumjs_script_evaluate)
 {
   const gchar * name, * source;
@@ -2271,31 +2220,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
   if (json == NULL)
   {
     if (g_strcmp0 (name, program->global_filename) == 0)
-    {
       json = program->global_source_map;
-    }
     else if (strcmp (name, "/_frida.js") == 0)
-    {
       json = core->runtime_source_map;
-    }
-#ifdef HAVE_OBJC_BRIDGE
-    else if (strcmp (name, "/_objc.js") == 0)
-    {
-      json = gumjs_objc_source_map;
-    }
-#endif
-#ifdef HAVE_SWIFT_BRIDGE
-    else if (strcmp (name, "/_swift.js") == 0)
-    {
-      json = gumjs_swift_source_map;
-    }
-#endif
-#ifdef HAVE_JAVA_BRIDGE
-    else if (strcmp (name, "/_java.js") == 0)
-    {
-      json = gumjs_java_source_map;
-    }
-#endif
   }
 
   if (json != NULL)

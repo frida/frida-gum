@@ -17,15 +17,6 @@
 #include "gumv8macros.h"
 #include "gumv8scope.h"
 #include "gumv8script-priv.h"
-#ifdef HAVE_OBJC_BRIDGE
-# include "gumv8script-objc.h"
-#endif
-#ifdef HAVE_SWIFT_BRIDGE
-# include "gumv8script-swift.h"
-#endif
-#ifdef HAVE_JAVA_BRIDGE
-# include "gumv8script-java.h"
-#endif
 
 #include <ffi.h>
 #include <glib/gprintf.h>
@@ -208,9 +199,6 @@ static void gumjs_global_get (Local<Name> property,
     const PropertyCallbackInfo<Value> & info);
 
 GUMJS_DECLARE_GETTER (gumjs_frida_get_heap_size)
-GUMJS_DECLARE_FUNCTION (gumjs_frida_objc_load)
-GUMJS_DECLARE_FUNCTION (gumjs_frida_swift_load)
-GUMJS_DECLARE_FUNCTION (gumjs_frida_java_load)
 
 GUMJS_DECLARE_FUNCTION (gumjs_script_evaluate)
 GUMJS_DECLARE_FUNCTION (gumjs_script_load)
@@ -406,15 +394,6 @@ static const GumV8Property gumjs_frida_values[] =
   { NULL, NULL }
 };
 
-static const GumV8Function gumjs_frida_functions[] =
-{
-  { "_loadObjC", gumjs_frida_objc_load },
-  { "_loadSwift", gumjs_frida_swift_load },
-  { "_loadJava", gumjs_frida_java_load },
-
-  { NULL, NULL }
-};
-
 static const GumV8Function gumjs_script_functions[] =
 {
   { "evaluate", gumjs_script_evaluate },
@@ -580,7 +559,6 @@ _gum_v8_core_init (GumV8Core * self,
 
   auto frida = _gum_v8_create_module ("Frida", scope, isolate);
   _gum_v8_module_add (module, frida, gumjs_frida_values, isolate);
-  _gum_v8_module_add (module, frida, gumjs_frida_functions, isolate);
   frida->Set (_gum_v8_string_new_ascii (isolate, "version"),
       _gum_v8_string_new_ascii (isolate, FRIDA_VERSION), ReadOnly);
 
@@ -1669,51 +1647,6 @@ GUMJS_DEFINE_GETTER (gumjs_frida_get_heap_size)
   info.GetReturnValue ().Set (gum_peek_private_memory_usage ());
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_frida_objc_load)
-{
-  bool loaded = false;
-
-#ifdef HAVE_OBJC_BRIDGE
-  auto bundle = gum_v8_bundle_new (isolate, gumjs_objc_modules);
-  gum_v8_bundle_run (bundle);
-  gum_v8_bundle_free (bundle);
-
-  loaded = true;
-#endif
-
-  info.GetReturnValue ().Set (loaded);
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_frida_swift_load)
-{
-  bool loaded = false;
-
-#ifdef HAVE_SWIFT_BRIDGE
-  auto bundle = gum_v8_bundle_new (isolate, gumjs_swift_modules);
-  gum_v8_bundle_run (bundle);
-  gum_v8_bundle_free (bundle);
-
-  loaded = true;
-#endif
-
-  info.GetReturnValue ().Set (loaded);
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_frida_java_load)
-{
-  bool loaded = false;
-
-#ifdef HAVE_JAVA_BRIDGE
-  auto bundle = gum_v8_bundle_new (isolate, gumjs_java_modules);
-  gum_v8_bundle_run (bundle);
-  gum_v8_bundle_free (bundle);
-
-  loaded = true;
-#endif
-
-  info.GetReturnValue ().Set (loaded);
-}
-
 GUMJS_DEFINE_FUNCTION (gumjs_script_evaluate)
 {
   gchar * name, * source;
@@ -1828,27 +1761,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
     else
     {
       if (strcmp (name, "/_frida.js") == 0)
-      {
         json = core->runtime_source_map;
-      }
-#ifdef HAVE_OBJC_BRIDGE
-      else if (strcmp (name, "/_objc.js") == 0)
-      {
-        json = gumjs_objc_source_map;
-      }
-#endif
-#ifdef HAVE_SWIFT_BRIDGE
-      else if (strcmp (name, "/_swift.js") == 0)
-      {
-        json = gumjs_swift_source_map;
-      }
-#endif
-#ifdef HAVE_JAVA_BRIDGE
-      else if (strcmp (name, "/_java.js") == 0)
-      {
-        json = gumjs_java_source_map;
-      }
-#endif
     }
   }
 

@@ -361,10 +361,6 @@ TESTLIST_BEGIN (script)
 # endif
     TESTENTRY (native_callback_should_get_accurate_backtraces)
 #endif
-#ifdef HAVE_DARWIN
-    TESTENTRY (native_callback_should_get_accurate_backtraces)
-    TESTENTRY (native_callback_should_get_accurate_backtraces_2)
-#endif
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("DebugSymbol")
@@ -546,8 +542,6 @@ TESTLIST_BEGIN (script)
   TESTENTRY (globals_can_be_dynamically_generated)
   TESTENTRY (exceptions_can_be_handled)
   TESTENTRY (debugger_can_be_enabled)
-  TESTENTRY (objc_api_is_embedded)
-  TESTENTRY (java_api_is_embedded)
   TESTENTRY (cloaked_items_can_be_queried_added_and_removed)
 TESTLIST_END ()
 
@@ -2425,191 +2419,6 @@ TESTCASE (native_callback_should_get_accurate_backtraces)
   cb ();
   EXPECT_SEND_MESSAGE_WITH ("\"return address ok\"");
   EXPECT_NO_MESSAGES ();
-}
-
-#endif
-
-#ifdef HAVE_DARWIN
-
-TESTCASE (native_callback_should_get_accurate_backtraces)
-{
-  COMPILE_AND_LOAD_SCRIPT (
-    "const {"
-    "  __NSCFBoolean,"
-    "  NSAutoreleasePool,"
-    "  NSData,"
-    "  NSJSONSerialization,"
-    "} = ObjC.classes;"
-
-    "const pool = NSAutoreleasePool.alloc().init();"
-    "let reference = null;"
-    "let sample = null;"
-    "let referenceRet = null;"
-    "let sampleRet = null;"
-
-    "try {"
-    "  const jsonString = '{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":{\"g\":' +"
-    "     '{\"h\":{\"i\":{\"j\":{\"k\":{\"l\":{\"m\":{\"n\":{\"o\":{\"p\":' +"
-    "     '{\"q\":{},\"cool\":true}}}}}}}}}}}}}}}}}';"
-    "  const bytes = Memory.allocUtf8String(jsonString);"
-    "  const data = NSData.dataWithBytes_length_(bytes, jsonString.length);"
-    "  const jsonObject = NSJSONSerialization"
-    "      .JSONObjectWithData_options_error_(data, 0, NULL);"
-
-    "  const method = __NSCFBoolean['- boolValue'];"
-    "  const listener = Interceptor.attach(method.implementation, {"
-    "    onEnter() {"
-    "      listener.detach();"
-    "      if (reference === null) {"
-    "        reference = Thread.backtrace(this.context, Backtracer.ACCURATE);"
-    "        referenceRet = this.returnAddress;"
-    "      }"
-    "    }"
-    "  });"
-
-    "  NSJSONSerialization"
-    "      .dataWithJSONObject_options_error_(jsonObject, 0, NULL);"
-
-    "  const origImpl = method.implementation;"
-    "  method.implementation = ObjC.implement(method,"
-    "      function (handle, selector) {"
-    "        if (sample === null) {"
-    "          sample = Thread.backtrace(this.context, Backtracer.ACCURATE);"
-    "          sampleRet = this.returnAddress;"
-    "          send('returnAddress ' +"
-    "              (sample[0].equals(sampleRet) ? 'ok' : 'error'));"
-    "        }"
-    "        return origImpl(handle, selector);"
-    "      });"
-
-    "  NSJSONSerialization"
-    "      .dataWithJSONObject_options_error_(jsonObject, 0, NULL);"
-
-    "  method.implementation = origImpl;"
-    "} finally {"
-    "  pool.release();"
-    "}"
-
-    "let backtraceMatches = true;"
-    "for (let i = 0; i !== reference.length; i++) {"
-    "  try {"
-    "    if (!reference[i].equals(sample[i])) {"
-    "      backtraceMatches = false;"
-    "      break;"
-    "    }"
-    "  } catch (e) {"
-    "    backtraceMatches = false;"
-    "    break;"
-    "  }"
-    "}"
-
-    "send(backtraceMatches ? 'backtrace ok' : 'backtrace error');"
-
-    "if (referenceRet.equals(sampleRet)) {"
-    "  send('returnAddress consistent');"
-    "} else {"
-    "  send('returnAddress inconsistent: ' + referenceRet +"
-    "      ' got ' + sampleRet);"
-    "}"
-  );
-
-  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress ok\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"backtrace ok\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress consistent\"");
-}
-
-TESTCASE (native_callback_should_get_accurate_backtraces_2)
-{
-  COMPILE_AND_LOAD_SCRIPT (
-    "const {"
-    "  NSAutoreleasePool,"
-    "  NSDataDetector,"
-    "  NSDateCheckingResult,"
-    "  NSString"
-    "} = ObjC.classes;"
-
-    "const pool = NSAutoreleasePool.alloc().init();"
-
-    "let reference = null;"
-    "let sample = null;"
-    "let referenceRet = null;"
-    "let sampleRet = null;"
-    "const textWithTime = 'is scheduled for tomorrow night' +"
-    "    'from 9 PM PST to 5 AM EST if i remember correctly';"
-
-    "try {"
-    "  const testString = NSString.stringWithString_(textWithTime);"
-    "  const range = [0, textWithTime.length];"
-    "  const detector = NSDataDetector"
-    "      .dataDetectorWithTypes_error_(0xffffffff, NULL);"
-    "  const methodName = '- initWithRange:date:timeZone:duration:' +"
-    "      'referenceDate:underlyingResult:timeIsSignificant:' +"
-    "      'timeIsApproximate:timeIsPast:leadingText:trailingText:';"
-    "  const method = NSDateCheckingResult[methodName];"
-
-    "  const listener = Interceptor.attach(method.implementation, {"
-    "    onEnter() {"
-    "      listener.detach();"
-    "      if (reference === null) {"
-    "        reference = Thread.backtrace(this.context, Backtracer.ACCURATE);"
-    "        referenceRet = this.returnAddress;"
-    "      }"
-    "    }"
-    "  });"
-
-    "  const interceptHere = detector['- matchesInString:options:range:'];"
-    "  Interceptor.attach(interceptHere.implementation, {"
-    "    onEnter() {}"
-    "  });"
-
-    "  detector.matchesInString_options_range_(testString, 0, range);"
-
-    "  const origImpl = method.implementation;"
-    "  method.implementation = ObjC.implement(method,"
-    "    function (handle, selector, ...args) {"
-    "      if (sample === null) {"
-    "        if (!this.context.pc.isNull()) {"
-    "          send('returnAddress error');"
-    "        } else {"
-    "          sample = Thread.backtrace(this.context, Backtracer.ACCURATE);"
-    "          sampleRet = this.returnAddress;"
-    "          send('returnAddress ' +"
-    "              (sample[0].equals(sampleRet) ? 'ok' : 'error'));"
-    "        }"
-    "      }"
-    "      return origImpl(handle, selector, ...args);"
-    "    });"
-
-    "  detector.matchesInString_options_range_(testString, 0, range);"
-    "  method.implementation = origImpl;"
-    "} finally {"
-    "  pool.release();"
-    "}"
-
-    "let backtraceEquals = true;"
-    "for (let i = 0; i !== reference.length; i++) {"
-    "  try {"
-    "    if (!reference[i].equals(sample[i])) {"
-    "      backtraceEquals = false;"
-    "      break;"
-    "    }"
-    "  } catch (e) {"
-    "    backtraceEquals = false;"
-    "    break;"
-    "  }"
-    "}"
-
-    "send(backtraceEquals ? 'backtrace ok' : 'backtrace error');"
-
-    "if (referenceRet.equals(sampleRet))"
-    "  send('returnAddress consistent');"
-    "else"
-    "  send('returnAddress inconsistent: ' + referenceRet);"
-  );
-
-  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress ok\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"backtrace ok\"");
-  EXPECT_SEND_MESSAGE_WITH ("\"returnAddress consistent\"");
 }
 
 #endif
@@ -12002,18 +11811,6 @@ TESTCASE (debugger_can_be_enabled)
   }
 
   g_object_unref (server);
-}
-
-TESTCASE (objc_api_is_embedded)
-{
-  COMPILE_AND_LOAD_SCRIPT ("send(typeof ObjC.available);");
-  EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
-}
-
-TESTCASE (java_api_is_embedded)
-{
-  COMPILE_AND_LOAD_SCRIPT ("send(typeof Java.available);");
-  EXPECT_SEND_MESSAGE_WITH ("\"boolean\"");
 }
 
 TESTCASE (cloaked_items_can_be_queried_added_and_removed)

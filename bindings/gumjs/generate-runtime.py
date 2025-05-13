@@ -13,12 +13,6 @@ RELAXED_DEPS = {
     "frida-compile": "^10.2.5",
 }
 
-EXACT_DEPS = {
-    "frida-java-bridge": "6.3.9",
-    "frida-objc-bridge": "7.1.0",
-    "frida-swift-bridge": "2.0.8"
-}
-
 
 def main(argv):
     output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, libtcc_incdir, npm, quickcompile = \
@@ -52,10 +46,6 @@ def generate_runtime(output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, 
                        capture_output=True,
                        cwd=priv_dir,
                        check=True)
-        subprocess.run([npm, "install", "-E"] + [f"{name}@{version_spec}" for name, version_spec in EXACT_DEPS.items()],
-                       capture_output=True,
-                       cwd=priv_dir,
-                       check=True)
 
     runtime_reldir = Path("runtime")
     runtime_srcdir = input_dir / runtime_reldir
@@ -69,46 +59,28 @@ def generate_runtime(output_dir, priv_dir, input_dir, gum_dir, capstone_incdir, 
     if "qjs" in backends:
         quick_tmp_dir = Path("out-qjs")
         runtime = quick_tmp_dir / "frida.js"
-        objc = quick_tmp_dir / "objc.js"
-        swift = quick_tmp_dir / "swift.js"
-        java = quick_tmp_dir / "java.js"
 
         quick_options = [
             "-c", # Compress for smaller code and better performance.
         ]
         call_compiler(runtime_reldir / "entrypoint-quickjs.js", "-o", runtime, *quick_options)
-        call_compiler(runtime_reldir / "objc.js", "-o", objc, *quick_options)
-        call_compiler(runtime_reldir / "swift.js", "-o", swift, *quick_options)
-        call_compiler(runtime_reldir / "java.js", "-o", java, *quick_options)
 
         qcflags = []
         if endian != sys.byteorder:
             qcflags.append("--bswap")
 
         generate_runtime_quick("runtime", output_dir, priv_dir, "gumquickscript-runtime.h", [runtime], quickcompile, qcflags)
-        generate_runtime_quick("objc", output_dir, priv_dir, "gumquickscript-objc.h", [objc], quickcompile, qcflags)
-        generate_runtime_quick("swift", output_dir, priv_dir, "gumquickscript-swift.h", [swift], quickcompile, qcflags)
-        generate_runtime_quick("java", output_dir, priv_dir, "gumquickscript-java.h", [java], quickcompile, qcflags)
 
     if "v8" in backends:
         v8_tmp_dir = Path("out-v8")
         runtime = v8_tmp_dir / "frida.js"
-        objc = v8_tmp_dir / "objc.js"
-        swift = v8_tmp_dir / "swift.js"
-        java = v8_tmp_dir / "java.js"
 
         v8_options = [
             "-c", # Compress for smaller code and better performance.
         ]
         call_compiler(runtime_reldir / "entrypoint-v8.js", "-o", runtime, *v8_options)
-        call_compiler(runtime_reldir / "objc.js", "-o", objc, *v8_options)
-        call_compiler(runtime_reldir / "swift.js", "-o", swift, *v8_options)
-        call_compiler(runtime_reldir / "java.js", "-o", java, *v8_options)
 
         generate_runtime_v8("runtime", output_dir, priv_dir, "gumv8script-runtime.h", [runtime])
-        generate_runtime_v8("objc", output_dir, priv_dir, "gumv8script-objc.h", [objc])
-        generate_runtime_v8("swift", output_dir, priv_dir, "gumv8script-swift.h", [swift])
-        generate_runtime_v8("java", output_dir, priv_dir, "gumv8script-java.h", [java])
 
     generate_runtime_cmodule(output_dir, "gumcmodule-runtime.h", input_dir, gum_dir, capstone_incdir, libtcc_incdir, arch)
 

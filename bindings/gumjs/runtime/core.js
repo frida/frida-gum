@@ -111,50 +111,7 @@ Object.defineProperties(engine, {
     enumerable: true,
     value: Worker
   },
-  ObjC: {
-    enumerable: true,
-    configurable: true,
-    get: function () {
-      let m;
-      if (Frida._loadObjC())
-        m = Frida._objc;
-      else
-        m = makeStubBridge();
-      Object.defineProperty(engine, 'ObjC', { value: m });
-      return m;
-    }
-  },
-  Swift: {
-    enumerable: true,
-    configurable: true,
-    get: function () {
-      let m;
-      if (Frida._loadSwift())
-        m = Frida._swift;
-      else
-        m = makeStubBridge();
-      Object.defineProperty(engine, 'Swift', { value: m });
-      return m;
-    }
-  },
-  Java: {
-    enumerable: true,
-    configurable: true,
-    get: function () {
-      let m;
-      if (Frida._loadJava())
-        m = Frida._java;
-      else
-        m = makeStubBridge();
-      Object.defineProperty(engine, 'Java', { value: m });
-      return m;
-    }
-  },
 });
-
-function makeStubBridge() {
-  return Object.freeze({ available: false });
-}
 
 const pointerPrototype = NativePointer.prototype;
 
