@@ -1328,7 +1328,7 @@ gum_linux_pthread_iter_init (GumLinuxPThreadIter * iter,
   if (!walked_user_list)
     goto beach;
 
-  iter->list = g_list_concat (used_list, user_list);
+  iter->list = g_list_concat (user_list, used_list);
 
   success = TRUE;
 
@@ -1366,7 +1366,7 @@ gum_linux_get_threads_from_list (const GumLinuxPThreadSpec * spec,
       goto beach;
 
     if (gum_linux_query_pthread_tid (current, spec) != 0)
-      list = g_list_append (list, GSIZE_TO_POINTER (current));
+      list = g_list_prepend (list, GSIZE_TO_POINTER (current));
 
     current = next;
     num_threads++;
