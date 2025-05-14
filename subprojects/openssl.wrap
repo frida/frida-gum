@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/openssl.git
-revision = ca4781aaf7910b623d3ae21c6a017e7e9ca6936c
+revision = 7b86cb6a0c5cb9d79dca012c98a0a30a58eef5b5
 depth = 1
 
 [provide]
