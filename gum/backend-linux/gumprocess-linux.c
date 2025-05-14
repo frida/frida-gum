@@ -1365,7 +1365,8 @@ gum_linux_get_threads_from_list (const GumLinuxPThreadSpec * spec,
     if (prev != current)
       goto beach;
 
-    list = g_list_append (list, GSIZE_TO_POINTER (current));
+    if (gum_linux_query_pthread_tid (current, spec) != 0)
+      list = g_list_append (list, GSIZE_TO_POINTER (current));
 
     current = next;
     num_threads++;
@@ -3345,7 +3346,7 @@ gum_linux_find_list_anchor (GumLinuxPThreadSpec * spec,
      * than one that fails.
      */
     tid = gum_linux_query_pthread_tid (current, spec);
-    if (!gum_process_has_thread (tid))
+    if (tid != 0 && !gum_process_has_thread (tid))
     {
       if (anchor == NULL)
         anchor = GSIZE_TO_POINTER (current) + spec->flink_offset;
