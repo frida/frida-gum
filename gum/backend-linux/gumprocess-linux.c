@@ -3437,6 +3437,9 @@ gum_linux_get_libc_version (guint * major,
   gchar ** parts, * end;
   guint64 maj, min;
 
+  *major = 0;
+  *minor = 0;
+
   version = gnu_get_libc_version ();
 
   parts = g_strsplit (version, ".", 2);
