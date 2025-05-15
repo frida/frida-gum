@@ -40,7 +40,7 @@
 # define GUM_SCRIPT_PLATFORM "qnx"
 #endif
 
-typedef struct _GumQuickMatchContext GumQuickMatchContext;
+typedef struct _GumQuickEnumerateContext GumQuickEnumerateContext;
 typedef struct _GumQuickThreadObserver GumQuickThreadObserver;
 typedef struct _GumQuickRunOnThreadContext GumQuickRunOnThreadContext;
 typedef struct _GumQuickModuleObserver GumQuickModuleObserver;
@@ -53,11 +53,10 @@ struct _GumQuickExceptionHandler
   GumQuickCore * core;
 };
 
-struct _GumQuickMatchContext
+struct _GumQuickEnumerateContext
 {
-  JSValue on_match;
-  JSValue on_complete;
-  GumQuickMatchResult result;
+  JSValue elements;
+  guint n;
 
   JSContext * ctx;
   GumQuickProcess * parent;
@@ -119,7 +118,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
-    GumQuickMatchContext * mc);
+    GumQuickEnumerateContext * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_process_attach_thread_observer)
 static GumQuickThreadObserver * gum_quick_thread_observer_ref (
     GumQuickThreadObserver * observer);
@@ -148,7 +147,8 @@ static gboolean gum_quick_process_on_stalker_gc_timer_tick (
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_address)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
-static gboolean gum_emit_module (GumModule * module, GumQuickMatchContext * mc);
+static gboolean gum_emit_module (GumModule * module,
+    GumQuickEnumerateContext * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_process_attach_module_observer)
 static GumQuickModuleObserver * gum_quick_module_observer_ref (
     GumQuickModuleObserver * observer);
@@ -167,10 +167,16 @@ static gboolean gum_store_range_if_containing_address (
     const GumRangeDetails * details, GumQuickFindRangeByAddressContext * fc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumQuickMatchContext * mc);
+    GumQuickEnumerateContext * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_system_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
+
+static void gum_quick_enumerate_context_begin (GumQuickEnumerateContext * ec,
+    GumQuickCore * core);
+static JSValue gum_quick_enumerate_context_end (GumQuickEnumerateContext * ec);
+static gboolean gum_quick_enumerate_context_collect (
+    GumQuickEnumerateContext * ec, JSValue element);
 
 static GumQuickExceptionHandler * gum_quick_exception_handler_new (
     JSValue callback, GumQuickCore * core);
@@ -194,20 +200,20 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("getTmpDir", 0, gumjs_process_get_tmp_dir),
   JS_CFUNC_DEF ("isDebuggerAttached", 0, gumjs_process_is_debugger_attached),
   JS_CFUNC_DEF ("getCurrentThreadId", 0, gumjs_process_get_current_thread_id),
-  JS_CFUNC_DEF ("_enumerateThreads", 0, gumjs_process_enumerate_threads),
+  JS_CFUNC_DEF ("enumerateThreads", 0, gumjs_process_enumerate_threads),
   JS_CFUNC_DEF ("attachThreadObserver", 0,
       gumjs_process_attach_thread_observer),
   JS_CFUNC_DEF ("_runOnThread", 0, gumjs_process_run_on_thread),
   JS_CFUNC_DEF ("findModuleByName", 0, gumjs_process_find_module_by_name),
   JS_CFUNC_DEF ("findModuleByAddress", 0, gumjs_process_find_module_by_address),
-  JS_CFUNC_DEF ("_enumerateModules", 0, gumjs_process_enumerate_modules),
+  JS_CFUNC_DEF ("enumerateModules", 0, gumjs_process_enumerate_modules),
   JS_CFUNC_DEF ("attachModuleObserver", 0,
       gumjs_process_attach_module_observer),
   JS_CFUNC_DEF ("findRangeByAddress", 0, gumjs_process_find_range_by_address),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_process_enumerate_ranges),
   JS_CFUNC_DEF ("enumerateSystemRanges", 0,
       gumjs_process_enumerate_system_ranges),
-  JS_CFUNC_DEF ("_enumerateMallocRanges", 0,
+  JS_CFUNC_DEF ("enumerateMallocRanges", 0,
       gumjs_process_enumerate_malloc_ranges),
   JS_CFUNC_DEF ("setExceptionHandler", 0, gumjs_process_set_exception_handler),
 };
@@ -392,35 +398,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 {
-  GumQuickMatchContext mc;
+  GumQuickEnumerateContext ec;
 
-  if (!_gum_quick_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return JS_EXCEPTION;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
-  mc.ctx = ctx;
-  mc.parent = gumjs_get_parent_module (core);
+  gum_quick_enumerate_context_begin (&ec, core);
 
-  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc,
+  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &ec,
       GUM_THREAD_FLAGS_ALL);
 
-  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+  return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
 gum_emit_thread (const GumThreadDetails * details,
-                 GumQuickMatchContext * mc)
+                 GumQuickEnumerateContext * ec)
 {
-  JSContext * ctx = mc->ctx;
-  JSValue thread, result;
-
-  thread = _gum_quick_thread_new (ctx, details, mc->parent->thread);
-
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &thread);
-
-  JS_FreeValue (ctx, thread);
-
-  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+  return gum_quick_enumerate_context_collect (ec,
+      _gum_quick_thread_new (ec->ctx, details, ec->parent->thread));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_attach_thread_observer)
@@ -836,34 +829,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_address)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 {
-  GumQuickMatchContext mc;
+  GumQuickEnumerateContext ec;
 
-  if (!_gum_quick_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return JS_EXCEPTION;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
-  mc.ctx = ctx;
-  mc.parent = gumjs_get_parent_module (core);
+  gum_quick_enumerate_context_begin (&ec, core);
 
-  gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
+  gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &ec);
 
-  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+  return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
 gum_emit_module (GumModule * module,
-                 GumQuickMatchContext * mc)
+                 GumQuickEnumerateContext * ec)
 {
-  JSContext * ctx = mc->ctx;
-  JSValue wrapper, result;
-
-  wrapper = _gum_quick_module_new_from_handle (ctx, module, mc->parent->module);
-
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &wrapper);
-
-  JS_FreeValue (ctx, wrapper);
-
-  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+  return gum_quick_enumerate_context_collect (ec,
+      _gum_quick_module_new_from_handle (ec->ctx, module, ec->parent->module));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
@@ -1101,35 +1081,25 @@ gum_store_range_if_containing_address (const GumRangeDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 {
-  GumQuickMatchContext mc;
   GumPageProtection prot;
+  GumQuickEnumerateContext ec;
 
-  if (!_gum_quick_args_parse (args, "mF{onMatch,onComplete}", &prot,
-      &mc.on_match, &mc.on_complete))
+  if (!_gum_quick_args_parse (args, "m", &prot))
     return JS_EXCEPTION;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
-  mc.ctx = ctx;
-  mc.parent = gumjs_get_parent_module (core);
 
-  gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
+  gum_quick_enumerate_context_begin (&ec, core);
 
-  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+  gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &ec);
+
+  return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumQuickMatchContext * mc)
+                GumQuickEnumerateContext * ec)
 {
-  JSContext * ctx = mc->ctx;
-  JSValue range, result;
-
-  range = _gum_quick_range_details_new (ctx, details, mc->parent->core);
-
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &range);
-
-  JS_FreeValue (ctx, range);
-
-  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+  return gum_quick_enumerate_context_collect (ec,
+      _gum_quick_range_details_new (ec->ctx, details, ec->parent->core));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_system_ranges)
@@ -1155,32 +1125,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_system_ranges)
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
 
 static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
-    GumQuickMatchContext * mc);
+    GumQuickEnumerateContext * ec);
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
-  GumQuickMatchContext mc;
+  GumQuickEnumerateContext ec;
 
-  if (!_gum_quick_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return JS_EXCEPTION;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
-  mc.ctx = ctx;
-  mc.parent = gumjs_get_parent_module (core);
+  gum_quick_enumerate_context_begin (&ec, core);
 
   gum_process_enumerate_malloc_ranges (
-      (GumFoundMallocRangeFunc) gum_emit_malloc_range, &mc);
+      (GumFoundMallocRangeFunc) gum_emit_malloc_range, &ec);
 
-  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+  return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
 gum_emit_malloc_range (const GumMallocRangeDetails * details,
-                       GumQuickMatchContext * mc)
+                       GumQuickEnumerateContext * ec)
 {
-  JSContext * ctx = mc->ctx;
-  GumQuickCore * core = mc->parent->core;
-  JSValue range, result;
+  JSContext * ctx = ec->ctx;
+  GumQuickCore * core = ec->parent->core;
+  JSValue range;
 
   range = JS_NewObject (ctx);
 
@@ -1194,11 +1159,7 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
       JS_NewInt64 (ctx, details->range->size),
       JS_PROP_C_W_E);
 
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &range);
-
-  JS_FreeValue (ctx, range);
-
-  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+  return gum_quick_enumerate_context_collect (ec, range);
 }
 
 #else
@@ -1233,6 +1194,32 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
     gum_quick_exception_handler_free (old_handler);
 
   return JS_UNDEFINED;
+}
+
+static void
+gum_quick_enumerate_context_begin (GumQuickEnumerateContext * ec,
+                                   GumQuickCore * core)
+{
+  ec->elements = JS_NewArray (core->ctx);
+  ec->n = 0;
+
+  ec->ctx = core->ctx;
+  ec->parent = gumjs_get_parent_module (core);
+}
+
+static JSValue
+gum_quick_enumerate_context_end (GumQuickEnumerateContext * ec)
+{
+  return ec->elements;
+}
+
+static gboolean
+gum_quick_enumerate_context_collect (GumQuickEnumerateContext * ec,
+                                     JSValue element)
+{
+  JS_DefinePropertyValueUint32 (ec->ctx, ec->elements, ec->n++, element,
+      JS_PROP_C_W_E);
+  return TRUE;
 }
 
 static GumQuickExceptionHandler *

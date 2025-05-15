@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumv8module.h"
 
+#include "gumv8enumeratecontext.h"
 #include "gumv8macros.h"
-#include "gumv8matchcontext.h"
 
 #include <gum/gum-init.h>
 #include <string.h>
@@ -24,11 +24,11 @@ struct GumV8ModuleValue
   GumV8Module * module;
 };
 
-class GumV8ImportsContext : public GumV8MatchContext<GumV8Module>
+class GumV8ImportsContext : public GumV8EnumerateContext<GumV8Module>
 {
 public:
   GumV8ImportsContext (Isolate * isolate, GumV8Module * parent)
-    : GumV8MatchContext (isolate, parent)
+    : GumV8EnumerateContext (isolate, parent)
   {
   }
 
@@ -41,11 +41,11 @@ public:
   Local<String> variable;
 };
 
-struct GumV8ExportsContext : public GumV8MatchContext<GumV8Module>
+struct GumV8ExportsContext : public GumV8EnumerateContext<GumV8Module>
 {
 public:
   GumV8ExportsContext (Isolate * isolate, GumV8Module * parent)
-    : GumV8MatchContext (isolate, parent)
+    : GumV8EnumerateContext (isolate, parent)
   {
   }
 
@@ -86,16 +86,16 @@ static gboolean gum_emit_export (const GumExportDetails * details,
     GumV8ExportsContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_symbols)
 static gboolean gum_emit_symbol (const GumSymbolDetails * details,
-    GumV8MatchContext<GumV8Module> * mc);
+    GumV8EnumerateContext<GumV8Module> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumV8MatchContext<GumV8Module> * mc);
+    GumV8EnumerateContext<GumV8Module> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_sections)
 static gboolean gum_emit_section (const GumSectionDetails * details,
-    GumV8MatchContext<GumV8Module> * mc);
+    GumV8EnumerateContext<GumV8Module> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_dependencies)
 static gboolean gum_emit_dependency (const GumDependencyDetails * details,
-    GumV8MatchContext<GumV8Module> * mc);
+    GumV8EnumerateContext<GumV8Module> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_symbol_by_name)
 
@@ -143,12 +143,12 @@ static const GumV8Property gumjs_module_values[] =
 static const GumV8Function gumjs_module_functions[] =
 {
   { "ensureInitialized", gumjs_module_ensure_initialized },
-  { "_enumerateImports", gumjs_module_enumerate_imports },
-  { "_enumerateExports", gumjs_module_enumerate_exports },
-  { "_enumerateSymbols", gumjs_module_enumerate_symbols },
-  { "_enumerateRanges", gumjs_module_enumerate_ranges },
-  { "_enumerateSections", gumjs_module_enumerate_sections },
-  { "_enumerateDependencies", gumjs_module_enumerate_dependencies },
+  { "enumerateImports", gumjs_module_enumerate_imports },
+  { "enumerateExports", gumjs_module_enumerate_exports },
+  { "enumerateSymbols", gumjs_module_enumerate_symbols },
+  { "enumerateRanges", gumjs_module_enumerate_ranges },
+  { "enumerateSections", gumjs_module_enumerate_sections },
+  { "enumerateDependencies", gumjs_module_enumerate_dependencies },
   { "findExportByName", gumjs_module_find_export_by_name },
   { "findSymbolByName", gumjs_module_find_symbol_by_name },
 
@@ -367,9 +367,6 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_ensure_initialized, GumV8ModuleValue)
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_imports, GumV8ModuleValue)
 {
   GumV8ImportsContext ic (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &ic.on_match,
-      &ic.on_complete))
-    return;
 
   ic.imp = Local<Object>::New (isolate, *module->import_value);
   ic.type = Local<String>::New (isolate, *module->type_key);
@@ -382,7 +379,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_imports, GumV8ModuleValue)
   gum_module_enumerate_imports (self->handle,
       (GumFoundImportFunc) gum_emit_import, &ic);
 
-  ic.OnComplete ();
+  info.GetReturnValue ().Set (ic.End ());
 }
 
 static gboolean
@@ -454,15 +451,12 @@ gum_emit_import (const GumImportDetails * details,
     imp->Delete (context, ic->slot).FromJust ();
   }
 
-  return ic->OnMatch (imp);
+  return ic->Collect (imp);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_exports, GumV8ModuleValue)
 {
   GumV8ExportsContext ec (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &ec.on_match,
-      &ec.on_complete))
-    return;
 
   ec.exp = Local<Object>::New (isolate, *module->export_value);
   ec.type = Local<String>::New (isolate, *module->type_key);
@@ -473,7 +467,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_exports, GumV8ModuleValue)
   gum_module_enumerate_exports (self->handle,
       (GumFoundExportFunc) gum_emit_export, &ec);
 
-  ec.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
@@ -481,7 +475,6 @@ gum_emit_export (const GumExportDetails * details,
                  GumV8ExportsContext * ec)
 {
   auto core = ec->parent->core;
-  auto isolate = ec->isolate;
   auto context = ec->context;
 
   auto exp = ec->exp->Clone ();
@@ -492,34 +485,31 @@ gum_emit_export (const GumExportDetails * details,
   }
 
   exp->Set (context, ec->name,
-      _gum_v8_string_new_ascii (isolate, details->name)).FromJust ();
+      _gum_v8_string_new_ascii (ec->isolate, details->name)).FromJust ();
 
   exp->Set (context, ec->address,
       _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->address), core))
       .FromJust ();
 
-  return ec->OnMatch (exp);
+  return ec->Collect (exp);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_symbols, GumV8ModuleValue)
 {
-  GumV8MatchContext<GumV8Module> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return;
+  GumV8EnumerateContext<GumV8Module> ec (isolate, module);
 
   gum_module_enumerate_symbols (self->handle,
-      (GumFoundSymbolFunc) gum_emit_symbol, &mc);
+      (GumFoundSymbolFunc) gum_emit_symbol, &ec);
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_symbol (const GumSymbolDetails * details,
-                 GumV8MatchContext<GumV8Module> * mc)
+                 GumV8EnumerateContext<GumV8Module> * ec)
 {
-  auto core = mc->parent->core;
-  auto isolate = mc->isolate;
+  auto core = ec->parent->core;
+  auto isolate = ec->isolate;
 
   auto symbol = Object::New (isolate);
   _gum_v8_object_set (symbol, "isGlobal",
@@ -542,96 +532,87 @@ gum_emit_symbol (const GumSymbolDetails * details,
   if (details->size != -1)
     _gum_v8_object_set_uint (symbol, "size", details->size, core);
 
-  return mc->OnMatch (symbol);
+  return ec->Collect (symbol);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_ranges, GumV8ModuleValue)
 {
   GumPageProtection prot;
-  GumV8MatchContext<GumV8Module> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
-        &mc.on_complete))
+  if (!_gum_v8_args_parse (args, "m", &prot))
     return;
 
-  gum_module_enumerate_ranges (self->handle, prot,
-      (GumFoundRangeFunc) gum_emit_range, &mc);
+  GumV8EnumerateContext<GumV8Module> ec (isolate, module);
 
-  mc.OnComplete ();
+  gum_module_enumerate_ranges (self->handle, prot,
+      (GumFoundRangeFunc) gum_emit_range, &ec);
+
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumV8MatchContext<GumV8Module> * mc)
+                GumV8EnumerateContext<GumV8Module> * ec)
 {
-  auto core = mc->parent->core;
-  auto isolate = mc->isolate;
+  auto core = ec->parent->core;
 
-  auto range = Object::New (isolate);
+  auto range = Object::New (ec->isolate);
   _gum_v8_object_set_pointer (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
   _gum_v8_object_set_page_protection (range, "protection", details->protection,
       core);
 
-  return mc->OnMatch (range);
+  return ec->Collect (range);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_sections, GumV8ModuleValue)
 {
-  GumV8MatchContext<GumV8Module> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-        &mc.on_complete))
-    return;
+  GumV8EnumerateContext<GumV8Module> ec (isolate, module);
 
   gum_module_enumerate_sections (self->handle,
-      (GumFoundSectionFunc) gum_emit_section, &mc);
+      (GumFoundSectionFunc) gum_emit_section, &ec);
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_section (const GumSectionDetails * details,
-                  GumV8MatchContext<GumV8Module> * mc)
+                  GumV8EnumerateContext<GumV8Module> * ec)
 {
-  auto core = mc->parent->core;
-  auto isolate = mc->isolate;
+  auto core = ec->parent->core;
 
-  auto section = Object::New (isolate);
+  auto section = Object::New (ec->isolate);
   _gum_v8_object_set_utf8 (section, "id", details->id, core);
   _gum_v8_object_set_utf8 (section, "name", details->name, core);
   _gum_v8_object_set_pointer (section, "address", details->address, core);
   _gum_v8_object_set_uint (section, "size", details->size, core);
 
-  return mc->OnMatch (section);
+  return ec->Collect (section);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_enumerate_dependencies,
     GumV8ModuleValue)
 {
-  GumV8MatchContext<GumV8Module> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-        &mc.on_complete))
-    return;
+  GumV8EnumerateContext<GumV8Module> ec (isolate, module);
 
   gum_module_enumerate_dependencies (self->handle,
-      (GumFoundDependencyFunc) gum_emit_dependency, &mc);
+      (GumFoundDependencyFunc) gum_emit_dependency, &ec);
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_dependency (const GumDependencyDetails * details,
-                     GumV8MatchContext<GumV8Module> * mc)
+                     GumV8EnumerateContext<GumV8Module> * ec)
 {
-  auto core = mc->parent->core;
-  auto isolate = mc->isolate;
+  auto core = ec->parent->core;
 
-  auto dependency = Object::New (isolate);
+  auto dependency = Object::New (ec->isolate);
   _gum_v8_object_set_utf8 (dependency, "name", details->name, core);
   _gum_v8_object_set_enum (dependency, "type", details->type,
       GUM_TYPE_DEPENDENCY_TYPE, core);
 
-  return mc->OnMatch (dependency);
+  return ec->Collect (dependency);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_module_find_export_by_name, GumV8ModuleValue)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2018-2019 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -11,9 +11,9 @@
 #include "gumquickmacros.h"
 
 typedef guint GumMemoryValueType;
-typedef struct _GumQuickMatchContext GumQuickMatchContext;
 typedef struct _GumKernelScanContext GumKernelScanContext;
 typedef struct _GumMemoryScanSyncContext GumMemoryScanSyncContext;
+typedef struct _GumQuickEnumerateContext GumQuickEnumerateContext;
 
 enum _GumMemoryValueType
 {
@@ -33,16 +33,6 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_C_STRING,
   GUM_MEMORY_VALUE_UTF8_STRING,
   GUM_MEMORY_VALUE_UTF16_STRING
-};
-
-struct _GumQuickMatchContext
-{
-  JSValue on_match;
-  JSValue on_complete;
-  GumQuickMatchResult result;
-
-  JSContext * ctx;
-  GumQuickCore * core;
 };
 
 struct _GumKernelScanContext
@@ -67,22 +57,31 @@ struct _GumMemoryScanSyncContext
   GumQuickCore * core;
 };
 
+struct _GumQuickEnumerateContext
+{
+  JSValue elements;
+  guint n;
+
+  JSContext * ctx;
+  GumQuickCore * core;
+};
+
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
 GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumKernelModuleDetails * details,
-    GumQuickMatchContext * mc);
+    GumQuickEnumerateContext * ec);
 static JSValue gum_parse_module_details (JSContext * ctx,
     const GumKernelModuleDetails * details, GumQuickCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumQuickMatchContext * mc);
+    GumQuickEnumerateContext * ec);
 static JSValue gum_parse_range_details (JSContext * ctx,
     const GumRangeDetails * details, GumQuickCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 static gboolean gum_emit_module_range (
-    const GumKernelModuleRangeDetails * details, GumQuickMatchContext * mc);
+    const GumKernelModuleRangeDetails * details, GumQuickEnumerateContext * ec);
 static JSValue gum_parse_module_range_details (JSContext * ctx,
     const GumKernelModuleRangeDetails * details, GumQuickCore * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
@@ -141,6 +140,12 @@ GUMJS_DECLARE_FUNCTION (gumjs_kernel_scan_sync)
 static gboolean gum_append_match (GumAddress address, gsize size,
     GumMemoryScanSyncContext * sc);
 
+static void gum_quick_enumerate_context_begin (GumQuickEnumerateContext * ec,
+    GumQuickCore * core);
+static JSValue gum_quick_enumerate_context_end (GumQuickEnumerateContext * ec);
+static gboolean gum_quick_enumerate_context_collect (
+    GumQuickEnumerateContext * ec, JSValue element);
+
 static gboolean gum_quick_kernel_check_api_available (JSContext * ctx);
 
 static const JSCFunctionListEntry gumjs_kernel_entries[] =
@@ -148,9 +153,9 @@ static const JSCFunctionListEntry gumjs_kernel_entries[] =
   JS_CGETSET_DEF ("available", gumjs_kernel_get_available, NULL),
   JS_CGETSET_DEF ("base", gumjs_kernel_get_base, gumjs_kernel_set_base),
 
-  JS_CFUNC_DEF ("_enumerateModules", 0, gumjs_kernel_enumerate_modules),
+  JS_CFUNC_DEF ("enumerateModules", 0, gumjs_kernel_enumerate_modules),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_kernel_enumerate_ranges),
-  JS_CFUNC_DEF ("_enumerateModuleRanges", 0,
+  JS_CFUNC_DEF ("enumerateModuleRanges", 0,
       gumjs_kernel_enumerate_module_ranges),
   JS_CFUNC_DEF ("alloc", 0, gumjs_kernel_alloc),
   JS_CFUNC_DEF ("protect", 0, gumjs_kernel_protect),
@@ -242,38 +247,25 @@ GUMJS_DEFINE_SETTER (gumjs_kernel_set_base)
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
 {
-  GumQuickMatchContext mc;
+  GumQuickEnumerateContext ec;
 
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  if (!_gum_quick_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return JS_EXCEPTION;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
-  mc.ctx = ctx;
-  mc.core = core;
+  gum_quick_enumerate_context_begin (&ec, core);
 
   gum_kernel_enumerate_modules ((GumFoundKernelModuleFunc) gum_emit_module,
-      &mc);
+      &ec);
 
-  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+  return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
 gum_emit_module (const GumKernelModuleDetails * details,
-                 GumQuickMatchContext * mc)
+                 GumQuickEnumerateContext * ec)
 {
-  JSContext * ctx = mc->ctx;
-  JSValue module, result;
-
-  module = gum_parse_module_details (ctx, details, mc->core);
-
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &module);
-
-  JS_FreeValue (ctx, module);
-
-  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+  return gum_quick_enumerate_context_collect (ec,
+      gum_parse_module_details (ec->ctx, details, ec->core));
 }
 
 static JSValue
@@ -301,38 +293,28 @@ gum_parse_module_details (JSContext * ctx,
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
 {
-  GumQuickMatchContext mc;
   GumPageProtection prot;
+  GumQuickEnumerateContext ec;
 
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  if (!_gum_quick_args_parse (args, "mF{onMatch,onComplete}", &prot,
-      &mc.on_match, &mc.on_complete))
+  if (!_gum_quick_args_parse (args, "m", &prot))
     return JS_EXCEPTION;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
-  mc.ctx = ctx;
-  mc.core = core;
 
-  gum_kernel_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
+  gum_quick_enumerate_context_begin (&ec, core);
 
-  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+  gum_kernel_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &ec);
+
+  return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumQuickMatchContext * mc)
+                GumQuickEnumerateContext * ec)
 {
-  JSContext * ctx = mc->ctx;
-  JSValue range, result;
-
-  range = gum_parse_range_details (ctx, details, mc->core);
-
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &range);
-
-  JS_FreeValue (ctx, range);
-
-  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+  return gum_quick_enumerate_context_collect (ec,
+      gum_parse_range_details (ec->ctx, details, ec->core));
 }
 
 static JSValue
@@ -362,39 +344,29 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 {
   const gchar * module_name;
   GumPageProtection prot;
-  GumQuickMatchContext mc;
+  GumQuickEnumerateContext ec;
 
   if (!gum_quick_kernel_check_api_available (ctx))
     return JS_EXCEPTION;
 
-  if (!_gum_quick_args_parse (args, "s?mF{onMatch,onComplete}", &module_name,
-      &prot, &mc.on_match, &mc.on_complete))
+  if (!_gum_quick_args_parse (args, "s?m", &module_name, &prot))
     return JS_EXCEPTION;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
-  mc.ctx = ctx;
-  mc.core = core;
+
+  gum_quick_enumerate_context_begin (&ec, core);
 
   gum_kernel_enumerate_module_ranges (
       (module_name == NULL) ? "Kernel" : module_name, prot,
-      (GumFoundKernelModuleRangeFunc) gum_emit_module_range, &mc);
+      (GumFoundKernelModuleRangeFunc) gum_emit_module_range, &ec);
 
-  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+  return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
 gum_emit_module_range (const GumKernelModuleRangeDetails * details,
-                       GumQuickMatchContext * mc)
+                       GumQuickEnumerateContext * ec)
 {
-  JSContext * ctx = mc->ctx;
-  JSValue module_range, result;
-
-  module_range = gum_parse_module_range_details (ctx, details, mc->core);
-
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &module_range);
-
-  JS_FreeValue (ctx, module_range);
-
-  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+  return gum_quick_enumerate_context_collect (ec,
+      gum_parse_module_range_details (ec->ctx, details, ec->core));
 }
 
 static JSValue
@@ -985,6 +957,32 @@ gum_append_match (GumAddress address,
   JS_DefinePropertyValueUint32 (ctx, sc->matches, sc->index, m, JS_PROP_C_W_E);
   sc->index++;
 
+  return TRUE;
+}
+
+static void
+gum_quick_enumerate_context_begin (GumQuickEnumerateContext * ec,
+                                   GumQuickCore * core)
+{
+  ec->elements = JS_NewArray (core->ctx);
+  ec->n = 0;
+
+  ec->ctx = core->ctx;
+  ec->core = core;
+}
+
+static JSValue
+gum_quick_enumerate_context_end (GumQuickEnumerateContext * ec)
+{
+  return ec->elements;
+}
+
+static gboolean
+gum_quick_enumerate_context_collect (GumQuickEnumerateContext * ec,
+                                     JSValue element)
+{
+  JS_DefinePropertyValueUint32 (ec->ctx, ec->elements, ec->n++, element,
+      JS_PROP_C_W_E);
   return TRUE;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,13 +10,12 @@
 
 #include <gum/gumapiresolver.h>
 
-typedef struct _GumQuickMatchContext GumQuickMatchContext;
+typedef struct _GumQuickEnumerateContext GumQuickEnumerateContext;
 
-struct _GumQuickMatchContext
+struct _GumQuickEnumerateContext
 {
-  JSValue on_match;
-  JSValue on_complete;
-  GumQuickMatchResult result;
+  JSValue elements;
+  guint n;
 
   JSContext * ctx;
   GumQuickCore * core;
@@ -25,7 +24,14 @@ struct _GumQuickMatchContext
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_api_resolver_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_api_resolver_enumerate_matches)
 static gboolean gum_emit_match (const GumApiDetails * details,
-    GumQuickMatchContext * mc);
+    GumQuickEnumerateContext * ec);
+
+static void gum_quick_enumerate_context_begin (GumQuickEnumerateContext * ec,
+    GumQuickCore * core);
+static JSValue gum_quick_enumerate_context_end (GumQuickEnumerateContext * ec);
+static void gum_quick_enumerate_context_cancel (GumQuickEnumerateContext * ec);
+static gboolean gum_quick_enumerate_context_collect (
+    GumQuickEnumerateContext * ec, JSValue element);
 
 static const JSClassDef gumjs_api_resolver_def =
 {
@@ -34,7 +40,7 @@ static const JSClassDef gumjs_api_resolver_def =
 
 static const JSCFunctionListEntry gumjs_api_resolver_entries[] =
 {
-  JS_CFUNC_DEF ("_enumerateMatches", 0, gumjs_api_resolver_enumerate_matches),
+  JS_CFUNC_DEF ("enumerateMatches", 0, gumjs_api_resolver_enumerate_matches),
 };
 
 void
@@ -141,36 +147,37 @@ propagate_exception:
 GUMJS_DEFINE_FUNCTION (gumjs_api_resolver_enumerate_matches)
 {
   GumQuickObject * self;
-  GumQuickMatchContext mc;
   const gchar * query;
+  GumQuickEnumerateContext ec;
   GError * error;
 
   if (!gum_quick_api_resolver_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  if (!_gum_quick_args_parse (args, "sF{onMatch,onComplete}", &query,
-      &mc.on_match, &mc.on_complete))
+  if (!_gum_quick_args_parse (args, "s", &query))
     return JS_EXCEPTION;
-  mc.result = GUM_QUICK_MATCH_CONTINUE;
-  mc.ctx = ctx;
-  mc.core = core;
+
+  gum_quick_enumerate_context_begin (&ec, core);
 
   error = NULL;
   gum_api_resolver_enumerate_matches (self->handle, query,
-      (GumFoundApiFunc) gum_emit_match, &mc, &error);
+      (GumFoundApiFunc) gum_emit_match, &ec, &error);
   if (error != NULL)
+  {
+    gum_quick_enumerate_context_cancel (&ec);
     return _gum_quick_throw_error (ctx, &error);
+  }
 
-  return _gum_quick_maybe_call_on_complete (ctx, mc.result, mc.on_complete);
+  return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
 gum_emit_match (const GumApiDetails * details,
-                GumQuickMatchContext * mc)
+                GumQuickEnumerateContext * ec)
 {
-  JSContext * ctx = mc->ctx;
-  GumQuickCore * core = mc->core;
-  JSValue match, result;
+  JSContext * ctx = ec->ctx;
+  GumQuickCore * core = ec->core;
+  JSValue match;
 
   match = JS_NewObject (ctx);
 
@@ -191,9 +198,37 @@ gum_emit_match (const GumApiDetails * details,
         JS_PROP_C_W_E);
   }
 
-  result = JS_Call (ctx, mc->on_match, JS_UNDEFINED, 1, &match);
+  return gum_quick_enumerate_context_collect (ec, match);
+}
 
-  JS_FreeValue (ctx, match);
+static void
+gum_quick_enumerate_context_begin (GumQuickEnumerateContext * ec,
+                                   GumQuickCore * core)
+{
+  ec->elements = JS_NewArray (core->ctx);
+  ec->n = 0;
 
-  return _gum_quick_process_match_result (ctx, &result, &mc->result);
+  ec->ctx = core->ctx;
+  ec->core = core;
+}
+
+static JSValue
+gum_quick_enumerate_context_end (GumQuickEnumerateContext * ec)
+{
+  return ec->elements;
+}
+
+static void
+gum_quick_enumerate_context_cancel (GumQuickEnumerateContext * ec)
+{
+  JS_FreeValue (ec->ctx, ec->elements);
+}
+
+static gboolean
+gum_quick_enumerate_context_collect (GumQuickEnumerateContext * ec,
+                                     JSValue element)
+{
+  JS_DefinePropertyValueUint32 (ec->ctx, ec->elements, ec->n++, element,
+      JS_PROP_C_W_E);
+  return TRUE;
 }

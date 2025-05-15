@@ -112,30 +112,6 @@ Object.defineProperties(globalThis, {
   },
 });
 
-const pointerPrototype = NativePointer.prototype;
-
-Object.getOwnPropertyNames(Memory)
-  .forEach(methodName => {
-    if (methodName.indexOf('read') === 0) {
-      pointerPrototype[methodName] = makePointerReadMethod(Memory[methodName]);
-    } else if (methodName.indexOf('write') === 0) {
-      pointerPrototype[methodName] = makePointerWriteMethod(Memory[methodName]);
-    }
-  });
-
-function makePointerReadMethod(read) {
-  return function (...args) {
-    return read.call(Memory, this, ...args);
-  };
-}
-
-function makePointerWriteMethod(write) {
-  return function (...args) {
-    write.call(Memory, this, ...args);
-    return this;
-  };
-}
-
 [
   Int64,
   UInt64,
@@ -153,9 +129,7 @@ Script.nextTick = function (callback, ...args) {
   _nextTick(callback.bind(globalThis, ...args));
 };
 
-makeEnumerateApi(Kernel, 'enumerateModules', 0);
 makeEnumerateRanges(Kernel);
-makeEnumerateApi(Kernel, 'enumerateModuleRanges', 2);
 
 Object.defineProperties(Kernel, {
   scan: {
@@ -235,106 +209,19 @@ Object.defineProperties(Memory, {
   }
 });
 
-makeModuleEnumerateApi(Module, 'enumerateImports', 1);
-makeModuleEnumerateApi(Module, 'enumerateExports', 1);
-makeModuleEnumerateApi(Module, 'enumerateSymbols', 1);
-makeModuleEnumerateApi(Module, 'enumerateRanges', 2);
-makeModuleEnumerateApi(Module, 'enumerateSections', 1);
-makeModuleEnumerateApi(Module, 'enumerateDependencies', 1);
-
-function makeModuleEnumerateApi(mod, name, arity) {
-  Object.defineProperty(mod, name, {
-    enumerable: true,
-    value(...args) {
-      const module = Process.findModuleByName(args[0]);
-      if (module === null) {
-        const callbacks = args[arity];
-        if (callbacks !== undefined) {
-          callbacks.onComplete();
-          return;
-        }
-        return [];
-      }
-      return module[name].apply(module, args.slice(1));
-    }
-  });
-
-  Object.defineProperty(mod, name + 'Sync', {
-    enumerable: true,
-    value(moduleName, ...args) {
-      const module = Process.findModuleByName(moduleName);
-      if (module === null)
-        return [];
-      return module[name + 'Sync'].apply(module, args);
-    }
-  });
-}
-
 Object.defineProperties(Module, {
-  ensureInitialized: {
+  getGlobalExportByName: {
     enumerable: true,
-    value(moduleName) {
-      Process.getModuleByName(moduleName).ensureInitialized();
-    }
-  },
-  findBaseAddress: {
-    enumerable: true,
-    value(moduleName) {
-      return Process.findModuleByName(moduleName)?.base ?? null;
-    }
-  },
-  getBaseAddress: {
-    enumerable: true,
-    value(moduleName) {
-      return Process.getModuleByName(moduleName)?.base ?? null;
-    }
-  },
-  findExportByName: {
-    enumerable: true,
-    value(moduleName, symbolName) {
-      if (moduleName === null)
-        return Module.findGlobalExportByName(symbolName);
-      return Process.findModuleByName(moduleName)?.findExportByName(symbolName) ?? null;
-    }
-  },
-  getExportByName: {
-    enumerable: true,
-    value(moduleName, symbolName) {
-      const address = Module.findExportByName(moduleName, symbolName);
-      if (address === null) {
-        const prefix = (moduleName !== null) ? (moduleName + ': ') : '';
-        throw new Error(`${prefix}unable to find export '${symbolName}'`);
-      }
-      return address;
-    }
-  },
-  findSymbolByName: {
-    enumerable: true,
-    value(moduleName, symbolName) {
-      return Process.findModuleByName(moduleName)?.findSymbolByName(symbolName) ?? null;
-    }
-  },
-  getSymbolByName: {
-    enumerable: true,
-    value(moduleName, symbolName) {
-      const address = Module.findSymbolByName(moduleName, symbolName);
-      if (address === null) {
-        const prefix = (moduleName !== null) ? (moduleName + ': ') : '';
-        throw new Error(`${prefix}unable to find symbol '${symbolName}'`);
-      }
+    value(symbolName) {
+      const address = Module.findGlobalExportByName(symbolName);
+      if (address === null)
+        throw new Error(`unable to find global export '${symbolName}'`);
       return address;
     }
   },
 });
 
 const moduleProto = Module.prototype;
-
-makeEnumerateApi(moduleProto, 'enumerateImports', 1);
-makeEnumerateApi(moduleProto, 'enumerateExports', 1);
-makeEnumerateApi(moduleProto, 'enumerateSymbols', 1);
-makeEnumerateApi(moduleProto, 'enumerateRanges', 2);
-makeEnumerateApi(moduleProto, 'enumerateSections', 1);
-makeEnumerateApi(moduleProto, 'enumerateDependencies', 1);
 
 Object.defineProperties(moduleProto, {
   getExportByName: {
@@ -351,7 +238,7 @@ Object.defineProperties(moduleProto, {
     value(symbolName) {
       const address = this.findSymbolByName(symbolName);
       if (address === null)
-        throw new Error(`${this.path}: unable to find export '${symbolName}'`);
+        throw new Error(`${this.path}: unable to find symbol '${symbolName}'`);
       return address;
     }
   },
@@ -394,10 +281,7 @@ Object.defineProperties(ModuleMap.prototype, {
   },
 });
 
-makeEnumerateApi(Process, 'enumerateThreads', 0);
-makeEnumerateApi(Process, 'enumerateModules', 0);
 makeEnumerateRanges(Process);
-makeEnumerateApi(Process, 'enumerateMallocRanges', 0);
 
 Object.defineProperties(Process, {
   runOnThread: {
@@ -442,27 +326,6 @@ Object.defineProperties(Process, {
     }
   },
 });
-
-if (Process.findRangeByAddress === undefined) {
-  Object.defineProperty(Process, 'findRangeByAddress', {
-    enumerable: true,
-    value: function (address) {
-      let range = null;
-      Process._enumerateRanges('---', {
-        onMatch(r) {
-          const base = r.base;
-          if (base.compare(address) <= 0 && base.add(r.size).compare(address) > 0) {
-            range = r;
-            return 'stop';
-          }
-        },
-        onComplete() {
-        }
-      });
-      return range;
-    }
-  });
-}
 
 Object.defineProperties(Thread, {
   backtrace: {
@@ -594,8 +457,6 @@ Object.defineProperty(Instruction, 'parse', {
     return Instruction._parse(target);
   }
 });
-
-makeEnumerateApi(ApiResolver.prototype, 'enumerateMatches', 1);
 
 const _closeIOStream = IOStream.prototype._close;
 IOStream.prototype.close = function () {
@@ -872,63 +733,20 @@ Object.defineProperties(Cloak, {
   },
 });
 
-function makeEnumerateApi(mod, name, arity) {
-  const impl = mod['_' + name];
-
-  Object.defineProperty(mod, name, {
-    enumerable: true,
-    value: function (...args) {
-      const callbacks = args[arity];
-      if (callbacks === undefined)
-        return enumerateSync(impl, this, args);
-
-      impl.apply(this, args);
-    }
-  });
-
-  Object.defineProperty(mod, name + 'Sync', {
-    enumerable: true,
-    value: function (...args) {
-      return enumerateSync(impl, this, args);
-    }
-  });
-}
-
-function enumerateSync(impl, self, args) {
-  const items = [];
-  impl.call(self, ...args, {
-    onMatch(item) {
-      items.push(item);
-    },
-    onComplete() {
-    }
-  });
-  return items;
-}
-
 function makeEnumerateRanges(mod) {
   const impl = mod['_enumerateRanges'];
 
   Object.defineProperties(mod, {
     enumerateRanges: {
       enumerable: true,
-      value: function (specifier, callbacks) {
-        if (callbacks === undefined)
-          return enumerateSync(enumerateRanges.bind(this, impl, this), this, [specifier]);
-
-        enumerateRanges(impl, this, specifier, callbacks);
-      }
-    },
-    enumerateRangesSync: {
-      enumerable: true,
-      value: function (specifier) {
-        return enumerateSync(enumerateRanges.bind(this, impl, this), this, [specifier]);
+      value(specifier) {
+        return enumerateRanges(impl, this, specifier);
       }
     },
   });
 }
 
-function enumerateRanges(impl, self, specifier, callbacks) {
+function enumerateRanges(impl, self, specifier) {
   let protection;
   let coalesce = false;
   if (typeof specifier === 'string') {
@@ -938,39 +756,40 @@ function enumerateRanges(impl, self, specifier, callbacks) {
     coalesce = specifier.coalesce;
   }
 
+  const ranges = impl.call(self, protection);
+
   if (coalesce) {
-    const {onMatch, onComplete} = callbacks;
+    const coalesced = [];
+
     let current = null;
-    impl.call(self, protection, {
-      onMatch(r) {
-        if (current !== null) {
-          if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
-            const coalescedRange = {
-              base: current.base,
-              size: current.size + r.size,
-              protection: current.protection
-            };
-            if (current.hasOwnProperty('file'))
-              coalescedRange.file = current.file;
-            Object.freeze(coalescedRange);
-            current = coalescedRange;
-          } else {
-            onMatch(current);
-            current = r;
-          }
+    for (const r of ranges) {
+      if (current !== null) {
+        if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
+          const coalescedRange = {
+            base: current.base,
+            size: current.size + r.size,
+            protection: current.protection
+          };
+          if (current.hasOwnProperty('file'))
+            coalescedRange.file = current.file;
+          Object.freeze(coalescedRange);
+          current = coalescedRange;
         } else {
+          coalesced.push(current);
           current = r;
         }
-      },
-      onComplete() {
-        if (current !== null)
-          onMatch(current);
-        onComplete();
+      } else {
+        current = r;
       }
-    });
-  } else {
-    impl.call(self, protection, callbacks);
+    }
+
+    if (current !== null)
+      coalesced.push(current);
+
+    return coalesced;
   }
+
+  return ranges;
 }
 
 initialize();

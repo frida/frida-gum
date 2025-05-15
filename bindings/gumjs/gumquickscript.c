@@ -475,9 +475,6 @@ gum_quick_script_create_context (GumQuickScript * self,
 
   global_obj = JS_GetGlobalObject (ctx);
 
-  JS_DefinePropertyValueStr (ctx, global_obj, "global",
-      JS_DupValue (ctx, global_obj), JS_PROP_C_W_E);
-
   _gum_quick_core_init (core, self, ctx, global_obj,
       gum_quick_script_backend_get_scope_mutex (self->backend),
       program, &self->interceptor, &self->stalker,
@@ -1169,9 +1166,6 @@ _gum_quick_script_make_worker (GumQuickScript * self,
   worker->entrypoint = mod;
 
   global_obj = JS_GetGlobalObject (ctx);
-
-  JS_DefinePropertyValueStr (ctx, global_obj, "global",
-      JS_DupValue (ctx, global_obj), JS_PROP_C_W_E);
 
   core = &worker->core;
 

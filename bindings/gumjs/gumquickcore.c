@@ -31,6 +31,7 @@
 typedef struct _GumQuickWeakCallback GumQuickWeakCallback;
 typedef struct _GumQuickFlushCallback GumQuickFlushCallback;
 typedef struct _GumQuickModuleInitOperation GumQuickModuleInitOperation;
+typedef guint GumMemoryValueType;
 typedef struct _GumQuickFFIFunctionParams GumQuickFFIFunctionParams;
 typedef guint8 GumQuickSchedulingBehavior;
 typedef guint8 GumQuickExceptionsBehavior;
@@ -86,6 +87,28 @@ struct _GumQuickMessageSink
 {
   JSValue callback;
   GumQuickCore * core;
+};
+
+enum _GumMemoryValueType
+{
+  GUM_MEMORY_VALUE_POINTER,
+  GUM_MEMORY_VALUE_S8,
+  GUM_MEMORY_VALUE_U8,
+  GUM_MEMORY_VALUE_S16,
+  GUM_MEMORY_VALUE_U16,
+  GUM_MEMORY_VALUE_S32,
+  GUM_MEMORY_VALUE_U32,
+  GUM_MEMORY_VALUE_S64,
+  GUM_MEMORY_VALUE_U64,
+  GUM_MEMORY_VALUE_LONG,
+  GUM_MEMORY_VALUE_ULONG,
+  GUM_MEMORY_VALUE_FLOAT,
+  GUM_MEMORY_VALUE_DOUBLE,
+  GUM_MEMORY_VALUE_BYTE_ARRAY,
+  GUM_MEMORY_VALUE_C_STRING,
+  GUM_MEMORY_VALUE_UTF8_STRING,
+  GUM_MEMORY_VALUE_UTF16_STRING,
+  GUM_MEMORY_VALUE_ANSI_STRING
 };
 
 struct _GumQuickFFIFunctionParams
@@ -244,6 +267,59 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_uint32)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
+
+static JSValue gumjs_native_pointer_handle_read (JSContext * ctx,
+    JSValueConst this_val, GumMemoryValueType type, GumQuickArgs * args,
+    GumQuickCore * core);
+static JSValue gumjs_native_pointer_handle_write (JSContext * ctx,
+    JSValueConst this_val, GumMemoryValueType type, GumQuickArgs * args,
+    GumQuickCore * core);
+
+#define GUMJS_DEFINE_NATIVE_POINTER_READ(T) \
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_read_##T) \
+    { \
+      return gumjs_native_pointer_handle_read (ctx, this_val, \
+          GUM_MEMORY_VALUE_##T, args, core); \
+    }
+#define GUMJS_DEFINE_MEMORY_WRITE(T) \
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_write_##T) \
+    { \
+      return gumjs_native_pointer_handle_write (ctx, this_val, \
+          GUM_MEMORY_VALUE_##T, args, core); \
+    }
+#define GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE(T) \
+    GUMJS_DEFINE_NATIVE_POINTER_READ (T); \
+    GUMJS_DEFINE_MEMORY_WRITE (T)
+
+#define GUMJS_EXPORT_NATIVE_POINTER_READ(N, T) \
+    JS_CFUNC_DEF ("read" N, 0, gumjs_native_pointer_read_##T)
+#define GUMJS_EXPORT_MEMORY_WRITE(N, T) \
+    JS_CFUNC_DEF ("write" N, 0, gumjs_native_pointer_write_##T)
+#define GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE(N, T) \
+    GUMJS_EXPORT_NATIVE_POINTER_READ (N, T), \
+    GUMJS_EXPORT_MEMORY_WRITE (N, T)
+
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (POINTER)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (S8)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (U8)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (S16)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (U16)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (S32)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (U32)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (S64)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (U64)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (LONG)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (ULONG)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (FLOAT)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (DOUBLE)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (BYTE_ARRAY)
+GUMJS_DEFINE_NATIVE_POINTER_READ (C_STRING)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (UTF8_STRING)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (UTF16_STRING)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (ANSI_STRING)
+
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_read_volatile)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_write_volatile)
 
 GUMJS_DECLARE_FUNCTION (gumjs_array_buffer_wrap)
 GUMJS_DECLARE_FUNCTION (gumjs_array_buffer_unwrap)
@@ -490,6 +566,30 @@ static const JSCFunctionListEntry gumjs_native_pointer_entries[] =
   JS_CFUNC_DEF ("toJSON", 0, gumjs_native_pointer_to_json),
   JS_CFUNC_DEF ("toMatchPattern", 0,
       gumjs_native_pointer_to_match_pattern),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("Pointer", POINTER),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("S8", S8),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("U8", U8),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("S16", S16),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("U16", U16),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("S32", S32),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("U32", U32),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("S64", S64),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("U64", U64),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("Short", S16),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("UShort", U16),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("Int", S32),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("UInt", U32),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("Long", LONG),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("ULong", ULONG),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("Float", FLOAT),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("Double", DOUBLE),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("ByteArray", BYTE_ARRAY),
+  GUMJS_EXPORT_NATIVE_POINTER_READ ("CString", C_STRING),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("Utf8String", UTF8_STRING),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("Utf16String", UTF16_STRING),
+  GUMJS_EXPORT_NATIVE_POINTER_READ_WRITE ("AnsiString", ANSI_STRING),
+  JS_CFUNC_DEF ("readVolatile", 0, gumjs_native_pointer_read_volatile),
+  JS_CFUNC_DEF ("writeVolatile", 0, gumjs_native_pointer_write_volatile),
 };
 
 static const JSCFunctionListEntry gumjs_array_buffer_class_entries[] =
@@ -3327,6 +3427,471 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
   str[dst] = '\0';
 
   return JS_NewString (ctx, str);
+}
+
+static JSValue
+gumjs_native_pointer_handle_read (JSContext * ctx,
+                                  JSValueConst this_val,
+                                  GumMemoryValueType type,
+                                  GumQuickArgs * args,
+                                  GumQuickCore * core)
+{
+  JSValue result = JS_NULL;
+  GumQuickNativePointer * self;
+  gpointer address;
+  GumExceptor * exceptor = core->exceptor;
+  gssize length = -1;
+  GumExceptorScope scope;
+
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+  address = self->value;
+
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      if (!_gum_quick_args_parse (args, "Z", &length))
+        return JS_EXCEPTION;
+      break;
+    case GUM_MEMORY_VALUE_C_STRING:
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+    case GUM_MEMORY_VALUE_ANSI_STRING:
+      if (!_gum_quick_args_parse (args, "|z", &length))
+        return JS_EXCEPTION;
+      break;
+    default:
+      break;
+  }
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_POINTER:
+        result =
+            _gum_quick_native_pointer_new (ctx, *((gpointer *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_S8:
+        result = JS_NewInt32 (ctx, *((gint8 *) address));
+        break;
+      case GUM_MEMORY_VALUE_U8:
+        result = JS_NewUint32 (ctx, *((guint8 *) address));
+        break;
+      case GUM_MEMORY_VALUE_S16:
+        result = JS_NewInt32 (ctx, *((gint16 *) address));
+        break;
+      case GUM_MEMORY_VALUE_U16:
+        result = JS_NewUint32 (ctx, *((guint16 *) address));
+        break;
+      case GUM_MEMORY_VALUE_S32:
+        result = JS_NewInt32 (ctx, *((gint32 *) address));
+        break;
+      case GUM_MEMORY_VALUE_U32:
+        result = JS_NewUint32 (ctx, *((guint32 *) address));
+        break;
+      case GUM_MEMORY_VALUE_S64:
+        result = _gum_quick_int64_new (ctx, *((gint64 *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_U64:
+        result = _gum_quick_uint64_new (ctx, *((guint64 *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_LONG:
+        result = _gum_quick_int64_new (ctx, *((glong *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_ULONG:
+        result = _gum_quick_uint64_new (ctx, *((gulong *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_FLOAT:
+        result = JS_NewFloat64 (ctx, *((gfloat *) address));
+        break;
+      case GUM_MEMORY_VALUE_DOUBLE:
+        result = JS_NewFloat64 (ctx, *((gdouble *) address));
+        break;
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        const guint8 * data = address;
+        gpointer buffer_data;
+
+        if (data == NULL)
+        {
+          result = JS_NULL;
+          break;
+        }
+
+        buffer_data = g_malloc (length);
+        result = JS_NewArrayBuffer (ctx, buffer_data, length,
+            _gum_quick_array_buffer_free, buffer_data, FALSE);
+
+        memcpy (buffer_data, data, length);
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_C_STRING:
+      {
+        const gchar * data = address;
+        guint8 dummy_to_trap_bad_pointer_early;
+        gchar * str;
+
+        if (data == NULL)
+        {
+          result = JS_NULL;
+          break;
+        }
+
+        if (length != 0)
+          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
+
+        str = g_utf8_make_valid (data, length);
+        result = JS_NewString (ctx, str);
+        g_free (str);
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF8_STRING:
+      {
+        const gchar * data = address;
+        guint8 dummy_to_trap_bad_pointer_early;
+        const gchar * end;
+
+        if (data == NULL)
+        {
+          result = JS_NULL;
+          break;
+        }
+
+        if (length != 0)
+          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
+
+        if (g_utf8_validate (data, length, &end))
+        {
+          result = JS_NewStringLen (ctx, data, end - data);
+        }
+        else
+        {
+          result = _gum_quick_throw (ctx,
+              "can't decode byte 0x%02x in position %u",
+              (guint8) *end, (guint) (end - data));
+        }
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF16_STRING:
+      {
+        const gunichar2 * str_utf16 = address;
+        gchar * str_utf8;
+        guint8 dummy_to_trap_bad_pointer_early;
+        glong size;
+
+        if (str_utf16 == NULL)
+        {
+          result = JS_NULL;
+          break;
+        }
+
+        if (length != 0)
+          memcpy (&dummy_to_trap_bad_pointer_early, str_utf16, sizeof (guint8));
+
+        str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
+
+        if (str_utf8 != NULL)
+          result = JS_NewString (ctx, str_utf8);
+        else
+          result = _gum_quick_throw_literal (ctx, "invalid string");
+
+        g_free (str_utf8);
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_ANSI_STRING:
+      {
+#ifdef HAVE_WINDOWS
+        const gchar * str_ansi = address;
+
+        if (str_ansi == NULL)
+        {
+          result = JS_NULL;
+          break;
+        }
+
+        if (length != 0)
+        {
+          guint8 dummy_to_trap_bad_pointer_early;
+          gchar * str_utf8;
+
+          memcpy (&dummy_to_trap_bad_pointer_early, str_ansi, sizeof (guint8));
+
+          str_utf8 = gum_ansi_string_to_utf8 (str_ansi, length);
+          result = JS_NewString (ctx, str_utf8);
+          g_free (str_utf8);
+        }
+        else
+        {
+          result = JS_NewString (ctx, "");
+        }
+#else
+        result = _gum_quick_throw_literal (ctx,
+            "ANSI API is only applicable on Windows");
+#endif
+
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    JS_FreeValue (ctx, result);
+    result = _gum_quick_throw_native (ctx, &scope.exception, core);
+  }
+
+  return result;
+}
+
+static JSValue
+gumjs_native_pointer_handle_write (JSContext * ctx,
+                                   JSValueConst this_val,
+                                   GumMemoryValueType type,
+                                   GumQuickArgs * args,
+                                   GumQuickCore * core)
+{
+  JSValue result = JS_UNDEFINED;
+  GumQuickNativePointer * self;
+  gpointer address = NULL;
+  GumExceptor * exceptor = core->exceptor;
+  gpointer pointer = NULL;
+  gssize s = 0;
+  gsize u = 0;
+  gint64 s64 = 0;
+  guint64 u64 = 0;
+  gdouble number = 0;
+  GBytes * bytes = NULL;
+  const gchar * str = NULL;
+  gsize str_length = 0;
+  gunichar2 * str_utf16 = NULL;
+#ifdef HAVE_WINDOWS
+  gchar * str_ansi = NULL;
+#endif
+  GumExceptorScope scope;
+
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+  address = self->value;
+
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_POINTER:
+      if (!_gum_quick_args_parse (args, "p", &pointer))
+        return JS_EXCEPTION;
+      break;
+    case GUM_MEMORY_VALUE_S8:
+    case GUM_MEMORY_VALUE_S16:
+    case GUM_MEMORY_VALUE_S32:
+      if (!_gum_quick_args_parse (args, "z", &s))
+        return JS_EXCEPTION;
+      break;
+    case GUM_MEMORY_VALUE_U8:
+    case GUM_MEMORY_VALUE_U16:
+    case GUM_MEMORY_VALUE_U32:
+      if (!_gum_quick_args_parse (args, "Z", &u))
+        return JS_EXCEPTION;
+      break;
+    case GUM_MEMORY_VALUE_S64:
+    case GUM_MEMORY_VALUE_LONG:
+      if (!_gum_quick_args_parse (args, "q", &s64))
+        return JS_EXCEPTION;
+      break;
+    case GUM_MEMORY_VALUE_U64:
+    case GUM_MEMORY_VALUE_ULONG:
+      if (!_gum_quick_args_parse (args, "Q", &u64))
+        return JS_EXCEPTION;
+      break;
+    case GUM_MEMORY_VALUE_FLOAT:
+    case GUM_MEMORY_VALUE_DOUBLE:
+      if (!_gum_quick_args_parse (args, "n", &number))
+        return JS_EXCEPTION;
+      break;
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      if (!_gum_quick_args_parse (args, "B", &bytes))
+        return JS_EXCEPTION;
+      break;
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+    case GUM_MEMORY_VALUE_ANSI_STRING:
+      if (!_gum_quick_args_parse (args, "s", &str))
+        return JS_EXCEPTION;
+
+      str_length = g_utf8_strlen (str, -1);
+      if (type == GUM_MEMORY_VALUE_UTF16_STRING)
+        str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
+#ifdef HAVE_WINDOWS
+      else if (type == GUM_MEMORY_VALUE_ANSI_STRING)
+        str_ansi = gum_ansi_string_from_utf8 (str);
+#endif
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_POINTER:
+        *((gpointer *) address) = pointer;
+        break;
+      case GUM_MEMORY_VALUE_S8:
+        *((gint8 *) address) = (gint8) s;
+        break;
+      case GUM_MEMORY_VALUE_U8:
+        *((guint8 *) address) = (guint8) u;
+        break;
+      case GUM_MEMORY_VALUE_S16:
+        *((gint16 *) address) = (gint16) s;
+        break;
+      case GUM_MEMORY_VALUE_U16:
+        *((guint16 *) address) = (guint16) u;
+        break;
+      case GUM_MEMORY_VALUE_S32:
+        *((gint32 *) address) = (gint32) s;
+        break;
+      case GUM_MEMORY_VALUE_U32:
+        *((guint32 *) address) = (guint32) u;
+        break;
+      case GUM_MEMORY_VALUE_S64:
+        *((gint64 *) address) = s64;
+        break;
+      case GUM_MEMORY_VALUE_U64:
+        *((guint64 *) address) = u64;
+        break;
+      case GUM_MEMORY_VALUE_LONG:
+        *((glong *) address) = s64;
+        break;
+      case GUM_MEMORY_VALUE_ULONG:
+        *((gulong *) address) = u64;
+        break;
+      case GUM_MEMORY_VALUE_FLOAT:
+        *((gfloat *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_DOUBLE:
+        *((gdouble *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        gconstpointer data;
+        gsize size;
+
+        data = g_bytes_get_data (bytes, &size);
+
+        memcpy (address, data, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF8_STRING:
+      {
+        gsize size;
+
+        size = g_utf8_offset_to_pointer (str, str_length) - str + 1;
+        memcpy (address, str, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF16_STRING:
+      {
+        gsize size;
+
+        size = (str_length + 1) * sizeof (gunichar2);
+        memcpy (address, str_utf16, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_ANSI_STRING:
+      {
+#ifdef HAVE_WINDOWS
+        strcpy (address, str_ansi);
+#else
+        result = _gum_quick_throw_literal (ctx,
+            "ANSI API is only applicable on Windows");
+#endif
+
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+    result = _gum_quick_throw_native (ctx, &scope.exception, core);
+  else if (JS_IsUndefined (result))
+    result = JS_DupValue (ctx, this_val);
+
+  g_free (str_utf16);
+#ifdef HAVE_WINDOWS
+  g_free (str_ansi);
+#endif
+
+  return result;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_read_volatile)
+{
+  GumQuickNativePointer * self;
+  gsize length;
+  gsize n_bytes_read;
+  guint8 * data;
+
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  if (!_gum_quick_args_parse (args, "z", &length))
+    return JS_EXCEPTION;
+
+  data = gum_memory_read (self->value, length, &n_bytes_read);
+  if (data == NULL)
+    return _gum_quick_throw_literal (ctx, "memory read failed");
+
+  return JS_NewArrayBuffer (ctx, data, n_bytes_read,
+      _gum_quick_array_buffer_free, data, FALSE);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_write_volatile)
+{
+  JSValue result;
+  GumQuickNativePointer * self;
+  GBytes * bytes = NULL;
+  gconstpointer data;
+  gsize size;
+
+  if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  if (!_gum_quick_args_parse (args, "B", &bytes))
+    goto propagate_exception;
+
+  data = g_bytes_get_data (bytes, &size);
+
+  if (!gum_memory_write (self->value, data, size))
+    goto write_failed;
+
+  result = JS_UNDEFINED;
+  goto beach;
+
+write_failed:
+  {
+    _gum_quick_throw_literal (ctx, "memory write failed");
+    goto propagate_exception;
+  }
+propagate_exception:
+  {
+    result = JS_EXCEPTION;
+    goto beach;
+  }
+beach:
+  {
+    g_bytes_unref (bytes);
+
+    return result;
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_wrap)

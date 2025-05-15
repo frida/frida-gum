@@ -9,8 +9,8 @@
 
 #include "gumv8process.h"
 
+#include "gumv8enumeratecontext.h"
 #include "gumv8macros.h"
-#include "gumv8matchcontext.h"
 #include "gumv8scope.h"
 
 #include <string.h>
@@ -92,6 +92,14 @@ struct GumV8ModuleObserver
   GumV8Process * parent;
 };
 
+struct GumV8FindRangeByAddressContext
+{
+  GumAddress address;
+  Local<Value> result;
+
+  GumV8Core * core;
+};
+
 GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
@@ -100,7 +108,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
-    GumV8MatchContext<GumV8Process> * mc);
+    GumV8EnumerateContext<GumV8Process> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_process_attach_thread_observer)
 static GumV8ThreadObserver * gum_v8_thread_observer_ref (
     GumV8ThreadObserver * observer);
@@ -128,7 +136,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_module_by_address)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (GumModule * module,
-    GumV8MatchContext<GumV8Process> * mc);
+    GumV8EnumerateContext<GumV8Process> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_process_attach_module_observer)
 static GumV8ModuleObserver * gum_v8_module_observer_ref (
     GumV8ModuleObserver * observer);
@@ -142,9 +150,12 @@ static void gum_emit_removed_module (GumModuleRegistry * registry,
     GumModule * module, GumV8ModuleObserver * observer);
 static void gum_v8_module_observer_invoke (GumV8ModuleObserver * self,
     Global<Function> * callback, GumModule * module);
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_range_by_address)
+static gboolean gum_store_range_if_containing_address (
+    const GumRangeDetails * details, GumV8FindRangeByAddressContext * fc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumV8MatchContext<GumV8Process> * mc);
+    GumV8EnumerateContext<GumV8Process> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_system_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
@@ -174,16 +185,17 @@ static const GumV8Function gumjs_process_functions[] =
   { "getTmpDir", gumjs_process_get_tmp_dir },
   { "isDebuggerAttached", gumjs_process_is_debugger_attached },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id },
-  { "_enumerateThreads", gumjs_process_enumerate_threads },
+  { "enumerateThreads", gumjs_process_enumerate_threads },
   { "attachThreadObserver", gumjs_process_attach_thread_observer },
   { "_runOnThread", gumjs_process_run_on_thread },
   { "findModuleByName", gumjs_process_find_module_by_name },
   { "findModuleByAddress", gumjs_process_find_module_by_address },
-  { "_enumerateModules", gumjs_process_enumerate_modules },
+  { "enumerateModules", gumjs_process_enumerate_modules },
   { "attachModuleObserver", gumjs_process_attach_module_observer },
+  { "findRangeByAddress", gumjs_process_find_range_by_address },
   { "_enumerateRanges", gumjs_process_enumerate_ranges },
   { "enumerateSystemRanges", gumjs_process_enumerate_system_ranges },
-  { "_enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
+  { "enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
   { "setExceptionHandler", gumjs_process_set_exception_handler },
   { NULL, NULL }
 };
@@ -377,22 +389,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 {
-  GumV8MatchContext<GumV8Process> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return;
+  GumV8EnumerateContext<GumV8Process> ec (isolate, module);
 
-  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc,
+  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &ec,
       GUM_THREAD_FLAGS_ALL);
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_thread (const GumThreadDetails * details,
-                 GumV8MatchContext<GumV8Process> * mc)
+                 GumV8EnumerateContext<GumV8Process> * ec)
 {
-  return mc->OnMatch (_gum_v8_thread_new (details, mc->parent->thread));
+  return ec->Collect (_gum_v8_thread_new (details, ec->parent->thread));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_attach_thread_observer)
@@ -772,23 +781,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_find_module_by_address)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 {
-  GumV8MatchContext<GumV8Process> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return;
+  GumV8EnumerateContext<GumV8Process> ec (isolate, module);
 
-  gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
+  gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &ec);
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_module (GumModule * module,
-                 GumV8MatchContext<GumV8Process> * mc)
+                 GumV8EnumerateContext<GumV8Process> * ec)
 {
-  auto wrapper = _gum_v8_module_new_from_handle (module, mc->parent->module);
-
-  return mc->OnMatch (wrapper);
+  return ec->Collect (
+      _gum_v8_module_new_from_handle (module, ec->parent->module));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
@@ -967,44 +972,57 @@ gum_v8_module_observer_invoke (GumV8ModuleObserver * self,
         Undefined (isolate), 1, &wrapper).ToLocal (&result));
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_range_by_address)
+{
+  gpointer ptr;
+  if (!_gum_v8_args_parse (args, "p", &ptr))
+    return;
+
+  GumV8FindRangeByAddressContext fc;
+  fc.address = GUM_ADDRESS (ptr);
+  fc.result = Null (isolate);
+  fc.core = core;
+
+  gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS,
+      (GumFoundRangeFunc) gum_store_range_if_containing_address, &fc);
+
+  info.GetReturnValue ().Set (fc.result);
+}
+
+static gboolean
+gum_store_range_if_containing_address (const GumRangeDetails * details,
+                                       GumV8FindRangeByAddressContext * fc)
+{
+  gboolean proceed = TRUE;
+
+  if (GUM_MEMORY_RANGE_INCLUDES (details->range, fc->address))
+  {
+    fc->result = _gum_v8_range_details_new (details, fc->core);
+
+    proceed = FALSE;
+  }
+
+  return proceed;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 {
   GumPageProtection prot;
-  GumV8MatchContext<GumV8Process> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
-      &mc.on_complete))
+  if (!_gum_v8_args_parse (args, "m", &prot))
     return;
 
-  gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
+  GumV8EnumerateContext<GumV8Process> ec (isolate, module);
 
-  mc.OnComplete ();
+  gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &ec);
+
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumV8MatchContext<GumV8Process> * mc)
+                GumV8EnumerateContext<GumV8Process> * ec)
 {
-  auto core = mc->parent->core;
-  auto isolate = core->isolate;
-
-  auto range = Object::New (isolate);
-  _gum_v8_object_set_pointer (range, "base", details->range->base_address,
-      core);
-  _gum_v8_object_set_uint (range, "size", details->range->size, core);
-  _gum_v8_object_set_page_protection (range, "protection", details->protection,
-      core);
-
-  auto f = details->file;
-  if (f != NULL)
-  {
-    auto file = Object::New (isolate);
-    _gum_v8_object_set_utf8 (file, "path", f->path, core);
-    _gum_v8_object_set_uint (file, "offset", f->offset, core);
-    _gum_v8_object_set_uint (file, "size", f->size, core);
-    _gum_v8_object_set (range, "file", file, core);
-  }
-
-  return mc->OnMatch (range);
+  return ec->Collect (_gum_v8_range_details_new (details, ec->parent->core));
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_system_ranges)
@@ -1031,33 +1049,30 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_system_ranges)
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
 
 static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
-    GumV8MatchContext<GumV8Process> * mc);
+    GumV8EnumerateContext<GumV8Process> * ec);
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
-  GumV8MatchContext<GumV8Process> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return;
+  GumV8EnumerateContext<GumV8Process> ec (isolate, module);
 
   gum_process_enumerate_malloc_ranges (
-      (GumFoundMallocRangeFunc) gum_emit_malloc_range, &mc);
+      (GumFoundMallocRangeFunc) gum_emit_malloc_range, &ec);
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_malloc_range (const GumMallocRangeDetails * details,
-                       GumV8MatchContext<GumV8Process> * mc)
+                       GumV8EnumerateContext<GumV8Process> * ec)
 {
-  auto core = mc->parent->core;
+  auto core = ec->parent->core;
 
-  auto range = Object::New (mc->isolate);
+  auto range = Object::New (ec->isolate);
   _gum_v8_object_set_pointer (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
 
-  return mc->OnMatch (range);
+  return ec->Collect (range);
 }
 
 #else

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,8 +7,8 @@
 
 #include "gumv8kernel.h"
 
+#include "gumv8enumeratecontext.h"
 #include "gumv8macros.h"
-#include "gumv8matchcontext.h"
 
 #include <gum/gumkernel.h>
 #include <string.h>
@@ -60,16 +60,16 @@ GUMJS_DECLARE_GETTER (gumjs_kernel_get_base)
 GUMJS_DECLARE_SETTER (gumjs_kernel_set_base)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_modules)
 static gboolean gum_emit_module (const GumKernelModuleDetails * details,
-    GumV8MatchContext<GumV8Kernel> * mc);
+    GumV8EnumerateContext<GumV8Kernel> * ec);
 static Local<Object> gum_parse_module_details (
     const GumKernelModuleDetails * details, GumV8Core * core);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    GumV8MatchContext<GumV8Kernel> * mc);
+    GumV8EnumerateContext<GumV8Kernel> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 static gboolean gum_emit_module_range (
     const GumKernelModuleRangeDetails * details,
-    GumV8MatchContext<GumV8Kernel> * mc);
+    GumV8EnumerateContext<GumV8Kernel> * ec);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_protect)
 
@@ -138,9 +138,9 @@ static const GumV8Property gumjs_kernel_values[] =
 
 static const GumV8Function gumjs_kernel_functions[] =
 {
-  { "_enumerateModules", gumjs_kernel_enumerate_modules },
+  { "enumerateModules", gumjs_kernel_enumerate_modules },
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges },
-  { "_enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges },
+  { "enumerateModuleRanges", gumjs_kernel_enumerate_module_ranges },
   { "alloc", gumjs_kernel_alloc },
   { "protect", gumjs_kernel_protect },
 
@@ -235,24 +235,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_modules)
   if (!gum_v8_kernel_check_api_available (isolate))
     return;
 
-  GumV8MatchContext<GumV8Kernel> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-    return;
+  GumV8EnumerateContext<GumV8Kernel> ec (isolate, module);
 
   gum_kernel_enumerate_modules ((GumFoundKernelModuleFunc) gum_emit_module,
-      &mc);
+      &ec);
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_module (const GumKernelModuleDetails * details,
-                 GumV8MatchContext<GumV8Kernel> * mc)
+                 GumV8EnumerateContext<GumV8Kernel> * ec)
 {
-  auto module = gum_parse_module_details (details, mc->parent->core);
-
-  return mc->OnMatch (module);
+  return ec->Collect (gum_parse_module_details (details, ec->parent->core));
 }
 
 static Local<Object>
@@ -273,30 +268,30 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
     return;
 
   GumPageProtection prot;
-  GumV8MatchContext<GumV8Kernel> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
-      &mc.on_complete))
+  if (!_gum_v8_args_parse (args, "m", &prot))
     return;
 
-  gum_kernel_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
+  GumV8EnumerateContext<GumV8Kernel> ec (isolate, module);
 
-  mc.OnComplete ();
+  gum_kernel_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &ec);
+
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                GumV8MatchContext<GumV8Kernel> * mc)
+                GumV8EnumerateContext<GumV8Kernel> * ec)
 {
-  auto core = mc->parent->core;
+  auto core = ec->parent->core;
 
-  auto range = Object::New (mc->isolate);
+  auto range = Object::New (ec->isolate);
   _gum_v8_object_set_uint64 (range, "base", details->range->base_address,
       core);
   _gum_v8_object_set_uint (range, "size", details->range->size, core);
   _gum_v8_object_set_page_protection (range, "protection", details->protection,
       core);
 
-  return mc->OnMatch (range);
+  return ec->Collect (range);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
@@ -306,32 +301,34 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_module_ranges)
 
   gchar * module_name;
   GumPageProtection prot;
-  GumV8MatchContext<GumV8Kernel> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "s?mF{onMatch,onComplete}", &module_name,
-      &prot, &mc.on_match, &mc.on_complete))
+  if (!_gum_v8_args_parse (args, "s?m", &module_name, &prot))
     return;
+
+  GumV8EnumerateContext<GumV8Kernel> ec (isolate, module);
 
   gum_kernel_enumerate_module_ranges (
     (module_name == NULL) ? "Kernel" : module_name, prot,
-    (GumFoundKernelModuleRangeFunc) gum_emit_module_range, &mc);
+    (GumFoundKernelModuleRangeFunc) gum_emit_module_range, &ec);
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
+
+  g_free (module_name);
 }
 
 static gboolean
 gum_emit_module_range (const GumKernelModuleRangeDetails * details,
-                       GumV8MatchContext<GumV8Kernel> * mc)
+                       GumV8EnumerateContext<GumV8Kernel> * ec)
 {
-  auto core = mc->parent->core;
+  auto core = ec->parent->core;
 
-  auto range = Object::New (mc->isolate);
+  auto range = Object::New (ec->isolate);
   _gum_v8_object_set_utf8 (range, "name", details->name, core);
   _gum_v8_object_set_uint64 (range, "base", details->address, core);
   _gum_v8_object_set_uint (range, "size", details->size, core);
   _gum_v8_object_set_page_protection (range, "protection", details->protection,
       core);
 
-  return mc->OnMatch (range);
+  return ec->Collect (range);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_alloc)

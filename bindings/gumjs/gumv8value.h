@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -156,6 +156,9 @@ G_GNUC_INTERNAL gboolean _gum_v8_object_set_utf8 (v8::Local<v8::Object> object,
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_page_protection (
     v8::Local<v8::Object> object, const gchar * key, GumPageProtection prot,
     GumV8Core * core);
+
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_range_details_new (
+    const GumRangeDetails * details, GumV8Core * core);
 
 G_GNUC_INTERNAL GArray * _gum_v8_memory_ranges_get (v8::Local<v8::Value> value,
     GumV8Core * core);

@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumv8apiresolver.h"
 
+#include "gumv8enumeratecontext.h"
 #include "gumv8macros.h"
-#include "gumv8matchcontext.h"
 
 #include <string.h>
 
@@ -18,11 +18,11 @@ using namespace v8;
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_api_resolver_construct);
 GUMJS_DECLARE_FUNCTION (gumjs_api_resolver_enumerate_matches)
 static gboolean gum_emit_match (const GumApiDetails * details,
-    GumV8MatchContext<GumV8ApiResolver> * mc);
+    GumV8EnumerateContext<GumV8ApiResolver> * ec);
 
 static const GumV8Function gumjs_api_resolver_functions[] =
 {
-  { "_enumerateMatches", gumjs_api_resolver_enumerate_matches },
+  { "enumerateMatches", gumjs_api_resolver_enumerate_matches },
 
   { NULL, NULL }
 };
@@ -96,28 +96,28 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_api_resolver_enumerate_matches,
                            GumV8ApiResolverObject)
 {
   gchar * query;
-  GumV8MatchContext<GumV8ApiResolver> mc (isolate, module);
-  if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &query, &mc.on_match,
-      &mc.on_complete))
+  if (!_gum_v8_args_parse (args, "s", &query))
     return;
+
+  GumV8EnumerateContext<GumV8ApiResolver> ec (isolate, module);
 
   GError * error = NULL;
   gum_api_resolver_enumerate_matches (self->handle, query,
-      (GumFoundApiFunc) gum_emit_match, &mc, &error);
+      (GumFoundApiFunc) gum_emit_match, &ec, &error);
 
   g_free (query);
 
   if (_gum_v8_maybe_throw (isolate, &error))
     return;
 
-  mc.OnComplete ();
+  info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
 gum_emit_match (const GumApiDetails * details,
-                GumV8MatchContext<GumV8ApiResolver> * mc)
+                GumV8EnumerateContext<GumV8ApiResolver> * ec)
 {
-  auto core = mc->parent->core;
+  auto core = ec->parent->core;
 
   auto match = Object::New (core->isolate);
   _gum_v8_object_set_utf8 (match, "name", details->name, core);
@@ -125,5 +125,5 @@ gum_emit_match (const GumApiDetails * details,
   if (details->size != GUM_API_SIZE_NONE)
     _gum_v8_object_set_uint (match, "size", details->size, core);
 
-  return mc->OnMatch (match);
+  return ec->Collect (match);
 }

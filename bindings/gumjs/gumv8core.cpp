@@ -44,6 +44,29 @@ struct GumV8FlushCallback
   GumV8Script * script;
 };
 
+enum GumMemoryValueType
+{
+  GUM_MEMORY_VALUE_POINTER,
+  GUM_MEMORY_VALUE_S8,
+  GUM_MEMORY_VALUE_U8,
+  GUM_MEMORY_VALUE_S16,
+  GUM_MEMORY_VALUE_U16,
+  GUM_MEMORY_VALUE_S32,
+  GUM_MEMORY_VALUE_U32,
+  GUM_MEMORY_VALUE_S64,
+  GUM_MEMORY_VALUE_U64,
+  GUM_MEMORY_VALUE_LONG,
+  GUM_MEMORY_VALUE_ULONG,
+  GUM_MEMORY_VALUE_FLOAT,
+  GUM_MEMORY_VALUE_DOUBLE,
+  GUM_MEMORY_VALUE_BYTE_ARRAY,
+  GUM_MEMORY_VALUE_C_STRING,
+  GUM_MEMORY_VALUE_UTF8_STRING,
+  GUM_MEMORY_VALUE_UTF16_STRING,
+  GUM_MEMORY_VALUE_ANSI_STRING
+};
+
+
 struct GumV8WeakRef
 {
   guint id;
@@ -273,6 +296,57 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
+static void gumjs_native_pointer_handle_read (
+    const FunctionCallbackInfo<Value> & info, GumMemoryValueType type,
+    const GumV8Args * args);
+static void gumjs_native_pointer_handle_write (
+    const FunctionCallbackInfo<Value> & info, GumMemoryValueType type,
+    const GumV8Args * args);
+
+#define GUMJS_DEFINE_NATIVE_POINTER_READ(T) \
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_read_##T) \
+    { \
+      gumjs_native_pointer_handle_read (info, GUM_MEMORY_VALUE_##T, args); \
+    }
+#define GUMJS_DEFINE_NATIVE_POINTER_WRITE(T) \
+    GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_write_##T) \
+    { \
+      gumjs_native_pointer_handle_write (info, GUM_MEMORY_VALUE_##T, args); \
+    }
+#define GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE(T) \
+    GUMJS_DEFINE_NATIVE_POINTER_READ (T); \
+    GUMJS_DEFINE_NATIVE_POINTER_WRITE (T)
+
+#define GUMJS_EXPORT_MEMORY_READ(N, T) \
+    { "read" N, gumjs_native_pointer_read_##T }
+#define GUMJS_EXPORT_MEMORY_WRITE(N, T) \
+    { "write" N, gumjs_native_pointer_write_##T }
+#define GUMJS_EXPORT_MEMORY_READ_WRITE(N, T) \
+    GUMJS_EXPORT_MEMORY_READ (N, T), \
+    GUMJS_EXPORT_MEMORY_WRITE (N, T)
+
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (POINTER)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (S8)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (U8)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (S16)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (U16)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (S32)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (U32)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (S64)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (U64)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (LONG)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (ULONG)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (FLOAT)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (DOUBLE)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (BYTE_ARRAY)
+GUMJS_DEFINE_NATIVE_POINTER_READ (C_STRING)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (UTF8_STRING)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (UTF16_STRING)
+GUMJS_DEFINE_NATIVE_POINTER_READ_WRITE (ANSI_STRING)
+
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_read_volatile)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_write_volatile)
+
 GUMJS_DECLARE_FUNCTION (gumjs_array_buffer_wrap)
 GUMJS_DECLARE_FUNCTION (gumjs_array_buffer_unwrap)
 
@@ -468,6 +542,30 @@ static const GumV8Function gumjs_native_pointer_functions[] =
   { "toString", gumjs_native_pointer_to_string },
   { "toJSON", gumjs_native_pointer_to_json },
   { "toMatchPattern", gumjs_native_pointer_to_match_pattern },
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("U8", U8),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("S16", S16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("U16", U16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("S32", S32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("U32", U32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("S64", S64),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("U64", U64),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Short", S16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("UShort", U16),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Int", S32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("UInt", U32),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Long", LONG),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("ULong", ULONG),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Float", FLOAT),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Double", DOUBLE),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("ByteArray", BYTE_ARRAY),
+  GUMJS_EXPORT_MEMORY_READ ("CString", C_STRING),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
+  GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
+  { "readVolatile", gumjs_native_pointer_read_volatile },
+  { "writeVolatile", gumjs_native_pointer_write_volatile },
 
   { NULL, NULL }
 };
@@ -1034,8 +1132,6 @@ _gum_v8_core_realize (GumV8Core * self)
   auto module = External::New (isolate, self);
 
   auto global = context->Global ();
-  global->Set (context, _gum_v8_string_new_ascii (isolate, "global"), global)
-      .Check ();
 
   auto array_buffer = global->Get (context,
       _gum_v8_string_new_ascii (isolate, "ArrayBuffer")).ToLocalChecked ()
@@ -2460,6 +2556,454 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
   result[dst] = '\0';
 
   info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, result));
+}
+
+static void
+gumjs_native_pointer_handle_read (const FunctionCallbackInfo<Value> & info,
+                                  GumMemoryValueType type,
+                                  const GumV8Args * args)
+{
+  auto core = args->core;
+  auto isolate = core->isolate;
+  auto exceptor = core->exceptor;
+  gpointer address = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
+  gssize length = -1;
+  GumExceptorScope scope;
+  Local<Value> result;
+  std::shared_ptr<BackingStore> store;
+
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      if (!_gum_v8_args_parse (args, "Z", &length))
+        return;
+      break;
+    case GUM_MEMORY_VALUE_C_STRING:
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+    case GUM_MEMORY_VALUE_ANSI_STRING:
+      if (!_gum_v8_args_parse (args, "|z", &length))
+        return;
+      break;
+    default:
+      break;
+  }
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_POINTER:
+        result = _gum_v8_native_pointer_new (*((gpointer *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_S8:
+        result = Integer::New (isolate, *((gint8 *) address));
+        break;
+      case GUM_MEMORY_VALUE_U8:
+        result = Integer::NewFromUnsigned (isolate, *((guint8 *) address));
+        break;
+      case GUM_MEMORY_VALUE_S16:
+        result = Integer::New (isolate, *((gint16 *) address));
+        break;
+      case GUM_MEMORY_VALUE_U16:
+        result = Integer::NewFromUnsigned (isolate, *((guint16 *) address));
+        break;
+      case GUM_MEMORY_VALUE_S32:
+        result = Integer::New (isolate, *((gint32 *) address));
+        break;
+      case GUM_MEMORY_VALUE_U32:
+        result = Integer::NewFromUnsigned (isolate, *((guint32 *) address));
+        break;
+      case GUM_MEMORY_VALUE_S64:
+        result = _gum_v8_int64_new (*((gint64 *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_U64:
+        result = _gum_v8_uint64_new (*((guint64 *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_LONG:
+        result = _gum_v8_int64_new (*((glong *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_ULONG:
+        result = _gum_v8_uint64_new (*((gulong *) address), core);
+        break;
+      case GUM_MEMORY_VALUE_FLOAT:
+        result = Number::New (isolate, *((gfloat *) address));
+        break;
+      case GUM_MEMORY_VALUE_DOUBLE:
+        result = Number::New (isolate, *((gdouble *) address));
+        break;
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        auto data = (guint8 *) address;
+        if (data == NULL)
+        {
+          result = Null (isolate);
+          break;
+        }
+
+        if (length > 0)
+        {
+          result = ArrayBuffer::New (isolate, length);
+          store = result.As<ArrayBuffer> ()->GetBackingStore ();
+          memcpy (store->Data (), data, length);
+        }
+        else
+        {
+          result = ArrayBuffer::New (isolate, 0);
+        }
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_C_STRING:
+      {
+        auto data = (gchar *) address;
+        if (data == NULL)
+        {
+          result = Null (isolate);
+          break;
+        }
+
+        if (length != 0)
+        {
+          guint8 dummy_to_trap_bad_pointer_early;
+          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
+
+          gchar * str = g_utf8_make_valid (data, length);
+          result = String::NewFromUtf8 (isolate, str).ToLocalChecked ();
+          g_free (str);
+        }
+        else
+        {
+          result = String::Empty (isolate);
+        }
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF8_STRING:
+      {
+        auto data = (gchar *) address;
+        if (data == NULL)
+        {
+          result = Null (isolate);
+          break;
+        }
+
+        if (length != 0)
+        {
+          guint8 dummy_to_trap_bad_pointer_early;
+          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
+
+          const gchar * end;
+          if (!g_utf8_validate (data, length, &end))
+          {
+            _gum_v8_throw_ascii (isolate,
+                "can't decode byte 0x%02x in position %u",
+                (guint8) *end, (guint) (end - data));
+            break;
+          }
+
+          result = String::NewFromUtf8 (isolate, data, NewStringType::kNormal,
+              length).ToLocalChecked ();
+        }
+        else
+        {
+          result = String::Empty (isolate);
+        }
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF16_STRING:
+      {
+        auto str_utf16 = (gunichar2 *) address;
+        if (str_utf16 == NULL)
+        {
+          result = Null (isolate);
+          break;
+        }
+
+        if (length != 0)
+        {
+          guint8 dummy_to_trap_bad_pointer_early;
+          memcpy (&dummy_to_trap_bad_pointer_early, str_utf16, sizeof (guint8));
+        }
+
+        glong size;
+        auto str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
+        if (str_utf8 == NULL)
+        {
+          _gum_v8_throw_ascii_literal (isolate, "invalid string");
+          break;
+        }
+
+        if (size != 0)
+        {
+          result = String::NewFromUtf8 (isolate, str_utf8,
+              NewStringType::kNormal, size).ToLocalChecked ();
+        }
+        else
+        {
+          result = String::Empty (isolate);
+        }
+
+        g_free (str_utf8);
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_ANSI_STRING:
+      {
+#ifdef HAVE_WINDOWS
+        auto str_ansi = (gchar *) address;
+        if (str_ansi == NULL)
+        {
+          result = Null (isolate);
+          break;
+        }
+
+        if (length != 0)
+        {
+          guint8 dummy_to_trap_bad_pointer_early;
+          memcpy (&dummy_to_trap_bad_pointer_early, str_ansi, sizeof (guint8));
+
+          auto str_utf8 = gum_ansi_string_to_utf8 (str_ansi, length);
+          auto size = g_utf8_offset_to_pointer (str_utf8,
+              g_utf8_strlen (str_utf8, -1)) - str_utf8;
+          result = String::NewFromUtf8 (isolate, str_utf8,
+              NewStringType::kNormal, size).ToLocalChecked ();
+          g_free (str_utf8);
+        }
+        else
+        {
+          result = String::Empty (isolate);
+        }
+#else
+        _gum_v8_throw_ascii_literal (isolate,
+            "ANSI API is only applicable on Windows");
+#endif
+
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    _gum_v8_throw_native (&scope.exception, core);
+  }
+  else
+  {
+    if (!result.IsEmpty ())
+      info.GetReturnValue ().Set (result);
+  }
+}
+
+static void
+gumjs_native_pointer_handle_write (const FunctionCallbackInfo<Value> & info,
+                                   GumMemoryValueType type,
+                                   const GumV8Args * args)
+{
+  gpointer address = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
+  gpointer pointer = NULL;
+  gssize s = 0;
+  gsize u = 0;
+  gint64 s64 = 0;
+  guint64 u64 = 0;
+  gdouble number = 0;
+  GBytes * bytes = NULL;
+  gchar * str = NULL;
+  gsize str_length = 0;
+  gunichar2 * str_utf16 = NULL;
+#ifdef HAVE_WINDOWS
+  gchar * str_ansi = NULL;
+#endif
+  auto core = args->core;
+  auto exceptor = core->exceptor;
+  GumExceptorScope scope;
+
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_POINTER:
+      if (!_gum_v8_args_parse (args, "p", &pointer))
+        return;
+      break;
+    case GUM_MEMORY_VALUE_S8:
+    case GUM_MEMORY_VALUE_S16:
+    case GUM_MEMORY_VALUE_S32:
+      if (!_gum_v8_args_parse (args, "z", &s))
+        return;
+      break;
+    case GUM_MEMORY_VALUE_U8:
+    case GUM_MEMORY_VALUE_U16:
+    case GUM_MEMORY_VALUE_U32:
+      if (!_gum_v8_args_parse (args, "Z", &u))
+        return;
+      break;
+    case GUM_MEMORY_VALUE_S64:
+    case GUM_MEMORY_VALUE_LONG:
+      if (!_gum_v8_args_parse (args, "q", &s64))
+        return;
+      break;
+    case GUM_MEMORY_VALUE_U64:
+    case GUM_MEMORY_VALUE_ULONG:
+      if (!_gum_v8_args_parse (args, "Q", &u64))
+        return;
+      break;
+    case GUM_MEMORY_VALUE_FLOAT:
+    case GUM_MEMORY_VALUE_DOUBLE:
+      if (!_gum_v8_args_parse (args, "n", &number))
+        return;
+      break;
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      if (!_gum_v8_args_parse (args, "B", &bytes))
+        return;
+      break;
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+    case GUM_MEMORY_VALUE_ANSI_STRING:
+      if (!_gum_v8_args_parse (args, "s", &str))
+        return;
+
+      str_length = g_utf8_strlen (str, -1);
+      if (type == GUM_MEMORY_VALUE_UTF16_STRING)
+        str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
+#ifdef HAVE_WINDOWS
+      else if (type == GUM_MEMORY_VALUE_ANSI_STRING)
+        str_ansi = gum_ansi_string_from_utf8 (str);
+#endif
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_POINTER:
+        *((gpointer *) address) = pointer;
+        break;
+      case GUM_MEMORY_VALUE_S8:
+        *((gint8 *) address) = (gint8) s;
+        break;
+      case GUM_MEMORY_VALUE_U8:
+        *((guint8 *) address) = (guint8) u;
+        break;
+      case GUM_MEMORY_VALUE_S16:
+        *((gint16 *) address) = (gint16) s;
+        break;
+      case GUM_MEMORY_VALUE_U16:
+        *((guint16 *) address) = (guint16) u;
+        break;
+      case GUM_MEMORY_VALUE_S32:
+        *((gint32 *) address) = (gint32) s;
+        break;
+      case GUM_MEMORY_VALUE_U32:
+        *((guint32 *) address) = (guint32) u;
+        break;
+      case GUM_MEMORY_VALUE_S64:
+        *((gint64 *) address) = s64;
+        break;
+      case GUM_MEMORY_VALUE_U64:
+        *((guint64 *) address) = u64;
+        break;
+      case GUM_MEMORY_VALUE_LONG:
+        *((glong *) address) = s64;
+        break;
+      case GUM_MEMORY_VALUE_ULONG:
+        *((gulong *) address) = u64;
+        break;
+      case GUM_MEMORY_VALUE_FLOAT:
+        *((gfloat *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_DOUBLE:
+        *((gdouble *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        gsize size;
+        auto data = g_bytes_get_data (bytes, &size);
+        memcpy (address, data, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF8_STRING:
+      {
+        gsize size = g_utf8_offset_to_pointer (str, str_length) - str + 1;
+        memcpy (address, str, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF16_STRING:
+      {
+        gsize size = (str_length + 1) * sizeof (gunichar2);
+        memcpy (address, str_utf16, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_ANSI_STRING:
+      {
+#ifdef HAVE_WINDOWS
+        strcpy ((char *) address, str_ansi);
+#else
+        _gum_v8_throw_ascii_literal (core->isolate,
+            "ANSI API is only applicable on Windows");
+#endif
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    _gum_v8_throw_native (&scope.exception, core);
+  }
+
+  g_bytes_unref (bytes);
+  g_free (str);
+  g_free (str_utf16);
+#ifdef HAVE_WINDOWS
+  g_free (str_ansi);
+#endif
+
+  info.GetReturnValue ().Set (info.This ());
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_read_volatile)
+{
+  gpointer address = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
+
+  gsize length;
+  if (!_gum_v8_args_parse (args, "z", &length))
+    return;
+
+  gsize n_bytes_read;
+  guint8 * data = gum_memory_read (address, length, &n_bytes_read);
+  if (data == NULL)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "memory read failed");
+    return;
+  }
+
+  Local<Value> result = ArrayBuffer::New (isolate, n_bytes_read);
+  memcpy (result.As<ArrayBuffer> ()->GetBackingStore ()->Data (), data, length);
+  info.GetReturnValue ().Set (result);
+
+  g_free (data);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_write_volatile)
+{
+  gpointer address = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
+
+  GBytes * bytes;
+  if (!_gum_v8_args_parse (args, "B", &bytes))
+    return;
+
+  gsize size;
+  auto data = g_bytes_get_data (bytes, &size);
+
+  if (!gum_memory_write (address, (const guint8 *) data, size))
+    _gum_v8_throw_ascii_literal (isolate, "memory write failed");
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_wrap)

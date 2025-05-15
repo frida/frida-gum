@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1777,6 +1777,32 @@ _gum_v8_object_set_page_protection (Local<Object> object,
       key,
       _gum_v8_page_protection_new (core->isolate, prot),
       core);
+}
+
+Local<Object>
+_gum_v8_range_details_new (const GumRangeDetails * details,
+                           GumV8Core * core)
+{
+  auto isolate = core->isolate;
+
+  auto range = Object::New (isolate);
+  _gum_v8_object_set_pointer (range, "base", details->range->base_address,
+      core);
+  _gum_v8_object_set_uint (range, "size", details->range->size, core);
+  _gum_v8_object_set_page_protection (range, "protection", details->protection,
+      core);
+
+  auto f = details->file;
+  if (f != NULL)
+  {
+    auto file = Object::New (isolate);
+    _gum_v8_object_set_utf8 (file, "path", f->path, core);
+    _gum_v8_object_set_uint (file, "offset", f->offset, core);
+    _gum_v8_object_set_uint (file, "size", f->size, core);
+    _gum_v8_object_set (range, "file", file, core);
+  }
+
+  return range;
 }
 
 GArray *
