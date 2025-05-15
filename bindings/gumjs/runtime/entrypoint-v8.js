@@ -1,5 +1,5 @@
-require('./core');
-require('./error-handler-v8');
+import './core.js';
+import './error-handler-v8.js';
 
 Script.load = async (name, source) => {
   Script._load(name, source);

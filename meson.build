@@ -375,6 +375,8 @@ else
   gio_os_package_dep = disabler()
 endif
 
+gio_dep_native = dependency('gio-2.0', native: true)
+
 capstone_arch_mappings = {
   'x86_64': 'x86',
   's390x': 'sysz',
@@ -628,15 +630,6 @@ if have_gumjs
     'tests=false',
     'sysprof=disabled',
   ])
-
-  node = find_program('node', version: '>=18.0.0', native: true, required: false)
-  if not node.found()
-    error('Need Node.js >= 18.0.0 to process JavaScript code at build time')
-  endif
-  npm = find_program('npm', native: true, required: false)
-  if not npm.found()
-    error('Need npm to process JavaScript code at build time')
-  endif
 else
   v8_dep = disabler()
 endif

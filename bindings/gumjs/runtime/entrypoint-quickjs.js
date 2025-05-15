@@ -1,5 +1,5 @@
-require('./core');
-require('./error-handler-quickjs');
+import './core.js';
+import './error-handler-quickjs.js';
 
 Script.load = (name, source) => {
   return new Promise((resolve, reject) => {

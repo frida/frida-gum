@@ -24,7 +24,6 @@ if quickjs_dep.found()
   gumjs_sources += [
     'gumquickscriptbackend.c',
     'gumquickscript.c',
-    'gumquickbundle.c',
     'gumquickvalue.c',
     'gumquickobject.c',
     'gumquickcore.c',
@@ -55,7 +54,7 @@ if quickjs_dep.found()
   endif
 
   quickcompile = executable('quickcompile', 'gumquickcompile.c',
-    dependencies: [quickjs_dep_native],
+    dependencies: [quickjs_dep_native, gio_dep_native],
     native: true,
   )
 else
@@ -67,7 +66,6 @@ if v8_dep.found()
     'gumv8scriptbackend.cpp',
     'gumv8script.cpp',
     'gumv8platform.cpp',
-    'gumv8bundle.cpp',
     'gumv8scope.cpp',
     'gumv8value.cpp',
     'gumv8object.cpp',
@@ -239,11 +237,11 @@ gumjs_runtime = custom_target('gumjs-runtime',
     meson.project_source_root() / 'gum',
     capstone_dep.get_variable('includedir') / 'capstone',
     libtcc_incdir,
-    npm,
     quickcompile,
     ','.join(backends),
     host_arch,
     host_machine.endian(),
+    '@INPUT@',
   ],
 )
 gumjs_sources += [gumjs_runtime]

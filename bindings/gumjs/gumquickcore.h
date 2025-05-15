@@ -58,7 +58,6 @@ struct _GumQuickCore
   GumQuickScript * script;
   GumQuickScriptBackend * backend;
   GumESProgram * program;
-  const gchar * runtime_source_map;
   GumQuickInterceptor * interceptor;
   GumQuickStalker * stalker;
   GumQuickMessageEmitter message_emitter;
@@ -274,10 +273,9 @@ struct _GumQuickNativeCallback
 
 G_GNUC_INTERNAL void _gum_quick_core_init (GumQuickCore * self,
     GumQuickScript * script, JSContext * ctx, JSValue ns, GRecMutex * mutex,
-    GumESProgram * program, const gchar * runtime_source_map,
-    GumQuickInterceptor * interceptor, GumQuickStalker * stalker,
-    GumQuickMessageEmitter message_emitter, gpointer message_emitter_data,
-    GumScriptScheduler * scheduler);
+    GumESProgram * program, GumQuickInterceptor * interceptor,
+    GumQuickStalker * stalker, GumQuickMessageEmitter message_emitter,
+    gpointer message_emitter_data, GumScriptScheduler * scheduler);
 G_GNUC_INTERNAL gboolean _gum_quick_core_flush (GumQuickCore * self,
     GumQuickFlushNotify flush_notify, gpointer flush_data,
     GDestroyNotify flush_data_destroy);

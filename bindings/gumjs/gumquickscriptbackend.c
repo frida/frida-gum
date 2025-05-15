@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -8,17 +8,21 @@
 #include "gumquickscriptbackend.h"
 
 #include "gumquickscript.h"
+#include "gumquickscript-runtime.h"
 #include "gumquickscriptbackend-priv.h"
 #include "gumscripttask.h"
 
 #include <stdlib.h>
 #include <string.h>
 
+#define GUM_QUICKJS_BYTECODE_MAGIC 0x02
+
 typedef struct _GumCompileProgramOperation GumCompileProgramOperation;
 typedef struct _GumCreateScriptData GumCreateScriptData;
 typedef struct _GumCreateScriptFromBytesData GumCreateScriptFromBytesData;
 typedef struct _GumCompileScriptData GumCompileScriptData;
 typedef struct _GumSnapshotScriptData GumSnapshotScriptData;
+typedef struct _GumLoadRuntimeData GumLoadRuntimeData;
 
 struct _GumQuickScriptBackend
 {
@@ -60,6 +64,19 @@ struct _GumSnapshotScriptData
 {
   gchar * embed_script;
   gchar * warmup_script;
+};
+
+struct _GumLoadRuntimeData
+{
+  GumRuntimeLoadedFunc func;
+  gpointer data;
+  GDestroyNotify data_destroy;
+};
+
+enum _GumLoadRuntimeMagic
+{
+  GUM_LOAD_RUNTIME_MAGIC_ON_SUCCESS,
+  GUM_LOAD_RUNTIME_MAGIC_ON_FAILURE,
 };
 
 static void gum_quick_script_backend_iface_init (gpointer g_iface,
@@ -152,6 +169,9 @@ static void gum_quick_script_backend_with_lock_held (GumScriptBackend * backend,
 static gboolean gum_quick_script_backend_is_locked (GumScriptBackend * backend);
 
 static GumESProgram * gum_es_program_new (void);
+static JSValue gum_es_program_on_runtime_loaded (JSContext * ctx,
+    JSValueConst this_val, int argc, JSValueConst * argv, int magic,
+    JSValue * func_data);
 static char * gum_es_program_normalize_module_name (GumESProgram * self,
     JSContext * ctx, const char * base_name, const char * name);
 
@@ -333,7 +353,7 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
 
         asset_data = g_strndup (asset_cursor, asset_size);
 
-        asset = gum_es_asset_new_take (asset_name, asset_data, asset_size);
+        asset = gum_es_asset_new (asset_name, asset_data, asset_size, g_free);
         g_hash_table_insert (program->es_assets, asset_name, asset);
 
         while (g_str_has_prefix (rest_end, alias_marker))
@@ -582,8 +602,16 @@ gum_compile_module (JSContext * ctx,
   JSValue meta;
   gchar * url;
 
-  val = JS_Eval (ctx, asset->data, asset->data_size, asset->name,
-      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_STRICT | JS_EVAL_FLAG_COMPILE_ONLY);
+  if (((guint8 *) asset->data)[0] == GUM_QUICKJS_BYTECODE_MAGIC)
+  {
+    val = JS_ReadObject (ctx, asset->data, asset->data_size,
+        JS_READ_OBJ_BYTECODE);
+  }
+  else
+  {
+    val = JS_Eval (ctx, asset->data, asset->data_size, asset->name,
+        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_STRICT | JS_EVAL_FLAG_COMPILE_ONLY);
+  }
   if (JS_IsException (val))
     return JS_EXCEPTION;
 
@@ -622,6 +650,11 @@ gum_quick_script_backend_read_program (GumQuickScriptBackend * self,
     goto malformed_code;
 
   g_array_append_val (program->entrypoints, val);
+
+  JS_SetModuleLoaderFunc (JS_GetRuntime (ctx),
+      gum_normalize_module_name_during_runtime,
+      gum_load_module_during_runtime,
+      program);
 
   return program;
 
@@ -1168,11 +1201,26 @@ static GumESProgram *
 gum_es_program_new (void)
 {
   GumESProgram * program;
+  const GumQuickRuntimeModule * cur;
 
   program = g_slice_new0 (GumESProgram);
   program->entrypoints = g_array_new (FALSE, FALSE, sizeof (JSValue));
   program->es_assets = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
       (GDestroyNotify) gum_es_asset_unref);
+
+  for (cur = gumjs_runtime_modules; cur->name != NULL; cur++)
+  {
+    gchar * name;
+    GumESAsset * asset;
+
+    name = g_strconcat ("/frida/runtime/", cur->name, NULL);
+    asset = gum_es_asset_new (name, cur->bytecode, cur->bytecode_size, NULL);
+
+    if (program->runtime == NULL)
+      program->runtime = asset;
+
+    g_hash_table_insert (program->es_assets, name, asset);
+  }
 
   return program;
 }
@@ -1204,6 +1252,82 @@ gboolean
 gum_es_program_is_esm (GumESProgram * self)
 {
   return self->global_filename == NULL;
+}
+
+void
+gum_es_program_load_runtime (GumESProgram * self,
+                             JSContext * ctx,
+                             GumRuntimeLoadedFunc func,
+                             gpointer data,
+                             GDestroyNotify data_destroy)
+{
+  JSValue entrypoint, promise, data_obj, on_success, on_failure, then, catch, v;
+  int res;
+  GumLoadRuntimeData * d;
+
+  entrypoint = gum_compile_module (ctx, self->runtime);
+  g_assert (!JS_IsException (entrypoint));
+
+  res = JS_ResolveModule (ctx, entrypoint);
+  g_assert (res == 0);
+
+  promise = JS_EvalFunction (ctx, entrypoint);
+  g_assert (!JS_IsException (promise));
+
+  d = g_slice_new (GumLoadRuntimeData);
+  d->func = func;
+  d->data = data;
+  d->data_destroy = data_destroy;
+
+  data_obj = JS_NewObject (ctx);
+  JS_SetOpaque (data_obj, d);
+
+  on_success = JS_NewCFunctionData (ctx, gum_es_program_on_runtime_loaded, 1,
+      GUM_LOAD_RUNTIME_MAGIC_ON_SUCCESS, 1, &data_obj);
+  on_failure = JS_NewCFunctionData (ctx, gum_es_program_on_runtime_loaded, 1,
+      GUM_LOAD_RUNTIME_MAGIC_ON_FAILURE, 1, &data_obj);
+
+  then = JS_GetPropertyStr (ctx, promise, "then");
+  catch = JS_GetPropertyStr (ctx, promise, "catch");
+
+  v = JS_Call (ctx, then, promise, 1, &on_success);
+  JS_FreeValue (ctx, v);
+
+  v = JS_Call (ctx, catch, promise, 1, &on_failure);
+  JS_FreeValue (ctx, v);
+
+  JS_FreeValue (ctx, catch);
+  JS_FreeValue (ctx, then);
+  JS_FreeValue (ctx, on_failure);
+  JS_FreeValue (ctx, on_success);
+  JS_FreeValue (ctx, data_obj);
+  JS_FreeValue (ctx, promise);
+}
+
+static JSValue
+gum_es_program_on_runtime_loaded (JSContext * ctx,
+                                  JSValueConst this_val,
+                                  int argc,
+                                  JSValueConst * argv,
+                                  int magic,
+                                  JSValue * func_data)
+{
+  GumLoadRuntimeData * d;
+  JSClassID class_id;
+  JSValueConst error;
+
+  d = JS_GetAnyOpaque (func_data[0], &class_id);
+
+  error = (magic == GUM_LOAD_RUNTIME_MAGIC_ON_SUCCESS)
+      ? JS_NULL
+      : argv[0];
+  d->func (error, d->data);
+
+  if (d->data_destroy != NULL)
+    d->data_destroy (d->data);
+  g_slice_free (GumLoadRuntimeData, d);
+
+  return JS_UNDEFINED;
 }
 
 JSValue
@@ -1296,9 +1420,10 @@ gum_es_program_normalize_module_name (GumESProgram * self,
 }
 
 GumESAsset *
-gum_es_asset_new_take (const gchar * name,
-                       gpointer data,
-                       gsize data_size)
+gum_es_asset_new (const gchar * name,
+                  gconstpointer data,
+                  gsize data_size,
+                  GDestroyNotify data_destroy)
 {
   GumESAsset * asset;
 
@@ -1310,6 +1435,7 @@ gum_es_asset_new_take (const gchar * name,
 
   asset->data = data;
   asset->data_size = data_size;
+  asset->data_destroy = data_destroy;
 
   return asset;
 }
@@ -1331,7 +1457,8 @@ gum_es_asset_unref (GumESAsset * asset)
   if (!g_atomic_int_dec_and_test (&asset->ref_count))
     return;
 
-  g_free (asset->data);
+  if (asset->data_destroy != NULL)
+    asset->data_destroy ((gpointer) asset->data);
 
   g_slice_free (GumESAsset, asset);
 }

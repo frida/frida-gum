@@ -56,6 +56,7 @@ enum GumV8InspectorState
 };
 
 struct GumESProgram;
+struct GumESAsset;
 
 class GumInspectorClient;
 class GumInspectorChannel;
@@ -130,6 +131,8 @@ struct _GumV8Script
 struct GumESProgram
 {
   GPtrArray * entrypoints;
+
+  GumESAsset * runtime;
   GHashTable * es_assets;
   GHashTable * es_modules;
 
@@ -143,8 +146,9 @@ struct GumESAsset
 
   const gchar * name;
 
-  gpointer data;
+  gconstpointer data;
   gsize data_size;
+  GDestroyNotify data_destroy;
 
   v8::Global<v8::Module> * module;
 };

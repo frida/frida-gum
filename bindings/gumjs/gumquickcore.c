@@ -1364,7 +1364,6 @@ _gum_quick_core_init (GumQuickCore * self,
                       JSValue ns,
                       GRecMutex * mutex,
                       GumESProgram * program,
-                      const gchar * runtime_source_map,
                       GumQuickInterceptor * interceptor,
                       GumQuickStalker * stalker,
                       GumQuickMessageEmitter message_emitter,
@@ -1383,7 +1382,6 @@ _gum_quick_core_init (GumQuickCore * self,
 
   self->script = script;
   self->program = program;
-  self->runtime_source_map = runtime_source_map;
   self->interceptor = interceptor;
   self->stalker = stalker;
   self->message_emitter = message_emitter;
@@ -2083,9 +2081,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_evaluate)
   source_map = gum_script_backend_extract_inline_source_map (source);
   if (source_map != NULL)
   {
-    gchar * map_name = g_strconcat (name, ".map", NULL);
-    g_hash_table_insert (core->program->es_assets, map_name,
-        gum_es_asset_new_take (map_name, source_map, strlen (source_map)));
+    gchar * map_name;
+    GumESAsset * asset;
+
+    map_name = g_strconcat (name, ".map", NULL);
+    asset =
+        gum_es_asset_new (map_name, source_map, strlen (source_map), g_free);
+
+    g_hash_table_insert (core->program->es_assets, map_name, asset);
   }
 
   return JS_EvalFunction (ctx, func);
@@ -2117,14 +2120,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_load)
 
   name_copy = g_strdup (name);
   g_hash_table_insert (es_assets, name_copy,
-      gum_es_asset_new_take (name_copy, NULL, 0));
+      gum_es_asset_new (name_copy, NULL, 0, NULL));
 
   source_map = gum_script_backend_extract_inline_source_map (source);
   if (source_map != NULL)
   {
-    gchar * map_name = g_strconcat (name, ".map", NULL);
-    g_hash_table_insert (es_assets, map_name,
-        gum_es_asset_new_take (map_name, source_map, strlen (source_map)));
+    gchar * map_name;
+    GumESAsset * asset;
+
+    map_name = g_strconcat (name, ".map", NULL);
+    asset =
+        gum_es_asset_new (map_name, source_map, strlen (source_map), g_free);
+
+    g_hash_table_insert (es_assets, map_name, asset);
   }
 
   /*
@@ -2179,13 +2187,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_register_source_map)
 {
   const gchar * name, * json;
   gchar * map_name;
+  GumESAsset * asset;
 
   if (!_gum_quick_args_parse (args, "ss", &name, &json))
     return JS_EXCEPTION;
 
   map_name = g_strconcat (name, ".map", NULL);
-  g_hash_table_insert (core->program->es_assets, map_name,
-      gum_es_asset_new_take (map_name, g_strdup (json), strlen (json)));
+  asset = gum_es_asset_new (map_name, g_strdup (json), strlen (json), g_free);
+
+  g_hash_table_insert (core->program->es_assets, map_name, asset);
 
   return JS_UNDEFINED;
 }
@@ -2221,8 +2231,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
   {
     if (g_strcmp0 (name, program->global_filename) == 0)
       json = program->global_source_map;
-    else if (strcmp (name, "/_frida.js") == 0)
-      json = core->runtime_source_map;
   }
 
   if (json != NULL)

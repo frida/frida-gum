@@ -1,24 +1,23 @@
-const Console = require('./console');
-const hexdump = require('./hexdump');
-const MessageDispatcher = require('./message-dispatcher');
-const Worker = require('./worker');
+import { Console } from './console.js';
+import { hexdump } from './hexdump.js';
+import { MessageDispatcher } from './message-dispatcher.js';
+import { Worker } from './worker.js';
 
-const engine = global;
 let messageDispatcher;
 
 function initialize() {
   messageDispatcher = new MessageDispatcher();
 
-  const proxyClass = engine.Proxy;
+  const proxyClass = globalThis.Proxy;
   if ('create' in proxyClass) {
     const createProxy = proxyClass.create;
-    engine.Proxy = function (target, handler) {
+    globalThis.Proxy = function (target, handler) {
       return createProxy.call(proxyClass, handler, Object.getPrototypeOf(target));
     };
   }
 }
 
-Object.defineProperties(engine, {
+Object.defineProperties(globalThis, {
   rpc: {
     enumerable: true,
     value: {
@@ -46,7 +45,7 @@ Object.defineProperties(engine, {
         type: 'send',
         payload: payload
       };
-      engine._send(JSON.stringify(message), data || null);
+      globalThis._send(JSON.stringify(message), data || null);
     }
   },
   setTimeout: {
@@ -151,7 +150,7 @@ function numberWrapperEquals(rhs) {
 
 const _nextTick = Script._nextTick;
 Script.nextTick = function (callback, ...args) {
-  _nextTick(callback.bind(engine, ...args));
+  _nextTick(callback.bind(globalThis, ...args));
 };
 
 makeEnumerateApi(Kernel, 'enumerateModules', 0);
@@ -808,7 +807,7 @@ SourceMap.prototype.resolve = function (generatedPosition) {
   return {source, line, column, name};
 };
 
-if (engine.SqliteDatabase !== undefined) {
+if (globalThis.SqliteDatabase !== undefined) {
   const sqliteOpenFlags = {
     readonly: 1,
     readwrite: 2,

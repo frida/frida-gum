@@ -1,4 +1,4 @@
-global._setUnhandledExceptionCallback(error => {
+_setUnhandledExceptionCallback(error => {
   const message = {
     type: 'error',
     description: '' + error

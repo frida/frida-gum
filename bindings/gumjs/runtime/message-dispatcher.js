@@ -1,13 +1,9 @@
-const engine = global;
-
-module.exports = MessageDispatcher;
-
-function MessageDispatcher() {
+export function MessageDispatcher() {
   const messages = [];
   const operations = {};
 
   function initialize() {
-    engine._setIncomingMessageCallback(handleMessage);
+    _setIncomingMessageCallback(handleMessage);
   }
 
   this.registerCallback = function registerCallback(type, callback) {
@@ -111,7 +107,7 @@ function MessageRecvOperation(callback) {
 
   this.wait = function wait() {
     while (!completed)
-      engine._waitForEvent();
+      _waitForEvent();
   };
 
   function complete(message, data) {
@@ -124,4 +120,3 @@ function MessageRecvOperation(callback) {
 
   return [this, complete];
 }
-

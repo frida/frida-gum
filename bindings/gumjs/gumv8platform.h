@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,12 +7,12 @@
 #ifndef __GUM_V8_PLATFORM_H__
 #define __GUM_V8_PLATFORM_H__
 
-#include "gumv8bundle.h"
 #include "gumscriptscheduler.h"
 
 #include <functional>
 #include <map>
 #include <unordered_set>
+#include <v8.h>
 #include <v8-platform.h>
 
 class GumV8Operation;
@@ -85,7 +85,6 @@ private:
 
   GMutex mutex;
   bool disposing;
-  GumV8Bundle * runtime_bundle;
   GumScriptScheduler * scheduler;
   std::unordered_set<v8::Isolate *> dying_isolates;
   std::unordered_set<std::shared_ptr<GumV8Operation>> js_ops;

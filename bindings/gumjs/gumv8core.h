@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -41,7 +41,6 @@ struct GumV8Core
 {
   GumV8Script * script;
   GumV8ScriptBackend * backend;
-  const gchar * runtime_source_map;
   GumV8Core * core;
   GumV8MessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
@@ -157,9 +156,9 @@ public:
 };
 
 G_GNUC_INTERNAL void _gum_v8_core_init (GumV8Core * self,
-    GumV8Script * script, const gchar * runtime_source_map,
-    GumV8MessageEmitter message_emitter, GumScriptScheduler * scheduler,
-    v8::Isolate * isolate, v8::Local<v8::ObjectTemplate> scope);
+    GumV8Script * script, GumV8MessageEmitter message_emitter,
+    GumScriptScheduler * scheduler, v8::Isolate * isolate,
+    v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_core_realize (GumV8Core * self);
 G_GNUC_INTERNAL gboolean _gum_v8_core_flush (GumV8Core * self,
     GumV8FlushNotify flush_notify);

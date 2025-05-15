@@ -1,6 +1,6 @@
-const hexdump = require('./hexdump');
+import { hexdump } from './hexdump.js';
 
-class Console {
+export class Console {
   #counters;
 
   constructor() {
@@ -41,8 +41,6 @@ class Console {
     }
   }
 }
-
-module.exports = Console;
 
 function sendLogMessage(level, values) {
   const text = values.map(parseLogArgument).join(' ');

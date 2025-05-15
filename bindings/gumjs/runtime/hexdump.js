@@ -1,8 +1,4 @@
-module.exports = hexdump;
-
-function hexdump(target, options) {
-  options = options || {};
-
+export function hexdump(target, options = {}) {
   const startOffset = options.offset || 0;
   let length = options.length;
   const showHeader = options.hasOwnProperty('header') ? options.header : true;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
@@ -511,7 +511,6 @@ static const GumV8Function gumjs_source_map_functions[] =
 void
 _gum_v8_core_init (GumV8Core * self,
                    GumV8Script * script,
-                   const gchar * runtime_source_map,
                    GumV8MessageEmitter message_emitter,
                    GumScriptScheduler * scheduler,
                    Isolate * isolate,
@@ -519,7 +518,6 @@ _gum_v8_core_init (GumV8Core * self,
 {
   self->script = script;
   self->backend = script->backend;
-  self->runtime_source_map = runtime_source_map;
   self->core = self;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
@@ -1750,19 +1748,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_find_source_map)
     g_free (map_name);
   }
 
-  if (json == NULL)
+  if (json == NULL && g_strcmp0 (name, program->global_filename) == 0)
   {
-    if (g_strcmp0 (name, program->global_filename) == 0)
-    {
-      json_malloc_data = gum_query_script_for_inline_source_map (isolate,
-          Local<Script>::New (isolate, *program->global_code));
-      json = json_malloc_data;
-    }
-    else
-    {
-      if (strcmp (name, "/_frida.js") == 0)
-        json = core->runtime_source_map;
-    }
+    json_malloc_data = gum_query_script_for_inline_source_map (isolate,
+        Local<Script>::New (isolate, *program->global_code));
+    json = json_malloc_data;
   }
 
   if (json != NULL)

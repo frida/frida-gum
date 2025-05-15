@@ -1,4 +1,4 @@
-class Worker {
+export class Worker {
   _pendingRequests = new Map();
   _nextRequestId = 1;
 
@@ -131,5 +131,3 @@ const reservedMethodNames = new Set([
 function isReservedMethodName(name) {
   return reservedMethodNames.has(name.toString());
 }
-
-module.exports = Worker;
