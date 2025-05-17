@@ -9,14 +9,8 @@
 
 #include "gumquickmemory.h"
 
+#include "gumansi.h"
 #include "gumquickmacros.h"
-
-#ifdef HAVE_WINDOWS
-# ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
-# endif
-# include <windows.h>
-#endif
 
 typedef struct _GumMemoryPatchContext GumMemoryPatchContext;
 typedef struct _GumMemoryScanContext GumMemoryScanContext;
@@ -60,16 +54,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_patch_code)
 static void gum_memory_patch_context_apply (gpointer mem,
     GumMemoryPatchContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_check_code_pointer)
-
-#ifdef HAVE_WINDOWS
-static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
-static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
-#endif
-
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_ansi_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf8_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf16_string)
-
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan)
 static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
 static void gum_memory_scan_context_run (GumMemoryScanContext * self);
@@ -370,59 +357,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_check_code_pointer)
   return result;
 }
 
-#ifdef HAVE_WINDOWS
-
-static gchar *
-gum_ansi_string_to_utf8 (const gchar * str_ansi,
-                         gint length)
-{
-  gint str_utf16_length;
-  gsize str_utf16_size;
-  WCHAR * str_utf16;
-  gchar * str_utf8;
-
-  if (length < 0)
-    length = (gint) strlen (str_ansi);
-
-  str_utf16_length = MultiByteToWideChar (CP_THREAD_ACP, 0, str_ansi, length,
-      NULL, 0);
-  str_utf16_size = (str_utf16_length + 1) * sizeof (WCHAR);
-  str_utf16 = g_malloc (str_utf16_size);
-
-  str_utf16_length = MultiByteToWideChar (CP_THREAD_ACP, 0, str_ansi, length,
-      str_utf16, str_utf16_length);
-  str_utf16[str_utf16_length] = L'\0';
-
-  str_utf8 = g_utf16_to_utf8 ((gunichar2 *) str_utf16, -1, NULL, NULL, NULL);
-
-  g_free (str_utf16);
-
-  return str_utf8;
-}
-
-static gchar *
-gum_ansi_string_from_utf8 (const gchar * str_utf8)
-{
-  WCHAR * str_utf16;
-  gchar * str_ansi;
-  gint str_ansi_size;
-
-  str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
-
-  str_ansi_size = WideCharToMultiByte (CP_THREAD_ACP, 0, str_utf16, -1,
-      NULL, 0, NULL, NULL);
-  str_ansi = g_malloc (str_ansi_size);
-
-  WideCharToMultiByte (CP_THREAD_ACP, 0, str_utf16, -1,
-      str_ansi, str_ansi_size, NULL, NULL);
-
-  g_free (str_utf16);
-
-  return str_ansi;
-}
-
-#endif
-
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
 {
 #ifdef HAVE_WINDOWS
@@ -432,7 +366,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
   if (!_gum_quick_args_parse (args, "s", &str))
     return JS_EXCEPTION;
 
-  str_ansi = gum_ansi_string_from_utf8 (str);
+  str_ansi = _gum_ansi_string_from_utf8 (str);
 
   return _gum_quick_native_resource_new (ctx, str_ansi, g_free, core);
 #else

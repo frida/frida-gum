@@ -10,6 +10,7 @@
 
 #include "gumquickcore.h"
 
+#include "gumansi.h"
 #include "gumffi.h"
 #include "gumquickinterceptor.h"
 #include "gumquickmacros.h"
@@ -3621,7 +3622,7 @@ gumjs_native_pointer_handle_read (JSContext * ctx,
 
           memcpy (&dummy_to_trap_bad_pointer_early, str_ansi, sizeof (guint8));
 
-          str_utf8 = gum_ansi_string_to_utf8 (str_ansi, length);
+          str_utf8 = _gum_ansi_string_to_utf8 (str_ansi, length);
           result = JS_NewString (ctx, str_utf8);
           g_free (str_utf8);
         }
@@ -3728,7 +3729,7 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
         str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
 #ifdef HAVE_WINDOWS
       else if (type == GUM_MEMORY_VALUE_ANSI_STRING)
-        str_ansi = gum_ansi_string_from_utf8 (str);
+        str_ansi = _gum_ansi_string_from_utf8 (str);
 #endif
       break;
     default:

@@ -12,6 +12,7 @@
 
 #include "gumv8core.h"
 
+#include "gumansi.h"
 #include "gumffi.h"
 #include "gumsourcemap.h"
 #include "gumv8macros.h"
@@ -2764,7 +2765,7 @@ gumjs_native_pointer_handle_read (const FunctionCallbackInfo<Value> & info,
           guint8 dummy_to_trap_bad_pointer_early;
           memcpy (&dummy_to_trap_bad_pointer_early, str_ansi, sizeof (guint8));
 
-          auto str_utf8 = gum_ansi_string_to_utf8 (str_ansi, length);
+          auto str_utf8 = _gum_ansi_string_to_utf8 (str_ansi, length);
           auto size = g_utf8_offset_to_pointer (str_utf8,
               g_utf8_strlen (str_utf8, -1)) - str_utf8;
           result = String::NewFromUtf8 (isolate, str_utf8,
@@ -2869,7 +2870,7 @@ gumjs_native_pointer_handle_write (const FunctionCallbackInfo<Value> & info,
         str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
 #ifdef HAVE_WINDOWS
       else if (type == GUM_MEMORY_VALUE_ANSI_STRING)
-        str_ansi = gum_ansi_string_from_utf8 (str);
+        str_ansi = _gum_ansi_string_from_utf8 (str);
 #endif
       break;
     default:

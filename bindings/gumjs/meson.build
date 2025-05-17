@@ -16,6 +16,10 @@ gumjs_sources = [
   'gumcmodule.c',
 ]
 
+if host_os_family == 'windows'
+  gumjs_sources += 'gumansi.c'
+endif
+
 if sqlite_dep.found()
   gumjs_sources += 'gummemoryvfs.c'
 endif
