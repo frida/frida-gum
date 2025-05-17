@@ -3,7 +3,7 @@ task:
   freebsd_instance:
     image_family: freebsd-14-2
   install_script: |
-    pkg install -y git
+    pkg install -y git gmake
   compile_script: |
     ./configure \
         --enable-gumpp \
