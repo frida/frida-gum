@@ -18,13 +18,13 @@
 #include "gumsourcemap.h"
 
 #include <string.h>
+#include <glib/gprintf.h>
 #ifdef _MSC_VER
 # include <intrin.h>
 #endif
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
-#include <glib/gprintf.h>
 
 #define GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY { NULL, }
 

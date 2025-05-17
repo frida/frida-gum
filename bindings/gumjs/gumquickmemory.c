@@ -61,9 +61,6 @@ static void gum_memory_patch_context_apply (gpointer mem,
     GumMemoryPatchContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_check_code_pointer)
 
-static void gum_quick_memory_on_access (GumMemoryAccessMonitor * monitor,
-    const GumMemoryAccessDetails * details, GumQuickMemory * self);
-
 #ifdef HAVE_WINDOWS
 static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
 static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
@@ -86,6 +83,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
 static void gum_quick_memory_clear_monitor (GumQuickMemory * self,
     JSContext * ctx);
+static void gum_quick_memory_on_access (GumMemoryAccessMonitor * monitor,
+    const GumMemoryAccessDetails * details, GumQuickMemory * self);
 
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_thread_id)
 GUMJS_DECLARE_GETTER (gumjs_memory_access_details_get_operation)

@@ -67,7 +67,6 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_ansi_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf8_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf16_string)
-
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan)
 static void gum_memory_scan_context_free (GumMemoryScanContext * self);
 static void gum_memory_scan_context_run (GumMemoryScanContext * self);

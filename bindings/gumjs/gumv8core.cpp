@@ -19,15 +19,15 @@
 #include "gumv8script-priv.h"
 
 #include <ffi.h>
+#include <string.h>
 #include <glib/gprintf.h>
+#include <gum/gum-init.h>
 #ifdef _MSC_VER
 # include <intrin.h>
 #endif
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
-#include <string.h>
-#include <gum/gum-init.h>
 
 #define GUMJS_MODULE_NAME Core
 
