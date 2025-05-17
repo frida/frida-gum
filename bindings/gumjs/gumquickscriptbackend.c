@@ -1262,7 +1262,7 @@ gum_es_program_load_runtime (GumESProgram * self,
                              GDestroyNotify data_destroy)
 {
   JSValue entrypoint, promise, data_obj, on_success, on_failure, then, catch, v;
-  int res;
+  G_GNUC_UNUSED int res;
   GumLoadRuntimeData * d;
 
   entrypoint = gum_compile_module (ctx, self->runtime);
