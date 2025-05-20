@@ -241,7 +241,7 @@ struct _GumPageBlock
 
 G_GNUC_INTERNAL gboolean _gum_darwin_fill_file_mapping (gint pid,
     mach_vm_address_t address, GumFileMapping * file,
-    struct proc_regionwithpathinfo * region);
+    struct proc_regionwithpathinfo * region, GError ** error);
 G_GNUC_INTERNAL void _gum_darwin_clamp_range_size (GumMemoryRange * range,
     const GumFileMapping * file);
 

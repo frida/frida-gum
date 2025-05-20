@@ -10,7 +10,7 @@ namespace Gum.Darwin {
 	public bool query_page_size (Gum.DarwinPort task, out uint page_size);
 	public unowned string query_sysroot ();
 	public bool query_hardened ();
-	public bool query_all_image_infos (Gum.DarwinPort task, out Gum.Darwin.AllImageInfos infos);
+	public bool query_all_image_infos (Gum.DarwinPort task, out Gum.Darwin.AllImageInfos infos) throws Gum.Error;
 	public bool query_mapped_address (Gum.DarwinPort task, Gum.Address address, out Gum.Darwin.MappingDetails details);
 
 	public Gum.Address find_entrypoint (Gum.DarwinPort task);

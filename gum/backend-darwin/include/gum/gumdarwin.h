@@ -145,6 +145,9 @@ typedef struct _GumDarwinPThreadIter GumDarwinPThreadIter;
 typedef struct _GumDarwinPThreadSpec GumDarwinPThreadSpec;
 typedef struct _GumDarwinPThreadList GumDarwinPThreadList;
 typedef struct _GumDarwinPThread GumDarwinPThread;
+typedef struct _GumDarwinImageSnapshot GumDarwinImageSnapshot;
+typedef struct _GumDarwinImage GumDarwinImage;
+typedef struct _GumDarwinImageIter GumDarwinImageIter;
 
 TAILQ_HEAD (_GumDarwinPThreadList, _GumDarwinPThread);
 
@@ -199,6 +202,18 @@ struct _GumDarwinPThread
   TAILQ_ENTRY (_GumDarwinPThread) tl_plist;
 };
 
+struct _GumDarwinImage
+{
+  const gchar * path;
+  GumMemoryRange range;
+};
+
+struct _GumDarwinImageIter
+{
+  const GumDarwinImageSnapshot * snapshot;
+  gint index;
+};
+
 GUM_API gboolean gum_darwin_check_xnu_version (guint major, guint minor,
     guint micro);
 GUM_API gboolean gum_darwin_is_debugger_mapping_enforced (void);
@@ -216,7 +231,7 @@ GUM_API gboolean gum_darwin_query_page_size (mach_port_t task,
 GUM_API const gchar * gum_darwin_query_sysroot (void);
 GUM_API gboolean gum_darwin_query_hardened (void);
 GUM_API gboolean gum_darwin_query_all_image_infos (mach_port_t task,
-    GumDarwinAllImageInfos * infos);
+    GumDarwinAllImageInfos * infos, GError ** error);
 GUM_API gboolean gum_darwin_query_mapped_address (mach_port_t task,
     GumAddress address, GumDarwinMappingDetails * details);
 GUM_API gboolean gum_darwin_query_protection (mach_port_t task,
@@ -236,6 +251,18 @@ GUM_API GumModule * gum_darwin_find_module_by_name (mach_port_t task,
     const gchar * name);
 GUM_API void gum_darwin_enumerate_modules (mach_port_t task,
     GumFoundModuleFunc func, gpointer user_data);
+GUM_API GumDarwinImageSnapshot * gum_darwin_snapshot_images (mach_port_t task,
+    GError ** error);
+GUM_API GumDarwinImageSnapshot * gum_darwin_image_snapshot_ref (
+    GumDarwinImageSnapshot * snapshot);
+GUM_API void gum_darwin_image_snapshot_unref (
+    GumDarwinImageSnapshot * snapshot);
+GUM_API gchar * gum_darwin_image_snapshot_infer_sysroot (
+    const GumDarwinImageSnapshot * self);
+GUM_API void gum_darwin_image_iter_init (GumDarwinImageIter * iter,
+    const GumDarwinImageSnapshot * snapshot);
+GUM_API gboolean gum_darwin_image_iter_next (GumDarwinImageIter * iter,
+    const GumDarwinImage ** image);
 GUM_API void gum_darwin_enumerate_ranges (mach_port_t task,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 GUM_API gboolean gum_darwin_query_thread_state (mach_port_t thread,

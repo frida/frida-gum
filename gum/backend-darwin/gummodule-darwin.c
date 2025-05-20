@@ -652,7 +652,7 @@ gum_native_module_enumerate_ranges (GumModule * module,
         details.file = NULL;
 
         if (pid != 0 && _gum_darwin_fill_file_mapping (pid, range.base_address,
-              &file, &region))
+              &file, &region, NULL))
         {
           details.file = &file;
           _gum_darwin_clamp_range_size (&range, &file);
