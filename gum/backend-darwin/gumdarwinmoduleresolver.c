@@ -318,7 +318,7 @@ gum_darwin_module_resolver_rebuild_indexes (GumDarwinModuleResolver * self,
     mod = g_ptr_array_index (latest_modules, i);
     path = gum_module_get_path (mod);
 
-    if (g_str_has_suffix (path, "/usr/lib/dyld_sim"))
+    if (g_str_has_suffix (path, "/usr/lib/libSystem.B.dylib"))
     {
       sysroot_length = strlen (path) - 17;
       g_free (self->sysroot);
@@ -583,7 +583,7 @@ gum_collect_modules (GumCollectModulesContext * ctx)
   mach_port_t task = ctx->resolver->task;
   GumDarwinAllImageInfos infos;
   gboolean inprocess;
-  const gchar * sysroot;
+  gchar * sysroot = NULL;
   guint sysroot_size;
   gsize i;
   gpointer info_array, info_array_malloc_data = NULL;
@@ -600,7 +600,7 @@ gum_collect_modules (GumCollectModulesContext * ctx)
 
   inprocess = task == mach_task_self ();
 
-  sysroot = inprocess ? gum_darwin_query_sysroot () : NULL;
+  sysroot = gum_darwin_query_sysroot (task);
   sysroot_size = (sysroot != NULL) ? strlen (sysroot) : 0;
 
   if (inprocess)
@@ -776,6 +776,7 @@ fallback:
   gum_collect_modules_forensically (ctx);
 
 beach:
+  g_free (sysroot);
   g_free (file_path_malloc_data);
   g_free (header_malloc_data);
   g_free (info_array_malloc_data);
