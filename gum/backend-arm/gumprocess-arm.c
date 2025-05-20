@@ -27,7 +27,7 @@ _gum_arm_set_breakpoint (guint32 * bcr,
       (GUM_BAS_ANY << 5) |
       GUM_S_USER |
       GUM_BCR_ENABLE;
-  bvr[breakpoint_id] = address;
+  bvr[breakpoint_id] = address & ~1;
 }
 
 void
