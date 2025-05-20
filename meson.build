@@ -17,7 +17,7 @@ endif
 
 frida_version = get_option('frida_version')
 if frida_version == ''
-  frida_version = run_command(python, files(releng / 'frida_version.py'), meson.project_source_root(), check: true).stdout().strip()
+  frida_version = run_command(python, releng / 'frida_version.py', meson.project_source_root(), check: true).stdout().strip()
 endif
 
 api_version = '1.0'
