@@ -4533,6 +4533,9 @@ gum_exec_block_backpatch_inline_cache (GumExecBlock * block,
       from_insn, &target);
 
   ic_entries = from->ic_entries;
+  if (ic_entries == NULL)
+    return;
+
   num_ic_entries = ctx->stalker->ic_entries;
 
   for (i = 0; i != num_ic_entries; i++)
