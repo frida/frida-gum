@@ -95,8 +95,8 @@ gum_darwin_module_resolver_dispose (GObject * object)
   self->load_data = NULL;
   self->load_data_destroy = NULL;
 
-  g_clear_pointer (&self->sorted_modules, g_ptr_array_unref);
   g_clear_pointer (&self->module_by_name, g_hash_table_unref);
+  g_clear_pointer (&self->sorted_modules, g_ptr_array_unref);
   g_clear_pointer (&self->last_modules, g_ptr_array_unref);
 
   G_OBJECT_CLASS (gum_darwin_module_resolver_parent_class)->dispose (object);
