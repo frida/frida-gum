@@ -8128,6 +8128,7 @@ interceptor_attacher_worker (gpointer data)
   }
 
   g_object_unref (listener);
+  g_object_unref (interceptor);
 
   *state = 2;
 

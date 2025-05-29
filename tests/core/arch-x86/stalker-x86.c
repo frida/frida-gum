@@ -3150,6 +3150,8 @@ TESTCASE (prefetch_backpatch)
       prefetch_on_fork, NULL, NULL), ==, GUM_REPLACE_OK);
   gum_interceptor_end_transaction (interceptor);
 
+  g_object_unref (interceptor);
+
   gum_stalker_set_trust_threshold (fixture->stalker, 0);
 
   gum_stalker_follow_me (bp_ctx.stalker, bp_ctx.transformer, NULL);
