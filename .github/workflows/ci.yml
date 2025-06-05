@@ -185,6 +185,16 @@ jobs:
         run: |
           ./configure --host=$XTOOLS_HOST --without-prebuilds=sdk:host ${{ env.GUM_OPTIONS }}
           make
+      - name: Upload Gum devkit
+        uses: actions/upload-artifact@v4
+        with:
+          name: gum-devkit-linux-${{ matrix.arch }}
+          path: build/gum/devkit/
+      - name: Upload GumJS devkit
+        uses: actions/upload-artifact@v4
+        with:
+          name: gumjs-devkit-linux-${{ matrix.arch }}
+          path: build/bindings/gumjs/devkit/
       - name: Run custom container
         uses: addnab/docker-run-action@v3
         with:
