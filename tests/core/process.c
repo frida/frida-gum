@@ -839,7 +839,6 @@ TESTCASE (module_ranges_can_be_enumerated)
 
 TESTCASE (module_sections_can_be_enumerated)
 {
-#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
   GumModule * module;
   TestForEachContext ctx;
 
@@ -857,9 +856,6 @@ TESTCASE (module_sections_can_be_enumerated)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 
   g_object_unref (module);
-#else
-  (void) section_found_cb;
-#endif
 }
 
 TESTCASE (module_dependencies_can_be_enumerated)

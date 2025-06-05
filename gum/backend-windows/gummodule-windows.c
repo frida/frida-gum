@@ -394,6 +394,38 @@ gum_native_module_enumerate_sections (GumModule * module,
                                       GumFoundSectionFunc func,
                                       gpointer user_data)
 {
+  GumNativeModule * self;
+  const guint8 * mod_base;
+  const IMAGE_DOS_HEADER * dos_hdr;
+  const IMAGE_NT_HEADERS * nt_hdrs;
+  const IMAGE_SECTION_HEADER * sec_hdrs;
+  WORD i;
+
+  self = GUM_NATIVE_MODULE (module);
+
+  mod_base = (const guint8 *) self->handle;
+  dos_hdr = (const IMAGE_DOS_HEADER *) self->handle;
+  nt_hdrs = (const IMAGE_NT_HEADERS *) &mod_base[dos_hdr->e_lfanew];
+  sec_hdrs = IMAGE_FIRST_SECTION (nt_hdrs);
+
+  for (i = 0; i != nt_hdrs->FileHeader.NumberOfSections; i++)
+  {
+    const IMAGE_SECTION_HEADER * section = &sec_hdrs[i];
+    GumSectionDetails details;
+    gboolean carry_on;
+
+    details.id = g_strdup_printf ("%d.%s", i, section->Name);
+    details.name = section->Name;
+    details.address = GUM_ADDRESS (mod_base + section->VirtualAddress);
+    details.size = section->SizeOfRawData;
+
+    carry_on = func (&details, user_data);
+
+    g_free ((gpointer) details.id);
+
+    if (!carry_on)
+      break;
+  }
 }
 
 static void

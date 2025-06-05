@@ -6203,13 +6203,11 @@ TESTCASE (module_ranges_can_be_enumerated)
 
 TESTCASE (module_sections_can_be_enumerated)
 {
-#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
   COMPILE_AND_LOAD_SCRIPT (
       "const sections = Process.getModuleByName('%s').enumerateSections();"
       "send(sections.length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
-#endif
 }
 
 TESTCASE (module_dependencies_can_be_enumerated)
