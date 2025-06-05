@@ -836,7 +836,7 @@ static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
 static void gum_enable_hardware_breakpoint (GumNativeRegisterValue * dr7_reg,
     guint index);
 # if GLIB_SIZEOF_VOID_P == 4
-static void gum_collect_export (GArray * impls, const TCHAR * module_name,
+static void gum_collect_export (GArray * impls, const WCHAR * module_name,
     const gchar * export_name);
 static void gum_collect_export_by_handle (GArray * impls,
     HMODULE module_handle, const gchar * export_name);
@@ -6559,12 +6559,12 @@ gum_enable_hardware_breakpoint (GumNativeRegisterValue * dr7_reg,
 
 static void
 gum_collect_export (GArray * impls,
-                    const TCHAR * module_name,
+                    const WCHAR * module_name,
                     const gchar * export_name)
 {
   HMODULE module_handle;
 
-  module_handle = GetModuleHandle (module_name);
+  module_handle = GetModuleHandleW (module_name);
   if (module_handle == NULL)
     return;
 
