@@ -608,7 +608,10 @@ if have_gumjs
     'tests=false',
   ])
 
-  libtcc_dep = dependency('libtcc', required: host_arch not in ['mips', 'mips64'])
+  libtcc_dep = dependency('libtcc',
+    required: (host_abi in ['arm', 'arm64'] and host_machine.endian() == 'little')
+              or (host_abi not in ['arm', 'arm64'] and host_arch not in ['mips', 'mips64'])
+  )
   cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
   if host_arch == 'arm' and cc.has_function('__aeabi_memmove')
