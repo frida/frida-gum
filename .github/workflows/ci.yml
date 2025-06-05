@@ -180,17 +180,17 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v4
         with:
-          submodules: recursive       
+          submodules: recursive
       - name: Build
         run: |
           ./configure --host=$XTOOLS_HOST --without-prebuilds=sdk:host --enable-tests
-          make         
+          make
       - name: Run custom container
         uses: addnab/docker-run-action@v3
         with:
           image: docker:stable
           options: -v ${{ github.workspace }}:/workspace:delegated
-          run: |            
+          run: |
             cat <<EOF > /workspace/initscript
             #!/bin/sh
             dmesg -n1
@@ -262,16 +262,16 @@ jobs:
             EOF
 
             cat <<EOF > /workspace/Dockerfile.ci
-            FROM ghcr.io/frida/x-tools-linux-be-target:latest          
+            FROM ghcr.io/frida/x-tools-linux-be-target:latest
 
             ENV DEBIAN_FRONTEND=noninteractive
             RUN apt-get update && \
                 apt-get install -y \
-                cpio                   
+                cpio
 
             RUN mkdir /tmp/initramfs
             WORKDIR /tmp/initramfs
-            RUN cpio --extract < /root/initramfs.img     
+            RUN cpio --extract < /root/initramfs.img
 
             RUN mkdir /tmp/initramfs/workspace
 
