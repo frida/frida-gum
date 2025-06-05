@@ -183,7 +183,7 @@ jobs:
           submodules: recursive
       - name: Build
         run: |
-          ./configure --host=$XTOOLS_HOST --without-prebuilds=sdk:host --enable-tests
+          ./configure --host=$XTOOLS_HOST --without-prebuilds=sdk:host ${{ env.GUM_OPTIONS }}
           make
       - name: Run custom container
         uses: addnab/docker-run-action@v3
