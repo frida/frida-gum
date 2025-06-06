@@ -1370,6 +1370,8 @@ gum_linux_get_threads_from_list (const GumLinuxPThreadSpec * spec,
 
   do
   {
+    gboolean is_non_anchor_thread;
+
     if (!gum_linux_thread_read_flink (spec, current, &next))
       goto beach;
 
@@ -1379,7 +1381,10 @@ gum_linux_get_threads_from_list (const GumLinuxPThreadSpec * spec,
     if (prev != current)
       goto beach;
 
-    if (gum_linux_query_pthread_tid (current, spec) != 0)
+    is_non_anchor_thread =
+        current != first &&
+        gum_linux_query_pthread_tid (current, spec) != 0;
+    if (is_non_anchor_thread)
       list = g_list_prepend (list, GSIZE_TO_POINTER (current));
 
     current = next;
