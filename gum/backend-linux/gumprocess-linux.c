@@ -158,6 +158,7 @@ typedef gint (* GumCloneFunc) (gpointer arg);
 
 #if defined (HAVE_GLIBC)
 typedef struct _GumLinuxThreadCtx GumLinuxThreadCtx;
+typedef struct _GumTestByAddressContext GumTestByAddressContext;
 typedef struct _GumLinuxGlobalsFragment GumLinuxGlobalsFragment;
 #elif defined (HAVE_MUSL)
 typedef struct _GumMuslStartArgs GumMuslStartArgs;
@@ -326,6 +327,14 @@ struct _GumLinuxThreadCtx
   gpointer ret;
 };
 
+struct _GumTestByAddressContext
+{
+  GumAddress address;
+  gboolean found;
+  gboolean is_pthread_globals;
+  gchar * last_file;
+};
+
 struct _GumLinuxGlobalsFragment
 {
   GumGlibcList _dl_stack_used;
@@ -407,6 +416,11 @@ static gboolean gum_linux_find_tid_offset (GumLinuxPThreadSpec * spec);
 static gboolean gum_linux_check_thread_offset (gsize offset, gboolean * match);
 static gboolean gum_linux_find_list_anchor (GumLinuxPThreadSpec * spec,
     gboolean custom_stack);
+static void gum_test_by_address_context_init (GumTestByAddressContext * ctx,
+    GumAddress address);
+static void gum_test_by_address_context_free (GumTestByAddressContext * ctx);
+static gboolean gum_test_pthread_globals_if_containing_address (
+    const GumRangeDetails * details, GumTestByAddressContext * fc);
 static gboolean gum_linux_find_lock (GumLinuxPThreadSpec * spec);
 static gboolean gum_linux_get_libc_version (guint * major, guint * minor);
 static gboolean gum_linux_find_start_impl (GumLinuxPThreadSpec * spec);
@@ -3338,18 +3352,58 @@ gum_linux_find_list_anchor (GumLinuxPThreadSpec * spec,
 
   do
   {
+    gpointer current_list_head;
     GumThreadId tid;
+    gboolean is_valid_anchor;
+
+    current_list_head = GSIZE_TO_POINTER (current) + spec->flink_offset;
 
     /*
      * If we get the TID from our thread and check if exists then if it doesn't
      * we have probably found the list anchor. But we check we don't find more
      * than one that fails.
      */
+
     tid = gum_linux_query_pthread_tid (current, spec);
-    if (tid != 0 && !gum_process_has_thread (tid))
+    if (gum_process_has_thread (tid))
+    {
+      /* If the TID is of a valid thread, then this is not the list anchor. */
+      is_valid_anchor = FALSE;
+    }
+    else if (tid == 0)
+    {
+      GumTestByAddressContext tba;
+
+      /*
+       * If our TID is zero, then this can indicate a thread that has exited,
+       * but not yet been joined. So in this case, we will perform an additional
+       * check that our list anchor is in a mapping backed by a file. It should
+       * be in the globals of libc.so or libpthread.so, whereas our pthreads
+       * themselves live at the base of the thread stacks. This should avoid any
+       * false positives. We don't do this check for every candidate as it
+       * requires us to walk the memory map which may add a lot of overhead.
+       */
+      gum_test_by_address_context_init (&tba, GUM_ADDRESS (current_list_head));
+
+      gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS,
+          (GumFoundRangeFunc) gum_test_pthread_globals_if_containing_address,
+          &tba);
+      if (!tba.found)
+        goto beach;
+
+      is_valid_anchor = tba.is_pthread_globals;
+
+      gum_test_by_address_context_free (&tba);
+    }
+    else
+    {
+      is_valid_anchor = TRUE;
+    }
+
+    if (is_valid_anchor)
     {
       if (anchor == NULL)
-        anchor = GSIZE_TO_POINTER (current) + spec->flink_offset;
+        anchor = current_list_head;
       else
         goto beach;
     }
@@ -3391,6 +3445,82 @@ beach:
   }
 
   return success;
+}
+
+static void
+gum_test_by_address_context_init (GumTestByAddressContext * ctx,
+                                  GumAddress address)
+{
+  ctx->address = address;
+  ctx->found = FALSE;
+  ctx->is_pthread_globals = FALSE;
+  ctx->last_file = NULL;
+}
+
+static void
+gum_test_by_address_context_free (GumTestByAddressContext * ctx)
+{
+  g_free (ctx->last_file);
+}
+
+static gboolean
+gum_test_pthread_globals_if_containing_address (const GumRangeDetails * details,
+                                                GumTestByAddressContext * fc)
+{
+  /*
+   * Our list anchors are globals within the library containing the pthreads
+   * implementatinon. This is typically either within libc.so itself, or a
+   * standalone libpthreads.so depending on the configuration of libc.
+   *
+   * Since our global may reside either within the .data or .bss sections of the
+   * library, we check for both. In the case of the .data section, we can check
+   * the filename of the mapping to see if it's a pthreads library (this will be
+   * a private mapping of the library such that modifications are not written
+   * back to the original file).
+   *
+   * If our global is within the .bss, then this will typically be an anonymous
+   * mapping. But should immediately follow the mappings of the library in the
+   * address map. We therefore cache the filename of the previous mapping at
+   * each iteration, such that we can check for this case too.
+   */
+  static const gchar * libs[] = { "/libc", "/libpthread" };
+
+  if (GUM_MEMORY_RANGE_INCLUDES (details->range, fc->address))
+  {
+    guint i;
+
+    fc->found = TRUE;
+
+    for (i = 0; i != G_N_ELEMENTS (libs) && !fc->is_pthread_globals; i++)
+    {
+      gboolean current_mapping_is_a_pthreads_library;
+      gboolean previous_mapping_was_a_pthreads_library;
+
+      current_mapping_is_a_pthreads_library =
+          details->file != NULL &&
+          details->file->path != NULL &&
+          strstr (details->file->path, libs[i]) != NULL;
+      if (current_mapping_is_a_pthreads_library)
+        fc->is_pthread_globals = TRUE;
+
+      previous_mapping_was_a_pthreads_library =
+          fc->last_file != NULL &&
+          strstr (fc->last_file, libs[i]) != NULL;
+      if (previous_mapping_was_a_pthreads_library)
+        fc->is_pthread_globals = TRUE;
+    }
+  }
+  else
+  {
+    g_free (fc->last_file);
+
+    if (details->file != NULL)
+      fc->last_file = g_strdup (details->file->path);
+    else
+      fc->last_file = NULL;
+  }
+
+  return !fc->found;
 }
 
 static gboolean
