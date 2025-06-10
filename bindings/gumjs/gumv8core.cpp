@@ -444,9 +444,9 @@ static gboolean gum_v8_ffi_type_get (GumV8Core * core, Local<Value> name,
 static gboolean gum_v8_ffi_abi_get (GumV8Core * core, Local<Value> name,
     ffi_abi * abi);
 static gboolean gum_v8_value_to_ffi_type (GumV8Core * core,
-    const Local<Value> svalue, GumFFIValue * value, const ffi_type * type);
+    const Local<Value> svalue, GumFFIArg * value, const ffi_type * type);
 static gboolean gum_v8_value_from_ffi_type (GumV8Core * core,
-    Local<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
+    Local<Value> * svalue, const GumFFIRet * value, const ffi_type * type);
 
 static const GumV8Function gumjs_global_functions[] =
 {
@@ -3405,13 +3405,13 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   auto atypes = cif->arg_types;
   gsize rsize = MAX (rtype->size, sizeof (gsize));
   gsize ralign = MAX (rtype->alignment, sizeof (gsize));
-  auto rvalue = (GumFFIValue *) g_alloca (rsize + ralign - 1);
-  rvalue = GUM_ALIGN_POINTER (GumFFIValue *, rvalue, ralign);
+  auto rvalue = (GumFFIRet *) g_alloca (rsize + ralign - 1);
+  rvalue = GUM_ALIGN_POINTER (GumFFIRet *, rvalue, ralign);
 
   void ** avalue;
   guint8 * avalues;
   ffi_cif tmp_cif;
-  GumFFIValue tmp_value = { 0, };
+  GumFFIArg tmp_value = { 0, };
 
   if (num_args_provided > 0)
   {
@@ -3460,7 +3460,7 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
 
       offset = GUM_ALIGN_SIZE (offset, t->alignment);
 
-      auto v = (GumFFIValue *) (avalues + offset);
+      auto v = (GumFFIArg *) (avalues + offset);
 
       if (!gum_v8_value_to_ffi_type (core,
           (argv != nullptr) ? argv[i] : info[i], v, t))
@@ -3957,7 +3957,8 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   gum_v8_native_callback_ref (self);
 
   auto rtype = cif->rtype;
-  auto retval = (GumFFIValue *) return_value;
+  GumFFIArg tmp_value = { 0, };
+  auto retval = (GumFFIRet *) return_value;
   if (rtype != &ffi_type_void)
   {
     /*
@@ -3973,7 +3974,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   {
     new (&argv[i]) Local<Value> ();
     if (!gum_v8_value_from_ffi_type (self->core, &argv[i],
-        (GumFFIValue *) args[i], cif->arg_types[i]))
+        (GumFFIRet *) args[i], cif->arg_types[i]))
     {
       for (guint j = 0; j <= i; j++)
         argv[j].~Local<Value> ();
@@ -4035,7 +4036,10 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   if (cif->rtype != &ffi_type_void)
   {
     if (have_result)
-      gum_v8_value_to_ffi_type (self->core, result, retval, cif->rtype);
+    {
+      gum_v8_value_to_ffi_type (self->core, result, &tmp_value, cif->rtype);
+      gum_ffi_arg_to_ret (cif->rtype, &tmp_value, retval);
+    }
   }
 
   for (guint i = 0; i != cif->nargs; i++)
@@ -4711,7 +4715,7 @@ gum_v8_ffi_abi_get (GumV8Core * core,
 static gboolean
 gum_v8_value_to_ffi_type (GumV8Core * core,
                           const Local<Value> svalue,
-                          GumFFIValue * value,
+                          GumFFIArg * value,
                           const ffi_type * type)
 {
   auto isolate = core->isolate;
@@ -4855,7 +4859,7 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
-      auto field_value = (GumFFIValue *) (field_values + offset);
+      auto field_value = (GumFFIArg *) (field_values + offset);
       Local<Value> field_svalue;
       if (field_svalues->Get (context, i).ToLocal (&field_svalue))
       {
@@ -4896,7 +4900,7 @@ error_unsupported_type:
 static gboolean
 gum_v8_value_from_ffi_type (GumV8Core * core,
                             Local<Value> * svalue,
-                            const GumFFIValue * value,
+                            const GumFFIRet * value,
                             const ffi_type * type)
 {
   auto isolate = core->isolate;
@@ -5011,7 +5015,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
-      auto field_value = (const GumFFIValue *) (field_values + offset);
+      auto field_value = (const GumFFIRet *) (field_values + offset);
       Local<Value> field_svalue;
       if (gum_v8_value_from_ffi_type (core, &field_svalue, field_value,
           field_type))
