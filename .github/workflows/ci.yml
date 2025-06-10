@@ -52,8 +52,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - { id: windows-x86_64, runner: '"windows-latest"'                    }
-          - { id: windows-x86,    runner: '"windows-latest"'                    }
+          - { id: windows-x86_64, runner: '"windows-2022"'                      }
+          - { id: windows-x86,    runner: '"windows-2022"'                      }
           - { id: macos-x86_64,   runner: '"macos-13"'                          }
           - { id: macos-arm64,    runner: '"macos-latest"'                      }
           - { id: linux-x86_64,   runner: '"ubuntu-latest"'                     }
