@@ -5855,39 +5855,60 @@ TESTCASE (process_module_can_be_looked_up_from_address)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 
+  /*
+   * We can hit problems here with targets where the ld.so library doesn't have
+   * contiguous segments (such as on aarch64_be). On these systems, libraries
+   * can be loaded within the gaps between these non-contiguous segments. The
+   * VDSO, due to its small size, can be located within these gaps. Thus, when
+   * attempting to find a module based upon the base address of the VDSO, we may
+   * instead find the ld.so library.
+   *
+   * In order to accomodate this issue, rather than checking that we find the
+   * module we expect by matching its name, we instead check that the returned
+   * module simply contains the address which we queried.
+   *
+   * For APIS such as `findName` and `findPath`, we match these against the
+   * values of the library found when calling `get` (since we expect at least
+   * our implementation to return a consistent result for a requested address),
+   * even though there may infact be more than one module which contains the
+   * given address.
+   */
   COMPILE_AND_LOAD_SCRIPT (
       "const map = new ModuleMap();"
       "const someModule = Process.enumerateModules()[1];"
+      "const someBase = someModule.base;"
 
-      "send(map.has(someModule.base));"
+      "send(map.has(someBase));"
       "send(map.has(ptr(1)));"
 
-      "let foundModule = map.find(someModule.base);"
+      "let foundModule = map.find(someBase);"
       "send(foundModule !== null);"
-      "send(foundModule.name === someModule.name);"
+      "send(foundModule.base.compare(someBase) <= 0);"
+      "send(foundModule.base.add(foundModule.size).compare(someBase) > 0);"
       "send(map.find(ptr(1)));"
 
       "map.update();"
-      "foundModule = map.get(someModule.base);"
-      "send(foundModule.name === someModule.name);"
+      "foundModule = map.get(someBase);"
+      "send(foundModule.base.compare(someBase) <= 0);"
+      "send(foundModule.base.add(foundModule.size).compare(someBase) > 0);"
       "try {"
       "  map.get(ptr(1));"
       "} catch (e) {"
       "  send(e.message);"
       "}"
 
-      "send(map.findName(someModule.base) === someModule.name);"
+      "send(map.findName(someBase) === foundModule.name);"
       "send(map.findName(ptr(1)));"
-      "send(map.getName(someModule.base) === someModule.name);"
+      "send(map.getName(someBase) === foundModule.name);"
       "try {"
       "  map.getName(ptr(1));"
       "} catch (e) {"
       "  send(e.message);"
       "}"
 
-      "send(map.findPath(someModule.base) === someModule.path);"
+      "send(map.findPath(someBase) === foundModule.path);"
       "send(map.findPath(ptr(1)));"
-      "send(map.getPath(someModule.base) === someModule.path);"
+      "send(map.getPath(someBase) === foundModule.path);"
       "try {"
       "  map.getPath(ptr(1));"
       "} catch (e) {"
@@ -5899,8 +5920,10 @@ TESTCASE (process_module_can_be_looked_up_from_address)
 
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("null");
 
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"unable to find module containing 0x1\"");
 
