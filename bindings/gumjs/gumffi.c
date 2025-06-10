@@ -115,6 +115,103 @@ static const GumFFIABIMapping gum_ffi_abi_mappings[] =
 #endif
 };
 
+void
+gum_ffi_arg_to_ret (const ffi_type * type,
+                    GumFFIArg * arg,
+                    GumFFIRet * ret)
+{
+  if (type == &ffi_type_void)
+  {
+    ret->v_pointer = arg->v_pointer;
+  }
+  else if (type == &ffi_type_pointer)
+  {
+    ret->v_pointer = arg->v_pointer;
+  }
+  else if (type == &ffi_type_sint8)
+  {
+    ret->v_sint8 = arg->v_sint8;
+  }
+  else if (type == &ffi_type_uint8)
+  {
+    ret->v_uint8 = arg->v_uint8;
+  }
+  else if (type == &ffi_type_sint16)
+  {
+    ret->v_sint16 = arg->v_sint16;
+  }
+  else if (type == &ffi_type_uint16)
+  {
+    ret->v_uint16 = arg->v_uint16;
+  }
+  else if (type == &ffi_type_sint32)
+  {
+    ret->v_sint32 = arg->v_sint32;
+  }
+  else if (type == &ffi_type_uint32)
+  {
+    ret->v_uint32 = arg->v_uint32;
+  }
+  else if (type == &ffi_type_sint64)
+  {
+    ret->v_sint64 = arg->v_sint64;
+  }
+  else if (type == &ffi_type_uint64)
+  {
+    ret->v_uint64 = arg->v_uint64;
+  }
+  else if (type == &gum_ffi_type_size_t)
+  {
+    switch (type->size)
+    {
+      case 8:
+        ret->v_uint64 = arg->v_uint64;
+        break;
+      case 4:
+        ret->v_uint32 = arg->v_uint32;
+        break;
+      case 2:
+        ret->v_uint16 = arg->v_uint16;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
+  else if (type == &gum_ffi_type_ssize_t)
+  {
+    switch (type->size)
+    {
+      case 8:
+        ret->v_sint64 = arg->v_sint64;
+        break;
+      case 4:
+        ret->v_sint32 = arg->v_sint32;
+        break;
+      case 2:
+        ret->v_sint16 = arg->v_sint16;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
+  else if (type == &ffi_type_float)
+  {
+    ret->v_float = arg->v_float;
+  }
+  else if (type == &ffi_type_double)
+  {
+    ret->v_double = arg->v_double;
+  }
+  else if (type->type == FFI_TYPE_STRUCT)
+  {
+    g_assert_not_reached ();
+  }
+  else
+  {
+    g_assert_not_reached ();
+  }
+}
+
 gboolean
 gum_ffi_try_get_type_by_name (const gchar * name,
                               ffi_type ** type)

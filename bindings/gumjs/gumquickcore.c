@@ -443,9 +443,9 @@ static gboolean gum_quick_ffi_type_get (JSContext * ctx, JSValueConst val,
 static gboolean gum_quick_ffi_abi_get (JSContext * ctx, const gchar * name,
     ffi_abi * abi);
 static gboolean gum_quick_value_to_ffi (JSContext * ctx, JSValueConst sval,
-    const ffi_type * type, GumQuickCore * core, GumFFIValue * val);
+    const ffi_type * type, GumQuickCore * core, GumFFIArg * val);
 static JSValue gum_quick_value_from_ffi (JSContext * ctx,
-    const GumFFIValue * val, const ffi_type * type, GumQuickCore * core);
+    const GumFFIRet * val, const ffi_type * type, GumQuickCore * core);
 
 static void gum_quick_core_setup_atoms (GumQuickCore * self);
 static void gum_quick_core_teardown_atoms (GumQuickCore * self);
@@ -4251,11 +4251,11 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
   ffi_type * rtype;
   ffi_type ** atypes;
   gsize rsize, ralign;
-  GumFFIValue * rvalue;
+  GumFFIRet * rvalue;
   void ** avalue;
   guint8 * avalues;
   ffi_cif tmp_cif;
-  GumFFIValue tmp_value = { 0, };
+  GumFFIArg tmp_value = { 0, };
   GumQuickSchedulingBehavior scheduling;
   GumQuickExceptionsBehavior exceptions;
   GumQuickCodeTraps traps;
@@ -4277,7 +4277,7 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
   rsize = MAX (rtype->size, sizeof (gsize));
   ralign = MAX (rtype->alignment, sizeof (gsize));
   rvalue = g_alloca (rsize + ralign - 1);
-  rvalue = GUM_ALIGN_POINTER (GumFFIValue *, rvalue, ralign);
+  rvalue = GUM_ALIGN_POINTER (GumFFIRet *, rvalue, ralign);
 
   if (argc > 0)
   {
@@ -4325,11 +4325,11 @@ gum_quick_ffi_function_invoke (GumQuickFFIFunction * self,
     for (i = 0; i != argc; i++)
     {
       ffi_type * t;
-      GumFFIValue * v;
+      GumFFIArg * v;
 
       t = atypes[i];
       offset = GUM_ALIGN_SIZE (offset, t->alignment);
-      v = (GumFFIValue *) (avalues + offset);
+      v = (GumFFIArg *) (avalues + offset);
 
       if (!gum_quick_value_to_ffi (ctx, argv[i], t, core, v))
         return JS_EXCEPTION;
@@ -4952,7 +4952,8 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   GumQuickScope scope;
   JSContext * ctx = core->ctx;
   ffi_type * rtype = cif->rtype;
-  GumFFIValue * retval = return_value;
+  GumFFIArg tmp_value = { 0, };
+  GumFFIRet * retval = return_value;
   GumInvocationContext * ic;
   GumQuickInvocationContext * jic = NULL;
   JSValue this_obj;
@@ -5064,8 +5065,10 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 
   if (!JS_IsException (result) && cif->rtype != &ffi_type_void)
   {
-    if (!gum_quick_value_to_ffi (ctx, result, cif->rtype, core, retval))
+    if (!gum_quick_value_to_ffi (ctx, result, cif->rtype, core, &tmp_value))
       _gum_quick_scope_catch_and_emit (&scope);
+
+    gum_ffi_arg_to_ret (cif->rtype, &tmp_value, retval);
   }
   JS_FreeValue (ctx, result);
 
@@ -5878,7 +5881,7 @@ gum_quick_value_to_ffi (JSContext * ctx,
                         JSValueConst sval,
                         const ffi_type * type,
                         GumQuickCore * core,
-                        GumFFIValue * val)
+                        GumFFIArg * val)
 {
   gint i;
   guint u;
@@ -6018,13 +6021,13 @@ gum_quick_value_to_ffi (JSContext * ctx,
     for (field_index = 0; field_index != length; field_index++)
     {
       const ffi_type * field_type = field_types[field_index];
-      GumFFIValue * field_val;
+      GumFFIArg * field_val;
       JSValue field_sval;
       gboolean valid;
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
-      field_val = (GumFFIValue *) (field_values + offset);
+      field_val = (GumFFIArg *) (field_values + offset);
 
       field_sval = JS_GetPropertyUint32 (ctx, sval, field_index);
       if (JS_IsException (field_sval))
@@ -6051,7 +6054,7 @@ gum_quick_value_to_ffi (JSContext * ctx,
 
 static JSValue
 gum_quick_value_from_ffi (JSContext * ctx,
-                          const GumFFIValue * val,
+                          const GumFFIRet * val,
                           const ffi_type * type,
                           GumQuickCore * core)
 {
@@ -6167,11 +6170,11 @@ gum_quick_value_from_ffi (JSContext * ctx,
     for (i = 0; i != length; i++)
     {
       const ffi_type * field_type = field_types[i];
-      const GumFFIValue * field_val;
+      const GumFFIRet * field_val;
       JSValue field_sval;
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
-      field_val = (const GumFFIValue *) (field_values + offset);
+      field_val = (const GumFFIRet *) (field_values + offset);
 
       field_sval = gum_quick_value_from_ffi (ctx, field_val, field_type, core);
 
