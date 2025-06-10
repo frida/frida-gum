@@ -218,10 +218,15 @@ jobs:
             cat /etc/motd
             export PS1='\u@frida:\w\$ '
             /root/gum-tests
-            if [ $? -eq 0 ]; then
+            status=$?
+            echo "exit status: $status"
+            if [ $status -eq 0 ]; then
               echo EXIT_OK
+            elif [ $status -gt 128 ]; then
+              signal=$((status - 128))
+              echo "EXIT_FAIL (terminated by signal $signal)"
             else
-              echo EXIT_FAIL
+              echo EXIT_FAIL (exit code $status)
             fi
             EOF
 
