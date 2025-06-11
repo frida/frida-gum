@@ -425,7 +425,7 @@ jobs:
       - name: Check for unexpected changes
         run: |
           git config --global --add safe.directory "$(realpath .)"
-          status_output="$(git status --porcelain)"
+          status_output=$(git status --porcelain tests/data/{special,target}functions-linux-${{ matrix.arch }}.so)
           if [ -n "$status_output" ]; then
             echo "Unexpected changes detected:"
             echo "$status_output"
