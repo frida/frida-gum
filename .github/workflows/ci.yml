@@ -411,6 +411,7 @@ jobs:
     strategy:
       matrix:
         arch: [x86, x86_64, armhf, armbe8, arm64, arm64be, arm64beilp32, mips, mipsel, mips64, mips64el]
+      fail-fast: false
     runs-on: ubuntu-latest
     container: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
     steps:

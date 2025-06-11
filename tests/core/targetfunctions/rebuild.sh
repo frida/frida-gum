@@ -75,13 +75,6 @@ build_arch () {
     export CC="gcc -m32" CXX="g++ -m32" STRIP="strip"
   fi
 
-  case "$ARCH" in
-  armbe8 | arm64be | arm64beilp32)
-    EXTRA_FLAGS+=("--without-prebuilds=sdk:host")
-    EXTRA_FLAGS+=("--without-prebuilds=sdk:build")
-    ;;
-  esac
-
   export FRIDA_HOST=linux-$ARCH
 
   cd "$FRIDA_GUM_DIR"
