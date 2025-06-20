@@ -852,8 +852,7 @@ gum_kernel_is_header (GumAddress address)
   result = TRUE;
 
 bail_out:
-  if (header != NULL)
-    g_free (header);
+  g_free (header);
 
   return result;
 }
