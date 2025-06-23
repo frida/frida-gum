@@ -60,7 +60,7 @@ Frida [releases][] page.
 [DebugSymbol]: https://github.com/frida/frida-gum/blob/master/gum/gumsymbolutil.h
 [Backtracer]: https://github.com/frida/frida-gum/blob/master/gum/gumbacktracer.h
 [Kernel]: https://github.com/frida/frida-gum/blob/master/gum/gumkernel.h
-[Gum.Darwin.Mapper]: https://github.com/frida/frida-gum/blob/master/gum/backend-darwin/gumdarwinmapper.h
+[Gum.Darwin.Mapper]: https://github.com/frida/frida-gum/blob/master/gum/backend-darwin/include/gum/gumdarwinmapper.h
 [X86Writer]: https://github.com/frida/frida-gum/blob/master/gum/arch-x86/gumx86writer.h
 [ArmWriter]: https://github.com/frida/frida-gum/blob/master/gum/arch-arm/gumarmwriter.h
 [ThumbWriter]: https://github.com/frida/frida-gum/blob/master/gum/arch-arm/gumthumbwriter.h
