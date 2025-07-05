@@ -1064,7 +1064,7 @@ namespace Gum {
 		public uint64 vm_size;
 		public uint64 file_offset;
 		public uint64 file_size;
-		public Gum.DarwinPageProtection protection;
+		public Gum.PageProtection protection;
 	}
 
 	public struct ElfSectionDetails {
