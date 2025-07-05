@@ -17,7 +17,6 @@ using namespace v8;
 
 # define GUM_NATIVE_INPUT_STREAM "Win32InputStream"
 # define GUM_NATIVE_OUTPUT_STREAM "Win32OutputStream"
-# define GUM_NATIVE_KIND "Windows file handle"
 # define GUM_NATIVE_FORMAT "p"
 typedef gpointer GumStreamHandle;
 #else
@@ -26,7 +25,6 @@ typedef gpointer GumStreamHandle;
 
 # define GUM_NATIVE_INPUT_STREAM "UnixInputStream"
 # define GUM_NATIVE_OUTPUT_STREAM "UnixOutputStream"
-# define GUM_NATIVE_KIND "file descriptor"
 # define GUM_NATIVE_FORMAT "i"
 typedef gint GumStreamHandle;
 #endif

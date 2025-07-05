@@ -14,7 +14,6 @@
 
 # define GUM_NATIVE_INPUT_STREAM "Win32InputStream"
 # define GUM_NATIVE_OUTPUT_STREAM "Win32OutputStream"
-# define GUM_NATIVE_KIND "Windows file handle"
 typedef gpointer GumStreamHandle;
 #else
 # include <gio/gunixinputstream.h>
@@ -22,7 +21,6 @@ typedef gpointer GumStreamHandle;
 
 # define GUM_NATIVE_INPUT_STREAM "UnixInputStream"
 # define GUM_NATIVE_OUTPUT_STREAM "UnixOutputStream"
-# define GUM_NATIVE_KIND "file descriptor"
 typedef gint GumStreamHandle;
 #endif
 
