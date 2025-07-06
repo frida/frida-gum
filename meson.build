@@ -422,6 +422,7 @@ if get_option('devkits').length() != 0
   mkdevkit = [python, releng / 'mkdevkit.py']
   uninstalled_dir = meson.global_build_root() / 'meson-uninstalled'
   devkit_options = [
+    '--dep-symbol-scope', get_option('devkit_symbol_scope'),
     '--cc', '>>>', cc.cmd_array(), '<<<',
     '--c-args', '>>>', get_option('c_args'), '<<<',
     '--pkg-config', '>>>', find_program('pkg-config'), '<<<',

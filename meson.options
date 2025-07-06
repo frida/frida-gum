@@ -66,6 +66,15 @@ option('devkits',
   description: 'Devkits to build'
 )
 
+option('devkit_symbol_scope',
+  type: 'combo',
+  choices: ['prefixed', 'original'],
+  value: 'prefixed',
+  description : 'How devkit generation treats third-party symbols:\n'
+                + ' - prefixed: add the \'_frida_\' prefix\n'
+                + ' - original: keep symbols exactly as upstream\n'
+)
+
 option('tests',
   type: 'feature',
   value: 'auto',
