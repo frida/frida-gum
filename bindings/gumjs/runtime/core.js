@@ -345,7 +345,7 @@ Object.defineProperties(Thread, {
   },
 });
 
-if (globalThis.Interceptor !== undefined) {
+if ('Interceptor' in globalThis) {
   Object.defineProperties(Interceptor, {
     attach: {
       enumerable: true,
@@ -371,7 +371,7 @@ if (globalThis.Interceptor !== undefined) {
   });
 }
 
-if (globalThis.Stalker !== undefined) {
+if ('Stalker' in globalThis) {
   const stalkerEventType = {
     call: 1,
     ret: 2,
@@ -668,7 +668,7 @@ SourceMap.prototype.resolve = function (generatedPosition) {
   return {source, line, column, name};
 };
 
-if (globalThis.SqliteDatabase !== undefined) {
+if ('SqliteDatabase' in globalThis) {
   const sqliteOpenFlags = {
     readonly: 1,
     readwrite: 2,
