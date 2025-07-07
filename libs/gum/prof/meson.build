@@ -65,6 +65,14 @@ if host_os_family == 'qnx'
   ]
 endif
 
+if host_os_family == 'none'
+  gum_prof_sources += [
+    'gumbusycyclesampler-barebone.c',
+    'gumcyclesampler-barebone.c',
+    'gumusertimesampler-barebone.c',
+  ]
+endif
+
 install_headers(gum_prof_headers, subdir: install_header_subdir / 'prof')
 
 gum_prof = library('frida-gum-prof-' + api_version, gum_prof_sources,

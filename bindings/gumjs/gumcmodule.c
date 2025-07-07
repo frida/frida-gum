@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,8 +20,10 @@
 static GumCModule * gum_tcc_cmodule_new (const gchar * source,
     const GumCModuleOptions * options, GError ** error);
 #endif
+#ifndef G_OS_NONE
 static GumCModule * gum_gcc_cmodule_new (const gchar * source, GBytes * binary,
     const GumCModuleOptions * options, GError ** error) G_GNUC_UNUSED;
+#endif
 #ifdef HAVE_DARWIN
 static GumCModule * gum_darwin_cmodule_new (const gchar * source,
     GBytes * binary, const GumCModuleOptions * options, GError ** error);
@@ -55,12 +57,14 @@ static void gum_emit_builtin_define (const gchar * name, const gchar * value,
 static void gum_emit_builtin_define_str (const gchar * name,
     const gchar * value, GumFoundCDefineFunc func, gpointer user_data);
 
+#ifndef G_OS_NONE
 static void gum_csymbol_details_destroy (GumCSymbolDetails * details);
 
 static gboolean gum_populate_include_dir (const gchar * path, GError ** error);
 static void gum_rmtree (GFile * file);
 static gboolean gum_call_tool (const gchar * cwd, const gchar * const * argv,
     gchar ** output, gint * exit_status, GError ** error);
+#endif
 static void gum_append_error (GString ** messages, const char * msg);
 
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (GumCModule, gum_cmodule, G_TYPE_OBJECT);
@@ -142,8 +146,12 @@ gum_cmodule_new (const gchar * source,
     case GUM_CMODULE_TOOLCHAIN_EXTERNAL:
 #ifdef HAVE_DARWIN
       return gum_darwin_cmodule_new (source, binary, options, error);
-#else
+#elif !defined (G_OS_NONE)
       return gum_gcc_cmodule_new (source, binary, options, error);
+#else
+      g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+          "External toolchain is not supported by the Barebone backend");
+      return NULL;
 #endif
     default:
       g_assert_not_reached ();
@@ -808,6 +816,8 @@ gum_undecorate_name (const gchar * name)
 }
 
 #endif /* HAVE_TINYCC */
+
+#ifndef G_OS_NONE
 
 #define GUM_TYPE_GCC_CMODULE (gum_gcc_cmodule_get_type ())
 G_DECLARE_FINAL_TYPE (GumGccCModule, gum_gcc_cmodule, GUM, GCC_CMODULE,
@@ -1811,6 +1821,8 @@ propagate_error:
     return FALSE;
   }
 }
+
+#endif /* !G_OS_NONE */
 
 static void
 gum_append_error (GString ** messages,

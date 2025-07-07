@@ -142,6 +142,7 @@ typedef GumMipsCpuContext GumCpuContext;
 
 enum _GumOS
 {
+  GUM_OS_NONE,
   GUM_OS_WINDOWS,
   GUM_OS_MACOS,
   GUM_OS_LINUX,

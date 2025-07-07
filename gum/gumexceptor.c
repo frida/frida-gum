@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -475,8 +475,12 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 static void
 gum_exceptor_scope_perform_longjmp (GumExceptorScope * self)
 {
-#ifdef HAVE_ANDROID
+#ifdef G_OS_NONE
+  g_assert_not_reached ();
+#else
+# ifdef HAVE_ANDROID
   sigprocmask (SIG_SETMASK, &self->mask, NULL);
-#endif
+# endif
   GUM_NATIVE_LONGJMP (self->env, 1);
+#endif
 }

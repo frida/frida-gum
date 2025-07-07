@@ -84,6 +84,7 @@ namespace Gum {
 	}
 
 	public enum OS {
+		NONE,
 		WINDOWS,
 		MACOS,
 		LINUX,

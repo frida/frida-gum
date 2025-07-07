@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -17,21 +17,16 @@ G_BEGIN_DECLS
 #define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
 G_DECLARE_FINAL_TYPE (GumExceptor, gum_exceptor, GUM, EXCEPTOR, GObject)
 
-#if defined (G_OS_WIN32) || defined (__APPLE__)
+#if defined (GUM_GIR_COMPILATION)
+  typedef int GumExceptorNativeJmpBuf;
+#elif defined (G_OS_WIN32) || defined (G_OS_NONE) || defined (__APPLE__)
 # define GUM_NATIVE_SETJMP(env) setjmp (env)
 # define GUM_NATIVE_LONGJMP longjmp
-# ifndef GUM_GIR_COMPILATION
   typedef jmp_buf GumExceptorNativeJmpBuf;
-# endif
 #else
 # define GUM_NATIVE_SETJMP(env) sigsetjmp (env, TRUE)
 # define GUM_NATIVE_LONGJMP siglongjmp
-# ifndef GUM_GIR_COMPILATION
   typedef sigjmp_buf GumExceptorNativeJmpBuf;
-# endif
-#endif
-#ifdef GUM_GIR_COMPILATION
-typedef int GumExceptorNativeJmpBuf;
 #endif
 
 typedef struct _GumExceptionDetails GumExceptionDetails;

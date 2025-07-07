@@ -87,8 +87,10 @@ struct _GumV8Script
   GumV8Process process;
   GumV8File file;
   GumV8Checksum checksum;
+#ifndef G_OS_NONE
   GumV8Stream stream;
   GumV8Socket socket;
+#endif
 #ifdef HAVE_SQLITE
   GumV8Database database;
 #endif

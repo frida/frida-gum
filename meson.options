@@ -55,7 +55,7 @@ option('v8',
 
 option('database',
   type: 'feature',
-  value: 'enabled',
+  value: 'auto',
   description: 'Build JavaScript bindings with Database API included'
 )
 

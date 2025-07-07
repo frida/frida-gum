@@ -44,6 +44,8 @@
 # define GUM_SCRIPT_PLATFORM "freebsd"
 #elif defined (HAVE_QNX)
 # define GUM_SCRIPT_PLATFORM "qnx"
+#elif defined (G_OS_NONE)
+# define GUM_SCRIPT_PLATFORM "barebone"
 #endif
 
 using namespace v8;

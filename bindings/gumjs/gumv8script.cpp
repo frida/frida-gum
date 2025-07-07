@@ -547,8 +547,10 @@ gum_v8_script_create_context (GumV8Script * self,
         &self->core, global_templ);
     _gum_v8_file_init (&self->file, &self->core, global_templ);
     _gum_v8_checksum_init (&self->checksum, &self->core, global_templ);
+#ifndef G_OS_NONE
     _gum_v8_stream_init (&self->stream, &self->core, global_templ);
     _gum_v8_socket_init (&self->socket, &self->core, global_templ);
+#endif
 #ifdef HAVE_SQLITE
     _gum_v8_database_init (&self->database, &self->core, global_templ);
 #endif
@@ -586,8 +588,10 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_process_realize (&self->process);
     _gum_v8_file_realize (&self->file);
     _gum_v8_checksum_realize (&self->checksum);
+#ifndef G_OS_NONE
     _gum_v8_stream_realize (&self->stream);
     _gum_v8_socket_realize (&self->socket);
+#endif
 #ifdef HAVE_SQLITE
     _gum_v8_database_realize (&self->database);
 #endif
@@ -1147,8 +1151,10 @@ gum_v8_script_destroy_context (GumV8Script * self)
 #ifdef HAVE_SQLITE
     _gum_v8_database_dispose (&self->database);
 #endif
+#ifndef G_OS_NONE
     _gum_v8_socket_dispose (&self->socket);
     _gum_v8_stream_dispose (&self->stream);
+#endif
     _gum_v8_checksum_dispose (&self->checksum);
     _gum_v8_file_dispose (&self->file);
     _gum_v8_process_dispose (&self->process);
@@ -1182,8 +1188,10 @@ gum_v8_script_destroy_context (GumV8Script * self)
 #ifdef HAVE_SQLITE
   _gum_v8_database_finalize (&self->database);
 #endif
+#ifndef G_OS_NONE
   _gum_v8_socket_finalize (&self->socket);
   _gum_v8_stream_finalize (&self->stream);
+#endif
   _gum_v8_checksum_finalize (&self->checksum);
   _gum_v8_file_finalize (&self->file);
   _gum_v8_process_finalize (&self->process);
@@ -1502,8 +1510,10 @@ gum_v8_script_try_unload (GumV8Script * self)
     _gum_v8_sampler_flush (&self->sampler);
     _gum_v8_stalker_flush (&self->stalker);
     _gum_v8_interceptor_flush (&self->interceptor);
+#ifndef G_OS_NONE
     _gum_v8_socket_flush (&self->socket);
     _gum_v8_stream_flush (&self->stream);
+#endif
     _gum_v8_process_flush (&self->process);
     success = _gum_v8_core_flush (&self->core, gum_v8_script_try_unload);
   }

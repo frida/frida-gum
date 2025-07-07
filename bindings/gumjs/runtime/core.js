@@ -458,202 +458,204 @@ Object.defineProperty(Instruction, 'parse', {
   }
 });
 
-const _closeIOStream = IOStream.prototype._close;
-IOStream.prototype.close = function () {
-  const stream = this;
-  return new Promise(function (resolve, reject) {
-    _closeIOStream.call(stream, function (error, success) {
-      if (error === null)
-        resolve(success);
-      else
-        reject(error);
-    });
-  });
-};
-
-const _closeInput = InputStream.prototype._close;
-InputStream.prototype.close = function () {
-  const stream = this;
-  return new Promise(function (resolve, reject) {
-    _closeInput.call(stream, function (error, success) {
-      if (error === null)
-        resolve(success);
-      else
-        reject(error);
-    });
-  });
-};
-
-const _read = InputStream.prototype._read;
-InputStream.prototype.read = function (size) {
-  const stream = this;
-  return new Promise(function (resolve, reject) {
-    _read.call(stream, size, function (error, data) {
-      if (error === null)
-        resolve(data);
-      else
-        reject(error);
-    });
-  });
-};
-
-const _readAll = InputStream.prototype._readAll;
-InputStream.prototype.readAll = function (size) {
-  const stream = this;
-  return new Promise(function (resolve, reject) {
-    _readAll.call(stream, size, function (error, data) {
-      if (error === null) {
-        resolve(data);
-      } else {
-        error.partialData = data;
-        reject(error);
-      }
-    });
-  });
-};
-
-const _closeOutput = OutputStream.prototype._close;
-OutputStream.prototype.close = function () {
-  const stream = this;
-  return new Promise(function (resolve, reject) {
-    _closeOutput.call(stream, function (error, success) {
-      if (error === null)
-        resolve(success);
-      else
-        reject(error);
-    });
-  });
-};
-
-const _write = OutputStream.prototype._write;
-OutputStream.prototype.write = function (data) {
-  const stream = this;
-  return new Promise(function (resolve, reject) {
-    _write.call(stream, data, function (error, size) {
-      if (error === null)
-        resolve(size);
-      else
-        reject(error);
-    });
-  });
-};
-
-const _writeAll = OutputStream.prototype._writeAll;
-OutputStream.prototype.writeAll = function (data) {
-  const stream = this;
-  return new Promise(function (resolve, reject) {
-    _writeAll.call(stream, data, function (error, size) {
-      if (error === null) {
-        resolve(size);
-      } else {
-        error.partialSize = size;
-        reject(error);
-      }
-    });
-  });
-};
-
-const _writeMemoryRegion = OutputStream.prototype._writeMemoryRegion;
-OutputStream.prototype.writeMemoryRegion = function (address, length) {
-  const stream = this;
-  return new Promise(function (resolve, reject) {
-    _writeMemoryRegion.call(stream, address, length, function (error, size) {
-      if (error === null) {
-        resolve(size);
-      } else {
-        error.partialSize = size;
-        reject(error);
-      }
-    });
-  });
-};
-
-const _closeListener = SocketListener.prototype._close;
-SocketListener.prototype.close = function () {
-  const listener = this;
-  return new Promise(function (resolve) {
-    _closeListener.call(listener, resolve);
-  });
-};
-
-const _accept = SocketListener.prototype._accept;
-SocketListener.prototype.accept = function () {
-  const listener = this;
-  return new Promise(function (resolve, reject) {
-    _accept.call(listener, function (error, connection) {
-      if (error === null)
-        resolve(connection);
-      else
-        reject(error);
-    });
-  });
-};
-
-const _setNoDelay = SocketConnection.prototype._setNoDelay;
-SocketConnection.prototype.setNoDelay = function (noDelay = true) {
-  const connection = this;
-  return new Promise(function (resolve, reject) {
-    _setNoDelay.call(connection, noDelay, function (error, success) {
-      if (error === null)
-        resolve(success);
-      else
-        reject(error);
-    });
-  });
-};
-
-Object.defineProperties(Socket, {
-  listen: {
-    enumerable: true,
-    value: function (options = {}) {
-      return new Promise(function (resolve, reject) {
-        const {
-          family = null,
-
-          host = null,
-          port = 0,
-
-          type = null,
-          path = null,
-
-          backlog = 10,
-        } = options;
-
-        Socket._listen(family, host, port, type, path, backlog, function (error, listener) {
-          if (error === null)
-            resolve(listener);
-          else
-            reject(error);
-        });
+if ('IOStream' in globalThis) {
+  const _closeIOStream = IOStream.prototype._close;
+  IOStream.prototype.close = function () {
+    const stream = this;
+    return new Promise(function (resolve, reject) {
+      _closeIOStream.call(stream, function (error, success) {
+        if (error === null)
+          resolve(success);
+        else
+          reject(error);
       });
-    },
-  },
-  connect: {
-    enumerable: true,
-    value: function (options) {
-      return new Promise(function (resolve, reject) {
-        const {
-          family = null,
+    });
+  };
 
-          host = 'localhost',
-          port = 0,
-
-          type = null,
-          path = null,
-
-          tls = false,
-        } = options;
-
-        Socket._connect(family, host, port, type, path, tls, function (error, connection) {
-          if (error === null)
-            resolve(connection);
-          else
-            reject(error);
-        });
+  const _closeInput = InputStream.prototype._close;
+  InputStream.prototype.close = function () {
+    const stream = this;
+    return new Promise(function (resolve, reject) {
+      _closeInput.call(stream, function (error, success) {
+        if (error === null)
+          resolve(success);
+        else
+          reject(error);
       });
+    });
+  };
+
+  const _read = InputStream.prototype._read;
+  InputStream.prototype.read = function (size) {
+    const stream = this;
+    return new Promise(function (resolve, reject) {
+      _read.call(stream, size, function (error, data) {
+        if (error === null)
+          resolve(data);
+        else
+          reject(error);
+      });
+    });
+  };
+
+  const _readAll = InputStream.prototype._readAll;
+  InputStream.prototype.readAll = function (size) {
+    const stream = this;
+    return new Promise(function (resolve, reject) {
+      _readAll.call(stream, size, function (error, data) {
+        if (error === null) {
+          resolve(data);
+        } else {
+          error.partialData = data;
+          reject(error);
+        }
+      });
+    });
+  };
+
+  const _closeOutput = OutputStream.prototype._close;
+  OutputStream.prototype.close = function () {
+    const stream = this;
+    return new Promise(function (resolve, reject) {
+      _closeOutput.call(stream, function (error, success) {
+        if (error === null)
+          resolve(success);
+        else
+          reject(error);
+      });
+    });
+  };
+
+  const _write = OutputStream.prototype._write;
+  OutputStream.prototype.write = function (data) {
+    const stream = this;
+    return new Promise(function (resolve, reject) {
+      _write.call(stream, data, function (error, size) {
+        if (error === null)
+          resolve(size);
+        else
+          reject(error);
+      });
+    });
+  };
+
+  const _writeAll = OutputStream.prototype._writeAll;
+  OutputStream.prototype.writeAll = function (data) {
+    const stream = this;
+    return new Promise(function (resolve, reject) {
+      _writeAll.call(stream, data, function (error, size) {
+        if (error === null) {
+          resolve(size);
+        } else {
+          error.partialSize = size;
+          reject(error);
+        }
+      });
+    });
+  };
+
+  const _writeMemoryRegion = OutputStream.prototype._writeMemoryRegion;
+  OutputStream.prototype.writeMemoryRegion = function (address, length) {
+    const stream = this;
+    return new Promise(function (resolve, reject) {
+      _writeMemoryRegion.call(stream, address, length, function (error, size) {
+        if (error === null) {
+          resolve(size);
+        } else {
+          error.partialSize = size;
+          reject(error);
+        }
+      });
+    });
+  };
+
+  const _closeListener = SocketListener.prototype._close;
+  SocketListener.prototype.close = function () {
+    const listener = this;
+    return new Promise(function (resolve) {
+      _closeListener.call(listener, resolve);
+    });
+  };
+
+  const _accept = SocketListener.prototype._accept;
+  SocketListener.prototype.accept = function () {
+    const listener = this;
+    return new Promise(function (resolve, reject) {
+      _accept.call(listener, function (error, connection) {
+        if (error === null)
+          resolve(connection);
+        else
+          reject(error);
+      });
+    });
+  };
+
+  const _setNoDelay = SocketConnection.prototype._setNoDelay;
+  SocketConnection.prototype.setNoDelay = function (noDelay = true) {
+    const connection = this;
+    return new Promise(function (resolve, reject) {
+      _setNoDelay.call(connection, noDelay, function (error, success) {
+        if (error === null)
+          resolve(success);
+        else
+          reject(error);
+      });
+    });
+  };
+
+  Object.defineProperties(Socket, {
+    listen: {
+      enumerable: true,
+      value: function (options = {}) {
+        return new Promise(function (resolve, reject) {
+          const {
+            family = null,
+
+            host = null,
+            port = 0,
+
+            type = null,
+            path = null,
+
+            backlog = 10,
+          } = options;
+
+          Socket._listen(family, host, port, type, path, backlog, function (error, listener) {
+            if (error === null)
+              resolve(listener);
+            else
+              reject(error);
+          });
+        });
+      },
     },
-  },
-});
+    connect: {
+      enumerable: true,
+      value: function (options) {
+        return new Promise(function (resolve, reject) {
+          const {
+            family = null,
+
+            host = 'localhost',
+            port = 0,
+
+            type = null,
+            path = null,
+
+            tls = false,
+          } = options;
+
+          Socket._connect(family, host, port, type, path, tls, function (error, connection) {
+            if (error === null)
+              resolve(connection);
+            else
+              reject(error);
+          });
+        });
+      },
+    },
+  });
+}
 
 SourceMap.prototype.resolve = function (generatedPosition) {
   const generatedColumn = generatedPosition.column;

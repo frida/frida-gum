@@ -112,7 +112,7 @@ if host_os_family == 'windows'
     'backend-dbghelp' / 'gumdbghelpbacktracer.c',
     'backend-dbghelp' / 'gumsymbolutil-dbghelp.c',
   ]
-else
+elif host_os_family != 'none'
   gum_sources += [
     'backend-posix' / 'gummemoryaccessmonitor-posix.c',
   ]
@@ -206,6 +206,23 @@ if host_os_family == 'qnx'
     'backend-posix' / 'gummemory-posix.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
+  ]
+endif
+
+if host_os_family == 'none'
+  gum_backend_headers += [
+    'backend-barebone' / 'include' / 'gum' / 'gumbarebone.h',
+  ]
+  gum_sources += [
+    'backend-barebone' / 'gumexceptor-barebone.c',
+    'backend-barebone' / 'gummemory-barebone.c',
+    'backend-barebone' / 'gummemoryaccessmonitor-barebone.c',
+    'backend-barebone' / 'gumprocess-barebone.c',
+    'backend-barebone' / 'gumthreadregistry-barebone.c',
+    'backend-barebone' / 'gummoduleregistry-barebone.c',
+    'backend-barebone' / 'gummodule-barebone.c',
+    'backend-barebone' / 'gumtls-barebone.c',
+    'backend-barebone' / 'gumsymbolutil-barebone.c',
   ]
 endif
 

@@ -119,6 +119,8 @@ elif host_os_family == 'darwin'
   host_executable_format = 'macho'
 elif host_os_family in ['linux', 'freebsd', 'qnx']
   host_executable_format = 'elf'
+elif host_os_family == 'none'
+  host_executable_format = 'none'
 else
   error('Unsupported OS family:', host_os_family)
 endif
@@ -158,7 +160,10 @@ endif
 
 allocator = get_option('allocator')
 if allocator == 'auto'
-  allocator = diet ? 'system' : 'internal'
+  allocator = ((host_os_family == 'none') or diet) ? 'system' : 'internal'
+endif
+if host_os_family == 'none' and allocator != 'system'
+  error('Internal allocator is not supported for os == none')
 endif
 if allocator == 'system'
   cdata.set('GUM_USE_SYSTEM_ALLOC', 1)
@@ -169,9 +174,11 @@ if have_jailbreak
   cdata.set('HAVE_JAILBREAK', 1)
 endif
 
-cdata.set('HAVE_' + host_os_family.to_upper(), 1)
-if host_os != host_os_family
-  cdata.set('HAVE_' + host_os.to_upper(), 1)
+if host_os_family != 'none'
+  cdata.set('HAVE_' + host_os_family.to_upper(), 1)
+  if host_os != host_os_family
+    cdata.set('HAVE_' + host_os.to_upper(), 1)
+  endif
 endif
 
 cpu_defines = [
@@ -622,18 +629,22 @@ if have_gumjs
   sqlite_dep = dependency('sqlite3', required: get_option('database'))
   cdata.set('HAVE_SQLITE', sqlite_dep.found())
 
-  libsoup_dep = dependency('libsoup-3.0', default_options: [
-    'gssapi=disabled',
-    'ntlm=disabled',
-    'brotli=disabled',
-    'tls_check=false',
-    'introspection=disabled',
-    'vapi=disabled',
-    'docs=disabled',
-    'examples=disabled',
-    'tests=false',
-    'sysprof=disabled',
-  ])
+  if host_os_family != 'none'
+    libsoup_dep = dependency('libsoup-3.0', default_options: [
+      'gssapi=disabled',
+      'ntlm=disabled',
+      'brotli=disabled',
+      'tls_check=false',
+      'introspection=disabled',
+      'vapi=disabled',
+      'docs=disabled',
+      'examples=disabled',
+      'tests=false',
+      'sysprof=disabled',
+    ])
+  else
+    libsoup_dep = disabler()
+  endif
 else
   v8_dep = disabler()
 endif
@@ -707,6 +718,10 @@ if host_os_family == 'qnx'
   gum_incdirs += include_directories('gum' / 'backend-qnx' / 'include')
 endif
 
+if host_os_family == 'none'
+  gum_incdirs += include_directories('gum' / 'backend-barebone' / 'include')
+endif
+
 if host_executable_format == 'elf'
   gum_incdirs += include_directories('gum' / 'backend-elf')
 endif
@@ -723,7 +738,9 @@ subdir('gum')
 subdir('libs')
 subdir('bindings')
 subdir('vapi')
-subdir('tools')
+if host_os_family != 'none'
+  subdir('tools')
+endif
 
 if build_tests
   subdir('tests')
