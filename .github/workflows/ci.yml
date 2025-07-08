@@ -9,7 +9,7 @@ on:
       - main
 
 env:
-  GUM_OPTIONS: '--enable-gumpp --enable-gumjs --with-devkits=gum,gumjs --enable-tests'
+  GUM_OPTIONS: '--enable-gumpp --with-devkits=gum --enable-tests'
 
 jobs:
   android:
