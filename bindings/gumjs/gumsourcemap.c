@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -48,6 +48,9 @@ static gboolean gum_read_string_array (JsonReader * reader,
 static gboolean gum_parse_segment (const gchar ** cursor, gint * segment,
     guint * segment_length);
 static gboolean gum_parse_vlq_value (const gchar ** cursor, gint * value);
+
+static gboolean gum_line_starts_with_source_map_comment (const gchar * line,
+    gsize len);
 
 G_DEFINE_TYPE (GumSourceMap, gum_source_map, G_TYPE_OBJECT)
 
@@ -459,4 +462,92 @@ gum_parse_vlq_value (const gchar ** cursor,
     *value = -((gint) (result >> 1));
 
   return TRUE;
+}
+
+gchar *
+gum_source_map_try_extract_inline (const gchar * source)
+{
+  gchar * result = NULL;
+  const gchar * line = source;
+
+  while (*line != '\0' && result == NULL)
+  {
+    const gchar * newline;
+    gsize line_len;
+    const gchar * p, * base64_tag, * data_start, * data_end;
+    gchar * data_encoded;
+    gsize decoded_size;
+    guchar * decoded;
+
+    newline = strchr (line, '\n');
+
+    line_len = (newline != NULL)
+        ? (gsize) (newline - line)
+        : strlen (line);
+
+    if (line_len != 0 && line[line_len - 1] == '\r')
+      line_len--;
+
+    if (!gum_line_starts_with_source_map_comment (line, line_len))
+      goto skip;
+    p = line + 4;
+
+    if (!g_str_has_prefix (p, "sourceMappingURL="))
+      goto skip;
+    p += strlen ("sourceMappingURL=");
+
+    while (*p == ' ' || *p == '\t')
+      p++;
+
+    if (!g_str_has_prefix (p, "data:application/json;"))
+      goto skip;
+    p += strlen ("data:application/json;");
+
+    base64_tag = g_strstr_len (p, line + line_len - p, "base64,");
+    if (base64_tag == NULL)
+      goto skip;
+
+    data_start = base64_tag + strlen ("base64,");
+    data_end = data_start;
+
+    while (data_end < line + line_len &&
+        !g_ascii_isspace (*data_end) &&
+        *data_end != '\'' && *data_end != '"')
+    {
+      data_end++;
+    }
+
+    if (data_end <= data_start)
+      goto skip;
+
+    data_encoded = g_strndup (data_start, data_end - data_start);
+
+    decoded = g_base64_decode (data_encoded, &decoded_size);
+
+    if (decoded != NULL &&
+        g_utf8_validate ((const gchar *) decoded, decoded_size, NULL))
+    {
+      result = g_strndup ((const gchar *) decoded, decoded_size);
+    }
+
+    g_free (decoded);
+    g_free (data_encoded);
+
+skip:
+    if (newline == NULL)
+      break;
+    line = newline + 1;
+  }
+
+  return result;
+}
+
+static gboolean
+gum_line_starts_with_source_map_comment (const gchar * line,
+                                         gsize len)
+{
+  return len >= 4 &&
+      line[0] == '/' && line[1] == '/' &&
+      (line[2] == '#' || line[2] == '@') &&
+      (line[3] == ' ' || line[3] == '\t');
 }

@@ -9,6 +9,7 @@
 #include "gumv8script.h"
 
 #include "gumscripttask.h"
+#include "gumsourcemap.h"
 #include "gumv8script-priv.h"
 #include "gumv8script-runtime.h"
 #include "gumv8value.h"
@@ -829,7 +830,7 @@ _gum_v8_script_load_module (GumV8Script * self,
   {
     g_hash_table_insert (program->es_assets, name_copy, asset);
 
-    gchar * source_map = gum_script_backend_extract_inline_source_map (source);
+    gchar * source_map = gum_source_map_try_extract_inline (source);
     if (source_map != NULL)
     {
       gchar * map_name = g_strconcat (name, ".map", NULL);

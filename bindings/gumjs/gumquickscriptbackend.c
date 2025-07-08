@@ -11,6 +11,7 @@
 #include "gumquickscript-runtime.h"
 #include "gumquickscriptbackend-priv.h"
 #include "gumscripttask.h"
+#include "gumsourcemap.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -417,8 +418,7 @@ gum_quick_script_backend_compile_program (GumQuickScriptBackend * self,
 
     g_array_append_val (program->entrypoints, val);
 
-    program->global_source_map =
-        gum_script_backend_extract_inline_source_map (source);
+    program->global_source_map = gum_source_map_try_extract_inline (source);
   }
 
   goto beach;

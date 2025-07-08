@@ -2179,7 +2179,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_evaluate)
         ctx, name);
   }
 
-  source_map = gum_script_backend_extract_inline_source_map (source);
+  source_map = gum_source_map_try_extract_inline (source);
   if (source_map != NULL)
   {
     gchar * map_name;
@@ -2223,7 +2223,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_load)
   g_hash_table_insert (es_assets, name_copy,
       gum_es_asset_new (name_copy, NULL, 0, NULL));
 
-  source_map = gum_script_backend_extract_inline_source_map (source);
+  source_map = gum_source_map_try_extract_inline (source);
   if (source_map != NULL)
   {
     gchar * map_name;
