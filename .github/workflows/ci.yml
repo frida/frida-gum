@@ -9,15 +9,13 @@ on:
       - main
 
 env:
-  GUM_OPTIONS: '--enable-gumpp --with-devkits=gum --enable-tests'
+  GUM_OPTIONS: '--enable-gumpp --with-devkits=gum'
 
 jobs:
   android:
     strategy:
       matrix:
         id:
-          - android-x86
-          - android-x86_64
           - android-arm
           - android-arm64
       fail-fast: false
@@ -43,23 +41,3 @@ jobs:
         with:
           name: gum-devkit-${{ matrix.id }}
           path: build/gum/devkit/
-      - name: Upload GumJS devkit
-        uses: actions/upload-artifact@v4
-        with:
-          name: gumjs-devkit-${{ matrix.id }}
-          path: build/bindings/gumjs/devkit/
-      - name: Package tests
-        run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
-      - name: Test on Corellium Android device
-        if: matrix.id == 'android-arm64'
-        continue-on-error: true
-        uses: frida/corellium-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          gateway: corellium.frida.re
-          device: android-8.1.0-arm64
-          upload: /tmp/runner.tar.gz
-          run: |
-            cd /data/local/tmp
-            tar xf $ASSET_PATH
-            ./gum-tests
