@@ -16,6 +16,9 @@
 #include "gummetalarray.h"
 #include "gumprocess-priv.h"
 #include "gumtls.h"
+#ifdef G_OS_NONE
+# include "gum/gumbarebone.h"
+#endif
 
 #include <string.h>
 #ifdef HAVE_DARWIN
@@ -169,8 +172,10 @@ static void gum_interceptor_transaction_destroy (
 static void gum_interceptor_transaction_begin (
     GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
+#ifndef G_OS_NONE
 static gboolean gum_maybe_suspend_thread (const GumThreadDetails * details,
     gpointer user_data);
+#endif
 static void gum_interceptor_transaction_schedule_destroy (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
     GDestroyNotify notify, gpointer data);
@@ -985,6 +990,62 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   addresses = g_hash_table_get_keys (self->pending_update_tasks);
   addresses = g_list_sort (addresses, gum_page_address_compare);
 
+#ifdef G_OS_NONE
+  {
+    gpointer * writable_mappings;
+    guint mapping_index, num_mappings;
+    guint page_size;
+
+    writable_mappings = g_new (gpointer, g_list_length (addresses));
+
+    for (cur = addresses, mapping_index = 0; cur != NULL; cur = cur->next)
+    {
+      writable_mappings[mapping_index++] =
+          gum_barebone_virtual_to_physical (cur->data);
+    }
+    num_mappings = mapping_index;
+
+    gum_barebone_get_writable_mappings (writable_mappings, num_mappings);
+
+    for (cur = addresses, mapping_index = 0; cur != NULL; cur = cur->next)
+    {
+      gpointer target_page = cur->data;
+      gpointer writable_page = writable_mappings[mapping_index++];
+      GArray * pending;
+      guint i;
+
+      pending = g_hash_table_lookup (self->pending_update_tasks,
+          target_page);
+      g_assert (pending != NULL);
+
+      for (i = 0; i != pending->len; i++)
+      {
+        GumUpdateTask * update;
+        guint page_offset;
+
+        update = &g_array_index (pending, GumUpdateTask, i);
+
+        page_offset = (guint8 *)
+            _gum_interceptor_backend_get_function_address (update->ctx) -
+            (guint8 *) target_page;
+
+        update->func (interceptor, update->ctx,
+            (guint8 *) writable_page + page_offset);
+      }
+    }
+
+    page_size = gum_query_page_size ();
+
+    for (cur = addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer target_page = cur->data;
+
+      gum_clear_cache (target_page, page_size);
+    }
+
+    g_free (writable_mappings);
+  }
+#else
   if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
   {
     for (cur = addresses; cur != NULL; cur = cur->next)
@@ -1170,6 +1231,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       gum_code_segment_free (segment);
     }
   }
+#endif
 
   g_list_free (addresses);
 
@@ -1201,6 +1263,8 @@ no_changes:
   gum_interceptor_unignore_current_thread (interceptor);
 }
 
+#ifndef G_OS_NONE
+
 static gboolean
 gum_maybe_suspend_thread (const GumThreadDetails * details,
                           gpointer user_data)
@@ -1223,6 +1287,8 @@ gum_maybe_suspend_thread (const GumThreadDetails * details,
 skip:
   return TRUE;
 }
+
+#endif
 
 static void
 gum_interceptor_transaction_schedule_destroy (GumInterceptorTransaction * self,

@@ -25,13 +25,6 @@ _gum_memory_backend_query_page_size (void)
   return gum_barebone_query_page_size ();
 }
 
-G_GNUC_WEAK guint
-gum_barebone_query_page_size (void)
-{
-  G_PANIC_MISSING_IMPLEMENTATION ();
-  return 0;
-}
-
 gboolean
 gum_memory_is_readable (gconstpointer address,
                         gsize len)
@@ -203,4 +196,25 @@ gum_memory_decommit (gpointer address,
                      gsize size)
 {
   return FALSE;
+}
+
+G_GNUC_WEAK guint
+gum_barebone_query_page_size (void)
+{
+  G_PANIC_MISSING_IMPLEMENTATION ();
+  return 0;
+}
+
+G_GNUC_WEAK gpointer
+gum_barebone_virtual_to_physical (gpointer virtual_address)
+{
+  G_PANIC_MISSING_IMPLEMENTATION ();
+  return NULL;
+}
+
+G_GNUC_WEAK void
+gum_barebone_get_writable_mappings (gpointer * pages,
+                                    guint num_pages)
+{
+  G_PANIC_MISSING_IMPLEMENTATION ();
 }
