@@ -25,30 +25,32 @@ _setUnhandledExceptionCallback(error => {
   _send(JSON.stringify(message), null);
 });
 
-Error.prepareStackTrace = (error, stack) => {
-  let firstSourcePosition = null;
+if (Process.platform !== 'barebone') {
+  Error.prepareStackTrace = (error, stack) => {
+    let firstSourcePosition = null;
 
-  stack = error.toString() + '\n' + stack.replace(/    at (.+) \((.+):(.+)\)/g,
-      (match, scope, fileName, lineNumber) => {
-        const position = mapSourcePosition({
-          source: fileName,
-          line: parseInt(lineNumber, 10)
-        });
+    stack = error.toString() + '\n' + stack.replace(/    at (.+) \((.+):(.+)\)/g,
+        (match, scope, fileName, lineNumber) => {
+          const position = mapSourcePosition({
+            source: fileName,
+            line: parseInt(lineNumber, 10)
+          });
 
-        if (firstSourcePosition === null)
-          firstSourcePosition = position;
+          if (firstSourcePosition === null)
+            firstSourcePosition = position;
 
-        return `    at ${scope} (${position.source}:${position.line})`;
-      })
-      .trimEnd();
+          return `    at ${scope} (${position.source}:${position.line})`;
+        })
+        .trimEnd();
 
-  if (firstSourcePosition !== null) {
-    error.fileName = firstSourcePosition.source;
-    error.lineNumber = firstSourcePosition.line;
-  }
+    if (firstSourcePosition !== null) {
+      error.fileName = firstSourcePosition.source;
+      error.lineNumber = firstSourcePosition.line;
+    }
 
-  return stack;
-};
+    return stack;
+  };
+}
 
 /*
  * Based on https://github.com/evanw/node-source-map-support
