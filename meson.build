@@ -578,6 +578,7 @@ if have_gumjs
     'bignum=true',
     'atomics=disabled',
     'stack_check=disabled',
+    'stack_mode=' + ((host_os_family == 'none') ? 'optimize' : 'default'),
   ]
 
   quickjs_dep = dependency('quickjs', required: get_option('quickjs'), default_options: quickjs_options)
