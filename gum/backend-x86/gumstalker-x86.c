@@ -6723,7 +6723,7 @@ gum_find_thread_exit_implementation (void)
   GumAddress result;
   GumModule * libthr;
 
-  libthr = gum_process_find_module_by_name ("/lib/libthr.so.3");
+  libthr = gum_process_find_module_by_name ("libthr.so.3");
   g_assert (libthr != NULL);
   result = gum_module_find_export_by_name (libthr, "_pthread_exit");
   g_object_unref (libthr);
