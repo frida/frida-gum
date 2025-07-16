@@ -5060,6 +5060,19 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   const gsize store_ret_addr_offset = 0x04 + 2;
   const gsize load_continuation_addr_offset = 0x0a + 1;
   const gsize saved_ret_addr_offset = 0x19;
+#elif defined (HAVE_FREEBSD) // FIXME: i don't know how works sysenter
+  guint8 code[] = {
+    /* 00 */ 0x8b, 0x54, 0x24, 0x0c,             /* mov edx, [esp + 12]   */
+    /* 04 */ 0x89, 0x15, 0xaa, 0xaa, 0xaa, 0xaa, /* mov [0xaaaaaaaa], edx */
+    /* 0a */ 0xba, 0xbb, 0xbb, 0xbb, 0xbb,       /* mov edx, 0xbbbbbbbb   */
+    /* 0f */ 0x89, 0x54, 0x24, 0x0c,             /* mov [esp + 12], edx   */
+    /* 13 */ 0x8b, 0x54, 0x24, 0x04,             /* mov edx, [esp + 4]    */
+    /* 17 */ 0x0f, 0x34,                         /* sysenter              */
+    /* 19 */ 0xcc, 0xcc, 0xcc, 0xcc              /* <saved ret-addr here> */
+  };
+  const gsize store_ret_addr_offset = 0x04 + 2;
+  const gsize load_continuation_addr_offset = 0x0a + 1;
+  const gsize saved_ret_addr_offset = 0x19;
 #endif
   gpointer * saved_ret_addr;
   gpointer continuation;
