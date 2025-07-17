@@ -93,6 +93,8 @@ struct _GumFileMapping
 typedef gboolean (* GumFoundRangeFunc) (const GumRangeDetails * details,
     gpointer user_data);
 typedef void (* GumMemoryPatchApplyFunc) (gpointer mem, gpointer user_data);
+typedef void (* GumMemoryPatchPagesApplyFunc) (gpointer mem,
+    gpointer target_page, guint n_pages, gpointer user_data);
 typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
     gpointer user_data);
 
@@ -116,6 +118,9 @@ GUM_API gboolean gum_memory_write (gpointer address, const guint8 * bytes,
     gsize len);
 GUM_API gboolean gum_memory_patch_code (gpointer address, gsize size,
     GumMemoryPatchApplyFunc apply, gpointer apply_data);
+GUM_API gboolean gum_memory_patch_code_pages (GList * sorted_addresses,
+    gboolean coalesce, GumMemoryPatchPagesApplyFunc apply,
+    gpointer apply_data);
 GUM_API gboolean gum_memory_mark_code (gpointer address, gsize size);
 
 GUM_API void gum_memory_scan (const GumMemoryRange * range,

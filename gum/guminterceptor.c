@@ -35,7 +35,6 @@ typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
 typedef guint GumInstrumentationError;
 typedef struct _GumDestroyTask GumDestroyTask;
 typedef struct _GumUpdateTask GumUpdateTask;
-typedef struct _GumSuspendOperation GumSuspendOperation;
 typedef struct _ListenerEntry ListenerEntry;
 typedef struct _InterceptorThreadContext InterceptorThreadContext;
 typedef struct _GumInvocationStackEntry GumInvocationStackEntry;
@@ -90,12 +89,6 @@ struct _GumUpdateTask
 {
   GumFunctionContext * ctx;
   GumUpdateTaskFunc func;
-};
-
-struct _GumSuspendOperation
-{
-  GumThreadId current_thread_id;
-  GumMetalArray suspended_threads;
 };
 
 struct _ListenerEntry
@@ -169,8 +162,8 @@ static void gum_interceptor_transaction_destroy (
 static void gum_interceptor_transaction_begin (
     GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
-static gboolean gum_maybe_suspend_thread (const GumThreadDetails * details,
-    gpointer user_data);
+static void gum_apply_updates (gpointer source_page, gpointer target_page,
+    guint n_pages, gpointer user_data);
 static void gum_interceptor_transaction_schedule_destroy (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
     GDestroyNotify notify, gpointer data);
@@ -1007,168 +1000,10 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       }
     }
   }
-  else
+  else if (!gum_memory_patch_code_pages (addresses, FALSE, gum_apply_updates,
+        self))
   {
-    guint page_size;
-    gboolean rwx_supported, code_segment_supported;
-
-    page_size = gum_query_page_size ();
-
-    rwx_supported = gum_query_is_rwx_supported ();
-    code_segment_supported = gum_code_segment_is_supported ();
-
-    if (rwx_supported || !code_segment_supported)
-    {
-      GumPageProtection protection;
-      GumSuspendOperation suspend_op = { 0, };
-
-      protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
-
-      if (!rwx_supported)
-      {
-        gum_metal_array_init (&suspend_op.suspended_threads,
-            sizeof (GumThreadId));
-
-        suspend_op.current_thread_id = gum_process_get_current_thread_id ();
-        _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
-            GUM_THREAD_FLAGS_NONE);
-      }
-
-      for (cur = addresses; cur != NULL; cur = cur->next)
-      {
-        gpointer target_page = cur->data;
-
-        gum_mprotect (target_page, page_size, protection);
-      }
-
-      for (cur = addresses; cur != NULL; cur = cur->next)
-      {
-        gpointer target_page = cur->data;
-        GArray * pending;
-        guint i;
-
-        pending = g_hash_table_lookup (self->pending_update_tasks,
-            target_page);
-        g_assert (pending != NULL);
-
-        for (i = 0; i != pending->len; i++)
-        {
-          GumUpdateTask * update;
-
-          update = &g_array_index (pending, GumUpdateTask, i);
-
-          update->func (interceptor, update->ctx,
-              _gum_interceptor_backend_get_function_address (update->ctx));
-        }
-      }
-
-      if (!rwx_supported)
-      {
-        /*
-         * We don't bother restoring the protection on RWX systems, as we would
-         * have to determine the old protection to be able to do so safely.
-         *
-         * While we could easily do that, it would add overhead, but it's not
-         * really clear that it would have any tangible upsides.
-         */
-        for (cur = addresses; cur != NULL; cur = cur->next)
-        {
-          gpointer target_page = cur->data;
-
-          gum_mprotect (target_page, page_size, GUM_PAGE_RX);
-        }
-      }
-
-      for (cur = addresses; cur != NULL; cur = cur->next)
-      {
-        gpointer target_page = cur->data;
-
-        gum_clear_cache (target_page, page_size);
-      }
-
-      if (!rwx_supported)
-      {
-        guint num_suspended, i;
-
-        num_suspended = suspend_op.suspended_threads.length;
-
-        for (i = 0; i != num_suspended; i++)
-        {
-          GumThreadId * raw_id = gum_metal_array_element_at (
-              &suspend_op.suspended_threads, i);
-
-          gum_thread_resume (*raw_id, NULL);
-#ifdef HAVE_DARWIN
-          mach_port_mod_refs (mach_task_self (), *raw_id,
-              MACH_PORT_RIGHT_SEND, -1);
-#endif
-        }
-
-        gum_metal_array_free (&suspend_op.suspended_threads);
-      }
-    }
-    else
-    {
-      guint num_pages;
-      GumCodeSegment * segment;
-      guint8 * source_page, * current_page;
-      gsize source_offset;
-
-      num_pages = g_hash_table_size (self->pending_update_tasks);
-      segment = gum_code_segment_new (num_pages * page_size, NULL);
-
-      source_page = gum_code_segment_get_address (segment);
-
-      current_page = source_page;
-      for (cur = addresses; cur != NULL; cur = cur->next)
-      {
-        guint8 * target_page = cur->data;
-
-        memcpy (current_page, target_page, page_size);
-
-        current_page += page_size;
-      }
-
-      for (cur = addresses; cur != NULL; cur = cur->next)
-      {
-        guint8 * target_page = cur->data;
-        GArray * pending;
-        guint i;
-
-        pending = g_hash_table_lookup (self->pending_update_tasks,
-            target_page);
-        g_assert (pending != NULL);
-
-        for (i = 0; i != pending->len; i++)
-        {
-          GumUpdateTask * update;
-
-          update = &g_array_index (pending, GumUpdateTask, i);
-
-          update->func (interceptor, update->ctx, source_page +
-              ((guint8 *) _gum_interceptor_backend_get_function_address (
-                  update->ctx) - target_page));
-        }
-
-        source_page += page_size;
-      }
-
-      gum_code_segment_realize (segment);
-
-      source_offset = 0;
-      for (cur = addresses; cur != NULL; cur = cur->next)
-      {
-        gpointer target_page = cur->data;
-
-        gum_code_segment_map (segment, source_offset, page_size, target_page);
-
-        gum_clear_cache (target_page, page_size);
-
-        source_offset += page_size;
-      }
-
-      gum_code_segment_free (segment);
-    }
+    g_abort ();
   }
 
   g_list_free (addresses);
@@ -1201,27 +1036,31 @@ no_changes:
   gum_interceptor_unignore_current_thread (interceptor);
 }
 
-static gboolean
-gum_maybe_suspend_thread (const GumThreadDetails * details,
-                          gpointer user_data)
+static void
+gum_apply_updates (gpointer source_page,
+                   gpointer target_page,
+                   guint n_pages,
+                   gpointer user_data)
 {
-  GumSuspendOperation * op = user_data;
-  GumThreadId * suspended_id;
+  GumInterceptorTransaction * self = user_data;
 
-  if (details->id == op->current_thread_id)
-    goto skip;
+  GArray * pending;
+  guint i;
 
-  if (!gum_thread_suspend (details->id, NULL))
-    goto skip;
+  pending = g_hash_table_lookup (self->pending_update_tasks,
+      target_page);
+  g_assert (pending != NULL);
 
-#ifdef HAVE_DARWIN
-  mach_port_mod_refs (mach_task_self (), details->id, MACH_PORT_RIGHT_SEND, 1);
-#endif
-  suspended_id = gum_metal_array_append (&op->suspended_threads);
-  *suspended_id = details->id;
+  for (i = 0; i != pending->len; i++)
+  {
+    GumUpdateTask * update;
 
-skip:
-  return TRUE;
+    update = &g_array_index (pending, GumUpdateTask, i);
+
+    update->func (self->interceptor, update->ctx, source_page +
+        GPOINTER_TO_SIZE (_gum_interceptor_backend_get_function_address (
+          update->ctx) - target_page));
+  }
 }
 
 static void
