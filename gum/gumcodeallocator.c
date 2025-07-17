@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +17,9 @@
 #endif
 #ifdef HAVE_ARM64
 # include "gumarm64writer.h"
+#endif
+#ifdef HAVE_DARWIN
+# include "backend-darwin/gumdarwin-priv.h"
 #endif
 
 #include <string.h>
@@ -51,6 +55,7 @@ struct _GumCodePages
 
   GumCodeSegment * segment;
   gpointer data;
+  gpointer pc;
   gsize size;
 
   GumCodeAllocator * allocator;
@@ -199,12 +204,13 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
 void
 gum_code_allocator_commit (GumCodeAllocator * self)
 {
-  gboolean rwx_supported;
+  gboolean rwx_supported, remap_supported;
   GSList * cur;
   GHashTableIter iter;
   gpointer key;
 
   rwx_supported = gum_query_is_rwx_supported ();
+  remap_supported = gum_memory_can_remap_writable ();
 
   for (cur = self->uncommitted_pages; cur != NULL; cur = cur->next)
   {
@@ -218,7 +224,7 @@ gum_code_allocator_commit (GumCodeAllocator * self)
           gum_code_segment_get_virtual_size (segment),
           gum_code_segment_get_address (segment));
     }
-    else
+    else if (!remap_supported)
     {
       gum_mprotect (pages->data, pages->size, GUM_PAGE_RX);
     }
@@ -247,15 +253,16 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
                                          const GumAddressSpec * spec)
 {
   GumCodeSlice * result = NULL;
-  gboolean rwx_supported, code_segment_supported;
+  gboolean rwx_supported, code_segment_supported, remap_supported;
   gsize page_size, size_in_pages, size_in_bytes;
   GumCodeSegment * segment;
-  gpointer data;
+  gpointer data, pc;
   GumCodePages * pages;
   guint i;
 
   rwx_supported = gum_query_is_rwx_supported ();
   code_segment_supported = gum_code_segment_is_supported ();
+  remap_supported = gum_memory_can_remap_writable ();
 
   page_size = gum_query_page_size ();
   size_in_pages = self->pages_per_batch;
@@ -266,7 +273,10 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
     GumPageProtection protection;
     GumMemoryRange range;
 
-    protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
+    if (rwx_supported)
+      protection = GUM_PAGE_RWX;
+    else
+      protection = remap_supported ? GUM_PAGE_RX : GUM_PAGE_RW;
 
     segment = NULL;
     if (spec != NULL)
@@ -282,6 +292,10 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
     gum_query_page_allocation_range (data, size_in_bytes, &range);
     gum_cloak_add_range (&range);
+
+    pc = data;
+    if (remap_supported)
+      data = gum_memory_try_remap_writable_pages (data, size_in_pages);
   }
   else
   {
@@ -289,6 +303,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
     if (segment == NULL)
       return NULL;
     data = gum_code_segment_get_address (segment);
+    pc = data;
   }
 
   pages = g_slice_alloc (self->pages_metadata_size);
@@ -296,6 +311,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
   pages->segment = segment;
   pages->data = data;
+  pages->pc = pc;
   pages->size = size_in_bytes;
 
   pages->allocator = self;
@@ -309,6 +325,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
     slice = &element->slice;
     slice->data = (guint8 *) data + (slice_index * self->slice_size);
+    slice->pc = (guint8 *) pc + (slice_index * self->slice_size);
     slice->size = self->slice_size;
     slice->ref_count = 1;
 
@@ -351,9 +368,21 @@ gum_code_pages_unref (GumCodePages * self)
     {
       GumMemoryRange range;
 
-      gum_free_pages (self->data);
+      if (self->pc != self->data)
+      {
+        guint size_in_pages;
 
-      gum_query_page_allocation_range (self->data, self->size, &range);
+        size_in_pages = self->size / gum_query_page_size ();
+        gum_memory_dispose_writable_pages (self->data, size_in_pages);
+
+        gum_free_pages (self->pc);
+      }
+      else
+      {
+        gum_free_pages (self->data);
+      }
+
+      gum_query_page_allocation_range (self->pc, self->size, &range);
       gum_cloak_remove_range (&range);
     }
 
@@ -543,6 +572,9 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   GumCodeDeflectorDispatcher * dispatcher;
   GumProbeRangeForCodeCaveContext probe_ctx;
   GumInsertDeflectorContext insert_ctx;
+  gboolean remap_supported;
+
+  remap_supported = gum_memory_can_remap_writable ();
 
   probe_ctx.caller = caller;
 
@@ -566,11 +598,13 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   {
     gsize thunk_size;
     GumMemoryRange range;
+    GumPageProtection protection;
 
     thunk_size = gum_query_page_size ();
+    protection = remap_supported ? GUM_PAGE_RX : GUM_PAGE_RW;
 
     dispatcher->thunk =
-        gum_memory_allocate (NULL, thunk_size, thunk_size, GUM_PAGE_RW);
+        gum_memory_allocate (NULL, thunk_size, thunk_size, protection);
     dispatcher->thunk_size = thunk_size;
 
     gum_memory_patch_code (dispatcher->thunk, GUM_MAX_CODE_DEFLECTOR_THUNK_SIZE,

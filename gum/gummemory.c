@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,6 +12,7 @@
 #include "gumcodesegment.h"
 #include "gumlibc.h"
 #include "gummemory-priv.h"
+#include "gumprocess-priv.h"
 
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
@@ -48,6 +50,14 @@
 #  pragma warning (pop)
 # endif
 #endif
+#ifdef HAVE_DARWIN
+# include "backend-darwin/gumdarwin-priv.h"
+# include "gum/gumdarwin.h"
+#endif
+
+typedef struct _GumPatchCodeContext GumPatchCodeContext;
+typedef struct _GumPageLump GumPageLump;
+typedef struct _GumSuspendOperation GumSuspendOperation;
 
 struct _GumMatchPattern
 {
@@ -56,6 +66,32 @@ struct _GumMatchPattern
   guint size;
   GRegex * regex;
 };
+
+struct _GumPatchCodeContext
+{
+  gsize page_offset;
+  GumMemoryPatchApplyFunc func;
+  gpointer user_data;
+};
+
+struct _GumPageLump
+{
+  gpointer start;
+  gpointer end;
+  gpointer writable_start;
+  guint n_pages;
+};
+
+struct _GumSuspendOperation
+{
+  GumThreadId current_thread_id;
+  GumMetalArray suspended_threads;
+};
+
+static void gum_apply_patch_code (gpointer mem, gpointer target_page,
+    guint n_pages, gpointer user_data);
+static gboolean gum_maybe_suspend_thread (const GumThreadDetails * details,
+    gpointer user_data);
 
 static void gum_memory_scan_raw (const GumMemoryRange * range,
     const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
@@ -237,10 +273,12 @@ gum_memory_patch_code (gpointer address,
                        GumMemoryPatchApplyFunc apply,
                        gpointer apply_data)
 {
+  gboolean result;
   gsize page_size;
   guint8 * start_page, * end_page;
-  gsize page_offset, range_size;
-  gboolean rwx_supported;
+  gsize page_offset;
+  GPtrArray * page_addresses;
+  GumPatchCodeContext context;
 
   address = gum_strip_code_pointer (address);
 
@@ -249,58 +287,415 @@ gum_memory_patch_code (gpointer address,
   end_page = GSIZE_TO_POINTER (
       (GPOINTER_TO_SIZE (address) + size - 1) & ~(page_size - 1));
   page_offset = ((guint8 *) address) - start_page;
-  range_size = (end_page + page_size) - start_page;
+
+  page_addresses =
+      g_ptr_array_sized_new (((end_page - start_page) / page_size) + 1);
+
+  g_ptr_array_add (page_addresses, start_page);
+
+  if (end_page != start_page)
+  {
+    guint8 * cur;
+
+    for (cur = start_page + page_size; cur != end_page; cur += page_size)
+      g_ptr_array_add (page_addresses, cur);
+  }
+
+  context.page_offset = page_offset;
+  context.func = apply;
+  context.user_data = apply_data;
+
+  result = gum_memory_patch_code_pages (page_addresses, TRUE,
+      gum_apply_patch_code, &context);
+
+  g_ptr_array_unref (page_addresses);
+
+  return result;
+}
+
+static void
+gum_apply_patch_code (gpointer mem,
+                      gpointer target_page,
+                      guint n_pages,
+                      gpointer user_data)
+{
+  GumPatchCodeContext * context = user_data;
+
+  context->func ((guint8 *) mem + context->page_offset, context->user_data);
+}
+
+gboolean
+gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
+                             gboolean coalesce,
+                             GumMemoryPatchPagesApplyFunc apply,
+                             gpointer apply_data)
+{
+  gboolean result = TRUE;
+  gsize page_size;
+  guint i;
+  guint8 * apply_start, * apply_target_start;
+  guint apply_num_pages;
+  gboolean rwx_supported;
 
   rwx_supported = gum_query_is_rwx_supported ();
+  page_size = gum_query_page_size ();
 
-  if (rwx_supported || !gum_code_segment_is_supported ())
+  if (gum_memory_can_remap_writable ())
+  {
+    GArray * plumps;
+    GumPageLump * last;
+
+#ifdef HAVE_DARWIN
+    if (gum_darwin_is_debugger_mapping_enforced ())
+    {
+      GumPagePlanBuilder plan;
+      gboolean success;
+
+      _gum_page_plan_builder_init (&plan);
+
+      for (i = 0; i != sorted_addresses->len; i++)
+      {
+        gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+
+        _gum_page_plan_builder_add_page (&plan, target_page);
+      }
+
+      success = _gum_page_plan_builder_post (&plan);
+
+      _gum_page_plan_builder_free (&plan);
+
+      if (!success)
+        return FALSE;
+    }
+#endif
+
+    plumps = g_array_new (FALSE, FALSE, sizeof (GumPageLump));
+
+    for (i = 0; i != sorted_addresses->len; i++)
+    {
+      guint8 * target_page = g_ptr_array_index (sorted_addresses, i);
+
+      last = (plumps->len != 0)
+          ? &g_array_index (plumps, GumPageLump, i)
+          : NULL;
+
+      if (last == NULL || last->end != target_page)
+      {
+        GumPageLump lump;
+
+        if (last != NULL)
+        {
+          gpointer writable;
+
+          writable = gum_memory_try_remap_writable_pages (last->start,
+              last->n_pages);
+          if (writable == NULL)
+          {
+            result = FALSE;
+            goto cleanup;
+          }
+
+          last->writable_start = writable;
+        }
+
+        lump.start = target_page;
+        lump.end = target_page;
+        lump.writable_start = NULL;
+        lump.n_pages = 0;
+
+        g_array_append_val (plumps, lump);
+      }
+
+      last = &g_array_index (plumps, GumPageLump, i);
+      last->end = target_page + page_size;
+      last->n_pages++;
+    }
+
+    if (plumps->len == 0)
+      goto cleanup;
+
+    last->writable_start =
+        gum_memory_try_remap_writable_pages (last->start, last->n_pages);
+    if (last->writable_start == NULL)
+    {
+      result = FALSE;
+      goto cleanup;
+    }
+
+    if (coalesce)
+    {
+      for (i = 0; i != plumps->len; i++)
+      {
+        const GumPageLump * plump = &g_array_index (plumps, GumPageLump, i);
+
+        apply (plump->writable_start, plump->start, plump->n_pages, apply_data);
+      }
+    }
+    else
+    {
+      guint plump_index = 0;
+
+      for (i = 0; i != sorted_addresses->len; i++)
+      {
+        guint8 * target_page;
+        const GumPageLump * plump;
+        gsize offset;
+
+        target_page = g_ptr_array_index (sorted_addresses, i);
+
+        plump = &g_array_index (plumps, GumPageLump, plump_index);
+
+        if (target_page >= plump->end)
+        {
+          plump_index++;
+          g_assert (plump_index != plumps->len);
+          plump = &g_array_index (plumps, GumPageLump, plump_index);
+        }
+
+        g_assert (target_page >= plump->start && target_page < plump->end);
+        offset = target_page - plump->start;
+        apply ((guint8 *) plump->writable_start + offset, target_page, 1,
+            apply_data);
+      }
+    }
+
+    for (i = 0; i != sorted_addresses->len; i++)
+    {
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+
+      gum_clear_cache (target_page, page_size);
+    }
+
+cleanup:
+    for (i = 0; i != plumps->len; i++)
+    {
+      const GumPageLump * plump = &g_array_index (plumps, GumPageLump, i);
+
+      if (plump->writable_start != NULL)
+      {
+        gum_memory_dispose_writable_pages (plump->writable_start,
+            plump->n_pages);
+      }
+    }
+
+    g_array_unref (plumps);
+  }
+  else if (rwx_supported || !gum_code_segment_is_supported ())
   {
     GumPageProtection protection;
+    GumSuspendOperation suspend_op = { 0, };
 
     protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
 
-    if (!gum_try_mprotect (start_page, range_size, protection))
-      return FALSE;
+    if (!rwx_supported)
+    {
+      gum_metal_array_init (&suspend_op.suspended_threads,
+          sizeof (GumThreadId));
 
-    apply (address, apply_data);
+      suspend_op.current_thread_id = gum_process_get_current_thread_id ();
+      _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
+          GUM_THREAD_FLAGS_NONE);
+    }
 
-    gum_clear_cache (address, size);
+    for (i = 0; i != sorted_addresses->len; i++)
+    {
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+
+      if (!gum_try_mprotect (target_page, page_size, protection))
+      {
+        result = false;
+        goto resume_threads;
+      }
+    }
+
+    apply_start = NULL;
+    apply_num_pages = 0;
+    for (i = 0; i != sorted_addresses->len; i++)
+    {
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+
+      if (coalesce)
+      {
+        if (apply_start != 0)
+        {
+          if (target_page == apply_start + (page_size * apply_num_pages))
+          {
+            apply_num_pages++;
+          }
+          else
+          {
+            apply (apply_start, apply_target_start, apply_num_pages,
+                apply_data);
+            apply_start = 0;
+          }
+        }
+
+        if (apply_start == 0)
+        {
+          apply_start = target_page;
+          apply_target_start = target_page;
+          apply_num_pages = 1;
+        }
+      }
+      else
+      {
+        apply (target_page, target_page, 1, apply_data);
+      }
+    }
+
+    if (apply_num_pages != 0)
+      apply (apply_start, apply_target_start, apply_num_pages, apply_data);
 
     if (!rwx_supported)
     {
       /*
-       * We don't bother restoring the protection on RWX systems, as we would
-       * have to determine the old protection to be able to do so safely.
-       *
-       * While we could easily do that, it would add overhead, but it's not
-       * really clear that it would have any tangible upsides.
-       *
-       * This behavior is also consistent with Interceptor, so if we later
-       * decide to change it, it also needs changing there.
-       */
-      if (!gum_try_mprotect (start_page, range_size, GUM_PAGE_RX))
-        return FALSE;
+        * We don't bother restoring the protection on RWX systems, as we would
+        * have to determine the old protection to be able to do so safely.
+        *
+        * While we could easily do that, it would add overhead, but it's not
+        * really clear that it would have any tangible upsides.
+        */
+      for (i = 0; i != sorted_addresses->len; i++)
+      {
+        gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+
+        if (!gum_try_mprotect (target_page, page_size, GUM_PAGE_RX))
+        {
+          result = FALSE;
+          goto resume_threads;
+        }
+      }
+    }
+
+    for (i = 0; i != sorted_addresses->len; i++)
+    {
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+
+      gum_clear_cache (target_page, page_size);
+    }
+
+resume_threads:
+    if (!rwx_supported)
+    {
+      guint num_suspended, i;
+
+      num_suspended = suspend_op.suspended_threads.length;
+
+      for (i = 0; i != num_suspended; i++)
+      {
+        GumThreadId * raw_id = gum_metal_array_element_at (
+            &suspend_op.suspended_threads, i);
+
+        gum_thread_resume (*raw_id, NULL);
+#ifdef HAVE_DARWIN
+        mach_port_mod_refs (mach_task_self (), *raw_id,
+            MACH_PORT_RIGHT_SEND, -1);
+#endif
+      }
+
+      gum_metal_array_free (&suspend_op.suspended_threads);
     }
   }
   else
   {
     GumCodeSegment * segment;
-    guint8 * scratch_page;
+    guint8 * source_page, * current_page;
+    gsize source_offset;
 
-    segment = gum_code_segment_new (range_size, NULL);
-    scratch_page = gum_code_segment_get_address (segment);
-    memcpy (scratch_page, start_page, range_size);
+    segment = gum_code_segment_new (sorted_addresses->len * page_size, NULL);
 
-    apply (scratch_page + page_offset, apply_data);
+    source_page = gum_code_segment_get_address (segment);
+
+    current_page = source_page;
+    for (i = 0; i != sorted_addresses->len; i++)
+    {
+      guint8 * target_page = g_ptr_array_index (sorted_addresses, i);
+
+      memcpy (current_page, target_page, page_size);
+
+      current_page += page_size;
+    }
+
+    apply_start = NULL;
+    apply_num_pages = 0;
+    for (i = 0; i != sorted_addresses->len; i++)
+    {
+      guint8 * target_page = g_ptr_array_index (sorted_addresses, i);
+
+      if (coalesce)
+      {
+        if (apply_start != NULL)
+        {
+          if (target_page == apply_target_start + (page_size * apply_num_pages))
+          {
+            apply_num_pages++;
+          }
+          else
+          {
+            apply (apply_start, apply_target_start, apply_num_pages,
+                apply_data);
+            apply_start = NULL;
+          }
+        }
+
+        if (apply_start == NULL)
+        {
+          apply_start = source_page;
+          apply_target_start = target_page;
+          apply_num_pages = 1;
+        }
+      }
+      else
+      {
+        apply (source_page, target_page, 1, apply_data);
+      }
+
+      source_page += page_size;
+    }
+
+    if (apply_num_pages != 0)
+      apply (apply_start, apply_target_start, apply_num_pages, apply_data);
 
     gum_code_segment_realize (segment);
-    gum_code_segment_map (segment, 0, range_size, start_page);
+
+    source_offset = 0;
+    for (i = 0; i != sorted_addresses->len; i++)
+    {
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+
+      gum_code_segment_map (segment, source_offset, page_size, target_page);
+
+      gum_clear_cache (target_page, page_size);
+
+      source_offset += page_size;
+    }
 
     gum_code_segment_free (segment);
-
-    gum_clear_cache (address, size);
   }
 
+  return result;
+}
+
+static gboolean
+gum_maybe_suspend_thread (const GumThreadDetails * details,
+                          gpointer user_data)
+{
+  GumSuspendOperation * op = user_data;
+  GumThreadId * suspended_id;
+
+  if (details->id == op->current_thread_id)
+    goto skip;
+
+  if (!gum_thread_suspend (details->id, NULL))
+    goto skip;
+
+#ifdef HAVE_DARWIN
+  mach_port_mod_refs (mach_task_self (), details->id, MACH_PORT_RIGHT_SEND, 1);
+#endif
+  suspended_id = gum_metal_array_append (&op->suspended_threads);
+  *suspended_id = details->id;
+
+skip:
   return TRUE;
 }
 

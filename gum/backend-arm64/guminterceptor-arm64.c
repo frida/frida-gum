@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -706,6 +706,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     return FALSE;
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
+  aw->pc = GUM_ADDRESS (ctx->trampoline_slice->pc);
 
   if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
   {
@@ -713,8 +714,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
   else
   {
-    ctx->on_enter_trampoline =
-        gum_sign_code_pointer (gum_arm64_writer_cur (aw));
+    ctx->on_enter_trampoline = gum_sign_code_pointer (
+        (guint8 *) ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw));
     deflector_target = ctx->on_enter_trampoline;
   }
 
@@ -751,7 +752,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
         GUM_ADDRESS (gum_sign_code_pointer (self->enter_thunk)));
     gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
-    ctx->on_leave_trampoline = gum_arm64_writer_cur (aw);
+    ctx->on_leave_trampoline =
+        (guint8 *) ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw);
 
     gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
     gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
@@ -762,7 +764,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
   }
 
-  ctx->on_invoke_trampoline = gum_sign_code_pointer (gum_arm64_writer_cur (aw));
+  ctx->on_invoke_trampoline = gum_sign_code_pointer (
+      (guint8 *) ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw));
 
   gum_arm64_relocator_reset (ar, function_address, aw);
 
@@ -1083,12 +1086,15 @@ static void
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {
   gsize page_size, code_size;
+  GumPageProtection protection;
   GumMemoryRange range;
 
   page_size = gum_query_page_size ();
   code_size = page_size;
 
-  self->thunks = gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW);
+  protection = gum_memory_can_remap_writable () ? GUM_PAGE_RX : GUM_PAGE_RW;
+
+  self->thunks = gum_memory_allocate (NULL, code_size, page_size, protection);
 
   range.base_address = GUM_ADDRESS (self->thunks);
   range.size = code_size;

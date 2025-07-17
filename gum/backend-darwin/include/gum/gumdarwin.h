@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
- * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -193,6 +193,7 @@ struct _GumDarwinPThread
 
 GUM_API gboolean gum_darwin_check_xnu_version (guint major, guint minor,
     guint micro);
+GUM_API gboolean gum_darwin_is_debugger_mapping_enforced (void);
 
 GUM_API guint8 * gum_darwin_read (mach_port_t task, GumAddress address,
     gsize len, gsize * n_bytes_read);

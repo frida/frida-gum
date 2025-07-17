@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -174,8 +175,10 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     return FALSE;
 
   gum_mips_writer_reset (cw, ctx->trampoline_slice->data);
+  cw->pc = GUM_ADDRESS (ctx->trampoline_slice->pc);
 
-  ctx->on_enter_trampoline = gum_mips_writer_cur (cw);
+  ctx->on_enter_trampoline =
+      ctx->trampoline_slice->pc + gum_mips_writer_offset (cw);
 
   if (need_deflector)
   {
@@ -197,10 +200,11 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T0, GUM_ADDRESS (ctx));
 #endif
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_AT,
-      GUM_ADDRESS (self->enter_thunk->data));
+      GUM_ADDRESS (self->enter_thunk->pc));
   gum_mips_writer_put_jr_reg (cw, MIPS_REG_AT);
 
-  ctx->on_leave_trampoline = gum_mips_writer_cur (cw);
+  ctx->on_leave_trampoline =
+      ctx->trampoline_slice->pc + gum_mips_writer_offset (cw);
 
   /* TODO: save $t0 on the stack? */
 #if GLIB_SIZEOF_VOID_P == 8
@@ -210,13 +214,14 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T0, GUM_ADDRESS (ctx));
 #endif
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_AT,
-      GUM_ADDRESS (self->leave_thunk->data));
+      GUM_ADDRESS (self->leave_thunk->pc));
   gum_mips_writer_put_jr_reg (cw, MIPS_REG_AT);
 
   gum_mips_writer_flush (cw);
   g_assert (gum_mips_writer_offset (cw) <= ctx->trampoline_slice->size);
 
-  ctx->on_invoke_trampoline = gum_mips_writer_cur (cw);
+  ctx->on_invoke_trampoline =
+      ctx->trampoline_slice->pc + gum_mips_writer_offset (cw);
 
   /* Fix t9 to point to the original function address */
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T9,
@@ -365,12 +370,14 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 
   self->enter_thunk = gum_code_allocator_alloc_slice (self->allocator);
   gum_mips_writer_reset (cw, self->enter_thunk->data);
+  cw->pc = GUM_ADDRESS (self->enter_thunk->pc);
   gum_emit_enter_thunk (cw);
   gum_mips_writer_flush (cw);
   g_assert (gum_mips_writer_offset (cw) <= self->enter_thunk->size);
 
   self->leave_thunk = gum_code_allocator_alloc_slice (self->allocator);
   gum_mips_writer_reset (cw, self->leave_thunk->data);
+  cw->pc = GUM_ADDRESS (self->leave_thunk->pc);
   gum_emit_leave_thunk (cw);
   gum_mips_writer_flush (cw);
   g_assert (gum_mips_writer_offset (cw) <= self->leave_thunk->size);

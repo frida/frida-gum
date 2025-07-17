@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +8,7 @@
 #include "gummemory.h"
 
 #include "gum/gumdarwin.h"
+#include "gumdarwin-priv.h"
 #include "gummemory-priv.h"
 
 #include <errno.h>
@@ -15,6 +17,8 @@
 #include <mach/mach.h>
 #include <sys/mman.h>
 #include <sys/sysctl.h>
+
+#define GUM_PAGE_BLOCK_BYTES_CAPACITY 8
 
 typedef gboolean (* GumFoundFreeRangeFunc) (const GumMemoryRange * range,
     gpointer user_data);
@@ -32,6 +36,13 @@ struct _GumAllocNearContext
   gpointer result;
 };
 
+extern kern_return_t mach_vm_page_info (vm_map_read_t target_task,
+    mach_vm_address_t address, vm_page_info_flavor_t flavor,
+    vm_page_info_t info, mach_msg_type_number_t *infoCnt);
+
+static kern_return_t gum_mach_vm_protect (vm_map_t target_task,
+    mach_vm_address_t address, mach_vm_size_t size, boolean_t set_maximum,
+    vm_prot_t new_protection);
 static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
     gint prot);
 static gboolean gum_try_alloc_in_range_if_near_enough (
@@ -358,6 +369,66 @@ gum_darwin_write (mach_port_t task,
   return (kr == KERN_SUCCESS);
 }
 
+gboolean
+gum_memory_can_remap_writable (void)
+{
+  return gum_darwin_is_debugger_mapping_enforced ();
+}
+
+gpointer
+gum_memory_try_remap_writable_pages (gpointer first_page,
+                                     guint n_pages)
+{
+  mach_port_t task;
+  gsize size;
+  vm_address_t writable_address;
+  vm_prot_t cur_prot, max_prot;
+  GumMemoryRange range;
+
+  task = mach_task_self ();
+  size = n_pages * gum_query_page_size ();
+
+  writable_address = 0;
+  /* TODO: Implement shim. */
+  if (vm_remap (task, &writable_address, size, 0, VM_FLAGS_ANYWHERE, task,
+      GPOINTER_TO_SIZE (first_page), FALSE, &cur_prot, &max_prot,
+      VM_INHERIT_NONE) != 0)
+  {
+    return NULL;
+  }
+
+  if (gum_mach_vm_protect (task, writable_address, size, FALSE,
+      VM_PROT_READ | VM_PROT_WRITE) != KERN_SUCCESS)
+  {
+    mach_vm_deallocate (task, writable_address, size);
+    return NULL;
+  }
+
+  range.base_address = writable_address;
+  range.size = size;
+  gum_cloak_add_range (&range);
+
+  return GSIZE_TO_POINTER (writable_address);
+}
+
+void
+gum_memory_dispose_writable_pages (gpointer first_page,
+                                   guint n_pages)
+{
+  mach_port_t task;
+  gsize size;
+  GumMemoryRange range;
+
+  task = mach_task_self ();
+  size = n_pages * gum_query_page_size ();
+
+  range.base_address = GUM_ADDRESS (first_page);
+  range.size = size;
+  gum_cloak_remove_range (&range);
+
+  mach_vm_deallocate (task, GPOINTER_TO_SIZE (first_page), size);
+}
+
 static kern_return_t
 gum_mach_vm_protect (vm_map_t target_task,
                      mach_vm_address_t address,
@@ -489,12 +560,42 @@ gum_try_alloc_n_pages_near (guint n_pages,
   if (base == NULL)
     return NULL;
 
-  if ((prot & GUM_PAGE_WRITE) == 0)
-    gum_mprotect (base, page_size, GUM_PAGE_RW);
+  if ((prot & GUM_PAGE_EXECUTE) == 0 || !gum_memory_can_remap_writable ())
+  {
+    if ((prot & GUM_PAGE_WRITE) == 0)
+      gum_mprotect (base, page_size, GUM_PAGE_RW);
 
-  *((gsize *) base) = size;
+    *((gsize *) base) = size;
 
-  gum_mprotect (base, page_size, GUM_PAGE_READ);
+    gum_mprotect (base, page_size, GUM_PAGE_READ);
+  }
+  else
+  {
+    gpointer writable;
+
+    gum_mprotect (base, page_size, GUM_PAGE_RX);
+
+    if (gum_darwin_is_debugger_mapping_enforced ())
+    {
+      GumPagePlanBuilder plan;
+
+      _gum_page_plan_builder_init (&plan);
+
+      _gum_page_plan_builder_add_pages (&plan, base, 1 + n_pages);
+
+      if (!_gum_page_plan_builder_post (&plan))
+        g_abort ();
+
+      _gum_page_plan_builder_free (&plan);
+    }
+
+    writable = gum_memory_try_remap_writable_pages (base, 1);
+    g_assert (writable != NULL);
+
+    *((gsize *) writable) = size;
+
+    gum_memory_dispose_writable_pages (writable, 1);
+  }
 
   return base + page_size;
 }
@@ -777,4 +878,196 @@ gum_page_protection_to_bsd (GumPageProtection prot)
     posix_prot |= PROT_EXEC;
 
   return posix_prot;
+}
+
+static gboolean
+gum_memory_is_codesign_out_of_the_way (gpointer page)
+{
+  gboolean result;
+  mach_port_t task;
+  struct vm_page_info_basic page_info;
+  mach_msg_type_number_t count = VM_PAGE_INFO_BASIC_COUNT;
+  gsize size;
+  vm_address_t writable_address;
+  vm_prot_t cur_prot, max_prot;
+
+  task = mach_task_self ();
+
+  /* TODO: Implement shim. */
+  mach_vm_page_info (task, GPOINTER_TO_SIZE (page), VM_PAGE_INFO_BASIC,
+      (int *) &page_info, &count);
+
+  if ((page_info.disposition &
+      (VM_PAGE_QUERY_PAGE_CS_VALIDATED |
+      VM_PAGE_QUERY_PAGE_CS_TAINTED |
+      VM_PAGE_QUERY_PAGE_CS_NX)) != 0)
+  {
+    return FALSE;
+  }
+
+  size = gum_query_page_size ();
+  writable_address = 0;
+  if (vm_remap (task, &writable_address, size, 0, VM_FLAGS_ANYWHERE, task,
+      GPOINTER_TO_SIZE (page), FALSE, &cur_prot, &max_prot,
+      VM_INHERIT_NONE) != 0)
+  {
+    return FALSE;
+  }
+
+  result = gum_mach_vm_protect (task, writable_address, size, FALSE,
+      VM_PROT_READ | VM_PROT_WRITE) == KERN_SUCCESS;
+
+  mach_vm_deallocate (task, writable_address, size);
+
+  return result;
+}
+
+void
+_gum_page_plan_builder_init (GumPagePlanBuilder * self)
+{
+  self->page_blocks = g_array_new (FALSE, FALSE, sizeof (GumPageBlock));
+}
+
+void
+_gum_page_plan_builder_free (GumPagePlanBuilder * self)
+{
+  guint i;
+
+  if (self == NULL)
+    return;
+
+  for (i = 0; i != self->page_blocks->len; i++)
+  {
+    GumPageBlock * block = &g_array_index (self->page_blocks, GumPageBlock, i);
+
+    g_byte_array_unref (block->bytes);
+  }
+
+  g_array_unref (self->page_blocks);
+}
+
+void
+_gum_page_plan_builder_add_page (GumPagePlanBuilder * self,
+                                 gpointer target_page)
+{
+  _gum_page_plan_builder_add_pages (self, target_page, 1);
+}
+
+void
+_gum_page_plan_builder_add_pages (GumPagePlanBuilder * self,
+                                  gpointer base,
+                                  gsize n_pages)
+{
+  GArray * blocks = self->page_blocks;
+  gsize page_size;
+  gpointer end, page;
+
+  page_size = gum_query_page_size ();
+
+  end = base + n_pages * page_size;
+  for (page = base; page != end; page += page_size)
+  {
+    GumPageBlock * current;
+    guint8 byte;
+
+    if (gum_memory_is_codesign_out_of_the_way (page))
+      continue;
+
+    current = (blocks->len != 0)
+        ? &g_array_index (blocks, GumPageBlock, blocks->len - 1)
+        : NULL;
+
+    if (current == NULL || current->end != page)
+    {
+      GumPageBlock b;
+
+      b.start = page;
+      b.end = page;
+      b.bytes = g_byte_array_sized_new (GUM_PAGE_BLOCK_BYTES_CAPACITY);
+
+      g_array_append_val (blocks, b);
+
+      current = &g_array_index (blocks, GumPageBlock, blocks->len - 1);
+    }
+
+    current->end = page + page_size;
+
+    if ((current->bytes->len % 2) == 0)
+      byte = *(((guint8 *) page) + page_size - 1);
+    else
+      byte = *(guint8 *) page;
+    g_byte_array_append (current->bytes, &byte, sizeof (byte));
+  }
+
+  g_assert (blocks->len == 0 ||
+      g_array_index (blocks, GumPageBlock, i).bytes->len != 0);
+}
+
+gboolean
+_gum_page_plan_builder_post (GumPagePlanBuilder * self)
+{
+  GArray * blocks = self->page_blocks;
+  guint32 n_blocks;
+  GByteArray * buffer;
+  guint32 i;
+  gsize raw_result;
+
+  /*
+   * Plan packet structure:
+   *
+   * (guint32) n_blocks
+   *    (guint64) start
+   *    (guint32) n_pages
+   *      (guint8) byte
+   *      ...
+   *    ...
+   */
+
+  n_blocks = blocks->len;
+  if (n_blocks == 0)
+    return TRUE;
+
+  buffer = g_byte_array_sized_new (4 +
+      (n_blocks * (8 + 4 + GUM_PAGE_BLOCK_BYTES_CAPACITY)));
+
+  g_byte_array_append (buffer, (guint8 *) &n_blocks, sizeof (n_blocks));
+
+  for (i = 0; i != n_blocks; i++)
+  {
+    GumPageBlock * block;
+    guint32 n_pages;
+
+    block = &g_array_index (blocks, GumPageBlock, i);
+
+    g_byte_array_append (buffer, (guint8 *) &block->start,
+        sizeof (block->start));
+
+    n_pages = block->bytes->len;
+    g_byte_array_append (buffer, (guint8 *) &n_pages, sizeof (n_pages));
+
+    g_byte_array_append (buffer, block->bytes->data, block->bytes->len);
+  }
+
+#ifdef HAVE_ARM64
+  asm volatile (
+      "mov x0, #0\n\t"
+      "mov x1, #1337\n\t"
+      "mov x2, #1337\n\t"
+      "mov x3, #3\n\t"
+      "mov x4, %1\n\t"
+      "mov x5, %2\n\t"
+      "brk #1337\n\t"
+      "mov %0, x0\n\t"
+      : "=r" (raw_result)
+      : "r" ((gsize) buffer->len),
+        "r" (GPOINTER_TO_SIZE (buffer->data))
+      : "x0", "x1", "x2", "x3", "x4", "x5"
+  );
+#else
+  g_abort ();
+#endif
+
+  g_byte_array_unref (buffer);
+
+  return raw_result == 0x1337;
 }

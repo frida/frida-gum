@@ -936,7 +936,7 @@ allocate_clobber_test_invoker_func (ClobberTestFunc target_func,
   *code_size = page_size;
 
   code = gum_memory_allocate_near (&addr_spec, *code_size, page_size,
-      GUM_PAGE_RW);
+      gum_memory_can_remap_writable () ? GUM_PAGE_RX : GUM_PAGE_RW);
   g_assert_nonnull (code);
 
   return code;
