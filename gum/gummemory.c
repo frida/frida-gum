@@ -1579,7 +1579,7 @@ gum_page_plan_builder_free (GumPagePlanBuilder * self)
     GumPageBlock * block = cur->data;
 
     g_list_free (block->bytes);
-    g_slice_free (block);
+    g_slice_free (GumPageBlock, block);
   }
 
   g_list_free (self->page_blocks);
