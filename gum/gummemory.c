@@ -370,7 +370,7 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
       goto beach;
     }
 
-    apply_start = 0;
+    apply_target_start = 0;
     apply_num_pages = 0;
     for (cur = sorted_addresses; cur != NULL; cur = cur->next)
     {
@@ -419,8 +419,7 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
 
         apply (source, target_page, 1, apply_data);
 
-        mach_vm_deallocate (task, (mach_vm_address_t) source,
-            apply_num_pages * page_size);
+        mach_vm_deallocate (task, (mach_vm_address_t) source, page_size);
       }
     }
 
