@@ -51,10 +51,28 @@
 #endif
 #ifdef HAVE_DARWIN
 # include <mach/mach.h>
+# include "gum/gumdarwin.h"
 #endif
 
 typedef struct _GumPatchCodeContext GumPatchCodeContext;
 typedef struct _GumSuspendOperation GumSuspendOperation;
+#ifdef HAVE_DARWIN
+typedef struct _GumPagePlanBuilder GumPagePlanBuilder;
+typedef struct _GumPageBlock GumPageBlock;
+
+struct _GumPagePlanBuilder
+{
+  GList * page_blocks;
+};
+
+struct _GumPageBlock
+{
+  gpointer start;
+  gpointer end;
+  GList * bytes;
+  guint count;
+};
+#endif
 
 struct _GumMatchPattern
 {
@@ -81,6 +99,16 @@ static void gum_apply_patch_code (gpointer mem, gpointer target_page,
     guint n_pages, gpointer user_data);
 static gboolean gum_maybe_suspend_thread (const GumThreadDetails * details,
     gpointer user_data);
+#ifdef HAVE_DARWIN
+static gboolean gum_is_debugger_mapping_enforced (void);
+static gpointer gum_memory_try_remap_writable_pages (gpointer first_page,
+    guint n_pages);
+
+static void gum_page_plan_builder_free (GumPagePlanBuilder * self);
+static void gum_page_plan_builder_add_page (GumPagePlanBuilder * self,
+    gpointer target_page);
+static gboolean gum_page_plan_builder_post (GumPagePlanBuilder * self);
+#endif
 
 static void gum_memory_scan_raw (const GumMemoryRange * range,
     const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
@@ -320,6 +348,94 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
 
   rwx_supported = gum_query_is_rwx_supported ();
   page_size = gum_query_page_size ();
+
+#ifdef HAVE_DARWIN
+  if (gum_is_debugger_mapping_enforced ())
+  {
+    GumPagePlanBuilder plan_builder = { 0, };
+    mach_port_t task;
+
+    task = mach_task_self ();
+
+    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer target_page = cur->data;
+
+      gum_page_plan_builder_add_page (&plan_builder, target_page);
+    }
+
+    if (!gum_page_plan_builder_post (&plan_builder))
+    {
+      result = FALSE;
+      goto beach;
+    }
+
+    apply_start = 0;
+    apply_num_pages = 0;
+    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer target_page = cur->data;
+
+      if (coalesce)
+      {
+        if (apply_target_start != 0)
+        {
+          if (target_page == apply_target_start + page_size * apply_num_pages)
+          {
+            apply_num_pages++;
+          }
+          else
+          {
+            gpointer writable = gum_memory_try_remap_writable_pages (
+                apply_target_start, apply_num_pages);
+            if (writable == NULL)
+            {
+              result = FALSE;
+              goto beach;
+            }
+
+            apply (writable, apply_target_start, apply_num_pages, apply_data);
+
+            mach_vm_deallocate (task, (mach_vm_address_t) writable,
+                apply_num_pages * page_size);
+            apply_target_start = 0;
+          }
+        }
+
+        if (apply_target_start == 0)
+        {
+          apply_target_start = target_page;
+          apply_num_pages = 1;
+        }
+      }
+      else
+      {
+        gpointer source = gum_memory_try_remap_writable_pages (target_page, 1);
+        if (source == NULL)
+        {
+          result = FALSE;
+          goto beach;
+        }
+
+        apply (source, target_page, 1, apply_data);
+
+        mach_vm_deallocate (task, (mach_vm_address_t) source,
+            apply_num_pages * page_size);
+      }
+    }
+
+    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer target_page = cur->data;
+
+      gum_clear_cache (target_page, page_size);
+    }
+
+beach:
+    gum_page_plan_builder_free (&plan_builder);
+  }
+  else
+#endif
 
   if (rwx_supported || !gum_code_segment_is_supported ())
   {
@@ -571,6 +687,74 @@ gum_memory_mark_code (gpointer address,
 
   return success;
 }
+
+#ifdef HAVE_DARWIN
+static gboolean
+gum_is_debugger_mapping_enforced (void)
+{
+  static gsize is_enforced = 0;
+  if (g_once_init_enter (&is_enforced))
+  {
+    mach_port_t task;
+    int page_size;
+    mach_vm_address_t start;
+    vm_address_t addr;
+    vm_prot_t cur_prot, max_prot;
+    gboolean enforced;
+
+    task = mach_task_self ();
+    page_size = gum_query_page_size ();
+
+    mach_vm_allocate (task, &start, page_size, VM_FLAGS_ANYWHERE);
+    *(uint32_t *) start = 1337;
+    gum_try_mprotect ((gpointer) start, page_size, GUM_PAGE_RX);
+
+    addr = 0;
+    vm_remap (task, &addr, page_size, 0, VM_FLAGS_ANYWHERE, task, start,
+        FALSE, &cur_prot, &max_prot, VM_INHERIT_NONE);
+
+    enforced =
+        (cur_prot & (VM_PROT_READ | VM_PROT_EXECUTE)) !=
+        (VM_PROT_READ | VM_PROT_EXECUTE);
+
+    mach_vm_deallocate (task, addr, page_size);
+    mach_vm_deallocate (task, start, page_size);
+
+    g_once_init_leave (&is_enforced, (gsize) enforced + 1);
+  }
+
+  return is_enforced - 1;
+}
+
+static gpointer
+gum_memory_try_remap_writable_pages (gpointer first_page,
+                                     guint n_pages)
+{
+  mach_port_t task;
+  gsize size;
+  vm_address_t writable_address;
+  vm_prot_t cur_prot, max_prot;
+
+  task = mach_task_self ();
+  size = n_pages * gum_query_page_size ();
+
+  writable_address = 0;
+  if (vm_remap (task, &writable_address, size, 0, VM_FLAGS_ANYWHERE, task,
+      (vm_address_t) first_page, FALSE, &cur_prot, &max_prot,
+      VM_INHERIT_NONE) != 0)
+  {
+    return NULL;
+  }
+
+  if (!gum_try_mprotect ((gpointer) writable_address, size, GUM_PAGE_RW))
+  {
+    mach_vm_deallocate (task, writable_address, size);
+    return NULL;
+  }
+
+  return (gpointer) writable_address;
+}
+#endif
 
 /**
  * gum_memory_scan:
@@ -1361,3 +1545,138 @@ gum_memory_range_free (GumMemoryRange * range)
 {
   g_slice_free (GumMemoryRange, range);
 }
+
+#ifdef HAVE_DARWIN
+
+static void
+gum_page_plan_builder_free (GumPagePlanBuilder * self)
+{
+  GList * cur;
+
+  if (self == NULL)
+    return;
+
+  if (self->page_blocks == NULL)
+    return;
+
+  for (cur = self->page_blocks; cur != NULL; cur = cur->next)
+  {
+    GumPageBlock * block = cur->data;
+
+    g_list_free (block->bytes);
+    g_free (block);
+  }
+
+  g_list_free (self->page_blocks);
+  self->page_blocks = NULL;
+}
+
+static void
+gum_page_plan_builder_add_page (GumPagePlanBuilder * self,
+                                gpointer target_page)
+{
+  GumPageBlock * current_block = NULL;
+  gsize page_size;
+  guint8 byte;
+
+  page_size = gum_query_page_size ();
+
+  if (self->page_blocks != NULL)
+    current_block = self->page_blocks->data;
+
+  if (current_block == NULL || current_block->end != target_page)
+  {
+    current_block = g_slice_new (GumPageBlock);
+    self->page_blocks = g_list_prepend (self->page_blocks, current_block);
+    current_block->start = current_block->end = target_page;
+    current_block->count = 0;
+  }
+
+  if ((current_block->count % 2) == 0)
+    byte = *(((guint8 *) target_page) + page_size - 1);
+  else
+    byte =  *(guint8 *) target_page;
+
+  current_block->bytes = g_list_prepend (current_block->bytes,
+      GSIZE_TO_POINTER (byte));
+
+  current_block->count++;
+  current_block->end += page_size;
+}
+
+static gboolean
+gum_page_plan_builder_post (GumPagePlanBuilder * self)
+{
+  gsize raw_result = 0;
+  gsize plan_size;
+  GList * cur;
+  guint8 * buffer;
+  gsize cursor;
+  guint32 n_blocks = 0;
+
+  /*
+   * Plan packet structure:
+   *
+   * (guint32) n_blocks
+   *    (guint64) start
+   *    (guint32) n_pages
+   *      (guint8) byte
+   *      ...
+   *    ...
+   */
+
+  plan_size = 4; // n_blocks
+  for (cur = self->page_blocks; cur != NULL; cur = cur->next)
+  {
+    GumPageBlock * block = cur->data;
+
+    plan_size += 12; // first_page + n_pages
+    plan_size += block->count; // bytes
+    n_blocks++;
+  }
+
+  buffer = (guint8 *) g_malloc (plan_size);
+
+  *(guint32 *) buffer = n_blocks;
+  cursor = 4;
+  for (cur = self->page_blocks; cur != NULL; cur = cur->next)
+  {
+    GumPageBlock * block = cur->data;
+    GList * cur_byte;
+
+    *((guint64 *) (buffer + cursor)) = GPOINTER_TO_SIZE (block->start);
+    cursor += 8;
+    *((guint32 *) (buffer + cursor)) = block->count;
+    cursor += 4;
+
+    for (cur_byte = block->bytes; cur_byte != NULL; cur_byte = cur_byte->next)
+    {
+      *(buffer + cursor++) = (guint8) GPOINTER_TO_SIZE (cur_byte->data);
+    }
+  }
+
+#ifdef HAVE_ARM64
+  asm volatile (
+      "mov x0, #0\n\t"
+      "mov x1, #1337\n\t"
+      "mov x2, #1337\n\t"
+      "mov x3, #3\n\t"
+      "mov x4, %1\n\t"
+      "mov x5, %2\n\t"
+      "brk #1337\n\t"
+      "mov %0, x0\n\t"
+      : "=r" (raw_result)
+      : "r" (plan_size),
+        "r" ((gsize) buffer)
+      : "x0", "x1", "x2", "x3", "x4", "x5"
+  );
+#else
+  g_abort ();
+#endif
+
+  gum_page_plan_builder_free (self);
+
+  return raw_result == 0x1337;
+}
+
+#endif
