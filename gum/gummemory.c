@@ -424,6 +424,22 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
       }
     }
 
+    if (apply_num_pages != 0)
+    {
+      gpointer writable = gum_memory_try_remap_writable_pages (
+          apply_target_start, apply_num_pages);
+      if (writable == NULL)
+      {
+        result = FALSE;
+        goto beach;
+      }
+
+      apply (writable, apply_target_start, apply_num_pages, apply_data);
+
+      mach_vm_deallocate (task, (mach_vm_address_t) writable,
+          apply_num_pages * page_size);
+    }
+
     for (cur = sorted_addresses; cur != NULL; cur = cur->next)
     {
       gpointer target_page = cur->data;
