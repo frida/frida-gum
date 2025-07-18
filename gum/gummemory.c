@@ -1602,10 +1602,9 @@ gum_page_plan_builder_add_page (GumPagePlanBuilder * self,
 
   if (current_block == NULL || current_block->end != target_page)
   {
-    current_block = g_slice_new (GumPageBlock);
+    current_block = g_slice_new0 (GumPageBlock);
     self->page_blocks = g_list_prepend (self->page_blocks, current_block);
     current_block->start = current_block->end = target_page;
-    current_block->count = 0;
   }
 
   if ((current_block->count % 2) == 0)
