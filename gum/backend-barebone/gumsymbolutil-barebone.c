@@ -8,38 +8,38 @@
 
 static GArray * gum_pointer_array_new_empty (void);
 
-gboolean
+G_GNUC_WEAK gboolean
 gum_symbol_details_from_address (gpointer address,
                                  GumDebugSymbolDetails * details)
 {
   return FALSE;
 }
 
-gchar *
+G_GNUC_WEAK gchar *
 gum_symbol_name_from_address (gpointer address)
 {
   return NULL;
 }
 
-gpointer
+G_GNUC_WEAK gpointer
 gum_find_function (const gchar * name)
 {
   return NULL;
 }
 
-GArray *
+G_GNUC_WEAK GArray *
 gum_find_functions_named (const gchar * name)
 {
   return gum_pointer_array_new_empty ();
 }
 
-GArray *
+G_GNUC_WEAK GArray *
 gum_find_functions_matching (const gchar * str)
 {
   return gum_pointer_array_new_empty ();
 }
 
-gboolean
+G_GNUC_WEAK gboolean
 gum_load_symbols (const gchar * path)
 {
   return FALSE;
