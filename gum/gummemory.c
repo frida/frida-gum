@@ -761,11 +761,8 @@ gum_memory_try_remap_writable_pages (gpointer first_page,
     return NULL;
   }
 
-  if (!gum_try_mprotect ((gpointer) writable_address, size, GUM_PAGE_RW))
-  {
-    mach_vm_deallocate (task, writable_address, size);
+  if (mprotect((gpointer) writable_address, size, PROT_READ | PROT_WRITE) != 0)
     return NULL;
-  }
 
   return (gpointer) writable_address;
 }
