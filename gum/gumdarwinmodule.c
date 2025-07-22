@@ -237,14 +237,16 @@ gum_darwin_module_init (GumDarwinModule * self)
 static void
 gum_darwin_module_constructed (GObject * object)
 {
-#ifdef HAVE_DARWIN
   GumDarwinModule * self = GUM_DARWIN_MODULE (object);
 
+#ifdef HAVE_DARWIN
   if (self->task != GUM_DARWIN_PORT_NULL)
   {
     self->is_local = self->task == mach_task_self ();
     self->is_kernel = self->task == gum_kernel_get_task ();
   }
+#else
+  self->is_local = self->source_path == NULL && self->source_blob == NULL;
 #endif
 }
 
