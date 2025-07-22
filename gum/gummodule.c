@@ -51,7 +51,10 @@ gum_module_get_range (GumModule * self)
 void
 gum_module_ensure_initialized (GumModule * self)
 {
-  GUM_MODULE_GET_IFACE (self)->ensure_initialized (self);
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->ensure_initialized != NULL)
+    iface->ensure_initialized (self);
 }
 
 void
@@ -59,7 +62,10 @@ gum_module_enumerate_imports (GumModule * self,
                               GumFoundImportFunc func,
                               gpointer user_data)
 {
-  GUM_MODULE_GET_IFACE (self)->enumerate_imports (self, func, user_data);
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->enumerate_imports != NULL)
+    iface->enumerate_imports (self, func, user_data);
 }
 
 void
@@ -67,7 +73,10 @@ gum_module_enumerate_exports (GumModule * self,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
-  GUM_MODULE_GET_IFACE (self)->enumerate_exports (self, func, user_data);
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->enumerate_exports != NULL)
+    iface->enumerate_exports (self, func, user_data);
 }
 
 void
@@ -75,7 +84,10 @@ gum_module_enumerate_symbols (GumModule * self,
                               GumFoundSymbolFunc func,
                               gpointer user_data)
 {
-  GUM_MODULE_GET_IFACE (self)->enumerate_symbols (self, func, user_data);
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->enumerate_symbols != NULL)
+    iface->enumerate_symbols (self, func, user_data);
 }
 
 void
@@ -84,7 +96,10 @@ gum_module_enumerate_ranges (GumModule * self,
                              GumFoundRangeFunc func,
                              gpointer user_data)
 {
-  GUM_MODULE_GET_IFACE (self)->enumerate_ranges (self, prot, func, user_data);
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->enumerate_ranges != NULL)
+    iface->enumerate_ranges (self, prot, func, user_data);
 }
 
 void
@@ -92,7 +107,10 @@ gum_module_enumerate_sections (GumModule * self,
                                GumFoundSectionFunc func,
                                gpointer user_data)
 {
-  GUM_MODULE_GET_IFACE (self)->enumerate_sections (self, func, user_data);
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->enumerate_sections != NULL)
+    iface->enumerate_sections (self, func, user_data);
 }
 
 void
@@ -100,14 +118,22 @@ gum_module_enumerate_dependencies (GumModule * self,
                                    GumFoundDependencyFunc func,
                                    gpointer user_data)
 {
-  GUM_MODULE_GET_IFACE (self)->enumerate_dependencies (self, func, user_data);
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->enumerate_dependencies != NULL)
+    iface->enumerate_dependencies (self, func, user_data);
 }
 
 GumAddress
 gum_module_find_export_by_name (GumModule * self,
                                 const gchar * symbol_name)
 {
-  return GUM_MODULE_GET_IFACE (self)->find_export_by_name (self, symbol_name);
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->find_export_by_name != NULL)
+    return iface->find_export_by_name (self, symbol_name);
+
+  return 0;
 }
 
 GumAddress

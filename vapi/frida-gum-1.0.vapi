@@ -355,16 +355,16 @@ namespace Gum {
 
 		public static Module load (string module_name) throws Gum.Error;
 
-		public abstract void ensure_initialized ();
-		public abstract void enumerate_imports (Gum.FoundImportFunc func);
-		public abstract void enumerate_exports (Gum.FoundExportFunc func);
-		public abstract void enumerate_symbols (Gum.FoundSymbolFunc func);
-		public abstract void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
-		public abstract void enumerate_sections (Gum.FoundSectionFunc func);
-		public abstract void enumerate_dependencies (Gum.FoundDependencyFunc func);
-		public abstract Gum.Address find_export_by_name (string symbol_name);
+		public void ensure_initialized ();
+		public void enumerate_imports (Gum.FoundImportFunc func);
+		public void enumerate_exports (Gum.FoundExportFunc func);
+		public void enumerate_symbols (Gum.FoundSymbolFunc func);
+		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
+		public void enumerate_sections (Gum.FoundSectionFunc func);
+		public void enumerate_dependencies (Gum.FoundDependencyFunc func);
+		public Gum.Address find_export_by_name (string symbol_name);
 		public static Gum.Address find_global_export_by_name (string symbol_name);
-		public abstract Gum.Address find_symbol_by_name (string symbol_name);
+		public Gum.Address find_symbol_by_name (string symbol_name);
 	}
 
 	public class ModuleMap : GLib.Object {
