@@ -189,7 +189,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
         sizeof (GumFunctionContext *));
 
     ctx->on_enter_trampoline = gum_x86_writer_offset (cw) +
-        ctx->trampoline_slice->pc
+        ctx->trampoline_slice->pc;
 
     gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->pc));
@@ -203,7 +203,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
        */
 
       after_push_to_shadow_stack = gum_x86_writer_offset (cw) +
-        ctx->trampoline_slice->pc
+        ctx->trampoline_slice->pc;
 
       gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP,
           GUM_X86_XSP, (gssize) sizeof (gpointer));
@@ -211,14 +211,14 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       gum_x86_writer_put_jmp_reg (cw, GUM_X86_XAX);
 
       data->push_to_shadow_stack = gum_x86_writer_offset (cw) +
-        ctx->trampoline_slice->pc
+        ctx->trampoline_slice->pc;
 
       gum_x86_writer_put_call_address (cw,
           GUM_ADDRESS (after_push_to_shadow_stack));
     }
 
     ctx->on_leave_trampoline = gum_x86_writer_offset (cw) +
-        ctx->trampoline_slice->pc
+        ctx->trampoline_slice->pc;
 
     gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->pc));
@@ -228,7 +228,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   ctx->on_invoke_trampoline = gum_x86_writer_offset (cw) +
-      ctx->trampoline_slice->pc
+      ctx->trampoline_slice->pc;
   gum_x86_relocator_reset (rl, (guint8 *) ctx->function_address, cw);
 
   do
@@ -408,7 +408,6 @@ static void
 gum_emit_enter_thunk (GumX86Writer * cw,
                       GumAddress base_pc)
 {
-  GumAddress base_pc;
   const gssize return_address_stack_displacement = 0;
   const gchar * prepare_trap_on_leave = "prepare_trap_on_leave";
   GumX86Reg function_ctx_reg = (sizeof (gpointer) == 8)
