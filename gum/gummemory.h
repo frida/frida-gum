@@ -189,6 +189,11 @@ GUM_API GType gum_memory_range_get_type (void) G_GNUC_CONST;
 GUM_API GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
 GUM_API void gum_memory_range_free (GumMemoryRange * range);
 
+gboolean gum_memory_can_remap_writable (void);
+gpointer gum_memory_try_remap_writable_pages (gpointer first_page,
+    guint n_pages);
+void gum_memory_dispose_writable_pages (gpointer first_page, guint n_pages);
+
 G_END_DECLS
 
 #endif

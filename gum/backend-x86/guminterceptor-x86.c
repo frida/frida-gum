@@ -58,7 +58,7 @@ static void gum_interceptor_backend_create_thunks (
 static void gum_interceptor_backend_destroy_thunks (
     GumInterceptorBackend * self);
 
-static void gum_emit_enter_thunk (GumX86Writer * cw);
+static void gum_emit_enter_thunk (GumX86Writer * cw, GumAddress base_pc);
 static void gum_emit_leave_thunk (GumX86Writer * cw);
 
 static void gum_emit_prolog (GumX86Writer * cw, gssize stack_displacement);
@@ -179,17 +179,20 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     return FALSE;
 
   gum_x86_writer_reset (cw, ctx->trampoline_slice->data);
+  cw->pc = GUM_ADDRESS (ctx->trampoline_slice->pc);
 
   if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
   {
-    function_ctx_ptr = GUM_ADDRESS (gum_x86_writer_cur (cw));
+    function_ctx_ptr = GUM_ADDRESS (gum_x86_writer_offset (cw) +
+        ctx->trampoline_slice->pc);
     gum_x86_writer_put_bytes (cw, (guint8 *) &ctx,
         sizeof (GumFunctionContext *));
 
-    ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
+    ctx->on_enter_trampoline = gum_x86_writer_offset (cw) +
+        ctx->trampoline_slice->pc
 
     gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->data));
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->pc));
 
     if ((cw->cpu_features & GUM_CPU_CET_SS) != 0)
     {
@@ -199,29 +202,33 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
        * return to. Then it will jump back through XAX.
        */
 
-      after_push_to_shadow_stack = gum_x86_writer_cur (cw);
+      after_push_to_shadow_stack = gum_x86_writer_offset (cw) +
+        ctx->trampoline_slice->pc
 
       gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP,
           GUM_X86_XSP, (gssize) sizeof (gpointer));
 
       gum_x86_writer_put_jmp_reg (cw, GUM_X86_XAX);
 
-      data->push_to_shadow_stack = gum_x86_writer_cur (cw);
+      data->push_to_shadow_stack = gum_x86_writer_offset (cw) +
+        ctx->trampoline_slice->pc
 
       gum_x86_writer_put_call_address (cw,
           GUM_ADDRESS (after_push_to_shadow_stack));
     }
 
-    ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
+    ctx->on_leave_trampoline = gum_x86_writer_offset (cw) +
+        ctx->trampoline_slice->pc
 
     gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->data));
+    gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->pc));
 
     gum_x86_writer_flush (cw);
     g_assert (gum_x86_writer_offset (cw) <= ctx->trampoline_slice->size);
   }
 
-  ctx->on_invoke_trampoline = gum_x86_writer_cur (cw);
+  ctx->on_invoke_trampoline = gum_x86_writer_offset (cw) +
+      ctx->trampoline_slice->pc
   gum_x86_relocator_reset (rl, (guint8 *) ctx->function_address, cw);
 
   do
@@ -376,12 +383,14 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 
   self->enter_thunk = gum_code_allocator_alloc_slice (self->allocator);
   gum_x86_writer_reset (cw, self->enter_thunk->data);
-  gum_emit_enter_thunk (cw);
+  cw->pc = GUM_ADDRESS (self->enter_thunk->pc);
+  gum_emit_enter_thunk (cw, cw->pc);
   gum_x86_writer_flush (cw);
   g_assert (gum_x86_writer_offset (cw) <= self->enter_thunk->size);
 
   self->leave_thunk = gum_code_allocator_alloc_slice (self->allocator);
   gum_x86_writer_reset (cw, self->leave_thunk->data);
+  cw->pc = GUM_ADDRESS (self->leave_thunk->pc);
   gum_emit_leave_thunk (cw);
   gum_x86_writer_flush (cw);
   g_assert (gum_x86_writer_offset (cw) <= self->leave_thunk->size);
@@ -396,8 +405,10 @@ gum_interceptor_backend_destroy_thunks (GumInterceptorBackend * self)
 }
 
 static void
-gum_emit_enter_thunk (GumX86Writer * cw)
+gum_emit_enter_thunk (GumX86Writer * cw,
+                      GumAddress base_pc)
 {
+  GumAddress base_pc;
   const gssize return_address_stack_displacement = 0;
   const gchar * prepare_trap_on_leave = "prepare_trap_on_leave";
   GumX86Reg function_ctx_reg = (sizeof (gpointer) == 8)
@@ -429,7 +440,7 @@ gum_emit_enter_thunk (GumX86Writer * cw)
     gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, prepare_trap_on_leave,
         GUM_NO_HINT);
 
-    epilog = gum_x86_writer_cur (cw);
+    epilog = gum_x86_writer_offset (cw) + base_pc;
     gum_emit_epilog (cw, GUM_POINT_ENTER);
 
     gum_x86_writer_put_label (cw, prepare_trap_on_leave);

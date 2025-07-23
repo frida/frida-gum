@@ -370,3 +370,22 @@ gum_libc_process_vm_writev (pid_t pid,
   return syscall (GUM_SYS_PROCESS_VM_WRITEV, pid, local, num_local, remote,
       num_remote, flags);
 }
+
+gboolean
+gum_memory_can_remap_writable (void)
+{
+  return FALSE;
+}
+
+gpointer
+gum_memory_try_remap_writable_pages (gpointer first_page,
+                                     guint n_pages)
+{
+  return NULL;
+}
+
+void
+gum_memory_dispose_writable_pages (gpointer first_page,
+                                   guint n_pages)
+{
+}

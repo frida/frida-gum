@@ -227,3 +227,22 @@ gum_store_protection_if_containing_address (const GumRangeDetails * details,
 
   return proceed;
 }
+
+gboolean
+gum_memory_can_remap_writable (void)
+{
+  return FALSE;
+}
+
+gpointer
+gum_memory_try_remap_writable_pages (gpointer first_page,
+                                     guint n_pages)
+{
+  return NULL;
+}
+
+void
+gum_memory_dispose_writable_pages (gpointer first_page,
+                                   guint n_pages)
+{
+}

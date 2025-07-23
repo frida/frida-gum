@@ -204,3 +204,22 @@ gum_memory_decommit (gpointer address,
 {
   return FALSE;
 }
+
+gboolean
+gum_memory_can_remap_writable (void)
+{
+  return FALSE;
+}
+
+gpointer
+gum_memory_try_remap_writable_pages (gpointer first_page,
+                                     guint n_pages)
+{
+  return NULL;
+}
+
+void
+gum_memory_dispose_writable_pages (gpointer first_page,
+                                   guint n_pages)
+{
+}

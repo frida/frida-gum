@@ -35,6 +35,7 @@ struct _GumCodeAllocator
 struct _GumCodeSlice
 {
   gpointer data;
+  gpointer pc;
   guint size;
 
   /*< private >*/

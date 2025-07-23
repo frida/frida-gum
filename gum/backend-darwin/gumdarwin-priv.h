@@ -31,6 +31,9 @@ typedef struct _DyldAllImageInfos32 DyldAllImageInfos32;
 typedef struct _DyldAllImageInfos64 DyldAllImageInfos64;
 typedef struct _DyldImageInfo32 DyldImageInfo32;
 typedef struct _DyldImageInfo64 DyldImageInfo64;
+typedef struct _GumPagePlanBuilder GumPagePlanBuilder;
+typedef struct _GumPageBlock GumPageBlock;
+
 
 struct _DyldInfoLegacy
 {
@@ -223,6 +226,19 @@ struct proc_regionwithpathinfo
   struct vnode_info_path prp_vip;
 };
 
+struct _GumPagePlanBuilder
+{
+  GList * page_blocks;
+};
+
+struct _GumPageBlock
+{
+  gpointer start;
+  gpointer end;
+  GList * bytes;
+  guint count;
+};
+
 #endif
 
 G_GNUC_INTERNAL gboolean _gum_darwin_fill_file_mapping (gint pid,
@@ -230,6 +246,16 @@ G_GNUC_INTERNAL gboolean _gum_darwin_fill_file_mapping (gint pid,
     struct proc_regionwithpathinfo * region);
 G_GNUC_INTERNAL void _gum_darwin_clamp_range_size (GumMemoryRange * range,
     const GumFileMapping * file);
+
+G_GNUC_INTERNAL gboolean _gum_darwin_is_debugger_mapping_enforced (void);
+
+G_GNUC_INTERNAL void _gum_page_plan_builder_free (GumPagePlanBuilder * self);
+G_GNUC_INTERNAL void _gum_page_plan_builder_add_page (
+    GumPagePlanBuilder * self, gpointer target_page);
+G_GNUC_INTERNAL void _gum_page_plan_builder_add_pages (
+    GumPagePlanBuilder * self, gpointer base, gsize n_pages);
+G_GNUC_INTERNAL gboolean _gum_page_plan_builder_post (
+    GumPagePlanBuilder * self);
 
 G_END_DECLS
 
