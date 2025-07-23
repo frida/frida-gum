@@ -921,6 +921,7 @@ allocate_clobber_test_invoker_func (ClobberTestFunc target_func,
   gpointer code;
   GumAddressSpec addr_spec;
   gsize page_size;
+  GumPageProtection protection;
 
   addr_spec.near_address =
       gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (target_func));
@@ -935,8 +936,10 @@ allocate_clobber_test_invoker_func (ClobberTestFunc target_func,
   page_size = gum_query_page_size ();
   *code_size = page_size;
 
+  protection = gum_memory_can_remap_writable () ? GUM_PAGE_RX : GUM_PAGE_RW;
+
   code = gum_memory_allocate_near (&addr_spec, *code_size, page_size,
-      GUM_PAGE_RW);
+      protection);
   g_assert_nonnull (code);
 
   return code;

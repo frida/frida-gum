@@ -490,7 +490,7 @@ gum_try_alloc_n_pages_near (guint n_pages,
   if (base == NULL)
     return NULL;
 
-  if ((prot & GUM_PAGE_EXECUTE) == 0)
+  if ((prot & GUM_PAGE_EXECUTE) == 0 || !gum_memory_can_remap_writable ())
   {
     if ((prot & GUM_PAGE_WRITE) == 0)
       gum_mprotect (base, page_size, GUM_PAGE_RW);
