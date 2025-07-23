@@ -439,7 +439,7 @@ gum_emit_enter_thunk (GumX86Writer * cw,
     gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, prepare_trap_on_leave,
         GUM_NO_HINT);
 
-    epilog = gum_x86_writer_offset (cw) + base_pc;
+    epilog = gum_x86_writer_offset (cw) + GSIZE_TO_POINTER (base_pc);
     gum_emit_epilog (cw, GUM_POINT_ENTER);
 
     gum_x86_writer_put_label (cw, prepare_trap_on_leave);
