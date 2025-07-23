@@ -846,7 +846,7 @@ _gum_darwin_is_debugger_mapping_enforced (void)
 gboolean
 gum_memory_can_remap_writable (void)
 {
-  return TRUE;
+  return _gum_darwin_is_debugger_mapping_enforced ();
 }
 
 gpointer
