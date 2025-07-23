@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -116,6 +116,7 @@ struct _GumDarwinModule
   GumDarwinModuleFiletype filetype;
   gchar * name;
   gchar * uuid;
+  gchar * source_version;
 
   GumDarwinPort task;
   gboolean is_local;

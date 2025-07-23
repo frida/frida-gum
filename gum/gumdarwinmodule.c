@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
@@ -36,6 +36,7 @@ enum
   PROP_0,
   PROP_NAME,
   PROP_UUID,
+  PROP_SOURCE_VERSION,
   PROP_TASK,
   PROP_CPU_TYPE,
   PROP_PTRAUTH_SUPPORT,
@@ -196,6 +197,10 @@ gum_darwin_module_class_init (GumDarwinModuleClass * klass)
   g_object_class_install_property (object_class, PROP_UUID,
       g_param_spec_string ("uuid", "UUID", "UUID", NULL,
       G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_SOURCE_VERSION,
+      g_param_spec_string ("source-version", "Source Version",
+      "Version of the sources used to build the binary", NULL,
+      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_TASK,
       g_param_spec_uint ("task", "Task", "Mach task", 0, G_MAXUINT,
       GUM_DARWIN_PORT_NULL, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
@@ -274,6 +279,7 @@ gum_darwin_module_finalize (GObject * object)
 
   g_free (self->name);
   g_free (self->uuid);
+  g_free (self->source_version);
 
   G_OBJECT_CLASS (gum_darwin_module_parent_class)->finalize (object);
 }
@@ -295,6 +301,11 @@ gum_darwin_module_get_property (GObject * object,
       if (self->uuid == NULL)
         gum_darwin_module_ensure_image_loaded (self, NULL);
       g_value_set_string (value, self->uuid);
+      break;
+    case PROP_SOURCE_VERSION:
+      if (self->source_version == NULL)
+        gum_darwin_module_ensure_image_loaded (self, NULL);
+      g_value_set_string (value, self->source_version);
       break;
     case PROP_TASK:
       g_value_set_uint (value, self->task);
@@ -2485,6 +2496,39 @@ gum_darwin_module_take_image (GumDarwinModule * self,
               "%02X%02X-%02X%02X%02X%02X%02X%02X", u[0], u[1], u[2], u[3],
               u[4], u[5], u[6], u[7], u[8], u[9], u[10], u[11], u[12], u[13],
               u[14], u[15]);
+        }
+
+        break;
+      }
+      case GUM_LC_SOURCE_VERSION:
+      {
+        if (self->source_version == NULL)
+        {
+          const GumSourceVersionCommand * vc = command;
+          const guint64 version = vc->version;
+          guint a, b, c, d, e;
+          GString * s;
+
+          a = (version >> 40) & GUM_INT24_MASK;
+          b = (version >> 30) & GUM_INT10_MASK;
+          c = (version >> 20) & GUM_INT10_MASK;
+          d = (version >> 10) & GUM_INT10_MASK;
+          e = (version >>  0) & GUM_INT10_MASK;
+
+          s = g_string_sized_new (28);
+
+          g_string_append_printf (s, "%u.%u", a, b);
+
+          if (c != 0 || d != 0 || e != 0)
+              g_string_append_printf (s, ".%u", c);
+
+          if (d != 0 || e != 0)
+              g_string_append_printf (s, ".%u", d);
+
+          if (e != 0)
+              g_string_append_printf (s, ".%u", e);
+
+          self->source_version = g_string_free (s, FALSE);
         }
 
         break;

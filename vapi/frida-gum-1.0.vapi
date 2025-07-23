@@ -1739,6 +1739,7 @@ namespace Gum {
 		public Filetype filetype;
 		public string? name;
 		public string? uuid;
+		public string? source_version;
 
 		public DarwinPort task;
 		public bool is_local;

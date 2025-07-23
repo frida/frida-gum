@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
@@ -56,6 +56,7 @@ typedef struct _GumSegmentCommand64 GumSegmentCommand64;
 typedef struct _GumDylibCommand GumDylibCommand;
 typedef struct _GumDylinkerCommand GumDylinkerCommand;
 typedef struct _GumUUIDCommand GumUUIDCommand;
+typedef struct _GumSourceVersionCommand GumSourceVersionCommand;
 typedef struct _GumDylib GumDylib;
 typedef struct _GumLinkeditDataCommand GumLinkeditDataCommand;
 typedef struct _GumSection32 GumSection32;
@@ -121,6 +122,7 @@ enum _GumLoadCommandType
   GUM_LC_LOAD_UPWARD_DYLIB        = (0x23 | GUM_LC_REQ_DYLD),
   GUM_LC_FUNCTION_STARTS          = 0x26,
   GUM_LC_DATA_IN_CODE             = 0x29,
+  GUM_LC_SOURCE_VERSION           = 0x2a,
   GUM_LC_DYLIB_CODE_SIGN_DRS      = 0x2b,
   GUM_LC_LINKER_OPTIMIZATION_HINT = 0x2e,
   GUM_LC_DYLD_EXPORTS_TRIE        = (0x33 | GUM_LC_REQ_DYLD),
@@ -218,6 +220,14 @@ struct _GumUUIDCommand
   guint32 cmdsize;
 
   guint8 uuid[16];
+};
+
+struct _GumSourceVersionCommand
+{
+  guint32 cmd;
+  guint32 cmdsize;
+
+  guint64 version;
 };
 
 struct _GumDyldInfoCommand
