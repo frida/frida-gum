@@ -350,6 +350,7 @@ namespace Gum {
 
 	public interface Module : GLib.Object {
 		public string name { get; }
+		public string? version { get; }
 		public string path { get; }
 		public Gum.MemoryRange? range { get; }
 

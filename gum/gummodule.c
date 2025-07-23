@@ -37,6 +37,17 @@ gum_module_get_name (GumModule * self)
 }
 
 const gchar *
+gum_module_get_version (GumModule * self)
+{
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->get_version != NULL)
+    return iface->get_version (self);
+
+  return NULL;
+}
+
+const gchar *
 gum_module_get_path (GumModule * self)
 {
   return GUM_MODULE_GET_IFACE (self)->get_path (self);

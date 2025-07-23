@@ -69,6 +69,7 @@ struct _GumModuleInterface
   GTypeInterface parent;
 
   const gchar * (* get_name) (GumModule * self);
+  const gchar * (* get_version) (GumModule * self);
   const gchar * (* get_path) (GumModule * self);
   const GumMemoryRange * (* get_range) (GumModule * self);
   void (* ensure_initialized) (GumModule * self);
@@ -147,6 +148,7 @@ GUM_API GumModule * gum_module_load (const gchar * module_name,
     GError ** error);
 
 GUM_API const gchar * gum_module_get_name (GumModule * self);
+GUM_API const gchar * gum_module_get_version (GumModule * self);
 GUM_API const gchar * gum_module_get_path (GumModule * self);
 GUM_API const GumMemoryRange * gum_module_get_range (GumModule * self);
 
