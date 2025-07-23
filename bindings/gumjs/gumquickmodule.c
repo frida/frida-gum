@@ -32,6 +32,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_find_global_export_by_name)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_module_finalize)
 GUMJS_DECLARE_GETTER (gumjs_module_get_name)
+GUMJS_DECLARE_GETTER (gumjs_module_get_version)
 GUMJS_DECLARE_GETTER (gumjs_module_get_path)
 GUMJS_DECLARE_GETTER (gumjs_module_get_base)
 GUMJS_DECLARE_GETTER (gumjs_module_get_size)
@@ -93,6 +94,7 @@ static const JSCFunctionListEntry gumjs_module_static_entries[] =
 static const JSCFunctionListEntry gumjs_module_entries[] =
 {
   JS_CGETSET_DEF ("name", gumjs_module_get_name, NULL),
+  JS_CGETSET_DEF ("version", gumjs_module_get_version, NULL),
   JS_CGETSET_DEF ("path", gumjs_module_get_path, NULL),
   JS_CGETSET_DEF ("base", gumjs_module_get_base, NULL),
   JS_CGETSET_DEF ("size", gumjs_module_get_size, NULL),
@@ -275,6 +277,21 @@ GUMJS_DEFINE_GETTER (gumjs_module_get_name)
     return JS_EXCEPTION;
 
   return JS_NewString (ctx, gum_module_get_name (self));
+}
+
+GUMJS_DEFINE_GETTER (gumjs_module_get_version)
+{
+  GumModule * self;
+  const gchar * version;
+
+  if (!gum_module_entry_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  version = gum_module_get_version (self);
+  if (version == NULL)
+    return JS_NULL;
+
+  return JS_NewString (ctx, version);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_module_get_path)

@@ -74,6 +74,7 @@ struct GumV8ModuleFilter
 GUMJS_DECLARE_FUNCTION (gumjs_module_load)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_global_export_by_name)
 GUMJS_DECLARE_GETTER (gumjs_module_get_name)
+GUMJS_DECLARE_GETTER (gumjs_module_get_version)
 GUMJS_DECLARE_GETTER (gumjs_module_get_path)
 GUMJS_DECLARE_GETTER (gumjs_module_get_base)
 GUMJS_DECLARE_GETTER (gumjs_module_get_size)
@@ -133,6 +134,7 @@ static const GumV8Function gumjs_module_static_functions[] =
 static const GumV8Property gumjs_module_values[] =
 {
   { "name", gumjs_module_get_name, NULL },
+  { "version", gumjs_module_get_version, NULL },
   { "path", gumjs_module_get_path, NULL },
   { "base", gumjs_module_get_base, NULL },
   { "size", gumjs_module_get_size, NULL },
@@ -333,6 +335,16 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_module_get_name, GumV8ModuleValue)
   info.GetReturnValue ().Set (
       String::NewFromUtf8 (isolate, gum_module_get_name (self->handle))
       .ToLocalChecked ());
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_module_get_version, GumV8ModuleValue)
+{
+  auto version = gum_module_get_version (self->handle);
+  auto retval = info.GetReturnValue ();
+  if (version != NULL)
+    retval.Set (String::NewFromUtf8 (isolate, version).ToLocalChecked ());
+  else
+    retval.SetNull ();
 }
 
 GUMJS_DEFINE_CLASS_GETTER (gumjs_module_get_path, GumV8ModuleValue)

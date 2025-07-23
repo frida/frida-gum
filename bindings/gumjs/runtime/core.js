@@ -245,8 +245,8 @@ Object.defineProperties(moduleProto, {
   toJSON: {
     enumerable: true,
     value() {
-      const {name, base, size, path} = this;
-      return {name, base, size, path};
+      const {name, version, base, size, path} = this;
+      return {name, version, base, size, path};
     }
   },
 });
