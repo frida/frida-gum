@@ -325,6 +325,9 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
 
   if (gum_memory_can_remap_writable ())
   {
+    GList * writable_addresses = NULL;
+    GList * cur_writable;
+
 #ifdef HAVE_DARWIN
     if (_gum_darwin_is_debugger_mapping_enforced ())
     {
@@ -340,6 +343,27 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
         return FALSE;
     }
 #endif
+
+    if (!coalesce)
+    {
+      for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+      {
+        gpointer target_page = cur->data;
+
+        gpointer writable = gum_memory_try_remap_writable_pages (
+            target_page, 1);
+        if (writable == NULL)
+        {
+          result = FALSE;
+          goto cleanup;
+        }
+
+        writable_addresses = g_list_prepend (writable_addresses, writable);
+      }
+
+      writable_addresses = g_list_reverse (writable_addresses);
+      cur_writable = writable_addresses;
+    }
 
     apply_target_start = 0;
     apply_num_pages = 0;
@@ -378,14 +402,14 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
       }
       else
       {
-        gpointer writable = gum_memory_try_remap_writable_pages (
-            target_page, 1);
-        if (writable == NULL)
-          return FALSE;
+        gpointer writable;
+
+        g_assert (cur_writable != NULL);
+        writable = cur_writable->data;
+
+        cur_writable = cur_writable->next;
 
         apply (writable, target_page, 1, apply_data);
-
-        gum_memory_dispose_writable_pages (writable, 1);
       }
     }
 
@@ -407,6 +431,16 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
 
       gum_clear_cache (target_page, page_size);
     }
+
+cleanup:
+    for (cur = writable_addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer writable = cur->data;
+
+      gum_memory_dispose_writable_pages (writable, 1);
+    }
+
+    g_list_free (writable_addresses);
   }
   else if (rwx_supported || !gum_code_segment_is_supported ())
   {
