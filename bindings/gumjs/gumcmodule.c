@@ -206,6 +206,8 @@ gum_cmodule_link (GumCModule * self,
   GString * error_messages;
   gsize size, page_size;
   gpointer base;
+  gboolean remap_supported;
+  GumPageProtection protection;
 
   priv = gum_cmodule_get_instance_private (self);
 
@@ -216,7 +218,10 @@ gum_cmodule_link (GumCModule * self,
   page_size = gum_query_page_size ();
   size = GUM_ALIGN_SIZE (size, page_size);
 
-  base = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
+  remap_supported = gum_memory_can_remap_writable ();
+  protection =  remap_supported ? GUM_PAGE_RX : GUM_PAGE_RW;
+
+  base = gum_memory_allocate (NULL, size, page_size, protection);
 
   if (gum_cmodule_link_at (self, base, &error_messages))
   {
@@ -377,6 +382,7 @@ G_DECLARE_FINAL_TYPE (GumTccCModule, gum_tcc_cmodule, GUM, TCC_CMODULE,
     GumCModule)
 
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
+typedef struct _GumTccApplyContext GumTccApplyContext;
 
 struct _GumTccCModule
 {
@@ -392,6 +398,13 @@ struct _GumEnumerateSymbolsContext
   gpointer user_data;
 };
 
+struct _GumTccApplyContext
+{
+  GumTccCModule * module;
+  gpointer executable_base;
+  gboolean result;
+};
+
 static void gum_tcc_cmodule_add_define (GumCModule * cm, const gchar * name,
     const gchar * value);
 static void gum_tcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
@@ -400,6 +413,8 @@ static gboolean gum_tcc_cmodule_link_pre (GumCModule * cm, gsize * size,
     GString ** error_messages);
 static gboolean gum_tcc_cmodule_link_at (GumCModule * cm, gpointer base,
     GString ** error_messages);
+static void gum_tcc_cmodule_relocate_views (gpointer writable_base,
+    gpointer user_data);
 static void gum_tcc_cmodule_link_post (GumCModule * cm);
 static void gum_tcc_cmodule_enumerate_symbols (GumCModule * cm,
     GumFoundCSymbolFunc func, gpointer user_data);
@@ -551,12 +566,40 @@ gum_tcc_cmodule_link_at (GumCModule * cm,
 {
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
 
-  if (tcc_relocate (self->state, base) == -1)
-    return FALSE;
+  if (gum_memory_can_remap_writable ())
+  {
+    GumTccApplyContext ctx;
+    ctx.module = self;
+    ctx.result = FALSE;
+    ctx.executable_base = base;
 
-  gum_memory_mark_code (base, self->size);
+    gum_memory_patch_code (base, self->size, gum_tcc_cmodule_relocate_views,
+        &ctx);
 
-  return TRUE;
+    return ctx.result;
+  }
+  else
+  {
+    if (tcc_relocate (self->state, base) == -1)
+      return FALSE;
+
+    gum_memory_mark_code (base, self->size);
+
+    return TRUE;
+  }
+}
+
+static void
+gum_tcc_cmodule_relocate_views (gpointer writable_base,
+                          gpointer user_data)
+{
+  GumTccApplyContext * ctx = user_data;
+  size_t diff_to_exec = ctx->executable_base - writable_base;
+
+  if (tcc_relocate_ex (ctx->module->state, writable_base, diff_to_exec) == -1)
+    ctx->result = FALSE;
+  else
+    ctx->result = TRUE;
 }
 
 static void
