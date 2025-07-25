@@ -86,6 +86,8 @@ gum_process_get_native_os (void)
   return GUM_OS_WATCHOS;
 #elif defined (HAVE_TVOS)
   return GUM_OS_TVOS;
+#elif defined (HAVE_XROS)
+  return GUM_OS_XROS;
 #elif defined (HAVE_ANDROID)
   return GUM_OS_ANDROID;
 #elif defined (HAVE_FREEBSD)
