@@ -2459,6 +2459,29 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
   ctx->lr = mc->regs[30];
 
   memset (ctx->v, 0, sizeof (ctx->v));
+
+  // Reading extra contexts, NEON in this case
+  // Please refer to asm/sigcontext.h for reference
+  for (i = 0; i < sizeof (mc->__reserved); ) {
+    struct _aarch64_ctx * head = (struct _aarch64_ctx *) &mc->__reserved[i];
+
+    if (head->magic == 0)
+      break;
+
+    switch (head->magic)
+    {
+      case FPSIMD_MAGIC: 
+      {
+        struct fpsimd_context * fpsimd = (struct fpsimd_context *) head;
+
+        memcpy (&ctx->v, &fpsimd->vregs, sizeof (ctx->v));
+        
+        break;
+      }
+    }
+
+    i += 4 + 4 + 8 + head->size;
+  }
 #elif defined (HAVE_MIPS)
   const greg_t * gr = uc->uc_mcontext.gregs;
 
@@ -2604,6 +2627,29 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
     mc->regs[i] = ctx->x[i];
   mc->regs[29] = ctx->fp;
   mc->regs[30] = ctx->lr;
+
+  // Overwrites fpsimd_context, if it's not present it's a no-op
+  // If behavior is incorrect, please open an issue
+  for (i = 0; i < sizeof (mc->__reserved); ) {
+    struct _aarch64_ctx * head = (struct _aarch64_ctx *) &mc->__reserved[i];
+
+    if (head->magic == 0)
+      break;
+
+    switch (head->magic)
+    {
+      case FPSIMD_MAGIC: 
+      {
+        struct fpsimd_context * fpsimd = (struct fpsimd_context *) head;
+
+        memcpy (&fpsimd->vregs, &ctx->v, sizeof (ctx->v));
+
+        break;
+      }
+    }
+
+    i += 4 + 4 + 8 + head->size;
+  }
 #elif defined (HAVE_MIPS)
   greg_t * gr = uc->uc_mcontext.gregs;
 
