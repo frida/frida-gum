@@ -1908,5 +1908,7 @@ static gint
 gum_page_address_compare (gconstpointer a,
                           gconstpointer b)
 {
-  return GPOINTER_TO_SIZE (a) - GPOINTER_TO_SIZE (b);
+  gssize diff = (gssize) GPOINTER_TO_SIZE (a) - (gssize) GPOINTER_TO_SIZE (b);
+
+  return diff < 0 ? -1 : (diff > 0 ? 1 : 0);
 }
