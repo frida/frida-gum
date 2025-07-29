@@ -553,7 +553,10 @@ gum_elf_module_load (GumElfModule * self,
       file = g_mapped_file_new (self->source_path, FALSE, &local_error);
       if (file != NULL)
       {
-        self->file_bytes = g_mapped_file_get_bytes (file);
+        GBytes * old_file_bytes = g_mapped_file_get_bytes (file);
+        gconstpointer file_data = g_bytes_get_data (old_file_bytes, &size);
+        self->file_bytes = g_bytes_new(file_data, size);
+        g_bytes_unref (old_file_bytes);
         g_mapped_file_unref (file);
 
         data = g_bytes_get_data (self->file_bytes, &size);

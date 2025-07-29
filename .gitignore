@@ -2,3 +2,4 @@
 /deps/
 /gum/backend-darwin/helpers/build/
 /subprojects/*
+/.cache/
