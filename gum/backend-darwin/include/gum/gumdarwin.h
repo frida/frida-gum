@@ -266,6 +266,8 @@ GUM_API const char * gum_symbol_name_from_darwin (const char * s);
 
 GUM_API mach_port_t gum_kernel_get_task (void);
 
+GUM_API gboolean gum_darwin_is_debugger_mapping_enforced (void);
+
 G_END_DECLS
 
 #endif

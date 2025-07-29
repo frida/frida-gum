@@ -509,7 +509,7 @@ gum_try_alloc_n_pages_near (guint n_pages,
 
     gum_mprotect (base, page_size, GUM_PAGE_RX);
 
-    if (_gum_darwin_is_debugger_mapping_enforced ())
+    if (gum_darwin_is_debugger_mapping_enforced ())
     {
       GumPagePlanBuilder plan_builder = { 0, };
 
@@ -811,7 +811,7 @@ gum_page_protection_to_bsd (GumPageProtection prot)
 }
 
 gboolean
-_gum_darwin_is_debugger_mapping_enforced (void)
+gum_darwin_is_debugger_mapping_enforced (void)
 {
   static gsize is_enforced = 0;
   if (g_once_init_enter (&is_enforced))
@@ -850,7 +850,7 @@ _gum_darwin_is_debugger_mapping_enforced (void)
 gboolean
 gum_memory_can_remap_writable (void)
 {
-  return _gum_darwin_is_debugger_mapping_enforced ();
+  return gum_darwin_is_debugger_mapping_enforced ();
 }
 
 gpointer

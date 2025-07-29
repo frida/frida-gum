@@ -247,8 +247,6 @@ G_GNUC_INTERNAL gboolean _gum_darwin_fill_file_mapping (gint pid,
 G_GNUC_INTERNAL void _gum_darwin_clamp_range_size (GumMemoryRange * range,
     const GumFileMapping * file);
 
-G_GNUC_INTERNAL gboolean _gum_darwin_is_debugger_mapping_enforced (void);
-
 G_GNUC_INTERNAL void _gum_page_plan_builder_free (GumPagePlanBuilder * self);
 G_GNUC_INTERNAL void _gum_page_plan_builder_add_page (
     GumPagePlanBuilder * self, gpointer target_page);

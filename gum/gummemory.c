@@ -338,7 +338,7 @@ gum_memory_patch_code_pages (GList * sorted_addresses,
     GumPageLump * last_plump = NULL;
 
 #ifdef HAVE_DARWIN
-    if (_gum_darwin_is_debugger_mapping_enforced ())
+    if (gum_darwin_is_debugger_mapping_enforced ())
     {
       GumPagePlanBuilder plan_builder = { 0, };
       for (cur = sorted_addresses; cur != NULL; cur = cur->next)
