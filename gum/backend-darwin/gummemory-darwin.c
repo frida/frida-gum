@@ -821,7 +821,7 @@ gum_darwin_is_debugger_mapping_enforced (void)
   if (g_once_init_enter (&is_enforced))
   {
     mach_port_t task;
-    int page_size;
+    guint page_size;
     mach_vm_address_t start;
     vm_address_t addr;
     vm_prot_t cur_prot, max_prot;
@@ -831,12 +831,12 @@ gum_darwin_is_debugger_mapping_enforced (void)
     page_size = gum_query_page_size ();
 
     mach_vm_allocate (task, &start, page_size, VM_FLAGS_ANYWHERE);
-    *(uint32_t *) start = 1337;
-    gum_try_mprotect ((gpointer) start, page_size, GUM_PAGE_RX);
+    *(guint32 *) start = 1337;
+    gum_try_mprotect (GSIZE_TO_POINTER (start), page_size, GUM_PAGE_RX);
 
     addr = 0;
-    vm_remap (task, &addr, page_size, 0, VM_FLAGS_ANYWHERE, task, start,
-        FALSE, &cur_prot, &max_prot, VM_INHERIT_NONE);
+    vm_remap (task, &addr, page_size, 0, VM_FLAGS_ANYWHERE, task, start, FALSE,
+        &cur_prot, &max_prot, VM_INHERIT_NONE);
 
     enforced =
         (cur_prot & (VM_PROT_READ | VM_PROT_EXECUTE)) !=
@@ -845,7 +845,7 @@ gum_darwin_is_debugger_mapping_enforced (void)
     mach_vm_deallocate (task, addr, page_size);
     mach_vm_deallocate (task, start, page_size);
 
-    g_once_init_leave (&is_enforced, (gsize) enforced + 1);
+    g_once_init_leave (&is_enforced, enforced + 1);
   }
 
   return is_enforced - 1;
@@ -871,14 +871,16 @@ gum_memory_try_remap_writable_pages (gpointer first_page,
   size = n_pages * gum_query_page_size ();
 
   writable_address = 0;
+  /* TODO: Implement shim. */
   if (vm_remap (task, &writable_address, size, 0, VM_FLAGS_ANYWHERE, task,
-      (vm_address_t) first_page, FALSE, &cur_prot, &max_prot,
+      GPOINTER_TO_SIZE (first_page), FALSE, &cur_prot, &max_prot,
       VM_INHERIT_NONE) != 0)
   {
     return NULL;
   }
 
-  if (mprotect ((gpointer) writable_address, size, PROT_READ | PROT_WRITE) != 0)
+  if (gum_mach_vm_protect (task, writable_address, size, FALSE,
+      VM_PROT_READ | VM_PROT_WRITE) != KERN_SUCCESS)
   {
     mach_vm_deallocate (task, writable_address, size);
     return NULL;
@@ -888,7 +890,7 @@ gum_memory_try_remap_writable_pages (gpointer first_page,
   range.size = size;
   gum_cloak_add_range (&range);
 
-  return (gpointer) writable_address;
+  return GSIZE_TO_POINTER (writable_address);
 }
 
 static gboolean
@@ -904,8 +906,9 @@ gum_memory_is_codesign_out_of_the_way (gpointer page)
 
   task = mach_task_self ();
 
-  mach_vm_page_info (task, (mach_vm_address_t) page,
-      VM_PAGE_INFO_BASIC, (int *) &page_info, &count);
+  /* TODO: Implement shim. */
+  mach_vm_page_info (task, GPOINTER_TO_SIZE (page), VM_PAGE_INFO_BASIC,
+      (int *) &page_info, &count);
 
   if ((page_info.disposition &
       (VM_PAGE_QUERY_PAGE_CS_VALIDATED |
@@ -918,14 +921,14 @@ gum_memory_is_codesign_out_of_the_way (gpointer page)
   size = gum_query_page_size ();
   writable_address = 0;
   if (vm_remap (task, &writable_address, size, 0, VM_FLAGS_ANYWHERE, task,
-      (vm_address_t) page, FALSE, &cur_prot, &max_prot,
+      GPOINTER_TO_SIZE (page), FALSE, &cur_prot, &max_prot,
       VM_INHERIT_NONE) != 0)
   {
     return FALSE;
   }
 
-  result = mprotect ((gpointer) writable_address, size,
-      PROT_READ | PROT_WRITE) == 0;
+  result = gum_mach_vm_protect (task, writable_address, size, FALSE,
+      VM_PROT_READ | VM_PROT_WRITE) == KERN_SUCCESS;
 
   mach_vm_deallocate (task, writable_address, size);
 
@@ -947,7 +950,7 @@ gum_memory_dispose_writable_pages (gpointer first_page,
   range.size = size;
   gum_cloak_remove_range (&range);
 
-  mach_vm_deallocate (task, (mach_vm_address_t) first_page, size);
+  mach_vm_deallocate (task, GPOINTER_TO_SIZE (first_page), size);
 }
 
 void
