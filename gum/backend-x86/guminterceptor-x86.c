@@ -189,8 +189,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     gum_x86_writer_put_bytes (cw, (guint8 *) &ctx,
         sizeof (GumFunctionContext *));
 
-    ctx->on_enter_trampoline = GSIZE_TO_POINTER (
-        ctx->trampoline_slice->pc + gum_x86_writer_offset (cw));
+    ctx->on_enter_trampoline =
+        (guint8 *) ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
 
     gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->pc));
@@ -211,14 +211,14 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
       gum_x86_writer_put_jmp_reg (cw, GUM_X86_XAX);
 
-      data->push_to_shadow_stack = GSIZE_TO_POINTER (
-          ctx->trampoline_slice->pc + gum_x86_writer_offset (cw));
+      data->push_to_shadow_stack =
+          (guint8 *) ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
 
       gum_x86_writer_put_call_address (cw, after_push_to_shadow_stack);
     }
 
-    ctx->on_leave_trampoline = GSIZE_TO_POINTER (
-        ctx->trampoline_slice->pc + gum_x86_writer_offset (cw));
+    ctx->on_leave_trampoline =
+        (guint8 *) ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
 
     gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->leave_thunk->pc));
@@ -228,7 +228,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   ctx->on_invoke_trampoline =
-      GSIZE_TO_POINTER (ctx->trampoline_slice->pc + gum_x86_writer_offset (cw));
+      (guint8 *) ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
   gum_x86_relocator_reset (rl, ctx->function_address, cw);
 
   do
