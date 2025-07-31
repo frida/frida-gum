@@ -376,7 +376,7 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
       guint8 * target_page = g_ptr_array_index (sorted_addresses, i);
 
       last = (plumps->len != 0)
-          ? &g_array_index (plumps, GumPageLump, i)
+          ? &g_array_index (plumps, GumPageLump, plumps->len - 1)
           : NULL;
 
       if (last == NULL || last->end != target_page)
@@ -406,7 +406,7 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
         g_array_append_val (plumps, lump);
       }
 
-      last = &g_array_index (plumps, GumPageLump, i);
+      last = &g_array_index (plumps, GumPageLump, plumps->len - 1);
       last->end = target_page + page_size;
       last->n_pages++;
     }
