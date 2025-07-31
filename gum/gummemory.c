@@ -56,8 +56,8 @@
 #endif
 
 typedef struct _GumPatchCodeContext GumPatchCodeContext;
-typedef struct _GumSuspendOperation GumSuspendOperation;
 typedef struct _GumPageLump GumPageLump;
+typedef struct _GumSuspendOperation GumSuspendOperation;
 
 struct _GumMatchPattern
 {
@@ -402,6 +402,7 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
         lump.end = target_page;
         lump.writable_start = NULL;
         lump.n_pages = 0;
+
         g_array_append_val (plumps, lump);
       }
 
