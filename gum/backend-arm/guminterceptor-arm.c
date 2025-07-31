@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -230,8 +231,8 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
   }
   else
   {
-    ctx->on_enter_trampoline = gum_arm_writer_offset (aw) +
-        ctx->trampoline_slice->pc;
+    ctx->on_enter_trampoline =
+        ctx->trampoline_slice->pc + gum_arm_writer_offset (aw);
     deflector_target = ctx->on_enter_trampoline;
   }
 
@@ -265,8 +266,8 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
     gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
         GUM_ADDRESS (self->enter_thunk_arm));
 
-    ctx->on_leave_trampoline = gum_arm_writer_offset (aw) +
-        ctx->trampoline_slice->pc;
+    ctx->on_leave_trampoline =
+        ctx->trampoline_slice->pc + gum_arm_writer_offset (aw);
 
     gum_emit_arm_push_cpu_context_high_part (aw);
     gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_R6, GUM_ADDRESS (ctx));
@@ -277,8 +278,8 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
     g_assert (gum_arm_writer_offset (aw) <= ctx->trampoline_slice->size);
   }
 
-  ctx->on_invoke_trampoline = gum_arm_writer_offset (aw) +
-      ctx->trampoline_slice->pc;
+  ctx->on_invoke_trampoline =
+      ctx->trampoline_slice->pc + gum_arm_writer_offset (aw);
 
   gum_arm_writer_reset (aw, ctx->on_invoke_trampoline);
   gum_arm_relocator_reset (ar, function_address, aw);
@@ -680,12 +681,10 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   gum_arm_writer_reset (aw, self->arm_thunks->data);
   aw->pc = GUM_ADDRESS (self->arm_thunks->pc);
 
-  self->enter_thunk_arm = gum_arm_writer_offset (aw) +
-      self->arm_thunks->pc;
+  self->enter_thunk_arm = self->arm_thunks->pc + gum_arm_writer_offset (aw);
   gum_emit_arm_enter_thunk (aw);
 
-  self->leave_thunk_arm = gum_arm_writer_offset (aw) +
-      self->arm_thunks->pc;
+  self->leave_thunk_arm = self->arm_thunks->pc + gum_arm_writer_offset (aw);
   gum_emit_arm_leave_thunk (aw);
 
   gum_arm_writer_flush (aw);
@@ -695,12 +694,12 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   gum_thumb_writer_reset (tw, self->thumb_thunks->data);
   tw->pc = GUM_ADDRESS (self->thumb_thunks->pc);
 
-  self->enter_thunk_thumb = gum_arm_writer_offset (tw) + 1 +
-      self->thumb_thunks->pc;
+  self->enter_thunk_thumb =
+      self->thumb_thunks->pc + gum_arm_writer_offset (tw) + 1;
   gum_emit_thumb_enter_thunk (tw);
 
-  self->leave_thunk_thumb = gum_arm_writer_offset (tw) + 1 +
-      self->thumb_thunks->pc;
+  self->leave_thunk_thumb =
+      self->thumb_thunks->pc + gum_arm_writer_offset (tw) + 1;
   gum_emit_thumb_leave_thunk (tw);
 
   gum_thumb_writer_flush (tw);
