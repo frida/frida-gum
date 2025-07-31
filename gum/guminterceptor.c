@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
- * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2024-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -219,7 +219,7 @@ static gboolean gum_interceptor_has (GumInterceptor * self,
     gpointer function_address);
 
 static gpointer gum_page_address_from_pointer (gpointer ptr);
-static gint gum_page_address_compare (gconstpointer a, gconstpointer b);
+static gint gum_page_address_compare (gconstpointer * a, gconstpointer * b);
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT)
 
@@ -950,7 +950,9 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 {
   GumInterceptor * interceptor = self->interceptor;
   GumInterceptorTransaction transaction_copy;
-  GList * addresses, * cur;
+  GPtrArray * addresses;
+  GHashTableIter iter;
+  gpointer address;
 
   self->level--;
   if (self->level > 0)
@@ -975,16 +977,24 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   gum_interceptor_transaction_init (&interceptor->current_transaction,
       interceptor);
 
-  addresses = g_hash_table_get_keys (self->pending_update_tasks);
-  addresses = g_list_sort (addresses, gum_page_address_compare);
+  addresses =
+      g_ptr_array_sized_new (g_hash_table_size (self->pending_update_tasks));
+  g_hash_table_iter_init (&iter, self->pending_update_tasks);
+  while (g_hash_table_iter_next (&iter, &address, NULL))
+    g_ptr_array_add (addresses, address);
+  g_ptr_array_sort (addresses, (GCompareFunc) gum_page_address_compare);
 
   if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
   {
-    for (cur = addresses; cur != NULL; cur = cur->next)
+    guint addr_index;
+
+    for (addr_index = 0; addr_index != addresses->len; addr_index++)
     {
-      gpointer target_page = cur->data;
+      gpointer target_page;
       GArray * pending;
       guint i;
+
+      target_page = g_ptr_array_index (addresses, addr_index);
 
       pending = g_hash_table_lookup (self->pending_update_tasks, target_page);
       g_assert (pending != NULL);
@@ -1006,7 +1016,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     g_abort ();
   }
 
-  g_list_free (addresses);
+  g_ptr_array_unref (addresses);
 
   {
     GumDestroyTask * task;
@@ -1905,10 +1915,10 @@ gum_page_address_from_pointer (gpointer ptr)
 }
 
 static gint
-gum_page_address_compare (gconstpointer a,
-                          gconstpointer b)
+gum_page_address_compare (gconstpointer * a,
+                          gconstpointer * b)
 {
-  gssize diff = (gssize) GPOINTER_TO_SIZE (a) - (gssize) GPOINTER_TO_SIZE (b);
+  gssize diff = (gssize) GPOINTER_TO_SIZE (*a) - (gssize) GPOINTER_TO_SIZE (*b);
 
   return diff < 0 ? -1 : (diff > 0 ? 1 : 0);
 }

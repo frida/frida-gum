@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -278,7 +279,7 @@ gum_memory_patch_code (gpointer address,
   guint8 * start_page, * end_page;
   gpointer cur;
   gsize page_offset;
-  GList * page_addresses = NULL;
+  GPtrArray * page_addresses;
   GumPatchCodeContext context;
 
   address = gum_strip_code_pointer (address);
@@ -289,18 +290,25 @@ gum_memory_patch_code (gpointer address,
       (GPOINTER_TO_SIZE (address) + size - 1) & ~(page_size - 1));
   page_offset = ((guint8 *) address) - start_page;
 
-  for (cur = end_page; cur != start_page; cur -= page_size)
-    page_addresses = g_list_prepend (page_addresses, cur);
-  page_addresses = g_list_prepend (page_addresses, start_page);
+  page_addresses =
+      g_ptr_array_sized_new (((end_page - start_page) / page_size) + 1);
+
+  g_ptr_array_add (page_addresses, start_page);
+
+  if (end_page != start_page)
+  {
+    for (cur = start_page + page_size; cur != end_page; cur += page_size)
+      g_ptr_array_add (page_addresses, cur);
+  }
 
   context.page_offset = page_offset;
   context.func = apply;
   context.user_data = apply_data;
 
-  result = gum_memory_patch_code_pages (page_addresses, TRUE, gum_apply_patch_code,
-      &context);
+  result = gum_memory_patch_code_pages (page_addresses, TRUE,
+      gum_apply_patch_code, &context);
 
-  g_list_free (page_addresses);
+  g_ptr_array_unref (page_addresses);
 
   return result;
 }
@@ -317,7 +325,7 @@ gum_apply_patch_code (gpointer mem,
 }
 
 gboolean
-gum_memory_patch_code_pages (GList * sorted_addresses,
+gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
                              gboolean coalesce,
                              GumMemoryPatchPagesApplyFunc apply,
                              gpointer apply_data)

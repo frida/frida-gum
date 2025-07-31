@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -118,7 +119,7 @@ GUM_API gboolean gum_memory_write (gpointer address, const guint8 * bytes,
     gsize len);
 GUM_API gboolean gum_memory_patch_code (gpointer address, gsize size,
     GumMemoryPatchApplyFunc apply, gpointer apply_data);
-GUM_API gboolean gum_memory_patch_code_pages (GList * sorted_addresses,
+GUM_API gboolean gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
     gboolean coalesce, GumMemoryPatchPagesApplyFunc apply,
     gpointer apply_data);
 GUM_API gboolean gum_memory_mark_code (gpointer address, gsize size);
