@@ -1000,7 +1000,7 @@ _gum_page_plan_builder_add_pages (GumPagePlanBuilder * self,
   }
 
   g_assert (blocks->len == 0 ||
-      g_array_index (blocks, GumPageBlock, i).bytes->len != 0);
+      g_array_index (blocks, GumPageBlock, blocks->len - 1).bytes->len != 0);
 }
 
 gboolean
