@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
- * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022-2025 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
@@ -686,6 +686,44 @@ gum_darwin_check_xnu_version (guint major,
     return TRUE;
 
   return xnu_major == major && xnu_minor == minor && xnu_micro >= micro;
+}
+
+gboolean
+gum_darwin_is_debugger_mapping_enforced (void)
+{
+  static gsize is_enforced = 0;
+
+  if (g_once_init_enter (&is_enforced))
+  {
+    mach_port_t task;
+    guint page_size;
+    mach_vm_address_t start;
+    vm_address_t addr;
+    vm_prot_t cur_prot, max_prot;
+    gboolean enforced;
+
+    task = mach_task_self ();
+    page_size = gum_query_page_size ();
+
+    mach_vm_allocate (task, &start, page_size, VM_FLAGS_ANYWHERE);
+    *(guint32 *) start = 1337;
+    gum_try_mprotect (GSIZE_TO_POINTER (start), page_size, GUM_PAGE_RX);
+
+    addr = 0;
+    vm_remap (task, &addr, page_size, 0, VM_FLAGS_ANYWHERE, task, start, FALSE,
+        &cur_prot, &max_prot, VM_INHERIT_NONE);
+
+    enforced =
+        (cur_prot & (VM_PROT_READ | VM_PROT_EXECUTE)) !=
+        (VM_PROT_READ | VM_PROT_EXECUTE);
+
+    mach_vm_deallocate (task, addr, page_size);
+    mach_vm_deallocate (task, start, page_size);
+
+    g_once_init_leave (&is_enforced, enforced + 1);
+  }
+
+  return is_enforced - 1;
 }
 
 gboolean

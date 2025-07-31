@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -201,6 +202,25 @@ gum_memory_write (gpointer address,
 }
 
 gboolean
+gum_memory_can_remap_writable (void)
+{
+  return FALSE;
+}
+
+gpointer
+gum_memory_try_remap_writable_pages (gpointer first_page,
+                                     guint n_pages)
+{
+  return NULL;
+}
+
+void
+gum_memory_dispose_writable_pages (gpointer first_page,
+                                   guint n_pages)
+{
+}
+
+gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
                   GumPageProtection prot)
@@ -369,23 +389,4 @@ gum_libc_process_vm_writev (pid_t pid,
 {
   return syscall (GUM_SYS_PROCESS_VM_WRITEV, pid, local, num_local, remote,
       num_remote, flags);
-}
-
-gboolean
-gum_memory_can_remap_writable (void)
-{
-  return FALSE;
-}
-
-gpointer
-gum_memory_try_remap_writable_pages (gpointer first_page,
-                                     guint n_pages)
-{
-  return NULL;
-}
-
-void
-gum_memory_dispose_writable_pages (gpointer first_page,
-                                   guint n_pages)
-{
 }

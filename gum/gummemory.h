@@ -122,6 +122,11 @@ GUM_API gboolean gum_memory_patch_code (gpointer address, gsize size,
 GUM_API gboolean gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
     gboolean coalesce, GumMemoryPatchPagesApplyFunc apply,
     gpointer apply_data);
+GUM_API gboolean gum_memory_can_remap_writable (void);
+GUM_API gpointer gum_memory_try_remap_writable_pages (gpointer first_page,
+    guint n_pages);
+GUM_API void gum_memory_dispose_writable_pages (gpointer first_page,
+    guint n_pages);
 GUM_API gboolean gum_memory_mark_code (gpointer address, gsize size);
 
 GUM_API void gum_memory_scan (const GumMemoryRange * range,
@@ -189,11 +194,6 @@ GUM_API gboolean gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,
 GUM_API GType gum_memory_range_get_type (void) G_GNUC_CONST;
 GUM_API GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
 GUM_API void gum_memory_range_free (GumMemoryRange * range);
-
-gboolean gum_memory_can_remap_writable (void);
-gpointer gum_memory_try_remap_writable_pages (gpointer first_page,
-    guint n_pages);
-void gum_memory_dispose_writable_pages (gpointer first_page, guint n_pages);
 
 G_END_DECLS
 
