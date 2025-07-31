@@ -276,7 +276,6 @@ gum_memory_patch_code (gpointer address,
   gboolean result;
   gsize page_size;
   guint8 * start_page, * end_page;
-  gpointer cur;
   gsize page_offset;
   GPtrArray * page_addresses;
   GumPatchCodeContext context;
@@ -296,6 +295,8 @@ gum_memory_patch_code (gpointer address,
 
   if (end_page != start_page)
   {
+    guint8 * cur;
+
     for (cur = start_page + page_size; cur != end_page; cur += page_size)
       g_ptr_array_add (page_addresses, cur);
   }
@@ -320,7 +321,7 @@ gum_apply_patch_code (gpointer mem,
 {
   GumPatchCodeContext * context = user_data;
 
-  context->func (mem + context->page_offset, context->user_data);
+  context->func ((guint8 *) mem + context->page_offset, context->user_data);
 }
 
 gboolean
@@ -332,7 +333,7 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
   gboolean result = TRUE;
   gsize page_size;
   guint i;
-  gpointer apply_start, apply_target_start;
+  guint8 * apply_start, * apply_target_start;
   guint apply_num_pages;
   gboolean rwx_supported;
 
@@ -435,7 +436,7 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
 
       for (i = 0; i != sorted_addresses->len; i++)
       {
-        gpointer target_page;
+        guint8 * target_page;
         const GumPageLump * plump;
         gsize offset;
 
@@ -452,7 +453,8 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
 
         g_assert (target_page >= plump->start && target_page < plump->end);
         offset = target_page - plump->start;
-        apply (plump->writable_start + offset, target_page, 1, apply_data);
+        apply ((guint8 *) plump->writable_start + offset, target_page, 1,
+            apply_data);
       }
     }
 
@@ -505,7 +507,7 @@ cleanup:
       }
     }
 
-    apply_start = 0;
+    apply_start = NULL;
     apply_num_pages = 0;
     for (i = 0; i != sorted_addresses->len; i++)
     {
@@ -515,14 +517,14 @@ cleanup:
       {
         if (apply_start != 0)
         {
-          if (target_page == apply_start + page_size * apply_num_pages)
+          if (target_page == apply_start + (page_size * apply_num_pages))
           {
             apply_num_pages++;
           }
           else
           {
             apply (apply_start, apply_target_start, apply_num_pages,
-              apply_data);
+                apply_data);
             apply_start = 0;
           }
         }
@@ -613,7 +615,7 @@ resume_threads:
       current_page += page_size;
     }
 
-    apply_start = 0;
+    apply_start = NULL;
     apply_num_pages = 0;
     for (i = 0; i != sorted_addresses->len; i++)
     {
@@ -621,21 +623,21 @@ resume_threads:
 
       if (coalesce)
       {
-        if (apply_start != 0)
+        if (apply_start != NULL)
         {
-          if (target_page == apply_target_start + page_size * apply_num_pages)
+          if (target_page == apply_target_start + (page_size * apply_num_pages))
           {
             apply_num_pages++;
           }
           else
           {
             apply (apply_start, apply_target_start, apply_num_pages,
-              apply_data);
-            apply_start = 0;
+                apply_data);
+            apply_start = NULL;
           }
         }
 
-        if (apply_start == 0)
+        if (apply_start == NULL)
         {
           apply_start = source_page;
           apply_target_start = target_page;

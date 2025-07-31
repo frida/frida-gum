@@ -596,7 +596,8 @@ gum_tcc_cmodule_relocate_views (gpointer writable_base,
                                 gpointer user_data)
 {
   GumTccApplyContext * ctx = user_data;
-  size_t diff_to_exec = ctx->executable_base - writable_base;
+  size_t diff_to_exec =
+      (guint8 *) ctx->executable_base - (guint8 *) writable_base;
 
   ctx->success =
       tcc_relocate_ex (ctx->module->state, writable_base, diff_to_exec) != -1;

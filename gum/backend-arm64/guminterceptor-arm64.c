@@ -715,7 +715,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   else
   {
     ctx->on_enter_trampoline = gum_sign_code_pointer (
-        ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw));
+        (guint8 *) ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw));
     deflector_target = ctx->on_enter_trampoline;
   }
 
@@ -753,7 +753,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
     ctx->on_leave_trampoline =
-        ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw);
+        (guint8 *) ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw);
 
     gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
     gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
@@ -765,7 +765,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   ctx->on_invoke_trampoline = gum_sign_code_pointer (
-      ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw));
+      (guint8 *) ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw));
 
   gum_arm64_relocator_reset (ar, function_address, aw);
 

@@ -1064,12 +1064,16 @@ gum_apply_updates (gpointer source_page,
   for (i = 0; i != pending->len; i++)
   {
     GumUpdateTask * update;
+    gsize offset;
 
     update = &g_array_index (pending, GumUpdateTask, i);
 
-    update->func (self->interceptor, update->ctx, source_page +
-        GPOINTER_TO_SIZE (_gum_interceptor_backend_get_function_address (
-          update->ctx) - target_page));
+    offset = (guint8 *)
+        _gum_interceptor_backend_get_function_address (update->ctx) -
+        (guint8 *) target_page;
+
+    update->func (self->interceptor, update->ctx,
+        (guint8 *) source_page + offset);
   }
 }
 
