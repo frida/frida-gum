@@ -370,6 +370,7 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
 #endif
 
     plumps = g_array_new (FALSE, FALSE, sizeof (GumPageLump));
+    last = NULL;
 
     for (i = 0; i != sorted_addresses->len; i++)
     {
