@@ -505,7 +505,7 @@ cleanup:
 
       if (!gum_try_mprotect (target_page, page_size, protection))
       {
-        result = false;
+        result = FALSE;
         goto resume_threads;
       }
     }
