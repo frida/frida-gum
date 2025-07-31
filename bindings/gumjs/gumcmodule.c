@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2019-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -205,9 +206,9 @@ gum_cmodule_link (GumCModule * self,
   GumCModulePrivate * priv;
   GString * error_messages;
   gsize size, page_size;
-  gpointer base;
   gboolean remap_supported;
   GumPageProtection protection;
+  gpointer base;
 
   priv = gum_cmodule_get_instance_private (self);
 
@@ -219,7 +220,7 @@ gum_cmodule_link (GumCModule * self,
   size = GUM_ALIGN_SIZE (size, page_size);
 
   remap_supported = gum_memory_can_remap_writable ();
-  protection =  remap_supported ? GUM_PAGE_RX : GUM_PAGE_RW;
+  protection = remap_supported ? GUM_PAGE_RX : GUM_PAGE_RW;
 
   base = gum_memory_allocate (NULL, size, page_size, protection);
 
@@ -381,8 +382,8 @@ gum_cmodule_drop_metadata (GumCModule * self)
 G_DECLARE_FINAL_TYPE (GumTccCModule, gum_tcc_cmodule, GUM, TCC_CMODULE,
     GumCModule)
 
-typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumTccApplyContext GumTccApplyContext;
+typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 
 struct _GumTccCModule
 {
@@ -392,17 +393,17 @@ struct _GumTccCModule
   gsize size;
 };
 
-struct _GumEnumerateSymbolsContext
-{
-  GumFoundCSymbolFunc func;
-  gpointer user_data;
-};
-
 struct _GumTccApplyContext
 {
   GumTccCModule * module;
   gpointer executable_base;
-  gboolean result;
+  gboolean success;
+};
+
+struct _GumEnumerateSymbolsContext
+{
+  GumFoundCSymbolFunc func;
+  gpointer user_data;
 };
 
 static void gum_tcc_cmodule_add_define (GumCModule * cm, const gchar * name,
@@ -569,14 +570,15 @@ gum_tcc_cmodule_link_at (GumCModule * cm,
   if (gum_memory_can_remap_writable ())
   {
     GumTccApplyContext ctx;
+
     ctx.module = self;
-    ctx.result = FALSE;
     ctx.executable_base = base;
+    ctx.success = FALSE;
 
     gum_memory_patch_code (base, self->size, gum_tcc_cmodule_relocate_views,
         &ctx);
 
-    return ctx.result;
+    return ctx.success;
   }
   else
   {
@@ -591,15 +593,13 @@ gum_tcc_cmodule_link_at (GumCModule * cm,
 
 static void
 gum_tcc_cmodule_relocate_views (gpointer writable_base,
-                          gpointer user_data)
+                                gpointer user_data)
 {
   GumTccApplyContext * ctx = user_data;
   size_t diff_to_exec = ctx->executable_base - writable_base;
 
-  if (tcc_relocate_ex (ctx->module->state, writable_base, diff_to_exec) == -1)
-    ctx->result = FALSE;
-  else
-    ctx->result = TRUE;
+  ctx->success =
+      tcc_relocate_ex (ctx->module->state, writable_base, diff_to_exec) != -1;
 }
 
 static void
