@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,9 +19,8 @@
 # include "gumarm64writer.h"
 #endif
 #ifdef HAVE_DARWIN
-# include "./backend-darwin/gumdarwin-priv.h"
+# include "backend-darwin/gumdarwin-priv.h"
 #endif
-
 
 #include <string.h>
 
