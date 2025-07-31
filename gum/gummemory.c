@@ -332,104 +332,116 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
 {
   gboolean result = TRUE;
   gsize page_size;
+  guint i;
   gpointer apply_start, apply_target_start;
   guint apply_num_pages;
   gboolean rwx_supported;
-  GList * cur;
 
   rwx_supported = gum_query_is_rwx_supported ();
   page_size = gum_query_page_size ();
 
   if (gum_memory_can_remap_writable ())
   {
-    GList * plumps = NULL, * cur_plump;;
-    GumPageLump * last_plump = NULL;
+    GArray * plumps;
+    GumPageLump * last;
+
+    plumps = g_array_new (FALSE, FALSE, sizeof (GumPageLump));
 
 #ifdef HAVE_DARWIN
     if (gum_darwin_is_debugger_mapping_enforced ())
     {
       GumPagePlanBuilder plan_builder = { 0, };
-      for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+
+      for (i = 0; i != sorted_addresses->len; i++)
       {
-        gpointer target_page = cur->data;
+        gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
         _gum_page_plan_builder_add_page (&plan_builder, target_page);
       }
 
       if (!_gum_page_plan_builder_post (&plan_builder))
-      {
         return FALSE;
-      }
     }
 #endif
 
-    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      gpointer target_page = cur->data;
+      guint8 * target_page = g_ptr_array_index (sorted_addresses, i);
 
-      if (last_plump == NULL || last_plump->end != target_page)
+      last = (plumps->len != 0)
+          ? &g_array_index (plumps, GumPageLump, i)
+          : NULL;
+
+      if (last == NULL || last->end != target_page)
       {
-        if (last_plump != NULL)
+        GumPageLump lump;
+
+        if (last != NULL)
         {
           gpointer writable;
 
-          writable = gum_memory_try_remap_writable_pages (last_plump->start,
-              last_plump->n_pages);
+          writable = gum_memory_try_remap_writable_pages (last->start,
+              last->n_pages);
           if (writable == NULL)
           {
             result = FALSE;
             goto cleanup;
           }
-          last_plump->writable_start = writable;
+
+          last->writable_start = writable;
         }
-        last_plump = g_slice_new0 (GumPageLump);
-        last_plump->start = last_plump->end = target_page;
-        plumps = g_list_prepend (plumps, last_plump);
+
+        lump.start = target_page;
+        lump.end = target_page;
+        lump.writable_start = NULL;
+        lump.n_pages = 0;
+        g_array_append_val (plumps, lump);
       }
 
-      last_plump->end = target_page + page_size;
-      last_plump->n_pages++;
+      last = &g_array_index (plumps, GumPageLump, i);
+      last->end = target_page + page_size;
+      last->n_pages++;
     }
 
-    if (last_plump == NULL)
-      return TRUE;
+    if (plumps->len == 0)
+      goto cleanup;
 
-    last_plump->writable_start = gum_memory_try_remap_writable_pages (
-        last_plump->start, last_plump->n_pages);
-    if (last_plump->writable_start == NULL)
+    last->writable_start =
+        gum_memory_try_remap_writable_pages (last->start, last->n_pages);
+    if (last->writable_start == NULL)
     {
       result = FALSE;
       goto cleanup;
     }
-    plumps = g_list_reverse (plumps);
 
     if (coalesce)
     {
-      for (cur = plumps; cur != NULL; cur = cur->next)
+      for (i = 0; i != plumps->len; i++)
       {
-        GumPageLump * plump = cur->data;
+        const GumPageLump * plump = &g_array_index (plumps, GumPageLump, i);
 
         apply (plump->writable_start, plump->start, plump->n_pages, apply_data);
       }
     }
     else
     {
-      cur_plump = plumps;
+      guint plump_index = 0;
 
-      for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+      for (i = 0; i != sorted_addresses->len; i++)
       {
-        gpointer target_page = cur->data;
-        GumPageLump * plump;
+        gpointer target_page;
+        const GumPageLump * plump;
         gsize offset;
 
-        g_assert (cur_plump != NULL);
-        plump = cur_plump->data;
+        target_page = g_ptr_array_index (sorted_addresses, i);
+
+        plump = &g_array_index (plumps, GumPageLump, plump_index);
 
         if (target_page >= plump->end)
         {
-          cur_plump = cur_plump->next;
-          g_assert (cur_plump != NULL);
-          plump = cur_plump->data;
+          plump_index++;
+          g_assert (plump_index != plumps->len);
+          plump = &g_array_index (plumps, GumPageLump, plump_index);
         }
 
         g_assert (target_page >= plump->start && target_page < plump->end);
@@ -438,25 +450,26 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
       }
     }
 
-    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      gpointer target_page = cur->data;
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
       gum_clear_cache (target_page, page_size);
     }
 
 cleanup:
-    for (cur = plumps; cur != NULL; cur = cur->next)
+    for (i = 0; i != plumps->len; i++)
     {
-      GumPageLump * plump = cur->data;
+      const GumPageLump * plump = &g_array_index (plumps, GumPageLump, i);
 
       if (plump->writable_start != NULL)
-        gum_memory_dispose_writable_pages (plump->writable_start, plump->n_pages);
-
-      g_slice_free (GumPageLump, plump);
+      {
+        gum_memory_dispose_writable_pages (plump->writable_start,
+            plump->n_pages);
+      }
     }
 
-    g_list_free (plumps);
+    g_array_unref (plumps);
   }
   else if (rwx_supported || !gum_code_segment_is_supported ())
   {
@@ -475,9 +488,9 @@ cleanup:
           GUM_THREAD_FLAGS_NONE);
     }
 
-    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      gpointer target_page = cur->data;
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
       if (!gum_try_mprotect (target_page, page_size, protection))
       {
@@ -488,9 +501,9 @@ cleanup:
 
     apply_start = 0;
     apply_num_pages = 0;
-    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      gpointer target_page = cur->data;
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
       if (coalesce)
       {
@@ -533,9 +546,9 @@ cleanup:
         * While we could easily do that, it would add overhead, but it's not
         * really clear that it would have any tangible upsides.
         */
-      for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+      for (i = 0; i != sorted_addresses->len; i++)
       {
-        gpointer target_page = cur->data;
+        gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
         if (!gum_try_mprotect (target_page, page_size, GUM_PAGE_RX))
         {
@@ -545,9 +558,9 @@ cleanup:
       }
     }
 
-    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      gpointer target_page = cur->data;
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
       gum_clear_cache (target_page, page_size);
     }
@@ -576,20 +589,18 @@ resume_threads:
   }
   else
   {
-    guint num_pages;
     GumCodeSegment * segment;
     guint8 * source_page, * current_page;
     gsize source_offset;
 
-    num_pages = g_list_length (sorted_addresses);
-    segment = gum_code_segment_new (num_pages * page_size, NULL);
+    segment = gum_code_segment_new (sorted_addresses->len * page_size, NULL);
 
     source_page = gum_code_segment_get_address (segment);
 
     current_page = source_page;
-    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      guint8 * target_page = cur->data;
+      guint8 * target_page = g_ptr_array_index (sorted_addresses, i);
 
       memcpy (current_page, target_page, page_size);
 
@@ -598,9 +609,9 @@ resume_threads:
 
     apply_start = 0;
     apply_num_pages = 0;
-    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      guint8 * target_page = cur->data;
+      guint8 * target_page = g_ptr_array_index (sorted_addresses, i);
 
       if (coalesce)
       {
@@ -639,9 +650,9 @@ resume_threads:
     gum_code_segment_realize (segment);
 
     source_offset = 0;
-    for (cur = sorted_addresses; cur != NULL; cur = cur->next)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      gpointer target_page = cur->data;
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
       gum_code_segment_map (segment, source_offset, page_size, target_page);
 
