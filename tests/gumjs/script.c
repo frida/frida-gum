@@ -1383,13 +1383,15 @@ TESTCASE (code_relocator_should_expose_input_instruction)
 #elif defined (HAVE_ARM64)
   COMPILE_AND_LOAD_SCRIPT (
       "const code = Memory.alloc(8);"
-# if G_BYTE_ORDER == G_LITTLE_ENDIAN
-      "code.writeU32(0xb9400ae8);"
-      "code.add(4).writeU32(0x3100051f);"
-# else
-      "code.writeU32(0xe80a40b9);"
-      "code.add(4).writeU32(0x1f050031);"
-# endif
+
+      "const littleEndian = %s;"
+      "if (littleEndian) {"
+      "  code.writeU32(0xb9400ae8);"
+      "  code.add(4).writeU32(0x3100051f);"
+      "} else {"
+      "  code.writeU32(0xe80a40b9);"
+      "  code.add(4).writeU32(0x1f050031);"
+      "}"
 
       "const page = Memory.alloc(Process.pageSize);"
       "const writer = new Arm64Writer(page);"
@@ -1409,7 +1411,8 @@ TESTCASE (code_relocator_should_expose_input_instruction)
       "insn = relocator.peekNextWriteInsn();"
       "send(insn.toString());"
       "send(insn.address.equals(code.add(4)));"
-      "send(insn.next.equals(code.add(8)));");
+      "send(insn.next.equals(code.add(8)));",
+      (G_BYTE_ORDER == G_LITTLE_ENDIAN) ? "true" : "false");
 
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("null");
