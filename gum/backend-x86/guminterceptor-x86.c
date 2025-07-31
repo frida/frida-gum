@@ -184,7 +184,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
   {
-    function_ctx_ptr = ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
+    function_ctx_ptr =
+        GUM_ADDRESS (ctx->trampoline_slice->pc) + gum_x86_writer_offset (cw);
     gum_x86_writer_put_bytes (cw, (guint8 *) &ctx,
         sizeof (GumFunctionContext *));
 
@@ -203,7 +204,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
        */
 
       after_push_to_shadow_stack =
-          ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
+          GUM_ADDRESS (ctx->trampoline_slice->pc) + gum_x86_writer_offset (cw);
 
       gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP,
           GUM_X86_XSP, (gssize) sizeof (gpointer));
