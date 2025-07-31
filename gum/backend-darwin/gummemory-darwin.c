@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +17,8 @@
 #include <mach/mach.h>
 #include <sys/mman.h>
 #include <sys/sysctl.h>
+
+#define GUM_PAGE_BLOCK_BYTES_CAPACITY 8
 
 typedef gboolean (* GumFoundFreeRangeFunc) (const GumMemoryRange * range,
     gpointer user_data);
@@ -249,7 +252,7 @@ gum_memory_is_readable (gconstpointer address,
 {
   gboolean is_readable;
   guint8 * bytes;
-  gsize n_bytes_read;
+gsize n_bytes_read;
 
   bytes = gum_memory_read (address, len, &n_bytes_read);
   is_readable = bytes != NULL && n_bytes_read == len;
@@ -814,6 +817,7 @@ gboolean
 gum_darwin_is_debugger_mapping_enforced (void)
 {
   static gsize is_enforced = 0;
+
   if (g_once_init_enter (&is_enforced))
   {
     mach_port_t task;
@@ -874,7 +878,7 @@ gum_memory_try_remap_writable_pages (gpointer first_page,
     return NULL;
   }
 
-  if (mprotect((gpointer) writable_address, size, PROT_READ | PROT_WRITE) != 0)
+  if (mprotect ((gpointer) writable_address, size, PROT_READ | PROT_WRITE) != 0)
   {
     mach_vm_deallocate (task, writable_address, size);
     return NULL;
@@ -901,7 +905,7 @@ gum_memory_is_codesign_out_of_the_way (gpointer page)
   task = mach_task_self ();
 
   mach_vm_page_info (task, (mach_vm_address_t) page,
-      VM_PAGE_INFO_BASIC, (int*) &page_info, &count);
+      VM_PAGE_INFO_BASIC, (int *) &page_info, &count);
 
   if ((page_info.disposition &
       (VM_PAGE_QUERY_PAGE_CS_VALIDATED |
@@ -920,8 +924,8 @@ gum_memory_is_codesign_out_of_the_way (gpointer page)
     return FALSE;
   }
 
-  result = mprotect((gpointer) writable_address, size,
-    PROT_READ | PROT_WRITE) == 0;
+  result = mprotect ((gpointer) writable_address, size,
+      PROT_READ | PROT_WRITE) == 0;
 
   mach_vm_deallocate (task, writable_address, size);
 
@@ -947,26 +951,27 @@ gum_memory_dispose_writable_pages (gpointer first_page,
 }
 
 void
+_gum_page_plan_builder_init (GumPagePlanBuilder * self)
+{
+  self->page_blocks = g_array_new (FALSE, FALSE, sizeof (GumPageBlock));
+}
+
+void
 _gum_page_plan_builder_free (GumPagePlanBuilder * self)
 {
-  GList * cur;
+  guint i;
 
   if (self == NULL)
     return;
 
-  if (self->page_blocks == NULL)
-    return;
-
-  for (cur = self->page_blocks; cur != NULL; cur = cur->next)
+  for (i = 0; i != self->page_blocks->len; i++)
   {
-    GumPageBlock * block = cur->data;
+    GumPageBlock * block = &g_array_index (self->page_blocks, GumPageBlock, i);
 
-    g_list_free (block->bytes);
-    g_slice_free (GumPageBlock, block);
+    g_byte_array_unref (block->bytes);
   }
 
-  g_list_free (self->page_blocks);
-  self->page_blocks = NULL;
+  g_array_unref (self->page_blocks);
 }
 
 void
@@ -981,52 +986,59 @@ _gum_page_plan_builder_add_pages (GumPagePlanBuilder * self,
                                   gpointer base,
                                   gsize n_pages)
 {
-  GumPageBlock * current_block = NULL;
+  GArray * blocks = self->page_blocks;
   gsize page_size;
-  gpointer page, end;
-  guint8 byte;
+  gpointer end, page;
 
   page_size = gum_query_page_size ();
-
-  if (self->page_blocks != NULL)
-    current_block = self->page_blocks->data;
 
   end = base + n_pages * page_size;
   for (page = base; page != end; page += page_size)
   {
+    GumPageBlock * current;
+    guint8 byte;
+
     if (gum_memory_is_codesign_out_of_the_way (page))
       continue;
 
-    if (current_block == NULL || current_block->end != page)
+    current = (blocks->len != 0)
+        ? &g_array_index (blocks, GumPageBlock, blocks->len - 1)
+        : NULL;
+
+    if (current == NULL || current->end != page)
     {
-      current_block = g_slice_new0 (GumPageBlock);
-      self->page_blocks = g_list_prepend (self->page_blocks, current_block);
-      current_block->start = current_block->end = page;
+      GumPageBlock b;
+
+      b.start = page;
+      b.end = page;
+      b.bytes = g_byte_array_sized_new (GUM_PAGE_BLOCK_BYTES_CAPACITY);
+
+      g_array_append_val (blocks, b);
+
+      current = &g_array_index (blocks, GumPageBlock, blocks->len - 1);
     }
 
-    if ((current_block->count % 2) == 0)
+    current->end = page + page_size;
+
+    if ((current->bytes->len % 2) == 0)
       byte = *(((guint8 *) page) + page_size - 1);
     else
-      byte =  *(guint8 *) page;
-
-    current_block->bytes = g_list_prepend (current_block->bytes,
-        GSIZE_TO_POINTER (byte));
-    current_block->count++;
-    current_block->end = page + page_size;
+      byte = *(guint8 *) page;
+    g_byte_array_append (current->bytes, &byte, sizeof (byte));
   }
 
-  g_assert (current_block == NULL || current_block->count != 0);
+  g_assert (blocks->len == 0 ||
+      g_array_index (blocks, GumPageBlock, i).bytes->len != 0);
 }
 
 gboolean
 _gum_page_plan_builder_post (GumPagePlanBuilder * self)
 {
-  gsize raw_result = 0;
-  gsize plan_size;
-  GList * cur;
-  guint8 * buffer;
-  gsize cursor;
-  guint32 n_blocks = 0;
+  GArray * blocks = self->page_blocks;
+  guint32 n_blocks;
+  GByteArray * buffer;
+  guint32 i;
+  gsize raw_result;
 
   /*
    * Plan packet structure:
@@ -1039,35 +1051,29 @@ _gum_page_plan_builder_post (GumPagePlanBuilder * self)
    *    ...
    */
 
-  plan_size = 4; // n_blocks
-  for (cur = self->page_blocks; cur != NULL; cur = cur->next)
-  {
-    GumPageBlock * block = cur->data;
-
-    plan_size += 12; // first_page + n_pages
-    plan_size += block->count; // bytes
-    n_blocks++;
-  }
-
+  n_blocks = blocks->len;
   if (n_blocks == 0)
     return TRUE;
 
-  buffer = (guint8 *) g_malloc (plan_size);
+  buffer = g_byte_array_sized_new (4 +
+      (n_blocks * (8 + 4 + GUM_PAGE_BLOCK_BYTES_CAPACITY)));
 
-  *(guint32 *) buffer = n_blocks;
-  cursor = 4;
-  for (cur = self->page_blocks; cur != NULL; cur = cur->next)
+  g_byte_array_append (buffer, (guint8 *) &n_blocks, sizeof (n_blocks));
+
+  for (i = 0; i != n_blocks; i++)
   {
-    GumPageBlock * block = cur->data;
-    GList * cur_byte;
+    GumPageBlock * block;
+    guint32 n_pages;
 
-    *((guint64 *) (buffer + cursor)) = GPOINTER_TO_SIZE (block->start);
-    cursor += 8;
-    *((guint32 *) (buffer + cursor)) = block->count;
-    cursor += 4;
+    block = &g_array_index (blocks, GumPageBlock, i);
 
-    for (cur_byte = block->bytes; cur_byte != NULL; cur_byte = cur_byte->next)
-      *(buffer + cursor++) = (guint8) GPOINTER_TO_SIZE (cur_byte->data);
+    g_byte_array_append (buffer, (guint8 *) &block->start,
+        sizeof (block->start));
+
+    n_pages = block->bytes->len;
+    g_byte_array_append (buffer, (guint8 *) &n_pages, sizeof (n_pages));
+
+    g_byte_array_append (buffer, block->bytes->data, block->bytes->len);
   }
 
 #ifdef HAVE_ARM64
@@ -1081,13 +1087,15 @@ _gum_page_plan_builder_post (GumPagePlanBuilder * self)
       "brk #1337\n\t"
       "mov %0, x0\n\t"
       : "=r" (raw_result)
-      : "r" (plan_size),
-        "r" ((gsize) buffer)
+      : "r" ((gsize) buffer->len),
+        "r" (GPOINTER_TO_SIZE (buffer->data))
       : "x0", "x1", "x2", "x3", "x4", "x5"
   );
 #else
   g_abort ();
 #endif
+
+  g_byte_array_unref (buffer);
 
   _gum_page_plan_builder_free (self);
 
