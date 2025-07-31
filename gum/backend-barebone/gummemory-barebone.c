@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -205,20 +206,20 @@ gum_memory_decommit (gpointer address,
   return FALSE;
 }
 
-gboolean
+G_GNUC_WEAK gboolean
 gum_memory_can_remap_writable (void)
 {
   return FALSE;
 }
 
-gpointer
+G_GNUC_WEAK gpointer
 gum_memory_try_remap_writable_pages (gpointer first_page,
                                      guint n_pages)
 {
   return NULL;
 }
 
-void
+G_GNUC_WEAK void
 gum_memory_dispose_writable_pages (gpointer first_page,
                                    guint n_pages)
 {

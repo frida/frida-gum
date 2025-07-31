@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -714,9 +714,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
   else
   {
-    ctx->on_enter_trampoline =
-        gum_sign_code_pointer (gum_arm64_writer_offset (aw) +
-            ctx->trampoline_slice->pc);
+    ctx->on_enter_trampoline = gum_sign_code_pointer (
+        ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw));
     deflector_target = ctx->on_enter_trampoline;
   }
 
@@ -753,8 +752,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
         GUM_ADDRESS (gum_sign_code_pointer (self->enter_thunk)));
     gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
-    ctx->on_leave_trampoline = gum_arm64_writer_offset (aw) +
-        ctx->trampoline_slice->pc;
+    ctx->on_leave_trampoline =
+        ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw);
 
     gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X17, GUM_ADDRESS (ctx));
     gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
@@ -766,8 +765,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   ctx->on_invoke_trampoline = gum_sign_code_pointer (
-    gum_arm64_writer_offset (aw) +
-        ctx->trampoline_slice->pc);
+      ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw));
 
   gum_arm64_relocator_reset (ar, function_address, aw);
 
@@ -1088,8 +1086,8 @@ static void
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {
   gsize page_size, code_size;
-  GumMemoryRange range;
   GumPageProtection protection;
+  GumMemoryRange range;
 
   page_size = gum_query_page_size ();
   code_size = page_size;

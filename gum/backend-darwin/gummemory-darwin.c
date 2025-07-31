@@ -36,6 +36,10 @@ struct _GumAllocNearContext
   gpointer result;
 };
 
+extern kern_return_t mach_vm_page_info (vm_map_read_t target_task,
+    mach_vm_address_t address, vm_page_info_flavor_t flavor,
+    vm_page_info_t info, mach_msg_type_number_t *infoCnt);
+
 static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
     gint prot);
 static gboolean gum_try_alloc_in_range_if_near_enough (
@@ -43,10 +47,6 @@ static gboolean gum_try_alloc_in_range_if_near_enough (
 static gboolean gum_try_suggest_allocation_base (const GumMemoryRange * range,
     const GumAllocNearContext * ctx, gpointer * allocation_base);
 static gint gum_page_protection_to_bsd (GumPageProtection prot);
-
-extern kern_return_t mach_vm_page_info (vm_map_read_t target_task,
-    mach_vm_address_t address, vm_page_info_flavor_t flavor,
-    vm_page_info_t info, mach_msg_type_number_t *infoCnt);
 
 void
 _gum_memory_backend_init (void)
@@ -252,7 +252,7 @@ gum_memory_is_readable (gconstpointer address,
 {
   gboolean is_readable;
   guint8 * bytes;
-gsize n_bytes_read;
+  gsize n_bytes_read;
 
   bytes = gum_memory_read (address, len, &n_bytes_read);
   is_readable = bytes != NULL && n_bytes_read == len;
@@ -514,12 +514,16 @@ gum_try_alloc_n_pages_near (guint n_pages,
 
     if (gum_darwin_is_debugger_mapping_enforced ())
     {
-      GumPagePlanBuilder plan_builder = { 0, };
+      GumPagePlanBuilder plan;
 
-      _gum_page_plan_builder_add_pages (&plan_builder, base, 1 + n_pages);
+      _gum_page_plan_builder_init (&plan);
 
-      if (!_gum_page_plan_builder_post (&plan_builder))
+      _gum_page_plan_builder_add_pages (&plan, base, 1 + n_pages);
+
+      if (!_gum_page_plan_builder_post (&plan))
         g_abort ();
+
+      _gum_page_plan_builder_free (&plan);
     }
 
     writable = gum_memory_try_remap_writable_pages (base, 1);
@@ -1099,8 +1103,6 @@ _gum_page_plan_builder_post (GumPagePlanBuilder * self)
 #endif
 
   g_byte_array_unref (buffer);
-
-  _gum_page_plan_builder_free (self);
 
   return raw_result == 0x1337;
 }

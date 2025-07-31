@@ -51,9 +51,8 @@
 # endif
 #endif
 #ifdef HAVE_DARWIN
-# include <mach/mach.h>
+# include "backend-darwin/gumdarwin-priv.h"
 # include "gum/gumdarwin.h"
-# include "./backend-darwin/gumdarwin-priv.h"
 #endif
 
 typedef struct _GumPatchCodeContext GumPatchCodeContext;
@@ -345,24 +344,31 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
     GArray * plumps;
     GumPageLump * last;
 
-    plumps = g_array_new (FALSE, FALSE, sizeof (GumPageLump));
-
 #ifdef HAVE_DARWIN
     if (gum_darwin_is_debugger_mapping_enforced ())
     {
-      GumPagePlanBuilder plan_builder = { 0, };
+      GumPagePlanBuilder plan;
+      gboolean success;
+
+      _gum_page_plan_builder_init (&plan);
 
       for (i = 0; i != sorted_addresses->len; i++)
       {
         gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
-        _gum_page_plan_builder_add_page (&plan_builder, target_page);
+        _gum_page_plan_builder_add_page (&plan, target_page);
       }
 
-      if (!_gum_page_plan_builder_post (&plan_builder))
+      success = _gum_page_plan_builder_post (&plan);
+
+      _gum_page_plan_builder_free (&plan);
+
+      if (!success)
         return FALSE;
     }
 #endif
+
+    plumps = g_array_new (FALSE, FALSE, sizeof (GumPageLump));
 
     for (i = 0; i != sorted_addresses->len; i++)
     {

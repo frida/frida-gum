@@ -34,7 +34,6 @@ typedef struct _DyldImageInfo64 DyldImageInfo64;
 typedef struct _GumPagePlanBuilder GumPagePlanBuilder;
 typedef struct _GumPageBlock GumPageBlock;
 
-
 struct _DyldInfoLegacy
 {
   guint32 all_image_info_addr;
@@ -248,8 +247,8 @@ G_GNUC_INTERNAL void _gum_darwin_clamp_range_size (GumMemoryRange * range,
 
 G_GNUC_INTERNAL void _gum_page_plan_builder_init (GumPagePlanBuilder * self);
 G_GNUC_INTERNAL void _gum_page_plan_builder_free (GumPagePlanBuilder * self);
-G_GNUC_INTERNAL void _gum_page_plan_builder_add_page (
-    GumPagePlanBuilder * self, gpointer target_page);
+G_GNUC_INTERNAL void _gum_page_plan_builder_add_page (GumPagePlanBuilder * self,
+    gpointer target_page);
 G_GNUC_INTERNAL void _gum_page_plan_builder_add_pages (
     GumPagePlanBuilder * self, gpointer base, gsize n_pages);
 G_GNUC_INTERNAL gboolean _gum_page_plan_builder_post (
