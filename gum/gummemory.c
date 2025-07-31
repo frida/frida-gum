@@ -445,15 +445,17 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
 
         plump = &g_array_index (plumps, GumPageLump, plump_index);
 
-        if (target_page >= plump->end)
+        if (target_page >= (guint8 *) plump->end)
         {
           plump_index++;
           g_assert (plump_index != plumps->len);
           plump = &g_array_index (plumps, GumPageLump, plump_index);
         }
 
-        g_assert (target_page >= plump->start && target_page < plump->end);
-        offset = target_page - plump->start;
+        g_assert (target_page >= (guint8 *) plump->start);
+        g_assert (target_page < (guint8 *) plump->end);
+        offset = target_page - (guint8 *) plump->start;
+
         apply ((guint8 *) plump->writable_start + offset, target_page, 1,
             apply_data);
       }
