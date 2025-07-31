@@ -69,6 +69,25 @@ gum_memory_write (gpointer address,
 }
 
 G_GNUC_WEAK gboolean
+gum_memory_can_remap_writable (void)
+{
+  return FALSE;
+}
+
+G_GNUC_WEAK gpointer
+gum_memory_try_remap_writable_pages (gpointer first_page,
+                                     guint n_pages)
+{
+  return NULL;
+}
+
+G_GNUC_WEAK void
+gum_memory_dispose_writable_pages (gpointer first_page,
+                                   guint n_pages)
+{
+}
+
+G_GNUC_WEAK gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
                   GumPageProtection prot)
@@ -204,23 +223,4 @@ gum_memory_decommit (gpointer address,
                      gsize size)
 {
   return FALSE;
-}
-
-G_GNUC_WEAK gboolean
-gum_memory_can_remap_writable (void)
-{
-  return FALSE;
-}
-
-G_GNUC_WEAK gpointer
-gum_memory_try_remap_writable_pages (gpointer first_page,
-                                     guint n_pages)
-{
-  return NULL;
-}
-
-G_GNUC_WEAK void
-gum_memory_dispose_writable_pages (gpointer first_page,
-                                   guint n_pages)
-{
 }
