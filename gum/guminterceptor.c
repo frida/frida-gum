@@ -1053,12 +1053,10 @@ gum_apply_updates (gpointer source_page,
                    gpointer user_data)
 {
   GumInterceptorTransaction * self = user_data;
-
   GArray * pending;
   guint i;
 
-  pending = g_hash_table_lookup (self->pending_update_tasks,
-      target_page);
+  pending = g_hash_table_lookup (self->pending_update_tasks, target_page);
   g_assert (pending != NULL);
 
   for (i = 0; i != pending->len; i++)
