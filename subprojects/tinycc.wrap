@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/tinycc.git
-revision = 517aa684db053997a9a5b4b57a8a210007e2b1c4
+revision = 86c2ba69e97af8f311dff04fcf517b760b3e4491
 depth = 1
 
 [provide]
