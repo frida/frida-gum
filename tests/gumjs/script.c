@@ -1563,7 +1563,8 @@ TESTCASE (native_function_can_be_invoked)
 
 #ifdef HAVE_WINDOWS
   COMPILE_AND_LOAD_SCRIPT (
-      "const impl = Module.getExportByName(\"user32.dll\", \"GetKeyState\");"
+      "const impl = Process.getModuleByName('user32.dll')"
+        ".getExportByName('GetKeyState');"
       "const f = new NativeFunction(impl, 'int16', ['int']);"
       "const result = f(0x41);"
       "send(typeof result);");
@@ -6291,8 +6292,8 @@ TESTCASE (module_export_can_be_found_by_name)
   sprintf_s (actual_address_str, sizeof (actual_address_str),
       "\"%" G_GSIZE_MODIFIER "x\"", GPOINTER_TO_SIZE (actual_address));
 
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.findExportByName('kernel32.dll', 'Sleep').toString(16));");
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.getModuleByName('kernel32.dll')"
+      ".getExportByName('Sleep').toString(16));");
   EXPECT_SEND_MESSAGE_WITH (actual_address_str);
 #endif
 }
