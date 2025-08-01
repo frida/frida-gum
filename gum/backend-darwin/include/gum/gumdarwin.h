@@ -260,7 +260,7 @@ GUM_API void gum_darwin_parse_unified_thread_state (
     const GumDarwinUnifiedThreadState * ts, GumCpuContext * ctx);
 GUM_API void gum_darwin_parse_native_thread_state (
     const GumDarwinNativeThreadState * ts, GumCpuContext * ctx);
-#if defined (HAVE_ARM64) || defined (HAVE_ARM)
+#if defined (__arm__) || defined (__aarch64__)
 GUM_API void gum_darwin_parse_native_neon_state (
     const GumDarwinNativeNeonState * ns, GumCpuContext * ctx);
 #endif
@@ -268,10 +268,11 @@ GUM_API void gum_darwin_unparse_unified_thread_state (
     const GumCpuContext * ctx, GumDarwinUnifiedThreadState * ts);
 GUM_API void gum_darwin_unparse_native_thread_state (
     const GumCpuContext * ctx, GumDarwinNativeThreadState * ts);
-#if defined (HAVE_ARM64) || defined (HAVE_ARM)
+#if defined (__arm__) || defined (__aarch64__)
 GUM_API void gum_darwin_unparse_native_neon_state (
     const GumCpuContext * ctx, GumDarwinNativeNeonState * ns);
 #endif
+
 GUM_API GumPageProtection gum_page_protection_from_mach (vm_prot_t native_prot);
 GUM_API vm_prot_t gum_page_protection_to_mach (GumPageProtection prot);
 
