@@ -117,17 +117,23 @@ typedef x86_debug_state64_t GumDarwinNativeDebugState;
 typedef arm_unified_thread_state_t GumDarwinUnifiedThreadState;
 # if GLIB_SIZEOF_VOID_P == 4
 typedef arm_thread_state32_t GumDarwinNativeThreadState;
+typedef arm_neon_state32_t GumDarwinNativeNeonState;
 typedef arm_debug_state32_t GumDarwinNativeDebugState;
 # else
 typedef arm_thread_state64_t GumDarwinNativeThreadState;
+typedef arm_neon_state64_t GumDarwinNativeNeonState;
 typedef arm_debug_state64_t GumDarwinNativeDebugState;
 # endif
 # define GUM_DARWIN_THREAD_STATE_COUNT ARM_UNIFIED_THREAD_STATE_COUNT
 # define GUM_DARWIN_THREAD_STATE_FLAVOR ARM_UNIFIED_THREAD_STATE
 # if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_DARWIN_NEON_STATE_COUNT ARM_NEON_STATE_COUNT
+#  define GUM_DARWIN_NEON_STATE_FLAVOR ARM_NEON_STATE
 #  define GUM_DARWIN_DEBUG_STATE_COUNT ARM_DEBUG_STATE32_COUNT
 #  define GUM_DARWIN_DEBUG_STATE_FLAVOR ARM_DEBUG_STATE32
 # else
+#  define GUM_DARWIN_NEON_STATE_COUNT ARM_NEON_STATE64_COUNT
+#  define GUM_DARWIN_NEON_STATE_FLAVOR ARM_NEON_STATE64
 #  define GUM_DARWIN_DEBUG_STATE_COUNT ARM_DEBUG_STATE64_COUNT
 #  define GUM_DARWIN_DEBUG_STATE_FLAVOR ARM_DEBUG_STATE64
 # endif
@@ -255,10 +261,18 @@ GUM_API void gum_darwin_parse_unified_thread_state (
     const GumDarwinUnifiedThreadState * ts, GumCpuContext * ctx);
 GUM_API void gum_darwin_parse_native_thread_state (
     const GumDarwinNativeThreadState * ts, GumCpuContext * ctx);
+#if defined (__arm__) || defined (__aarch64__)
+GUM_API void gum_darwin_parse_native_neon_state (
+    const GumDarwinNativeNeonState * ns, GumCpuContext * ctx);
+#endif
 GUM_API void gum_darwin_unparse_unified_thread_state (
     const GumCpuContext * ctx, GumDarwinUnifiedThreadState * ts);
 GUM_API void gum_darwin_unparse_native_thread_state (
     const GumCpuContext * ctx, GumDarwinNativeThreadState * ts);
+#if defined (__arm__) || defined (__aarch64__)
+GUM_API void gum_darwin_unparse_native_neon_state (
+    const GumCpuContext * ctx, GumDarwinNativeNeonState * ns);
+#endif
 
 GUM_API GumPageProtection gum_page_protection_from_mach (vm_prot_t native_prot);
 GUM_API vm_prot_t gum_page_protection_to_mach (GumPageProtection prot);

@@ -1195,6 +1195,11 @@ gum_darwin_modify_thread (mach_port_t thread,
   mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
   thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
   GumCpuContext cpu_context, original_cpu_context;
+# if defined (HAVE_ARM) || defined (HAVE_ARM64)
+  GumDarwinNativeNeonState neon_state;
+  mach_msg_type_number_t neon_state_count = GUM_DARWIN_NEON_STATE_COUNT;
+  thread_state_flavor_t neon_state_flavor = GUM_DARWIN_NEON_STATE_FLAVOR;
+# endif
 
   kr = thread_suspend (thread);
   if (kr != KERN_SUCCESS)
@@ -1215,6 +1220,16 @@ gum_darwin_modify_thread (mach_port_t thread,
     goto beach;
 
   gum_darwin_parse_unified_thread_state (&state, &cpu_context);
+
+# if defined (HAVE_ARM) || defined (HAVE_ARM64)
+  kr = thread_get_state (thread, neon_state_flavor,
+      (thread_state_t) &neon_state, &neon_state_count);
+  if (kr != KERN_SUCCESS)
+    goto beach;
+
+  gum_darwin_parse_native_neon_state (&neon_state, &cpu_context);
+# endif
+
   memcpy (&original_cpu_context, &cpu_context, sizeof (cpu_context));
 
   func (thread, &cpu_context, user_data);
@@ -1225,6 +1240,15 @@ gum_darwin_modify_thread (mach_port_t thread,
 
     kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
         state_count);
+    if (kr != KERN_SUCCESS)
+      goto beach;
+
+# if defined (HAVE_ARM) || defined (HAVE_ARM64)
+    gum_darwin_unparse_native_neon_state (&cpu_context, &neon_state);
+
+    kr = thread_set_state (thread, neon_state_flavor,
+        (thread_state_t) &neon_state, neon_state_count);
+# endif
   }
 
 beach:
@@ -2205,6 +2229,17 @@ gum_darwin_parse_native_thread_state (const GumDarwinNativeThreadState * ts,
 #endif
 }
 
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
+
+void
+gum_darwin_parse_native_neon_state (const GumDarwinNativeNeonState * ns,
+                                    GumCpuContext * ctx)
+{
+  memcpy (ctx->v, ns->__v, sizeof (ctx->v));
+}
+
+#endif
+
 void
 gum_darwin_unparse_unified_thread_state (const GumCpuContext * ctx,
                                          GumDarwinUnifiedThreadState * ts)
@@ -2312,6 +2347,17 @@ gum_darwin_unparse_native_thread_state (const GumCpuContext * ctx,
     ts->__x[n] = ctx->x[n];
 #endif
 }
+
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
+
+void
+gum_darwin_unparse_native_neon_state (const GumCpuContext * ctx,
+                                      GumDarwinNativeNeonState * ns)
+{
+  memcpy (ns->__v, ctx->v, sizeof (ns->__v));
+}
+
+#endif
 
 const char *
 gum_symbol_name_from_darwin (const char * s)
