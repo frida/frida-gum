@@ -66,6 +66,7 @@ typedef void (* GumModifyDebugRegistersFunc) (GumDarwinNativeDebugState * ds,
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
 typedef struct _GumFindModuleByNameContext GumFindModuleByNameContext;
+typedef struct _GumFindSysRootContext GumFindSysRootContext;
 
 struct _GumSetHardwareBreakpointContext
 {
@@ -101,6 +102,11 @@ struct _GumFindModuleByNameContext
   GumModule * module;
 };
 
+struct _GumFindSysRootContext
+{
+  gchar * result;
+};
+
 typedef enum {
   GUM_OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION = 0x10000,
   GUM_OS_UNFAIR_LOCK_ADAPTIVE_SPIN        = 0x40000,
@@ -126,7 +132,6 @@ static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
-static void gum_deinit_sysroot (void);
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean gum_try_resolve_module_by_name (GumModule * module,
@@ -748,48 +753,34 @@ gum_darwin_cpu_type_from_pid (pid_t pid,
   return TRUE;
 }
 
-const gchar *
-gum_darwin_query_sysroot (void)
+static gboolean
+gum_try_find_dyld_sim (const GumRangeDetails * details, gpointer user_data)
 {
-  static gsize cached_result = 0;
+  GumFindSysRootContext * ctx = user_data;
+  if (!details->file)
+    return TRUE;
 
-  if (g_once_init_enter (&cached_result))
+  const gchar * path = details->file->path;
+  if (g_str_has_suffix (path, "/usr/lib/dyld_sim"))
   {
-    gchar * result = NULL;
-    guint n, i;
-
-    n = _dyld_image_count ();
-    for (i = 0; i != n; i++)
-    {
-      const gchar * name, * p;
-
-      name = _dyld_get_image_name (i);
-      if (name == NULL)
-        break;
-
-      p = strstr (name, "/usr/lib/libSystem.B.dylib");
-      if (p != NULL)
-      {
-        if (p != name)
-        {
-          result = g_strndup (name, p - name);
-          _gum_register_destructor (gum_deinit_sysroot);
-        }
-
-        break;
-      }
-    }
-
-    g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (result) + 1);
+    ctx->result = g_strndup (path, strlen (path) - 17);
+    return FALSE;
   }
 
-  return GSIZE_TO_POINTER (cached_result - 1);
+  return TRUE;
 }
 
-static void
-gum_deinit_sysroot (void)
+gchar *
+gum_darwin_query_sysroot (mach_port_t task)
 {
-  g_free ((gchar *) gum_darwin_query_sysroot ());
+  GumFindSysRootContext ctx;
+
+  ctx.result = NULL;
+
+  gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
+      gum_try_find_dyld_sim, &ctx);
+
+  return ctx.result;
 }
 
 gboolean
