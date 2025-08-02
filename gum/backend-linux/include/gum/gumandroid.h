@@ -9,7 +9,6 @@
 
 #include "gumelfmodule.h"
 #include "gumprocess.h"
-#include <elf.h>
 
 G_BEGIN_DECLS
 
