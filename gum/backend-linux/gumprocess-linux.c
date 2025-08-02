@@ -2460,9 +2460,8 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
 
   memset (ctx->v, 0, sizeof (ctx->v));
 
-  // Reading extra contexts, NEON in this case
-  // Please refer to asm/sigcontext.h for reference
-  for (i = 0; i < sizeof (mc->__reserved); ) {
+  for (i = 0; i != sizeof (mc->__reserved); )
+  {
     struct _aarch64_ctx * head = (struct _aarch64_ctx *) &mc->__reserved[i];
 
     if (head->magic == 0)
@@ -2470,12 +2469,12 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
 
     switch (head->magic)
     {
-      case FPSIMD_MAGIC: 
+      case FPSIMD_MAGIC:
       {
         struct fpsimd_context * fpsimd = (struct fpsimd_context *) head;
 
         memcpy (&ctx->v, &fpsimd->vregs, sizeof (ctx->v));
-        
+
         break;
       }
     }
@@ -2628,9 +2627,8 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   mc->regs[29] = ctx->fp;
   mc->regs[30] = ctx->lr;
 
-  // Overwrites fpsimd_context, if it's not present it's a no-op
-  // If behavior is incorrect, please open an issue
-  for (i = 0; i < sizeof (mc->__reserved); ) {
+  for (i = 0; i != sizeof (mc->__reserved); )
+  {
     struct _aarch64_ctx * head = (struct _aarch64_ctx *) &mc->__reserved[i];
 
     if (head->magic == 0)
@@ -2638,7 +2636,7 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
 
     switch (head->magic)
     {
-      case FPSIMD_MAGIC: 
+      case FPSIMD_MAGIC:
       {
         struct fpsimd_context * fpsimd = (struct fpsimd_context *) head;
 
