@@ -5047,7 +5047,8 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   const gsize store_ret_addr_offset = 0x00 + 2;
   const gsize load_continuation_addr_offset = 0x06 + 1;
   const gsize saved_ret_addr_offset = 0x0d;
-#elif defined (HAVE_LINUX)
+#elif defined (HAVE_LINUX) || defined (HAVE_FREEBSD)
+  /* XXX: Not yet tested on FreeBSD. */
   guint8 code[] = {
     /* 00 */ 0x8b, 0x54, 0x24, 0x0c,             /* mov edx, [esp + 12]   */
     /* 04 */ 0x89, 0x15, 0xaa, 0xaa, 0xaa, 0xaa, /* mov [0xaaaaaaaa], edx */
@@ -6710,7 +6711,7 @@ gum_find_thread_exit_implementation (void)
   GumAddress result;
   GumModule * libthr;
 
-  libthr = gum_process_find_module_by_name ("/lib/libthr.so.3");
+  libthr = gum_process_find_module_by_name ("libthr.so.3");
   g_assert (libthr != NULL);
   result = gum_module_find_export_by_name (libthr, "_pthread_exit");
   g_object_unref (libthr);

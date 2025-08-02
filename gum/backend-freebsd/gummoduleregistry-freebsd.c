@@ -147,13 +147,20 @@ gum_find_dlopen_object (const struct r_debug * dbg)
   GumMatchPattern * setup_flags_arg;
   gpointer location;
 
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  elf = gum_elf_module_new_from_memory ("/libexec/ld-elf32.so.1",
+      GUM_ADDRESS (dbg->r_ldbase), NULL);
+#else
   elf = gum_elf_module_new_from_memory ("/libexec/ld-elf.so.1",
       GUM_ADDRESS (dbg->r_ldbase), NULL);
+#endif
   gum_elf_module_enumerate_segments (elf, gum_find_text_range, &text);
   text.base_address += GUM_ADDRESS (dbg->r_ldbase);
   g_object_unref (elf);
 
-#if defined (HAVE_I386)
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  setup_flags_arg = gum_match_pattern_new_from_string ("81 e7 03 01 00 00");
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   setup_flags_arg = gum_match_pattern_new_from_string ("41 81 e7 03 01 00 00");
 #elif defined (HAVE_ARM64)
   setup_flags_arg = gum_match_pattern_new_from_string ("68 20 80 52");
