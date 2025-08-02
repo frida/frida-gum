@@ -297,8 +297,12 @@ gum_memory_patch_code (gpointer address,
   {
     guint8 * cur;
 
-    for (cur = start_page + page_size; cur != end_page; cur += page_size)
+    for (cur = start_page + page_size;
+        cur != end_page + page_size;
+        cur += page_size)
+    {
       g_ptr_array_add (page_addresses, cur);
+    }
   }
 
   context.page_offset = page_offset;
