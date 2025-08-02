@@ -11,7 +11,6 @@
 #include "gum/gumlinux.h"
 
 #include <dlfcn.h>
-#include <elf.h>
 #include <link.h>
 #include <pthread.h>
 #include <string.h>
