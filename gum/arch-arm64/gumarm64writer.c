@@ -1876,8 +1876,15 @@ gum_arm64_writer_strip (GumArm64Writer * self,
   if (self->ptrauth_support != GUM_PTRAUTH_SUPPORTED)
     return value;
 
-  if (self->target_os == GUM_OS_MACOS || self->target_os == GUM_OS_IOS)
-    return value & G_GUINT64_CONSTANT (0x7fffffffff);
+  switch (self->target_os)
+  {
+    case GUM_OS_MACOS:
+    case GUM_OS_IOS:
+    case GUM_OS_XROS:
+      return value & G_GUINT64_CONSTANT (0x7fffffffff);
+    default:
+      break;
+  }
 
   return value;
 }
