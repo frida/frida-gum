@@ -241,6 +241,9 @@ gum_query_is_rwx_supported (void)
   return gum_query_rwx_support () == GUM_RWX_FULL;
 }
 
+#ifdef G_OS_NONE
+G_GNUC_WEAK
+#endif
 GumRwxSupport
 gum_query_rwx_support (void)
 {
