@@ -81,6 +81,13 @@ gum_memory_try_remap_writable_pages (gpointer first_page,
   return NULL;
 }
 
+G_GNUC_WEAK gpointer
+gum_barebone_try_remap_writable_pages (gconstpointer * addrs,
+                                       guint n_addrs)
+{
+  return NULL;
+}
+
 G_GNUC_WEAK void
 gum_memory_dispose_writable_pages (gpointer first_page,
                                    guint n_pages)
