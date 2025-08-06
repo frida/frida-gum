@@ -64,78 +64,72 @@ _gum_module_registry_activate (GumModuleRegistry * self)
   if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos))
     return;
 
-  if (infos.dyld_all_image_infos_address != 0)
+  if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
   {
-    gpointer * slot;
     uint32_t count, i;
 
-    if (infos.format == TASK_DYLD_ALL_IMAGE_INFO_64)
+    if (infos.dyld_all_image_infos_address != 0)
     {
-      slot = GSIZE_TO_POINTER (infos.dyld_all_image_infos_address +
-          offsetof (DyldAllImageInfos64, notification));
+      gpointer * slot;
+
+      if (infos.format == TASK_DYLD_ALL_IMAGE_INFO_64)
+      {
+        slot = GSIZE_TO_POINTER (infos.dyld_all_image_infos_address +
+            offsetof (DyldAllImageInfos64, notification));
+      }
+      else
+      {
+        slot = GSIZE_TO_POINTER (infos.dyld_all_image_infos_address +
+            offsetof (DyldAllImageInfos32, notification));
+      }
+
+      gum_dyld_notifier_context = g_slice_new (GumDyldNotifierContext);
+
+#if __has_feature (ptrauth_calls)
+      slot = ptrauth_strip (slot, ptrauth_key_asia);
+#endif
+
+      gum_dyld_notifier_context->slot = slot;
+      gum_dyld_notifier_context->original = *slot;
+
+#if __has_feature (ptrauth_calls)
+      *slot = ptrauth_sign_unauthenticated (
+          ptrauth_strip (&gum_lldb_image_notifier, ptrauth_key_asia),
+          ptrauth_key_asia, NULL);
+#else
+      *slot = &gum_lldb_image_notifier;
+#endif
+
     }
     else
     {
-      slot = GSIZE_TO_POINTER (infos.dyld_all_image_infos_address +
-          offsetof (DyldAllImageInfos32, notification));
-    }
+      G_GNUC_UNUSED gconstpointer notification_impl;
+      G_GNUC_UNUSED cs_insn * first_instruction;
+      gsize offset = 0;
 
-    gum_dyld_notifier_context = g_slice_new (GumDyldNotifierContext);
-
-#if __has_feature (ptrauth_calls)
-    slot = ptrauth_strip (slot, ptrauth_key_asia);
-#endif
-
-    gum_dyld_notifier_context->slot = slot;
-    gum_dyld_notifier_context->original = *slot;
-
-#if __has_feature (ptrauth_calls)
-    *slot = ptrauth_sign_unauthenticated (
-        ptrauth_strip (&gum_lldb_image_notifier, ptrauth_key_asia),
-        ptrauth_key_asia, NULL);
-#else
-    *slot = &gum_lldb_image_notifier;
-#endif
-
-    do
-    {
-      _gum_module_registry_reset (gum_registry);
-
-      count = _dyld_image_count ();
-      for (i = 0; i != count; i++)
-        gum_add_image (_dyld_get_image_header (i), _dyld_get_image_name (i));
-    }
-    while (_dyld_image_count () != count);
-  }
-  else if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
-  {
-    G_GNUC_UNUSED gconstpointer notification_impl;
-    G_GNUC_UNUSED cs_insn * first_instruction;
-    gsize offset = 0;
-    uint32_t count, i;
-
-    notification_impl = GSIZE_TO_POINTER (
-        gum_strip_code_address (infos.notification_address));
+      notification_impl = GSIZE_TO_POINTER (
+          gum_strip_code_address (infos.notification_address));
 
 #if defined (HAVE_I386)
-    first_instruction =
-        gum_x86_reader_disassemble_instruction_at (notification_impl);
-    if (first_instruction != NULL && first_instruction->id == X86_INS_INT3)
-      offset = first_instruction->size;
+      first_instruction =
+          gum_x86_reader_disassemble_instruction_at (notification_impl);
+      if (first_instruction != NULL && first_instruction->id == X86_INS_INT3)
+        offset = first_instruction->size;
 #elif defined (HAVE_ARM64)
-    first_instruction =
-        gum_arm64_reader_disassemble_instruction_at (notification_impl);
-    if (first_instruction != NULL && first_instruction->id == ARM64_INS_BRK)
-      offset = first_instruction->size;
+      first_instruction =
+          gum_arm64_reader_disassemble_instruction_at (notification_impl);
+      if (first_instruction != NULL && first_instruction->id == ARM64_INS_BRK)
+        offset = first_instruction->size;
 #endif
 
-    gum_dyld_interceptor = gum_interceptor_obtain ();
-    gum_dyld_handler = gum_make_probe_listener (
-        gum_module_registry_on_dyld_notification, NULL, NULL);
+      gum_dyld_interceptor = gum_interceptor_obtain ();
+      gum_dyld_handler = gum_make_probe_listener (
+          gum_module_registry_on_dyld_notification, NULL, NULL);
 
-    gum_interceptor_attach (gum_dyld_interceptor,
-        (gpointer) (notification_impl + offset), gum_dyld_handler, NULL,
-        GUM_ATTACH_FLAGS_UNIGNORABLE);
+      gum_interceptor_attach (gum_dyld_interceptor,
+          (gpointer) (notification_impl + offset), gum_dyld_handler, NULL,
+          GUM_ATTACH_FLAGS_UNIGNORABLE);
+    }
 
     do
     {
