@@ -7,6 +7,7 @@
 #include "gummoduleregistry-priv.h"
 
 #include "gum/gumdarwin.h"
+#include "gumdarwin-priv.h"
 #include "gummodule-darwin.h"
 #if defined (HAVE_I386)
 # include "gumx86reader.h"
@@ -19,6 +20,19 @@
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
 
+typedef void (*DyldImageNotifier) (enum dyld_image_mode mode,
+    guint32 info_count, const struct dyld_image_info info[]);
+
+typedef struct _GumDyldNotifierContext GumDyldNotifierContext;
+
+struct _GumDyldNotifierContext
+{
+  gpointer * slot;
+  DyldImageNotifier original;
+};
+
+static void gum_lldb_image_notifier (enum dyld_image_mode mode,
+    guint32 info_count, const struct dyld_image_info info[]);
 static void gum_module_registry_on_image_added (const struct mach_header * mh,
     intptr_t vmaddr_slide);
 static void gum_module_registry_on_image_removed (const struct mach_header * mh,
@@ -35,11 +49,12 @@ static GumModuleRegistry * gum_registry;
 static GumDarwinModuleResolver * gum_resolver;
 static GumInterceptor * gum_dyld_interceptor;
 static GumInvocationListener * gum_dyld_handler;
+static GumDyldNotifierContext * gum_dyld_notifier_context;
 
 void
 _gum_module_registry_activate (GumModuleRegistry * self)
 {
-  GumDarwinAllImageInfos infos;
+  GumDarwinAllImageInfos infos = { 0, };
 
   gum_registry = self;
   gum_resolver = gum_darwin_module_resolver_new_with_loader (mach_task_self (),
@@ -49,7 +64,50 @@ _gum_module_registry_activate (GumModuleRegistry * self)
   if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos))
     return;
 
-  if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
+  if (infos.dyld_all_image_infos_address != 0)
+  {
+    gpointer * slot;
+    uint32_t count, i;
+
+    if (infos.format == TASK_DYLD_ALL_IMAGE_INFO_64)
+    {
+      slot = GSIZE_TO_POINTER (infos.dyld_all_image_infos_address +
+          offsetof (DyldAllImageInfos64, notification));
+    }
+    else
+    {
+      slot = GSIZE_TO_POINTER (infos.dyld_all_image_infos_address +
+          offsetof (DyldAllImageInfos32, notification));
+    }
+
+    gum_dyld_notifier_context = g_slice_new (GumDyldNotifierContext);
+
+#if __has_feature (ptrauth_calls)
+    slot = ptrauth_strip (slot, ptrauth_key_asia);
+#endif
+
+    gum_dyld_notifier_context->slot = slot;
+    gum_dyld_notifier_context->original = *slot;
+
+#if __has_feature (ptrauth_calls)
+    *slot = ptrauth_sign_unauthenticated (
+        ptrauth_strip (&gum_lldb_image_notifier, ptrauth_key_asia),
+        ptrauth_key_asia, NULL);
+#else
+    *slot = &gum_lldb_image_notifier;
+#endif
+
+    do
+    {
+      _gum_module_registry_reset (gum_registry);
+
+      count = _dyld_image_count ();
+      for (i = 0; i != count; i++)
+        gum_add_image (_dyld_get_image_header (i), _dyld_get_image_name (i));
+    }
+    while (_dyld_image_count () != count);
+  }
+  else if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
   {
     G_GNUC_UNUSED gconstpointer notification_impl;
     G_GNUC_UNUSED cs_insn * first_instruction;
@@ -112,6 +170,15 @@ _gum_module_registry_deactivate (GumModuleRegistry * self)
     gum_dyld_interceptor = NULL;
   }
 
+  if (gum_dyld_notifier_context != NULL)
+  {
+    GumDyldNotifierContext * context = gum_dyld_notifier_context;
+    gum_dyld_notifier_context = NULL;
+
+    *context->slot = context->original;
+    g_slice_free (GumDyldNotifierContext, context);
+  }
+
   g_clear_object (&gum_resolver);
 }
 
@@ -153,6 +220,25 @@ gum_module_registry_on_dyld_notification (GumInvocationContext * context,
     else
       gum_remove_image (info[i].imageLoadAddress);
   }
+}
+
+static void
+gum_lldb_image_notifier (enum dyld_image_mode mode,
+                         guint32 info_count,
+                         const struct dyld_image_info info[])
+{
+  uint32_t i;
+
+  for (i = 0; i != info_count; i++)
+  {
+    if (mode == dyld_image_adding)
+      gum_add_image (info[i].imageLoadAddress, NULL);
+    else
+      gum_remove_image (info[i].imageLoadAddress);
+  }
+
+  if (gum_dyld_notifier_context != NULL)
+    return gum_dyld_notifier_context->original (mode, info_count, info);
 }
 
 static void

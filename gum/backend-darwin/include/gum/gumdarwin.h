@@ -162,6 +162,8 @@ struct _GumDarwinAllImageInfos
 
   GumAddress dyld_image_load_address;
 
+  GumAddress dyld_all_image_infos_address;
+
   GumAddress shared_cache_base_address;
 };
 
