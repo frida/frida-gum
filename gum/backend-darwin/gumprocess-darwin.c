@@ -899,6 +899,12 @@ gum_darwin_query_all_image_infos (mach_port_t task,
 
     infos->dyld_image_load_address = all_info->dyld_image_load_address;
 
+    if (all_info->version >= 9)
+    {
+      infos->dyld_all_image_infos_address =
+          all_info->dyld_all_image_infos_address;
+    }
+
     if (all_info->version >= 15)
       infos->shared_cache_base_address = all_info->shared_cache_base_address;
 
