@@ -9,11 +9,6 @@
 #include "gum/gumdarwin.h"
 #include "gumdarwin-priv.h"
 #include "gummodule-darwin.h"
-#if defined (HAVE_I386)
-# include "gumx86reader.h"
-#elif defined (HAVE_ARM64)
-# include "gumarm64reader.h"
-#endif
 
 #include <dlfcn.h>
 #include <string.h>
