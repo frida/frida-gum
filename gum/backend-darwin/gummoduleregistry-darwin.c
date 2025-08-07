@@ -20,10 +20,9 @@
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
 
-typedef void (*DyldImageNotifier) (enum dyld_image_mode mode,
-    guint32 info_count, const struct dyld_image_info info[]);
-
 typedef struct _GumDyldNotifierContext GumDyldNotifierContext;
+typedef void (* DyldImageNotifier) (enum dyld_image_mode mode,
+    guint32 info_count, const struct dyld_image_info info[]);
 
 struct _GumDyldNotifierContext
 {
@@ -85,7 +84,7 @@ _gum_module_registry_activate (GumModuleRegistry * self)
     gum_dyld_notifier_context->original = *slot;
 
     *slot = gum_sign_code_pointer (
-        gum_strip_code_pointer (&gum_lldb_image_notifier));
+        gum_strip_code_pointer (gum_lldb_image_notifier));
 
     do
     {
