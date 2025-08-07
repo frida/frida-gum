@@ -144,8 +144,9 @@ gum_lldb_image_notifier (enum dyld_image_mode mode,
       gum_remove_image (info[i].imageLoadAddress);
   }
 
-  if (gum_dyld_notifier_context != NULL)
-    return gum_dyld_notifier_context->original (mode, info_count, info);
+  g_assert (gum_dyld_notifier_context != NULL);
+
+  return gum_dyld_notifier_context->original (mode, info_count, info);
 }
 
 static void
