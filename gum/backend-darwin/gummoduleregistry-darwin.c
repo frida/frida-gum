@@ -74,8 +74,9 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 
       if (infos.format == TASK_DYLD_ALL_IMAGE_INFO_64)
       {
-        slot = GSIZE_TO_POINTER (infos.dyld_all_image_infos_address +
-            offsetof (DyldAllImageInfos64, notification));
+        slot = gum_strip_code_pointer (
+            GSIZE_TO_POINTER (infos.dyld_all_image_infos_address +
+                offsetof (DyldAllImageInfos64, notification)));
       }
       else
       {
@@ -85,21 +86,11 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 
       gum_dyld_notifier_context = g_slice_new (GumDyldNotifierContext);
 
-#if __has_feature (ptrauth_calls)
-      slot = ptrauth_strip (slot, ptrauth_key_asia);
-#endif
-
       gum_dyld_notifier_context->slot = slot;
       gum_dyld_notifier_context->original = *slot;
 
-#if __has_feature (ptrauth_calls)
-      *slot = ptrauth_sign_unauthenticated (
-          ptrauth_strip (&gum_lldb_image_notifier, ptrauth_key_asia),
-          ptrauth_key_asia, NULL);
-#else
-      *slot = &gum_lldb_image_notifier;
-#endif
-
+      *slot = gum_sign_code_pointer (
+          gum_strip_code_pointer (&gum_lldb_image_notifier));
     }
     else
     {
