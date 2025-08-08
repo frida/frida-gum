@@ -928,17 +928,21 @@ gum_v8_js_call_listener_on_leave (GumInvocationListener * listener,
   if (self->on_leave != nullptr)
   {
     ScriptScope scope (core->script);
+
+    auto jic = (self->on_enter != nullptr) ? state->jic : NULL;
+    if (jic == NULL)
+    {
+      if (self->on_enter != nullptr)
+        return;
+      jic = _gum_v8_interceptor_obtain_invocation_context (module);
+    }
+    _gum_v8_invocation_context_reset (jic, ic);
+
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
 
     auto on_leave = Local<Function>::New (isolate, *self->on_leave);
 
-    auto jic = (self->on_enter != nullptr) ? state->jic : NULL;
-    if (jic == NULL)
-    {
-      jic = _gum_v8_interceptor_obtain_invocation_context (module);
-    }
-    _gum_v8_invocation_context_reset (jic, ic);
     auto recv = Local<Object>::New (isolate, *jic->object);
 
     auto retval = gum_v8_interceptor_obtain_invocation_return_value (module);
