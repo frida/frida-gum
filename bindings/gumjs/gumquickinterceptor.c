@@ -949,14 +949,21 @@ gum_quick_js_call_listener_on_leave (GumInvocationListener * listener,
   if (!JS_IsNull (self->on_leave))
   {
     GumQuickScope scope;
+    gboolean has_on_enter;
     GumQuickInvocationContext * jic;
     GumQuickInvocationRetval * retval;
 
     _gum_quick_scope_enter (&scope, parent->core);
 
-    jic = !JS_IsNull (self->on_enter) ? state->jic : NULL;
+    has_on_enter = !JS_IsNull (self->on_enter);
+    jic = has_on_enter ? state->jic : NULL;
     if (jic == NULL)
     {
+      if (has_on_enter)
+      {
+        _gum_quick_scope_leave (&scope);
+        return;
+      }
       jic = _gum_quick_interceptor_obtain_invocation_context (parent);
     }
     _gum_quick_invocation_context_reset (jic, ic);
