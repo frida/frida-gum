@@ -442,7 +442,7 @@ gum_code_slice_is_near (const GumCodeSlice * self,
 
   near_address = (gssize) spec->near_address;
 
-  slice_start = (gssize) self->data;
+  slice_start = (gssize) self->pc;
   slice_end = slice_start + self->size - 1;
 
   distance_start = ABS (near_address - slice_start);
@@ -459,7 +459,7 @@ gum_code_slice_is_aligned (const GumCodeSlice * slice,
   if (alignment == 0)
     return TRUE;
 
-  return GPOINTER_TO_SIZE (slice->data) % alignment == 0;
+  return GPOINTER_TO_SIZE (slice->pc) % alignment == 0;
 }
 
 GumCodeDeflector *
