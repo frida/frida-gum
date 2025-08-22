@@ -213,7 +213,7 @@ GUM_API gboolean gum_darwin_query_ptrauth_support (mach_port_t task,
     GumPtrauthSupport * ptrauth_support);
 GUM_API gboolean gum_darwin_query_page_size (mach_port_t task,
     guint * page_size);
-GUM_API const gchar * gum_darwin_query_sysroot (void);
+GUM_API gchar * gum_darwin_query_sysroot (mach_port_t task);
 GUM_API gboolean gum_darwin_query_hardened (void);
 GUM_API gboolean gum_darwin_query_all_image_infos (mach_port_t task,
     GumDarwinAllImageInfos * infos);
