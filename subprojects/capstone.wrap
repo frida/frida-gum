@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/capstone.git
-revision = e98746112da0a40b2ccd0340db0d20cca5f97950
+revision = 27fb5a53bc77baf3c3af7ccd466041418cecca35
 depth = 1
 
 [provide]
