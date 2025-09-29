@@ -243,6 +243,9 @@ gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
     if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
     {
       g_string_append (flags, " --jitless");
+    } else {
+      // Keep turbo optimizations on platforms where JIT is allowed
+      g_string_append (flags, " --turbo-instruction-scheduling");
     }
 #endif // HAVE_IOS || HAVE_TVOS || HAVE_WATCHOS
 
