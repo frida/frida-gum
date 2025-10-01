@@ -51,7 +51,7 @@ _gum_module_registry_activate (GumModuleRegistry * self)
       (GumDarwinModuleResolverLoadFunc) _gum_module_registry_get_modules,
       gum_registry, NULL, NULL);
 
-  if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos))
+  if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos, NULL))
     return;
 
   if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
@@ -152,17 +152,38 @@ gum_add_image (const struct mach_header * mh,
                const gchar * name)
 {
   Dl_info info;
+  GumFileMapping file;
+  struct proc_regionwithpathinfo region;
   GumMemoryRange range;
   GumNativeModule * mod;
+  const gchar * sysroot;
 
   if (name == NULL)
-    dladdr (mh, &info);
+  {
+    if (dladdr (mh, &info) != 0)
+    {
+      name = info.dli_fname;
+    }
+    else
+    {
+      G_GNUC_UNUSED gboolean resolved;
+
+      resolved = _gum_darwin_fill_file_mapping (getpid (),
+          GPOINTER_TO_SIZE (mh), &file, &region);
+      g_assert (resolved);
+
+      name = file.path;
+    }
+  }
+
+  sysroot = gum_darwin_query_sysroot ();
+  if (sysroot != NULL && g_str_has_prefix (name, sysroot))
+    name += strlen (sysroot);
 
   range.base_address = GUM_ADDRESS (mh);
   range.size = gum_detect_macho_size (mh);
 
-  mod = _gum_native_module_make ((name != NULL) ? name : info.dli_fname, &range,
-      gum_resolver);
+  mod = _gum_native_module_make (name, &range, gum_resolver);
 
   _gum_module_registry_register (gum_registry, GUM_MODULE (mod));
 

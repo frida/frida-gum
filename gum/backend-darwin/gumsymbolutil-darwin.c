@@ -261,7 +261,7 @@ gum_symbol_cache_invalidator_init (GumSymbolCacheInvalidator * self)
     G_GNUC_UNUSED cs_insn * first_instruction;
     gsize offset = 0;
 
-    if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos))
+    if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos, NULL))
       return;
 
     notification_impl = GSIZE_TO_POINTER (

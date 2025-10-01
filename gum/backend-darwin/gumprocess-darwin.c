@@ -30,8 +30,6 @@
 #include <sys/sysctl.h>
 #include <unistd.h>
 
-#define GUM_THREAD_POLL_STEP 1000
-#define GUM_MAX_THREAD_POLL (20000000 / GUM_THREAD_POLL_STEP)
 #define GUM_PTHREAD_FIELD_STACKADDR ((GLIB_SIZEOF_VOID_P == 8) ? 0xb0 : 0x88)
 #define GUM_PTHREAD_FIELD_FREEADDR ((GLIB_SIZEOF_VOID_P == 8) ? 0xc0 : 0x90)
 #define GUM_PTHREAD_FIELD_FREESIZE ((GLIB_SIZEOF_VOID_P == 8) ? 0xc8 : 0x94)
@@ -39,6 +37,8 @@
 #define GUM_PTHREAD_FIELD_THREADID ((GLIB_SIZEOF_VOID_P == 8) ? 0xd8 : 0xa0)
 #define GUM_PTHREAD_GET_FIELD(thread, field, type) \
     (*((type *) ((guint8 *) thread + field)))
+
+#define GUM_MAX_MACH_HEADER_SIZE (64 * 1024)
 
 #if defined (HAVE_ARM64) && !defined (__DARWIN_OPAQUE_ARM_THREAD_STATE64)
 # define __darwin_arm_thread_state64_get_pc_fptr(ts) \
@@ -101,6 +101,13 @@ struct _GumFindModuleByNameContext
   GumModule * module;
 };
 
+struct _GumDarwinImageSnapshot
+{
+  gint ref_count;
+  mach_port_t task;
+  GArray * images;
+};
+
 typedef enum {
   GUM_OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION = 0x10000,
   GUM_OS_UNFAIR_LOCK_ADAPTIVE_SPIN        = 0x40000,
@@ -126,6 +133,7 @@ static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
+static gboolean gum_try_infer_sysroot (const gchar * name, gchar ** sysroot);
 static void gum_deinit_sysroot (void);
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
     gpointer user_data);
@@ -133,6 +141,16 @@ static gboolean gum_try_resolve_module_by_name (GumModule * module,
     gpointer user_data);
 static gboolean gum_try_resolve_module_by_path (GumModule * module,
     gpointer user_data);
+static gboolean gum_collect_images (mach_port_t task,
+    const GumDarwinAllImageInfos * infos, GumDarwinImageSnapshot * snapshot,
+    GError ** error);
+static gboolean gum_collect_images_forensically (mach_port_t task,
+    GumDarwinImageSnapshot * snapshot, GError ** error);
+static gboolean gum_collect_range_of_potential_images (
+    const GumRangeDetails * details, gpointer user_data);
+static void gum_collect_images_in_range (const GumMemoryRange * range,
+    mach_port_t task, GumDarwinImageSnapshot * snapshot);
+static void gum_darwin_image_destroy (GumDarwinImage * image);
 
 static gboolean gum_compute_pthread_spec (GumDarwinPThreadSpec * spec);
 static gboolean gum_detect_pthread_basics (csh capstone, cs_insn * insn,
@@ -153,6 +171,7 @@ gum_process_get_libc_module (void)
   {
     gum_libc_module =
         gum_process_find_module_by_name ("/usr/lib/libSystem.B.dylib");
+    g_assert (gum_libc_module != NULL);
 
     _gum_register_destructor (gum_deinit_libc_module);
 
@@ -761,18 +780,18 @@ gum_darwin_query_sysroot (void)
     n = _dyld_image_count ();
     for (i = 0; i != n; i++)
     {
-      const gchar * name, * p;
+      const gchar * name;
+      gchar * sysroot;
 
       name = _dyld_get_image_name (i);
       if (name == NULL)
         break;
 
-      p = strstr (name, "/usr/lib/libSystem.B.dylib");
-      if (p != NULL)
+      if (gum_try_infer_sysroot (name, &sysroot))
       {
-        if (p != name)
+        if (sysroot != NULL)
         {
-          result = g_strndup (name, p - name);
+          result = sysroot;
           _gum_register_destructor (gum_deinit_sysroot);
         }
 
@@ -784,6 +803,21 @@ gum_darwin_query_sysroot (void)
   }
 
   return GSIZE_TO_POINTER (cached_result - 1);
+}
+
+static gboolean
+gum_try_infer_sysroot (const gchar * name,
+                       gchar ** sysroot)
+{
+  const gchar * p;
+
+  p = strstr (name, "/usr/lib/libSystem.B.dylib");
+  if (p == NULL)
+    return FALSE;
+
+  *sysroot = (p != name) ? g_strndup (name, p - name) : NULL;
+
+  return TRUE;
 }
 
 static void
@@ -822,7 +856,8 @@ gum_darwin_query_hardened (void)
 
 gboolean
 gum_darwin_query_all_image_infos (mach_port_t task,
-                                  GumDarwinAllImageInfos * infos)
+                                  GumDarwinAllImageInfos * infos,
+                                  GError ** error)
 {
   struct task_dyld_info info;
   mach_msg_type_number_t count;
@@ -836,7 +871,7 @@ gum_darwin_query_all_image_infos (mach_port_t task,
   count = DYLD_INFO_COUNT;
   kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info_raw, &count);
   if (kr != KERN_SUCCESS)
-    return FALSE;
+    goto propagate_kr;
   switch (count)
   {
     case DYLD_INFO_LEGACY_COUNT:
@@ -861,7 +896,7 @@ gum_darwin_query_all_image_infos (mach_port_t task,
   count = TASK_DYLD_INFO_COUNT;
   kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info, &count);
   if (kr != KERN_SUCCESS)
-    return FALSE;
+    goto propagate_kr;
 #endif
 
   infos->format = info.all_image_info_format;
@@ -886,7 +921,7 @@ gum_darwin_query_all_image_infos (mach_port_t task,
       all_info_malloc_data = all_info;
     }
     if (all_info == NULL)
-      return FALSE;
+      goto read_failed;
 
     infos->info_array_address = all_info->info_array;
     infos->info_array_count = all_info->info_array_count;
@@ -928,7 +963,7 @@ gum_darwin_query_all_image_infos (mach_port_t task,
       all_info_malloc_data = all_info;
     }
     if (all_info == NULL)
-      return FALSE;
+      goto read_failed;
 
     infos->info_array_address = all_info->info_array;
     infos->info_array_count = all_info->info_array_count;
@@ -948,6 +983,24 @@ gum_darwin_query_all_image_infos (mach_port_t task,
   }
 
   return TRUE;
+
+propagate_kr:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
+        "Unable to query TASK_DYLD_INFO: %s",
+        mach_error_string (kr));
+    return FALSE;
+  }
+read_failed:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
+        "Unable to read from task memory");
+    return FALSE;
+  }
 }
 
 gboolean
@@ -1013,7 +1066,7 @@ gum_darwin_query_shared_cache_range (mach_port_t task,
   mach_msg_type_number_t info_count;
   kern_return_t kr;
 
-  if (!gum_darwin_query_all_image_infos (task, &infos))
+  if (!gum_darwin_query_all_image_infos (task, &infos, NULL))
     return FALSE;
 
   start = infos.shared_cache_base_address;
@@ -1544,6 +1597,460 @@ gum_darwin_enumerate_modules (mach_port_t task,
   g_object_unref (resolver);
 }
 
+GumDarwinImageSnapshot *
+gum_darwin_snapshot_images (mach_port_t task,
+                            GError ** error)
+{
+  GumDarwinImageSnapshot * snapshot;
+  GumDarwinAllImageInfos infos;
+  gboolean success;
+
+  snapshot = g_slice_new (GumDarwinImageSnapshot);
+  snapshot->ref_count = 1;
+  snapshot->task = task;
+  snapshot->images = g_array_new (FALSE, FALSE, sizeof (GumDarwinImage));
+  g_array_set_clear_func (snapshot->images,
+      (GDestroyNotify) gum_darwin_image_destroy);
+
+  if (!gum_darwin_query_all_image_infos (task, &infos, error))
+    goto propagate_error;
+
+  if (infos.info_array_address != 0)
+    success = gum_collect_images (task, &infos, snapshot, error);
+  else
+    success = gum_collect_images_forensically (task, snapshot, error);
+  if (!success)
+    goto propagate_error;
+
+  return snapshot;
+
+propagate_error:
+  {
+    gum_darwin_image_snapshot_unref (snapshot);
+    snapshot = NULL;
+
+    return NULL;
+  }
+}
+
+static gboolean
+gum_collect_images (mach_port_t task,
+                    const GumDarwinAllImageInfos * infos,
+                    GumDarwinImageSnapshot * snapshot,
+                    GError ** error)
+{
+  gboolean success = FALSE;
+  gboolean inprocess;
+  gsize i;
+  gpointer info_array, info_array_malloc_data = NULL;
+  gpointer header_data, header_data_end, header_malloc_data = NULL;
+  const guint header_data_initial_size = 4096;
+  gchar * file_path, * file_path_malloc_data = NULL;
+  gboolean carry_on = TRUE;
+
+  inprocess = task == mach_task_self ();
+
+  if (inprocess)
+  {
+    info_array = GSIZE_TO_POINTER (infos->info_array_address);
+  }
+  else
+  {
+    info_array = gum_darwin_read (task, infos->info_array_address,
+        infos->info_array_size, NULL);
+    info_array_malloc_data = info_array;
+  }
+
+  for (i = 0; i != infos->info_array_count + 1 && carry_on; i++)
+  {
+    GumAddress load_address;
+    struct mach_header * header;
+    GumDarwinImage image;
+    gpointer first_command, p;
+    guint cmd_index;
+
+    if (i != infos->info_array_count)
+    {
+      GumAddress file_path_address;
+
+      if (infos->format == TASK_DYLD_ALL_IMAGE_INFO_64)
+      {
+        DyldImageInfo64 * info = info_array + (i * DYLD_IMAGE_INFO_64_SIZE);
+        load_address = info->image_load_address;
+        file_path_address = info->image_file_path;
+      }
+      else
+      {
+        DyldImageInfo32 * info = info_array + (i * DYLD_IMAGE_INFO_32_SIZE);
+        load_address = info->image_load_address;
+        file_path_address = info->image_file_path;
+      }
+
+      if (inprocess)
+      {
+        header_data = GSIZE_TO_POINTER (load_address);
+
+        file_path = GSIZE_TO_POINTER (file_path_address);
+      }
+      else
+      {
+        header_data = gum_darwin_read (task, load_address,
+            header_data_initial_size, NULL);
+        header_malloc_data = header_data;
+
+        if (((file_path_address + MAXPATHLEN + 1) & ~((GumAddress) 4095))
+            == load_address)
+        {
+          file_path = header_data + (file_path_address - load_address);
+        }
+        else
+        {
+          file_path = (gchar *) gum_darwin_read (task, file_path_address,
+              MAXPATHLEN + 1, NULL);
+          file_path_malloc_data = file_path;
+        }
+      }
+      if (header_data == NULL || file_path == NULL)
+        goto read_failed;
+    }
+    else
+    {
+      load_address = infos->dyld_image_load_address;
+
+      if (inprocess)
+      {
+        header_data = GSIZE_TO_POINTER (load_address);
+      }
+      else
+      {
+        header_data = gum_darwin_read (task, load_address,
+            header_data_initial_size, NULL);
+        header_malloc_data = header_data;
+      }
+      if (header_data == NULL)
+        goto read_failed;
+
+      file_path = "/usr/lib/dyld";
+    }
+
+    image.range.base_address = load_address;
+    image.range.size = 4096;
+
+    header_data_end = header_data + header_data_initial_size;
+
+    header = (struct mach_header *) header_data;
+    if (infos->format == TASK_DYLD_ALL_IMAGE_INFO_64)
+      first_command = header_data + sizeof (struct mach_header_64);
+    else
+      first_command = header_data + sizeof (struct mach_header);
+
+    p = first_command;
+    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+    {
+      const struct load_command * lc = p;
+
+      if (!inprocess)
+      {
+        while (p + sizeof (struct load_command) > header_data_end ||
+            p + lc->cmdsize > header_data_end)
+        {
+          gsize current_offset, new_size;
+
+          if (file_path_malloc_data == NULL)
+          {
+            file_path_malloc_data = g_strdup (file_path);
+            file_path = file_path_malloc_data;
+          }
+
+          current_offset = p - header_data;
+          new_size = (header_data_end - header_data) + 4096;
+
+          g_free (header_malloc_data);
+          header_data = gum_darwin_read (task, load_address, new_size, NULL);
+          header_malloc_data = header_data;
+          if (header_data == NULL)
+            goto read_failed;
+          header_data_end = header_data + new_size;
+
+          header = (struct mach_header *) header_data;
+
+          p = header_data + current_offset;
+          lc = (struct load_command *) p;
+
+          first_command = NULL;
+        }
+      }
+
+      if (lc->cmd == LC_SEGMENT)
+      {
+        struct segment_command * sc = p;
+        if (strcmp (sc->segname, "__TEXT") == 0)
+        {
+          image.range.size = sc->vmsize;
+          break;
+        }
+      }
+      else if (lc->cmd == LC_SEGMENT_64)
+      {
+        struct segment_command_64 * sc = p;
+        if (strcmp (sc->segname, "__TEXT") == 0)
+        {
+          image.range.size = sc->vmsize;
+          break;
+        }
+      }
+
+      p += lc->cmdsize;
+    }
+
+    image.path = g_strdup (file_path);
+
+    g_array_append_val (snapshot->images, image);
+
+    g_free (file_path_malloc_data);
+    file_path_malloc_data = NULL;
+    g_free (header_malloc_data);
+    header_malloc_data = NULL;
+  }
+
+  success = TRUE;
+  goto beach;
+
+read_failed:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
+        "Unable to read from process memory");
+    goto beach;
+  }
+beach:
+  {
+    g_free (file_path_malloc_data);
+    g_free (header_malloc_data);
+    g_free (info_array_malloc_data);
+
+    return success;
+  }
+}
+
+static gboolean
+gum_collect_images_forensically (mach_port_t task,
+                                 GumDarwinImageSnapshot * snapshot,
+                                 GError ** error)
+{
+  gboolean success = FALSE;
+  GArray * ranges;
+  guint i;
+
+  ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), 64);
+
+  gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
+      gum_collect_range_of_potential_images, ranges);
+  if (ranges->len == 0)
+    goto range_enumeration_failed;
+
+  for (i = 0; i != ranges->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (ranges, GumMemoryRange, i);
+
+    gum_collect_images_in_range (r, task, snapshot);
+  }
+
+  success = TRUE;
+  goto beach;
+
+range_enumeration_failed:
+  {
+    g_set_error (error,
+        GUM_ERROR,
+        GUM_ERROR_FAILED,
+        "Unable to enumerate ranges");
+    goto beach;
+  }
+beach:
+  {
+    g_array_unref (ranges);
+
+    return success;
+  }
+}
+
+static gboolean
+gum_collect_range_of_potential_images (const GumRangeDetails * details,
+                                       gpointer user_data)
+{
+  GArray * ranges = user_data;
+
+  g_array_append_val (ranges, *(details->range));
+
+  return TRUE;
+}
+
+static void
+gum_collect_images_in_range (const GumMemoryRange * range,
+                             mach_port_t task,
+                             GumDarwinImageSnapshot * snapshot)
+{
+  GumAddress address = range->base_address;
+  gsize remaining = range->size;
+  const guint alignment = 4096;
+
+  do
+  {
+    struct mach_header * header;
+    gboolean is_dylib;
+    guint8 * chunk;
+    gsize chunk_size;
+    guint8 * first_command, * p;
+    guint cmd_index;
+    GumDarwinImage image;
+
+    header = (struct mach_header *) gum_darwin_read (task, address,
+        sizeof (struct mach_header), NULL);
+    if (header == NULL)
+      return;
+    is_dylib = (header->magic == MH_MAGIC || header->magic == MH_MAGIC_64) &&
+        header->filetype == MH_DYLIB;
+    g_free (header);
+
+    if (!is_dylib)
+    {
+      address += alignment;
+      remaining -= alignment;
+      continue;
+    }
+
+    chunk = gum_darwin_read (task,
+        address, MIN (GUM_MAX_MACH_HEADER_SIZE, remaining), &chunk_size);
+    if (chunk == NULL)
+      return;
+
+    header = (struct mach_header *) chunk;
+    if (header->magic == MH_MAGIC)
+      first_command = chunk + sizeof (struct mach_header);
+    else
+      first_command = chunk + sizeof (struct mach_header_64);
+
+    image.range.base_address = address;
+    image.range.size = alignment;
+
+    p = first_command;
+    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+    {
+      const struct load_command * lc = (struct load_command *) p;
+
+      if (lc->cmd == GUM_LC_SEGMENT)
+      {
+        gum_segment_command_t * sc = (gum_segment_command_t *) lc;
+        if (strcmp (sc->segname, "__TEXT") == 0)
+        {
+          image.range.size = sc->vmsize;
+          break;
+        }
+      }
+
+      p += lc->cmdsize;
+    }
+
+    p = first_command;
+    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+    {
+      const struct load_command * lc = (struct load_command *) p;
+
+      if (lc->cmd == LC_ID_DYLIB)
+      {
+        const struct dylib * dl = &((struct dylib_command *) lc)->dylib;
+        const gchar * raw_path;
+        guint raw_path_len;
+
+        raw_path = (gchar *) p + dl->name.offset;
+        raw_path_len = lc->cmdsize - sizeof (struct dylib_command);
+        image.path = g_strndup (raw_path, raw_path_len);
+
+        g_array_append_val (snapshot->images, image);
+
+        break;
+      }
+
+      p += lc->cmdsize;
+    }
+
+    g_free (chunk);
+
+    address += image.range.size;
+    remaining -= image.range.size;
+  }
+  while (remaining != 0);
+}
+
+GumDarwinImageSnapshot *
+gum_darwin_image_snapshot_ref (GumDarwinImageSnapshot * snapshot)
+{
+  g_atomic_int_inc (&snapshot->ref_count);
+
+  return snapshot;
+}
+
+void
+gum_darwin_image_snapshot_unref (GumDarwinImageSnapshot * snapshot)
+{
+  if (g_atomic_int_dec_and_test (&snapshot->ref_count))
+  {
+    g_array_unref (snapshot->images);
+
+    g_slice_free (GumDarwinImageSnapshot, snapshot);
+  }
+}
+
+gchar *
+gum_darwin_image_snapshot_infer_sysroot (const GumDarwinImageSnapshot * self)
+{
+  GArray * images = self->images;
+  guint i;
+
+  for (i = 0; i != images->len; i++)
+  {
+    const GumDarwinImage * image;
+    gchar * sysroot;
+
+    image = &g_array_index (images, GumDarwinImage, i);
+
+    if (gum_try_infer_sysroot (image->path, &sysroot))
+      return sysroot;
+  }
+
+  return NULL;
+}
+
+void
+gum_darwin_image_iter_init (GumDarwinImageIter * iter,
+                            const GumDarwinImageSnapshot * snapshot)
+{
+  iter->snapshot = snapshot;
+  iter->index = -1;
+}
+
+gboolean
+gum_darwin_image_iter_next (GumDarwinImageIter * iter,
+                            const GumDarwinImage ** image)
+{
+  GArray * images = iter->snapshot->images;
+
+  if (iter->index + 1 == images->len)
+    return FALSE;
+
+  iter->index++;
+  *image = &g_array_index (images, GumDarwinImage, iter->index);
+  return TRUE;
+}
+
+static void
+gum_darwin_image_destroy (GumDarwinImage * image)
+{
+  g_free ((gpointer) image->path);
+}
+
 void
 gum_darwin_enumerate_ranges (mach_port_t task,
                              GumPageProtection prot,
@@ -1635,13 +2142,11 @@ _gum_darwin_fill_file_mapping (gint pid,
 
   retval = __proc_info (PROC_INFO_CALL_PIDINFO, pid, flavor, (uint64_t) address,
       region, sizeof (struct proc_regionwithpathinfo));
-
   if (retval == -1)
     return FALSE;
 
   len = strnlen (region->prp_vip.vip_path, MAXPATHLEN - 1);
   region->prp_vip.vip_path[len] = '\0';
-
   if (len == 0)
     return FALSE;
 
