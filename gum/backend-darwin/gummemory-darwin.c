@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -81,7 +81,7 @@ gum_darwin_query_ptrauth_support (mach_port_t task,
     return TRUE;
   }
 
-  if (!gum_darwin_query_all_image_infos (task, &infos))
+  if (!gum_darwin_query_all_image_infos (task, &infos, NULL))
     return FALSE;
 
   actual_ptr = infos.notification_address;
