@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -204,6 +205,7 @@ static gboolean accumulate_matches (const GumApiDetails * details,
 TESTCASE (objc_method_can_be_resolved_from_class_method_address)
 {
   GumAddress address;
+  GumModule * address_module;
   gchar * method = NULL;
   GError * error = NULL;
 
@@ -218,8 +220,11 @@ TESTCASE (objc_method_can_be_resolved_from_class_method_address)
       resolve_method_impl, &address, &error);
   g_assert_no_error (error);
 
+  address_module = gum_process_find_module_by_address (address);
+  g_assert_nonnull (address_module);
+
   method = _gum_objc_api_resolver_find_method_by_address (fixture->resolver,
-      address);
+      address, address_module);
   g_assert_nonnull (method);
   g_free (method);
 }
@@ -227,6 +232,7 @@ TESTCASE (objc_method_can_be_resolved_from_class_method_address)
 TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
 {
   GumAddress address;
+  GumModule * address_module;
   gchar * method = NULL;
   GError * error = NULL;
 
@@ -241,8 +247,11 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
       "-[NSArray initWithArray:]", resolve_method_impl, &address, &error);
   g_assert_no_error (error);
 
+  address_module = gum_process_find_module_by_address (address);
+  g_assert_nonnull (address_module);
+
   method = _gum_objc_api_resolver_find_method_by_address (fixture->resolver,
-      address);
+      address, address_module);
   g_assert_nonnull (method);
   g_free (method);
 }

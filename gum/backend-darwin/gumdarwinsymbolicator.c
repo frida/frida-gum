@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2018-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
+ * Copyright (C)      2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -562,7 +563,7 @@ gum_darwin_symbolicator_synthesize_details_from_address (
     goto beach;
 
   symbol_name = _gum_objc_api_resolver_find_method_by_address (
-      self->objc_resolver, match->address);
+      self->objc_resolver, match->address, module);
   if (symbol_name == NULL)
     goto beach;
 
