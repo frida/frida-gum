@@ -1075,62 +1075,77 @@ gboolean
 gum_darwin_query_shared_cache_range (mach_port_t task,
                                      GumMemoryRange * range)
 {
+  gboolean success = FALSE;
   GumDarwinAllImageInfos infos;
+  GumDyldCacheHeaderV0 * header = NULL;
+  gsize n_bytes_read;
+  guint64 mapping_offset, mapping_count;
+  gsize mapping_info_size, mapping_bytes;
+  GumDyldCacheMappingInfo * mappings = NULL;
+  GumAddress unslid_start, unslid_end;
+  guint32 i;
   GumAddress start, end;
-  mach_vm_address_t address;
-  mach_vm_size_t size;
-  natural_t depth;
-  struct vm_region_submap_info_64 info;
-  mach_msg_type_number_t info_count;
-  kern_return_t kr;
 
   if (!gum_darwin_query_all_image_infos (task, &infos, NULL))
-    return FALSE;
+    goto beach;
 
-  start = infos.shared_cache_base_address;
-  if (start == 0)
-    return FALSE;
+  if (infos.shared_cache_base_address == 0)
+    goto beach;
 
-  address = start;
-  depth = 0;
-  info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+  header = (GumDyldCacheHeaderV0 *) gum_darwin_read (task,
+      infos.shared_cache_base_address, sizeof (GumDyldCacheHeaderV0),
+      &n_bytes_read);
+  if (header == NULL || n_bytes_read != sizeof (GumDyldCacheHeaderV0))
+    goto beach;
+  if (memcmp (header->magic, "dyld_v", 6) != 0)
+    goto beach;
 
-  kr = mach_vm_region_recurse (task, &address, &size, &depth,
-      (vm_region_recurse_info_t) &info, &info_count);
-  if (kr != KERN_SUCCESS)
-    return FALSE;
+  if (header->mapping_count == 0)
+    goto beach;
+  mapping_offset = header->mapping_offset;
+  mapping_count = header->mapping_count;
+  mapping_info_size = sizeof (GumDyldCacheMappingInfo);
+  if (mapping_offset > UINT64_MAX - (mapping_count * mapping_info_size))
+    goto beach;
+  mapping_bytes = mapping_count * mapping_info_size;
+  mappings = (GumDyldCacheMappingInfo *) gum_darwin_read (task,
+      infos.shared_cache_base_address + mapping_offset, mapping_bytes,
+      &n_bytes_read);
+  if (mappings == NULL || n_bytes_read != mapping_bytes)
+    goto beach;
 
-  start = address;
-  end = address + size;
+  unslid_start = G_MAXUINT64;
+  unslid_end = 0;
 
-  do
+  for (i = 0; i != header->mapping_count; i++)
   {
-    gboolean is_contiguous, is_dsc_tag;
+    uint64_t a, b;
 
-    address += size;
-    depth = 0;
-    info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
-    kr = mach_vm_region_recurse (task, &address, &size, &depth,
-        (vm_region_recurse_info_t) &info, &info_count);
-    if (kr != KERN_SUCCESS)
-      break;
+    a = mappings[i].address;
+    b = a + mappings[i].size;
 
-    is_contiguous = address == end;
-    if (!is_contiguous)
-      break;
-
-    is_dsc_tag = info.user_tag == 0x20 || info.user_tag == 0x23;
-    if (!is_dsc_tag)
-      break;
-
-    end = address + size;
+    if (a < unslid_start)
+      unslid_start = a;
+    if (b > unslid_end)
+      unslid_end = b;
   }
-  while (TRUE);
+
+  if (unslid_start == G_MAXUINT64 || unslid_end <= unslid_start)
+    goto beach;
+
+  start = unslid_start + infos.shared_cache_slide;
+  end = unslid_end + infos.shared_cache_slide;
 
   range->base_address = start;
   range->size = end - start;
 
-  return TRUE;
+  success = TRUE;
+
+beach:
+  g_free (mappings);
+  g_free (header);
+
+  return success;
 }
 
 GumAddress
