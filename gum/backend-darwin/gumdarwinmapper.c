@@ -221,8 +221,6 @@ static gboolean gum_darwin_mapper_bind_items (GumDarwinMapper * self,
 
 static void gum_darwin_mapping_free (GumDarwinMapping * self);
 
-static gboolean gum_find_text_start_address (
-    const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_find_tlv_get_addr (const GumDarwinSectionDetails * details,
     gpointer user_data);
 
@@ -825,7 +823,6 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
         &g_array_index (module->segments, GumDarwinSegment, i);
     GumAddress segment_address;
     guint64 file_offset;
-    gboolean segment_contains_header;
 
     if (s->file_size == 0)
       continue;
@@ -872,24 +869,6 @@ fallback:
       kr = mach_vm_protect (task, segment_address, s->vm_size, FALSE,
           s->protection);
       GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_protect(segment)");
-    }
-
-    segment_contains_header = file_offset == 0;
-    if (segment_contains_header)
-    {
-      GumAddress text_start_address = 0;
-      gsize header_size_to_make_writable_for_resolvers;
-
-      gum_darwin_module_enumerate_sections (module, gum_find_text_start_address,
-          &text_start_address);
-
-      header_size_to_make_writable_for_resolvers =
-          text_start_address - segment_address;
-
-      kr = mach_vm_protect (task, segment_address,
-          header_size_to_make_writable_for_resolvers,
-          FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-      GUM_CHECK_MACH_RESULT (kr, ==, KERN_SUCCESS, "mach_vm_protect(header)");
     }
   }
 
@@ -2827,21 +2806,6 @@ gum_darwin_mapping_free (GumDarwinMapping * self)
 {
   g_object_unref (self->module);
   g_slice_free (GumDarwinMapping, self);
-}
-
-static gboolean
-gum_find_text_start_address (const GumDarwinSectionDetails * details,
-                             gpointer user_data)
-{
-  GumAddress * start_address = user_data;
-
-  if (strcmp (details->segment_name, "__TEXT") != 0 ||
-      strcmp (details->section_name, "__text") != 0)
-    return TRUE;
-
-  *start_address = details->vm_address;
-
-  return FALSE;
 }
 
 static gboolean
