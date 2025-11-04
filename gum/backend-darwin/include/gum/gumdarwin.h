@@ -167,7 +167,9 @@ struct _GumDarwinAllImageInfos
 
   GumAddress dyld_all_image_infos_address;
 
+  guint8 shared_cache_uuid[16];
   GumAddress shared_cache_base_address;
+  GumAddress shared_cache_slide;
 };
 
 struct _GumDarwinMappingDetails
