@@ -2389,6 +2389,13 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
         value->address = gum_strip_code_address (value->address);
     }
 #endif
+
+    if (value->address != 0 &&
+        !GUM_MEMORY_RANGE_INCLUDES (&self->shared_cache_range, value->address))
+    {
+      value->address = 0;
+    }
+
     value->resolver = 0;
 
     if (value->address != 0)
