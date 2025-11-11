@@ -2153,14 +2153,14 @@ gum_exec_ctx_new (GumStalker * stalker,
   GumCodeSlab * code_slab;
   GumSlowSlab * slow_slab;
   GumDataSlab * data_slab;
-  base = gum_memory_allocate (NULL, INT32_MAX, stalker->page_size, GUM_PAGE_RW);
-  g_warning("Alloc big memory at base %p:",base);
-  gum_memory_free(base,INT32_MAX);
-  base = gum_memory_allocate (base + INT32_MAX / 2, stalker->ctx_size, stalker->page_size,
-      stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
-  g_warning("target base: %p, real base %p:",base + INT32_MAX / 2,base);
-  // base = gum_memory_allocate (NULL, stalker->ctx_size, stalker->page_size,
+  // base = gum_memory_allocate (NULL, INT32_MAX, stalker->page_size, GUM_PAGE_RW);
+  // g_warning("Alloc big memory at base %p:",base);
+  // gum_memory_free(base,INT32_MAX);
+  // base = gum_memory_allocate (base + INT32_MAX / 2, stalker->ctx_size, stalker->page_size,
   //     stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
+  // g_warning("target base: %p, real base %p:",base + INT32_MAX / 2,base);
+  base = gum_memory_allocate (NULL, stalker->ctx_size, stalker->page_size,
+      stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
 
   ctx = (GumExecCtx *) base;
 
