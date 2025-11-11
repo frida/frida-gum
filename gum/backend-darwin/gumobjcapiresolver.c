@@ -2,7 +2,7 @@
  * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
- * Copyright (C)      2021 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2021-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,6 +10,7 @@
 #include "gumobjcapiresolver.h"
 
 #include "guminterceptor.h"
+#include "gummoduleregistry.h"
 #include "gumobjcapiresolver-priv.h"
 #include "gumobjcdisposeclasspairmonitor.h"
 #include "gumprocess.h"
@@ -29,12 +30,16 @@ struct _GumObjcApiResolver
 
   gboolean available;
   GHashTable * class_by_handle;
+  GRecMutex class_by_handle_mutex;
   GumObjcDisposeClassPairMonitor * monitor;
+  GumModuleRegistry * registry;
+  gulong on_added_handler;
 
   gint (* objc_getClassList) (Class * buffer, gint class_count);
   Class (* objc_lookUpClass) (const gchar * name);
   Class (* class_getSuperclass) (Class klass);
   const gchar * (* class_getName) (Class klass);
+  const gchar * (* class_getImageName) (Class cls);
   Method * (* class_copyMethodList) (Class klass, guint * method_count);
   Class (* object_getClass) (gpointer object);
   SEL (* method_getName) (Method method);
@@ -46,6 +51,7 @@ struct _GumObjcClassMetadata
 {
   Class handle;
   const gchar * name;
+  const gchar * image_name;
 
   Method * class_methods;
   guint class_method_count;
@@ -68,7 +74,13 @@ static void gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
 static gboolean gum_objc_api_resolver_enumerate_matches_for_class (
     GumObjcApiResolver * self, GumObjcClassMetadata * klass, gchar method_type,
     GPatternSpec * method_spec, GHashTable * visited_classes,
-    gboolean ignore_case, GumFoundApiFunc func, gpointer user_data);
+    GHashTable * class_by_handle, gboolean ignore_case, GumFoundApiFunc func,
+    gpointer user_data);
+
+static void gum_schedule_clear_classes_by_handle_on_module_added (
+    GumObjcApiResolver * self);
+static void gum_clear_classes_by_handle_on_module_added (
+    GumModuleRegistry * registry, GumModule * module, gpointer user_data);
 
 static gchar gum_method_type_from_match_info (GMatchInfo * match_info,
     gint match_num);
@@ -81,6 +93,8 @@ static GHashTable * gum_objc_api_resolver_create_snapshot (
 static void gum_objc_class_metadata_free (GumObjcClassMetadata * klass);
 static const Method * gum_objc_class_metadata_get_methods (
     GumObjcClassMetadata * self, gchar type, guint * count);
+static const gchar * gum_objc_class_metadata_get_image_name (
+    GumObjcClassMetadata * self);
 static gboolean gum_objc_class_metadata_is_disposed (
     GumObjcClassMetadata * self);
 
@@ -143,6 +157,7 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
   GUM_TRY_ASSIGN_OBJC_FUNC (objc_lookUpClass);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getSuperclass);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getName);
+  GUM_TRY_ASSIGN_OBJC_FUNC (class_getImageName);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_copyMethodList);
   GUM_TRY_ASSIGN_OBJC_FUNC (object_getClass);
   GUM_TRY_ASSIGN_OBJC_FUNC (method_getName);
@@ -151,6 +166,8 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
 
   self->available = TRUE;
   self->monitor = gum_objc_dispose_class_pair_monitor_obtain ();
+
+  g_rec_mutex_init (&self->class_by_handle_mutex);
 
 beach:
   if (objc != NULL)
@@ -161,6 +178,13 @@ static void
 gum_objc_api_resolver_dispose (GObject * object)
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (object);
+
+  if (self->on_added_handler != 0)
+  {
+    g_signal_handler_disconnect (self->registry, self->on_added_handler);
+    self->registry = NULL;
+    self->on_added_handler = 0;
+  }
 
   g_clear_object (&self->monitor);
 
@@ -173,6 +197,7 @@ gum_objc_api_resolver_finalize (GObject * object)
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (object);
 
   g_clear_pointer (&self->class_by_handle, g_hash_table_unref);
+  g_rec_mutex_clear (&self->class_by_handle_mutex);
 
   g_regex_unref (self->query_pattern);
 
@@ -217,6 +242,7 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
   gboolean ignore_case;
   gchar method_type;
   GPatternSpec * class_spec, * method_spec;
+  GHashTable * class_by_handle;
   GHashTableIter iter;
   gboolean carry_on;
   GHashTable * visited_classes;
@@ -237,9 +263,15 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
   g_match_info_free (query_info);
 
+  g_rec_mutex_lock (&self->class_by_handle_mutex);
+
   gum_objc_api_resolver_ensure_class_by_handle (self);
 
-  g_hash_table_iter_init (&iter, self->class_by_handle);
+  class_by_handle = g_hash_table_ref (self->class_by_handle);
+
+  g_rec_mutex_unlock (&self->class_by_handle_mutex);
+
+  g_hash_table_iter_init (&iter, class_by_handle);
   carry_on = TRUE;
   visited_classes = g_hash_table_new (NULL, NULL);
   while (carry_on && g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
@@ -262,13 +294,14 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
     if (g_pattern_match_string (class_spec, class_name))
     {
       carry_on = gum_objc_api_resolver_enumerate_matches_for_class (self, klass,
-          method_type, method_spec, visited_classes, ignore_case, func,
-          user_data);
+          method_type, method_spec, visited_classes, class_by_handle,
+          ignore_case, func, user_data);
     }
 
     g_free (class_name_copy);
   }
   g_hash_table_unref (visited_classes);
+  g_hash_table_unref (class_by_handle);
 
   g_pattern_spec_free (method_spec);
   g_pattern_spec_free (class_spec);
@@ -289,6 +322,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
                                                    gchar method_type,
                                                    GPatternSpec * method_spec,
                                                    GHashTable * visited_classes,
+                                                   GHashTable * class_by_handle,
                                                    gboolean ignore_case,
                                                    GumFoundApiFunc func,
                                                    gpointer user_data)
@@ -359,7 +393,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
     Class subclass_handle = cur->data;
     GumObjcClassMetadata * subclass;
 
-    subclass = g_hash_table_lookup (self->class_by_handle, subclass_handle);
+    subclass = g_hash_table_lookup (class_by_handle, subclass_handle);
     if (subclass == NULL)
       continue;
 
@@ -367,8 +401,8 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
       continue;
 
     carry_on = gum_objc_api_resolver_enumerate_matches_for_class (self,
-        subclass, method_type, method_spec, visited_classes, ignore_case, func,
-        user_data);
+        subclass, method_type, method_spec, visited_classes, class_by_handle,
+        ignore_case, func, user_data);
     if (!carry_on)
       return FALSE;
   }
@@ -378,42 +412,52 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
 
 gchar *
 _gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
-                                               GumAddress address)
+                                               GumAddress address,
+                                               GumModule * address_module)
 {
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (resolver);
   gchar * result = NULL;
+  const gchar * address_module_path;
   GumAddress bare_address;
-  gint class_count, class_index;
-  Class * classes;
+  GHashTable * class_by_handle;
+  GHashTableIter iter;
+  GumObjcClassMetadata * klass;
 
   if (self->monitor == NULL)
+    return NULL;
+
+  address_module_path = gum_module_get_path (address_module);
+  if (address_module_path == NULL)
     return NULL;
 
   bare_address = gum_strip_code_address (address);
 
   g_rec_mutex_lock (&self->monitor->mutex);
 
-  class_count = self->objc_getClassList (NULL, 0);
-  classes = g_new (Class, class_count);
-  self->objc_getClassList (classes, class_count);
+  g_rec_mutex_lock (&self->class_by_handle_mutex);
 
-  for (class_index = 0;
-      class_index != class_count && result == NULL;
-      class_index++)
+  if (self->class_by_handle == NULL)
   {
-    Class handle = classes[class_index];
-    GumObjcClassMetadata * klass;
+    self->class_by_handle = gum_objc_api_resolver_create_snapshot (self);
+    gum_schedule_clear_classes_by_handle_on_module_added (self);
+  }
+
+  class_by_handle = g_hash_table_ref (self->class_by_handle);
+
+  g_rec_mutex_unlock (&self->class_by_handle_mutex);
+
+  g_hash_table_iter_init (&iter, class_by_handle);
+
+  while (result == NULL &&
+      g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
+  {
+    const gchar * class_module_path;
     const gchar * t;
     const gchar all_method_types[] = { '+', '-', '\0' };
 
-    klass = g_slice_new (GumObjcClassMetadata);
-    klass->handle = handle;
-    klass->name = self->class_getName (handle);
-    klass->class_methods = NULL;
-    klass->instance_methods = NULL;
-    klass->subclasses = NULL;
-
-    klass->resolver = self;
+    class_module_path = gum_objc_class_metadata_get_image_name (klass);
+    if (strcmp (class_module_path, address_module_path) != 0)
+      continue;
 
     for (t = all_method_types; *t != '\0' && result == NULL; t++)
     {
@@ -442,15 +486,48 @@ _gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
         }
       }
     }
-
-    gum_objc_class_metadata_free (klass);
   }
 
   g_rec_mutex_unlock (&self->monitor->mutex);
 
-  g_free (classes);
+  g_hash_table_unref (class_by_handle);
 
   return result;
+}
+
+static void
+gum_schedule_clear_classes_by_handle_on_module_added (GumObjcApiResolver * self)
+{
+  if (self->registry != NULL)
+    return;
+
+  g_assert (self->on_added_handler == 0);
+
+  self->registry = gum_module_registry_obtain ();
+  gum_module_registry_lock (self->registry);
+
+  self->on_added_handler = g_signal_connect (self->registry, "module-added",
+      G_CALLBACK (gum_clear_classes_by_handle_on_module_added),
+      self);
+
+  gum_module_registry_unlock (self->registry);
+}
+
+static void
+gum_clear_classes_by_handle_on_module_added (GumModuleRegistry * registry,
+                                             GumModule * module,
+                                             gpointer user_data)
+{
+  GumObjcApiResolver * self = user_data;
+
+  if (self->monitor == NULL)
+    return;
+
+  g_rec_mutex_lock (&self->class_by_handle_mutex);
+
+  g_clear_pointer (&self->class_by_handle, g_hash_table_unref);
+
+  g_rec_mutex_unlock (&self->class_by_handle_mutex);
 }
 
 static gchar
@@ -511,6 +588,7 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
     klass = g_slice_new (GumObjcClassMetadata);
     klass->handle = handle;
     klass->name = self->class_getName (handle);
+    klass->image_name = NULL;
     klass->class_methods = NULL;
     klass->instance_methods = NULL;
     klass->subclasses = NULL;
@@ -586,6 +664,21 @@ gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
   *count = *cached_method_count;
 
   return *cached_methods;
+}
+
+static const gchar *
+gum_objc_class_metadata_get_image_name (GumObjcClassMetadata * self)
+{
+  if (self->image_name == NULL)
+  {
+    GumObjcApiResolver * resolver = self->resolver;
+
+    self->image_name = resolver->class_getImageName (self->handle);
+    if (self->image_name == NULL)
+      self->image_name = "";
+  }
+
+  return self->image_name;
 }
 
 static gboolean
