@@ -31,6 +31,8 @@ typedef struct _DyldAllImageInfos32 DyldAllImageInfos32;
 typedef struct _DyldAllImageInfos64 DyldAllImageInfos64;
 typedef struct _DyldImageInfo32 DyldImageInfo32;
 typedef struct _DyldImageInfo64 DyldImageInfo64;
+typedef struct _GumDyldCacheHeaderV0 GumDyldCacheHeaderV0;
+typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
 typedef struct _GumPagePlanBuilder GumPagePlanBuilder;
 typedef struct _GumPageBlock GumPageBlock;
 
@@ -143,6 +145,25 @@ struct _DyldImageInfo64
   guint64 image_load_address;
   guint64 image_file_path;
   guint64 image_file_mod_date;
+};
+
+struct _GumDyldCacheHeaderV0
+{
+  gchar magic[16];
+  guint32 mapping_offset;
+  guint32 mapping_count;
+  guint32 images_offset;
+  guint32 images_count;
+  guint64 dyld_base_address;
+};
+
+struct _GumDyldCacheMappingInfo
+{
+  guint64 address;
+  guint64 size;
+  guint64 file_offset;
+  guint32 max_prot;
+  guint32 init_prot;
 };
 
 #ifndef PROC_PIDREGIONPATHINFO2
