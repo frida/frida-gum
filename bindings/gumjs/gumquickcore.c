@@ -3593,14 +3593,7 @@ gumjs_native_pointer_handle_read (JSContext * ctx,
         if (length != 0)
           memcpy (&dummy_to_trap_bad_pointer_early, str_utf16, sizeof (guint8));
 
-        str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
-
-        if (str_utf8 != NULL)
-          result = JS_NewString (ctx, str_utf8);
-        else
-          result = _gum_quick_throw_literal (ctx, "invalid string");
-
-        g_free (str_utf8);
+        result = JS_NewTwoByteString (ctx, str_utf16, length);
 
         break;
       }
