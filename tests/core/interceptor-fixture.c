@@ -93,6 +93,12 @@
 #    define GUM_TEST_SHLIB_ARCH "mips"
 #  endif
 # endif
+#elif defined (HAVE_RISCV)
+# if GLIB_SIZEOF_VOID_P == 8
+#   define GUM_TEST_SHLIB_ARCH "riscv64"
+# else
+#   define GUM_TEST_SHLIB_ARCH "riscv32"
+# endif
 #else
 # error Unknown CPU
 #endif

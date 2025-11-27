@@ -24,6 +24,7 @@ def generate_and_write_bindings(output_dir, source_dir):
         ("arm", "thumb"),
         ("arm64", "arm64"),
         ("mips", "mips"),
+        ("riscv", "riscv"),
     ]
 
     tsds = {}
@@ -82,6 +83,7 @@ def generate_umbrella(runtime, name, section, flavor_combos):
         "arm": "HAVE_ARM",
         "arm64": "HAVE_ARM64",
         "mips": "HAVE_MIPS",
+        "riscv": "HAVE_RISCV",
     }
 
     current_arch = None
@@ -2327,6 +2329,21 @@ writer_enums = {
             "30", "31",
         ]),
     ],
+    "riscv": [
+        ("riscv_register", "riscv_reg", "RISCV_REG_", [
+            "zero", "ra", "sp", "gp", "tp",
+            "t0", "t1", "t2",
+            "s0", "s1",
+            "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
+            "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11",
+            "t3", "t4", "t5", "t6",
+            "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7",
+            "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15",
+            "x16", "x17", "x18", "x19", "x20", "x21", "x22", "x23",
+            "x24", "x25", "x26", "x27", "x28", "x29", "x30", "x31",
+            "pc",
+        ]),
+    ],
 }
 
 def generate_conversion_methods(component, generate_parser):
@@ -3028,7 +3045,7 @@ class MethodArgument(object):
         name_raw = None
         converter = None
 
-        if type in ("GumX86Reg", "arm_reg", "arm64_reg", "mips_reg"):
+        if type in ("GumX86Reg", "arm_reg", "arm64_reg", "mips_reg", "riscv_reg"):
             self.type_raw = "const gchar *"
             self.type_format = "s"
             self.type_ts = to_camel_case("x86_register" if type == "GumX86Reg" else type.replace("_reg", "_register"), start_high=True)

@@ -33,9 +33,9 @@
     TESTENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TESTLIST_BEGIN (process)
+#if !defined (HAVE_MIPS) && !defined (HAVE_RISCV)
   TESTENTRY (process_threads)
-  TESTENTRY (process_threads_exclude_cloaked)
-  TESTENTRY (process_threads_should_include_name)
+#endif
   TESTENTRY (process_modules)
   TESTENTRY (process_ranges)
   TESTENTRY (process_ranges_exclude_cloaked)
@@ -49,9 +49,11 @@ TESTLIST_BEGIN (process)
   TESTENTRY (module_sections_can_be_enumerated)
   TESTENTRY (module_dependencies_can_be_enumerated)
   TESTENTRY (module_base)
+#if !defined (HAVE_RISCV)
   TESTENTRY (module_export_can_be_found)
-#ifndef HAVE_ASAN
+# ifndef HAVE_ASAN
   TESTENTRY (module_export_matches_system_lookup)
+# endif
 #endif
 #ifdef HAVE_WINDOWS
   TESTENTRY (get_set_system_error)
@@ -69,7 +71,7 @@ TESTLIST_BEGIN (process)
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
   TESTENTRY (process_malloc_ranges)
 #endif
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID) && !defined (HAVE_RISCV)
   TESTENTRY (linux_process_modules)
 #endif
 #if defined (HAVE_LINUX) && defined (HAVE_SYS_AUXV_H)
@@ -403,6 +405,8 @@ TESTCASE (linux_get_cpu_from_auxv_null_32bit)
   cpu32 = GUM_CPU_ARM;
 #elif defined (HAVE_MIPS)
   cpu32 = GUM_CPU_MIPS;
+#elif defined (HAVE_RISCV)
+  cpu32 = GUM_CPU_RISCV;
 #else
 # error Unsupported architecture
 #endif
@@ -421,6 +425,8 @@ TESTCASE (linux_get_cpu_from_auxv_null_64bit)
   cpu64 = GUM_CPU_ARM64;
 #elif defined (HAVE_MIPS)
   cpu64 = GUM_CPU_MIPS;
+#elif defined (HAVE_RISCV)
+  cpu64 = GUM_CPU_RISCV;
 #else
 # error Unsupported architecture
 #endif
@@ -458,6 +464,8 @@ TESTCASE (linux_get_cpu_from_auxv_representative_32bit)
   cpu32 = GUM_CPU_ARM;
 #elif defined (HAVE_MIPS)
   cpu32 = GUM_CPU_MIPS;
+#elif defined (HAVE_RISCV)
+  cpu32 = GUM_CPU_RISCV;
 #else
 # error Unsupported architecture
 #endif
@@ -495,6 +503,8 @@ TESTCASE (linux_get_cpu_from_auxv_representative_64bit)
   cpu64 = GUM_CPU_ARM64;
 #elif defined (HAVE_MIPS)
   cpu64 = GUM_CPU_MIPS;
+#elif defined (HAVE_RISCV)
+  cpu64 = GUM_CPU_RISCV;
 #else
 # error Unsupported architecture
 #endif

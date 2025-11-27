@@ -3947,6 +3947,10 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   asm ("move %0, $ra" : "=r" (return_address));
   asm ("move %0, $sp" : "=r" (stack_pointer));
   asm ("move %0, $fp" : "=r" (frame_pointer));
+#elif defined (HAVE_RISCV)
+  asm ("mv %0, ra" : "=r" (return_address));
+  asm ("mv %0, sp" : "=r" (stack_pointer));
+  asm ("mv %0, s0" : "=r" (frame_pointer));
 #endif
 
   auto self = (GumV8NativeCallback *) user_data;
@@ -4009,6 +4013,14 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
     cpu_context.lr = return_address;
     cpu_context.sp = stack_pointer;
     cpu_context.fp = frame_pointer;
+#elif defined (HAVE_MIPS)
+    cpu_context.ra = return_address;
+    cpu_context.sp = stack_pointer;
+    cpu_context.fp = frame_pointer;
+#elif defined (HAVE_RISCV)
+    cpu_context.x1 = return_address;
+    cpu_context.x2 = stack_pointer;
+    cpu_context.x8 = frame_pointer;
 #endif
 
     jcc = gum_v8_callback_context_new_persistent (self->core, &cpu_context,

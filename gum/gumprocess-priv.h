@@ -65,6 +65,18 @@ G_GNUC_INTERNAL void _gum_mips_set_watchpoint (gsize * watch_lo,
     GumWatchConditions conditions);
 G_GNUC_INTERNAL void _gum_mips_unset_watchpoint (gsize * watch_lo,
     guint16 * watch_hi, guint watchpoint_id);
+#elif defined (HAVE_RISCV)
+typedef guint64 GumRiscvCtrlReg;
+typedef guint64 GumRiscvValueReg;
+G_GNUC_INTERNAL void _gum_riscv_set_breakpoint (GumRiscvCtrlReg * tdata1,
+    GumRiscvValueReg * tdata2, guint breakpoint_id, GumAddress address);
+G_GNUC_INTERNAL void _gum_riscv_unset_breakpoint (GumRiscvCtrlReg * tdata1,
+    GumRiscvValueReg * tdata2, guint breakpoint_id);
+G_GNUC_INTERNAL void _gum_riscv_set_watchpoint (GumRiscvCtrlReg * tdata1,
+    GumRiscvValueReg * tdata2, guint watchpoint_id, GumAddress address,
+    gsize size, GumWatchConditions conditions);
+G_GNUC_INTERNAL void _gum_riscv_unset_watchpoint (GumRiscvCtrlReg * tdata1,
+    GumRiscvValueReg * tdata2, guint watchpoint_id);
 #endif
 
 G_END_DECLS

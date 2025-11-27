@@ -112,6 +112,7 @@ namespace Gum {
 		ARM,
 		ARM64,
 		MIPS,
+        RISCV,
 	}
 
 	public struct Argument {
