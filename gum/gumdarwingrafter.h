@@ -16,6 +16,7 @@ typedef enum {
   GUM_DARWIN_GRAFTER_FLAGS_INGEST_FUNCTION_STARTS = (1 << 0),
   GUM_DARWIN_GRAFTER_FLAGS_INGEST_IMPORTS         = (1 << 1),
   GUM_DARWIN_GRAFTER_FLAGS_TRANSFORM_LAZY_BINDS   = (1 << 2),
+  GUM_DARWIN_GRAFTER_FLAGS_FORCE                  = (1 << 3),
 } GumDarwinGrafterFlags;
 
 #define GUM_TYPE_DARWIN_GRAFTER (gum_darwin_grafter_get_type ())
