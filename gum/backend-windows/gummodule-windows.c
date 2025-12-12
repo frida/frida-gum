@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2025 William Tan <1284324+Ninja3047@users.noreply.github.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,6 +10,7 @@
 
 #include <psapi.h>
 
+typedef struct _GumCollectCodePagesContext GumCollectCodePagesContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumFindExportContext GumFindExportContext;
 
@@ -20,6 +22,14 @@ struct _GumNativeModule
   gchar * name;
   gchar * path;
   GumMemoryRange range;
+};
+
+struct _GumCollectCodePagesContext
+{
+  GumAddress base;
+  gsize page_size;
+  gsize num_pages;
+  guint8 * bitmap;
 };
 
 struct _GumEnumerateSymbolsContext
@@ -45,6 +55,8 @@ static void gum_native_module_enumerate_imports (GumModule * module,
     GumFoundImportFunc func, gpointer user_data);
 static void gum_native_module_enumerate_exports (GumModule * module,
     GumFoundExportFunc func, gpointer user_data);
+static gboolean gum_collect_code_pages (const GumRangeDetails * details,
+    gpointer user_data);
 static void gum_native_module_enumerate_symbols (GumModule * module,
     GumFoundSymbolFunc func, gpointer user_data);
 static BOOL CALLBACK gum_emit_symbol (PSYMBOL_INFO info, ULONG symbol_size,
@@ -241,6 +253,10 @@ gum_native_module_enumerate_exports (GumModule * module,
   const IMAGE_DATA_DIRECTORY * entry;
   const IMAGE_EXPORT_DIRECTORY * exp;
   const guint8 * exp_start, * exp_end;
+  GumCollectCodePagesContext ctx;
+  const DWORD * name_rvas, * func_rvas;
+  const WORD * ord_rvas;
+  DWORD i;
 
   self = GUM_NATIVE_MODULE (module);
 
@@ -252,36 +268,65 @@ gum_native_module_enumerate_exports (GumModule * module,
   exp_start = mod_base + entry->VirtualAddress;
   exp_end = exp_start + entry->Size - 1;
 
-  if (exp->AddressOfNames != 0)
+  if (exp->AddressOfNames == 0)
+    return;
+
+  ctx.base = GUM_ADDRESS (mod_base);
+  ctx.page_size = gum_query_page_size ();
+  ctx.num_pages = GUM_ALIGN_SIZE (
+      nt_hdrs->OptionalHeader.SizeOfImage, ctx.page_size) / ctx.page_size;
+  ctx.bitmap = g_malloc0 (GUM_ALIGN_SIZE (ctx.num_pages, 8) / 8);
+
+  gum_module_enumerate_ranges (module, GUM_PAGE_EXECUTE, gum_collect_code_pages,
+      &ctx);
+
+  name_rvas = (const DWORD *) &mod_base[exp->AddressOfNames];
+  ord_rvas = (const WORD *) &mod_base[exp->AddressOfNameOrdinals];
+  func_rvas = (const DWORD *) &mod_base[exp->AddressOfFunctions];
+
+  for (i = 0; i != exp->NumberOfNames; i++)
   {
-    const DWORD * name_rvas, * func_rvas;
-    const WORD * ord_rvas;
-    DWORD index;
+    DWORD func_rva;
+    const guint8 * func_address;
+    GumExportDetails details;
+    gsize page_index;
 
-    name_rvas = (const DWORD *) &mod_base[exp->AddressOfNames];
-    ord_rvas = (const WORD *) &mod_base[exp->AddressOfNameOrdinals];
-    func_rvas = (const DWORD *) &mod_base[exp->AddressOfFunctions];
+    func_rva = func_rvas[ord_rvas[i]];
+    func_address = &mod_base[func_rva];
+    if (func_address >= exp_start && func_address <= exp_end)
+      continue;
 
-    for (index = 0; index < exp->NumberOfNames; index++)
-    {
-      DWORD func_rva;
-      const guint8 * func_address;
+    page_index = func_rva / ctx.page_size;
 
-      func_rva = func_rvas[ord_rvas[index]];
-      func_address = &mod_base[func_rva];
-      if (func_address < exp_start || func_address > exp_end)
-      {
-        GumExportDetails details;
+    details.type = (page_index < ctx.num_pages &&
+        (ctx.bitmap[page_index / 8] & (1 << (page_index % 8))) != 0)
+        ? GUM_EXPORT_FUNCTION
+        : GUM_EXPORT_VARIABLE;
+    details.name = (const gchar *) &mod_base[name_rvas[i]];
+    details.address = GUM_ADDRESS (func_address);
 
-        details.type = GUM_EXPORT_FUNCTION; /* TODO: data exports */
-        details.name = (const gchar *) &mod_base[name_rvas[index]];
-        details.address = GUM_ADDRESS (func_address);
-
-        if (!func (&details, user_data))
-          return;
-      }
-    }
+    if (!func (&details, user_data))
+      goto beach;
   }
+
+beach:
+  g_free (ctx.bitmap);
+}
+
+static gboolean
+gum_collect_code_pages (const GumRangeDetails * details,
+                        gpointer user_data)
+{
+  GumCollectCodePagesContext * ctx = user_data;
+  gsize start_page, end_page, page;
+
+  start_page = (details->range->base_address - ctx->base) / ctx->page_size;
+  end_page = start_page + (details->range->size / ctx->page_size);
+
+  for (page = start_page; page != end_page; page++)
+    ctx->bitmap[page / 8] |= 1 << (page % 8);
+
+  return TRUE;
 }
 
 static void

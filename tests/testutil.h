@@ -76,7 +76,7 @@
 #endif
 #define SYSTEM_MODULE_NAME test_util_get_system_module_name ()
 #if defined (HAVE_WINDOWS)
-# define SYSTEM_MODULE_EXPORT "Sleep"
+# define SYSTEM_MODULE_EXPORT "NtClose"
 #elif defined (HAVE_QNX)
 # define SYSTEM_MODULE_EXPORT "bt_get_backtrace"
 #else

@@ -366,7 +366,7 @@ const gchar *
 test_util_get_system_module_name (void)
 {
 #if defined (HAVE_WINDOWS)
-  return "kernel32.dll";
+  return "ntdll.dll";
 #elif defined (HAVE_DARWIN)
   return "libSystem.B.dylib";
 #elif defined (HAVE_ANDROID)

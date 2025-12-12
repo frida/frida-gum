@@ -3,6 +3,7 @@
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
+ * Copyright (C) 2025 William Tan <1284324+Ninja3047@users.noreply.github.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -905,6 +906,11 @@ TESTCASE (module_export_can_be_found)
   g_assert_true (gum_module_find_export_by_name (module,
       SYSTEM_MODULE_EXPORT) != 0);
 
+#ifdef HAVE_WINDOWS
+  g_assert_true (gum_module_find_export_by_name (module,
+      "KiUserInvertedFunctionTable") != 0);
+#endif
+
   g_object_unref (module);
 }
 
@@ -1310,13 +1316,18 @@ export_found_cb (const GumExportDetails * details,
 
   ctx->number_of_calls++;
 
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN)
   if (strcmp (details->name, "malloc") == 0)
     g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
   else if (g_str_has_prefix (details->name, "OBJC_CLASS_"))
     g_assert_cmpint (details->type, ==, GUM_EXPORT_VARIABLE);
   else if (strcmp (details->name, "dispatch_async_f") == 0)
     g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
+#elif defined (HAVE_WINDOWS)
+  if (strcmp (details->name, "NtClose") == 0)
+    g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
+  else if (strcmp (details->name, "KiUserInvertedFunctionTable") == 0)
+    g_assert_cmpint (details->type, ==, GUM_EXPORT_VARIABLE);
 #endif
 
   return ctx->value_to_return;
