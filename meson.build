@@ -354,6 +354,7 @@ else
   ffi_dep = disabler()
 endif
 
+glib_version_req = '>=2.72'
 glib_options = [
   'diet=' + diet.to_string(),
   'printf=' + allocator,
@@ -371,7 +372,7 @@ if optimize_for_prod
     'glib_checks=false',
   ]
 endif
-glib_dep = dependency('glib-2.0', version: '>=2.72', default_options: glib_options)
+glib_dep = dependency('glib-2.0', version: glib_version_req, default_options: glib_options)
 gobject_dep = dependency('gobject-2.0')
 gio_os_package_name = (host_os_family == 'windows') ? 'gio-windows-2.0' : 'gio-unix-2.0'
 if have_gumjs
@@ -382,6 +383,7 @@ else
   gio_os_package_dep = disabler()
 endif
 
+dependency('glib-2.0', version: glib_version_req, native: true, default_options: glib_options)
 gio_dep_native = dependency('gio-2.0', native: true)
 
 capstone_arch_mappings = {
