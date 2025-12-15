@@ -1,15 +1,14 @@
 from __future__ import unicode_literals, print_function
-import codecs
-import os
+from pathlib import Path
 import re
 import sys
 
 
 def main(argv):
-    output_dir, source_dir = argv[1:]
+    output_dir, source_dir = [Path(p) for p in argv[1:]]
     generate_and_write_bindings(output_dir, source_dir)
 
-def generate_and_write_bindings(output_dir, source_dir):
+def generate_and_write_bindings(output_dir: Path, source_dir: Path):
     binding_params = [
         ("writer", { 'ignore': ['new', 'ref', 'unref', 'init', 'clear', 'reset',
                                 'set_target_cpu', 'set_target_abi', 'set_target_os',
@@ -31,19 +30,16 @@ def generate_and_write_bindings(output_dir, source_dir):
 
     for name, options in binding_params:
         for filename, code in generate_umbrellas(name, flavor_combos).items():
-            with codecs.open(os.path.join(output_dir, filename), "w", 'utf-8') as f:
-                f.write(code)
+            (output_dir / filename).write_text(code, encoding='utf-8')
 
         for arch, flavor in flavor_combos:
-            api_header_path = os.path.join(source_dir, "arch-" + arch, "gum{0}{1}.h".format(flavor, name))
-            with codecs.open(api_header_path, "r", 'utf-8') as f:
-                api_header = f.read().replace("\r", "")
+            api_header_path = source_dir / f"arch-{arch}" / f"gum{flavor}{name}.h"
+            api_header = api_header_path.read_text(encoding='utf-8').replace("\r", "")
 
             bindings = generate_bindings(name, arch, flavor, api_header, options)
 
             for filename, code in bindings.code.items():
-                with codecs.open(os.path.join(output_dir, filename), "w", 'utf-8') as f:
-                    f.write(code)
+                (output_dir / filename).write_text(code, encoding='utf-8')
 
             tsds.update(bindings.tsds)
             docs.update(bindings.docs)
@@ -59,12 +55,10 @@ def generate_and_write_bindings(output_dir, source_dir):
             doc_sections.append(docs["{0}-enums.md".format(arch)])
 
     tsd_source = "\n\n".join(tsd_sections)
-    with codecs.open(os.path.join(output_dir, "api-types.d.ts"), "w", 'utf-8') as f:
-        f.write(tsd_source)
+    (output_dir / "api-types.d.ts").write_text(tsd_source, encoding='utf-8')
 
     api_reference = "\n\n".join(doc_sections)
-    with codecs.open(os.path.join(output_dir, "api-reference.md"), "w", 'utf-8') as f:
-        f.write(api_reference)
+    (output_dir / "api-reference.md").write_text(api_reference, encoding='utf-8')
 
 def generate_umbrellas(name, flavor_combos):
     umbrellas = {}
