@@ -35,9 +35,8 @@ struct _GumObjcApiResolver
 
   gboolean available;
   GHashTable * class_by_handle;
-  GRecMutex class_by_handle_mutex;
   GHashTable * classes_by_module;
-  GRecMutex classes_by_module_mutex;
+  GRecMutex class_cache_mutex;
   GumObjcDisposeClassPairMonitor * monitor;
   GumModuleRegistry * registry;
   gulong on_removed_handler;
@@ -70,13 +69,15 @@ struct _GumObjcClassMetadata
   GumObjcApiResolver * resolver;
 };
 
-struct _GumObjcSectionContext {
+struct _GumObjcSectionContext
+{
   const gchar * name;
   GumAddress address;
   gsize size;
 };
 
-struct _GumCategoryHeader {
+struct _GumCategoryHeader
+{
   const gchar * name;
   Class target_handle;
 };
@@ -192,8 +193,7 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
   self->available = TRUE;
   self->monitor = gum_objc_dispose_class_pair_monitor_obtain ();
 
-  g_rec_mutex_init (&self->class_by_handle_mutex);
-  g_rec_mutex_init (&self->classes_by_module_mutex);
+  g_rec_mutex_init (&self->class_cache_mutex);
 
 beach:
   if (objc != NULL)
@@ -223,10 +223,8 @@ gum_objc_api_resolver_finalize (GObject * object)
   GumObjcApiResolver * self = GUM_OBJC_API_RESOLVER (object);
 
   g_clear_pointer (&self->class_by_handle, g_hash_table_unref);
-  g_rec_mutex_clear (&self->class_by_handle_mutex);
-
   g_clear_pointer (&self->classes_by_module, g_hash_table_unref);
-  g_rec_mutex_clear (&self->classes_by_module_mutex);
+  g_rec_mutex_clear (&self->class_cache_mutex);
 
   g_regex_unref (self->query_pattern);
 
@@ -292,13 +290,13 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
   g_match_info_free (query_info);
 
-  g_rec_mutex_lock (&self->class_by_handle_mutex);
+  g_rec_mutex_lock (&self->class_cache_mutex);
 
   gum_objc_api_resolver_ensure_class_by_handle (self);
 
   class_by_handle = g_hash_table_ref (self->class_by_handle);
 
-  g_rec_mutex_unlock (&self->class_by_handle_mutex);
+  g_rec_mutex_unlock (&self->class_cache_mutex);
 
   g_hash_table_iter_init (&iter, class_by_handle);
   carry_on = TRUE;
@@ -455,7 +453,7 @@ _gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
 
   bare_address = gum_strip_code_address (address);
 
-  g_rec_mutex_lock (&self->classes_by_module_mutex);
+  g_rec_mutex_lock (&self->class_cache_mutex);
 
   classes = gum_objc_api_resolver_get_classes_by_module (self, address_module);
 
@@ -505,7 +503,7 @@ _gum_objc_api_resolver_find_method_by_address (GumApiResolver * resolver,
     }
   }
 
-  g_rec_mutex_unlock (&self->classes_by_module_mutex);
+  g_rec_mutex_unlock (&self->class_cache_mutex);
 
   return result;
 }
@@ -519,7 +517,7 @@ gum_objc_api_resolver_get_classes_by_module (GumObjcApiResolver * self,
 
   module_base = gum_module_get_range (module)->base_address;
 
-  g_rec_mutex_lock (&self->classes_by_module_mutex);
+  g_rec_mutex_lock (&self->class_cache_mutex);
 
   if (self->classes_by_module == NULL)
   {
@@ -545,7 +543,7 @@ gum_objc_api_resolver_get_classes_by_module (GumObjcApiResolver * self,
     gum_objc_api_resolver_collect_category_list (self, module, classes);
   }
 
-  g_rec_mutex_unlock (&self->classes_by_module_mutex);
+  g_rec_mutex_unlock (&self->class_cache_mutex);
 
   return classes;
 }
@@ -707,7 +705,7 @@ gum_clear_classes_by_module_on_module_removed (GumModuleRegistry * registry,
   if (self->monitor == NULL)
     return;
 
-  g_rec_mutex_lock (&self->classes_by_module_mutex);
+  g_rec_mutex_lock (&self->class_cache_mutex);
 
   if (self->classes_by_module != NULL)
   {
@@ -715,7 +713,7 @@ gum_clear_classes_by_module_on_module_removed (GumModuleRegistry * registry,
         GSIZE_TO_POINTER (gum_module_get_range (module)->base_address));
   }
 
-  g_rec_mutex_unlock (&self->class_by_handle_mutex);
+  g_rec_mutex_unlock (&self->class_cache_mutex);
 }
 
 static gchar
