@@ -638,6 +638,21 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
   }
+  else if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
+  {
+    /*
+     * For fast interceptors, we must patch the target function to jump
+     * directly to the replacement function, instead of using a trampoline.
+     * This requires the jump instruction at the target site to reach the
+     * replacement function's address.
+     *
+     * However, if there are only 4 or 8 bytes of space available for patching,
+     * we cannot always emit a jump instruction that can reliably reach the
+     * replacement function (since the distance may be too far for short-range
+     * instructions). Therefore, we cannot proceed in this case.
+     */
+    return FALSE;
+  }
   else
   {
     GumAddressSpec spec;
