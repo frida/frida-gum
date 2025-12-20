@@ -3655,7 +3655,7 @@ gum_linux_find_start_impl (GumLinuxPThreadSpec * spec)
   gboolean is_thumb;
 #endif
   csh capstone;
-  cs_insn * insn;
+  cs_insn * insn = NULL;
   const uint8_t * code;
   gsize i;
   gboolean found_start = FALSE;
