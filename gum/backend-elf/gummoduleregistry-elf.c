@@ -133,8 +133,11 @@ gum_hook_rtld_notifier (const GumRtldNotifierDetails * details,
     }
   }
 
-  gum_interceptor_attach (gum_rtld_interceptor, impl + offset,
-      *handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+  if (gum_interceptor_attach (gum_rtld_interceptor, impl + offset, *handler,
+        NULL, GUM_ATTACH_FLAGS_UNIGNORABLE) != GUM_ATTACH_OK)
+  {
+    gum_panic ("Unable to hook RTLD stub; please file a bug");
+  }
 }
 
 static void
