@@ -105,6 +105,7 @@ gum_hook_rtld_notifier (const GumRtldNotifierDetails * details,
 #endif
   gsize offset = 0;
   GumInvocationListener ** handler;
+  GumAttachReturn attach_result;
 
 #if defined (HAVE_I386)
   first_instruction = gum_x86_reader_disassemble_instruction_at (impl);
@@ -133,8 +134,11 @@ gum_hook_rtld_notifier (const GumRtldNotifierDetails * details,
     }
   }
 
-  gum_interceptor_attach (gum_rtld_interceptor, impl + offset,
+  attach_result = gum_interceptor_attach (gum_rtld_interceptor, impl + offset,
       *handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+  if (attach_result != GUM_ATTACH_OK) {
+    g_error("Failed to attach to rtld stub, error = %d.", attach_result);
+  }
 }
 
 static void
