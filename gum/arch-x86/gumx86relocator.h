@@ -34,7 +34,7 @@ struct _GumX86Relocator
   gboolean eoi;
 
   gboolean ret;
-  guint int3_before_ret_count;
+  guint int3_after_ret_count;
 };
 
 GUM_API GumX86Relocator * gum_x86_relocator_new (gconstpointer input_code,

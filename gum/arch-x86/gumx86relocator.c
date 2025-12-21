@@ -133,7 +133,7 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
   relocator->ret = FALSE;
-  relocator->int3_before_ret_count = 0;
+  relocator->int3_after_ret_count = 0;
 }
 
 static guint
@@ -192,13 +192,13 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
     const guint max_padding_int3_search_size = 64;
 
     if (insn->id != X86_INS_INT3
-     || self->int3_before_ret_count >= max_padding_int3_search_size)
+     || self->int3_after_ret_count >= max_padding_int3_search_size)
     {
       self->eoi = TRUE;
       goto finish_analyze_and_return;
     }
     
-    self->int3_before_ret_count++;
+    self->int3_after_ret_count++;
   }
 
   switch (insn->id)
