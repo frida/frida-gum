@@ -132,6 +132,8 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
+  relocator->ret = FALSE;
+  relocator->int3_after_ret_count = 0;
 }
 
 static guint
@@ -185,6 +187,20 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
   if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
     return 0;
 
+  if (self->ret)
+  {
+    const guint max_padding_int3_search_size = 64;
+
+    if (insn->id != X86_INS_INT3 ||
+        self->int3_after_ret_count >= max_padding_int3_search_size)
+    {
+      self->eoi = TRUE;
+      goto beach;
+    }
+
+    self->int3_after_ret_count++;
+  }
+
   switch (insn->id)
   {
     case X86_INS_JECXZ:
@@ -192,9 +208,13 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
       self->eob = TRUE;
       break;
 
-    case X86_INS_JMP:
     case X86_INS_RET:
     case X86_INS_RETF:
+      self->eob = TRUE;
+      self->ret = TRUE;
+      break;
+
+    case X86_INS_JMP:
       self->eob = TRUE;
       self->eoi = TRUE;
       break;
@@ -214,6 +234,7 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
       break;
   }
 
+beach:
   gum_x86_relocator_increment_inpos (self);
 
   if (instruction != NULL)
