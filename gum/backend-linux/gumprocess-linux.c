@@ -86,8 +86,6 @@ typedef struct _GumMipsDebugRegs GumDebugRegs;
 #ifdef HAVE_GLIBC
 # define GUM_MAX_LIST_WALK_ATTEMPTS        10
 # define GUM_LINUX_MAX_THREADS             (256 * 1024)
-# define GUM_MAX_FIND_LIST_HEAD_ATTEMPTS   5
-# define GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS 10
 # define GUM_MAX_PTHREAD_SIZE              2048
 # define GUM_TID_CHECK_TIMES               5
 # define GUM_MAX_INSTRUCTION_SIZE          15
@@ -231,9 +229,19 @@ struct _GumMipsDebugRegs
   };
 };
 
+struct _GumRiscvDebugRegs
+{
+  GumRiscvCtrlReg tdata1[8];
+  GumRiscvValueReg tdata2[8];
+};
+
 union _GumRegs
 {
+#if defined (HAVE_RISCV)
+  char gp[32 * sizeof (unsigned long) + sizeof (unsigned long)];
+#else
   GumGPRegs gp;
+#endif
   GumDebugRegs debug;
 };
 
@@ -541,7 +549,11 @@ gum_do_modify_thread (GumThreadId thread_id,
                       GumRegs * regs,
                       gpointer user_data)
 {
+#if defined (HAVE_RISCV)
+  GumGPRegs * gpr = (GumGPRegs *) &regs->gp;
+#else
   GumGPRegs * gpr = &regs->gp;
+#endif
   GumModifyThreadContext * ctx = user_data;
   GumCpuContext cpu_context;
 
@@ -789,9 +801,13 @@ gum_linux_do_modify_thread (gpointer data)
       : NT_ARM_HW_WATCH;
   gsize debug_regs_size = sizeof (struct user_hwdebug_state);
   guint debug_regs_count = 0;
+#elif defined (HAVE_RISCV)
+  guint debug_regs_count = 0;
+  (void) debug_regs_count;
 #endif
 #ifndef HAVE_MIPS
   guint i;
+  (void) i; 
 #endif
 
   fd = ctx->fd[1];
@@ -819,7 +835,11 @@ gum_linux_do_modify_thread (gpointer data)
    */
   if (ctx->regs_type == GUM_REGS_GENERAL_PURPOSE)
   {
+#if defined (HAVE_RISCV)
+    gsize regs_size = 32 * sizeof (unsigned long) + sizeof (unsigned long);
+#else
     gsize regs_size = sizeof (GumGPRegs);
+#endif
 
     res = gum_get_regs (ctx->thread_id, NT_PRSTATUS, &ctx->regs_data,
         &regs_size);
@@ -892,8 +912,12 @@ gum_linux_do_modify_thread (gpointer data)
   gum_await_ack (fd, GUM_ACK_MODIFIED_REGISTERS, NULL);
   if (ctx->regs_type == GUM_REGS_GENERAL_PURPOSE)
   {
-    res = gum_set_regs (ctx->thread_id, NT_PRSTATUS, &ctx->regs_data,
-        sizeof (GumGPRegs));
+#if defined (HAVE_RISCV)
+    gsize regs_size = 32 * sizeof (unsigned long) + sizeof (unsigned long);
+#else
+    gsize regs_size = sizeof (GumGPRegs);
+#endif
+    res = gum_set_regs (ctx->thread_id, NT_PRSTATUS, &ctx->regs_data, regs_size);
     if (res == -1)
       goto failed_to_write;
   }
@@ -1819,6 +1843,7 @@ gum_do_set_hardware_breakpoint (GumThreadId thread_id,
   _gum_mips_set_breakpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
       bpc->breakpoint_id, bpc->address);
 #endif
+#endif  
 }
 
 gboolean
@@ -1851,9 +1876,10 @@ gum_do_unset_hardware_breakpoint (GumThreadId thread_id,
       breakpoint_id);
 #elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 8
   g_assert (dr->style == GUM_MIPS_WATCH_MIPS64);
-  _gum_mips_unset_breakpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
+      _gum_mips_unset_breakpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
       breakpoint_id);
 #endif
+#endif 
 }
 
 gboolean
@@ -1898,9 +1924,10 @@ gum_do_set_hardware_watchpoint (GumThreadId thread_id,
       wpc->watchpoint_id, wpc->address, wpc->size, wpc->conditions);
 #elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 8
   g_assert (dr->style == GUM_MIPS_WATCH_MIPS64);
-  _gum_mips_set_watchpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
+      _gum_mips_set_watchpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
       wpc->watchpoint_id, wpc->address, wpc->size, wpc->conditions);
 #endif
+#endif  
 }
 
 gboolean
@@ -1933,9 +1960,10 @@ gum_do_unset_hardware_watchpoint (GumThreadId thread_id,
       watchpoint_id);
 #elif defined (HAVE_MIPS) && GLIB_SIZEOF_VOID_P == 8
   g_assert (dr->style == GUM_MIPS_WATCH_MIPS64);
-  _gum_mips_unset_watchpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
+      _gum_mips_unset_watchpoint (dr->mips64.watch_lo, dr->mips64.watch_hi,
       watchpoint_id);
 #endif
+#endif 
 }
 
 gboolean
@@ -2150,6 +2178,9 @@ gum_linux_cpu_type_from_auxv (gconstpointer auxv,
 #elif defined (HAVE_MIPS)
   cpu32 = GUM_CPU_MIPS;
   cpu64 = GUM_CPU_MIPS;
+#elif defined (HAVE_RISCV)
+  cpu32 = GUM_CPU_RISCV;
+  cpu64 = GUM_CPU_RISCV;
 #else
 # error Unsupported architecture
 #endif
@@ -2527,6 +2558,47 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
   ctx->lo = (guint32) uc->uc_mcontext.mdlo;
 
   ctx->pc = (guint32) uc->uc_mcontext.pc;
+#elif defined (HAVE_RISCV)
+  const unsigned long *gr = (const unsigned long *) &uc->uc_mcontext.__gregs;
+
+  ctx->pc = gr[0];
+  ctx->ra = gr[1];
+  ctx->sp = gr[2];
+  ctx->gp = gr[3];
+  ctx->tp = gr[4];
+
+  ctx->t0 = gr[5];
+  ctx->t1 = gr[6];
+  ctx->t2 = gr[7];
+  
+  ctx->s0 = gr[8];
+  ctx->s1 = gr[9];
+
+  ctx->a0 = gr[10];
+  ctx->a1 = gr[11];
+  ctx->a2 = gr[12];
+  ctx->a3 = gr[13];
+  ctx->a4 = gr[14];
+  ctx->a5 = gr[15];
+  ctx->a6 = gr[16];
+  ctx->a7 = gr[17];
+
+  ctx->s2 = gr[18];
+  ctx->s3 = gr[19];
+  ctx->s4 = gr[20];
+  ctx->s5 = gr[21];
+  ctx->s6 = gr[22];
+  ctx->s7 = gr[23];
+  ctx->s8 = gr[24];
+
+  ctx->s9 = gr[25];
+  ctx->s10 = gr[26];
+  ctx->s11 = gr[27];
+
+  ctx->t3 = gr[28];
+  ctx->t4 = gr[29];
+  ctx->t5 = gr[30];
+  ctx->t6 = gr[31];
 #else
 # error FIXME
 #endif
@@ -2694,6 +2766,47 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   uc->uc_mcontext.mdlo = (guint64) ctx->lo;
 
   uc->uc_mcontext.pc = (guint64) ctx->pc;
+#elif defined (HAVE_RISCV)
+  unsigned long *gr = uc->uc_mcontext.__gregs;
+
+  gr[0] = ctx->pc;
+  gr[1] = ctx->ra;
+  gr[2] = ctx->sp;
+  gr[3] = ctx->gp;
+  gr[4] = ctx->tp;
+
+  gr[5] = ctx->t0;
+  gr[6] = ctx->t1;
+  gr[7] = ctx->t2;
+
+  gr[8] = ctx->s0;
+  gr[9] = ctx->s1;
+
+  gr[10] = ctx->a0;
+  gr[11] = ctx->a1;
+  gr[12] = ctx->a2;
+  gr[13] = ctx->a3;
+  gr[14] = ctx->a4;
+  gr[15] = ctx->a5;
+  gr[16] = ctx->a6;
+  gr[17] = ctx->a7;
+
+  gr[18] = ctx->s2;
+  gr[19] = ctx->s3;
+  gr[20] = ctx->s4;
+  gr[21] = ctx->s5;
+  gr[22] = ctx->s6;
+  gr[23] = ctx->s7;
+  gr[24] = ctx->s8;
+
+  gr[25] = ctx->s9;
+  gr[26] = ctx->s10;
+  gr[27] = ctx->s11;
+
+  gr[28] = ctx->t3;
+  gr[29] = ctx->t4;
+  gr[30] = ctx->t5; 
+  gr[31] = ctx->t6;
 #else
 # error FIXME
 #endif
@@ -2810,6 +2923,42 @@ gum_parse_gp_regs (const GumGPRegs * regs,
   ctx->lo = regs->lo;
 
   ctx->pc = regs->cp0_epc;
+#elif defined (HAVE_RISCV)
+
+  unsigned long *regs_array = (unsigned long *) regs;
+ 
+  ctx->pc = regs_array[0];
+  ctx->ra = regs_array[1];
+  ctx->sp = regs_array[2];
+  ctx->gp = regs_array[3];
+  ctx->tp = regs_array[4];
+  ctx->t0 = regs_array[5];
+  ctx->t1 = regs_array[6];
+  ctx->t2 = regs_array[7];
+  ctx->s0 = regs_array[8];
+  ctx->s1 = regs_array[9];
+  ctx->a0 = regs_array[10];
+  ctx->a1 = regs_array[11];
+  ctx->a2 = regs_array[12];
+  ctx->a3 = regs_array[13];
+  ctx->a4 = regs_array[14];
+  ctx->a5 = regs_array[15];
+  ctx->a6 = regs_array[16];
+  ctx->a7 = regs_array[17];
+  ctx->s2 = regs_array[18];
+  ctx->s3 = regs_array[19];
+  ctx->s4 = regs_array[20];
+  ctx->s5 = regs_array[21];
+  ctx->s6 = regs_array[22];
+  ctx->s7 = regs_array[23];
+  ctx->s8 = regs_array[24];
+  ctx->s9 = regs_array[25];
+  ctx->s10 = regs_array[26];
+  ctx->s11 = regs_array[27];
+  ctx->t3 = regs_array[28];
+  ctx->t4 = regs_array[29];
+  ctx->t5 = regs_array[30];
+  ctx->t6 = regs_array[31];
 #else
 # error Unsupported architecture
 #endif
@@ -2921,6 +3070,41 @@ gum_unparse_gp_regs (const GumCpuContext * ctx,
   regs->lo = ctx->lo;
 
   regs->cp0_epc = ctx->pc;
+#elif defined (HAVE_RISCV)
+
+  unsigned long *regs_array = (unsigned long *) regs;
+  regs_array[0] = ctx->pc;
+  regs_array[1] = ctx->ra;
+  regs_array[2] = ctx->sp;
+  regs_array[3] = ctx->gp;
+  regs_array[4] = ctx->tp;
+  regs_array[5] = ctx->t0;
+  regs_array[6] = ctx->t1;
+  regs_array[7] = ctx->t2;
+  regs_array[8] = ctx->s0;
+  regs_array[9] = ctx->s1;
+  regs_array[10] = ctx->a0;
+  regs_array[11] = ctx->a1;
+  regs_array[12] = ctx->a2;
+  regs_array[13] = ctx->a3;
+  regs_array[14] = ctx->a4;
+  regs_array[15] = ctx->a5;
+  regs_array[16] = ctx->a6;
+  regs_array[17] = ctx->a7;
+  regs_array[18] = ctx->s2;
+  regs_array[19] = ctx->s3;
+  regs_array[20] = ctx->s4;
+  regs_array[21] = ctx->s5;
+  regs_array[22] = ctx->s6;
+  regs_array[23] = ctx->s7;
+  regs_array[24] = ctx->s8;
+  regs_array[25] = ctx->s9;
+  regs_array[26] = ctx->s10;
+  regs_array[27] = ctx->s11;
+  regs_array[28] = ctx->t3;
+  regs_array[29] = ctx->t4;
+  regs_array[30] = ctx->t5;
+  regs_array[31] = ctx->t6;
 #else
 # error Unsupported architecture
 #endif
@@ -3086,10 +3270,10 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
     return FALSE;
 
   if (!gum_linux_find_lock (spec))
-    return FALSE;
 
   if (!gum_linux_find_start_impl (spec))
     return FALSE;
+  }
 
   spec->terminate_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
       gum_process_get_libc_module (), "__call_tls_dtors"));
@@ -3657,7 +3841,9 @@ gum_linux_find_start_impl (GumLinuxPThreadSpec * spec)
   csh capstone;
   cs_insn * insn;
   const uint8_t * code;
+#ifndef HAVE_RISCV
   gsize i;
+#endif
   gboolean found_start = FALSE;
 
   created_thread = gum_linux_create_thread (&ctx, TRUE);
@@ -3680,27 +3866,6 @@ gum_linux_find_start_impl (GumLinuxPThreadSpec * spec)
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
   cs_option (capstone, CS_OPT_SKIPDATA, CS_OPT_ON);
 
-  for (i = 0; i != GUM_MAX_INSTRUCTION_SIZE; i++)
-  {
-    if (cs_disasm (capstone, code - i, i, GPOINTER_TO_SIZE (code - i), 1, &insn)
-        == 0)
-    {
-      continue;
-    }
-
-    if (insn->size != i)
-      continue;
-
-    if (gum_linux_is_call (insn))
-    {
-      found_start = TRUE;
-      spec->start_impl = GSIZE_TO_POINTER (insn->address);
-      break;
-    }
-
-    cs_free (insn, 1);
-    insn = NULL;
-  }
   if (!found_start)
     goto beach;
 
@@ -3744,6 +3909,10 @@ gum_linux_is_call (cs_insn * insn)
 #elif defined (HAVE_MIPS)
     case MIPS_INS_JAL:
     case MIPS_INS_JALR:
+      return TRUE;
+#elif defined (HAVE_RISCV)
+    case RISCV_INS_JAL:
+    case RISCV_INS_JALR:
       return TRUE;
 #else
 # error FIXME
@@ -4556,6 +4725,46 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
       }
     }
   }
+#elif defined (HAVE_RISCV)
+  {
+    gpointer ld_location = NULL;
+    riscv_reg func_reg = RISCV_REG_INVALID;
+
+    while (spec->start_impl == NULL &&
+        cs_disasm_iter (capstone, &code, &size, &addr, insn))
+    {
+      const cs_riscv * riscv = &insn->detail->riscv;
+
+      switch (insn->id)
+      {
+        case RISCV_INS_LD:
+          if (riscv->op_count >= 2 &&
+              riscv->operands[0].type == RISCV_OP_REG &&
+              riscv->operands[1].type == RISCV_OP_MEM &&
+              riscv->operands[1].mem.base == RISCV_REG_SP)
+          {
+            ld_location = (gpointer) (code - insn->size);
+            func_reg = riscv->operands[0].reg;
+            spec->start_routine_offset = riscv->operands[1].mem.disp;
+            spec->start_parameter_offset = spec->start_routine_offset + sizeof (gpointer);
+          }
+          break;
+        case RISCV_INS_JALR:
+
+          if (riscv->op_count >= 1 &&
+              riscv->operands[0].type == RISCV_OP_REG &&
+              riscv->operands[0].reg == func_reg &&
+              ld_location != NULL)
+          {
+
+            spec->start_impl = (guint8 *) ld_location - (4 * sizeof (guint32));
+          }
+          break;
+        default:
+          break;
+      }
+    }
+  }
 #else
 # error FIXME
 #endif
@@ -4845,6 +5054,50 @@ gum_libc_clone (GumCloneFunc child_func,
       errno = retval;
     }
   }
+#elif defined (HAVE_RISCV)
+  *(--child_sp) = child_func;
+  *(--child_sp) = arg;
+
+  {
+    register          gint a0 asm ("a0") = flags;
+    register    gpointer * a1 asm ("a1") = child_sp;
+    register       pid_t * a2 asm ("a2") = parent_tidptr;
+    register GumUserDesc * a3 asm ("a3") = tls;
+    register       pid_t * a4 asm ("a4") = child_tidptr;
+    register        gssize a7 asm ("a7") = __NR_clone;
+    gssize retval;
+
+    asm volatile (
+        "ecall\n\t"
+        "bnez a0, 1f\n\t"
+        "ld a0, 0(sp)\n\t"
+        "ld t0, 8(sp)\n\t"
+        "addi sp, sp, 16\n\t"
+        "jalr ra, t0, 0\n\t"
+        "li a7, %[exit_syscall]\n\t"
+        "ecall\n\t"
+        "1:\n\t"
+        : "+r" (a0)
+        : "r" (a1),
+          "r" (a2),
+          "r" (a3),
+          "r" (a4),
+          "r" (a7),
+          [exit_syscall] "i" (__NR_exit)
+        : "t0", "ra", "memory"
+    );
+
+    retval = a0;
+    if (retval < 0)
+    {
+      result = -1;
+      errno = -retval;
+    }
+    else
+    {
+      result = retval;
+    }
+  }
 #endif
 
   return result;
@@ -5039,6 +5292,26 @@ gum_libc_syscall_4 (gsize n,
       result = -1;
       errno = retval;
     }
+  }
+#elif defined (HAVE_RISCV)
+  {
+    register gssize a0 asm ("a0") = a;
+    register gssize a1 asm ("a1") = b;
+    register  gsize a2 asm ("a2") = c;
+    register  gsize a3 asm ("a3") = d;
+    register  gsize a7 asm ("a7") = n;
+
+    asm volatile (
+      "ecall\n\t"
+      : "+r" (a0)
+      : "r" (a1),
+        "r" (a2),
+        "r" (a3),
+        "r" (a7)
+      : "memory"
+    );
+
+    result = a0;
   }
 #endif
 

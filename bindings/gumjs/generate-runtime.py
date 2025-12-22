@@ -225,6 +225,8 @@ def generate_runtime_cmodule(
         writer_arch = "x86"
     elif arch.startswith("mips"):
         writer_arch = "mips"
+    elif arch.startswith("riscv"):
+        writer_arch = "riscv"
     else:
         writer_arch = arch
     capstone_arch = writer_arch

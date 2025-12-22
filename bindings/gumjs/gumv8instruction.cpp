@@ -989,6 +989,77 @@ gum_mips_parse_memory_operand_value (const mips_op_mem * mem,
   return result;
 }
 
+#elif defined (HAVE_RISCV)
+
+static Local<Array>
+gum_parse_operands (const cs_insn * insn,
+                    GumV8Instruction * module)
+{
+  auto core = module->core;
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+  auto capstone = module->capstone;
+  auto riscv = &insn->detail->riscv;
+
+  uint8_t op_count = riscv->op_count;
+
+  auto elements = Array::New (isolate, op_count);
+
+  for (uint8_t op_index = 0; op_index != op_count; op_index++)
+  {
+    auto op = &riscv->operands[op_index];
+
+    auto element = Object::New (isolate);
+
+    auto type_key = "type";
+    auto value_key = "value";
+
+    switch (op->type)
+    {
+      case RISCV_OP_REG:
+        _gum_v8_object_set_ascii (element, type_key, "reg", core);
+        _gum_v8_object_set_ascii (element, value_key,
+            cs_reg_name (capstone, op->reg), core);
+        break;
+      case RISCV_OP_IMM:
+        _gum_v8_object_set_ascii (element, type_key, "imm", core);
+        _gum_v8_object_set_int (element, value_key, op->imm, core);
+        break;
+      case RISCV_OP_MEM:
+        _gum_v8_object_set_ascii (element, type_key, "mem", core);
+        _gum_v8_object_set (element, value_key,
+            gum_riscv_parse_memory_operand_value (&op->mem, module), core);
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    elements->Set (context, op_index, element).Check ();
+  }
+
+  return elements;
+}
+
+static Local<Object>
+gum_riscv_parse_memory_operand_value (const riscv_op_mem * mem,
+                                       GumV8Instruction * module)
+{
+  auto core = module->core;
+  auto capstone = module->capstone;
+
+  auto result = Object::New (core->isolate);
+
+  if (mem->base != RISCV_REG_INVALID)
+  {
+    _gum_v8_object_set_ascii (result, "base",
+        cs_reg_name (capstone, mem->base), core);
+  }
+
+  _gum_v8_object_set_int (result, "disp", mem->disp, core);
+
+  return result;
+}
+
 #endif
 
 static Local<Array>
