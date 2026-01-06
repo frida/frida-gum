@@ -328,6 +328,27 @@ if host_arch in ['mips', 'mips64']
   ]
 endif
 
+gum_riscv_headers = [
+  'arch-riscv' / 'gumriscvwriter.h',
+  'arch-riscv' / 'gumriscvrelocator.h',
+]
+if host_arch == 'riscv64'
+  gum_riscv_headers += [
+    'arch-riscv' / 'gumriscvbacktracer.h',
+    'arch-riscv' / 'gumriscvreader.h',
+  ]
+  gum_sources += [
+    'arch-riscv' / 'gumriscvwriter.c',
+    'arch-riscv' / 'gumriscvrelocator.c',
+    'arch-riscv' / 'gumriscvbacktracer.c',
+    'arch-riscv' / 'gumriscvreader.c',
+    'backend-riscv' / 'gumcpucontext-riscv.c',
+    'backend-riscv' / 'gumprocess-riscv.c',
+    'backend-riscv' / 'guminterceptor-riscv.c',
+    'backend-riscv' / 'gumstalker-riscv.c',
+  ]
+endif
+
 if libunwind_dep.found()
   gum_backend_headers += [
     'backend-libunwind' / 'include' / 'gum' / 'gumunwbacktracer.h',
@@ -348,6 +369,7 @@ install_headers(gum_x86_headers, subdir: install_header_subdir / 'arch-x86')
 install_headers(gum_arm_headers, subdir: install_header_subdir / 'arch-arm')
 install_headers(gum_arm64_headers, subdir: install_header_subdir / 'arch-arm64')
 install_headers(gum_mips_headers, subdir: install_header_subdir / 'arch-mips')
+install_headers(gum_riscv_headers, subdir: install_header_subdir / 'arch-riscv')
 
 gum_enums = gnome.mkenums('gum-enum-types',
   sources: gum_headers,
