@@ -301,7 +301,12 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
         &g_array_index (module->segments, GumDarwinSegment, i);
 
     if (g_str_has_prefix (segment->name, "__FRIDA_"))
+    {
+      if ((self->flags & GUM_DARWIN_GRAFTER_FLAGS_FORCE) != 0)
+        continue;
+
       goto already_grafted;
+    }
   }
 
   if (!gum_darwin_grafter_compute_layout (self, module, &layout, &code_offsets,
