@@ -11,6 +11,7 @@ static gchar ** code_offsets = NULL;
 static gboolean ingest_function_starts = FALSE;
 static gboolean ingest_imports = FALSE;
 static gboolean transform_lazy_binds = FALSE;
+static gboolean force = FALSE;
 
 static GOptionEntry options[] =
 {
@@ -25,6 +26,8 @@ static GOptionEntry options[] =
       "Include instrumentation for imports", NULL },
   { "transform-lazy-binds", 'z', 0, G_OPTION_ARG_NONE, &transform_lazy_binds,
       "Transform lazy binds into regular binds (experimental)", NULL },
+  { "force", 'f', 0, G_OPTION_ARG_NONE, &force,
+      "Force grafting even if already grafted", NULL },
   { NULL }
 };
 
@@ -36,7 +39,7 @@ main (int argc,
   const gchar * input_path;
   GumDarwinGrafterFlags flags;
   GumDarwinGrafter * grafter;
-  GError * error;
+  GError * error = NULL;
 
   gum_init ();
 
@@ -62,6 +65,8 @@ main (int argc,
     flags |= GUM_DARWIN_GRAFTER_FLAGS_INGEST_IMPORTS;
   if (transform_lazy_binds)
     flags |= GUM_DARWIN_GRAFTER_FLAGS_TRANSFORM_LAZY_BINDS;
+  if (force)
+    flags |= GUM_DARWIN_GRAFTER_FLAGS_FORCE;
 
   grafter = gum_darwin_grafter_new_from_file (input_path, flags);
 
