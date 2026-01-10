@@ -78,6 +78,10 @@ static GumAddress gum_native_module_find_export_by_name (GumModule * module,
 
 static GumAddress gum_dlsym (gpointer module_handle, const gchar * symbol_name);
 
+#ifdef HAVE_ANDROID
+static gboolean gum_path_indicates_apk_library (const gchar * path);
+#endif
+
 G_DEFINE_TYPE_EXTENDED (GumNativeModule,
                         gum_native_module,
                         G_TYPE_OBJECT,
@@ -411,29 +415,12 @@ gum_native_module_enumerate_ranges (GumModule * module,
       &ctx);
 }
 
-#ifdef HAVE_ANDROID
-static gboolean
-gum_path_indicates_apk_library (const gchar * path)
-{
-  return strstr (path, ".apk!") != NULL;
-}
-
-static gboolean
-gum_address_within_module_range (GumAddress address,
-                                 const GumMemoryRange * module_range)
-{
-  return address >= module_range->base_address &&
-         address < (module_range->base_address + module_range->size);
-}
-#endif
-
 static gboolean
 gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
                                        gpointer user_data)
 {
   GumEnumerateRangesContext * ctx = user_data;
-  const gchar * range_path;
-  const gchar * module_path;
+  const gchar * range_path, * module_path;
 
   if (details->file == NULL)
     return TRUE;
@@ -441,7 +428,6 @@ gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
   range_path = details->file->path;
   module_path = ctx->module->path;
 
-  /* Fast path: exact match */
   if (strcmp (range_path, module_path) == 0)
     return ctx->func (details, ctx->user_data);
 
@@ -458,8 +444,8 @@ gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
   if (gum_path_indicates_apk_library (range_path) ||
       gum_path_indicates_apk_library (module_path))
   {
-    if (gum_address_within_module_range (details->range->base_address,
-            &ctx->module->range))
+    if (GUM_MEMORY_RANGE_INCLUDES (&ctx->module->range,
+          details->range->base_address))
     {
       return ctx->func (details, ctx->user_data);
     }
@@ -563,3 +549,13 @@ gum_dlsym (gpointer module_handle,
   return GUM_ADDRESS (dlsym (module_handle, symbol_name));
 #endif
 }
+
+#ifdef HAVE_ANDROID
+
+static gboolean
+gum_path_indicates_apk_library (const gchar * path)
+{
+  return strstr (path, ".apk!") != NULL;
+}
+
+#endif
