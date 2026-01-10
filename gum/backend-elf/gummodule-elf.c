@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Daniel Baier <admin@remoteshell-security.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
