@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Daniel Baier <admin@remoteshell-security.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -77,6 +78,10 @@ static GumAddress gum_native_module_find_export_by_name (GumModule * module,
     const gchar * symbol_name);
 
 static GumAddress gum_dlsym (gpointer module_handle, const gchar * symbol_name);
+
+#ifdef HAVE_ANDROID
+static gboolean gum_path_indicates_apk_library (const gchar * path);
+#endif
 
 G_DEFINE_TYPE_EXTENDED (GumNativeModule,
                         gum_native_module,
@@ -416,13 +421,39 @@ gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
                                        gpointer user_data)
 {
   GumEnumerateRangesContext * ctx = user_data;
+  const gchar * range_path, * module_path;
 
   if (details->file == NULL)
     return TRUE;
-  if (strcmp (details->file->path, ctx->module->path) != 0)
-    return TRUE;
 
-  return ctx->func (details, ctx->user_data);
+  range_path = details->file->path;
+  module_path = ctx->module->path;
+
+  if (strcmp (range_path, module_path) == 0)
+    return ctx->func (details, ctx->user_data);
+
+#ifdef HAVE_ANDROID
+  /*
+   * Android APK-embedded library handling:
+   * When android:extractNativeLibs="false", libraries are loaded directly
+   * from the APK. /proc/maps shows paths like:
+   *   /data/app/.../base.apk!/lib/arm64-v8a/libfoo.so
+   *
+   * The module's stored path (from soinfo::get_realpath()) may differ.
+   * Use address-based matching as a fallback.
+   */
+  if (gum_path_indicates_apk_library (range_path) ||
+      gum_path_indicates_apk_library (module_path))
+  {
+    if (GUM_MEMORY_RANGE_INCLUDES (&ctx->module->range,
+          details->range->base_address))
+    {
+      return ctx->func (details, ctx->user_data);
+    }
+  }
+#endif
+
+  return TRUE;
 }
 
 static void
@@ -519,3 +550,13 @@ gum_dlsym (gpointer module_handle,
   return GUM_ADDRESS (dlsym (module_handle, symbol_name));
 #endif
 }
+
+#ifdef HAVE_ANDROID
+
+static gboolean
+gum_path_indicates_apk_library (const gchar * path)
+{
+  return strstr (path, ".apk!") != NULL;
+}
+
+#endif
