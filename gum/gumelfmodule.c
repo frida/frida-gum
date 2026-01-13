@@ -2151,6 +2151,9 @@ gum_elf_module_find_address_file_offset (GumElfModule * self,
 
   *offset = phdr->offset + delta;
 
+  if (*offset >= self->file_size)
+    return FALSE;
+
   return TRUE;
 }
 
