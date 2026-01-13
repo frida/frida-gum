@@ -1909,8 +1909,9 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       guint32 nbuckets;
       guint32 symoffset;
       guint32 bloom_size;
-      const gsize * bloom;
-      gsize remaining;
+      guint word_size;
+      const guint8 * bloom;
+      guint remaining;
       const guint32 * buckets;
       const guint32 * chain;
       guint32 highest_index, bucket_index;
@@ -1932,20 +1933,21 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       nbuckets = hash_params[0];
       symoffset = hash_params[1];
       bloom_size = hash_params[2];
-      bloom = (gsize *) (hash_params + 4);
 
-      remaining = (const guint8 *) data + size - (const guint8 *) bloom;
-      if ((gsize) bloom_size > remaining / sizeof (gsize))
+      word_size = gum_elf_module_get_pointer_size (self);
+
+      bloom = (const guint8 *) (hash_params + 4);
+
+      remaining = (const guint8 *) data + size - bloom;
+      if ((gsize) bloom_size > (gsize) remaining / word_size)
         goto propagate_error;
-      bloom_bytes = (gsize) bloom_size * sizeof (gsize);
-      GUM_CHECK_BOUNDS (bloom,
-          (const guint8 *) bloom + bloom_bytes,
-          "GNU hash bloom");
+      bloom_bytes = (gsize) bloom_size * word_size;
+      GUM_CHECK_BOUNDS (bloom, bloom + bloom_bytes, "GNU hash bloom");
 
-      buckets = (const guint32 *) (bloom + bloom_size);
+      buckets = (const guint32 *) (bloom + bloom_bytes);
 
       remaining = (const guint8 *) data + size - (const guint8 *) buckets;
-      if ((gsize) nbuckets > remaining / sizeof (guint32))
+      if ((gsize) nbuckets > (gsize) remaining / sizeof (guint32))
         goto propagate_error;
       buckets_bytes = (gsize) nbuckets * sizeof (guint32);
       GUM_CHECK_BOUNDS (buckets,
