@@ -1431,7 +1431,6 @@ gum_elf_module_emit_relocations (GumElfModule * self,
   gsize size;
   guint n, i;
   gconstpointer start, end, cursor;
-
   GError ** error = NULL;
 
   if (g->offset == 0 || g->size == 0 || g->entsize == 0)
