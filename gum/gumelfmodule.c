@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C)      2021 Paul Schmidt <p.schmidt@tu-bs.de>
  *
@@ -1860,6 +1860,12 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
                          gpointer user_data)
 {
   GumElfStoreSymtabParamsContext * ctx = user_data;
+  GumElfModule * self = ctx->module;
+  gconstpointer data;
+  gsize size;
+  GError ** error = NULL;
+
+  data = gum_elf_module_get_live_data (self, &size);
 
   switch (details->tag)
   {
@@ -1879,12 +1885,19 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
 
       if (ctx->found_hash)
         break;
-      ctx->found_hash = TRUE;
 
       hash_params = gum_elf_module_resolve_dynamic_virtual_location (
           ctx->module, details->val);
+      if (hash_params == NULL)
+        break;
+
+      GUM_CHECK_BOUNDS (hash_params,
+          (const guint8 *) hash_params + (2 * sizeof (guint32)),
+          "SYSV hash header");
+
       nchain = hash_params[1];
 
+      ctx->found_hash = TRUE;
       ctx->entry_count = nchain;
       ctx->pending--;
 
@@ -1897,34 +1910,71 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       guint32 symoffset;
       guint32 bloom_size;
       const gsize * bloom;
+      gsize remaining;
       const guint32 * buckets;
       const guint32 * chain;
       guint32 highest_index, bucket_index;
+      gsize bloom_bytes, buckets_bytes;
+      gsize max_chain_entries;
 
       if (ctx->found_hash)
         break;
-      ctx->found_hash = TRUE;
 
       hash_params = gum_elf_module_resolve_dynamic_virtual_location (
           ctx->module, details->val);
+      if (hash_params == NULL)
+        break;
+
+      GUM_CHECK_BOUNDS (hash_params,
+          (const guint8 *) hash_params + (4 * sizeof (guint32)),
+          "GNU hash header");
+
       nbuckets = hash_params[0];
       symoffset = hash_params[1];
       bloom_size = hash_params[2];
       bloom = (gsize *) (hash_params + 4);
+
+      remaining = (const guint8 *) data + size - (const guint8 *) bloom;
+      if ((gsize) bloom_size > remaining / sizeof (gsize))
+        goto propagate_error;
+      bloom_bytes = (gsize) bloom_size * sizeof (gsize);
+      GUM_CHECK_BOUNDS (bloom,
+          (const guint8 *) bloom + bloom_bytes,
+          "GNU hash bloom");
+
       buckets = (const guint32 *) (bloom + bloom_size);
+
+      remaining = (const guint8 *) data + size - (const guint8 *) buckets;
+      if ((gsize) nbuckets > remaining / sizeof (guint32))
+        goto propagate_error;
+      buckets_bytes = (gsize) nbuckets * sizeof (guint32);
+      GUM_CHECK_BOUNDS (buckets,
+          (const guint8 *) buckets + buckets_bytes,
+          "GNU hash buckets");
+
       chain = buckets + nbuckets;
+      GUM_CHECK_BOUNDS (chain, (const guint8 *) chain + 1, "GNU hash chain");
+
+      ctx->found_hash = TRUE;
 
       highest_index = 0;
       for (bucket_index = 0; bucket_index != nbuckets; bucket_index++)
-      {
         highest_index = MAX (buckets[bucket_index], highest_index);
-      }
 
       if (highest_index >= symoffset)
       {
+        max_chain_entries = ((const guint8 *) data + size -
+            (const guint8 *) chain) / sizeof (guint32);
+
         while (TRUE)
         {
-          guint32 hash = chain[highest_index - symoffset];
+          guint32 chain_index = highest_index - symoffset;
+          guint32 hash;
+
+          if ((gsize) chain_index >= max_chain_entries)
+            goto propagate_error;
+
+          hash = chain[chain_index];
 
           if ((hash & 1) != 0)
             break;
@@ -1943,6 +1993,12 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
   }
 
   return ctx->pending != 0;
+
+propagate_error:
+  {
+    ctx->found_hash = FALSE;
+    return TRUE;
+  }
 }
 
 static gboolean
