@@ -2467,6 +2467,11 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
     if (head->magic == 0)
       break;
 
+    if (head->size < 16 || (head->size & 15) != 0)
+      break;
+    if (i + head->size > sizeof (mc->__reserved))
+      break;
+
     switch (head->magic)
     {
       case FPSIMD_MAGIC:
@@ -2479,7 +2484,7 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
       }
     }
 
-    i += 4 + 4 + 8 + head->size;
+    i += head->size;
   }
 #elif defined (HAVE_MIPS)
   const greg_t * gr = uc->uc_mcontext.gregs;
@@ -2634,6 +2639,11 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
     if (head->magic == 0)
       break;
 
+    if (head->size < 16 || (head->size & 15) != 0)
+      break;
+    if (i + head->size > sizeof (mc->__reserved))
+      break;
+
     switch (head->magic)
     {
       case FPSIMD_MAGIC:
@@ -2646,7 +2656,7 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
       }
     }
 
-    i += 4 + 4 + 8 + head->size;
+    i += head->size;
   }
 #elif defined (HAVE_MIPS)
   greg_t * gr = uc->uc_mcontext.gregs;
