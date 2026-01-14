@@ -355,6 +355,16 @@ struct _GumMuslStartArgs
   gulong sig_mask[GUM_NSIG / 8 / sizeof (long)];
 };
 
+#elif defined (HAVE_ANDROID)
+
+typedef struct _GumFindFunctionByPrefixContext GumFindFunctionByPrefixContext;
+
+struct _GumFindFunctionByPrefixContext
+{
+  const gchar * prefix;
+  GumAddress address;
+};
+
 #endif
 
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
@@ -443,6 +453,12 @@ static gpointer gum_parse_ldrpc (const uint8_t * code, csh capstone,
 # endif
 static GumMuslStartArgs * gum_query_pthread_start_args (pthread_t thread,
     const GumLinuxPThreadSpec * spec);
+#endif
+#ifdef HAVE_ANDROID
+static GumAddress gum_find_function_symbol_by_prefix (GumModule * module,
+    const gchar * prefix);
+static gboolean gum_store_first_function_symbol_with_prefix (
+    const GumSymbolDetails * details, gpointer user_data);
 #endif
 
 static gssize gum_libc_clone (GumCloneFunc child_func, gpointer child_stack,
@@ -4379,7 +4395,7 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
   if (spec->thread_list == NULL || spec->thread_list_lock == NULL)
     return FALSE;
 
-  start_prologue = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (libc,
+  start_prologue = GSIZE_TO_POINTER (gum_find_function_symbol_by_prefix (libc,
         "_ZL15__pthread_startPv"));
   if (start_prologue == NULL)
     return FALSE;
@@ -4571,6 +4587,37 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
         "pthread_exit"));
 
   return spec->terminate_impl != NULL;
+}
+
+static GumAddress
+gum_find_function_symbol_by_prefix (GumModule * module,
+                                    const gchar * prefix)
+{
+  GumFindFunctionByPrefixContext ctx;
+
+  ctx.prefix = prefix;
+  ctx.address = 0;
+
+  gum_module_enumerate_symbols (module,
+      gum_store_first_function_symbol_with_prefix, &ctx);
+
+  return ctx.address;
+}
+
+static gboolean
+gum_store_first_function_symbol_with_prefix (const GumSymbolDetails * details,
+                                             gpointer user_data)
+{
+  GumFindFunctionByPrefixContext * ctx = user_data;
+
+  if (details->type == GUM_SYMBOL_FUNCTION &&
+      g_str_has_prefix (details->name, ctx->prefix))
+  {
+    ctx->address = details->address;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 #endif
