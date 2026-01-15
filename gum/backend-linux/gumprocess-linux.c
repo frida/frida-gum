@@ -2634,11 +2634,6 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
     if (head->magic == 0)
       break;
 
-    if (head->size < 16 || (head->size & 15) != 0)
-      break;
-    if (i + head->size > sizeof (mc->__reserved))
-      break;
-
     switch (head->magic)
     {
       case FPSIMD_MAGIC:
