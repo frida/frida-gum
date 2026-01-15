@@ -745,7 +745,8 @@ gum_v8_script_compile (GumV8Script * self,
   }
   else
   {
-    program->global_filename = g_strconcat ("/", self->name, ".js", NULL);
+    program->global_filename = g_strconcat ("/", self->name, ".js",
+        (const gchar *) NULL);
 
     auto resource_name = String::NewFromUtf8 (isolate, program->global_filename)
         .ToLocalChecked ();
@@ -833,7 +834,7 @@ _gum_v8_script_load_module (GumV8Script * self,
     gchar * source_map = gum_source_map_try_extract_inline (source);
     if (source_map != NULL)
     {
-      gchar * map_name = g_strconcat (name, ".map", NULL);
+      gchar * map_name = g_strconcat (name, ".map", (const gchar *) NULL);
       auto asset = gum_es_asset_new (map_name, source_map, strlen (source_map),
           g_free);
       g_hash_table_insert (program->es_assets, map_name, asset);
@@ -853,7 +854,7 @@ _gum_v8_script_register_source_map (GumV8Script * self,
                                     const gchar * name,
                                     gchar * source_map)
 {
-  gchar * map_name = g_strconcat (name, ".map", NULL);
+  gchar * map_name = g_strconcat (name, ".map", (const gchar *) NULL);
   g_hash_table_insert (self->program->es_assets, map_name,
       gum_es_asset_new (map_name, source_map, strlen (source_map), g_free));
 }
@@ -2061,7 +2062,8 @@ gum_es_program_new (void)
 
   for (auto cur = gumjs_runtime_modules; cur->name != NULL; cur++)
   {
-    auto name = g_strconcat ("/frida/runtime/", cur->name, NULL);
+    auto name = g_strconcat ("/frida/runtime/", cur->name,
+        (const gchar *) NULL);
     auto asset = gum_es_asset_new (name, cur->source_code,
         strlen (cur->source_code), NULL);
 

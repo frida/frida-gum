@@ -436,7 +436,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_instruction_to_string, GumV8InstructionValue)
 
   if (*insn->op_str != '\0')
   {
-    auto str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
+    auto str = g_strconcat (insn->mnemonic, " ", insn->op_str,
+        (const gchar *) NULL);
     info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
     g_free (str);
   }
