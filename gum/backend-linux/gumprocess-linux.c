@@ -2479,7 +2479,7 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
       }
     }
 
-    i += 4 + 4 + 8 + head->size;
+    i += head->size;
   }
 #elif defined (HAVE_MIPS)
   const greg_t * gr = uc->uc_mcontext.gregs;
@@ -2646,7 +2646,7 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
       }
     }
 
-    i += 4 + 4 + 8 + head->size;
+    i += head->size;
   }
 #elif defined (HAVE_MIPS)
   greg_t * gr = uc->uc_mcontext.gregs;
