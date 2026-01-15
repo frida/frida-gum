@@ -675,21 +675,11 @@ namespace Gum {
 	}
 
 	public struct AddressSpec {
-		public AddressSpec (void * near_address, size_t max_distance) {
-			this.near_address = near_address;
-			this.max_distance = max_distance;
-		}
-
 		public void * near_address;
 		public size_t max_distance;
 	}
 
 	public struct MemoryRange {
-		public MemoryRange (Address base_address, size_t size) {
-			this.base_address = base_address;
-			this.size = size;
-		}
-
 		public Address base_address;
 		public size_t size;
 	}
