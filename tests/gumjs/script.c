@@ -93,7 +93,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (invocations_are_bound_on_tls_object)
     TESTENTRY (invocations_provide_thread_id)
     TESTENTRY (invocations_provide_call_depth)
-#ifndef HAVE_MIPS
+#if !defined (HAVE_MIPS) && !defined (HAVE_RISCV)
     TESTENTRY (invocations_provide_context_for_backtrace)
 #endif
     TESTENTRY (invocations_provide_context_serializable_to_json)
@@ -1184,6 +1184,18 @@ TESTCASE (code_writer_should_not_flush_on_gc)
       "writer = null;"
       "gc();");
   EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_RISCV)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "let writer = new RiscvWriter(page);"
+      "writer.putJalLabel('later');"
+      "writer.putInstruction(0x00100073);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "Memory.protect(page, Process.pageSize, '---');"
+      "writer = null;"
+      "gc();");
+  EXPECT_NO_MESSAGES ();
 #else
   g_print ("<skipping, missing code for current architecture> ");
 #endif
@@ -1260,6 +1272,18 @@ TESTCASE (code_writer_should_flush_on_reset)
       test_reset);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_RISCV)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new RiscvWriter(page);"
+      "writer.putJalLabel('later');"
+      "writer.putInstruction(0x00100073);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "%s",
+      test_reset);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
 #else
   g_print ("<skipping, missing code for current architecture> ");
 #endif
@@ -1330,6 +1354,19 @@ TESTCASE (code_writer_should_flush_on_dispose)
       "const writer = new MipsWriter(page);"
       "writer.putJLabel('later');"
       "writer.putBreak(42);"
+      "writer.putLabel('later');"
+      "writer.putRet();"
+      "%s",
+      test_dispose);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_RISCV)
+  COMPILE_AND_LOAD_SCRIPT (
+      "const page = Memory.alloc(Process.pageSize);"
+      "const writer = new RiscvWriter(page);"
+      "writer.putJalLabel('later');"
+      "writer.putInstruction(0x00100073);"
+      "writer.putInstruction(0x00100073);"
       "writer.putLabel('later');"
       "writer.putRet();"
       "%s",
@@ -5697,7 +5734,7 @@ TESTCASE (process_threads_can_be_enumerated)
     return;
 #endif
 
-#ifdef HAVE_MIPS
+#if defined (HAVE_MIPS) || defined (HAVE_RISCV)
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
@@ -5747,7 +5784,7 @@ TESTCASE (process_threads_have_names)
     return;
 # endif
 
-# ifdef HAVE_MIPS
+# if defined (HAVE_MIPS) || defined (HAVE_RISCV)
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
@@ -8920,6 +8957,8 @@ TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
       "details.context.x0 = " GUM_PTR_CONST ";"
 #elif defined (HAVE_MIPS)
       "details.context.ra = " GUM_PTR_CONST ";"
+#elif defined (HAVE_RISCV)
+      "details.context.a0 = " GUM_PTR_CONST ";"
 #endif
       , expected_ret);
 
@@ -8955,6 +8994,8 @@ put_return_instruction (gpointer mem,
   guint32 * code = mem;
   code[0] = 0x03e00008U;
   code[1] = 0x00000000U;
+#elif defined (HAVE_RISCV)
+  *((guint32 *) mem) = 0x00008067U;
 #else
 # error Unsupported architecture
 #endif
@@ -10360,6 +10401,8 @@ TESTCASE (cmodule_should_provide_access_to_cpu_registers)
 #elif defined (HAVE_ARM64)
 # define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->x[0]
 #elif defined (HAVE_MIPS)
+# define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->a0
+#elif defined (HAVE_RISCV)
 # define GUM_IC_GET_FIRST_ARG(ic) (ic)->cpu_context->a0
 #endif
 
@@ -11807,7 +11850,7 @@ TESTCASE (user_time_can_be_sampled_for_other_threads)
     return;
 # endif
 
-# ifdef HAVE_MIPS
+# if defined (HAVE_MIPS) || defined (HAVE_RISCV)
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
@@ -11893,7 +11936,7 @@ TESTCASE (user_time_find_busy_threads)
     return;
 # endif
 
-# ifdef HAVE_MIPS
+# if defined (HAVE_MIPS) || defined (HAVE_RISCV)
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
