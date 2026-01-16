@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
@@ -84,7 +84,7 @@ G_GNUC_INTERNAL void _gum_interceptor_backend_destroy (
 G_GNUC_INTERNAL gboolean _gum_interceptor_backend_claim_grafted_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
 G_GNUC_INTERNAL gboolean _gum_interceptor_backend_create_trampoline (
-    GumInterceptorBackend * self, GumFunctionContext * ctx);
+    GumInterceptorBackend * self, GumFunctionContext * ctx, gboolean overwrite);
 G_GNUC_INTERNAL void _gum_interceptor_backend_destroy_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
 G_GNUC_INTERNAL void _gum_interceptor_backend_activate_trampoline (

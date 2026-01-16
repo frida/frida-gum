@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -28,6 +28,7 @@ typedef enum
 {
   GUM_ATTACH_FLAGS_NONE        = 0,
   GUM_ATTACH_FLAGS_UNIGNORABLE = (1 << 0),
+  GUM_ATTACH_FLAGS_FORCE       = (1 << 1),
 } GumAttachFlags;
 
 typedef enum

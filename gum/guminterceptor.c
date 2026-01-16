@@ -148,7 +148,7 @@ static GumReplaceReturn gum_interceptor_replace_with_type (
     gpointer replacement_function, gpointer replacement_data,
     gpointer * original_function);
 static GumFunctionContext * gum_interceptor_instrument (GumInterceptor * self,
-    GumInterceptorType type, gpointer function_address,
+    GumInterceptorType type, gpointer function_address, gboolean force,
     GumInstrumentationError * error);
 static void gum_interceptor_activate (GumInterceptor * self,
     GumFunctionContext * ctx, gpointer prologue);
@@ -366,7 +366,7 @@ gum_interceptor_attach (GumInterceptor * self,
   function_address = gum_interceptor_resolve (self, function_address);
 
   function_ctx = gum_interceptor_instrument (self, GUM_INTERCEPTOR_TYPE_DEFAULT,
-      function_address, &error);
+      function_address, (flags & GUM_ATTACH_FLAGS_FORCE) != 0, &error);
 
   if (function_ctx == NULL)
     goto instrumentation_error;
@@ -500,7 +500,7 @@ gum_interceptor_replace_with_type (GumInterceptor * self,
   function_address = gum_interceptor_resolve (self, function_address);
 
   function_ctx =
-      gum_interceptor_instrument (self, type, function_address, &error);
+      gum_interceptor_instrument (self, type, function_address, FALSE, &error);
 
   if (function_ctx == NULL)
     goto instrumentation_error;
@@ -819,6 +819,7 @@ static GumFunctionContext *
 gum_interceptor_instrument (GumInterceptor * self,
                             GumInterceptorType type,
                             gpointer function_address,
+                            gboolean force,
                             GumInstrumentationError * error)
 {
   GumFunctionContext * ctx;
@@ -853,7 +854,7 @@ gum_interceptor_instrument (GumInterceptor * self,
   }
   else
   {
-    if (!_gum_interceptor_backend_create_trampoline (self->backend, ctx))
+    if (!_gum_interceptor_backend_create_trampoline (self->backend, ctx, force))
       goto wrong_signature;
   }
 

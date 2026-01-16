@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -134,7 +134,8 @@ _gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
 
 static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
-                                            GumFunctionContext * ctx)
+                                            GumFunctionContext * ctx,
+                                            gboolean force)
 {
   GumArmFunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address;
@@ -151,7 +152,11 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
       data->full_redirect_size += 2;
 
     if (gum_thumb_relocator_can_relocate (function_address,
-        data->full_redirect_size, GUM_SCENARIO_ONLINE, &redirect_limit))
+          data->full_redirect_size, GUM_SCENARIO_ONLINE, &redirect_limit))
+    {
+      data->redirect_code_size = data->full_redirect_size;
+    }
+    else if (force)
     {
       data->redirect_code_size = data->full_redirect_size;
     }
@@ -174,6 +179,10 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     {
       data->redirect_code_size = data->full_redirect_size;
     }
+    else if (force)
+    {
+      data->redirect_code_size = data->full_redirect_size;
+    }
     else
     {
       if (redirect_limit >= GUM_INTERCEPTOR_ARM_TINY_REDIRECT_SIZE)
@@ -189,14 +198,15 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
-                                            GumFunctionContext * ctx)
+                                            GumFunctionContext * ctx,
+                                            gboolean force)
 {
   gpointer func;
   gboolean success;
 
   func = _gum_interceptor_backend_get_function_address (ctx);
 
-  if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force))
     return FALSE;
 
   if (FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx))
