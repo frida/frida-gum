@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -112,6 +112,7 @@ _gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
 static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
+                                            gboolean force,
                                             gboolean * need_deflector)
 {
   GumMipsFunctionContextData * data = GUM_FCDATA (ctx);
@@ -126,6 +127,17 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     data->redirect_code_size = GUM_HOOK_SIZE;
 
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+  }
+  else if (force)
+  {
+    data->redirect_code_size = GUM_HOOK_SIZE;
+
+    ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+
+    if (data->scratch_reg == MIPS_REG_INVALID)
+      data->scratch_reg = MIPS_REG_AT;
+
+    return TRUE;
   }
   else
   {
@@ -162,7 +174,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
-                                            GumFunctionContext * ctx)
+                                            GumFunctionContext * ctx,
+                                            gboolean force)
 {
   GumMipsWriter * cw = &self->writer;
   GumMipsRelocator * rl = &self->relocator;
@@ -171,7 +184,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gboolean need_deflector;
   guint reloc_bytes;
 
-  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, &need_deflector))
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force,
+        &need_deflector))
     return FALSE;
 
   gum_mips_writer_reset (cw, ctx->trampoline_slice->data);
@@ -232,7 +246,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   do
   {
     reloc_bytes = gum_mips_relocator_read_one (rl, NULL);
-    g_assert (reloc_bytes != 0);
+    if (reloc_bytes == 0)
+      reloc_bytes = data->redirect_code_size;
   }
   while (reloc_bytes < data->redirect_code_size || rl->delay_slot_pending);
 

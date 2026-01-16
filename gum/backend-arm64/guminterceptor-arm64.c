@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -24,6 +24,8 @@
 # include <mach-o/loader.h>
 # include <stdlib.h>
 #endif
+
+#define GUM_INTERCEPTOR_FULL_REDIRECT_SIZE 16
 
 #define GUM_ARM64_LOGICAL_PAGE_SIZE 4096
 
@@ -623,6 +625,7 @@ _gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
 static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
+                                            gboolean force,
                                             gboolean * need_deflector)
 {
   GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
@@ -631,12 +634,24 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
   *need_deflector = FALSE;
 
-  if (gum_arm64_relocator_can_relocate (function_address, 16,
-      GUM_SCENARIO_ONLINE, &redirect_limit, &data->scratch_reg))
+  if (gum_arm64_relocator_can_relocate (function_address,
+        GUM_INTERCEPTOR_FULL_REDIRECT_SIZE, GUM_SCENARIO_ONLINE,
+        &redirect_limit, &data->scratch_reg))
   {
-    data->redirect_code_size = 16;
+    data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
 
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+  }
+  else if (force)
+  {
+    data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
+
+    ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+
+    if (data->scratch_reg == ARM64_REG_INVALID)
+      data->scratch_reg = ARM64_REG_X16;
+
+    return TRUE;
   }
   else if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
   {
@@ -705,7 +720,8 @@ no_scratch_reg:
 
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
-                                            GumFunctionContext * ctx)
+                                            GumFunctionContext * ctx,
+                                            gboolean force)
 {
   GumArm64Writer * aw = &self->writer;
   GumArm64Relocator * ar = &self->relocator;
@@ -717,7 +733,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gboolean is_eligible_for_lr_rewriting;
   guint reloc_bytes;
 
-  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, &need_deflector))
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force,
+        &need_deflector))
     return FALSE;
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
@@ -791,7 +808,11 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     const cs_insn * insn;
 
     reloc_bytes = gum_arm64_relocator_read_one (ar, &insn);
-    g_assert (reloc_bytes != 0);
+    if (reloc_bytes == 0)
+    {
+      reloc_bytes = data->redirect_code_size;
+      break;
+    }
 
     if (signature->len != 0)
       g_string_append_c (signature, ';');
@@ -981,7 +1002,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
         gum_arm64_writer_put_adrp_reg_address (aw, data->scratch_reg, on_enter);
         gum_arm64_writer_put_br_reg_no_auth (aw, data->scratch_reg);
         break;
-      case 16:
+      case GUM_INTERCEPTOR_FULL_REDIRECT_SIZE:
         gum_arm64_writer_put_ldr_reg_address (aw, data->scratch_reg, on_enter);
         gum_arm64_writer_put_br_reg (aw, data->scratch_reg);
         break;

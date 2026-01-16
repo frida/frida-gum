@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
@@ -102,7 +102,8 @@ _gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
 
 static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
-                                            GumFunctionContext * ctx)
+                                            GumFunctionContext * ctx,
+                                            gboolean force)
 {
   GumX86FunctionContextData * data = GUM_FCDATA (ctx);
 #if GLIB_SIZEOF_VOID_P == 4
@@ -151,7 +152,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   }
 #endif
 
-  if (!gum_x86_relocator_can_relocate (ctx->function_address,
+  if (!force && !gum_x86_relocator_can_relocate (ctx->function_address,
         data->redirect_code_size, NULL))
     goto not_enough_space;
 
@@ -167,7 +168,8 @@ not_enough_space:
 
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
-                                            GumFunctionContext * ctx)
+                                            GumFunctionContext * ctx,
+                                            gboolean force)
 {
   GumX86Writer * cw = &self->writer;
   GumX86Relocator * rl = &self->relocator;
@@ -176,7 +178,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumAddress after_push_to_shadow_stack;
   guint reloc_bytes;
 
-  if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force))
     return FALSE;
 
   gum_x86_writer_reset (cw, ctx->trampoline_slice->data);
@@ -234,7 +236,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   do
   {
     reloc_bytes = gum_x86_relocator_read_one (rl, NULL);
-    g_assert (reloc_bytes != 0);
+    if (reloc_bytes == 0)
+      reloc_bytes = data->redirect_code_size;
   }
   while (reloc_bytes < data->redirect_code_size);
   gum_x86_relocator_write_all (rl);
