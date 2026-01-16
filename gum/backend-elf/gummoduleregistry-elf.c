@@ -134,9 +134,10 @@ gum_hook_rtld_notifier (const GumRtldNotifierDetails * details,
   }
 
   if (gum_interceptor_attach (gum_rtld_interceptor, impl + offset, *handler,
-        NULL, GUM_ATTACH_FLAGS_UNIGNORABLE) != GUM_ATTACH_OK)
+        NULL, GUM_ATTACH_FLAGS_UNIGNORABLE) == GUM_ATTACH_WRONG_SIGNATURE)
   {
-    gum_panic ("Unable to hook RTLD stub; please file a bug");
+    gum_interceptor_attach (gum_rtld_interceptor, impl + offset, *handler,
+        NULL, GUM_ATTACH_FLAGS_UNIGNORABLE | GUM_ATTACH_FLAGS_FORCE);
   }
 }
 
