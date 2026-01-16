@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,17 +7,17 @@
 
 #include "gumprocess-priv.h"
 
-#define GUM_DR7_LOCAL_BREAKPOINT_ENABLE            ((guint32) 1U)
-#define GUM_DR7_ENABLE_MASK                        ((guint32) 3U)
-#define GUM_DR7_LE                                 ((guint32) (1U <<  8))
-#define GUM_DR7_RESERVED_BIT10                     ((guint32) (1U << 10))
-#define GUM_DR7_CONFIG_BREAK_DATA_WRITES_ONLY      ((guint32) (1U <<  0))
-#define GUM_DR7_CONFIG_BREAK_DATA_READS_AND_WRITES ((guint32) (3U <<  0))
-#define GUM_DR7_CONFIG_LENGTH_ONE                  ((guint32) (0U <<  2))
-#define GUM_DR7_CONFIG_LENGTH_TWO                  ((guint32) (1U <<  2))
-#define GUM_DR7_CONFIG_LENGTH_FOUR                 ((guint32) (3U <<  2))
-#define GUM_DR7_CONFIG_LENGTH_EIGHT                ((guint32) (2U <<  2))
-#define GUM_DR7_CONFIG_MASK                        ((guint32) 0xf)
+#define GUM_DR7_LOCAL_BREAKPOINT_ENABLE            ((gsize) 1U)
+#define GUM_DR7_ENABLE_MASK                        ((gsize) 3U)
+#define GUM_DR7_LE                                 ((gsize) (1U <<  8))
+#define GUM_DR7_RESERVED_BIT10                     ((gsize) (1U << 10))
+#define GUM_DR7_CONFIG_BREAK_DATA_WRITES_ONLY      ((gsize) (1U <<  0))
+#define GUM_DR7_CONFIG_BREAK_DATA_READS_AND_WRITES ((gsize) (3U <<  0))
+#define GUM_DR7_CONFIG_LENGTH_ONE                  ((gsize) (0U <<  2))
+#define GUM_DR7_CONFIG_LENGTH_TWO                  ((gsize) (1U <<  2))
+#define GUM_DR7_CONFIG_LENGTH_FOUR                 ((gsize) (3U <<  2))
+#define GUM_DR7_CONFIG_LENGTH_EIGHT                ((gsize) (2U <<  2))
+#define GUM_DR7_CONFIG_MASK                        ((gsize) 0xf)
 
 void
 _gum_x86_set_breakpoint (gsize * dr7,
