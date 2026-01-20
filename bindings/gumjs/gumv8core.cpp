@@ -3887,10 +3887,7 @@ gum_v8_native_callback_unref (GumV8NativeCallback * callback)
 
   gum_v8_native_callback_clear (callback);
 
-  if (callback->closure != NULL)
-  {
-    ffi_closure_free (callback->closure);
-  }
+  g_clear_pointer (&callback->closure, ffi_closure_free);
 
   while (callback->data != NULL)
   {
