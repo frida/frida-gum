@@ -4924,7 +4924,10 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
 static void
 gum_quick_native_callback_finalize (GumQuickNativeCallback * callback)
 {
-  ffi_closure_free (callback->closure);
+  if (callback->closure != NULL)
+  {
+    ffi_closure_free (callback->closure);
+  }
 
   while (callback->data != NULL)
   {
