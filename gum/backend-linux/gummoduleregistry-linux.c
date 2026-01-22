@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,6 +13,8 @@
 #include "gum/gumandroid.h"
 #include "gum/gumlinux.h"
 
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
 #ifdef HAVE_LINK_H
 # include <link.h>
 #endif
@@ -30,6 +32,8 @@ typedef struct _GumProgramModules GumProgramModules;
 typedef guint GumProgramRuntimeLinker;
 typedef struct _GumProgramRanges GumProgramRanges;
 typedef ElfW(auxv_t) * (* GumReadAuxvFunc) (void);
+
+typedef struct _GumFileId GumFileId;
 
 struct _GumEnumerateModulesContext
 {
@@ -60,6 +64,12 @@ struct _GumProgramRanges
   GumMemoryRange vdso;
 };
 
+struct _GumFileId
+{
+  dev_t device;
+  ino_t inode;
+};
+
 static void gum_enumerate_modules_using_libc (GumDlIteratePhdrImpl iterate_phdr,
     GumFoundModuleFunc func, gpointer user_data);
 static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
@@ -83,6 +93,15 @@ static void gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
     GumMemoryRange * range);
 static void gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
     ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress base_address,
+    GumMemoryRange * range);
+static gboolean gum_detect_interpreter_exec_wrapper (
+    const gchar * main_image_path, gchar ** payload_path);
+static gboolean gum_read_argv_from_cmdline (GPtrArray ** argv);
+
+static gboolean gum_paths_refer_to_same_file (const gchar * a, const gchar * b);
+static gboolean gum_get_file_id (const gchar * path, GumFileId * id);
+static gchar * gum_find_mapped_path_by_start (GumAddress wanted_start);
+static gboolean gum_find_range_for_file_id_offset0 (GumFileId * wanted,
     GumMemoryRange * range);
 
 static struct r_debug * gum_r_debug;
@@ -415,6 +434,32 @@ gum_query_program_modules (void)
     else
       ranges = user;
 
+    if (ranges.interpreter.base_address == 0)
+    {
+      gchar * main_path, * payload_path;
+
+      main_path = gum_find_mapped_path_by_start (ranges.program.base_address);
+
+      if (gum_detect_interpreter_exec_wrapper (main_path, &payload_path))
+      {
+        GumFileId interp_id, prog_id;
+        GumMemoryRange interp_range, prog_range;
+
+        if (gum_get_file_id (main_path, &interp_id) &&
+            gum_get_file_id (payload_path, &prog_id) &&
+            gum_find_range_for_file_id_offset0 (&interp_id, &interp_range) &&
+            gum_find_range_for_file_id_offset0 (&prog_id, &prog_range))
+        {
+          ranges.interpreter = interp_range;
+          ranges.program = prog_range;
+        }
+
+        g_free (payload_path);
+      }
+
+      g_free (main_path);
+    }
+
     gum_program_modules.rtld = (ranges.interpreter.base_address == 0)
         ? GUM_PROGRAM_RTLD_NONE
         : GUM_PROGRAM_RTLD_SHARED;
@@ -710,4 +755,189 @@ gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
   }
 
   range->size = highest - lowest;
+}
+
+static gboolean
+gum_detect_interpreter_exec_wrapper (const gchar * main_image_path,
+                                     gchar ** payload_path)
+{
+  gboolean found = FALSE;
+  GPtrArray * argv;
+  guint i;
+
+  if (!gum_read_argv_from_cmdline (&argv))
+    return FALSE;
+
+  for (i = 1; i != argv->len && !found; i++)
+  {
+    const gchar * candidate;
+    GumElfModule * m;
+    const gchar * interp;
+
+    candidate = g_ptr_array_index (argv, i);
+    if (candidate[0] == '\0' || candidate[0] == '-')
+      continue;
+
+    m = gum_elf_module_new_from_file (candidate, NULL);
+    if (m == NULL)
+      continue;
+
+    interp = gum_elf_module_get_interpreter (m);
+
+    if (interp != NULL &&
+        gum_paths_refer_to_same_file (interp, main_image_path))
+    {
+      found = TRUE;
+      *payload_path = g_strdup (candidate);
+    }
+
+    g_object_unref (m);
+  }
+
+  g_ptr_array_unref (argv);
+
+  return found;
+}
+
+static gboolean
+gum_read_argv_from_cmdline (GPtrArray ** argv)
+{
+  gchar * contents;
+  gsize length;
+  GPtrArray * arr;
+  gsize cursor;
+
+  if (!g_file_get_contents ("/proc/self/cmdline", &contents, &length, NULL))
+    return FALSE;
+
+  arr = g_ptr_array_new_with_free_func (g_free);
+
+  cursor = 0;
+  while (cursor != length)
+  {
+    gsize n = strlen (contents + cursor);
+    if (n == 0)
+      break;
+
+    g_ptr_array_add (arr, g_strdup (contents + cursor));
+    cursor += n + 1;
+  }
+
+  g_free (contents);
+
+  if (arr->len == 0)
+  {
+    g_ptr_array_unref (arr);
+    return FALSE;
+  }
+
+  *argv = arr;
+  return TRUE;
+}
+
+static gboolean
+gum_paths_refer_to_same_file (const gchar * a,
+                              const gchar * b)
+{
+  GumFileId id_a, id_b;
+
+  if (!gum_get_file_id (a, &id_a) || !gum_get_file_id (b, &id_b))
+    return FALSE;
+
+  return id_a.device == id_b.device && id_a.inode == id_b.inode;
+}
+
+static gboolean
+gum_get_file_id (const gchar * path,
+                 GumFileId * id)
+{
+  struct stat st;
+
+  if (stat (path, &st) != 0)
+    return FALSE;
+
+  id->device = st.st_dev;
+  id->inode = st.st_ino;
+  return TRUE;
+}
+
+static gchar *
+gum_find_mapped_path_by_start (GumAddress wanted_start)
+{
+  gchar * result = NULL;
+  GumProcMapsIter iter;
+  const gchar * line;
+
+  gum_proc_maps_iter_init_for_self (&iter);
+
+  while (gum_proc_maps_iter_next (&iter, &line))
+  {
+    GumAddress start;
+    gchar path[PATH_MAX];
+
+    if (sscanf (line, "%" G_GINT64_MODIFIER "x-", &start) != 1)
+      continue;
+
+    if (start != wanted_start)
+      continue;
+
+    path[0] = '\0';
+    sscanf (line, "%*x-%*x %*c%*c%*c%*c %*x %*s %*d %[^\n]", path);
+
+    if (path[0] != '\0')
+      result = g_strdup (path);
+    break;
+  }
+
+  gum_proc_maps_iter_destroy (&iter);
+
+  return result;
+}
+
+static gboolean
+gum_find_range_for_file_id_offset0 (GumFileId * wanted,
+                                    GumMemoryRange * range)
+{
+  gboolean success = FALSE;
+  GumProcMapsIter iter;
+  const gchar * line;
+
+  gum_proc_maps_iter_init_for_self (&iter);
+
+  while (gum_proc_maps_iter_next (&iter, &line))
+  {
+    int n;
+    GumAddress start, end;
+    guint64 offset;
+    guint dev_major, dev_minor;
+    guint64 inode;
+    dev_t dev;
+
+    n = sscanf (line,
+        "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x %*4s %"
+        G_GINT64_MODIFIER "x %x:%x %" G_GINT64_MODIFIER "u",
+        &start, &end, &offset, &dev_major, &dev_minor, &inode);
+    if (n != 6)
+      continue;
+
+    if (offset != 0)
+      continue;
+
+    dev = makedev (dev_major, dev_minor);
+    if (dev != wanted->device)
+      continue;
+
+    if ((ino_t) inode != wanted->inode)
+      continue;
+
+    range->base_address = start;
+    range->size = end - start;
+
+    success = TRUE;
+    break;
+  }
+
+  gum_proc_maps_iter_destroy (&iter);
+
+  return success;
 }
