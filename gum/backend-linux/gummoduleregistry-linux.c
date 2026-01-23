@@ -765,6 +765,8 @@ gum_detect_interpreter_exec_wrapper (const gchar * main_image_path,
   GPtrArray * argv;
   guint i;
 
+  *payload_path = NULL;
+
   if (!gum_read_argv_from_cmdline (&argv))
     return FALSE;
 
