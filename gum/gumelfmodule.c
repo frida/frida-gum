@@ -90,7 +90,7 @@ struct _GumElfModule
   GArray * shdrs;
   GArray * dyns;
 
-  GArray * sections;
+  GPtrArray * sections;
 
   GumAddress base_address;
   GumAddress preferred_address;
@@ -177,7 +177,6 @@ static gboolean gum_elf_module_load_section_headers (GumElfModule * self,
     GError ** error);
 static gboolean gum_elf_module_load_section_details (GumElfModule * self,
     GError ** error);
-static void gum_elf_section_details_clear (GumElfSectionDetails * d);
 static gboolean gum_elf_module_load_dynamic_entries (GumElfModule * self,
     GError ** error);
 static gconstpointer gum_elf_module_get_live_data (GumElfModule * self,
@@ -221,8 +220,8 @@ static const GumElfShdr * gum_elf_module_find_section_header_by_index (
     GumElfModule * self, guint i);
 static const GumElfShdr * gum_elf_module_find_section_header_by_type (
     GumElfModule * self, GumElfSectionType type);
-static const GumElfSectionDetails *
-    gum_elf_module_find_section_details_by_index (GumElfModule * self, guint i);
+static GumElfSectionDetails * gum_elf_module_find_section_details_by_index (
+    GumElfModule * self, guint i);
 static GumAddress gum_elf_module_compute_preferred_address (
     GumElfModule * self);
 static guint64 gum_elf_module_compute_mapped_size (GumElfModule * self);
@@ -256,6 +255,11 @@ static gboolean gum_maybe_extract_from_apk (const gchar * path,
     GBytes ** file_bytes);
 
 G_DEFINE_TYPE (GumElfModule, gum_elf_module, G_TYPE_OBJECT)
+
+G_DEFINE_BOXED_TYPE (GumElfSectionDetails, gum_elf_section_details,
+                     gum_elf_section_details_ref, gum_elf_section_details_unref)
+G_DEFINE_BOXED_TYPE (GumElfSymbolDetails, gum_elf_symbol_details,
+                     gum_elf_symbol_details_copy, gum_elf_symbol_details_free)
 
 static void
 gum_elf_module_class_init (GumElfModuleClass * klass)
@@ -333,9 +337,8 @@ gum_elf_module_init (GumElfModule * self)
   self->shdrs = g_array_new (FALSE, FALSE, sizeof (GumElfShdr));
   self->dyns = g_array_new (FALSE, FALSE, sizeof (GumElfDyn));
 
-  self->sections = g_array_new (FALSE, TRUE, sizeof (GumElfSectionDetails));
-  g_array_set_clear_func (self->sections,
-      (GDestroyNotify) gum_elf_section_details_clear);
+  self->sections = g_ptr_array_new_with_free_func (
+      (GDestroyNotify) gum_elf_section_details_unref);
 
   self->mapped_size = GUM_ELF_DEFAULT_MAPPED_SIZE;
   self->dynamic_address_state = GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
@@ -362,7 +365,7 @@ gum_elf_module_finalize (GObject * object)
 
   g_mutex_clear (&self->mutex);
 
-  g_array_unref (self->sections);
+  g_ptr_array_unref (self->sections);
 
   g_array_unref (self->dyns);
   g_array_unref (self->shdrs);
@@ -913,17 +916,17 @@ gum_elf_module_load_section_details (GumElfModule * self,
   strings = (const gchar *) data + strings_shdr->offset;
 
   n = self->shdrs->len;
-  g_array_set_size (self->sections, n);
 
   for (i = 0; i != n; i++)
   {
     const GumElfShdr * shdr =
         &g_array_index (self->shdrs, GumElfShdr, i);
-    GumElfSectionDetails * d =
-        &g_array_index (self->sections, GumElfSectionDetails, i);
     const gchar * name = strings + shdr->name;
+    GumElfSectionDetails * d;
 
     GUM_CHECK_STR_BOUNDS (name, "section name");
+
+    d = g_slice_new (GumElfSectionDetails);
 
     if (name[0] != '\0')
     {
@@ -936,7 +939,7 @@ gum_elf_module_load_section_details (GumElfModule * self,
     {
       d->id = g_strdup_printf ("%u", i);
     }
-    d->name = name;
+    d->name = g_strdup (name);
     d->type = shdr->type;
     d->flags = shdr->flags;
     d->address = ((shdr->flags & GUM_ELF_SECTION_FLAG_ALLOC) != 0)
@@ -953,22 +956,20 @@ gum_elf_module_load_section_details (GumElfModule * self,
     {
       d->protection = GUM_PAGE_NO_ACCESS;
     }
+
+    d->ref_count = 1;
+
+    g_ptr_array_add (self->sections, d);
   }
 
   return TRUE;
 
 propagate_error:
   {
-    g_array_set_size (self->sections, 0);
+    g_ptr_array_set_size (self->sections, 0);
 
     return FALSE;
   }
-}
-
-static void
-gum_elf_section_details_clear (GumElfSectionDetails * d)
-{
-  g_clear_pointer ((gchar **) &d->id, g_free);
 }
 
 static gboolean
@@ -1080,7 +1081,7 @@ gum_elf_module_unload (GumElfModule * self)
   self->mapped_size = GUM_ELF_DEFAULT_MAPPED_SIZE;
   self->preferred_address = 0;
 
-  g_array_set_size (self->sections, 0);
+  g_ptr_array_set_size (self->sections, 0);
 
   g_array_set_size (self->dyns, 0);
   g_array_set_size (self->shdrs, 0);
@@ -1312,8 +1313,7 @@ gum_elf_module_enumerate_sections (GumElfModule * self,
 
   for (i = 0; i != self->shdrs->len; i++)
   {
-    const GumElfSectionDetails * d =
-        &g_array_index (self->sections, GumElfSectionDetails, i);
+    const GumElfSectionDetails * d = g_ptr_array_index (self->sections, i);
 
     if (!func (d, user_data))
       return;
@@ -1369,7 +1369,7 @@ gum_elf_module_enumerate_relocations (GumElfModule * self,
           }
         }
 
-        g.parent = &g_array_index (self->sections, GumElfSectionDetails, i);
+        g.parent = g_ptr_array_index (self->sections, i);
 
         if (!gum_elf_module_emit_relocations (self, &g, func, user_data))
           return;
@@ -1778,7 +1778,7 @@ gum_elf_module_parse_symbol (GumElfModule * self,
                              GumElfSymbolDetails * d)
 {
   GumElfSymbolType type = GUM_ELF_ST_TYPE (sym->info);
-  const GumElfSectionDetails * section;
+  GumElfSectionDetails * section;
 
   section = gum_elf_module_find_section_details_by_index (self, sym->shndx);
 
@@ -2259,7 +2259,7 @@ gum_elf_module_find_section_header_by_type (GumElfModule * self,
   return NULL;
 }
 
-static const GumElfSectionDetails *
+static GumElfSectionDetails *
 gum_elf_module_find_section_details_by_index (GumElfModule * self,
                                               guint i)
 {
@@ -2269,7 +2269,7 @@ gum_elf_module_find_section_details_by_index (GumElfModule * self,
   if (i >= self->sections->len)
     return NULL;
 
-  return &g_array_index (self->sections, GumElfSectionDetails, i);
+  return g_ptr_array_index (self->sections, i);
 }
 
 static GumAddress
@@ -2636,4 +2636,51 @@ beach:
 #else
   return FALSE;
 #endif
+}
+
+GumElfSectionDetails *
+gum_elf_section_details_ref (GumElfSectionDetails * details)
+{
+  g_atomic_int_inc (&details->ref_count);
+
+  return details;
+}
+
+void
+gum_elf_section_details_unref (GumElfSectionDetails * details)
+{
+  if (!g_atomic_int_dec_and_test (&details->ref_count))
+    return;
+
+  g_free ((gpointer) details->name);
+  g_free ((gpointer) details->id);
+
+  g_slice_free (GumElfSectionDetails, details);
+}
+
+GumElfSymbolDetails *
+gum_elf_symbol_details_copy (const GumElfSymbolDetails * details)
+{
+  GumElfSymbolDetails * d;
+
+  d = g_slice_dup (GumElfSymbolDetails, details);
+  d->name = g_strdup (details->name);
+  d->section = (details->section != NULL)
+      ? gum_elf_section_details_ref (details->section)
+      : NULL;
+
+  return d;
+}
+
+void
+gum_elf_symbol_details_free (GumElfSymbolDetails * details)
+{
+  if (details == NULL)
+    return;
+
+  if (details->section != NULL)
+    gum_elf_section_details_unref (details->section);
+  g_free ((gpointer) details->name);
+
+  g_slice_free (GumElfSymbolDetails, details);
 }

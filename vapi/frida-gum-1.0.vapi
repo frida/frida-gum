@@ -1059,7 +1059,7 @@ namespace Gum {
 		public Gum.PageProtection protection;
 	}
 
-	public struct ElfSectionDetails {
+	public class ElfSectionDetails {
 		public string id;
 		public string name;
 		public Gum.ElfSectionType type;
@@ -1079,7 +1079,7 @@ namespace Gum {
 		public uint32 type;
 		public Gum.ElfSymbolDetails? symbol;
 		public int64 addend;
-		public Gum.ElfSectionDetails? parent;
+		public Gum.ElfSectionDetails parent;
 	}
 
 	public struct ElfDynamicEntryDetails {
@@ -1087,13 +1087,16 @@ namespace Gum {
 		public uint64 val;
 	}
 
-	public struct ElfSymbolDetails {
+	[Compact]
+	public class ElfSymbolDetails {
 		public string name;
 		public Gum.Address address;
 		public size_t size;
 		public Gum.ElfSymbolType type;
 		public Gum.ElfSymbolBind bind;
 		public Gum.ElfSectionDetails? section;
+
+		public ElfSymbolDetails copy ();
 	}
 
 	[CCode (cprefix = "GUM_ELF_SECTION_")]

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -934,6 +934,9 @@ struct _GumElfSectionDetails
   guint64 alignment;
   guint64 entry_size;
   GumPageProtection protection;
+
+  /*< private >*/
+  gint ref_count;
 };
 
 struct _GumElfRelocationDetails
@@ -959,7 +962,7 @@ struct _GumElfSymbolDetails
   GumElfSymbolType type;
   GumElfSymbolBind bind;
   guint16 shdr_index;
-  const GumElfSectionDetails * section;
+  GumElfSectionDetails * section;
 };
 
 struct _GumElfNoteHeader
@@ -1018,6 +1021,16 @@ GUM_API GumAddress gum_elf_module_translate_to_offline (GumElfModule * self,
     GumAddress online_address);
 GUM_API GumAddress gum_elf_module_translate_to_online (GumElfModule * self,
     GumAddress offline_address);
+
+GUM_API GType gum_elf_section_details_get_type (void) G_GNUC_CONST;
+GUM_API GumElfSectionDetails * gum_elf_section_details_ref (
+    GumElfSectionDetails * details);
+GUM_API void gum_elf_section_details_unref (GumElfSectionDetails * details);
+
+GUM_API GType gum_elf_symbol_details_get_type (void) G_GNUC_CONST;
+GUM_API GumElfSymbolDetails * gum_elf_symbol_details_copy (
+    const GumElfSymbolDetails * details);
+GUM_API void gum_elf_symbol_details_free (GumElfSymbolDetails * details);
 
 G_END_DECLS
 
