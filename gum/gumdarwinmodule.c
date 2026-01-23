@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
@@ -2929,6 +2929,9 @@ gum_darwin_module_image_dup (const GumDarwinModuleImage * other)
 void
 gum_darwin_module_image_free (GumDarwinModuleImage * image)
 {
+  if (image == NULL)
+    return;
+
   g_free (image->malloc_data);
   g_bytes_unref (image->bytes);
 
