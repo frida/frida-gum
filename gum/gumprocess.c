@@ -447,6 +447,9 @@ gum_thread_details_copy (const GumThreadDetails * details)
 void
 gum_thread_details_free (GumThreadDetails * details)
 {
+  if (details == NULL)
+    return;
+
   g_free ((gpointer) details->name);
   g_slice_free (GumThreadDetails, details);
 }
