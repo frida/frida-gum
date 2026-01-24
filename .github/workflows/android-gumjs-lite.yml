@@ -9,7 +9,7 @@ on:
       - main
 
 env:
-  GUMJS_OPTIONS: '--enable-gumjs --enable-diet --disable-v8 --disable-database --disable-tests'
+  GUMJS_OPTIONS: '--enable-gumjs --enable-diet --disable-graft-tool --disable-v8 --disable-database --disable-tests'
 
 jobs:
   android-gumjs-lite:
