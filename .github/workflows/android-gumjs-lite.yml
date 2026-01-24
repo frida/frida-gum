@@ -13,6 +13,8 @@ env:
 
 jobs:
   android-gumjs-lite:
+    permissions:
+      contents: read
     strategy:
       matrix:
         id:
