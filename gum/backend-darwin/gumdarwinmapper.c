@@ -2822,7 +2822,9 @@ gum_find_tlv_get_addr (const GumDarwinSectionDetails * details,
   GumMapContext * ctx = user_data;
   GumDarwinMapper * self = ctx->mapper;
 
-  if (strcmp (details->section_name, "__dyld4") != 0)
+  /* macOS 26+ uses __dyld_apis instead of __dyld4. */
+  if (strcmp (details->section_name, "__dyld4") != 0 &&
+      strcmp (details->section_name, "__dyld_apis") != 0)
     return TRUE;
 
   if (self->module->pointer_size == 4)
