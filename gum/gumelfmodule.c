@@ -100,6 +100,9 @@ struct _GumElfModule
 
   GMutex mutex;
 
+  /* Cache for page protection results to avoid repeated syscalls */
+  GHashTable * page_prot_cache;
+
   GumElfModule * fallback_elf_module;
   gboolean attempted_fallback_load;
 };
@@ -344,6 +347,9 @@ gum_elf_module_init (GumElfModule * self)
   self->dynamic_address_state = GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 
   g_mutex_init (&self->mutex);
+
+  /* Cache for page protection results (page_addr -> readable_flag) */
+  self->page_prot_cache = g_hash_table_new (g_direct_hash, g_direct_equal);
 }
 
 static void
@@ -362,6 +368,8 @@ static void
 gum_elf_module_finalize (GObject * object)
 {
   GumElfModule * self = GUM_ELF_MODULE (object);
+
+  g_hash_table_unref (self->page_prot_cache);
 
   g_mutex_clear (&self->mutex);
 
@@ -1745,6 +1753,10 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
   if (ctx.pending != 0 || ctx.entry_count == 0)
     return;
 
+  /* Ensure dynamic string table was resolved; bail out gracefully if not */
+  if (self->dynamic_strings == NULL)
+    return;
+
   gum_elf_module_enumerate_sections (self, gum_adjust_symtab_params, &ctx);
 
   data = gum_elf_module_get_live_data (self, &size);
@@ -1789,7 +1801,7 @@ gum_elf_module_parse_symbol (GumElfModule * self,
   }
   else
   {
-    d->name = strings + sym->name;
+    d->name = (strings != NULL) ? strings + sym->name : NULL;
     d->address = (sym->value != 0)
         ? gum_elf_module_translate_to_online (self, sym->value)
         : 0;
@@ -1870,10 +1882,26 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
   switch (details->tag)
   {
     case GUM_ELF_DYNAMIC_SYMTAB:
-      ctx->entries = gum_elf_module_resolve_dynamic_virtual_location (
+    {
+      gpointer entries = gum_elf_module_resolve_dynamic_virtual_location (
           ctx->module, details->val);
+      /*
+       * For APK-embedded libraries, verify the symbol table memory is readable
+       * before storing the pointer.
+       */
+      if (entries != NULL && self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
+      {
+        GumPageProtection prot;
+        if (!gum_memory_query_protection (entries, &prot) ||
+            (prot & GUM_PAGE_READ) == 0)
+        {
+          entries = NULL;
+        }
+      }
+      ctx->entries = entries;
       ctx->pending--;
       break;
+    }
     case GUM_ELF_DYNAMIC_SYMENT:
       ctx->entry_size = details->val;
       ctx->pending--;
@@ -1890,6 +1918,17 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
           ctx->module, details->val);
       if (hash_params == NULL)
         break;
+
+      /* Verify hash table memory is readable for APK-embedded libraries */
+      if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
+      {
+        GumPageProtection prot;
+        if (!gum_memory_query_protection (hash_params, &prot) ||
+            (prot & GUM_PAGE_READ) == 0)
+        {
+          break;
+        }
+      }
 
       GUM_CHECK_BOUNDS (hash_params,
           (const guint8 *) hash_params + (2 * sizeof (guint32)),
@@ -1925,6 +1964,17 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
           ctx->module, details->val);
       if (hash_params == NULL)
         break;
+
+      /* Verify GNU hash table memory is readable for APK-embedded libraries */
+      if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
+      {
+        GumPageProtection prot;
+        if (!gum_memory_query_protection (hash_params, &prot) ||
+            (prot & GUM_PAGE_READ) == 0)
+        {
+          break;
+        }
+      }
 
       GUM_CHECK_BOUNDS (hash_params,
           (const guint8 *) hash_params + (4 * sizeof (guint32)),
@@ -2120,6 +2170,10 @@ gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
   GumDependencyDetails d;
 
   if (details->tag != GUM_ELF_DYNAMIC_NEEDED)
+    return TRUE;
+
+  /* Skip dependency if dynamic string table is unavailable */
+  if (ctx->module->dynamic_strings == NULL)
     return TRUE;
 
   data = gum_elf_module_get_live_data (ctx->module, &size);
@@ -2387,12 +2441,30 @@ gum_store_dynamic_string_table (const GumElfDynamicEntryDetails * details,
                                 gpointer user_data)
 {
   GumElfModule * self = user_data;
+  gpointer resolved_addr;
 
   if (details->tag != GUM_ELF_DYNAMIC_STRTAB)
     return TRUE;
 
-  self->dynamic_strings = gum_elf_module_resolve_dynamic_virtual_location (self,
+  resolved_addr = gum_elf_module_resolve_dynamic_virtual_location (self,
       details->val);
+
+  /*
+   * For APK-embedded libraries on Android, the string table memory region
+   * may not be mapped with read permissions (SEGV_ACCERR). Verify the memory
+   * is actually readable before storing the pointer.
+   */
+  if (resolved_addr != NULL && self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
+  {
+    GumPageProtection prot;
+    if (!gum_memory_query_protection (resolved_addr, &prot) ||
+        (prot & GUM_PAGE_READ) == 0)
+    {
+      resolved_addr = NULL;
+    }
+  }
+
+  self->dynamic_strings = resolved_addr;
   return FALSE;
 }
 
@@ -2444,13 +2516,71 @@ gum_elf_module_check_str_bounds (GumElfModule * self,
   if (str >= end)
     goto consider_file_data;
 
-  cursor = str;
-  do
+  /*
+   * For ONLINE mode with APK-embedded libraries on Android, the module's
+   * memory range may contain PROT_NONE gaps between PT_LOAD segments.
+   * We must check page protection at each page boundary to avoid SEGV_ACCERR
+   * when the string table spans into an unreadable region.
+   *
+   * We cache page protection results to avoid repeated syscalls - each call
+   * to gum_memory_query_protection() reads /proc/self/maps which is expensive.
+   */
+  if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
   {
+    gsize page_size;
+    const gchar * last_checked_page;
+
+    page_size = gum_query_page_size ();
+    last_checked_page = NULL;
+
+    cursor = str;
+    do
+    {
+      const gchar * current_page;
+
+      if (cursor >= end)
+        goto oob;
+
+      /* Check page protection when crossing page boundaries */
+      current_page = (const gchar *) (((gsize) cursor) & ~(page_size - 1));
+      if (current_page != last_checked_page)
+      {
+        gpointer cached_result;
+        gboolean is_readable;
+
+        /* Check cache first */
+        if (g_hash_table_lookup_extended (self->page_prot_cache,
+            (gpointer) current_page, NULL, &cached_result))
+        {
+          is_readable = GPOINTER_TO_INT (cached_result);
+        }
+        else
+        {
+          /* Cache miss - query protection and store result */
+          GumPageProtection prot;
+          is_readable = gum_memory_query_protection (cursor, &prot) &&
+              (prot & GUM_PAGE_READ) != 0;
+          g_hash_table_insert (self->page_prot_cache, (gpointer) current_page,
+              GINT_TO_POINTER (is_readable));
+        }
+
+        if (!is_readable)
+          goto oob;
+
+        last_checked_page = current_page;
+      }
+    }
+    while (*cursor++ != '\0');
+  }
+  else
+  {
+    /* OFFLINE mode: no protection checks needed, just find null terminator */
+    cursor = str;
+    while (cursor < end && *cursor != '\0')
+      cursor++;
     if (cursor >= end)
       goto oob;
   }
-  while (*cursor++ != '\0');
 
   return TRUE;
 
