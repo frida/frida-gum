@@ -447,6 +447,7 @@ TESTLIST_BEGIN (script)
 #ifdef HAVE_SQLITE
   TESTGROUP_BEGIN ("Database")
     TESTENTRY (inline_sqlite_database_can_be_queried)
+    TESTENTRY (sqlite_statement_has_column_and_params_metadata)
     TESTENTRY (external_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
 # if !defined (HAVE_WINDOWS) && !defined (HAVE_QNX)
@@ -4312,6 +4313,41 @@ TESTCASE (inline_sqlite_database_can_be_queried)
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("[null]");
   EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (sqlite_statement_has_column_and_params_metadata)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const db = SqliteDatabase.openInline('"
+          "H4sIAMMIT1kAA+3ZsU7DMBAG4HMC7VChROpQut0IqGJhYCWJDAq4LbhGoqNRDYqgpIo"
+          "CO8y8JM/AC+CKFNhgLfo/+U7n0/kBTp5cqKJ2fFNWc1vzAcUkBB0xE1HYxIrwsdHUYX"
+          "P/TUj7m+nWcjhy5A8AAAAAAADA//W8Ldq9fl+8dGp7fe8WrlyscphpmRjJJkmV5M8e7"
+          "xQzzkdGnkjN5zofJnrKZ3LKySQb8IOdOzbyyvBo7ONSqQHbW/f14Lt7Z/1S7+uh1Hn2"
+          "c/rJ1rbiVI3T3b8s8QAAAAAAAACw3pZ/80H0RtG7TwAAAAAAAACwnuKgRT0RxMdVMbN"
+          "teu0edkSLukLQaen2Hj8AoNOJGgAwAAA="
+      "');\n"
+
+      /* 1: columnNames and paramsCount */
+      "let s = db.prepare('SELECT name, age FROM people WHERE age = ?');\n"
+      "send(s.columnNames);\n"
+      "send(s.paramsCount);\n"
+
+      /* 2: declaredTypes */
+      "s = db.prepare('SELECT name, age, karma, avatar FROM people');\n"
+      "send(s.declaredTypes);\n"
+
+      /* 3: columnTypes after stepping a row with known non-null values */
+      "s = db.prepare("
+          "'SELECT name, age, karma FROM people WHERE name = ?');\n"
+      "s.bindText(1, 'Joe');\n"
+      "s.step();\n"
+      "send(s.columnTypes);\n");
+
+  EXPECT_SEND_MESSAGE_WITH ("[\"name\",\"age\"]");
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("[\"TEXT\",\"INTEGER\",\"NUMERIC\",\"BLOB\"]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"text\",\"integer\",\"integer\"]");
   EXPECT_NO_MESSAGES ();
 }
 

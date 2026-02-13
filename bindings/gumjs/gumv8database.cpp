@@ -45,6 +45,10 @@ static gboolean gum_database_check_open (GumDatabase * self, Isolate * isolate);
 static void gum_database_on_weak_notify (
     const WeakCallbackInfo<GumDatabase> & info);
 
+GUMJS_DECLARE_GETTER (gumjs_statement_get_column_names)
+GUMJS_DECLARE_GETTER (gumjs_statement_get_column_types)
+GUMJS_DECLARE_GETTER (gumjs_statement_get_declared_types)
+GUMJS_DECLARE_GETTER (gumjs_statement_get_params_count)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_integer)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_float)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_text)
@@ -62,6 +66,7 @@ static void gum_statement_on_weak_notify (
 static Local<Array> gum_parse_row (Isolate * isolate, sqlite3_stmt * statement);
 static Local<Value> gum_parse_column (Isolate * isolate,
     sqlite3_stmt * statement, guint index);
+static const char * gum_column_type_to_string (int type);
 
 static const GumV8Function gumjs_database_module_functions[] =
 {
@@ -79,6 +84,16 @@ static const GumV8Function gumjs_database_functions[] =
   { "dump", gumjs_database_dump },
 
   { NULL, NULL }
+};
+
+static const GumV8Property gumjs_statement_values[] =
+{
+  { "columnNames", gumjs_statement_get_column_names, NULL },
+  { "columnTypes", gumjs_statement_get_column_types, NULL },
+  { "declaredTypes", gumjs_statement_get_declared_types, NULL },
+  { "paramsCount", gumjs_statement_get_params_count, NULL },
+
+  { NULL, NULL, NULL }
 };
 
 static const GumV8Function gumjs_statement_functions[] =
@@ -114,6 +129,7 @@ _gum_v8_database_init (GumV8Database * self,
 
   auto statement = _gum_v8_create_class ("SqliteStatement", nullptr, scope,
       module, isolate);
+  _gum_v8_class_add (statement, gumjs_statement_values, module, isolate);
   _gum_v8_class_add (statement, gumjs_statement_functions, module, isolate);
   self->statement = new Global<FunctionTemplate> (isolate, statement);
 
@@ -425,6 +441,71 @@ gum_database_on_weak_notify (const WeakCallbackInfo<GumDatabase> & info)
   g_hash_table_remove (self->module->databases, self);
 }
 
+GUMJS_DEFINE_CLASS_GETTER (gumjs_statement_get_column_names, GumStatement)
+{
+  auto context = isolate->GetCurrentContext ();
+  auto num_columns = sqlite3_column_count (self->handle);
+  auto result = Array::New (isolate, num_columns);
+
+  for (gint index = 0; index != num_columns; index++)
+  {
+    auto name = String::NewFromUtf8 (isolate,
+        sqlite3_column_name (self->handle, index),
+        NewStringType::kNormal).ToLocalChecked ();
+    result->Set (context, index, name).Check ();
+  }
+
+  info.GetReturnValue ().Set (result);
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_statement_get_column_types, GumStatement)
+{
+  auto context = isolate->GetCurrentContext ();
+  auto num_columns = sqlite3_column_count (self->handle);
+  auto result = Array::New (isolate, num_columns);
+
+  for (gint index = 0; index != num_columns; index++)
+  {
+    auto type_name = String::NewFromUtf8 (isolate,
+        gum_column_type_to_string (sqlite3_column_type (self->handle, index)),
+        NewStringType::kNormal).ToLocalChecked ();
+    result->Set (context, index, type_name).Check ();
+  }
+
+  info.GetReturnValue ().Set (result);
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_statement_get_declared_types, GumStatement)
+{
+  auto context = isolate->GetCurrentContext ();
+  auto num_columns = sqlite3_column_count (self->handle);
+  auto result = Array::New (isolate, num_columns);
+
+  for (gint index = 0; index != num_columns; index++)
+  {
+    auto decl_type = sqlite3_column_decltype (self->handle, index);
+    Local<Value> value;
+    if (decl_type != NULL)
+    {
+      value = String::NewFromUtf8 (isolate, decl_type,
+          NewStringType::kNormal).ToLocalChecked ();
+    }
+    else
+    {
+      value = Null (isolate);
+    }
+    result->Set (context, index, value).Check ();
+  }
+
+  info.GetReturnValue ().Set (result);
+}
+
+GUMJS_DEFINE_CLASS_GETTER (gumjs_statement_get_params_count, GumStatement)
+{
+  info.GetReturnValue ().Set (
+      sqlite3_bind_parameter_count (self->handle));
+}
+
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_integer, GumStatement)
 {
   gint index, value;
@@ -616,4 +697,19 @@ gum_parse_column (Isolate * isolate,
   }
 
   return Local<Value> ();
+}
+
+static const char *
+gum_column_type_to_string (int type)
+{
+  switch (type)
+  {
+    case SQLITE_INTEGER: return "integer";
+    case SQLITE_FLOAT:   return "float";
+    case SQLITE_TEXT:    return "text";
+    case SQLITE_BLOB:    return "blob";
+    case SQLITE_NULL:    return "null";
+    default:
+      g_assert_not_reached ();
+  }
 }
