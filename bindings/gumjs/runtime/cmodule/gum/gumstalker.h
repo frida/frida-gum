@@ -11,6 +11,8 @@
 # include "arch-arm64/gumarm64writer.h"
 #elif defined (HAVE_MIPS)
 # include "arch-mips/gummipswriter.h"
+#elif defined (HAVE_RISCV)
+# include "arch-riscv/gumriscvwriter.h"
 #endif
 
 #include <capstone.h>
@@ -47,6 +49,8 @@ union _GumStalkerWriter
   GumArm64Writer * arm64;
 #elif defined (HAVE_MIPS)
   GumMipsWriter * mips;
+#elif defined (HAVE_RISCV)
+  GumRiscvWriter * riscv;
 #endif
 };
 

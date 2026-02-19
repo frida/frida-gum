@@ -465,6 +465,21 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 
   /* Dummy return address (we won't return) */
   context->ra = 1337;
+#elif defined (HAVE_RISCV)
+  context->pc = GPOINTER_TO_SIZE (
+      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
+
+  /* Align to 16 byte boundary (RISC-V ABI requirement) */
+  context->sp &= ~(gsize) (16 - 1);
+  /* Reserve some space for safety (RISC-V standard ABI has no red zone,
+   * but we reserve space to avoid potential issues) */
+  context->sp -= GUM_RED_ZONE_SIZE;
+
+  /* First argument goes in a0 (RISC-V calling convention) */
+  context->a0 = GPOINTER_TO_SIZE (scope);
+
+  /* Dummy return address (we won't return) */
+  context->ra = 1337;
 #else
 # error Unsupported architecture
 #endif

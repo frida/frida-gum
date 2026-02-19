@@ -54,6 +54,7 @@ typedef union _GumArmVectorReg GumArmVectorReg;
 typedef struct _GumArm64CpuContext GumArm64CpuContext;
 typedef union _GumArm64VectorReg GumArm64VectorReg;
 typedef struct _GumMipsCpuContext GumMipsCpuContext;
+typedef struct _GumRiscvCpuContext GumRiscvCpuContext;
 typedef guint GumRelocationScenario;
 
 #if defined (_M_IX86) || defined (__i386__)
@@ -112,6 +113,24 @@ typedef GumArm64CpuContext GumCpuContext;
     (CS_MODE_MIPS64 | GUM_DEFAULT_CS_ENDIAN))
 # endif
 typedef GumMipsCpuContext GumCpuContext;
+#elif defined (__riscv)
+# define GUM_NATIVE_CPU GUM_CPU_RISCV
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_RISCV
+# define gum_cs_arch_register_native cs_arch_register_riscv
+# if GLIB_SIZEOF_VOID_P == 4
+/**
+ * GUM_DEFAULT_CS_MODE: (skip)
+ */
+#  define GUM_DEFAULT_CS_MODE ((cs_mode) \
+    (CS_MODE_RISCV32 | GUM_DEFAULT_CS_ENDIAN))
+# else
+/**
+ * GUM_DEFAULT_CS_MODE: (skip)
+ */
+#  define GUM_DEFAULT_CS_MODE ((cs_mode) \
+    (CS_MODE_RISCV64 | GUM_DEFAULT_CS_ENDIAN))
+# endif
+typedef GumRiscvCpuContext GumCpuContext;
 #else
 # error Unsupported architecture.
 #endif
@@ -173,7 +192,8 @@ typedef enum {
   GUM_CPU_AMD64,
   GUM_CPU_ARM,
   GUM_CPU_ARM64,
-  GUM_CPU_MIPS
+  GUM_CPU_MIPS,
+  GUM_CPU_RISCV
 } GumCpuType;
 
 enum _GumCpuFeatures
@@ -363,6 +383,43 @@ struct _GumMipsCpuContext
   gsize k1;
 };
 
+struct _GumRiscvCpuContext
+{
+    guint64 pc;
+    guint64 ra;
+    guint64 sp;
+    guint64 gp;
+    guint64 tp;
+    guint64 t0;
+    guint64 t1;
+    guint64 t2;
+    guint64 s0;
+    guint64 s1;
+    guint64 a0;
+    guint64 a1;
+    guint64 a2;
+    guint64 a3;
+    guint64 a4;
+    guint64 a5;
+    guint64 a6;
+    guint64 a7;
+    guint64 s2;
+    guint64 s3;
+    guint64 s4;
+    guint64 s5;
+    guint64 s6;
+    guint64 s7;
+    guint64 s8;
+    guint64 s9;
+    guint64 s10;
+    guint64 s11;
+    guint64 t3;
+    guint64 t4;
+    guint64 t5;
+    guint64 t6;
+
+};
+
 enum _GumRelocationScenario
 {
   GUM_SCENARIO_OFFLINE,
@@ -489,6 +546,7 @@ enum _GumRelocationScenario
 #define GUM_INT10_MASK 0x000003ffU
 #define GUM_INT11_MASK 0x000007ffU
 #define GUM_INT12_MASK 0x00000fffU
+#define GUM_INT13_MASK 0x00001fffU
 #define GUM_INT14_MASK 0x00003fffU
 #define GUM_INT16_MASK 0x0000ffffU
 #define GUM_INT18_MASK 0x0003ffffU
@@ -510,6 +568,12 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_INT11_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-1024) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (1023))
+#define GUM_IS_WITHIN_INT12_RANGE(i) \
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-2048) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (2047))
+#define GUM_IS_WITHIN_INT13_RANGE(i) \
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-4096) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (4095))
 #define GUM_IS_WITHIN_INT14_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-8192) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (8191))

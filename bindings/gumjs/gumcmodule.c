@@ -296,6 +296,8 @@ gum_cmodule_enumerate_builtin_defines (GumFoundCDefineFunc func,
   gum_emit_builtin_define ("HAVE_ARM64", NULL, func, user_data);
 #elif defined (HAVE_MIPS)
   gum_emit_builtin_define ("HAVE_MIPS", NULL, func, user_data);
+#elif defined (HAVE_RISCV)
+  gum_emit_builtin_define ("HAVE_RISCV", NULL, func, user_data);
 #endif
 
   gum_emit_builtin_define_str ("G_GINT16_MODIFIER", G_GINT16_MODIFIER,

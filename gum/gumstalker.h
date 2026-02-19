@@ -15,6 +15,7 @@
 #include <gum/arch-arm/gumthumbwriter.h>
 #include <gum/arch-arm64/gumarm64writer.h>
 #include <gum/arch-mips/gummipswriter.h>
+#include <gum/arch-riscv/gumriscvwriter.h>
 #include <gum/gumdefs.h>
 #include <gum/gumeventsink.h>
 #include <gum/gumprocess.h>
@@ -140,6 +141,7 @@ union _GumStalkerWriter
   GumThumbWriter * thumb;
   GumArm64Writer * arm64;
   GumMipsWriter * mips;
+  GumRiscvWriter * riscv;
 };
 
 struct _GumStalkerOutput

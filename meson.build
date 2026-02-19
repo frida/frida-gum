@@ -47,6 +47,9 @@ elif host_machine.cpu_family() == 'mips64'
   else
     host_abi = 'mips64'
   endif
+elif host_machine.cpu_family() == 'riscv64'
+  host_arch = 'riscv64'
+  host_abi = 'riscv64'
 else
   host_arch = host_machine.cpu_family()
   host_abi = host_arch
@@ -188,6 +191,7 @@ cpu_defines = [
   ['arm64', 'HAVE_ARM64'],
   ['mips', 'HAVE_MIPS'],
   ['mips64', 'HAVE_MIPS'],
+  ['riscv64', 'HAVE_RISCV']
 ]
 foreach d : cpu_defines
   if d.get(0) == host_arch
@@ -389,6 +393,7 @@ gio_dep_native = dependency('gio-2.0', native: true)
 capstone_arch_mappings = {
   'x86_64': 'x86',
   's390x': 'sysz',
+  'riscv64': 'riscv',
 }
 capstone_options = [
   'profile=' + (diet ? 'tiny' : 'full'),
@@ -692,6 +697,7 @@ gum_incdirs = [
   include_directories('gum' / 'arch-arm'),
   include_directories('gum' / 'arch-arm64'),
   include_directories('gum' / 'arch-mips'),
+  include_directories('gum' / 'arch-riscv'),
   include_directories('libs'),
   include_directories('libs' / 'gum' / 'heap'),
   include_directories('libs' / 'gum' / 'prof'),
