@@ -716,6 +716,23 @@ gum_do_query_cpu_features (void)
   if (cpu_supports_avx2 && os_enabled_xsave)
     features |= GUM_CPU_AVX2;
 
+#ifdef HAVE_WINDOWS
+  {
+    PROCESS_MITIGATION_USER_SHADOW_STACK_POLICY pol;
+
+    if (cpu_supports_cet_ss &&
+        GetProcessMitigationPolicy (
+          GetCurrentProcess (),
+          ProcessUserShadowStackPolicy,
+          &pol,
+          sizeof (pol)) &&
+        !pol.EnableUserShadowStack)
+    {
+      cpu_supports_cet_ss = FALSE;
+    }
+  }
+#endif
+
   if (cpu_supports_cet_ss)
     features |= GUM_CPU_CET_SS;
 
