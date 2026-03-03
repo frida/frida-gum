@@ -44,6 +44,10 @@ static void gum_database_free (GumDatabase * self);
 static void gum_database_close (GumDatabase * self);
 
 GUMJS_DECLARE_FINALIZER (gumjs_statement_finalize)
+GUMJS_DECLARE_GETTER (gumjs_statement_get_column_names)
+GUMJS_DECLARE_GETTER (gumjs_statement_get_column_types)
+GUMJS_DECLARE_GETTER (gumjs_statement_get_declared_types)
+GUMJS_DECLARE_GETTER (gumjs_statement_get_params_count)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_integer)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_float)
 GUMJS_DECLARE_FUNCTION (gumjs_statement_bind_text)
@@ -58,6 +62,7 @@ static JSValue gum_statement_new (JSContext * ctx, sqlite3_stmt * handle,
 static JSValue gum_parse_row (JSContext * ctx, sqlite3_stmt * statement);
 static JSValue gum_parse_column (JSContext * ctx, sqlite3_stmt * statement,
     guint index);
+static const char * gum_column_type_to_string (int type);
 
 static const JSClassDef gumjs_database_def =
 {
@@ -87,6 +92,10 @@ static const JSClassDef gumjs_statement_def =
 
 static const JSCFunctionListEntry gumjs_statement_entries[] =
 {
+  JS_CGETSET_DEF ("columnNames", gumjs_statement_get_column_names, NULL),
+  JS_CGETSET_DEF ("columnTypes", gumjs_statement_get_column_types, NULL),
+  JS_CGETSET_DEF ("declaredTypes", gumjs_statement_get_declared_types, NULL),
+  JS_CGETSET_DEF ("paramsCount", gumjs_statement_get_params_count, NULL),
   JS_CFUNC_DEF ("bindInteger", 0, gumjs_statement_bind_integer),
   JS_CFUNC_DEF ("bindFloat", 0, gumjs_statement_bind_float),
   JS_CFUNC_DEF ("bindText", 0, gumjs_statement_bind_text),
@@ -492,6 +501,87 @@ GUMJS_DEFINE_FINALIZER (gumjs_statement_finalize)
   GUMJS_INTERCEPTOR_UNIGNORE ();
 }
 
+GUMJS_DEFINE_GETTER (gumjs_statement_get_column_names)
+{
+  sqlite3_stmt * self;
+  JSValue result;
+  gint num_columns, i;
+
+  if (!gum_statement_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  num_columns = sqlite3_column_count (self);
+
+  result = JS_NewArray (ctx);
+
+  for (i = 0; i != num_columns; i++)
+  {
+    JS_DefinePropertyValueUint32 (ctx, result, i,
+        JS_NewString (ctx, sqlite3_column_name (self, i)),
+        JS_PROP_C_W_E);
+  }
+
+  return result;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_statement_get_column_types)
+{
+  sqlite3_stmt * self;
+  JSValue result;
+  gint num_columns, i;
+
+  if (!gum_statement_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  num_columns = sqlite3_column_count (self);
+
+  result = JS_NewArray (ctx);
+
+  for (i = 0; i != num_columns; i++)
+  {
+    JS_DefinePropertyValueUint32 (ctx, result, i,
+        JS_NewString (ctx,
+            gum_column_type_to_string (sqlite3_column_type (self, i))),
+        JS_PROP_C_W_E);
+  }
+
+  return result;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_statement_get_declared_types)
+{
+  sqlite3_stmt * self;
+  JSValue result;
+  gint num_columns, i;
+
+  if (!gum_statement_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  num_columns = sqlite3_column_count (self);
+
+  result = JS_NewArray (ctx);
+
+  for (i = 0; i != num_columns; i++)
+  {
+    const char * decl_type = sqlite3_column_decltype (self, i);
+    JS_DefinePropertyValueUint32 (ctx, result, i,
+        (decl_type != NULL) ? JS_NewString (ctx, decl_type) : JS_NULL,
+        JS_PROP_C_W_E);
+  }
+
+  return result;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_statement_get_params_count)
+{
+  sqlite3_stmt * self;
+
+  if (!gum_statement_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  return JS_NewInt32 (ctx, sqlite3_bind_parameter_count (self));
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
 {
   sqlite3_stmt * self;
@@ -715,6 +805,21 @@ gum_parse_column (JSContext * ctx,
           sqlite3_column_bytes (statement, index));
     case SQLITE_NULL:
       return JS_NULL;
+    default:
+      g_assert_not_reached ();
+  }
+}
+
+static const char *
+gum_column_type_to_string (int type)
+{
+  switch (type)
+  {
+    case SQLITE_INTEGER: return "integer";
+    case SQLITE_FLOAT:   return "float";
+    case SQLITE_TEXT:    return "text";
+    case SQLITE_BLOB:    return "blob";
+    case SQLITE_NULL:    return "null";
     default:
       g_assert_not_reached ();
   }
