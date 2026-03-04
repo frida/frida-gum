@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -64,13 +64,15 @@ gboolean
 gum_memory_is_readable (gconstpointer address,
                         gsize len)
 {
-  gsize size;
-  GumPageProtection prot;
+  gboolean is_readable;
+  guint8 * bytes;
+  gsize n_bytes_read;
 
-  if (!gum_memory_get_protection (address, len, &size, &prot))
-    return FALSE;
+  bytes = gum_memory_read (address, len, &n_bytes_read);
+  is_readable = bytes != NULL && n_bytes_read == len;
+  g_free (bytes);
 
-  return size >= len && (prot & GUM_PAGE_READ) != 0;
+  return is_readable;
 }
 
 static gboolean
