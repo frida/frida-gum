@@ -1376,7 +1376,18 @@ gum_soinfo_get_body (GumSoinfo * self)
 static gboolean
 gum_soinfo_is_linker (GumSoinfo * self)
 {
-  return gum_soinfo_get_body (self)->base == 0;
+  ElfW(Addr) base;
+  GumAddress linker_base;
+
+  base = gum_soinfo_get_body (self)->base;
+
+  if (base == 0)
+    return TRUE;
+
+  linker_base =
+      gum_module_get_range (gum_android_get_linker_module ())->base_address;
+
+  return base == linker_base;
 }
 
 static GumSoinfo *
