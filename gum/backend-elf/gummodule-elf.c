@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Daniel Baier <admin@remoteshell-security.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -20,6 +20,9 @@ typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumEnumerateRangesContext GumEnumerateRangesContext;
 typedef struct _GumEnumerateSectionsContext GumEnumerateSectionsContext;
+#ifdef HAVE_ANDROID
+typedef struct _GumFindExportByNameContext GumFindExportByNameContext;
+#endif
 
 struct _GumEnumerateImportsContext
 {
@@ -45,6 +48,14 @@ struct _GumEnumerateSectionsContext
   GumFoundSectionFunc func;
   gpointer user_data;
 };
+
+#ifdef HAVE_ANDROID
+struct _GumFindExportByNameContext
+{
+  const gchar * name;
+  GumAddress address;
+};
+#endif
 
 static void gum_native_module_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -76,6 +87,10 @@ static void gum_native_module_enumerate_dependencies (GumModule * module,
     GumFoundDependencyFunc func, gpointer user_data);
 static GumAddress gum_native_module_find_export_by_name (GumModule * module,
     const gchar * symbol_name);
+#ifdef HAVE_ANDROID
+static gboolean gum_try_resolve_export_by_name (
+    const GumExportDetails * details, gpointer user_data);
+#endif
 
 static GumAddress gum_dlsym (gpointer module_handle, const gchar * symbol_name);
 
@@ -519,6 +534,19 @@ gum_native_module_find_export_by_name (GumModule * module,
     if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE &&
         gum_android_try_resolve_magic_export (self->path, symbol_name, &addr))
       return addr;
+
+    if (module == gum_android_get_linker_module ())
+    {
+      GumFindExportByNameContext ctx;
+
+      ctx.name = symbol_name;
+      ctx.address = 0;
+
+      gum_module_enumerate_exports (module, gum_try_resolve_export_by_name,
+          &ctx);
+
+      return ctx.address;
+    }
   }
 #endif
 
@@ -528,6 +556,25 @@ gum_native_module_find_export_by_name (GumModule * module,
 
   return gum_dlsym (handle, symbol_name);
 }
+
+#ifdef HAVE_ANDROID
+
+static gboolean
+gum_try_resolve_export_by_name (const GumExportDetails * details,
+                                gpointer user_data)
+{
+  GumFindExportByNameContext * ctx = user_data;
+
+  if (strcmp (details->name, ctx->name) == 0)
+  {
+    ctx->address = details->address;
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+#endif
 
 GumAddress
 gum_module_find_global_export_by_name (const gchar * symbol_name)
