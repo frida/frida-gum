@@ -1,11 +1,13 @@
 /*
- * Copyright (C) 2022-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #ifndef __GUM_LINUX_PRIV_H__
 #define __GUM_LINUX_PRIV_H__
+
+#include "gummodule.h"
 
 #include <dlfcn.h>
 #include <glib.h>
@@ -14,6 +16,8 @@
 
 G_BEGIN_DECLS
 
+typedef struct _GumProgramModules GumProgramModules;
+typedef guint GumProgramRuntimeLinker;
 typedef struct _GumProcMapsIter GumProcMapsIter;
 
 #ifndef HAVE_GLIBC
@@ -21,6 +25,20 @@ typedef struct _GumLinuxPThread GumLinuxPThread;
 #endif
 typedef struct _GumGlibcList GumGlibcList;
 typedef int GumGlibcLock;
+
+struct _GumProgramModules
+{
+  GumModule * program;
+  GumModule * interpreter;
+  GumModule * vdso;
+  GumProgramRuntimeLinker rtld;
+};
+
+enum _GumProgramRuntimeLinker
+{
+  GUM_PROGRAM_RTLD_NONE,
+  GUM_PROGRAM_RTLD_SHARED,
+};
 
 struct _GumProcMapsIter
 {
@@ -96,6 +114,8 @@ struct _GumLinuxPThread
 # endif
 };
 #endif
+
+G_GNUC_INTERNAL const GumProgramModules * _gum_query_program_modules (void);
 
 G_GNUC_INTERNAL const Dl_info * _gum_process_get_libc_info (void);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,7 @@
 #include "gum/gumandroid.h"
 
 #include "gum-init.h"
+#include "gumlinux-priv.h"
 #include "gummodule-elf.h"
 #include "gum/gumlinux.h"
 
@@ -392,14 +393,6 @@ struct _GumFunctionSignature
   gint displacement;
 };
 
-static const GumModule * gum_try_init_linker_module (void);
-static void gum_deinit_linker_module (void);
-static const gchar * gum_find_linker_path (void);
-static GRegex * gum_find_linker_path_pattern (void);
-static gboolean gum_try_parse_linker_proc_maps_line (const gchar * line,
-    const gchar * linker_path, const GRegex * linker_path_pattern,
-    GumModule ** module);
-
 static gboolean gum_emit_module_from_soinfo (const GumSoinfoDetails * details,
     GumEnumerateModulesContext * ctx);
 static gpointer gum_create_module_handle (GumNativeModule * module,
@@ -454,7 +447,6 @@ static const char * gum_libcxx_string_get_data (const GumLibcxxString * self);
 
 static gboolean gum_android_is_vdso_module_name (const gchar * name);
 
-static GumModule * gum_dl_module;
 static GumLinkerApi gum_dl_api;
 
 static const gchar * gum_magic_linker_export_names_pre_api_level_26[] =
@@ -685,184 +677,7 @@ gum_android_is_linker_module_name (const gchar * name)
 GumModule *
 gum_android_get_linker_module (void)
 {
-  static GOnce once = G_ONCE_INIT;
-
-  g_once (&once, (GThreadFunc) gum_try_init_linker_module, NULL);
-
-  if (once.retval == NULL)
-    gum_panic ("Unable to locate the Android linker; please file a bug");
-
-  return once.retval;
-}
-
-static const GumModule *
-gum_try_init_linker_module (void)
-{
-  GumModule * result = NULL;
-  const gchar * linker_path;
-  GRegex * linker_path_pattern;
-  gchar * maps, ** lines;
-  gint num_lines, vdso_index, i;
-
-  linker_path = gum_find_linker_path ();
-  linker_path_pattern = gum_find_linker_path_pattern ();
-
-  /*
-   * Using /proc/self/maps means there might be false positives, as the
-   * application – or even Frida itself – may have mmap()ed the module.
-   *
-   * Knowing that the linker is mapped right around the vdso, with no
-   * empty space between, we just have to find the vdso, and we can
-   * count on the the next or previous linker mapping being the actual
-   * linker.
-   */
-  g_file_get_contents ("/proc/self/maps", &maps, NULL, NULL);
-  lines = g_strsplit (maps, "\n", 0);
-  num_lines = g_strv_length (lines);
-
-  vdso_index = -1;
-  for (i = 0; i != num_lines; i++)
-  {
-    const gchar * line = lines[i];
-
-    if (g_str_has_suffix (line, " [vdso]"))
-    {
-      vdso_index = i;
-      break;
-    }
-  }
-  if (vdso_index == -1)
-    goto no_vdso;
-
-  for (i = vdso_index + 1; i != num_lines; i++)
-  {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
-        linker_path_pattern, &gum_dl_module))
-    {
-      result = gum_dl_module;
-      goto beach;
-    }
-  }
-
-  for (i = vdso_index - 1; i >= 0; i--)
-  {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
-        linker_path_pattern, &gum_dl_module))
-    {
-      result = gum_dl_module;
-      goto beach;
-    }
-  }
-
-  goto beach;
-
-no_vdso:
-  for (i = num_lines - 1; i >= 0; i--)
-  {
-    if (gum_try_parse_linker_proc_maps_line (lines[i], linker_path,
-        linker_path_pattern, &gum_dl_module))
-    {
-      result = gum_dl_module;
-      goto beach;
-    }
-  }
-
-beach:
-  if (result != NULL)
-    _gum_register_destructor (gum_deinit_linker_module);
-
-  g_strfreev (lines);
-  g_free (maps);
-  g_regex_unref (linker_path_pattern);
-
-  return result;
-}
-
-static void
-gum_deinit_linker_module (void)
-{
-  g_object_unref (gum_dl_module);
-}
-
-static const gchar *
-gum_find_linker_path (void)
-{
-  const gchar * traditional_path, * modern_path;
-
-  traditional_path = (sizeof (gpointer) == 4)
-      ? "/system/bin/linker"
-      : "/system/bin/linker64";
-
-  modern_path = (sizeof (gpointer) == 4)
-      ? "/apex/com.android.runtime/bin/linker"
-      : "/apex/com.android.runtime/bin/linker64";
-
-  return (gum_android_get_api_level () >= 29)
-      ? modern_path
-      : traditional_path;
-}
-
-static GRegex *
-gum_find_linker_path_pattern (void)
-{
-  const gchar * pattern;
-
-  if (gum_android_get_api_level () >= 29)
-  {
-    pattern = (sizeof (gpointer) == 4)
-        ? "/apex/com.android.runtime[^/]*/bin/linker$"
-        : "/apex/com.android.runtime[^/]*/bin/linker64$";
-  }
-  else
-  {
-    pattern = (sizeof (gpointer) == 4)
-        ? "/system/bin/linker$"
-        : "/system/bin/linker64$";
-  }
-
-  return g_regex_new (pattern, 0, 0, NULL);
-}
-
-static gboolean
-gum_try_parse_linker_proc_maps_line (const gchar * line,
-                                     const gchar * linker_path,
-                                     const GRegex * linker_path_pattern,
-                                     GumModule ** module)
-{
-  GumAddress start, end;
-  gchar perms[5] = { 0, };
-  gchar path[PATH_MAX];
-  gint n;
-  const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
-  GumMemoryRange range;
-
-  n = sscanf (line,
-      "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
-      "%4c "
-      "%*x %*s %*d "
-      "%s",
-      &start, &end,
-      perms,
-      path);
-  if (n != 4)
-    return FALSE;
-
-  if (!g_regex_match (linker_path_pattern, path, 0, NULL))
-    return FALSE;
-
-  if (perms[0] != 'r')
-    return FALSE;
-
-  if (memcmp (GSIZE_TO_POINTER (start), elf_magic, sizeof (elf_magic)) != 0)
-    return FALSE;
-
-  range.base_address = start;
-  range.size = end - start;
-
-  *module =
-      GUM_MODULE (_gum_native_module_make_handleless (linker_path, &range));
-
-  return TRUE;
+  return _gum_query_program_modules ()->interpreter;
 }
 
 const gchar **

@@ -28,8 +28,6 @@ typedef gint (* GumFoundDlPhdrFunc) (struct dl_phdr_info * info,
     gsize size, gpointer data);
 typedef void (* GumDlIteratePhdrImpl) (GumFoundDlPhdrFunc func, gpointer data);
 
-typedef struct _GumProgramModules GumProgramModules;
-typedef guint GumProgramRuntimeLinker;
 typedef struct _GumProgramRanges GumProgramRanges;
 typedef ElfW(auxv_t) * (* GumReadAuxvFunc) (void);
 
@@ -41,20 +39,6 @@ struct _GumEnumerateModulesContext
   gpointer user_data;
 
   GHashTable * named_ranges;
-};
-
-struct _GumProgramModules
-{
-  GumModule * program;
-  GumModule * interpreter;
-  GumModule * vdso;
-  GumProgramRuntimeLinker rtld;
-};
-
-enum _GumProgramRuntimeLinker
-{
-  GUM_PROGRAM_RTLD_NONE,
-  GUM_PROGRAM_RTLD_SHARED,
 };
 
 struct _GumProgramRanges
@@ -82,7 +66,6 @@ static gboolean gum_find_r_debug (GumModule * module, gpointer user_data);
 static gboolean gum_find_debug_entry (const GumElfDynamicEntryDetails * details,
     gpointer user_data);
 
-static const GumProgramModules * gum_query_program_modules (void);
 static void gum_deinit_program_modules (void);
 static gboolean gum_query_program_ranges (GumReadAuxvFunc read_auxv,
     GumProgramRanges * ranges);
@@ -115,7 +98,7 @@ _gum_module_registry_enumerate_loaded_modules (GumFoundModuleFunc func,
   static gsize iterate_phdr_value = 0;
   GumDlIteratePhdrImpl iterate_phdr;
 
-  pm = gum_query_program_modules ();
+  pm = _gum_query_program_modules ();
 
   if (pm->rtld == GUM_PROGRAM_RTLD_NONE)
   {
@@ -407,8 +390,8 @@ _gum_module_registry_handle_rtld_notification (GumSynchronizeModulesFunc sync,
     sync ();
 }
 
-static const GumProgramModules *
-gum_query_program_modules (void)
+const GumProgramModules *
+_gum_query_program_modules (void)
 {
   static gsize modules_value = 0;
 
