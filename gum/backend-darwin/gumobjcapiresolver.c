@@ -642,6 +642,8 @@ gum_objc_api_resolver_append_class (GumObjcApiResolver * self,
 
   klass->resolver = self;
 
+  self->objc_lookUpClass (klass->name);
+
   return klass;
 }
 
