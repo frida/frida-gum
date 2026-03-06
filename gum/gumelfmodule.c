@@ -550,6 +550,13 @@ gum_elf_module_load (GumElfModule * self,
       self->file_bytes = g_bytes_new_static (
           GSIZE_TO_POINTER (self->base_address), gum_query_page_size ());
     }
+    else if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
+             strstr (self->source_path, "!") != NULL)
+    {
+      self->file_bytes = g_bytes_new_static (
+          GSIZE_TO_POINTER (self->base_address),
+          G_MAXSIZE - self->base_address);
+    }
     else
 #endif
     if (!gum_maybe_extract_from_apk (self->source_path, &self->file_bytes))
