@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C)      2021 Paul Schmidt <p.schmidt@tu-bs.de>
+ * Copyright (C)      2026 Daniel Baier <admin@remoteshell-security.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -51,6 +52,7 @@ typedef struct _GumElfRelocationGroup GumElfRelocationGroup;
 typedef struct _GumElfEnumerateImportsContext GumElfEnumerateImportsContext;
 typedef struct _GumElfEnumerateExportsContext GumElfEnumerateExportsContext;
 typedef struct _GumElfStoreSymtabParamsContext GumElfStoreSymtabParamsContext;
+typedef struct _GumElfEnumerateSymbolsContext GumElfEnumerateSymbolsContext;
 typedef struct _GumElfEnumerateDepsContext GumElfEnumerateDepsContext;
 
 enum
@@ -154,6 +156,13 @@ struct _GumElfStoreSymtabParamsContext
   GumElfModule * module;
 };
 
+struct _GumElfEnumerateSymbolsContext
+{
+  GumFoundElfSymbolFunc func;
+  gpointer user_data;
+  guint count;
+};
+
 struct _GumElfEnumerateDepsContext
 {
   GumFoundDependencyFunc func;
@@ -204,6 +213,8 @@ static void gum_elf_module_read_symbol (GumElfModule * self,
 static gboolean gum_store_symtab_params (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
 static gboolean gum_adjust_symtab_params (const GumElfSectionDetails * details,
+    gpointer user_data);
+static gboolean gum_count_and_emit_symbol (const GumElfSymbolDetails * details,
     gpointer user_data);
 static void gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
     GumElfSectionType section, GumFoundElfSymbolFunc func, gpointer user_data);
@@ -2029,8 +2040,28 @@ gum_elf_module_enumerate_symbols (GumElfModule * self,
                                   GumFoundElfSymbolFunc func,
                                   gpointer user_data)
 {
+  GumElfEnumerateSymbolsContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+  ctx.count = 0;
+
   gum_elf_module_enumerate_symbols_in_section (self, GUM_ELF_SECTION_SYMTAB,
-      func, user_data);
+      gum_count_and_emit_symbol, &ctx);
+
+  if (ctx.count == 0)
+    gum_elf_module_enumerate_dynamic_symbols (self, func, user_data);
+}
+
+static gboolean
+gum_count_and_emit_symbol (const GumElfSymbolDetails * details,
+                           gpointer user_data)
+{
+  GumElfEnumerateSymbolsContext * ctx = user_data;
+
+  ctx->count++;
+
+  return ctx->func (details, ctx->user_data);
 }
 
 static void
