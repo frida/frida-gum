@@ -1538,9 +1538,12 @@ gum_elf_module_emit_relocations (GumElfModule * self,
       gum_elf_module_parse_symbol (self, &sym_val, g->strings, &sym_details);
       if (sym_details.name != NULL)
       {
-        if (!gum_elf_module_check_str_bounds (self, sym_details.name,
+        if (sym_details.type != GUM_ELF_SYMBOL_SECTION &&
+            !gum_elf_module_check_str_bounds (self, sym_details.name,
               g->strings_base, g->strings_size, "relocation symbol name", NULL))
+        {
           goto invalid_group;
+        }
       }
       else
       {
@@ -1768,7 +1771,10 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
 
     gum_elf_module_parse_symbol (self, &sym, self->dynamic_strings, &details);
     if (details.name != NULL)
-      GUM_CHECK_STR_BOUNDS (details.name, "symbol name");
+    {
+      if (details.type != GUM_ELF_SYMBOL_SECTION)
+        GUM_CHECK_STR_BOUNDS (details.name, "symbol name");
+    }
     else
       details.name = "";
 
@@ -2106,9 +2112,14 @@ gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
 
     gum_elf_module_parse_symbol (self, &sym, strings, &details);
     if (details.name != NULL)
-      GUM_CHECK_STR_BOUNDS (details.name, "symbol name");
+    {
+      if (details.type != GUM_ELF_SYMBOL_SECTION)
+        GUM_CHECK_STR_BOUNDS (details.name, "symbol name");
+    }
     else
+    {
       details.name = "";
+    }
 
     if (!func (&details, user_data))
       return;
