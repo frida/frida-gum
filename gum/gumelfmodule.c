@@ -207,6 +207,8 @@ static gboolean gum_store_symtab_params (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
 static gboolean gum_adjust_symtab_params (const GumElfSectionDetails * details,
     gpointer user_data);
+static gboolean gum_count_and_forward_symbol (
+    const GumElfSymbolDetails * details, gpointer user_data);
 static void gum_elf_module_enumerate_symbols_in_section (GumElfModule * self,
     GumElfSectionType section, GumFoundElfSymbolFunc func, gpointer user_data);
 static gboolean gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
@@ -550,6 +552,13 @@ gum_elf_module_load (GumElfModule * self,
       self->file_bytes = g_bytes_new_static (
           GSIZE_TO_POINTER (self->base_address), gum_query_page_size ());
     }
+    else if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
+             strstr (self->source_path, "!") != NULL)
+    {
+      self->file_bytes = g_bytes_new_static (
+          GSIZE_TO_POINTER (self->base_address),
+          G_MAXSIZE - self->base_address);
+    }
     else
 #endif
     if (!gum_maybe_extract_from_apk (self->source_path, &self->file_bytes))
@@ -818,6 +827,22 @@ gum_elf_module_load_section_headers (GumElfModule * self,
   guint16 n;
   gconstpointer start, end, cursor;
   guint16 i;
+
+  /*
+   * When file data is backed by the process memory image (ONLINE mode with
+   * APK-embedded libraries or modules whose backing file couldn't be opened),
+   * section headers reside at file offsets that don't correspond to valid data
+   * in the mapped memory — the dynamic linker only maps PT_LOAD segments, not
+   * section headers. Skip section loading; exports, imports, and dynamic
+   * symbols remain available via program headers and dynamic entries.
+   */
+  if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
+      self->file_data ==
+          (gconstpointer) GSIZE_TO_POINTER (self->base_address) &&
+      self->file_size > self->mapped_size)
+  {
+    return TRUE;
+  }
 
   data = gum_elf_module_get_file_data (self, &size);
 
@@ -1117,8 +1142,17 @@ gum_elf_module_try_get_fallback_elf_module (GumElfModule * self)
 
     if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
     {
-      self->fallback_elf_module =
-          gum_elf_module_new_from_file (self->source_path, NULL);
+      /*
+       * Skip fallback file load for APK-embedded libraries — the path
+       * (e.g., "base.apk!/lib/libfoo.so") cannot be opened as a regular
+       * file, and extracting via minizip causes SIGSEGV due to Android's
+       * special APK file handling.
+       */
+      if (strstr (self->source_path, ".apk!") == NULL)
+      {
+        self->fallback_elf_module =
+            gum_elf_module_new_from_file (self->source_path, NULL);
+      }
     }
     else
     {
@@ -2059,13 +2093,46 @@ gum_adjust_symtab_params (const GumElfSectionDetails * details,
   return TRUE;
 }
 
+typedef struct {
+  GumFoundElfSymbolFunc func;
+  gpointer user_data;
+  guint count;
+} GumElfCountSymbolsContext;
+
+static gboolean
+gum_count_and_forward_symbol (const GumElfSymbolDetails * details,
+                              gpointer user_data)
+{
+  GumElfCountSymbolsContext * ctx = user_data;
+
+  ctx->count++;
+
+  return ctx->func (details, ctx->user_data);
+}
+
 void
 gum_elf_module_enumerate_symbols (GumElfModule * self,
                                   GumFoundElfSymbolFunc func,
                                   gpointer user_data)
 {
+  GumElfCountSymbolsContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+  ctx.count = 0;
+
   gum_elf_module_enumerate_symbols_in_section (self, GUM_ELF_SECTION_SYMTAB,
-      func, user_data);
+      gum_count_and_forward_symbol, &ctx);
+
+  /*
+   * If no SYMTAB symbols were found (e.g., stripped binary or APK-embedded
+   * library where fallback file load was skipped), fall back to enumerating
+   * dynamic symbols from .dynsym via dynamic entries.
+   */
+  if (ctx.count == 0)
+  {
+    gum_elf_module_enumerate_dynamic_symbols (self, func, user_data);
+  }
 }
 
 static void
