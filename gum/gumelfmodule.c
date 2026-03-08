@@ -98,8 +98,6 @@ struct _GumElfModule
   GumElfDynamicAddressState dynamic_address_state;
   const gchar * dynamic_strings;
 
-  GHashTable * page_is_readable_cache;
-
   GMutex mutex;
 
   GumElfModule * fallback_elf_module;
@@ -346,8 +344,6 @@ gum_elf_module_init (GumElfModule * self)
   self->dynamic_address_state = GUM_ELF_DYNAMIC_ADDRESS_PRISTINE;
 
   g_mutex_init (&self->mutex);
-
-  self->page_is_readable_cache = g_hash_table_new (NULL, NULL);
 }
 
 static void
@@ -368,8 +364,6 @@ gum_elf_module_finalize (GObject * object)
   GumElfModule * self = GUM_ELF_MODULE (object);
 
   g_mutex_clear (&self->mutex);
-
-  g_hash_table_unref (self->page_is_readable_cache);
 
   g_ptr_array_unref (self->sections);
 
@@ -1740,9 +1734,6 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
   gsize size;
   GError ** error = NULL;
 
-  if (self->dynamic_strings == NULL)
-    return;
-
   ctx.pending = 3;
   ctx.found_hash = FALSE;
 
@@ -1885,24 +1876,10 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
   switch (details->tag)
   {
     case GUM_ELF_DYNAMIC_SYMTAB:
-    {
-      gpointer entries;
-
-      entries = gum_elf_module_resolve_dynamic_virtual_location (ctx->module,
-          details->val);
-
-      if (entries != NULL &&
-          self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
-          !gum_memory_is_readable (entries, 1))
-      {
-        entries = NULL;
-      }
-
-      ctx->entries = entries;
+      ctx->entries = gum_elf_module_resolve_dynamic_virtual_location (
+          ctx->module, details->val);
       ctx->pending--;
-
       break;
-    }
     case GUM_ELF_DYNAMIC_SYMENT:
       ctx->entry_size = details->val;
       ctx->pending--;
@@ -1923,12 +1900,6 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       GUM_CHECK_BOUNDS (hash_params,
           (const guint8 *) hash_params + (2 * sizeof (guint32)),
           "SYSV hash header");
-
-      if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
-          !gum_memory_is_readable (hash_params, 8))
-      {
-        break;
-      }
 
       nchain = hash_params[1];
 
@@ -1964,12 +1935,6 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       GUM_CHECK_BOUNDS (hash_params,
           (const guint8 *) hash_params + (4 * sizeof (guint32)),
           "GNU hash header");
-
-      if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
-          !gum_memory_is_readable (hash_params, 16))
-      {
-        break;
-      }
 
       nbuckets = hash_params[0];
       symoffset = hash_params[1];
@@ -2166,9 +2131,6 @@ gum_emit_each_needed (const GumElfDynamicEntryDetails * details,
   GumDependencyDetails d;
 
   if (details->tag != GUM_ELF_DYNAMIC_NEEDED)
-    return TRUE;
-
-  if (ctx->module->dynamic_strings == NULL)
     return TRUE;
 
   data = gum_elf_module_get_live_data (ctx->module, &size);
@@ -2436,22 +2398,12 @@ gum_store_dynamic_string_table (const GumElfDynamicEntryDetails * details,
                                 gpointer user_data)
 {
   GumElfModule * self = user_data;
-  gpointer resolved_addr;
 
   if (details->tag != GUM_ELF_DYNAMIC_STRTAB)
     return TRUE;
 
-  resolved_addr = gum_elf_module_resolve_dynamic_virtual_location (self,
+  self->dynamic_strings = gum_elf_module_resolve_dynamic_virtual_location (self,
       details->val);
-
-  if (resolved_addr != NULL &&
-      self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE &&
-      !gum_memory_is_readable (resolved_addr, 1))
-  {
-    resolved_addr = NULL;
-  }
-
-  self->dynamic_strings = resolved_addr;
   return FALSE;
 }
 
@@ -2503,56 +2455,13 @@ gum_elf_module_check_str_bounds (GumElfModule * self,
   if (str >= end)
     goto consider_file_data;
 
-  if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
+  cursor = str;
+  do
   {
-    gsize page_size;
-    const gchar * last_checked_page;
-
-    page_size = gum_query_page_size ();
-    last_checked_page = NULL;
-
-    cursor = str;
-    do
-    {
-      const gchar * current_page;
-
-      if (cursor >= end)
-        goto oob;
-
-      current_page = (const gchar *) (((gsize) cursor) & ~(page_size - 1));
-      if (current_page != last_checked_page)
-      {
-        gpointer cached_result;
-        gboolean is_readable;
-
-        if (g_hash_table_lookup_extended (self->page_is_readable_cache,
-            (gpointer) current_page, NULL, &cached_result))
-        {
-          is_readable = GPOINTER_TO_INT (cached_result);
-        }
-        else
-        {
-          is_readable = gum_memory_is_readable (cursor, 1);
-          g_hash_table_insert (self->page_is_readable_cache,
-              (gpointer) current_page, GINT_TO_POINTER (is_readable));
-        }
-
-        if (!is_readable)
-          goto oob;
-
-        last_checked_page = current_page;
-      }
-    }
-    while (*cursor++ != '\0');
-  }
-  else
-  {
-    cursor = str;
-    while (cursor < end && *cursor != '\0')
-      cursor++;
     if (cursor >= end)
       goto oob;
   }
+  while (*cursor++ != '\0');
 
   return TRUE;
 
