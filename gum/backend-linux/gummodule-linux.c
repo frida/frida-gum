@@ -15,10 +15,9 @@ gum_module_load (const gchar * module_name,
                  GError ** error)
 {
   GumModule * module;
-  GumGenericDlopenImpl dlopen_impl = dlopen;
   gpointer handle;
 
-#ifdef HAVE_ANDROID
+  /* Check if module is already loaded before attempting to load it */
   module = gum_process_find_module_by_name (module_name);
   if (module != NULL)
     return module;
@@ -27,7 +26,6 @@ gum_module_load (const gchar * module_name,
     gum_android_find_unrestricted_dlopen (&dlopen_impl);
 #endif
 
-  handle = dlopen_impl (module_name, RTLD_LAZY);
   if (handle == NULL)
     goto not_found;
 
