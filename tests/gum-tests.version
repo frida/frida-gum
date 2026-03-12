@@ -1,9 +1,4 @@
 {
-  global:
-    # FreeBSD needs these two:
-    __progname;
-    environ;
-
   local:
     *;
 };
