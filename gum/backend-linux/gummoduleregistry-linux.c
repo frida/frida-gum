@@ -58,6 +58,12 @@ static void gum_enumerate_modules_using_libc (GumDlIteratePhdrImpl iterate_phdr,
     GumFoundModuleFunc func, gpointer user_data);
 static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
+#ifdef HAVE_MUSL
+static void gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
+    GumFoundModuleFunc func, gpointer user_data);
+static gpointer gum_link_map_as_module_handle (GumNativeModule * module,
+    gpointer user_data);
+#endif
 static void gum_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     gpointer user_data);
 static gpointer gum_create_module_handle (GumNativeModule * module,
@@ -89,6 +95,9 @@ static gboolean gum_find_range_for_file_id_offset0 (GumFileId * wanted,
 
 static struct r_debug * gum_r_debug;
 static GumProgramModules gum_program_modules;
+#ifdef HAVE_MUSL
+static gboolean gum_syncing_modules_from_rtld;
+#endif
 
 void
 _gum_module_registry_enumerate_loaded_modules (GumFoundModuleFunc func,
@@ -115,6 +124,14 @@ _gum_module_registry_enumerate_loaded_modules (GumFoundModuleFunc func,
   if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
   {
     gum_android_enumerate_modules (func, user_data);
+    return;
+  }
+#endif
+
+#ifdef HAVE_MUSL
+  if (gum_syncing_modules_from_rtld && gum_r_debug != NULL)
+  {
+    gum_enumerate_modules_using_r_debug (pm, func, user_data);
     return;
   }
 #endif
@@ -187,6 +204,50 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
 
   return carry_on ? 0 : 1;
 }
+
+#ifdef HAVE_MUSL
+
+static void
+gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
+                                     GumFoundModuleFunc func,
+                                     gpointer user_data)
+{
+  const struct link_map * lm;
+  gboolean carry_on = TRUE;
+
+  for (lm = gum_r_debug->r_map; lm != NULL; lm = lm->l_next)
+  {
+    GumMemoryRange range;
+    GumNativeModule * module;
+
+    if (lm->l_name[0] == '\0')
+      continue;
+
+    gum_compute_elf_range_from_ehdr ((const ElfW(Ehdr) *) lm->l_addr, &range);
+
+    module = _gum_native_module_make (lm->l_name, &range,
+        gum_link_map_as_module_handle, (gpointer) lm, NULL, NULL);
+
+    carry_on = func (GUM_MODULE (module), user_data);
+
+    g_object_unref (module);
+
+    if (!carry_on)
+      break;
+  }
+
+  if (carry_on && pm->vdso != NULL)
+    func (pm->vdso, user_data);
+}
+
+static gpointer
+gum_link_map_as_module_handle (GumNativeModule * module,
+                               gpointer user_data)
+{
+  return user_data;
+}
+
+#endif
 
 static void
 gum_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
@@ -386,8 +447,17 @@ void
 _gum_module_registry_handle_rtld_notification (GumSynchronizeModulesFunc sync,
                                                GumInvocationContext * ic)
 {
+#ifdef HAVE_MUSL
+  if (gum_r_debug->r_state == RT_CONSISTENT)
+  {
+    gum_syncing_modules_from_rtld = TRUE;
+    sync ();
+    gum_syncing_modules_from_rtld = FALSE;
+  }
+#else
   if (gum_r_debug->r_state == RT_CONSISTENT)
     sync ();
+#endif
 }
 
 const GumProgramModules *
