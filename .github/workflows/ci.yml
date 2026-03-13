@@ -324,7 +324,7 @@ jobs:
         if: startsWith(matrix.id, 'android-')
         id: setup-ndk
         with:
-          ndk-version: r25
+          ndk-version: r29
           add-to-path: false
       - name: Set ANDROID_NDK_ROOT
         if: startsWith(matrix.id, 'android-')
