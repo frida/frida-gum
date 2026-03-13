@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023-2024 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
@@ -504,7 +504,8 @@ gum_process_is_debugger_attached (void)
   gchar * status, * p;
 
   status = NULL;
-  g_file_get_contents ("/proc/self/status", &status, NULL, NULL);
+  if (!g_file_get_contents ("/proc/self/status", &status, NULL, NULL))
+    return FALSE;
 
   p = strstr (status, "TracerPid:");
   g_assert (p != NULL);
