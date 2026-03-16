@@ -1591,6 +1591,8 @@ gum_function_context_fixup_cpu_context (GumFunctionContext * function_ctx,
   cpu_context->pc = pc;
 #elif defined (HAVE_MIPS)
   cpu_context->pc = pc;
+#elif defined (HAVE_RISCV)
+  cpu_context->pc = pc;
 #else
 # error Unsupported architecture
 #endif

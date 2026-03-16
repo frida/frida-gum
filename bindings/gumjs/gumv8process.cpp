@@ -32,6 +32,8 @@
 # define GUM_SCRIPT_ARCH "arm64"
 #elif defined (HAVE_MIPS)
 # define GUM_SCRIPT_ARCH "mips"
+#elif defined (HAVE_RISCV)
+# define GUM_SCRIPT_ARCH "riscv"
 #endif
 
 #if defined (HAVE_LINUX)
