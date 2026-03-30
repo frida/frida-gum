@@ -420,7 +420,7 @@ gum_exceptor_backend_on_signal (int sig,
 #if defined (HAVE_I386)
   ed.address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64)
-  ed.address = GSIZE_TO_POINTER (cpu_context->pc);
+  ed.address = gum_strip_code_pointer (GSIZE_TO_POINTER (cpu_context->pc));
 #elif defined (HAVE_MIPS)
   ed.address = GSIZE_TO_POINTER (cpu_context->pc);
 #else
