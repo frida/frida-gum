@@ -213,7 +213,7 @@ gum_ffi_arg_to_ret (const ffi_type * type,
       length++;
 
     offset = 0;
-    
+
     for (field_index = 0; field_index != length; field_index++)
     {
       GumFFIArg * _arg;
