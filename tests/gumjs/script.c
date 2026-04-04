@@ -344,6 +344,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_is_a_native_pointer)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
+    TESTENTRY (native_callback_does_not_alter_return_value)
 #ifdef HAVE_WINDOWS
 # if GLIB_SIZEOF_VOID_P == 4
     TESTENTRY (native_callback_should_support_fastcall)
@@ -2344,6 +2345,34 @@ TESTCASE (native_callback_should_be_kept_alive_during_calls)
   EXPECT_SEND_MESSAGE_WITH ("\"returning\"");
   EXPECT_SEND_MESSAGE_WITH ("\"dead\"");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (native_callback_does_not_alter_return_value)
+{
+  struct _struct
+  {
+    uint32_t a;
+    void * b;
+    void * c;
+    void * d;
+  };
+
+  struct _struct (* cb) (void);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let cb = new NativeCallback(() => {"
+        "return [1234, ptr(0x1234), ptr(0x3456), ptr(0x7890)];"
+      "}, ['uint32', 'pointer', 'pointer', 'pointer'], []);"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+  EXPECT_NO_MESSAGES ();
+
+  struct _struct retval = cb ();
+
+  g_assert_cmpint (retval.a, ==, 1234);
+  g_assert_cmpint (GPOINTER_TO_UINT (retval.b), ==, 0x1234);
+  g_assert_cmpint (GPOINTER_TO_UINT (retval.c), ==, 0x3456);
+  g_assert_cmpint (GPOINTER_TO_UINT (retval.d), ==, 0x7890);
 }
 
 #ifdef HAVE_WINDOWS
