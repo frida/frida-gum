@@ -2358,11 +2358,13 @@ TESTCASE (native_callback_does_not_alter_return_value)
   struct _struct (* cb) (void);
 
   COMPILE_AND_LOAD_SCRIPT (
-      "let cb = new NativeCallback(() => [1234, ptr(1234)], ['uint32', 'pointer'], []);"
+      "let cb = new NativeCallback(() => {"
+        "return [1234, ptr(1234)];"
+      "}, ['uint32', 'pointer'], []);"
       GUM_PTR_CONST ".writePointer(cb);",
       &cb);
   EXPECT_NO_MESSAGES ();
-  
+
   struct _struct retval = cb ();
 
   g_assert_cmpint (retval.a, ==, 1234);
