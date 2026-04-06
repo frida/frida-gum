@@ -400,6 +400,15 @@ capstone_options = [
   'cli=disabled',
 ]
 capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
+if not cc.has_function('cs_arch_register_x86', dependencies: [capstone_dep])
+  add_project_arguments(
+    '-Dcs_arch_register_x86()=',
+    '-Dcs_arch_register_arm()=',
+    '-Dcs_arch_register_arm64()=',
+    '-Dcs_arch_register_mips()=',
+    language: languages,
+  )
+endif
 
 lzma_dep = dependency('liblzma', required: build_tests)
 if lzma_dep.found()
