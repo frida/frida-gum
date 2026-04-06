@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -259,6 +259,17 @@ gum_do_run_on_thread (const GumCpuContext * cpu_context,
   g_slice_free (GumRunOnThreadCtx, rc);
 }
 
+/**
+ * gum_stalker_run_on_thread_sync:
+ * @self: stalker
+ * @thread_id: the thread to run on
+ * @func: (scope call): function to run on the thread
+ * @data: data to pass to @func
+ *
+ * Synchronously runs @func on the specified thread.
+ *
+ * Returns: whether the function was successfully run
+ */
 gboolean
 gum_stalker_run_on_thread_sync (GumStalker * self,
                                 GumThreadId thread_id,
@@ -316,6 +327,13 @@ gum_do_run_on_thread_sync (const GumCpuContext * cpu_context,
   g_cond_signal (&rc->cond);
   g_mutex_unlock (&rc->mutex);
 }
+
+/**
+ * gum_stalker_iterator_get_capstone: (skip)
+ * @self: the iterator
+ *
+ * Returns the Capstone handle for the current iterator.
+ */
 
 static void
 gum_stalker_transformer_default_init (GumStalkerTransformerInterface * iface)

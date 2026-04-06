@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,6 +20,17 @@ static gboolean gum_store_symbol (const GumSymbolDetails * details,
     gpointer user_data);
 static gint gum_symbol_entry_compare (const GumSymbolEntry * lhs,
     const GumSymbolEntry * rhs);
+
+/**
+ * gum_module_load:
+ * @module_name: name or path of the module to load
+ * @error: (nullable): return location for a #GError
+ *
+ * Loads the specified module.
+ *
+ * Returns: (transfer full) (nullable): the loaded module, or %NULL on
+ *   error
+ */
 
 G_DEFINE_INTERFACE (GumModule, gum_module, G_TYPE_OBJECT)
 
@@ -113,6 +124,14 @@ gum_module_enumerate_ranges (GumModule * self,
     iface->enumerate_ranges (self, prot, func, user_data);
 }
 
+/**
+ * gum_module_enumerate_sections:
+ * @self: module
+ * @func: (scope call): function called with #GumSectionDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates sections of the specified module.
+ */
 void
 gum_module_enumerate_sections (GumModule * self,
                                GumFoundSectionFunc func,
@@ -124,6 +143,14 @@ gum_module_enumerate_sections (GumModule * self,
     iface->enumerate_sections (self, func, user_data);
 }
 
+/**
+ * gum_module_enumerate_dependencies:
+ * @self: module
+ * @func: (scope call): function called with #GumDependencyDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates dependencies of the specified module.
+ */
 void
 gum_module_enumerate_dependencies (GumModule * self,
                                    GumFoundDependencyFunc func,

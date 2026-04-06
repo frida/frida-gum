@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
@@ -310,6 +310,13 @@ gum_interceptor_finalize (GObject * object)
   G_OBJECT_CLASS (gum_interceptor_parent_class)->finalize (object);
 }
 
+/**
+ * gum_interceptor_obtain:
+ *
+ * Obtains the interceptor singleton.
+ *
+ * Returns: (transfer full): the interceptor
+ */
 GumInterceptor *
 gum_interceptor_obtain (void)
 {
@@ -615,6 +622,14 @@ gum_interceptor_flush (GumInterceptor * self)
   return flushed;
 }
 
+/**
+ * gum_interceptor_get_current_invocation:
+ *
+ * Returns the current invocation context.
+ *
+ * Returns: (transfer none) (nullable): the invocation context, or
+ *   %NULL if not in an intercepted call
+ */
 GumInvocationContext *
 gum_interceptor_get_current_invocation (void)
 {
@@ -629,6 +644,16 @@ gum_interceptor_get_current_invocation (void)
   return &entry->invocation_context;
 }
 
+/**
+ * gum_interceptor_get_live_replacement_invocation:
+ * @replacement_function: the replacement function
+ *
+ * Returns the invocation context for the given replacement
+ * function, if currently active.
+ *
+ * Returns: (transfer none) (nullable): the invocation context, or
+ *   %NULL if not in the specified replacement
+ */
 GumInvocationContext *
 gum_interceptor_get_live_replacement_invocation (gpointer replacement_function)
 {
@@ -647,6 +672,13 @@ gum_interceptor_get_live_replacement_invocation (gpointer replacement_function)
   return &entry->invocation_context;
 }
 
+/**
+ * gum_interceptor_get_current_stack:
+ *
+ * Returns the invocation stack for the current thread.
+ *
+ * Returns: (transfer none): the invocation stack
+ */
 GumInvocationStack *
 gum_interceptor_get_current_stack (void)
 {
@@ -752,6 +784,14 @@ gum_interceptor_restore (GumInvocationState * state)
   g_array_set_size (stack, old_depth);
 }
 
+/**
+ * gum_interceptor_with_lock_held:
+ * @self: the interceptor
+ * @func: (scope call): function to call while holding the lock
+ * @user_data: data to pass to @func
+ *
+ * Calls @func while holding the interceptor lock.
+ */
 void
 gum_interceptor_with_lock_held (GumInterceptor * self,
                                 GumInterceptorLockedFunc func,
@@ -772,6 +812,16 @@ gum_interceptor_is_locked (GumInterceptor * self)
   return FALSE;
 }
 
+/**
+ * gum_interceptor_detect_hook_size: (skip)
+ * @code: code address to analyze
+ * @capstone: Capstone handle
+ * @insn: Capstone instruction
+ *
+ * Detects the minimum hook size needed at the given code address.
+ *
+ * Returns: the hook size in bytes
+ */
 gsize
 gum_interceptor_detect_hook_size (gconstpointer code,
                                   csh capstone,

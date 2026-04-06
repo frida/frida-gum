@@ -1289,6 +1289,14 @@ gum_elf_module_get_file_data (GumElfModule * self,
   return self->file_data;
 }
 
+/**
+ * gum_elf_module_enumerate_segments:
+ * @self: module
+ * @func: (scope call): function called with each segment
+ * @user_data: data to pass to @func
+ *
+ * Enumerates segments of the module.
+ */
 void
 gum_elf_module_enumerate_segments (GumElfModule * self,
                                    GumFoundElfSegmentFunc func,
@@ -1315,6 +1323,14 @@ gum_elf_module_enumerate_segments (GumElfModule * self,
   }
 }
 
+/**
+ * gum_elf_module_enumerate_sections:
+ * @self: module
+ * @func: (scope call): function called with each section
+ * @user_data: data to pass to @func
+ *
+ * Enumerates sections of the module.
+ */
 void
 gum_elf_module_enumerate_sections (GumElfModule * self,
                                    GumFoundElfSectionFunc func,
@@ -1331,6 +1347,14 @@ gum_elf_module_enumerate_sections (GumElfModule * self,
   }
 }
 
+/**
+ * gum_elf_module_enumerate_relocations:
+ * @self: module
+ * @func: (scope call): function called with each relocation
+ * @user_data: data to pass to @func
+ *
+ * Enumerates relocations of the module.
+ */
 void
 gum_elf_module_enumerate_relocations (GumElfModule * self,
                                       GumFoundElfRelocationFunc func,
@@ -1577,6 +1601,14 @@ propagate_error:
   return TRUE;
 }
 
+/**
+ * gum_elf_module_enumerate_dynamic_entries:
+ * @self: module
+ * @func: (scope call): function called with each dynamic entry
+ * @user_data: data to pass to @func
+ *
+ * Enumerates dynamic entries of the module.
+ */
 void
 gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
                                           GumFoundElfDynamicEntryFunc func,
@@ -1597,6 +1629,14 @@ gum_elf_module_enumerate_dynamic_entries (GumElfModule * self,
   }
 }
 
+/**
+ * gum_elf_module_enumerate_imports:
+ * @self: module
+ * @func: (scope call): function called with each import
+ * @user_data: data to pass to @func
+ *
+ * Enumerates imports of the module.
+ */
 void
 gum_elf_module_enumerate_imports (GumElfModule * self,
                                   GumFoundImportFunc func,
@@ -1694,6 +1734,14 @@ gum_maybe_collect_import_slot_from_relocation (
   return TRUE;
 }
 
+/**
+ * gum_elf_module_enumerate_exports:
+ * @self: module
+ * @func: (scope call): function called with each export
+ * @user_data: data to pass to @func
+ *
+ * Enumerates exports of the module.
+ */
 void
 gum_elf_module_enumerate_exports (GumElfModule * self,
                                   GumFoundExportFunc func,
@@ -1734,6 +1782,14 @@ gum_emit_elf_export (const GumElfSymbolDetails * details,
   return TRUE;
 }
 
+/**
+ * gum_elf_module_enumerate_dynamic_symbols:
+ * @self: module
+ * @func: (scope call): function called with each dynamic symbol
+ * @user_data: data to pass to @func
+ *
+ * Enumerates dynamic symbols of the module.
+ */
 void
 gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
                                           GumFoundElfSymbolFunc func,
@@ -2035,6 +2091,14 @@ gum_adjust_symtab_params (const GumElfSectionDetails * details,
   return TRUE;
 }
 
+/**
+ * gum_elf_module_enumerate_symbols:
+ * @self: module
+ * @func: (scope call): function called with each symbol
+ * @user_data: data to pass to @func
+ *
+ * Enumerates symbols of the module.
+ */
 void
 gum_elf_module_enumerate_symbols (GumElfModule * self,
                                   GumFoundElfSymbolFunc func,
@@ -2137,6 +2201,14 @@ consider_fallback:
   }
 }
 
+/**
+ * gum_elf_module_enumerate_dependencies:
+ * @self: module
+ * @func: (scope call): function called with each dependency
+ * @user_data: data to pass to @func
+ *
+ * Enumerates dependencies of the module.
+ */
 void
 gum_elf_module_enumerate_dependencies (GumElfModule * self,
                                        GumFoundDependencyFunc func,

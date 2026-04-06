@@ -583,6 +583,15 @@ gum_darwin_module_get_lacks_exports_for_reexports (GumDarwinModule * self)
   return (flags & GUM_MH_PREBOUND) == 0;
 }
 
+/**
+ * gum_darwin_module_enumerate_imports:
+ * @self: module
+ * @func: (scope call): function called with each import
+ * @resolver: (scope call) (nullable): function to resolve exports
+ * @user_data: data to pass to @func and @resolver
+ *
+ * Enumerates imports of the module.
+ */
 void
 gum_darwin_module_enumerate_imports (GumDarwinModule * self,
                                      GumFoundImportFunc func,
@@ -743,6 +752,14 @@ gum_emit_import (const GumDarwinBindDetails * details,
   return ctx->carry_on;
 }
 
+/**
+ * gum_darwin_module_enumerate_exports:
+ * @self: module
+ * @func: (scope call): function called with each export
+ * @user_data: data to pass to @func
+ *
+ * Enumerates exports of the module.
+ */
 void
 gum_darwin_module_enumerate_exports (GumDarwinModule * self,
                                      GumFoundDarwinExportFunc func,
@@ -788,6 +805,14 @@ gum_emit_export_from_symbol (const GumDarwinSymbolDetails * details,
   return ctx->func (&d, ctx->user_data);
 }
 
+/**
+ * gum_darwin_module_enumerate_symbols:
+ * @self: module
+ * @func: (scope call): function called with each symbol
+ * @user_data: data to pass to @func
+ *
+ * Enumerates symbols of the module.
+ */
 void
 gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
                                      GumFoundDarwinSymbolFunc func,
@@ -902,6 +927,14 @@ gum_darwin_module_get_nth_segment (GumDarwinModule * self,
   return &g_array_index (self->segments, GumDarwinSegment, index);
 }
 
+/**
+ * gum_darwin_module_enumerate_sections:
+ * @self: module
+ * @func: (scope call): function called with each section
+ * @user_data: data to pass to @func
+ *
+ * Enumerates sections of the module.
+ */
 void
 gum_darwin_module_enumerate_sections (GumDarwinModule * self,
                                       GumFoundDarwinSectionFunc func,
@@ -1019,6 +1052,14 @@ gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
   return FALSE;
 }
 
+/**
+ * gum_darwin_module_enumerate_chained_fixups:
+ * @self: module
+ * @func: (scope call): function called with each fixup
+ * @user_data: data to pass to @func
+ *
+ * Enumerates chained fixups of the module.
+ */
 void
 gum_darwin_module_enumerate_chained_fixups (
     GumDarwinModule * self,
@@ -1067,6 +1108,14 @@ gum_darwin_module_enumerate_chained_fixups (
   }
 }
 
+/**
+ * gum_darwin_module_enumerate_rebases:
+ * @self: module
+ * @func: (scope call): function called with each rebase
+ * @user_data: data to pass to @func
+ *
+ * Enumerates rebases of the module.
+ */
 void
 gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
                                      GumFoundDarwinRebaseFunc func,
@@ -1176,6 +1225,14 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
   }
 }
 
+/**
+ * gum_darwin_module_enumerate_binds:
+ * @self: module
+ * @func: (scope call): function called with each bind
+ * @user_data: data to pass to @func
+ *
+ * Enumerates binds of the module.
+ */
 void
 gum_darwin_module_enumerate_binds (GumDarwinModule * self,
                                    GumFoundDarwinBindFunc func,
@@ -1331,6 +1388,14 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   }
 }
 
+/**
+ * gum_darwin_module_enumerate_lazy_binds:
+ * @self: module
+ * @func: (scope call): function called with each lazy bind
+ * @user_data: data to pass to @func
+ *
+ * Enumerates lazy binds of the module.
+ */
 void
 gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
                                         GumFoundDarwinBindFunc func,
@@ -1671,6 +1736,14 @@ gum_collect_tlv_params (const GumDarwinSectionDetails * section,
   return TRUE;
 }
 
+/**
+ * gum_darwin_module_enumerate_tlv_descriptors:
+ * @self: module
+ * @func: (scope call): function called with each TLV descriptor
+ * @user_data: data to pass to @func
+ *
+ * Enumerates TLV descriptors of the module.
+ */
 void
 gum_darwin_module_enumerate_tlv_descriptors (
     GumDarwinModule * self,
@@ -1718,6 +1791,14 @@ gum_darwin_module_enumerate_tlv_descriptors (
   }
 }
 
+/**
+ * gum_darwin_module_enumerate_init_pointers:
+ * @self: module
+ * @func: (scope call): function called with each init pointer
+ * @user_data: data to pass to @func
+ *
+ * Enumerates initialization pointers of the module.
+ */
 void
 gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
                                            GumFoundDarwinInitPointersFunc func,
@@ -1738,6 +1819,14 @@ gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
       &ctx);
 }
 
+/**
+ * gum_darwin_module_enumerate_init_offsets:
+ * @self: module
+ * @func: (scope call): function called with each init offset
+ * @user_data: data to pass to @func
+ *
+ * Enumerates initialization offsets of the module.
+ */
 void
 gum_darwin_module_enumerate_init_offsets (GumDarwinModule * self,
                                           GumFoundDarwinInitOffsetsFunc func,
@@ -1757,6 +1846,14 @@ gum_darwin_module_enumerate_init_offsets (GumDarwinModule * self,
       &ctx);
 }
 
+/**
+ * gum_darwin_module_enumerate_term_pointers:
+ * @self: module
+ * @func: (scope call): function called with each term pointer
+ * @user_data: data to pass to @func
+ *
+ * Enumerates termination pointers of the module.
+ */
 void
 gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
                                            GumFoundDarwinTermPointersFunc func,
@@ -1831,6 +1928,14 @@ gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
   return TRUE;
 }
 
+/**
+ * gum_darwin_module_enumerate_dependencies:
+ * @self: module
+ * @func: (scope call): function called with each dependency
+ * @user_data: data to pass to @func
+ *
+ * Enumerates dependencies of the module.
+ */
 void
 gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
                                           GumFoundDependencyFunc func,
@@ -1851,6 +1956,14 @@ gum_darwin_module_enumerate_dependencies (GumDarwinModule * self,
   }
 }
 
+/**
+ * gum_darwin_module_enumerate_function_starts:
+ * @self: module
+ * @func: (scope call): function called with each function start
+ * @user_data: data to pass to @func
+ *
+ * Enumerates function starts of the module.
+ */
 void
 gum_darwin_module_enumerate_function_starts (
     GumDarwinModule * self,

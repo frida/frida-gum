@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -89,6 +89,15 @@ gum_module_map_new_filtered (GumModuleMapFilterFunc func,
   return map;
 }
 
+/**
+ * gum_module_map_find:
+ * @self: module map
+ * @address: address to look up
+ *
+ * Finds the module containing the given address.
+ *
+ * Returns: (transfer none) (nullable): the module, or %NULL
+ */
 GumModule *
 gum_module_map_find (GumModuleMap * self,
                      GumAddress address)
@@ -114,6 +123,14 @@ gum_module_map_update (GumModuleMap * self)
   g_ptr_array_sort (self->modules, (GCompareFunc) gum_module_compare_base);
 }
 
+/**
+ * gum_module_map_get_values:
+ * @self: module map
+ *
+ * Returns the modules in the map.
+ *
+ * Returns: (transfer none) (element-type GumModule): the modules
+ */
 GPtrArray *
 gum_module_map_get_values (GumModuleMap * self)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -737,6 +737,13 @@ gum_fd_compare (gconstpointer element_a,
   return 1;
 }
 
+/**
+ * gum_cloak_with_lock_held:
+ * @func: (scope call): function to call while holding the lock
+ * @user_data: data to pass to @func
+ *
+ * Calls @func while holding the cloak lock.
+ */
 void
 gum_cloak_with_lock_held (GumCloakLockedFunc func,
                           gpointer user_data)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -107,6 +107,13 @@ gum_thread_registry_finalize (GObject * object)
   G_OBJECT_CLASS (gum_thread_registry_parent_class)->finalize (object);
 }
 
+/**
+ * gum_thread_registry_obtain:
+ *
+ * Obtains the thread registry singleton.
+ *
+ * Returns: (transfer none): the thread registry
+ */
 GumThreadRegistry *
 gum_thread_registry_obtain (void)
 {
@@ -132,6 +139,14 @@ gum_deinit_thread_registry (void)
   g_object_unref (gum_thread_registry_obtain ());
 }
 
+/**
+ * gum_thread_registry_enumerate_threads:
+ * @self: thread registry
+ * @func: (scope call): function called with each thread
+ * @user_data: data to pass to @func
+ *
+ * Enumerates all registered threads.
+ */
 void
 gum_thread_registry_enumerate_threads (GumThreadRegistry * self,
                                        GumFoundThreadFunc func,

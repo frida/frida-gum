@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -69,6 +69,17 @@ gum_invocation_listener_default_init (GumInvocationListenerInterface * iface)
 {
 }
 
+/**
+ * gum_make_call_listener:
+ * @on_enter: (scope forever) (nullable): callback for function entry
+ * @on_leave: (scope forever) (nullable): callback for function exit
+ * @data: data to pass to the callbacks
+ * @data_destroy: function to destroy @data
+ *
+ * Creates a new call listener.
+ *
+ * Returns: (transfer full): the newly created listener
+ */
 GumInvocationListener *
 gum_make_call_listener (GumInvocationCallback on_enter,
                         GumInvocationCallback on_leave,
@@ -86,6 +97,16 @@ gum_make_call_listener (GumInvocationCallback on_enter,
   return GUM_INVOCATION_LISTENER (listener);
 }
 
+/**
+ * gum_make_probe_listener:
+ * @on_hit: (scope forever): callback for each invocation
+ * @data: data to pass to @on_hit
+ * @data_destroy: function to destroy @data
+ *
+ * Creates a new probe listener.
+ *
+ * Returns: (transfer full): the newly created listener
+ */
 GumInvocationListener *
 gum_make_probe_listener (GumInvocationCallback on_hit,
                          gpointer data,

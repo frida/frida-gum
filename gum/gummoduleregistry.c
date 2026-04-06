@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -98,6 +98,13 @@ gum_module_registry_finalize (GObject * object)
   G_OBJECT_CLASS (gum_module_registry_parent_class)->finalize (object);
 }
 
+/**
+ * gum_module_registry_obtain:
+ *
+ * Obtains the module registry singleton.
+ *
+ * Returns: (transfer none): the module registry
+ */
 GumModuleRegistry *
 gum_module_registry_obtain (void)
 {
@@ -156,6 +163,14 @@ _gum_module_registry_get_modules (GumModuleRegistry * self)
   return result;
 }
 
+/**
+ * gum_module_registry_enumerate_modules:
+ * @self: module registry
+ * @func: (scope call): function called with each #GumModule
+ * @user_data: data to pass to @func
+ *
+ * Enumerates all registered modules.
+ */
 void
 gum_module_registry_enumerate_modules (GumModuleRegistry * self,
                                        GumFoundModuleFunc func,

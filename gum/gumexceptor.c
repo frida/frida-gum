@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -105,6 +105,13 @@ gum_exceptor_disable (void)
   gum_exceptor_is_available = FALSE;
 }
 
+/**
+ * gum_exceptor_obtain:
+ *
+ * Obtains the exceptor singleton.
+ *
+ * Returns: (transfer full): the exceptor
+ */
 GumExceptor *
 gum_exceptor_obtain (void)
 {
@@ -153,6 +160,14 @@ gum_exceptor_reset (GumExceptor * self)
   }
 }
 
+/**
+ * gum_exceptor_add:
+ * @self: the exceptor
+ * @func: (scope forever): handler to add
+ * @user_data: data to pass to @func
+ *
+ * Adds an exception handler.
+ */
 void
 gum_exceptor_add (GumExceptor * self,
                   GumExceptionHandler func,
@@ -169,6 +184,14 @@ gum_exceptor_add (GumExceptor * self,
   GUM_EXCEPTOR_UNLOCK ();
 }
 
+/**
+ * gum_exceptor_remove:
+ * @self: the exceptor
+ * @func: (scope forever): handler to remove
+ * @user_data: data that was passed to gum_exceptor_add()
+ *
+ * Removes a previously added exception handler.
+ */
 void
 gum_exceptor_remove (GumExceptor * self,
                      GumExceptionHandler func,

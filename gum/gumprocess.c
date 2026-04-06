@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -174,7 +174,9 @@ gum_emit_thread_if_not_cloaked (const GumThreadDetails * details,
 /**
  * gum_process_get_main_module:
  *
- * Returns module representing the main executable of the process.
+ * Returns the module representing the main executable of the process.
+ *
+ * Returns: (transfer none): the main module
  */
 GumModule *
 gum_process_get_main_module (void)
@@ -200,6 +202,14 @@ gum_deinit_main_module (void)
 {
   g_object_unref (gum_process_get_main_module ());
 }
+
+/**
+ * gum_process_get_libc_module:
+ *
+ * Returns the module representing the C runtime library.
+ *
+ * Returns: (transfer none): the libc module
+ */
 
 /**
  * gum_process_find_module_by_name:
@@ -381,7 +391,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
 /**
  * gum_module_enumerate_imports:
- * @module: module
+ * @self: module
  * @func: (scope call): function called with #GumImportDetails
  * @user_data: data to pass to @func
  *
@@ -391,7 +401,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
 /**
  * gum_module_enumerate_exports:
- * @module: module
+ * @self: module
  * @func: (scope call): function called with #GumExportDetails
  * @user_data: data to pass to @func
  *
@@ -401,7 +411,7 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
 
 /**
  * gum_module_enumerate_symbols:
- * @module: module
+ * @self: module
  * @func: (scope call): function called with #GumSymbolDetails
  * @user_data: data to pass to @func
  *

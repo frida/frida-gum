@@ -77,6 +77,7 @@ gum_sources = [
   'gumspinlock.c',
   'gumstalker.c',
   'gumswiftapiresolver.c',
+  'gumsymbolutil.c',
   'arch-x86' / 'gumx86writer.c',
   'arch-x86' / 'gumx86relocator.c',
   'arch-x86' / 'gumx86reader.c',

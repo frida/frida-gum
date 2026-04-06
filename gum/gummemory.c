@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -331,6 +331,11 @@ gum_apply_patch_code (gpointer mem,
   context->func ((guint8 *) mem + context->page_offset, context->user_data);
 }
 
+/**
+ * gum_memory_patch_code_pages: (skip)
+ *
+ * Safely modifies code pages at the given addresses.
+ */
 gboolean
 gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
                              gboolean coalesce,
