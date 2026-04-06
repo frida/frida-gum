@@ -191,6 +191,9 @@ struct _GumQuickCore
   GUM_DECLARE_ATOM (vectorIndex);
 #elif defined (HAVE_MIPS)
   GUM_DECLARE_ATOM (disp);
+#elif defined (HAVE_RISCV)
+  GUM_DECLARE_ATOM (base);
+  GUM_DECLARE_ATOM (disp);
 #endif
 
 #undef GUM_DECLARE_ATOM

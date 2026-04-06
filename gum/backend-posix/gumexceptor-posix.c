@@ -423,6 +423,8 @@ gum_exceptor_backend_on_signal (int sig,
   ed.address = gum_strip_code_pointer (GSIZE_TO_POINTER (cpu_context->pc));
 #elif defined (HAVE_MIPS)
   ed.address = GSIZE_TO_POINTER (cpu_context->pc);
+#elif defined (HAVE_RISCV)
+  ed.address = GSIZE_TO_POINTER (cpu_context->pc);
 #else
 # error Unsupported architecture
 #endif
