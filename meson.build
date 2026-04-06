@@ -383,7 +383,10 @@ else
   gio_os_package_dep = disabler()
 endif
 
-dependency('glib-2.0', version: glib_version_req, native: true, default_options: glib_options)
+glib_dep_native = dependency('glib-2.0', version: glib_version_req, native: true, default_options: glib_options)
+if glib_dep_native.type_name() == 'internal' or cc.has_function('g_thread_set_callbacks', dependencies: [glib_dep_native])
+  add_project_arguments('-DHAVE_FRIDA_GLIB=1', language: languages, native: true)
+endif
 gio_dep_native = dependency('gio-2.0', native: true)
 
 capstone_arch_mappings = {

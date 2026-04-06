@@ -38,7 +38,9 @@ main (int argc,
   JSContext * ctx = NULL;
   JSValue val = JS_NULL;
 
+#ifdef HAVE_FRIDA_GLIB
   glib_init ();
+#endif
 
   if (argc >= 2 && strcmp (argv[1], "--bswap") == 0)
   {
