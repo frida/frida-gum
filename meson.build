@@ -148,8 +148,14 @@ endif
 
 gumpp_opt = get_option('gumpp')
 gumjs_opt = get_option('gumjs')
+inspector_opt = get_option('inspector')
 have_gumpp = not gumpp_opt.disabled()
 have_gumjs = not gumjs_opt.disabled()
+if inspector_opt.auto()
+  have_inspector = have_gumjs
+else
+  have_inspector = inspector_opt.enabled()
+endif
 
 tests_opt = get_option('tests')
 if tests_opt.auto()
@@ -585,10 +591,35 @@ if have_gumpp
 endif
 
 gumjs_extra_requires = []
+if have_gumjs or have_inspector
+  json_glib_dep = dependency('json-glib-1.0', default_options: [
+    'introspection=disabled',
+    'gtk_doc=disabled',
+    'tests=false',
+  ])
+
+  libsoup_dep = dependency('libsoup-3.0',
+    required: have_inspector,
+    default_options: [
+      'gssapi=disabled',
+      'ntlm=disabled',
+      'brotli=disabled',
+      'tls_check=false',
+      'introspection=disabled',
+      'vapi=disabled',
+      'docs=disabled',
+      'examples=disabled',
+      'tests=false',
+      'sysprof=disabled',
+    ],
+  )
+endif
+
 if have_gumjs
   cdata.set('HAVE_GUMJS', 1)
 
   quickjs_options = [
+    'default_library=static',
     'libc=false',
     'bignum=true',
     'atomics=disabled',
@@ -626,15 +657,10 @@ if have_gumjs
 
   gumjs_extra_requires += [gio_os_package_name]
 
-  json_glib_dep = dependency('json-glib-1.0', default_options: [
-    'introspection=disabled',
-    'gtk_doc=disabled',
-    'tests=false',
-  ])
-
   libtcc_dep = dependency('libtcc',
     required: (host_abi in ['arm', 'arm64'] and host_machine.endian() == 'little')
-              or (host_abi not in ['arm', 'arm64'] and host_arch not in ['mips', 'mips64'])
+              or (host_abi not in ['arm', 'arm64'] and host_arch not in ['mips', 'mips64']),
+    default_options: ['default_library=static'],
   )
   cdata.set('HAVE_TINYCC', libtcc_dep.found())
 
@@ -644,23 +670,6 @@ if have_gumjs
 
   sqlite_dep = dependency('sqlite3', required: get_option('database'))
   cdata.set('HAVE_SQLITE', sqlite_dep.found())
-
-  if host_os_family != 'none'
-    libsoup_dep = dependency('libsoup-3.0', default_options: [
-      'gssapi=disabled',
-      'ntlm=disabled',
-      'brotli=disabled',
-      'tls_check=false',
-      'introspection=disabled',
-      'vapi=disabled',
-      'docs=disabled',
-      'examples=disabled',
-      'tests=false',
-      'sysprof=disabled',
-    ])
-  else
-    libsoup_dep = disabler()
-  endif
 else
   v8_dep = disabler()
 endif

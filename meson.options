@@ -41,6 +41,12 @@ option('gumjs',
   description: 'Build JavaScript bindings'
 )
 
+option('inspector',
+  type: 'feature',
+  value: 'auto',
+  description: 'Build the JS inspector server'
+)
+
 option('quickjs',
   type: 'feature',
   value: 'enabled',

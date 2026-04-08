@@ -4,6 +4,6 @@ if have_gumpp
   subdir('gumpp')
 endif
 
-if have_gumjs
+if have_gumjs or have_inspector
   subdir('gumjs')
 endif

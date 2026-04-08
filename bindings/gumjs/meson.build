@@ -1,3 +1,5 @@
+if have_gumjs
+
 gumjs_headers = [
   'gumjs.h',
   'gumscript.h',
@@ -310,7 +312,9 @@ pkg.generate(filebase: 'frida-gumjs-' + api_version,
 
 meson.override_dependency('frida-gumjs-' + api_version, gumjs_dep)
 
-if libsoup_dep.found()
+endif # have_gumjs
+
+if have_inspector
   gumjs_inspector_headers = [
     'guminspectorserver.h',
   ]
@@ -349,6 +353,6 @@ if libsoup_dep.found()
   meson.override_dependency('frida-gumjs-inspector-' + api_version, gumjs_inspector_dep)
 endif
 
-if 'gumjs' in get_option('devkits')
+if have_gumjs and 'gumjs' in get_option('devkits')
   subdir('devkit')
 endif
