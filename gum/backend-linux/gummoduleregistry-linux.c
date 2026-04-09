@@ -58,12 +58,10 @@ static void gum_enumerate_modules_using_libc (GumDlIteratePhdrImpl iterate_phdr,
     GumFoundModuleFunc func, gpointer user_data);
 static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
-#ifdef HAVE_MUSL
 static void gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
     GumFoundModuleFunc func, gpointer user_data);
 static gpointer gum_link_map_as_module_handle (GumNativeModule * module,
     gpointer user_data);
-#endif
 static void gum_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     gpointer user_data);
 static gpointer gum_create_module_handle (GumNativeModule * module,
@@ -95,9 +93,7 @@ static gboolean gum_find_range_for_file_id_offset0 (GumFileId * wanted,
 
 static struct r_debug * gum_r_debug;
 static GumProgramModules gum_program_modules;
-#ifdef HAVE_MUSL
 static gboolean gum_syncing_modules_from_rtld;
-#endif
 
 void
 _gum_module_registry_enumerate_loaded_modules (GumFoundModuleFunc func,
@@ -128,13 +124,11 @@ _gum_module_registry_enumerate_loaded_modules (GumFoundModuleFunc func,
   }
 #endif
 
-#ifdef HAVE_MUSL
   if (gum_syncing_modules_from_rtld && gum_r_debug != NULL)
   {
     gum_enumerate_modules_using_r_debug (pm, func, user_data);
     return;
   }
-#endif
 
   if (g_once_init_enter (&iterate_phdr_value))
   {
@@ -205,8 +199,6 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   return carry_on ? 0 : 1;
 }
 
-#ifdef HAVE_MUSL
-
 static void
 gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
                                      GumFoundModuleFunc func,
@@ -221,7 +213,12 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
     GumNativeModule * module;
 
     if (lm->l_name[0] == '\0')
+    {
+      carry_on = func (pm->program, user_data);
+      if (!carry_on)
+        break;
       continue;
+    }
 
     gum_compute_elf_range_from_ehdr ((const ElfW(Ehdr) *) lm->l_addr, &range);
 
@@ -246,8 +243,6 @@ gum_link_map_as_module_handle (GumNativeModule * module,
 {
   return user_data;
 }
-
-#endif
 
 static void
 gum_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
@@ -447,17 +442,12 @@ void
 _gum_module_registry_handle_rtld_notification (GumSynchronizeModulesFunc sync,
                                                GumInvocationContext * ic)
 {
-#ifdef HAVE_MUSL
   if (gum_r_debug->r_state == RT_CONSISTENT)
   {
     gum_syncing_modules_from_rtld = TRUE;
     sync ();
     gum_syncing_modules_from_rtld = FALSE;
   }
-#else
-  if (gum_r_debug->r_state == RT_CONSISTENT)
-    sync ();
-#endif
 }
 
 const GumProgramModules *
