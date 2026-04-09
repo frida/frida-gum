@@ -599,8 +599,15 @@ gum_elf_module_load (GumElfModule * self,
   self->mapped_size = gum_elf_module_compute_mapped_size (self);
   self->preferred_address = gum_elf_module_compute_preferred_address (self);
 
+  if (self->file_data == GSIZE_TO_POINTER (self->base_address))
+    self->file_size = self->mapped_size;
+
   if (!gum_elf_module_load_section_headers (self, error))
-    goto propagate_error;
+  {
+    if (self->source_mode != GUM_ELF_SOURCE_MODE_ONLINE)
+      goto propagate_error;
+    g_clear_error (error);
+  }
 
   if (!gum_elf_module_load_dynamic_entries (self, error))
     goto propagate_error;
@@ -612,7 +619,11 @@ gum_elf_module_load (GumElfModule * self,
       gum_store_dynamic_string_table, self);
 
   if (!gum_elf_module_load_section_details (self, error))
-    goto propagate_error;
+  {
+    if (self->source_mode != GUM_ELF_SOURCE_MODE_ONLINE)
+      goto propagate_error;
+    g_clear_error (error);
+  }
 
   return TRUE;
 
