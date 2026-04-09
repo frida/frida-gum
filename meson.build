@@ -407,7 +407,8 @@ capstone_options = [
   'cli=disabled',
 ]
 capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
-if not cc.has_function('cs_arch_register_x86', dependencies: [capstone_dep])
+if capstone_dep.type_name() != 'internal' \
+    and not cc.has_function('cs_arch_register_x86', dependencies: [capstone_dep])
   add_project_arguments(
     '-Dcs_arch_register_x86()=',
     '-Dcs_arch_register_arm()=',
