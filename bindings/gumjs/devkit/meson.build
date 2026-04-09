@@ -22,5 +22,5 @@ custom_target('gumjs-devkit',
     meson.current_build_dir(),
   ] + devkit_options,
   install: true,
-  install_dir: get_option('libdir') / 'frida' / 'devkits' / 'gumjs'
+  install_dir: get_option('libdir') / frida_libdir_name / 'devkits' / 'gumjs'
 )

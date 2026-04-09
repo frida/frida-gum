@@ -755,7 +755,8 @@ if libunwind_dep.found()
   gum_incdirs += include_directories('gum' / 'backend-libunwind' / 'include')
 endif
 
-install_header_basedir = 'frida-' + api_version
+frida_libdir_name = 'frida-' + api_version
+install_header_basedir = frida_libdir_name
 install_header_subdir = install_header_basedir + '/gum'
 
 subdir('ext')
