@@ -352,6 +352,7 @@ threads_dep = dependency('threads')
 
 if allocator == 'internal' or have_gumjs
   ffi_options = [
+    'default_library=static',
     'exe_static_tramp=false',
     'tests=false',
   ]
@@ -362,6 +363,7 @@ endif
 
 glib_version_req = '>=2.72'
 glib_options = [
+  'default_library=static',
   'diet=' + diet.to_string(),
   'printf=' + allocator,
   'cocoa=disabled',
@@ -401,6 +403,7 @@ capstone_arch_mappings = {
   's390x': 'sysz',
 }
 capstone_options = [
+  'default_library=static',
   'profile=' + (diet ? 'tiny' : 'full'),
   'archs=' + capstone_arch_mappings.get(host_arch, host_arch),
   'x86_att_disable=true',
@@ -418,7 +421,7 @@ if capstone_dep.type_name() != 'internal' \
   )
 endif
 
-lzma_dep = dependency('liblzma', required: build_tests)
+lzma_dep = dependency('liblzma', required: build_tests, default_options: ['default_library=static'])
 if lzma_dep.found()
   cdata.set('HAVE_LZMA', 1)
   extra_requires_private += 'liblzma'
@@ -516,6 +519,7 @@ endif
 
 if host_os_family in ['linux', 'freebsd', 'qnx']
   libunwind_dep = dependency('libunwind', default_options: [
+    'default_library=static',
     'generic_library=disabled',
     'coredump_library=disabled',
     'ptrace_library=disabled',
@@ -527,7 +531,7 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
   cdata.set('HAVE_LIBUNWIND', 1)
   extra_requires_private += ['libunwind']
 
-  libdwarf_dep = dependency('libdwarf', required: false)
+  libdwarf_dep = dependency('libdwarf', required: false, default_options: ['default_library=static'])
   if libdwarf_dep.found() and not cc.has_header('dwarf.h', dependencies: libdwarf_dep)
     libdwarf_dep = disabler()
   endif
@@ -545,7 +549,7 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
       endforeach
     endif
     if not found
-      libdwarf_dep = dependency('libdwarf', required: true)
+      libdwarf_dep = dependency('libdwarf', required: true, default_options: ['default_library=static'])
     endif
   endif
 
@@ -557,6 +561,7 @@ endif
 
 if host_os == 'android'
   minizip_dep = dependency('minizip', required: false, default_options: [
+    'default_library=static',
     'zlib=enabled',
     'lzma=disabled',
   ])
@@ -568,6 +573,7 @@ if host_os == 'android'
 endif
 
 openssl_options = [
+  'default_library=static',
   'cli=disabled',
 ]
 if host_os_family == 'windows' and cc.get_argument_syntax() != 'msvc'
@@ -580,6 +586,7 @@ dependency('openssl',
 )
 
 tls_provider_dep = dependency('gioopenssl', required: false, default_options: [
+  'default_library=static',
   'gnutls=disabled',
   'openssl=enabled',
   'libproxy=disabled',
@@ -597,6 +604,7 @@ endif
 gumjs_extra_requires = []
 if have_gumjs or have_inspector
   json_glib_dep = dependency('json-glib-1.0', default_options: [
+    'default_library=static',
     'introspection=disabled',
     'gtk_doc=disabled',
     'tests=false',
@@ -605,6 +613,7 @@ if have_gumjs or have_inspector
   libsoup_dep = dependency('libsoup-3.0',
     required: have_inspector,
     default_options: [
+      'default_library=static',
       'gssapi=disabled',
       'ntlm=disabled',
       'brotli=disabled',
@@ -642,6 +651,7 @@ if have_gumjs
     version: '>=10.6.122',
     required: get_option('v8'),
     default_options: [
+      'default_library=static',
       'debug=false',
       'embedder_string=-frida',
       'snapshot_compression=disabled',
@@ -672,7 +682,7 @@ if have_gumjs
     cdata.set('HAVE_AEABI_MEMORY_BUILTINS', 1)
   endif
 
-  sqlite_dep = dependency('sqlite3', required: get_option('database'))
+  sqlite_dep = dependency('sqlite3', required: get_option('database'), default_options: ['default_library=static'])
   cdata.set('HAVE_SQLITE', sqlite_dep.found())
 else
   v8_dep = disabler()
