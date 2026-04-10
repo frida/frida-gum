@@ -3961,6 +3961,10 @@ gum_exec_block_maybe_create_new_code_slabs (GumExecCtx * ctx)
   gum_exec_ctx_add_slow_slab (ctx, gum_slab_end (&ctx->code_slab->slab));
 
   gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
+  /* Updating available code space matters if ensure_inline_helpers_reachable
+   * advances the code slab cursor/size but the caller reuses the previous
+   * code availability calculation. */
+  code_available = gum_slab_available (&ctx->code_slab->slab);
 }
 
 static void
