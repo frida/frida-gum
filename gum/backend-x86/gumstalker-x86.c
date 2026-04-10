@@ -2475,6 +2475,7 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   GumStalker * stalker = ctx->stalker;
   GumDataSlab * data_slab;
   GumCodeSlab * code_slab;
+  GumSlowSlab * slow_slab;
 
   gum_metal_hash_table_unref (ctx->mappings);
 
@@ -2507,6 +2508,22 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 
     code_slab = next;
   }
+
+  slow_slab = ctx->slow_slab;
+  while (TRUE)
+  {
+    GumSlowSlab * next = (GumSlowSlab *) slow_slab->slab.next;
+    gboolean is_initial;
+
+    is_initial = next == NULL;
+    if (is_initial)
+      break;
+
+    gum_code_slab_free (&slow_slab->slab);
+
+    slow_slab = next;
+  }
+
 
   g_object_unref (ctx->sink);
   g_object_unref (ctx->transformer);
