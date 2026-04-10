@@ -528,6 +528,9 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
   extra_requires_private += ['libunwind']
 
   libdwarf_dep = dependency('libdwarf', required: false)
+  if libdwarf_dep.found() and not cc.has_header('dwarf.h', dependencies: libdwarf_dep)
+    libdwarf_dep = disabler()
+  endif
   if not libdwarf_dep.found()
     found = false
     if not meson.is_cross_build()
