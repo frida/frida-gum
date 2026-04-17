@@ -2524,7 +2524,6 @@ gum_exec_ctx_free (GumExecCtx * ctx)
     slow_slab = next;
   }
 
-
   g_object_unref (ctx->sink);
   g_object_unref (ctx->transformer);
   g_clear_object (&ctx->observer);
