@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020      Duy Phan Thanh <phanthanhduypr@gmail.com>
  *
@@ -809,6 +809,7 @@ static void gum_code_slab_init (GumCodeSlab * code_slab, gsize slab_size,
     gsize page_size);
 static void gum_slow_slab_init (GumSlowSlab * slow_slab, gsize slab_size,
     gsize page_size);
+static void gum_slow_slab_free (GumSlowSlab * slow_slab);
 
 static GumDataSlab * gum_data_slab_new (GumExecCtx * ctx);
 static void gum_data_slab_free (GumDataSlab * data_slab);
@@ -2519,7 +2520,7 @@ gum_exec_ctx_free (GumExecCtx * ctx)
     if (is_initial)
       break;
 
-    gum_code_slab_free (&slow_slab->slab);
+    gum_slow_slab_free (slow_slab);
 
     slow_slab = next;
   }
@@ -6254,6 +6255,12 @@ gum_slow_slab_init (GumSlowSlab * slow_slab,
   gum_slab_init (&slow_slab->slab, slab_size, header_size);
 
   slow_slab->invalidator = NULL;
+}
+
+static void
+gum_slow_slab_free (GumSlowSlab * slow_slab)
+{
+  gum_slab_free (&slow_slab->slab);
 }
 
 static GumDataSlab *
