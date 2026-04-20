@@ -532,7 +532,8 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
   extra_requires_private += ['libunwind']
 
   libdwarf_dep = dependency('libdwarf', required: false, default_options: ['default_library=static'])
-  if libdwarf_dep.found() and not cc.has_header('dwarf.h', dependencies: libdwarf_dep)
+  if libdwarf_dep.found() and libdwarf_dep.type_name() != 'internal' \
+      and not cc.has_header('dwarf.h', dependencies: libdwarf_dep)
     libdwarf_dep = disabler()
   endif
   if not libdwarf_dep.found()
