@@ -3957,7 +3957,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   gum_v8_native_callback_ref (self);
 
   auto rtype = cif->rtype;
-  GumFFIArg tmp_value = { 0, };
+  GumFFIArg * tmp_value = (GumFFIArg *) g_alloca (rtype->size);
   auto retval = (GumFFIRet *) return_value;
   if (rtype != &ffi_type_void)
   {
@@ -4037,8 +4037,8 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   {
     if (have_result)
     {
-      gum_v8_value_to_ffi_type (self->core, result, &tmp_value, cif->rtype);
-      gum_ffi_arg_to_ret (cif->rtype, &tmp_value, retval);
+      gum_v8_value_to_ffi_type (self->core, result, tmp_value, cif->rtype);
+      gum_ffi_arg_to_ret (cif->rtype, tmp_value, retval);
     }
   }
 

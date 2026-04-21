@@ -4952,7 +4952,7 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   GumQuickScope scope;
   JSContext * ctx = core->ctx;
   ffi_type * rtype = cif->rtype;
-  GumFFIArg tmp_value = { 0, };
+  GumFFIArg * tmp_value = g_alloca (rtype->size);
   GumFFIRet * retval = return_value;
   GumInvocationContext * ic;
   GumQuickInvocationContext * jic = NULL;
@@ -5065,10 +5065,10 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 
   if (!JS_IsException (result) && cif->rtype != &ffi_type_void)
   {
-    if (!gum_quick_value_to_ffi (ctx, result, cif->rtype, core, &tmp_value))
+    if (!gum_quick_value_to_ffi (ctx, result, cif->rtype, core, tmp_value))
       _gum_quick_scope_catch_and_emit (&scope);
 
-    gum_ffi_arg_to_ret (cif->rtype, &tmp_value, retval);
+    gum_ffi_arg_to_ret (cif->rtype, tmp_value, retval);
   }
   JS_FreeValue (ctx, result);
 

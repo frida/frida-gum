@@ -344,6 +344,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_is_a_native_pointer)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
+    TESTENTRY (native_callback_can_return_struct)
+    TESTENTRY (native_callback_can_return_large_nested_struct)
 #ifdef HAVE_WINDOWS
 # if GLIB_SIZEOF_VOID_P == 4
     TESTENTRY (native_callback_should_support_fastcall)
@@ -2344,6 +2346,63 @@ TESTCASE (native_callback_should_be_kept_alive_during_calls)
   EXPECT_SEND_MESSAGE_WITH ("\"returning\"");
   EXPECT_SEND_MESSAGE_WITH ("\"dead\"");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (native_callback_can_return_struct)
+{
+  typedef struct
+  {
+    uint32_t a;
+    void * b;
+  } _struct;
+
+  _struct (* cb) (void);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let cb = new NativeCallback(() => {"
+        "return [1234, ptr(0x1234)];"
+      "}, ['uint32', 'pointer'], []);"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+
+  _struct retval = cb ();
+  _struct expected = { 1234, (void * ) 0x1234 };
+
+  g_assert_cmpmem (&retval, sizeof (_struct), &expected, sizeof (_struct));
+}
+
+TESTCASE (native_callback_can_return_large_nested_struct)
+{
+  typedef struct
+  {
+    struct {
+      int64_t a;
+      int64_t b;
+      int64_t c;
+      int64_t d;
+      struct {
+        int64_t a;
+        int64_t b;
+        int64_t c;
+      } e;
+    } a;
+    int64_t b;
+  } _struct;
+
+  _struct (* cb) (void);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let cb = new NativeCallback(() => {"
+        "return [[1, 2, 3, 4, [5, 6, 7]], 8];"
+      "}, [['int64', 'int64', 'int64', 'int64',"
+            "['int64', 'int64', 'int64']], 'int64'], []);"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+
+  _struct retval = cb ();
+  _struct expected = {{ 1, 2, 3, 4, { 5, 6, 7 } }, 8 };
+
+  g_assert_cmpmem (&retval, sizeof (_struct), &expected, sizeof (_struct));
 }
 
 #ifdef HAVE_WINDOWS
