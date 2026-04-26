@@ -4,5 +4,5 @@ revision = 92c89e3188436d576825e6db6003f17ff6964486
 depth = 1
 
 [provide]
-dependency_names = gioopenssl
+dependency_names = gioapple, giognutls, gioopenssl
 
