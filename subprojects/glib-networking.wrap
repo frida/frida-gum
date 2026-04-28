@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/glib-networking.git
-revision = 92c89e3188436d576825e6db6003f17ff6964486
+revision = 5c9331ba47790ee4f541185f3ca0971fe84fcfc2
 depth = 1
 
 [provide]
