@@ -4,7 +4,7 @@
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
-
+#include "gumdefs.h"
 #include "gumffi.h"
 
 #include <stdint.h>
@@ -204,7 +204,31 @@ gum_ffi_arg_to_ret (const ffi_type * type,
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
-    g_assert_not_reached ();
+    ffi_type ** const field_types = type->elements, ** t;
+    guint length, field_index;
+    gsize offset;
+
+    length = 0;
+    for (t = field_types; *t != NULL; t++)
+      length++;
+
+    offset = 0;
+
+    for (field_index = 0; field_index != length; field_index++)
+    {
+      GumFFIArg * _arg;
+      GumFFIRet * _ret;
+      const ffi_type * field_type = field_types[field_index];
+
+      offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
+
+      _arg = (GumFFIArg *) (((guint8 *) arg) + offset);
+      _ret = (GumFFIRet *) (((guint8 *) ret) + offset);
+
+      gum_ffi_arg_to_ret (field_type, _arg, _ret);
+
+      offset += field_type->size;
+    }
   }
   else
   {
