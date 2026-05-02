@@ -726,7 +726,7 @@ gum_insert_deflector (gpointer cave,
   else
   {
     gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
-        GUM_ADDRESS (dispatcher->thunk));
+        GUM_ADDRESS (gum_sign_code_pointer (dispatcher->thunk)));
     gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
   }
 
