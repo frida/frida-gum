@@ -14,6 +14,7 @@
 #include "gummemory.h"
 #include "gumx86relocator.h"
 #include "gumspinlock.h"
+#include "gumprocess-priv.h"
 #include "gumstalker-priv.h"
 #ifdef HAVE_WINDOWS
 # include "gumexceptor.h"
@@ -3635,7 +3636,16 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 512);
   gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
 
-  if ((ctx->stalker->cpu_features & GUM_CPU_AVX2) != 0)
+  /*
+   * Skip the YMM upper-half save on Windows 7 32-bit (WoW64) processes.
+   * The AVX2 save/restore corrupts the wow64 transition layer's per-thread
+   * state when emitted from a JIT page on that OS, causing the next
+   * syscall to fault. The lower 128 bits of YMM are still preserved by
+   * fxsave, and the Windows x86 ABI does not preserve the upper halves
+   * across calls.
+   */
+  if ((ctx->stalker->cpu_features & GUM_CPU_AVX2) != 0 &&
+      !_gum_windows_is_win7_wow64 ())
   {
     gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 0x100);
     gum_x86_writer_put_bytes (cw, upper_ymm_saver, sizeof (upper_ymm_saver));
@@ -3696,7 +3706,8 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
           : GUM_FULL_PROLOG_RETURN_OFFSET,
       GUM_X86_XAX);
 
-  if ((ctx->stalker->cpu_features & GUM_CPU_AVX2) != 0)
+  if ((ctx->stalker->cpu_features & GUM_CPU_AVX2) != 0 &&
+      !_gum_windows_is_win7_wow64 ())
   {
     gum_x86_writer_put_bytes (cw, upper_ymm_restorer,
         sizeof (upper_ymm_restorer));
