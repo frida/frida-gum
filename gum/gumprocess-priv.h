@@ -20,6 +20,12 @@ G_GNUC_INTERNAL gboolean _gum_process_collect_main_module (GumModule * module,
 G_GNUC_INTERNAL void _gum_process_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 
+#ifdef HAVE_WINDOWS
+G_GNUC_INTERNAL gboolean _gum_windows_is_win7_wow64 (void);
+#else
+# define _gum_windows_is_win7_wow64() FALSE
+#endif
+
 #if defined (HAVE_I386)
 G_GNUC_INTERNAL void _gum_x86_set_breakpoint (gsize * dr7, gsize * dr0,
     guint breakpoint_id, GumAddress address);

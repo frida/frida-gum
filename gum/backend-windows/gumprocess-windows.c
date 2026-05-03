@@ -1018,6 +1018,52 @@ beach:
   }
 }
 
+gboolean
+_gum_windows_is_win7_wow64 (void)
+{
+  static gsize initialized = FALSE;
+  static gboolean is_win7_wow64;
+
+  if (g_once_init_enter (&initialized))
+  {
+    GumIsWow64ProcessFunc is_wow64_process;
+    HMODULE kernel32 = GetModuleHandleW (L"kernel32.dll");
+
+    is_win7_wow64 = FALSE;
+
+    is_wow64_process = (GumIsWow64ProcessFunc)
+        GetProcAddress (kernel32, "IsWow64Process");
+    if (is_wow64_process != NULL)
+    {
+      BOOL is_wow64 = FALSE;
+
+      if (is_wow64_process (GetCurrentProcess (), &is_wow64) && is_wow64)
+      {
+        NTSTATUS (WINAPI * rtl_get_version) (PRTL_OSVERSIONINFOW info);
+        RTL_OSVERSIONINFOW info = { 0, };
+
+        rtl_get_version = (NTSTATUS (WINAPI *) (PRTL_OSVERSIONINFOW))
+            GetProcAddress (GetModuleHandleW (L"ntdll.dll"), "RtlGetVersion");
+
+        info.dwOSVersionInfoSize = sizeof (info);
+
+        /* Win7 / Server 2008 R2 = NT 6.1 */
+        if (rtl_get_version != NULL &&
+            rtl_get_version (&info) == 0 &&
+            info.dwMajorVersion == 6 &&
+            info.dwMinorVersion == 1)
+        {
+          is_win7_wow64 = TRUE;
+        }
+      }
+    }
+
+    g_once_init_leave (&initialized, TRUE);
+  }
+
+  return is_win7_wow64;
+}
+
 gchar *
 gum_windows_query_thread_name (HANDLE thread)
 {
