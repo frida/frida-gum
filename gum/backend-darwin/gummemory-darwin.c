@@ -934,7 +934,7 @@ gum_page_is_freshly_allocated (gpointer page,
   guint8 vec = 0;
 
   /* TODO: Implement shim. */
-  if (mincore (page, size, (char *)&vec) != 0)
+  if (mincore (page, size, (char *) &vec) != 0)
     return FALSE;
 
   return (vec & MINCORE_ANONYMOUS) &&
