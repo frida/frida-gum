@@ -145,7 +145,7 @@ gum_process_modify_thread (GumThreadId thread_id,
     procfs_greg gregs;
     GumCpuContext cpu_context;
 
-    sprintf (as_path, "/proc/%d/as", getppid ());
+    snprintf (as_path, sizeof (as_path), "/proc/%d/as", getppid ());
 
     fd = open (as_path, O_RDWR);
     g_assert (fd != -1);
