@@ -50,6 +50,7 @@ static gboolean gum_try_alloc_in_range_if_near_enough (
 static gboolean gum_try_suggest_allocation_base (const GumMemoryRange * range,
     const GumAllocNearContext * ctx, gpointer * allocation_base);
 static gint gum_page_protection_to_bsd (GumPageProtection prot);
+static gboolean gum_page_is_freshly_allocated (gpointer page, gsize size);
 
 void
 _gum_memory_backend_init (void)
@@ -891,6 +892,11 @@ gum_memory_is_codesign_out_of_the_way (gpointer page)
   vm_address_t writable_address;
   vm_prot_t cur_prot, max_prot;
 
+  size = gum_query_page_size ();
+
+  if (gum_page_is_freshly_allocated (page, size))
+    return FALSE;
+
   task = mach_task_self ();
 
   /* TODO: Implement shim. */
@@ -905,7 +911,6 @@ gum_memory_is_codesign_out_of_the_way (gpointer page)
     return FALSE;
   }
 
-  size = gum_query_page_size ();
   writable_address = 0;
   if (vm_remap (task, &writable_address, size, 0, VM_FLAGS_ANYWHERE, task,
       GPOINTER_TO_SIZE (page), FALSE, &cur_prot, &max_prot,
@@ -920,6 +925,21 @@ gum_memory_is_codesign_out_of_the_way (gpointer page)
   mach_vm_deallocate (task, writable_address, size);
 
   return result;
+}
+
+static gboolean
+gum_page_is_freshly_allocated (gpointer page,
+                               gsize size)
+{
+  guint8 vec = 0;
+
+  /* TODO: Implement shim. */
+  if (mincore (page, size, (char *)&vec) != 0)
+    return FALSE;
+
+  return (vec & MINCORE_ANONYMOUS) &&
+      ((vec & (MINCORE_INCORE | MINCORE_REFERENCED |
+          MINCORE_MODIFIED | MINCORE_PAGED_OUT)) == 0);
 }
 
 void
