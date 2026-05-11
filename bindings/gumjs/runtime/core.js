@@ -161,11 +161,11 @@ Object.defineProperties(Kernel, {
 Object.defineProperties(Memory, {
   alloc: {
     enumerable: true,
-    value: function (size, { near, maxDistance } = {}) {
+    value: function (size, { near, maxDistance, protection } = {}) {
       if (near !== undefined && maxDistance === undefined)
         throw new Error('missing maxDistance option');
 
-      return Memory._alloc(size, near ?? NULL, maxDistance ?? 0);
+      return Memory._alloc(size, protection ?? "rw", near ?? NULL, maxDistance ?? 0);
     }
   },
   dup: {

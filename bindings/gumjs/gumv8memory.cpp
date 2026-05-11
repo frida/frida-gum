@@ -132,8 +132,9 @@ _gum_v8_memory_finalize (GumV8Memory * self)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   gsize size;
+  GumPageProtection prot;
   GumAddressSpec spec;
-  if (!_gum_v8_args_parse (args, "ZpZ", &size, &spec.near_address,
+  if (!_gum_v8_args_parse (args, "ZmpZ", &size, &prot, &spec.near_address,
       &spec.max_distance))
     return;
 
@@ -157,7 +158,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
           "size must be a multiple of page size");
     }
 
-    result = gum_try_alloc_n_pages_near (size / page_size, GUM_PAGE_RW, &spec);
+    result = gum_try_alloc_n_pages_near (size / page_size, prot, &spec);
     if (result == NULL)
     {
       return _gum_v8_throw_ascii_literal (isolate,
@@ -170,12 +171,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   {
     if ((size % page_size) != 0)
     {
+      if ((prot & GUM_PAGE_EXECUTE) != 0)
+      {
+        return _gum_v8_throw_ascii_literal (isolate,
+            "size must be a multiple of page size");
+      }
+
       res = _gum_v8_native_resource_new (g_malloc0 (size), size, g_free, core);
     }
     else
     {
       res = _gum_v8_native_resource_new (
-          gum_alloc_n_pages (size / page_size, GUM_PAGE_RW), size,
+          gum_alloc_n_pages (size / page_size, prot), size,
           gum_free_pages, core);
     }
   }
