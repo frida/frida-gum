@@ -344,6 +344,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_is_a_native_pointer)
     TESTENTRY (native_callback_memory_should_be_eagerly_reclaimed)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
+    TESTENTRY (native_callback_can_return_struct)
+    TESTENTRY (native_callback_can_return_large_nested_struct)
 #ifdef HAVE_WINDOWS
 # if GLIB_SIZEOF_VOID_P == 4
     TESTENTRY (native_callback_should_support_fastcall)
@@ -542,6 +544,8 @@ typedef struct _GumNamedSleeperContext GumNamedSleeperContext;
 typedef struct _TestRunOnThreadSyncContext TestRunOnThreadSyncContext;
 typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
 typedef struct _TestTrigger TestTrigger;
+typedef struct _TestNativeReturnStruct TestNativeReturnStruct;
+typedef struct _TestNativeReturnNestedStruct TestNativeReturnNestedStruct;
 typedef struct _GumHotNamedSleeperContext GumHotNamedSleeperContext;
 
 struct _GumInvokeTargetContext
@@ -579,6 +583,30 @@ struct _TestTrigger
   volatile gboolean fired;
   GMutex mutex;
   GCond cond;
+};
+
+struct _TestNativeReturnStruct
+{
+  uint32_t a;
+  void * b;
+};
+
+struct _TestNativeReturnNestedStruct
+{
+  struct
+  {
+    int64_t a;
+    int64_t b;
+    int64_t c;
+    int64_t d;
+    struct
+    {
+      int64_t a;
+      int64_t b;
+      int64_t c;
+    } e;
+  } a;
+  int64_t b;
 };
 
 struct _GumHotNamedSleeperContext
@@ -2344,6 +2372,49 @@ TESTCASE (native_callback_should_be_kept_alive_during_calls)
   EXPECT_SEND_MESSAGE_WITH ("\"returning\"");
   EXPECT_SEND_MESSAGE_WITH ("\"dead\"");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (native_callback_can_return_struct)
+{
+  TestNativeReturnStruct (* cb) (void);
+  TestNativeReturnStruct retval;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let cb = new NativeCallback(() => {"
+        "return [1234, ptr(0x1234)];"
+      "}, ['uint32', 'pointer'], []);"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+
+  retval = cb ();
+
+  g_assert_cmpuint (retval.a, ==, 1234);
+  g_assert_cmphex (GPOINTER_TO_SIZE (retval.b), ==, 0x1234);
+}
+
+TESTCASE (native_callback_can_return_large_nested_struct)
+{
+  TestNativeReturnNestedStruct (* cb) (void);
+  TestNativeReturnNestedStruct retval;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let cb = new NativeCallback(() => {"
+        "return [[1, 2, 3, 4, [5, 6, 7]], 8];"
+      "}, [['int64', 'int64', 'int64', 'int64',"
+            "['int64', 'int64', 'int64']], 'int64'], []);"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+
+  retval = cb ();
+
+  g_assert_cmpint (retval.a.a, ==, 1);
+  g_assert_cmpint (retval.a.b, ==, 2);
+  g_assert_cmpint (retval.a.c, ==, 3);
+  g_assert_cmpint (retval.a.d, ==, 4);
+  g_assert_cmpint (retval.a.e.a, ==, 5);
+  g_assert_cmpint (retval.a.e.b, ==, 6);
+  g_assert_cmpint (retval.a.e.c, ==, 7);
+  g_assert_cmpint (retval.b, ==, 8);
 }
 
 #ifdef HAVE_WINDOWS

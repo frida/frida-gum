@@ -5,6 +5,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#include "gumdefs.h"
 #include "gumffi.h"
 
 #include <stdint.h>
@@ -66,6 +67,9 @@ GUM_DEFINE_FFI_TYPE (ssize_t, gint16, FFI_TYPE_SINT16)
 #else
 # error "size_t detection missing"
 #endif
+
+static void gum_ffi_copy_struct_fields (const ffi_type * type,
+    gconstpointer src, gpointer dst);
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =
 {
@@ -204,11 +208,39 @@ gum_ffi_arg_to_ret (const ffi_type * type,
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
-    g_assert_not_reached ();
+    gum_ffi_copy_struct_fields (type, arg, ret);
   }
   else
   {
     g_assert_not_reached ();
+  }
+}
+
+static void
+gum_ffi_copy_struct_fields (const ffi_type * type,
+                            gconstpointer src,
+                            gpointer dst)
+{
+  ffi_type ** field_type;
+  gsize offset = 0;
+
+  for (field_type = type->elements; *field_type != NULL; field_type++)
+  {
+    const ffi_type * t = *field_type;
+
+    offset = GUM_ALIGN_SIZE (offset, t->alignment);
+
+    if (t->type == FFI_TYPE_STRUCT)
+    {
+      gum_ffi_copy_struct_fields (t, (const guint8 *) src + offset,
+          (guint8 *) dst + offset);
+    }
+    else
+    {
+      memcpy ((guint8 *) dst + offset, (const guint8 *) src + offset, t->size);
+    }
+
+    offset += t->size;
   }
 }
 
