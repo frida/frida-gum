@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
@@ -6015,7 +6015,11 @@ gum_quick_value_to_ffi (JSContext * ctx,
       expected_length++;
 
     if (length != expected_length)
+    {
+      _gum_quick_throw_literal (ctx,
+          "provided array length does not match number of fields");
       return FALSE;
+    }
 
     field_values = (guint8 *) val;
     offset = 0;
