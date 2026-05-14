@@ -9,9 +9,8 @@ _setUnhandledExceptionCallback(error => {
     if (stack !== undefined) {
       message.stack = stack;
 
-      const frames = stack.frames;
-      if (frames !== undefined) {
-        const frame = frames[0];
+      const frame = stack.frames?.[0];
+      if (frame !== undefined) {
         message.fileName = frame.getFileName();
         message.lineNumber = frame.getLineNumber();
         message.columnNumber = frame.getColumnNumber();
