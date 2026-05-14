@@ -2420,8 +2420,8 @@ TESTCASE (native_callback_can_return_large_nested_struct)
 
 TESTCASE (native_callback_should_zero_retval_on_mismatching_return_value)
 {
-  TestNativeReturnNestedStruct retval;
   TestNativeReturnNestedStruct (* cb) (void);
+  TestNativeReturnNestedStruct retval;
   const TestNativeReturnNestedStruct zero = { { 0, }, };
 
   COMPILE_AND_LOAD_SCRIPT (
