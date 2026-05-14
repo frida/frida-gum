@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
@@ -346,6 +346,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
     TESTENTRY (native_callback_can_return_struct)
     TESTENTRY (native_callback_can_return_large_nested_struct)
+    TESTENTRY (native_callback_should_zero_retval_on_mismatching_return_value)
 #ifdef HAVE_WINDOWS
 # if GLIB_SIZEOF_VOID_P == 4
     TESTENTRY (native_callback_should_support_fastcall)
@@ -2415,6 +2416,25 @@ TESTCASE (native_callback_can_return_large_nested_struct)
   g_assert_cmpint (retval.a.e.b, ==, 6);
   g_assert_cmpint (retval.a.e.c, ==, 7);
   g_assert_cmpint (retval.b, ==, 8);
+}
+
+TESTCASE (native_callback_should_zero_retval_on_mismatching_return_value)
+{
+  TestNativeReturnNestedStruct retval;
+  TestNativeReturnNestedStruct (* cb) (void);
+  const TestNativeReturnNestedStruct zero = { { 0, }, };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let cb = new NativeCallback(() => [],"
+          "[['int64', 'int64', 'int64', 'int64',"
+            "['int64', 'int64', 'int64']], 'int64'], []);"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+
+  retval = cb ();
+
+  g_assert_cmpmem (&retval, sizeof (retval), &zero, sizeof (zero));
+  EXPECT_ERROR_MESSAGE_MATCHING (ANY_LINE_NUMBER, "Error:.*array.*length");
 }
 
 #ifdef HAVE_WINDOWS

@@ -5001,14 +5001,7 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   JS_DupValue (ctx, self->wrapper);
 
   if (rtype != &ffi_type_void)
-  {
-    /*
-     * Ensure:
-     * - high bits of values smaller than a pointer are cleared to zero
-     * - we return something predictable in case of a JS exception
-     */
-    retval->v_pointer = NULL;
-  }
+    memset (retval, 0, rtype->size);
 
   if (core->interceptor != NULL &&
       (ic = gum_interceptor_get_live_replacement_invocation (
@@ -5067,10 +5060,10 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
 
   if (!JS_IsException (result) && cif->rtype != &ffi_type_void)
   {
-    if (!gum_quick_value_to_ffi (ctx, result, cif->rtype, core, tmp_value))
+    if (gum_quick_value_to_ffi (ctx, result, cif->rtype, core, tmp_value))
+      gum_ffi_arg_to_ret (cif->rtype, tmp_value, retval);
+    else
       _gum_quick_scope_catch_and_emit (&scope);
-
-    gum_ffi_arg_to_ret (cif->rtype, tmp_value, retval);
   }
   JS_FreeValue (ctx, result);
 

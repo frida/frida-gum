@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  * Copyright (C) 2020-2022 Francesco Tamagni <mrmacete@protonmail.ch>
@@ -3960,14 +3960,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   auto tmp_value = (GumFFIArg *) g_alloca (rtype->size);
   auto retval = (GumFFIRet *) return_value;
   if (rtype != &ffi_type_void)
-  {
-    /*
-     * Ensure:
-     * - high bits of values smaller than a pointer are cleared to zero
-     * - we return something predictable in case of a JS exception
-     */
-    retval->v_pointer = NULL;
-  }
+    memset (retval, 0, rtype->size);
 
   auto argv = g_newa (Local<Value>, cif->nargs);
   for (guint i = 0; i != cif->nargs; i++)
@@ -4033,13 +4026,10 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
     gum_v8_callback_context_free (jcc);
   }
 
-  if (cif->rtype != &ffi_type_void)
+  if (cif->rtype != &ffi_type_void && have_result)
   {
-    if (have_result)
-    {
-      gum_v8_value_to_ffi_type (self->core, result, tmp_value, cif->rtype);
+    if (gum_v8_value_to_ffi_type (self->core, result, tmp_value, cif->rtype))
       gum_ffi_arg_to_ret (cif->rtype, tmp_value, retval);
-    }
   }
 
   for (guint i = 0; i != cif->nargs; i++)
