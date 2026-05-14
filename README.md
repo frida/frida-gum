@@ -44,6 +44,33 @@ Provides:
   - [Heap][] allocation tracking and leak checking.
   - [Profiling][] with [worst-case inspector][] callback.
 
+## Build Instructions
+
+Builds can be configured with the `configure` script. `configure.bat` is
+available for Windows users.
+
+```bash
+./configure --enable-gumpp --enable-gumjs --enable-tests
+make
+```
+
+Run configure with `--help` to see all options.
+
+## Testing
+
+Tests are built with `make test` and run with `./build/tests/gum-tests`.
+You can specify a test path with `-p` to run a specific test or group of
+tests.
+
+Test paths follow the pattern `/<Area>/<Module>/<test_name>` where the
+area/module come from TESTENTRY macros in the fixture files (e.g.
+`TESTENTRY_WITH_FIXTURE("Core/Interceptor", ...)`).
+
+```bash
+./build/tests/gum-tests
+./build/tests/gum-tests -p /Core/Interceptor/attach_one
+```
+
 ## Binaries
 
 Download a devkit for statically linking into your own projects from the
