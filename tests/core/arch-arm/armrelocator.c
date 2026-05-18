@@ -589,14 +589,19 @@ TESTCASE (b_cond_imm_a1_positive_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_B,
-    { 0x1a000001 }, 1,          /* bne pc + 4        */
+    { 0x1a000001 }, 1,          /* bne pc + 4           */
     {
-      0x0a000001,               /* beq is_false      */
-      0xe51ff004,               /* ldr pc, [pc, #-4] */
-      0xffffffff                /* <calculated PC    */
-                                /*  goes here>       */
-    }, 3,
-    2, 4,
+      0x1a000000,               /* bne is_true          */
+      0xea000004,               /* b   is_false         */
+      0xe92d0001,               /* push {r0}            */
+      0xe92d0001,               /* push {r0}            */
+      0xe59f0004,               /* ldr r0, [pc, #4]     */
+      0xe58d0004,               /* str r0, [sp, #4]     */
+      0xe8bd8001,               /* pop {r0, pc}         */
+      0xffffffff                /* <calculated PC       */
+                                /*  goes here>          */
+    }, 8,
+    7, 4,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
@@ -606,14 +611,19 @@ TESTCASE (b_cond_imm_a1_negative_should_be_rewritten)
 {
   BranchScenario bs = {
     ARM_INS_B,
-    { 0x1affffff }, 1,          /* bne pc - 4        */
+    { 0x1affffff }, 1,          /* bne pc - 4           */
     {
-      0x0a000001,               /* beq is_false      */
-      0xe51ff004,               /* ldr pc, [pc, #-4] */
-      0xffffffff                /* <calculated PC    */
-                                /*  goes here>       */
-    }, 3,
-    2, -4,
+      0x1a000000,               /* bne is_true          */
+      0xea000004,               /* b   is_false         */
+      0xe92d0001,               /* push {r0}            */
+      0xe92d0001,               /* push {r0}            */
+      0xe59f0004,               /* ldr r0, [pc, #4]     */
+      0xe58d0004,               /* str r0, [sp, #4]     */
+      0xe8bd8001,               /* pop {r0, pc}         */
+      0xffffffff                /* <calculated PC       */
+                                /*  goes here>          */
+    }, 8,
+    7, -4,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);

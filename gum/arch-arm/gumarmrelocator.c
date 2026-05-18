@@ -37,7 +37,7 @@ static gboolean gum_arm_relocator_rewrite_sub (GumArmRelocator * self,
 static gboolean gum_arm_relocator_rewrite_b (GumArmRelocator * self,
     cs_mode target_mode, GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_b_cond (GumArmRelocator * self,
-    cs_mode target_mode, GumCodeGenCtx * ctx);
+    GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_bl (GumArmRelocator * self,
     cs_mode target_mode, GumCodeGenCtx * ctx);
 
@@ -284,7 +284,7 @@ gum_arm_relocator_write_one (GumArmRelocator * self)
       if (gum_arm_branch_is_unconditional (insn))
         rewritten = gum_arm_relocator_rewrite_b (self, CS_MODE_ARM, &ctx);
       else
-        rewritten = gum_arm_relocator_rewrite_b_cond (self, CS_MODE_ARM, &ctx);
+        rewritten = gum_arm_relocator_rewrite_b_cond (self, &ctx);
       break;
     case ARM_INS_BX:
       rewritten = gum_arm_relocator_rewrite_b (self, CS_MODE_THUMB, &ctx);
@@ -791,21 +791,29 @@ gum_arm_relocator_rewrite_b (GumArmRelocator * self,
 
 static gboolean
 gum_arm_relocator_rewrite_b_cond (GumArmRelocator * self,
-                                  cs_mode target_mode,
                                   GumCodeGenCtx * ctx)
 {
   const cs_arm_op * target = &ctx->detail->operands[0];
-  arm_cc inv_cc;
+  gsize unique_id = GPOINTER_TO_SIZE (ctx->output->code) << 1;
+  gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
+  gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 
   if (target->type != ARM_OP_IMM)
     return FALSE;
 
-  inv_cc = (ctx->detail->cc & 1) ? ctx->detail->cc + 1 : ctx->detail->cc - 1;
-  gum_arm_writer_put_b_cond_imm (ctx->output, inv_cc, ctx->output->pc + 12);
+  gum_arm_writer_put_b_cond_label (ctx->output, ctx->detail->cc, is_true);
+  gum_arm_writer_put_b_label (ctx->output, is_false);
 
-  gum_arm_writer_put_ldr_reg_u32 (ctx->output, ARM_REG_PC,
-      (target_mode == CS_MODE_THUMB) ? target->imm | 1 : target->imm);
-  gum_arm_writer_flush (ctx->output);
+  gum_arm_writer_put_label (ctx->output, is_true);
+  gum_arm_writer_put_push_regs (ctx->output, 1, ARM_REG_R0);
+  gum_arm_writer_put_push_regs (ctx->output, 1, ARM_REG_R0);
+  gum_arm_writer_put_ldr_reg_address (ctx->output, ARM_REG_R0,
+      target->imm);
+  gum_arm_writer_put_str_reg_reg_offset (ctx->output, ARM_REG_R0,
+      ARM_REG_SP, 4);
+  gum_arm_writer_put_pop_regs (ctx->output, 2, ARM_REG_R0, ARM_REG_PC);
+
+  gum_arm_writer_put_label (ctx->output, is_false);
 
   return TRUE;
 }
