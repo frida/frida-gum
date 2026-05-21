@@ -45,6 +45,11 @@ namespace Gum {
 	public void query_page_allocation_range (void * mem, uint size, out Gum.MemoryRange range);
 	public void free_pages (void * mem);
 
+	public void * memory_allocate (void * address, size_t size, size_t alignment, Gum.PageProtection prot);
+	public void * memory_allocate_near (Gum.AddressSpec spec, size_t size, size_t alignment, Gum.PageProtection prot);
+	public bool memory_free (void * address, size_t size);
+	public bool memory_release (void * address, size_t size);
+
 	public errordomain Error {
 		FAILED,
 		NOT_FOUND,
