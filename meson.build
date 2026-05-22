@@ -152,9 +152,12 @@ inspector_opt = get_option('inspector')
 have_gumpp = not gumpp_opt.disabled()
 have_gumjs = not gumjs_opt.disabled()
 if inspector_opt.auto()
-  have_inspector = have_gumjs
+  have_inspector = have_gumjs and host_os_family != 'none'
 else
   have_inspector = inspector_opt.enabled()
+  if have_inspector and host_os_family == 'none'
+    error('Inspector not available for OS-less builds')
+  endif
 endif
 
 tests_opt = get_option('tests')
@@ -610,7 +613,8 @@ if have_gumjs or have_inspector
     'gtk_doc=disabled',
     'tests=false',
   ])
-
+endif
+if have_inspector
   libsoup_dep = dependency('libsoup-3.0',
     required: have_inspector,
     default_options: [
