@@ -426,19 +426,21 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   /* Dummy return address (we won't return) */
   context->lr = 1337;
 #elif defined (HAVE_ARM64)
+# ifdef HAVE_PTRAUTH
+  /*
+   * arm64e XNU rejects sigreturn with a modified PC: it validates against a
+   * per-signal kernel-private token that we cannot reproduce. Long-jump
+   * straight from the signal handler instead.
+   */
+  gum_exceptor_scope_perform_longjmp (scope);
+  g_assert_not_reached ();
+# else
   {
     gsize pc, sp, lr;
 
     pc = GPOINTER_TO_SIZE (
         GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
     sp = context->sp;
-
-# ifdef HAVE_PTRAUTH
-    pc = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (pc),
-        ptrauth_key_process_independent_code));
-    sp = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (sp),
-        ptrauth_key_process_independent_data));
-# endif
 
     /* Align to 16 byte boundary */
     sp &= ~(gsize) (16 - 1);
@@ -448,27 +450,13 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
     /* Dummy return address (we won't return) */
     lr = 1337;
 
-# ifdef HAVE_PTRAUTH
-    pc = GPOINTER_TO_SIZE (
-        ptrauth_sign_unauthenticated (GSIZE_TO_POINTER (pc),
-        ptrauth_key_process_independent_code,
-        ptrauth_string_discriminator ("pc")));
-    sp = GPOINTER_TO_SIZE (
-        ptrauth_sign_unauthenticated (GSIZE_TO_POINTER (sp),
-        ptrauth_key_process_independent_data,
-        ptrauth_string_discriminator ("sp")));
-    lr = GPOINTER_TO_SIZE (
-        ptrauth_sign_unauthenticated (GSIZE_TO_POINTER (lr),
-        ptrauth_key_process_independent_code,
-        ptrauth_string_discriminator ("lr")));
-# endif
-
     context->pc = pc;
     context->sp = sp;
     context->lr = lr;
 
     context->x[0] = GPOINTER_TO_SIZE (scope);
   }
+# endif
 #elif defined (HAVE_MIPS)
   context->pc = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
