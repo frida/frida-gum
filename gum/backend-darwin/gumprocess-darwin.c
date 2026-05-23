@@ -1690,9 +1690,12 @@ gum_collect_images (mach_port_t task,
   }
   else
   {
-    info_array = gum_darwin_read (task, infos->info_array_address,
+    info_array = gum_darwin_read (task,
+        gum_strip_code_address (infos->info_array_address),
         infos->info_array_size, NULL);
     info_array_malloc_data = info_array;
+    if (info_array == NULL)
+      goto read_failed;
   }
 
   for (i = 0; i != infos->info_array_count + 1 && carry_on; i++)
@@ -1710,8 +1713,8 @@ gum_collect_images (mach_port_t task,
       if (infos->format == TASK_DYLD_ALL_IMAGE_INFO_64)
       {
         DyldImageInfo64 * info = info_array + (i * DYLD_IMAGE_INFO_64_SIZE);
-        load_address = info->image_load_address;
-        file_path_address = info->image_file_path;
+        load_address = gum_strip_code_address (info->image_load_address);
+        file_path_address = gum_strip_code_address (info->image_file_path);
       }
       else
       {
