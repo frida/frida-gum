@@ -1028,14 +1028,19 @@ gum_darwin_query_mapped_address (mach_port_t task,
                                  GumDarwinMappingDetails * details)
 {
   int pid;
-  kern_return_t kr;
   GumFileMapping file;
   struct proc_regionwithpathinfo region;
   guint64 mapping_offset;
 
-  kr = pid_for_task (task, &pid);
-  if (kr != KERN_SUCCESS)
-    return FALSE;
+  if (task == mach_task_self ())
+  {
+    pid = getpid ();
+  }
+  else
+  {
+    if (pid_for_task (task, &pid) != KERN_SUCCESS)
+      return FALSE;
+  }
 
   if (!_gum_darwin_fill_file_mapping (pid, address, &file, &region))
     return FALSE;
@@ -1054,13 +1059,18 @@ gum_darwin_query_protection (mach_port_t task,
                              GumAddress address,
                              GumPageProtection * prot)
 {
-  kern_return_t kr;
   gint pid, retval;
   struct proc_regioninfo region;
 
-  kr = pid_for_task (task, &pid);
-  if (kr != KERN_SUCCESS)
-    return FALSE;
+  if (task == mach_task_self ())
+  {
+    pid = getpid ();
+  }
+  else
+  {
+    if (pid_for_task (task, &pid) != KERN_SUCCESS)
+      return FALSE;
+  }
 
   retval = __proc_info (PROC_INFO_CALL_PIDINFO, pid, PROC_PIDREGIONINFO,
       address, &region, sizeof (struct proc_regioninfo));
@@ -2100,9 +2110,15 @@ gum_darwin_enumerate_ranges (mach_port_t task,
   mach_vm_size_t size = 0;
   natural_t depth = 0;
 
-  kr = pid_for_task (task, &pid);
-  if (kr != KERN_SUCCESS)
-    return;
+  if (task == mach_task_self ())
+  {
+    pid = getpid ();
+  }
+  else
+  {
+    if (pid_for_task (task, &pid) != KERN_SUCCESS)
+      return;
+  }
 
   while (TRUE)
   {

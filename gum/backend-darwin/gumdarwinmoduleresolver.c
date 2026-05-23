@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -198,11 +198,18 @@ gum_darwin_module_resolver_load (GumDarwinModuleResolver * self,
   if (!gum_darwin_query_page_size (self->task, &self->page_size))
     goto invalid_task;
 
-  if (pid_for_task (self->task, &pid) != KERN_SUCCESS)
-    goto invalid_task;
+  if (self->task == mach_task_self ())
+  {
+    self->cpu_type = GUM_NATIVE_CPU;
+  }
+  else
+  {
+    if (pid_for_task (self->task, &pid) != KERN_SUCCESS)
+      goto invalid_task;
 
-  if (!gum_darwin_cpu_type_from_pid (pid, &self->cpu_type))
-    goto invalid_task;
+    if (!gum_darwin_cpu_type_from_pid (pid, &self->cpu_type))
+      goto invalid_task;
+  }
 
   if (self->load_func == NULL)
   {
