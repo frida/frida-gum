@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2022-2025 Håvard Sørbø <havard@hsorbo.no>
@@ -686,13 +686,14 @@ gum_darwin_check_xnu_version (guint major,
 
     size = sizeof (buf);
     res = sysctlbyname ("kern.version", buf, &size, NULL, 0);
-    g_assert (res == 0);
-
-    version_str = strstr (buf, "xnu-");
-    if (version_str != NULL)
+    if (res == 0)
     {
-      version_str += 4;
-      sscanf (version_str, "%u.%u.%u", &xnu_major, &xnu_minor, &xnu_micro);
+      version_str = strstr (buf, "xnu-");
+      if (version_str != NULL)
+      {
+        version_str += 4;
+        sscanf (version_str, "%u.%u.%u", &xnu_major, &xnu_minor, &xnu_micro);
+      }
     }
 
     initialized = TRUE;
