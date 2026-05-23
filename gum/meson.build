@@ -144,6 +144,9 @@ if host_os_family == 'darwin'
     'backend-darwin' / 'gumdarwinmapper.c',
     'backend-darwin' / 'gumdarwinmoduleresolver.c',
   ]
+  if have_ptrauth
+    gum_sources += 'backend-posix' / 'gumexceptor-arm64e.S'
+  endif
   if host_os in ['macos', 'ios', 'tvos']
     if have_jailbreak
       gum_sources += [

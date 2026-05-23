@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -44,8 +44,12 @@
 #endif
 
 #include <capstone.h>
+#include <setjmp.h>
 #include <signal.h>
 #include <stdlib.h>
+#ifdef HAVE_PTRAUTH
+# include <ptrauth.h>
+#endif
 #ifdef HAVE_QNX
 # include <sys/debug.h>
 # include <unix.h>
@@ -83,6 +87,11 @@ static int gum_exceptor_backend_replacement_sigaction (int sig,
     const struct sigaction * act, struct sigaction * oact);
 static void gum_exceptor_backend_on_signal (int sig, siginfo_t * siginfo,
     void * context);
+#ifdef HAVE_PTRAUTH
+G_GNUC_INTERNAL void _gum_exceptor_perform_divert (GumCpuContext * ctx);
+static void gum_exceptor_stage_divert (volatile GumCpuContext * dst,
+    const GumCpuContext * src);
+#endif
 static void gum_exceptor_backend_abort (GumExceptorBackend * self,
     GumExceptionDetails * details);
 
@@ -386,8 +395,17 @@ gum_exceptor_backend_on_signal (int sig,
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
   struct sigaction * action;
+#ifdef HAVE_PTRAUTH
+  volatile GumCpuContext divert_ctx;
+  sigjmp_buf divert_env;
+#endif
 
   action = self->old_handlers[sig];
+
+#ifdef HAVE_PTRAUTH
+  if (sigsetjmp (divert_env, 1) != 0)
+    _gum_exceptor_perform_divert ((GumCpuContext *) &divert_ctx);
+#endif
 
   ed.thread_id = gum_process_get_current_thread_id ();
 
@@ -448,8 +466,13 @@ gum_exceptor_backend_on_signal (int sig,
 
   if (self->handler (&ed, self->handler_data))
   {
+#ifdef HAVE_PTRAUTH
+    gum_exceptor_stage_divert (&divert_ctx, cpu_context);
+    siglongjmp (divert_env, 1);
+#else
     gum_unparse_context (cpu_context, context);
     return;
+#endif
   }
 
   if ((action->sa_flags & SA_SIGINFO) != 0)
@@ -479,6 +502,25 @@ gum_exceptor_backend_on_signal (int sig,
 panic:
   gum_exceptor_backend_detach_handler (self, sig);
 }
+
+#ifdef HAVE_PTRAUTH
+
+static void
+gum_exceptor_stage_divert (volatile GumCpuContext * dst,
+                           const GumCpuContext * src)
+{
+  *((GumCpuContext *) dst) = *src;
+  dst->pc = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (dst->pc),
+      ptrauth_key_process_independent_code));
+  dst->lr = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (dst->lr),
+      ptrauth_key_process_independent_code));
+  dst->sp = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (dst->sp),
+      ptrauth_key_process_independent_data));
+  dst->fp = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (dst->fp),
+      ptrauth_key_process_independent_data));
+}
+
+#endif
 
 static void
 gum_exceptor_backend_abort (GumExceptorBackend * self,
