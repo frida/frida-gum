@@ -1075,6 +1075,85 @@ gum_mips_parse_memory_operand_value (JSContext * ctx,
   return val;
 }
 
+#elif defined (HAVE_RISCV)
+
+static JSValue
+gum_parse_operands (JSContext * ctx,
+                    const cs_insn * insn,
+                    csh cs,
+                    GumQuickCore * core)
+{
+  JSValue result;
+  const cs_riscv * riscv = &insn->detail->riscv;
+  uint8_t i;
+
+  result = JS_NewArray (ctx);
+
+  for (i = 0; i != riscv->op_count; i++)
+  {
+    const cs_riscv_op * op = &riscv->operands[i];
+    JSValue op_obj;
+    const gchar * type;
+    JSValue val;
+
+    op_obj = JS_NewObject (ctx);
+
+    switch (op->type)
+    {
+      case RISCV_OP_REG:
+        type = "reg";
+        val = JS_NewString (ctx, cs_reg_name (cs, op->reg));
+        break;
+      case RISCV_OP_IMM:
+        type = "imm";
+        val = JS_NewInt64 (ctx, op->imm);
+        break;
+      case RISCV_OP_MEM:
+        type = "mem";
+        val = gum_riscv_parse_memory_operand_value (ctx, &op->mem, cs, core);
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    JS_DefinePropertyValue (ctx, op_obj,
+        GUM_QUICK_CORE_ATOM (core, type),
+        JS_NewString (ctx, type),
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, op_obj,
+        GUM_QUICK_CORE_ATOM (core, value),
+        val,
+        JS_PROP_C_W_E);
+
+    JS_DefinePropertyValueUint32 (ctx, result, i, op_obj, JS_PROP_C_W_E);
+  }
+
+  return result;
+}
+
+static JSValue
+gum_riscv_parse_memory_operand_value (JSContext * ctx,
+                                      const riscv_op_mem * mem,
+                                      csh cs,
+                                      GumQuickCore * core)
+{
+  JSValue val = JS_NewObject (ctx);
+
+  if (mem->base != RISCV_REG_INVALID)
+  {
+    JS_DefinePropertyValue (ctx, val,
+        GUM_QUICK_CORE_ATOM (core, base),
+        JS_NewString (ctx, cs_reg_name (cs, mem->base)),
+        JS_PROP_C_W_E);
+  }
+  JS_DefinePropertyValue (ctx, val,
+      GUM_QUICK_CORE_ATOM (core, disp),
+      JS_NewInt64 (ctx, mem->disp),
+      JS_PROP_C_W_E);
+
+  return val;
+}
+
 #endif
 
 static JSValue

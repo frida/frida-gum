@@ -90,6 +90,8 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
     return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->lr);
 #elif defined (HAVE_MIPS)
     return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->ra);
+#elif defined (HAVE_RISCV)
+    return_addresses->items[0] = GSIZE_TO_POINTER (cpu_context->ra);
 #else
 # error Unsupported architecture
 #endif
@@ -220,6 +222,47 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
   uc->uc_mcontext.mdlo = ctx->lo;
 
   uc->uc_mcontext.pc = ctx->pc;
+  #elif defined (HAVE_RISCV)
+
+  unw_getcontext (uc);
+
+  unsigned long *gr = (unsigned long *) &uc->uc_mcontext.__gregs;
+
+  gr[0] = ctx->pc;
+  gr[1] = ctx->ra;
+  gr[2] = ctx->sp;
+  gr[3] = ctx->gp;
+  gr[4] = ctx->tp;
+  gr[5] = ctx->t0;
+  gr[6] = ctx->t1;
+  gr[7] = ctx->t2;
+  gr[8] = ctx->s0;
+  gr[9] = ctx->s1;
+  gr[10] = ctx->a0;
+  gr[11] = ctx->a1;
+  gr[12] = ctx->a2;
+  gr[13] = ctx->a3;
+  gr[14] = ctx->a4;
+  gr[15] = ctx->a5;
+  gr[16] = ctx->a6;
+  gr[17] = ctx->a7;
+  gr[18] = ctx->s2;
+  gr[19] = ctx->s3;
+  gr[20] = ctx->s4;
+  gr[21] = ctx->s5;
+  gr[22] = ctx->s6;
+  gr[23] = ctx->s7;
+  gr[24] = ctx->s8;
+  gr[25] = ctx->s9;
+  gr[26] = ctx->s10;
+  gr[27] = ctx->s11;
+  gr[28] = ctx->t3;
+  gr[29] = ctx->t4;
+  gr[30] = ctx->t5;
+  gr[31] = ctx->t6;
+
+
+
 #else
 # error FIXME
 #endif
