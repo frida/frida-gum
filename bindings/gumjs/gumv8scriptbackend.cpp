@@ -26,7 +26,6 @@
 #define GUM_V8_FLAGS \
     GUM_V8_PLATFORM_FLAGS \
     "--no-freeze-flags-after-init " \
-    "--turbo-instruction-scheduling " \
     "--use-strict " \
     "--expose-gc " \
     "--wasm-staging " \
@@ -236,10 +235,19 @@ gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
 
     flags = g_string_new (GUM_V8_FLAGS);
 
+    // Force --jitless on Apple mobile platforms (iOS/tvOS/watchOS) to prevent V8 deserializer
+    // crashes caused by JIT compilation restrictions and code signing policies on these platforms
+#if defined (HAVE_IOS) || defined (HAVE_TVOS) || defined (HAVE_WATCHOS)
+    g_string_append (flags, " --jitless");
+#else
     if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
     {
       g_string_append (flags, " --jitless");
+    } else {
+      // Keep turbo optimizations on platforms where JIT is allowed
+      g_string_append (flags, " --turbo-instruction-scheduling");
     }
+#endif // HAVE_IOS || HAVE_TVOS || HAVE_WATCHOS
 
     const gchar * extra_flags = g_getenv ("FRIDA_V8_EXTRA_FLAGS");
     if (extra_flags != NULL)
