@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -10,6 +10,7 @@
 #include "gumdarwingrafter-priv.h"
 #include "gumdarwinmodule-priv.h"
 #include "gumleb.h"
+#include "arch-arm64/gumarm64relocator.h"
 
 #include <glib/gprintf.h>
 #include <errno.h>
@@ -1228,9 +1229,11 @@ gum_darwin_grafter_emit_segments (gpointer output,
 {
   gboolean success = FALSE;
   GumArm64Writer cw;
+  GumArm64Relocator rl;
   guint i, j;
 
   gum_arm64_writer_init (&cw, NULL);
+  gum_arm64_relocator_init (&rl, NULL, &cw);
 
   for (j = 0; j != layout->segment_pair_descriptors->len; j++)
   {
@@ -1351,9 +1354,12 @@ gum_darwin_grafter_emit_segments (gpointer output,
 
       g_assert (cw.pc == trampoline_addr +
           G_STRUCT_OFFSET (GumGraftedHookTrampoline, on_invoke));
-      /* TODO: use Arm64Relocator */
-      gum_arm64_writer_put_instruction (&cw, overwritten_insn);
-      gum_arm64_writer_put_b_imm (&cw, code_addr + sizeof (overwritten_insn));
+      gum_arm64_relocator_reset (&rl, code_instructions, &cw);
+      rl.input_pc = code_addr;
+      gum_arm64_relocator_read_one (&rl, NULL);
+      gum_arm64_relocator_write_one (&rl);
+      if (!rl.eoi)
+        gum_arm64_writer_put_b_imm (&cw, code_addr + sizeof (overwritten_insn));
 
       gum_arm64_writer_flush (&cw);
       g_assert (
@@ -1448,6 +1454,7 @@ ldr_error:
       "LDR target too far away; please file a bug");
 
 beach:
+  gum_arm64_relocator_clear (&rl);
   gum_arm64_writer_clear (&cw);
 
   return success;
