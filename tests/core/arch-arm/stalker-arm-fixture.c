@@ -105,6 +105,8 @@
  */
 #define INVOKER_IMPL_OFFSET 24
 
+#define MANY_CALLOUTS_INSN_COUNT 1500
+
 typedef struct _TestArmStalkerFixture TestArmStalkerFixture;
 typedef struct _UnfollowTransformContext UnfollowTransformContext;
 typedef struct _InvalidationTransformContext InvalidationTransformContext;

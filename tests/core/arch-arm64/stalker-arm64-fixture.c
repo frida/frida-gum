@@ -33,6 +33,8 @@
 #define NTH_EXEC_EVENT_LOCATION(N) \
     (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
 
+#define MANY_CALLOUTS_INSN_COUNT 1500
+
 typedef struct _TestArm64StalkerFixture
 {
   GumStalker * stalker;
