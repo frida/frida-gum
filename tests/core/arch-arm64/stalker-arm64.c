@@ -44,6 +44,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (transformer_should_be_able_to_skip_call)
   TESTENTRY (transformer_should_be_able_to_replace_call_with_callout)
   TESTENTRY (transformer_should_be_able_to_replace_tailjump_with_callout)
+  TESTENTRY (many_callouts_should_not_overflow_literal_pool)
   TESTENTRY (unfollow_should_be_allowed_before_first_transform)
   TESTENTRY (unfollow_should_be_allowed_mid_first_transform)
   TESTENTRY (unfollow_should_be_allowed_after_first_transform)
@@ -153,6 +154,10 @@ static void replace_call_with_callout (GumStalkerIterator * iterator,
 static void replace_jmp_with_callout (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void callout_set_cool (GumCpuContext * cpu_context, gpointer user_data);
+static void add_callout_for_every_instruction (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void bump_num_callouts (GumCpuContext * cpu_context,
+    gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static gboolean test_is_finished (void);
@@ -674,6 +679,62 @@ callout_set_cool (GumCpuContext * cpu_context,
                   gpointer user_data)
 {
   cpu_context->x[0] = 0xc001;
+}
+
+TESTCASE (many_callouts_should_not_overflow_literal_pool)
+{
+  gint num_callouts = 0;
+  guint32 * code;
+  GumArm64Writer cw;
+  guint i;
+  StalkerTestFunc func;
+  gint ret;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      add_callout_for_every_instruction, &num_callouts, NULL);
+  fixture->sink->mask = GUM_NOTHING;
+
+  code = g_malloc ((MANY_CALLOUTS_INSN_COUNT + 1) * sizeof (guint32));
+  gum_arm64_writer_init (&cw, code);
+  for (i = 0; i != MANY_CALLOUTS_INSN_COUNT; i++)
+    gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
+  gum_arm64_writer_put_ret (&cw);
+  gum_arm64_writer_flush (&cw);
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture, code,
+      gum_arm64_writer_offset (&cw));
+
+  gum_arm64_writer_clear (&cw);
+  g_free (code);
+
+  ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpint (ret, ==, MANY_CALLOUTS_INSN_COUNT);
+  g_assert_cmpint (num_callouts, >=, MANY_CALLOUTS_INSN_COUNT);
+}
+
+static void
+add_callout_for_every_instruction (GumStalkerIterator * iterator,
+                                   GumStalkerOutput * output,
+                                   gpointer user_data)
+{
+  gint * num_callouts = user_data;
+
+  while (gum_stalker_iterator_next (iterator, NULL))
+  {
+    gum_stalker_iterator_put_callout (iterator, bump_num_callouts,
+        num_callouts, NULL);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+bump_num_callouts (GumCpuContext * cpu_context,
+                   gpointer user_data)
+{
+  gint * num_callouts = user_data;
+
+  (*num_callouts)++;
 }
 
 TESTCASE (unfollow_should_be_allowed_before_first_transform)

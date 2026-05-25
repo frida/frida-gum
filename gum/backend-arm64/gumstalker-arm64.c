@@ -2762,16 +2762,22 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
 {
   GumExecBlock * block = self->exec_block;
   GumSlab * slab = &block->code_slab->slab;
-  gsize capacity, snapshot_size;
+  GumArm64Writer * cw = self->generator_context->code_writer;
+  gsize capacity, snapshot_size, pending_literals_size;
 
   capacity = (guint8 *) gum_slab_end (slab) -
-      (guint8 *) gum_arm64_writer_cur (self->generator_context->code_writer);
+      (guint8 *) gum_arm64_writer_cur (cw);
 
   snapshot_size = gum_stalker_snapshot_space_needed_for (
       self->exec_context->stalker,
       self->generator_context->instruction->end - block->real_start);
 
-  return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size;
+  pending_literals_size = (cw->literal_refs.data != NULL)
+      ? cw->literal_refs.length * sizeof (guint64)
+      : 0;
+
+  return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size +
+      pending_literals_size;
 }
 
 void

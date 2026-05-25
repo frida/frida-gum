@@ -2712,7 +2712,7 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
   GumGeneratorContext * gc = self->generator_context;
   GumSlab * slab = &block->code_slab->slab;
   guint8 * cursor;
-  gsize capacity, snapshot_size;
+  gsize capacity, snapshot_size, pending_literals_size;
 
   cursor = gc->is_thumb
       ? gum_thumb_writer_cur (gc->thumb_writer)
@@ -2724,7 +2724,26 @@ gum_stalker_iterator_is_out_of_space (GumStalkerIterator * self)
       self->exec_context->stalker,
       gc->instruction->end - block->real_start);
 
-  return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size;
+  if (gc->is_thumb)
+  {
+    GumThumbWriter * tw = gc->thumb_writer;
+    gsize alignment_padding = sizeof (guint16);
+
+    pending_literals_size = (tw->literal_refs.data != NULL)
+        ? (tw->literal_refs.length * sizeof (guint32)) + alignment_padding
+        : 0;
+  }
+  else
+  {
+    GumArmWriter * aw = gc->arm_writer;
+
+    pending_literals_size = (aw->literal_refs.data != NULL)
+        ? aw->literal_refs.length * sizeof (guint32)
+        : 0;
+  }
+
+  return capacity < GUM_EXEC_BLOCK_MIN_CAPACITY + snapshot_size +
+      pending_literals_size;
 }
 
 void
