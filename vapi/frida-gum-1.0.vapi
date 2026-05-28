@@ -709,6 +709,26 @@ namespace Gum {
 		public static Exceptor obtain ();
 	}
 
+	public class UnwindBroker : GLib.Object {
+		public static UnwindBroker obtain ();
+		public void add_sections_provider (Gum.UnwindSectionsProvider provider);
+		public void remove_sections_provider (Gum.UnwindSectionsProvider provider);
+		public void add_pc_translator (Gum.UnwindPcTranslator translator);
+		public void remove_pc_translator (Gum.UnwindPcTranslator translator);
+	}
+
+	[CCode (type_cname = "GumUnwindSectionsProviderInterface")]
+	public interface UnwindSectionsProvider : GLib.Object {
+		public abstract unowned Gum.MemoryRange? range { get; }
+		public abstract bool fill (Gum.Address address, void * info);
+	}
+
+	[CCode (type_cname = "GumUnwindPcTranslatorInterface")]
+	public interface UnwindPcTranslator : GLib.Object {
+		public abstract Gum.Address translate (Gum.Address code_address);
+		public virtual bool install_resume_context (void * unwind_context, Gum.Address real_resume_ip);
+	}
+
 	public bool symbol_details_from_address (void * address, out Gum.DebugSymbolDetails details);
 	public string symbol_name_from_address (void * address);
 

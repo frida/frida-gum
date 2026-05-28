@@ -15,6 +15,7 @@
 #include "gummetalhash.h"
 #include "gumspinlock.h"
 #include "gumstalker-priv.h"
+#include "gumunwindbroker.h"
 #include "gumthumbreader.h"
 #include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
@@ -23,7 +24,12 @@
 #include <string.h>
 #include <unistd.h>
 #ifdef HAVE_LINUX
+# include <unwind.h>
 # include <sys/syscall.h>
+#endif
+
+#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
+# define GUM_HAVE_UNWIND_PC_TRANSLATION 1
 #endif
 
 #define GUM_CODE_SLAB_SIZE_INITIAL  (128 * 1024)
@@ -119,6 +125,8 @@ struct _GumStalker
   GumSpinlock probe_lock;
   GHashTable * probe_target_by_id;
   GHashTable * probe_array_by_address;
+
+  GumUnwindBroker * unwind_broker;
 };
 
 struct _GumInfectContext
@@ -206,6 +214,10 @@ struct _GumExecCtx
   gpointer last_thumb_invalidator;
 
   GumExecBlock * block_list;
+
+#ifdef GUM_HAVE_UNWIND_PC_TRANSLATION
+  GumMetalHashTable * excluded_calls;
+#endif
 };
 
 enum _GumExecCtxState
@@ -413,6 +425,9 @@ struct _GumBackpatch
   GumPrologState opened_prolog;
 };
 
+static void gum_stalker_unwind_translator_iface_init (gpointer iface,
+    gpointer iface_data);
+static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
 
 G_GNUC_INTERNAL gpointer _gum_stalker_do_follow_me (GumStalker * self,
@@ -447,6 +462,12 @@ static gsize gum_stalker_snapshot_space_needed_for (GumStalker * self,
 
 static void gum_stalker_thaw (GumStalker * self, gpointer code, gsize size);
 static void gum_stalker_freeze (GumStalker * self, gpointer code, gsize size);
+
+static GumAddress gum_stalker_translate_unwind_pc (
+    GumUnwindPcTranslator * translator, GumAddress code_address);
+static gboolean gum_stalker_install_unwind_resume_context (
+    GumUnwindPcTranslator * translator, gpointer unwind_context,
+    GumAddress real_resume_ip);
 
 static GumExecCtx * gum_exec_ctx_new (GumStalker * self, GumThreadId thread_id,
     GumStalkerTransformer * transformer, GumEventSink * sink);
@@ -704,7 +725,9 @@ static gboolean gum_is_exclusive_store_insn (const cs_insn * insn);
 static guint gum_count_bits_set (guint16 value);
 static guint gum_count_trailing_zeros (guint16 value);
 
-G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
+G_DEFINE_TYPE_WITH_CODE (GumStalker, gum_stalker, G_TYPE_OBJECT,
+                         G_IMPLEMENT_INTERFACE (GUM_TYPE_UNWIND_PC_TRANSLATOR,
+                             gum_stalker_unwind_translator_iface_init))
 
 static GPrivate gum_stalker_exec_ctx_private;
 
@@ -716,19 +739,25 @@ gum_stalker_is_supported (void)
   return TRUE;
 }
 
-void
-gum_stalker_activate_experimental_unwind_support (void)
-{
-}
-
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
+  object_class->dispose = gum_stalker_dispose;
   object_class->finalize = gum_stalker_finalize;
 
   gum_thread_exit_address = gum_find_thread_exit_implementation ();
+}
+
+static void
+gum_stalker_unwind_translator_iface_init (gpointer iface,
+                                          gpointer iface_data)
+{
+  GumUnwindPcTranslatorInterface * pc_iface = iface;
+
+  pc_iface->translate = gum_stalker_translate_unwind_pc;
+  pc_iface->install_resume_context = gum_stalker_install_unwind_resume_context;
 }
 
 static void
@@ -782,6 +811,26 @@ gum_stalker_init (GumStalker * self)
 
   g_mutex_init (&self->mutex);
   self->contexts = NULL;
+
+  self->unwind_broker = gum_unwind_broker_obtain ();
+  gum_unwind_broker_add_pc_translator (self->unwind_broker,
+      GUM_UNWIND_PC_TRANSLATOR (self));
+}
+
+static void
+gum_stalker_dispose (GObject * object)
+{
+  GumStalker * self = GUM_STALKER (object);
+
+  if (self->unwind_broker != NULL)
+  {
+    gum_unwind_broker_remove_pc_translator (self->unwind_broker,
+        GUM_UNWIND_PC_TRANSLATOR (self));
+    g_object_unref (self->unwind_broker);
+    self->unwind_broker = NULL;
+  }
+
+  G_OBJECT_CLASS (gum_stalker_parent_class)->dispose (object);
 }
 
 static void
@@ -1746,6 +1795,55 @@ gum_stalker_freeze (GumStalker * self,
   gum_clear_cache (code, size);
 }
 
+static GumAddress
+gum_stalker_translate_unwind_pc (GumUnwindPcTranslator * translator,
+                                 GumAddress code_address)
+{
+#ifdef GUM_HAVE_UNWIND_PC_TRANSLATION
+  GumExecCtx * ctx;
+  gpointer real_address;
+
+  ctx = gum_stalker_get_exec_ctx ();
+  if (ctx == NULL)
+    return 0;
+
+  real_address = gum_metal_hash_table_lookup (ctx->excluded_calls,
+      GSIZE_TO_POINTER (code_address));
+  if (real_address == NULL)
+    return 0;
+
+  return GUM_ADDRESS (real_address);
+#else
+  return 0;
+#endif
+}
+
+static gboolean
+gum_stalker_install_unwind_resume_context (GumUnwindPcTranslator * translator,
+                                           gpointer unwind_context,
+                                           GumAddress real_resume_ip)
+{
+#ifdef HAVE_LINUX
+  GumExecCtx * ctx;
+  gpointer resume_ip;
+
+  ctx = gum_stalker_get_exec_ctx ();
+  if (ctx == NULL)
+    return FALSE;
+
+  resume_ip = gum_exec_ctx_switch_block (ctx, NULL,
+      GSIZE_TO_POINTER (real_resume_ip), NULL);
+  _Unwind_SetIP ((struct _Unwind_Context *) unwind_context,
+      GPOINTER_TO_SIZE (resume_ip));
+
+  ctx->pending_calls--;
+
+  return TRUE;
+#else
+  return FALSE;
+#endif
+}
+
 static GumExecCtx *
 gum_exec_ctx_new (GumStalker * stalker,
                   GumThreadId thread_id,
@@ -1817,6 +1915,10 @@ gum_exec_ctx_new (GumStalker * stalker,
 
   ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
 
+#ifdef GUM_HAVE_UNWIND_PC_TRANSLATION
+  ctx->excluded_calls = gum_metal_hash_table_new (NULL, NULL);
+#endif
+
   gum_exec_ctx_ensure_inline_helpers_reachable (ctx);
 
   return ctx;
@@ -1830,6 +1932,10 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   GumCodeSlab * code_slab;
 
   gum_metal_hash_table_unref (ctx->mappings);
+
+#ifdef GUM_HAVE_UNWIND_PC_TRANSLATION
+  gum_metal_hash_table_unref (ctx->excluded_calls);
+#endif
 
   data_slab = ctx->data_slab;
   while (TRUE)
@@ -5190,6 +5296,14 @@ gum_exec_block_write_arm_handle_excluded (GumExecBlock * block,
   /* Emit the original instruction (relocated) */
   gum_arm_relocator_write_one (gc->arm_relocator);
 
+#ifdef GUM_HAVE_UNWIND_PC_TRANSLATION
+  if (call)
+  {
+    gum_metal_hash_table_insert (block->ctx->excluded_calls, cw->code,
+        gc->instruction->end);
+  }
+#endif
+
   gum_exec_block_arm_open_prolog (block, gc);
 
   if (call)
@@ -5252,6 +5366,14 @@ gum_exec_block_write_thumb_handle_excluded (GumExecBlock * block,
   gum_exec_block_thumb_close_prolog (block, gc);
 
   gum_thumb_relocator_copy_one (gc->thumb_relocator);
+
+#ifdef GUM_HAVE_UNWIND_PC_TRANSLATION
+  if (call)
+  {
+    gum_metal_hash_table_insert (block->ctx->excluded_calls, cw->code,
+        gc->instruction->end);
+  }
+#endif
 
   gum_exec_block_thumb_open_prolog (block, gc);
 

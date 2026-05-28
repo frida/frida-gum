@@ -26,10 +26,18 @@ core_sources = [
   'arch-arm64' / 'arm64relocator.c',
 ]
 
+core_c_args = []
+
 if host_os_family == 'darwin'
   core_sources += [
     'interceptor-darwin.c',
+    'unwindbroker-darwin.c',
   ]
+
+  mapper_unwind_target = shared_library('gum-tests-mapper-unwind-target',
+    'mapper-unwind-target.c',
+  )
+  core_c_args += '-DGUM_TESTS_MAPPER_UNWIND_TARGET="' + mapper_unwind_target.full_path() + '"'
 endif
 
 if host_os == 'android'
@@ -86,6 +94,7 @@ if host_os_family == 'linux' and host_arch in ['x86', 'x86_64']
 endif
 
 gum_tests_core = static_library('gum-tests-core', core_sources,
+  c_args: core_c_args,
   include_directories: test_incdirs,
   dependencies: [gum_dep, lzma_dep],
   link_with: core_link_with,

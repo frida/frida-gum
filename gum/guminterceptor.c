@@ -11,6 +11,7 @@
 
 #include "gumcodesegment.h"
 #include "guminterceptor-priv.h"
+#include "gumunwindbroker.h"
 #include "gumlibc.h"
 #include "gummemory.h"
 #include "gummetalarray.h"
@@ -68,6 +69,8 @@ struct _GumInterceptor
   volatile guint selected_thread_id;
 
   GumInterceptorTransaction current_transaction;
+
+  GumUnwindBroker * unwind_broker;
 };
 
 enum _GumInstrumentationError
@@ -288,6 +291,8 @@ gum_interceptor_dispose (GObject * object)
   gum_interceptor_transaction_end (&self->current_transaction);
   GUM_INTERCEPTOR_UNLOCK (self);
 
+  g_clear_object (&self->unwind_broker);
+
   G_OBJECT_CLASS (gum_interceptor_parent_class)->dispose (object);
 }
 
@@ -321,6 +326,7 @@ GumInterceptor *
 gum_interceptor_obtain (void)
 {
   GumInterceptor * interceptor;
+  gboolean newly_created = FALSE;
 
   g_mutex_lock (&_gum_interceptor_lock);
 
@@ -335,9 +341,18 @@ gum_interceptor_obtain (void)
         the_interceptor_weak_notify, NULL);
 
     interceptor = _the_interceptor;
+    newly_created = TRUE;
   }
 
   g_mutex_unlock (&_gum_interceptor_lock);
+
+  /*
+   * Activate the unwind broker so C++/Objective-C exceptions can propagate
+   * through our trampolines. Done outside the lock because the broker's
+   * backend re-enters gum_interceptor_obtain () to install its own hooks.
+   */
+  if (newly_created)
+    interceptor->unwind_broker = gum_unwind_broker_obtain ();
 
   return interceptor;
 }

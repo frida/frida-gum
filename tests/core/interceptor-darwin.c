@@ -11,9 +11,12 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <objc/message.h>
+#include <objc/runtime.h>
 #include <spawn.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <unwind.h>
 
 TESTLIST_BEGIN (interceptor_darwin)
   TESTENTRY (can_attach_to_errno)
@@ -27,6 +30,9 @@ TESTLIST_BEGIN (interceptor_darwin)
   TESTENTRY (can_attach_to_xpc_retain)
   TESTENTRY (can_attach_to_sqlite3_close)
   TESTENTRY (can_attach_to_sqlite3_thread_cleanup)
+
+  TESTENTRY (can_unwind_through_trampoline)
+  TESTENTRY (can_unwind_through_objc_trampoline)
 
   TESTENTRY (attach_performance)
   TESTENTRY (replace_performance)
@@ -50,6 +56,13 @@ struct _TestPerformanceContext
 };
 
 static gpointer perform_read (gpointer data);
+
+static guint gum_test_count_frames_above_trampoline (void);
+static _Unwind_Reason_Code gum_test_count_unwind_frame (
+    struct _Unwind_Context * context, gpointer user_data);
+static id gum_test_count_frames_replacement (id self, SEL _cmd, id url);
+static id gum_objc_call (gpointer receiver, const gchar * selector,
+    gpointer argument);
 
 static gboolean attach_if_function_export (const GumExportDetails * details,
     gpointer user_data);
@@ -311,6 +324,90 @@ TESTCASE (can_attach_to_sqlite3_thread_cleanup)
 
   g_object_unref (sqlite);
 #endif
+}
+
+TESTCASE (can_unwind_through_trampoline)
+{
+  guint baseline, hooked;
+
+  baseline = gum_test_count_frames_above_trampoline ();
+  g_assert_cmpuint (baseline, >, 0);
+
+  interceptor_fixture_attach (fixture, 0,
+      gum_test_count_frames_above_trampoline, '>', '<');
+
+  hooked = gum_test_count_frames_above_trampoline ();
+
+  g_assert_cmpuint (hooked, ==, baseline);
+}
+
+GUM_NOINLINE static guint
+gum_test_count_frames_above_trampoline (void)
+{
+  guint num_frames = 0;
+
+  _Unwind_Backtrace (gum_test_count_unwind_frame, &num_frames);
+
+  return num_frames;
+}
+
+static _Unwind_Reason_Code
+gum_test_count_unwind_frame (struct _Unwind_Context * context,
+                             gpointer user_data)
+{
+  guint * num_frames = user_data;
+
+  (*num_frames)++;
+
+  return _URC_NO_REASON;
+}
+
+TESTCASE (can_unwind_through_objc_trampoline)
+{
+  guint baseline, through_trampoline = 0;
+  gpointer init_with_url;
+  id url;
+
+  baseline = gum_test_count_frames_above_trampoline ();
+
+  init_with_url = method_getImplementation (class_getInstanceMethod (
+      objc_getClass ("NSBundle"), sel_registerName ("initWithURL:")));
+  gum_interceptor_replace (fixture->interceptor, init_with_url,
+      gum_test_count_frames_replacement, &through_trampoline, NULL);
+
+  url = gum_objc_call (objc_getClass ("NSURL"), "fileURLWithPath:",
+      gum_objc_call (objc_getClass ("NSString"), "stringWithUTF8String:",
+          (gpointer) "/System"));
+  gum_objc_call (objc_getClass ("NSBundle"), "bundleWithURL:", url);
+
+  gum_interceptor_revert (fixture->interceptor, init_with_url);
+
+  g_assert_cmpuint (through_trampoline, >, baseline);
+}
+
+static id
+gum_test_count_frames_replacement (id self,
+                                   SEL _cmd,
+                                   id url)
+{
+  guint * num_frames;
+
+  num_frames = GUM_IC_GET_REPLACEMENT_DATA (
+      gum_interceptor_get_current_invocation (), guint *);
+
+  *num_frames = gum_test_count_frames_above_trampoline ();
+
+  return NULL;
+}
+
+static id
+gum_objc_call (gpointer receiver,
+               const gchar * selector,
+               gpointer argument)
+{
+  id (* msg_send) (gpointer, SEL, gpointer) = (gpointer) objc_msgSend;
+
+  return msg_send (receiver, sel_registerName (selector), argument);
 }
 
 static gpointer

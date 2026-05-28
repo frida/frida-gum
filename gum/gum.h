@@ -44,6 +44,7 @@
 #include <gum/gumsysinternals.h>
 #include <gum/gumthreadregistry.h>
 #include <gum/gumtls.h>
+#include <gum/gumunwindbroker.h>
 
 G_BEGIN_DECLS
 

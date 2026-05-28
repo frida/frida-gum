@@ -14,6 +14,7 @@ gum_headers = [
   'gumevent.h',
   'gumeventsink.h',
   'gumexceptor.h',
+  'gumunwindbroker.h',
   'gumfunction.h',
   'gumheapapi.h',
   'guminterceptor.h',
@@ -53,6 +54,7 @@ gum_sources = [
   'gumdarwinmodule.c',
   'gumelfmodule.c',
   'gumexceptor.c',
+  'gumunwindbroker.c',
   'gumeventsink.c',
   'gumheapapi.c',
   'guminterceptor.c',
@@ -141,6 +143,7 @@ if host_os_family == 'darwin'
     'backend-darwin' / 'gummoduleregistry-darwin.c',
     'backend-darwin' / 'gummodule-darwin.c',
     'backend-posix' / 'gumexceptor-posix.c',
+    'backend-darwin' / 'gumunwindbroker-darwin.c',
     'backend-darwin' / 'gumdarwinmapper.c',
     'backend-darwin' / 'gumdarwinmoduleresolver.c',
   ]
@@ -170,6 +173,7 @@ if host_os_family == 'linux'
     'backend-linux' / 'gummodule-linux.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
+    'backend-linux' / 'gumunwindbroker-linux.c',
   ]
   if host_os == 'android'
     gum_backend_headers += [
