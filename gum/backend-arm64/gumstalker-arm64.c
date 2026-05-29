@@ -552,10 +552,6 @@ static GumSlowSlab * gum_exec_ctx_add_slow_slab (GumExecCtx * ctx,
     GumSlowSlab * code_slab);
 static GumDataSlab * gum_exec_ctx_add_data_slab (GumExecCtx * ctx,
     GumDataSlab * data_slab);
-static void gum_exec_ctx_compute_code_address_spec (GumExecCtx * ctx,
-    gsize slab_size, GumAddressSpec * spec);
-static void gum_exec_ctx_compute_data_address_spec (GumExecCtx * ctx,
-    gsize slab_size, GumAddressSpec * spec);
 static gboolean gum_exec_ctx_maybe_unfollow (GumExecCtx * ctx,
     gpointer resume_at);
 static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
@@ -2176,30 +2172,6 @@ gum_exec_ctx_add_data_slab (GumExecCtx * ctx,
   data_slab->slab.next = &ctx->data_slab->slab;
   ctx->data_slab = data_slab;
   return data_slab;
-}
-
-static void
-gum_exec_ctx_compute_code_address_spec (GumExecCtx * ctx,
-                                        gsize slab_size,
-                                        GumAddressSpec * spec)
-{
-  GumStalker * stalker = ctx->stalker;
-
-  /* Code must be able to reference ExecCtx fields using 32-bit offsets. */
-  spec->near_address = ctx;
-  spec->max_distance = G_MAXINT32 - stalker->ctx_size - slab_size;
-}
-
-static void
-gum_exec_ctx_compute_data_address_spec (GumExecCtx * ctx,
-                                        gsize slab_size,
-                                        GumAddressSpec * spec)
-{
-  GumStalker * stalker = ctx->stalker;
-
-  /* Code must be able to reference ExecBlock fields using 32-bit offsets. */
-  spec->near_address = ctx->code_slab;
-  spec->max_distance = G_MAXINT32 - stalker->code_slab_size_dynamic - slab_size;
 }
 
 static gboolean
@@ -3833,20 +3805,12 @@ static void
 gum_exec_block_maybe_create_new_data_slab (GumExecCtx * ctx)
 {
   GumDataSlab * data_slab = ctx->data_slab;
-  GumAddressSpec data_spec;
   gsize data_available;
-  gboolean enough_data, address_ok;
-
-  gum_exec_ctx_compute_data_address_spec (ctx, data_slab->slab.size,
-      &data_spec);
 
   data_available = gum_slab_available (&data_slab->slab);
 
-  enough_data = data_available >= GUM_DATA_BLOCK_MIN_CAPACITY +
-      gum_stalker_get_ic_entry_size (ctx->stalker);
-  address_ok = gum_address_spec_is_satisfied_by (&data_spec,
-      gum_slab_start (&data_slab->slab));
-  if (enough_data && address_ok)
+  if (data_available >= GUM_DATA_BLOCK_MIN_CAPACITY +
+      gum_stalker_get_ic_entry_size (ctx->stalker))
     return;
 
   data_slab = gum_exec_ctx_add_data_slab (ctx, gum_data_slab_new (ctx));
@@ -5620,20 +5584,12 @@ gum_code_slab_new (GumExecCtx * ctx)
   gsize total_size;
   GumCodeSlab * code_slab;
   GumSlowSlab * slow_slab;
-  GumAddressSpec spec;
 
   total_size = stalker->code_slab_size_dynamic +
       stalker->slow_slab_size_dynamic;
 
-  gum_exec_ctx_compute_code_address_spec (ctx, total_size, &spec);
-
-  code_slab = gum_memory_allocate_near (&spec, total_size, stalker->page_size,
+  code_slab = gum_memory_allocate (NULL, total_size, stalker->page_size,
       stalker->is_rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW);
-  if (code_slab == NULL)
-  {
-    g_error ("Unable to allocate code slab near %p with max_distance=%zu",
-        spec.near_address, spec.max_distance);
-  }
 
   gum_code_slab_init (code_slab, stalker->code_slab_size_dynamic, total_size,
       stalker->page_size);
@@ -5691,17 +5647,9 @@ gum_data_slab_new (GumExecCtx * ctx)
   GumDataSlab * slab;
   GumStalker * stalker = ctx->stalker;
   const gsize slab_size = stalker->data_slab_size_dynamic;
-  GumAddressSpec spec;
 
-  gum_exec_ctx_compute_data_address_spec (ctx, slab_size, &spec);
-
-  slab = gum_memory_allocate_near (&spec, slab_size, stalker->page_size,
+  slab = gum_memory_allocate (NULL, slab_size, stalker->page_size,
       GUM_PAGE_RW);
-  if (slab == NULL)
-  {
-    g_error ("Unable to allocate data slab near %p with max_distance=%zu",
-        spec.near_address, spec.max_distance);
-  }
 
   gum_data_slab_init (slab, slab_size, slab_size);
 
