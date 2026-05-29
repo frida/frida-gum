@@ -62,6 +62,10 @@ struct _GumFunctionContext
   gpointer replacement_function;
   gpointer replacement_data;
 
+  gint scratch_register;
+  GumInterceptorScenario scenario;
+  GumRelocationPolicy relocation_policy;
+
   GumFunctionContextBackendData backend_data;
 
   GumInterceptor * interceptor;

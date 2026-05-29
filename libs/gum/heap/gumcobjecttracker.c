@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -426,15 +426,16 @@ gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
                                         gpointer context)
 {
   CObjectFunctionContext * function_ctx;
+  GumAttachOptions options = { 0, };
 
   function_ctx = g_new (CObjectFunctionContext, 1);
   function_ctx->handlers = *handlers;
   function_ctx->context = context;
   g_ptr_array_add (self->function_contexts, function_ctx);
 
+  options.listener_function_data = function_ctx;
   gum_interceptor_attach (self->interceptor, function_address,
-      GUM_INVOCATION_LISTENER (self), function_ctx,
-      GUM_ATTACH_FLAGS_NONE);
+      GUM_INVOCATION_LISTENER (self), &options);
 }
 
 static void

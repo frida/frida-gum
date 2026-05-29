@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -40,6 +40,7 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
 {
   GumLinuxPThreadIter iter;
   pthread_t thread;
+  GumAttachOptions options = { .ignorability = GUM_INVOCATION_UNIGNORABLE };
 
   gum_registry = self;
   gum_pthread = gum_linux_query_pthread_spec ();
@@ -60,18 +61,18 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   gum_linux_lock_pthread_list (gum_pthread);
 
   gum_interceptor_attach (gum_thread_interceptor, gum_pthread->start_impl,
-      gum_start_handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+      gum_start_handler, &options);
   if (gum_pthread->start_c11_impl != NULL)
   {
     gum_interceptor_attach (gum_thread_interceptor, gum_pthread->start_c11_impl,
-        gum_start_handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+        gum_start_handler, &options);
   }
   gum_interceptor_attach (gum_thread_interceptor, gum_pthread->terminate_impl,
-      gum_terminate_handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+      gum_terminate_handler, &options);
   if (gum_pthread->set_name != NULL)
   {
     gum_interceptor_attach (gum_thread_interceptor, gum_pthread->set_name,
-        gum_rename_handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+        gum_rename_handler, &options);
   }
 
   gum_interceptor_end_transaction (gum_thread_interceptor);

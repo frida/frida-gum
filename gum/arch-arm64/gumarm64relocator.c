@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,6 +21,9 @@ struct _GumCodeGenCtx
 
   GumArm64Writer * output;
 };
+
+static gboolean gum_arm64_relocator_register_is_free (
+    const GumArm64Relocator * self, guint n, arm64_reg reg);
 
 static gboolean gum_arm64_branch_is_unconditional (const cs_insn * insn);
 
@@ -337,6 +340,7 @@ gboolean
 gum_arm64_relocator_can_relocate (gpointer address,
                                   guint min_bytes,
                                   GumRelocationScenario scenario,
+                                  GumRelocationPolicy policy,
                                   guint * maximum,
                                   arm64_reg * available_scratch_reg)
 {
@@ -386,7 +390,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
   }
   while (reloc_bytes < min_bytes);
 
-  if (!rl.eoi)
+  if (policy == GUM_RELOCATION_CHECKED && !rl.eoi)
   {
     GHashTable * checked_targets, * targets_to_check;
     csh capstone;
@@ -521,36 +525,25 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
   if (available_scratch_reg != NULL)
   {
-    gboolean x16_used, x17_used;
-    guint insn_index;
+    arm64_reg requested_scratch_reg = *available_scratch_reg;
 
-    x16_used = FALSE;
-    x17_used = FALSE;
-
-    for (insn_index = 0; insn_index != n / 4; insn_index++)
+    if (requested_scratch_reg != ARM64_REG_INVALID)
     {
-      const cs_insn * insn = rl.input_insns[insn_index];
-      const cs_arm64 * info = &insn->detail->arm64;
-      uint8_t op_index;
-
-      for (op_index = 0; op_index != info->op_count; op_index++)
-      {
-        const cs_arm64_op * op = &info->operands[op_index];
-
-        if (op->type == ARM64_OP_REG)
-        {
-          x16_used |= op->reg == ARM64_REG_X16;
-          x17_used |= op->reg == ARM64_REG_X17;
-        }
-      }
+      if (!gum_arm64_relocator_register_is_free (&rl, n, requested_scratch_reg))
+        *available_scratch_reg = ARM64_REG_INVALID;
     }
-
-    if (!x16_used)
+    else if (gum_arm64_relocator_register_is_free (&rl, n, ARM64_REG_X16))
+    {
       *available_scratch_reg = ARM64_REG_X16;
-    else if (!x17_used)
+    }
+    else if (gum_arm64_relocator_register_is_free (&rl, n, ARM64_REG_X17))
+    {
       *available_scratch_reg = ARM64_REG_X17;
+    }
     else
+    {
       *available_scratch_reg = ARM64_REG_INVALID;
+    }
   }
 
   gum_arm64_relocator_clear (&rl);
@@ -561,6 +554,31 @@ gum_arm64_relocator_can_relocate (gpointer address,
     *maximum = n;
 
   return n >= min_bytes;
+}
+
+static gboolean
+gum_arm64_relocator_register_is_free (const GumArm64Relocator * self,
+                                      guint n,
+                                      arm64_reg reg)
+{
+  guint insn_index;
+
+  for (insn_index = 0; insn_index != n / 4; insn_index++)
+  {
+    const cs_insn * insn = self->input_insns[insn_index];
+    const cs_arm64 * info = &insn->detail->arm64;
+    uint8_t op_index;
+
+    for (op_index = 0; op_index != info->op_count; op_index++)
+    {
+      const cs_arm64_op * op = &info->operands[op_index];
+
+      if (op->type == ARM64_OP_REG && op->reg == reg)
+        return FALSE;
+    }
+  }
+
+  return TRUE;
 }
 
 guint

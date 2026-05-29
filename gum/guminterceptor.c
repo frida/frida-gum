@@ -149,9 +149,10 @@ static void the_interceptor_weak_notify (gpointer data,
 static GumReplaceReturn gum_interceptor_replace_with_type (
     GumInterceptor * self, GumInterceptorType type, gpointer function_address,
     gpointer replacement_function, gpointer replacement_data,
-    gpointer * original_function);
+    gpointer * original_function, const GumInterceptorOptions * options);
 static GumFunctionContext * gum_interceptor_instrument (GumInterceptor * self,
-    GumInterceptorType type, gpointer function_address, gboolean force,
+    GumInterceptorType type, gpointer function_address,
+    const GumInterceptorOptions * instrumentation,
     GumInstrumentationError * error);
 static void gum_interceptor_activate (GumInterceptor * self,
     GumFunctionContext * ctx, gpointer prologue);
@@ -373,12 +374,15 @@ GumAttachReturn
 gum_interceptor_attach (GumInterceptor * self,
                         gpointer function_address,
                         GumInvocationListener * listener,
-                        gpointer listener_function_data,
-                        GumAttachFlags flags)
+                        const GumAttachOptions * options)
 {
   GumAttachReturn result = GUM_ATTACH_OK;
+  GumAttachOptions default_options = { 0, };
   GumFunctionContext * function_ctx;
   GumInstrumentationError error;
+
+  if (options == NULL)
+    options = &default_options;
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK (self);
@@ -388,7 +392,7 @@ gum_interceptor_attach (GumInterceptor * self,
   function_address = gum_interceptor_resolve (self, function_address);
 
   function_ctx = gum_interceptor_instrument (self, GUM_INTERCEPTOR_TYPE_DEFAULT,
-      function_address, (flags & GUM_ATTACH_FLAGS_FORCE) != 0, &error);
+      function_address, &options->instrumentation, &error);
 
   if (function_ctx == NULL)
     goto instrumentation_error;
@@ -397,7 +401,8 @@ gum_interceptor_attach (GumInterceptor * self,
     goto already_attached;
 
   gum_function_context_add_listener (function_ctx, listener,
-      listener_function_data, (flags & GUM_ATTACH_FLAGS_UNIGNORABLE) != 0);
+      options->listener_function_data,
+      options->ignorability == GUM_INVOCATION_UNIGNORABLE);
 
   goto beach;
 
@@ -484,23 +489,34 @@ GumReplaceReturn
 gum_interceptor_replace (GumInterceptor * self,
                          gpointer function_address,
                          gpointer replacement_function,
-                         gpointer replacement_data,
-                         gpointer * original_function)
+                         gpointer * original_function,
+                         const GumReplaceOptions * options)
 {
+  GumReplaceOptions default_options = { 0, };
+
+  if (options == NULL)
+    options = &default_options;
+
   return gum_interceptor_replace_with_type (self, GUM_INTERCEPTOR_TYPE_DEFAULT,
-      function_address, replacement_function, replacement_data,
-      original_function);
+      function_address, replacement_function, options->replacement_data,
+      original_function, &options->instrumentation);
 }
 
 GumReplaceReturn
 gum_interceptor_replace_fast (GumInterceptor * self,
                               gpointer function_address,
                               gpointer replacement_function,
-                              gpointer * original_function)
+                              gpointer * original_function,
+                              const GumInterceptorOptions * options)
 {
+  GumInterceptorOptions default_options = { 0, };
+
+  if (options == NULL)
+    options = &default_options;
+
   return gum_interceptor_replace_with_type (self, GUM_INTERCEPTOR_TYPE_FAST,
       function_address, replacement_function, NULL,
-      original_function);
+      original_function, options);
 }
 
 static GumReplaceReturn
@@ -509,7 +525,8 @@ gum_interceptor_replace_with_type (GumInterceptor * self,
                                    gpointer function_address,
                                    gpointer replacement_function,
                                    gpointer replacement_data,
-                                   gpointer * original_function)
+                                   gpointer * original_function,
+                                   const GumInterceptorOptions * options)
 {
   GumReplaceReturn result = GUM_REPLACE_OK;
   GumFunctionContext * function_ctx;
@@ -521,8 +538,8 @@ gum_interceptor_replace_with_type (GumInterceptor * self,
 
   function_address = gum_interceptor_resolve (self, function_address);
 
-  function_ctx =
-      gum_interceptor_instrument (self, type, function_address, FALSE, &error);
+  function_ctx = gum_interceptor_instrument (self, type, function_address,
+      options, &error);
 
   if (function_ctx == NULL)
     goto instrumentation_error;
@@ -884,10 +901,11 @@ static GumFunctionContext *
 gum_interceptor_instrument (GumInterceptor * self,
                             GumInterceptorType type,
                             gpointer function_address,
-                            gboolean force,
+                            const GumInterceptorOptions * instrumentation,
                             GumInstrumentationError * error)
 {
   GumFunctionContext * ctx;
+  gboolean force;
 
   *error = GUM_INSTRUMENTATION_ERROR_NONE;
 
@@ -911,6 +929,11 @@ gum_interceptor_instrument (GumInterceptor * self,
   }
 
   ctx = gum_function_context_new (self, function_address, type);
+  ctx->scratch_register = instrumentation->scratch_register;
+  ctx->scenario = instrumentation->scenario;
+  ctx->relocation_policy = instrumentation->relocation_policy;
+
+  force = instrumentation->relocation_policy == GUM_RELOCATION_FORCED;
 
   if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
   {

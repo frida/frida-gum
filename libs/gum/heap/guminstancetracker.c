@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -170,6 +170,8 @@ void
 gum_instance_tracker_begin (GumInstanceTracker * self,
                             GumInstanceVTable * vtable)
 {
+  GumAttachOptions options = { 0, };
+
   g_assert (!self->is_active);
 
   if (vtable != NULL)
@@ -191,17 +193,17 @@ gum_instance_tracker_begin (GumInstanceTracker * self,
 
   gum_interceptor_begin_transaction (self->interceptor);
 
+  options.listener_function_data =
+      GUINT_TO_POINTER (FUNCTION_ID_CREATE_INSTANCE);
   gum_interceptor_attach (self->interceptor,
       GUM_FUNCPTR_TO_POINTER (self->vtable.create_instance),
-      GUM_INVOCATION_LISTENER (self),
-      GUINT_TO_POINTER (FUNCTION_ID_CREATE_INSTANCE),
-      GUM_ATTACH_FLAGS_NONE);
+      GUM_INVOCATION_LISTENER (self), &options);
 
+  options.listener_function_data =
+      GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE);
   gum_interceptor_attach (self->interceptor,
       GUM_FUNCPTR_TO_POINTER (self->vtable.free_instance),
-      GUM_INVOCATION_LISTENER (self),
-      GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE),
-      GUM_ATTACH_FLAGS_NONE);
+      GUM_INVOCATION_LISTENER (self), &options);
 
   gum_interceptor_end_transaction (self->interceptor);
 

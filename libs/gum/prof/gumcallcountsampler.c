@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -228,8 +228,7 @@ gum_call_count_sampler_add_function (GumCallCountSampler * self,
                                      gpointer function)
 {
   gum_interceptor_attach (self->interceptor, function,
-      GUM_INVOCATION_LISTENER (self), NULL,
-      GUM_ATTACH_FLAGS_NONE);
+      GUM_INVOCATION_LISTENER (self), NULL);
 }
 
 GumSample

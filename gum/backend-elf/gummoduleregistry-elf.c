@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -105,6 +105,7 @@ gum_hook_rtld_notifier (const GumRtldNotifierDetails * details,
 #endif
   gsize offset = 0;
   GumInvocationListener ** handler;
+  GumAttachOptions options = { .ignorability = GUM_INVOCATION_UNIGNORABLE };
 
 #if defined (HAVE_I386)
   first_instruction = gum_x86_reader_disassemble_instruction_at (impl);
@@ -134,10 +135,11 @@ gum_hook_rtld_notifier (const GumRtldNotifierDetails * details,
   }
 
   if (gum_interceptor_attach (gum_rtld_interceptor, impl + offset, *handler,
-        NULL, GUM_ATTACH_FLAGS_UNIGNORABLE) == GUM_ATTACH_WRONG_SIGNATURE)
+        &options) == GUM_ATTACH_WRONG_SIGNATURE)
   {
+    options.instrumentation.relocation_policy = GUM_RELOCATION_FORCED;
     gum_interceptor_attach (gum_rtld_interceptor, impl + offset, *handler,
-        NULL, GUM_ATTACH_FLAGS_UNIGNORABLE | GUM_ATTACH_FLAGS_FORCE);
+        &options);
   }
 }
 
