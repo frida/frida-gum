@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -89,6 +89,8 @@ G_GNUC_INTERNAL gboolean _gum_quick_float64_get (JSContext * ctx,
 
 G_GNUC_INTERNAL JSValue _gum_quick_enum_new (JSContext * ctx,
     gint value, GType type);
+G_GNUC_INTERNAL gboolean _gum_quick_enum_get (JSContext * ctx,
+    JSValueConst val, GType type, gint * value);
 
 G_GNUC_INTERNAL JSValue _gum_quick_native_pointer_new (JSContext * ctx,
     gpointer ptr, GumQuickCore * core);

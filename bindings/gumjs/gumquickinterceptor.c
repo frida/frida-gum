@@ -6,6 +6,7 @@
 
 #include "gumquickinterceptor.h"
 
+#include "gumquickcodewriter.h"
 #include "gumquickmacros.h"
 
 #define GUM_QUICK_TYPE_INVOCATION_LISTENER \
@@ -158,6 +159,12 @@ static void gum_quick_interceptor_detach (GumQuickInterceptor * self,
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
+static gboolean gum_quick_interceptor_parse_target (JSContext * ctx,
+    JSValueConst value, GumQuickCore * core, gpointer * target,
+    GumInterceptorOptions * instrumentation);
+static gboolean gum_quick_listener_callback_get (JSContext * ctx,
+    JSValueConst obj, const gchar * name, GumQuickCore * core,
+    JSValue * js_func, GumQuickCHook * c_func);
 static void gum_quick_add_replace_entry (GumQuickInterceptor * self,
     gpointer target, JSValue replacement_value);
 static JSValue gum_quick_handle_replace_ret (JSContext * ctx, gpointer target,
@@ -481,12 +488,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   self = gumjs_get_parent_module (core);
 
+  if (!gum_quick_interceptor_parse_target (ctx, target_val, core, &target,
+      &options.instrumentation))
+    goto propagate_exception;
+
   if (JS_IsFunction (ctx, cb_val))
   {
     GumQuickJSProbeListener * l;
-
-    if (!_gum_quick_native_pointer_get (ctx, target_val, core, &target))
-      goto propagate_exception;
 
     l = g_object_new (GUM_QUICK_TYPE_JS_PROBE_LISTENER, NULL);
     l->on_hit = JS_DupValue (ctx, cb_val);
@@ -497,9 +505,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   {
     GumQuickCProbeListener * l;
 
-    if (!_gum_quick_native_pointer_get (ctx, target_val, core, &target))
-      goto propagate_exception;
-
     l = g_object_new (GUM_QUICK_TYPE_C_PROBE_LISTENER, NULL);
     l->on_hit = GUM_POINTER_TO_FUNCPTR (GumQuickCHook, cb_ptr);
 
@@ -507,21 +512,29 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   }
   else
   {
-    JSValue on_enter_js, on_leave_js;
-    GumQuickCHook on_enter_c, on_leave_c;
+    JSValue on_enter_js = JS_NULL, on_leave_js = JS_NULL;
+    GumQuickCHook on_enter_c = NULL, on_leave_c = NULL;
 
-    if (!_gum_quick_args_parse (args, "pF*{onEnter?,onLeave?}", &target,
-        &on_enter_js, &on_enter_c,
-        &on_leave_js, &on_leave_c))
+    if (!JS_IsObject (cb_val))
+      goto expected_callback;
+
+    if (!gum_quick_listener_callback_get (ctx, cb_val, "onEnter", core,
+        &on_enter_js, &on_enter_c))
       goto propagate_exception;
+    if (!gum_quick_listener_callback_get (ctx, cb_val, "onLeave", core,
+        &on_leave_js, &on_leave_c))
+    {
+      JS_FreeValue (ctx, on_enter_js);
+      goto propagate_exception;
+    }
 
     if (!JS_IsNull (on_enter_js) || !JS_IsNull (on_leave_js))
     {
       GumQuickJSCallListener * l;
 
       l = g_object_new (GUM_QUICK_TYPE_JS_CALL_LISTENER, NULL);
-      l->on_enter = JS_DupValue (ctx, on_enter_js);
-      l->on_leave = JS_DupValue (ctx, on_leave_js);
+      l->on_enter = on_enter_js;
+      l->on_leave = on_leave_js;
 
       listener = GUM_QUICK_INVOCATION_LISTENER (l);
     }
@@ -642,14 +655,28 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 
   self = gumjs_get_parent_module (core);
 
-  replacement_data = NULL;
-  if (!_gum_quick_args_parse (args, "pO|p", &target, &replacement_value,
-      &replacement_data))
+  if (args->count < 2)
+  {
+    _gum_quick_throw_literal (ctx, "expected a target and a replacement");
+    return JS_EXCEPTION;
+  }
+
+  if (!gum_quick_interceptor_parse_target (ctx, args->elements[0], core,
+      &target, &options.instrumentation))
     return JS_EXCEPTION;
 
+  replacement_value = args->elements[1];
   if (!_gum_quick_native_pointer_get (ctx, replacement_value, core,
       &replacement_function))
     return JS_EXCEPTION;
+
+  replacement_data = NULL;
+  if (args->count >= 3 && !JS_IsUndefined (args->elements[2]))
+  {
+    if (!_gum_quick_native_pointer_get (ctx, args->elements[2], core,
+        &replacement_data))
+      return JS_EXCEPTION;
+  }
 
   options.replacement_data = replacement_data;
   replace_ret = gum_interceptor_replace (self->interceptor, target,
@@ -667,19 +694,28 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
   GumQuickInterceptor * self;
   gpointer target, replacement_function, original_function;
   JSValue replacement_value;
+  GumInterceptorOptions options = { 0, };
   GumReplaceReturn replace_ret;
 
   self = gumjs_get_parent_module (core);
 
-  if (!_gum_quick_args_parse (args, "pO", &target, &replacement_value))
+  if (args->count < 2)
+  {
+    _gum_quick_throw_literal (ctx, "expected a target and a replacement");
+    return JS_EXCEPTION;
+  }
+
+  if (!gum_quick_interceptor_parse_target (ctx, args->elements[0], core,
+      &target, &options))
     return JS_EXCEPTION;
 
+  replacement_value = args->elements[1];
   if (!_gum_quick_native_pointer_get (ctx, replacement_value, core,
       &replacement_function))
     return JS_EXCEPTION;
 
   replace_ret = gum_interceptor_replace_fast (self->interceptor, target,
-      replacement_function, &original_function, NULL);
+      replacement_function, &original_function, &options);
   if (replace_ret != GUM_REPLACE_OK)
     return gum_quick_handle_replace_ret (ctx, target, replace_ret);
 
@@ -687,6 +723,142 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
 
   return _gum_quick_native_pointer_new (ctx,
       GSIZE_TO_POINTER (original_function), core);
+}
+
+static gboolean
+gum_quick_interceptor_parse_target (JSContext * ctx,
+                                    JSValueConst value,
+                                    GumQuickCore * core,
+                                    gpointer * target,
+                                    GumInterceptorOptions * instrumentation)
+{
+  gboolean success = FALSE;
+  JSValue target_val = JS_NULL;
+  JSValue scratch_val = JS_NULL;
+  JSValue scenario_val = JS_NULL;
+  JSValue relocation_val = JS_NULL;
+  const char * str = NULL;
+
+  target_val = JS_GetPropertyStr (ctx, value, "target");
+  if (JS_IsUndefined (target_val))
+  {
+    JS_FreeValue (ctx, target_val);
+    return _gum_quick_native_pointer_get (ctx, value, core, target);
+  }
+
+  scratch_val = JS_GetPropertyStr (ctx, value, "scratchRegister");
+  scenario_val = JS_GetPropertyStr (ctx, value, "scenario");
+  relocation_val = JS_GetPropertyStr (ctx, value, "relocation");
+
+  if (!_gum_quick_native_pointer_get (ctx, target_val, core, target))
+    goto beach;
+
+  if (!JS_IsUndefined (scratch_val))
+  {
+    str = JS_ToCString (ctx, scratch_val);
+    if (str == NULL)
+      goto beach;
+
+#if defined (HAVE_ARM64)
+    {
+      arm64_reg reg;
+
+      if (!_gum_parse_arm64_register (ctx, str, &reg))
+        goto beach;
+
+      instrumentation->scratch_register = reg;
+    }
+#elif defined (HAVE_MIPS)
+    {
+      mips_reg reg;
+
+      if (!_gum_parse_mips_register (ctx, str, &reg))
+        goto beach;
+
+      instrumentation->scratch_register = reg;
+    }
+#else
+    _gum_quick_throw_literal (ctx,
+        "scratchRegister is not supported on this architecture");
+    goto beach;
+#endif
+
+    JS_FreeCString (ctx, str);
+    str = NULL;
+  }
+
+  if (!JS_IsUndefined (scenario_val))
+  {
+    gint scenario;
+
+    if (!_gum_quick_enum_get (ctx, scenario_val, GUM_TYPE_INTERCEPTOR_SCENARIO,
+        &scenario))
+      goto beach;
+
+    instrumentation->scenario = scenario;
+  }
+
+  if (!JS_IsUndefined (relocation_val))
+  {
+    gint policy;
+
+    if (!_gum_quick_enum_get (ctx, relocation_val, GUM_TYPE_RELOCATION_POLICY,
+        &policy))
+      goto beach;
+
+    instrumentation->relocation_policy = policy;
+  }
+
+  success = TRUE;
+
+beach:
+  if (str != NULL)
+    JS_FreeCString (ctx, str);
+  JS_FreeValue (ctx, relocation_val);
+  JS_FreeValue (ctx, scenario_val);
+  JS_FreeValue (ctx, scratch_val);
+  JS_FreeValue (ctx, target_val);
+
+  return success;
+}
+
+static gboolean
+gum_quick_listener_callback_get (JSContext * ctx,
+                                 JSValueConst obj,
+                                 const gchar * name,
+                                 GumQuickCore * core,
+                                 JSValue * js_func,
+                                 GumQuickCHook * c_func)
+{
+  gboolean success = FALSE;
+  JSValue v;
+  gpointer p;
+
+  v = JS_GetPropertyStr (ctx, obj, name);
+
+  if (JS_IsFunction (ctx, v))
+  {
+    *js_func = v;
+    *c_func = NULL;
+    return TRUE;
+  }
+
+  *js_func = JS_NULL;
+
+  if (JS_IsUndefined (v) || JS_IsNull (v))
+  {
+    *c_func = NULL;
+    success = TRUE;
+  }
+  else if (_gum_quick_native_pointer_get (ctx, v, core, &p))
+  {
+    *c_func = GUM_POINTER_TO_FUNCPTR (GumQuickCHook, p);
+    success = TRUE;
+  }
+
+  JS_FreeValue (ctx, v);
+
+  return success;
 }
 
 static void
