@@ -6,6 +6,7 @@
 
 #include "gumv8interceptor.h"
 
+#include "gumv8codewriter.h"
 #include "gumv8macros.h"
 #include "gumv8scope.h"
 
@@ -138,6 +139,15 @@ static void gum_v8_invocation_listener_destroy (
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
+static gboolean gum_v8_interceptor_parse_target (Local<Value> value,
+    gpointer * target, GumInterceptorOptions * instrumentation,
+    GumV8Interceptor * module);
+static gboolean gum_v8_interceptor_parse_options (
+    Local<Object> options, GumInterceptorOptions * instrumentation,
+    GumV8Interceptor * module);
+static gboolean gum_v8_interceptor_get_callback (Local<Object> obj,
+    const gchar * name, Local<Function> * js_func, GumV8CHook * c_func,
+    GumV8Interceptor * module);
 static void gum_v8_handle_replace_ret (GumV8Interceptor * self,
     gpointer target, Local<Value> replacement_value,
     GumReplaceReturn replace_ret);
@@ -532,15 +542,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   gpointer target;
   GumV8InvocationListener * listener;
+  GumAttachOptions options = {};
   auto target_val = info[0];
   auto callback_val = info[1];
+
+  if (!gum_v8_interceptor_parse_target (target_val, &target,
+      &options.instrumentation, module))
+    return;
+
   auto native_pointer = Local<FunctionTemplate>::New (isolate,
       *core->native_pointer);
   if (callback_val->IsFunction ())
   {
-    if (!_gum_v8_native_pointer_get (target_val, &target, core))
-      return;
-
     auto l = GUM_V8_JS_PROBE_LISTENER (
         g_object_new (GUM_V8_TYPE_JS_PROBE_LISTENER, NULL));
     l->on_hit = new Global<Function> (isolate, callback_val.As<Function> ());
@@ -549,9 +562,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   }
   else if (native_pointer->HasInstance (callback_val))
   {
-    if (!_gum_v8_native_pointer_get (target_val, &target, core))
-      return;
-
     auto l = GUM_V8_C_PROBE_LISTENER (
         g_object_new (GUM_V8_TYPE_C_PROBE_LISTENER, NULL));
     l->on_hit = GUM_POINTER_TO_FUNCPTR (GumV8CHook,
@@ -562,14 +572,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   else
   {
     Local<Function> on_enter_js, on_leave_js;
-    GumV8CHook on_enter_c, on_leave_c;
+    GumV8CHook on_enter_c = NULL, on_leave_c = NULL;
 
-    if (!_gum_v8_args_parse (args, "pF*{onEnter?,onLeave?}", &target,
-        &on_enter_js, &on_enter_c,
-        &on_leave_js, &on_leave_c))
+    if (!callback_val->IsObject ())
     {
+      _gum_v8_throw_ascii_literal (isolate, "expected at least one callback");
       return;
     }
+
+    auto callbacks = callback_val.As<Object> ();
+    if (!gum_v8_interceptor_get_callback (callbacks, "onEnter", &on_enter_js,
+        &on_enter_c, module))
+      return;
+    if (!gum_v8_interceptor_get_callback (callbacks, "onLeave", &on_leave_js,
+        &on_leave_c, module))
+      return;
 
     if (!on_enter_js.IsEmpty () || !on_leave_js.IsEmpty ())
     {
@@ -616,7 +633,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
     listener_function_data = NULL;
   }
 
-  GumAttachOptions options = {};
   options.listener_function_data = listener_function_data;
   auto attach_ret = gum_interceptor_attach (module->interceptor, target,
       GUM_INVOCATION_LISTENER (listener), &options);
@@ -685,12 +701,29 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 {
+  if (info.Length () < 2)
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "expected a target and a replacement");
+    return;
+  }
+
   gpointer target, replacement_function, replacement_data = NULL;
-  if (!_gum_v8_args_parse (args, "pp|p", &target, &replacement_function,
-      &replacement_data))
+  GumReplaceOptions options = {};
+
+  if (!gum_v8_interceptor_parse_target (info[0], &target,
+      &options.instrumentation, module))
     return;
 
-  GumReplaceOptions options = {};
+  if (!_gum_v8_native_pointer_get (info[1], &replacement_function, core))
+    return;
+
+  if (info.Length () >= 3 && !info[2]->IsUndefined ())
+  {
+    if (!_gum_v8_native_pointer_get (info[2], &replacement_data, core))
+      return;
+  }
+
   options.replacement_data = replacement_data;
   auto replace_ret = gum_interceptor_replace (module->interceptor, target,
       replacement_function, NULL, &options);
@@ -700,12 +733,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
 {
+  if (info.Length () < 2)
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "expected a target and a replacement");
+    return;
+  }
+
   gpointer target, replacement_function, original_function;
-  if (!_gum_v8_args_parse (args, "pp", &target, &replacement_function))
+  GumInterceptorOptions options = {};
+
+  if (!gum_v8_interceptor_parse_target (info[0], &target, &options, module))
+    return;
+
+  if (!_gum_v8_native_pointer_get (info[1], &replacement_function, core))
     return;
 
   auto replace_ret = gum_interceptor_replace_fast (module->interceptor, target,
-      replacement_function, &original_function, NULL);
+      replacement_function, &original_function, &options);
 
   gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
 
@@ -714,6 +759,140 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
     info.GetReturnValue ().Set (_gum_v8_native_pointer_new (
           GSIZE_TO_POINTER (original_function), core));
   }
+}
+
+static gboolean
+gum_v8_interceptor_parse_target (Local<Value> value,
+                                 gpointer * target,
+                                 GumInterceptorOptions * instrumentation,
+                                 GumV8Interceptor * module)
+{
+  auto core = module->core;
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+  Local<Value> target_val;
+
+  if (value->IsObject ())
+  {
+    auto obj = value.As<Object> ();
+
+    if (!obj->Get (context, _gum_v8_string_new_ascii (isolate, "target"))
+        .ToLocal (&target_val))
+      return FALSE;
+
+    if (!target_val->IsUndefined ())
+    {
+      if (!_gum_v8_native_pointer_get (target_val, target, core))
+        return FALSE;
+
+      return gum_v8_interceptor_parse_options (obj, instrumentation,
+          module);
+    }
+  }
+
+  return _gum_v8_native_pointer_get (value, target, core);
+}
+
+static gboolean
+gum_v8_interceptor_parse_options (Local<Object> options,
+                                  GumInterceptorOptions * instrumentation,
+                                  GumV8Interceptor * module)
+{
+  auto core = module->core;
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+  Local<Value> scratch_val, scenario_val, relocation_val;
+
+  if (!options->Get (context,
+      _gum_v8_string_new_ascii (isolate, "scratchRegister"))
+      .ToLocal (&scratch_val))
+    return FALSE;
+  if (!scratch_val->IsUndefined ())
+  {
+    String::Utf8Value name (isolate, scratch_val);
+#if defined (HAVE_ARM64)
+    arm64_reg reg;
+    if (!_gum_parse_arm64_register (isolate, *name, &reg))
+      return FALSE;
+    instrumentation->scratch_register = reg;
+#elif defined (HAVE_MIPS)
+    mips_reg reg;
+    if (!_gum_parse_mips_register (isolate, *name, &reg))
+      return FALSE;
+    instrumentation->scratch_register = reg;
+#else
+    _gum_v8_throw_ascii_literal (isolate,
+        "scratchRegister is not supported on this architecture");
+    return FALSE;
+#endif
+  }
+
+  if (!options->Get (context, _gum_v8_string_new_ascii (isolate, "scenario"))
+      .ToLocal (&scenario_val))
+    return FALSE;
+  if (!scenario_val->IsUndefined ())
+  {
+    gint scenario;
+    if (!_gum_v8_enum_get (scenario_val, GUM_TYPE_INTERCEPTOR_SCENARIO,
+        &scenario, core))
+      return FALSE;
+    instrumentation->scenario = (GumInterceptorScenario) scenario;
+  }
+
+  if (!options->Get (context, _gum_v8_string_new_ascii (isolate, "relocation"))
+      .ToLocal (&relocation_val))
+    return FALSE;
+  if (!relocation_val->IsUndefined ())
+  {
+    gint policy;
+    if (!_gum_v8_enum_get (relocation_val, GUM_TYPE_RELOCATION_POLICY,
+        &policy, core))
+      return FALSE;
+    instrumentation->relocation_policy = (GumRelocationPolicy) policy;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_v8_interceptor_get_callback (Local<Object> obj,
+                                 const gchar * name,
+                                 Local<Function> * js_func,
+                                 GumV8CHook * c_func,
+                                 GumV8Interceptor * module)
+{
+  auto core = module->core;
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+  auto native_pointer = Local<FunctionTemplate>::New (isolate,
+      *core->native_pointer);
+  Local<Value> v;
+
+  *c_func = NULL;
+
+  if (!obj->Get (context, _gum_v8_string_new_ascii (isolate, name))
+      .ToLocal (&v))
+    return FALSE;
+
+  if (v->IsFunction ())
+  {
+    *js_func = v.As<Function> ();
+    return TRUE;
+  }
+
+  if (v->IsUndefined () || v->IsNull ())
+    return TRUE;
+
+  if (native_pointer->HasInstance (v))
+  {
+    *c_func = GUM_POINTER_TO_FUNCPTR (GumV8CHook,
+        GUMJS_NATIVE_POINTER_VALUE (v.As<Object> ()));
+    return TRUE;
+  }
+
+  _gum_v8_throw_ascii_literal (isolate,
+      "expected a function or a NativePointer");
+  return FALSE;
 }
 
 static void

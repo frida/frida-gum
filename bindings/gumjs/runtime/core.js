@@ -346,25 +346,27 @@ Object.defineProperties(Thread, {
 });
 
 if ('Interceptor' in globalThis) {
+  const getCodeTarget = spec => spec.target ?? spec;
+
   Object.defineProperties(Interceptor, {
     attach: {
       enumerable: true,
       value: function (target, callbacks, data) {
-        Memory._checkCodePointer(target);
+        Memory._checkCodePointer(getCodeTarget(target));
         return Interceptor._attach(target, callbacks, data);
       }
     },
     replace: {
       enumerable: true,
       value: function (target, replacement, data) {
-        Memory._checkCodePointer(target);
+        Memory._checkCodePointer(getCodeTarget(target));
         Interceptor._replace(target, replacement, data);
       }
     },
     replaceFast: {
       enumerable: true,
       value: function (target, replacement) {
-        Memory._checkCodePointer(target);
+        Memory._checkCodePointer(getCodeTarget(target));
         return Interceptor._replaceFast(target, replacement);
       }
     },

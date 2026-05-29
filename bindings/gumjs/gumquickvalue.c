@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1302,6 +1302,54 @@ _gum_quick_enum_new (JSContext * ctx,
   g_type_class_unref (enum_class);
 
   return result;
+}
+
+gboolean
+_gum_quick_enum_get (JSContext * ctx,
+                     JSValueConst val,
+                     GType type,
+                     gint * value)
+{
+  gboolean success = FALSE;
+  const char * str;
+  GEnumClass * enum_class;
+  GEnumValue * enum_value;
+
+  str = JS_ToCString (ctx, val);
+  if (str == NULL)
+    return FALSE;
+
+  enum_class = g_type_class_ref (type);
+
+  enum_value = g_enum_get_value_by_nick (enum_class, str);
+  if (enum_value != NULL)
+  {
+    *value = enum_value->value;
+    success = TRUE;
+  }
+  else
+  {
+    GString * options;
+    guint i;
+
+    options = g_string_new ("");
+    for (i = 0; i != enum_class->n_values; i++)
+    {
+      if (i != 0)
+        g_string_append (options, ", ");
+      g_string_append (options, enum_class->values[i].value_nick);
+    }
+
+    _gum_quick_throw (ctx, "invalid value: %s (expected one of: %s)", str,
+        options->str);
+
+    g_string_free (options, TRUE);
+  }
+
+  g_type_class_unref (enum_class);
+  JS_FreeCString (ctx, str);
+
+  return success;
 }
 
 JSValue

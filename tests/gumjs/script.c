@@ -106,6 +106,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (replaced_function_should_have_invocation_context)
     TESTENTRY (instructions_can_be_probed)
     TESTENTRY (interceptor_should_support_native_pointer_values)
+    TESTENTRY (interceptor_should_support_instrumentation_options)
     TESTENTRY (interceptor_should_handle_bad_pointers)
     TESTENTRY (interceptor_should_refuse_to_attach_without_any_callbacks)
 #ifdef HAVE_DARWIN
@@ -8205,6 +8206,45 @@ TESTCASE (interceptor_should_support_native_pointer_values)
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (target_function_int (7), ==, 1337);
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (interceptor_should_support_instrumentation_options)
+{
+#if defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach({"
+      "  target: " GUM_PTR_CONST ","
+      "  scratchRegister: 'x15',"
+      "  scenario: 'online',"
+      "  relocation: 'checked'"
+      "}, {"
+      "  onEnter(args) {"
+      "    send(args[0].toInt32());"
+      "  }"
+      "});", target_function_int);
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach("
+      "    { target: " GUM_PTR_CONST ", scratchRegister: 'x99' },"
+      "    () => {});",
+      target_function_int);
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid arm64 register");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach("
+      "    { target: " GUM_PTR_CONST ", scenario: 'bogus' },"
+      "    () => {});",
+      target_function_int);
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: invalid value: bogus (expected one of: online, offline)");
+
+  EXPECT_NO_MESSAGES ();
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
 }
 
 TESTCASE (interceptor_should_handle_bad_pointers)

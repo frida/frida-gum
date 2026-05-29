@@ -272,7 +272,7 @@ def generate_quick_wrapper_code(component, api):
                         value=arg.name,
                         value_raw=arg.name_raw))
                 else:
-                    lines.append("  if (!gum_parse_{arch}_{type} (ctx, {value_raw}, &{value}))\n    goto propagate_exception;".format(
+                    lines.append("  if (!_gum_parse_{arch}_{type} (ctx, {value_raw}, &{value}))\n    goto propagate_exception;".format(
                         value=arg.name,
                         value_raw=arg.name_raw,
                         arch=component.arch,
@@ -449,7 +449,7 @@ def generate_quick_parse_call_arg_array_element(component):
       if (element_str == NULL)
         goto propagate_exception;
 
-      if (!gum_parse_{arch}_register (ctx, element_str, &r))
+      if (!_gum_parse_{arch}_register (ctx, element_str, &r))
         goto propagate_exception;
 
       item->type = GUM_ARG_REGISTER;
@@ -481,7 +481,7 @@ def generate_quick_parse_register_array_element(component):
       if (element_str == NULL)
         goto propagate_exception;
 
-      if (!gum_parse_{arch}_register (ctx, element_str, &reg))
+      if (!_gum_parse_{arch}_register (ctx, element_str, &reg))
         goto propagate_exception;
 
       *item = reg;
@@ -525,7 +525,7 @@ G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_finalize ({wrapper_struct_name} 
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_gc_mark (JSRuntime * rt, JSValueConst val, JS_MarkFunc * mark_func);
 G_GNUC_INTERNAL void _gum_quick_{flavor}_{name}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);
 """
-    return template.format(**params)
+    return template.format(**params) + generate_quick_enum_parser_declarations(component)
 
 def generate_quick_init_code(component):
     return """\
@@ -1204,13 +1204,11 @@ def generate_quick_enum_parser(name, type, prefix, values):
         'type': type,
     }
 
-    decls = [
-        "static gboolean gum_parse_{name} (JSContext * ctx, const gchar * name, {type} * {result_identifier});".format(**params)
-    ] + common_decls
+    decls = common_decls
 
     code = """\
-static gboolean
-gum_parse_{name} (
+gboolean
+_gum_parse_{name} (
     JSContext * ctx,
     const gchar * name,
     {type} * {result_identifier})
@@ -1313,7 +1311,7 @@ def generate_v8_wrapper_code(component, api):
                 else:
                     lines.extend([
                         "  {0} {1};".format(arg.type, arg.name),
-                        "  if (!gum_parse_{arch}_{type} (isolate, {value_raw}, &{value}))".format(
+                        "  if (!_gum_parse_{arch}_{type} (isolate, {value_raw}, &{value}))".format(
                             value=arg.name,
                             value_raw=arg.name_raw_for_cpp(),
                             arch=component.arch,
@@ -1447,7 +1445,7 @@ def generate_v8_parse_call_arg_array_element(component, api):
 
       String::Utf8Value value_as_utf8 (isolate, value);
       {native_register_type} value_as_reg;
-      if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &value_as_reg))
+      if (!_gum_parse_{arch}_register (isolate, *value_as_utf8, &value_as_reg))
         return;
       item->value.reg = value_as_reg;
     }}
@@ -1472,7 +1470,7 @@ def generate_v8_parse_register_array_element(component, api):
 
     String::Utf8Value value_as_utf8 (isolate, value);
     {native_register_type} value_as_reg;
-    if (!gum_parse_{arch}_register (isolate, *value_as_utf8, &value_as_reg))
+    if (!_gum_parse_{arch}_register (isolate, *value_as_utf8, &value_as_reg))
       return;
 
     *item = value_as_reg;""".format(arch=component.arch, native_register_type=api.native_register_type)
@@ -1510,7 +1508,7 @@ G_GNUC_INTERNAL void _{wrapper_function_prefix}_release_persistent ({wrapper_str
 G_GNUC_INTERNAL void _{wrapper_function_prefix}_init ({wrapper_struct_name} * self, {module_struct_name} * module);
 G_GNUC_INTERNAL void _{wrapper_function_prefix}_finalize ({wrapper_struct_name} * self);
 G_GNUC_INTERNAL void _{wrapper_function_prefix}_reset ({wrapper_struct_name} * self, {impl_struct_name} * impl);"""
-    return template.format(**params)
+    return template.format(**params) + generate_v8_enum_parser_declarations(component)
 
 def generate_v8_init_code(component):
     return """\
@@ -2193,13 +2191,11 @@ def generate_v8_enum_parser(name, type, prefix, values):
         'type': type,
     }
 
-    decls = [
-        "static gboolean gum_parse_{name} (Isolate * isolate, const std::string & name, {type} * value);".format(**params)
-    ] + common_decls
+    decls = common_decls
 
     code = """\
-static gboolean
-gum_parse_{name} (
+gboolean
+_gum_parse_{name} (
     Isolate * isolate,
     const std::string & name,
     {type} * value)
@@ -2334,6 +2330,22 @@ def generate_conversion_methods(component, generate_parser):
             code += c
 
     return (decls, code)
+
+def generate_quick_enum_parser_declarations(component):
+    if component.name != "writer":
+        return ""
+    return "".join(
+        "\nG_GNUC_INTERNAL gboolean _gum_parse_{name} (JSContext * ctx, const gchar * name, {type} * value);".format(name=name, type=type)
+        for name, type, prefix, values in writer_enums[component.flavor]
+    )
+
+def generate_v8_enum_parser_declarations(component):
+    if component.name != "writer":
+        return ""
+    return "".join(
+        "\nG_GNUC_INTERNAL gboolean _gum_parse_{name} (v8::Isolate * isolate, const std::string & name, {type} * value);".format(name=name, type=type)
+        for name, type, prefix, values in writer_enums[component.flavor]
+    )
 
 def generate_enum_parser(name, type, prefix, values):
     decls = [

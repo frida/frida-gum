@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1216,6 +1216,47 @@ _gum_v8_enum_new (Isolate * isolate,
   g_type_class_unref (enum_class);
 
   return result;
+}
+
+gboolean
+_gum_v8_enum_get (Local<Value> value,
+                  GType type,
+                  gint * result,
+                  GumV8Core * core)
+{
+  gboolean success = FALSE;
+
+  String::Utf8Value nick (core->isolate, value);
+  if (*nick == nullptr)
+    return FALSE;
+
+  auto enum_class = (GEnumClass *) g_type_class_ref (type);
+
+  GEnumValue * enum_value = g_enum_get_value_by_nick (enum_class, *nick);
+  if (enum_value != NULL)
+  {
+    *result = enum_value->value;
+    success = TRUE;
+  }
+  else
+  {
+    auto options = g_string_new ("");
+    for (guint i = 0; i != enum_class->n_values; i++)
+    {
+      if (i != 0)
+        g_string_append (options, ", ");
+      g_string_append (options, enum_class->values[i].value_nick);
+    }
+
+    _gum_v8_throw (core->isolate, "invalid value: %s (expected one of: %s)",
+        *nick, options->str);
+
+    g_string_free (options, TRUE);
+  }
+
+  g_type_class_unref (enum_class);
+
+  return success;
 }
 
 Local<Object>
