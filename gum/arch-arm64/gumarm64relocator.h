@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -62,8 +62,8 @@ GUM_API gboolean gum_arm64_relocator_eob (GumArm64Relocator * self);
 GUM_API gboolean gum_arm64_relocator_eoi (GumArm64Relocator * self);
 
 GUM_API gboolean gum_arm64_relocator_can_relocate (gpointer address,
-    guint min_bytes, GumRelocationScenario scenario, guint * maximum,
-    arm64_reg * available_scratch_reg);
+    guint min_bytes, GumRelocationScenario scenario, GumRelocationPolicy policy,
+    guint * maximum, arm64_reg * available_scratch_reg);
 GUM_API guint gum_arm64_relocator_relocate (gpointer from, guint min_bytes,
     gpointer to);
 

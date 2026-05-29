@@ -140,10 +140,14 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   GumArmFunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address;
   gboolean is_thumb;
+  GumRelocationScenario scenario;
   guint redirect_limit;
 
   function_address = _gum_interceptor_backend_get_function_address (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
+  scenario = (ctx->scenario == GUM_INTERCEPTOR_SCENARIO_OFFLINE)
+      ? GUM_SCENARIO_OFFLINE
+      : GUM_SCENARIO_ONLINE;
 
   if (is_thumb)
   {
@@ -152,7 +156,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
       data->full_redirect_size += 2;
 
     if (gum_thumb_relocator_can_relocate (function_address,
-          data->full_redirect_size, GUM_SCENARIO_ONLINE, &redirect_limit))
+          data->full_redirect_size, scenario, &redirect_limit))
     {
       data->redirect_code_size = data->full_redirect_size;
     }

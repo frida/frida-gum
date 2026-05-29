@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -101,6 +101,7 @@ gum_hook_loader (GumModuleRegistry * registry)
 {
   HMODULE ntdll;
   gpointer load_impl, unload_impl;
+  GumAttachOptions options = { .ignorability = GUM_INVOCATION_UNIGNORABLE };
 
   ntdll = GetModuleHandleW (L"ntdll.dll");
   load_impl = GetProcAddress (ntdll, "LdrLoadDll");
@@ -120,9 +121,9 @@ gum_hook_loader (GumModuleRegistry * registry)
 
   gum_interceptor_begin_transaction (gum_ldr_interceptor);
   gum_interceptor_attach (gum_ldr_interceptor, load_impl, gum_load_handler,
-      NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+      &options);
   gum_interceptor_attach (gum_ldr_interceptor, unload_impl, gum_unload_handler,
-      NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+      &options);
   gum_interceptor_end_transaction (gum_ldr_interceptor);
 }
 

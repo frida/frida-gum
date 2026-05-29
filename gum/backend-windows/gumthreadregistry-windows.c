@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -39,6 +39,7 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
 {
   GumModule * ntdll, * kernel32;
   gpointer set_description_impl;
+  GumAttachOptions options = { .ignorability = GUM_INVOCATION_UNIGNORABLE };
 
   gum_thread_interceptor = gum_interceptor_obtain ();
 
@@ -63,15 +64,15 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
   gum_interceptor_attach (gum_thread_interceptor,
       GSIZE_TO_POINTER (gum_module_find_export_by_name (kernel32,
           "BaseThreadInitThunk")),
-      gum_start_handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+      gum_start_handler, &options);
   gum_interceptor_attach (gum_thread_interceptor,
       GSIZE_TO_POINTER (gum_module_find_export_by_name (ntdll,
           "RtlExitUserThread")),
-      gum_terminate_handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+      gum_terminate_handler, &options);
   if (set_description_impl != NULL)
   {
     gum_interceptor_attach (gum_thread_interceptor, set_description_impl,
-        gum_rename_handler, NULL, GUM_ATTACH_FLAGS_UNIGNORABLE);
+        gum_rename_handler, &options);
   }
 
   gum_interceptor_end_transaction (gum_thread_interceptor);

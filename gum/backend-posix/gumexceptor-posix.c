@@ -248,6 +248,9 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   };
   gint highest, i;
   struct sigaction action;
+  GumReplaceOptions options = { 0, };
+
+  options.replacement_data = self;
 
   highest = 0;
   for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
@@ -275,9 +278,9 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   gum_interceptor_begin_transaction (interceptor);
 
   gum_interceptor_replace (interceptor, gum_original_signal,
-      gum_exceptor_backend_replacement_signal, self, NULL);
+      gum_exceptor_backend_replacement_signal, NULL, &options);
   gum_interceptor_replace (interceptor, gum_original_sigaction,
-      gum_exceptor_backend_replacement_sigaction, self, NULL);
+      gum_exceptor_backend_replacement_sigaction, NULL, &options);
 
   gum_interceptor_end_transaction (interceptor);
 }

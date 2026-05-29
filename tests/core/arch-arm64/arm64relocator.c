@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -396,7 +396,7 @@ TESTCASE (cannot_relocate_with_early_br)
   };
 
   g_assert_false (gum_arm64_relocator_can_relocate (input, 16,
-      GUM_SCENARIO_OFFLINE, NULL, NULL));
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, NULL));
 }
 
 TESTCASE (eob_and_eoi_on_br)

@@ -117,12 +117,18 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 {
   GumMipsFunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address = ctx->function_address;
+  GumRelocationScenario scenario =
+      (ctx->scenario == GUM_INTERCEPTOR_SCENARIO_OFFLINE)
+      ? GUM_SCENARIO_OFFLINE
+      : GUM_SCENARIO_ONLINE;
   guint redirect_limit;
 
   *need_deflector = FALSE;
 
+  data->scratch_reg = ctx->scratch_register;
+
   if (gum_mips_relocator_can_relocate (function_address, GUM_HOOK_SIZE,
-      GUM_SCENARIO_ONLINE, &redirect_limit, &data->scratch_reg))
+      scenario, ctx->relocation_policy, &redirect_limit, &data->scratch_reg))
   {
     data->redirect_code_size = GUM_HOOK_SIZE;
 
@@ -135,7 +141,11 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
 
     if (data->scratch_reg == MIPS_REG_INVALID)
-      data->scratch_reg = MIPS_REG_AT;
+    {
+      data->scratch_reg = (ctx->scratch_register != MIPS_REG_INVALID)
+          ? ctx->scratch_register
+          : MIPS_REG_AT;
+    }
 
     return TRUE;
   }
@@ -167,7 +177,14 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   }
 
   if (data->scratch_reg == MIPS_REG_INVALID)
-    return FALSE;
+  {
+    if (!force)
+      return FALSE;
+
+    data->scratch_reg = (ctx->scratch_register != MIPS_REG_INVALID)
+        ? ctx->scratch_register
+        : MIPS_REG_AT;
+  }
 
   return TRUE;
 }

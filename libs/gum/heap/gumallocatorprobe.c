@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -622,14 +622,16 @@ attach_to_function (GumAllocatorProbe * self,
 {
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
   FunctionContext * function_ctx;
+  GumAttachOptions options = { 0, };
 
   function_ctx = g_new0 (FunctionContext, 1);
   function_ctx->handlers = *function_handlers;
   function_ctx->handler_data = user_data;
   g_ptr_array_add (self->function_contexts, function_ctx);
 
+  options.listener_function_data = function_ctx;
   gum_interceptor_attach (self->interceptor, function_address, listener,
-      function_ctx, GUM_ATTACH_FLAGS_NONE);
+      &options);
 }
 
 void
@@ -639,7 +641,7 @@ gum_allocator_probe_suppress (GumAllocatorProbe * self,
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
 
   gum_interceptor_attach (self->interceptor, function_address, listener,
-      NULL, GUM_ATTACH_FLAGS_NONE);
+      NULL);
 }
 
 static void

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
@@ -368,6 +368,12 @@ enum _GumRelocationScenario
   GUM_SCENARIO_OFFLINE,
   GUM_SCENARIO_ONLINE
 };
+
+typedef enum {
+  GUM_RELOCATION_CHECKED,
+  GUM_RELOCATION_UNCHECKED,
+  GUM_RELOCATION_FORCED,
+} GumRelocationPolicy;
 
 #ifndef __arm__
 # if GLIB_SIZEOF_VOID_P == 8

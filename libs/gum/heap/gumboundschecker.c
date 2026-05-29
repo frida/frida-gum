@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -307,6 +307,7 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
   {
     const GumHeapApi * api;
     GumBoundsHookGroup * group;
+    GumReplaceOptions options = { 0, };
 
     api = gum_heap_api_list_get_nth (apis, i);
 
@@ -314,10 +315,12 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
     group->checker = self;
     group->api = api;
 
+    options.replacement_data = group;
+
 #define GUM_REPLACE_API_FUNC(name) \
     gum_interceptor_replace (self->interceptor, \
         GUM_FUNCPTR_TO_POINTER (api->name), \
-        GUM_FUNCPTR_TO_POINTER (replacement_##name), group, NULL)
+        GUM_FUNCPTR_TO_POINTER (replacement_##name), NULL, &options)
 
     GUM_REPLACE_API_FUNC (malloc);
     GUM_REPLACE_API_FUNC (calloc);

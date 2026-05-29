@@ -44,8 +44,10 @@ namespace Gum
       }
       g_mutex_unlock (&mutex);
 
+      GumAttachOptions options = {};
+      options.listener_function_data = listener_function_data;
       GumAttachReturn attach_ret = gum_interceptor_attach (handle, function_address, GUM_INVOCATION_LISTENER (proxy->get_handle ()),
-          listener_function_data, GUM_ATTACH_FLAGS_NONE);
+          &options);
       return (attach_ret == GUM_ATTACH_OK);
     }
 
@@ -70,7 +72,9 @@ namespace Gum
 
     virtual void replace (void * function_address, void * replacement_address, void * replacement_data)
     {
-      gum_interceptor_replace (handle, function_address, replacement_address, replacement_data, NULL);
+      GumReplaceOptions options = {};
+      options.replacement_data = replacement_data;
+      gum_interceptor_replace (handle, function_address, replacement_address, NULL, &options);
     }
 
     virtual void revert (void * function_address)

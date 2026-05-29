@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -28,6 +28,9 @@ struct _GumCodeGenCtx
 
   GumMipsWriter * output;
 };
+
+static gboolean gum_mips_relocator_register_is_free (
+    const GumMipsRelocator * self, guint n, mips_reg reg);
 
 static gboolean gum_mips_has_delay_slot (const cs_insn * insn);
 
@@ -435,6 +438,7 @@ gboolean
 gum_mips_relocator_can_relocate (gpointer address,
                                  guint min_bytes,
                                  GumRelocationScenario scenario,
+                                 GumRelocationPolicy policy,
                                  guint * maximum,
                                  mips_reg * available_scratch_reg)
 {
@@ -484,7 +488,7 @@ gum_mips_relocator_can_relocate (gpointer address,
   }
   while (reloc_bytes < min_bytes || rl.delay_slot_pending);
 
-  if (!rl.eoi)
+  if (policy == GUM_RELOCATION_CHECKED && !rl.eoi)
   {
     csh capstone;
     cs_insn * insn;
@@ -594,32 +598,21 @@ gum_mips_relocator_can_relocate (gpointer address,
 
   if (available_scratch_reg != NULL)
   {
-    gboolean at_used;
-    guint insn_index;
+    mips_reg requested_scratch_reg = *available_scratch_reg;
 
-    at_used = FALSE;
-
-    for (insn_index = 0; insn_index != n / 4; insn_index++)
+    if (requested_scratch_reg != MIPS_REG_INVALID)
     {
-      const cs_insn * insn = rl.input_insns[insn_index];
-      const cs_mips * info = &insn->detail->mips;
-      uint8_t op_index;
-
-      for (op_index = 0; op_index != info->op_count; op_index++)
-      {
-        const cs_mips_op * op = &info->operands[op_index];
-
-        if (op->type == MIPS_OP_REG)
-        {
-          at_used |= op->reg == MIPS_REG_AT;
-        }
-      }
+      if (!gum_mips_relocator_register_is_free (&rl, n, requested_scratch_reg))
+        *available_scratch_reg = MIPS_REG_INVALID;
     }
-
-    if (!at_used)
+    else if (gum_mips_relocator_register_is_free (&rl, n, MIPS_REG_AT))
+    {
       *available_scratch_reg = MIPS_REG_AT;
+    }
     else
+    {
       *available_scratch_reg = MIPS_REG_INVALID;
+    }
   }
 
   gum_mips_relocator_clear (&rl);
@@ -630,6 +623,31 @@ gum_mips_relocator_can_relocate (gpointer address,
     *maximum = n;
 
   return n >= min_bytes;
+}
+
+static gboolean
+gum_mips_relocator_register_is_free (const GumMipsRelocator * self,
+                                     guint n,
+                                     mips_reg reg)
+{
+  guint insn_index;
+
+  for (insn_index = 0; insn_index != n / 4; insn_index++)
+  {
+    const cs_insn * insn = self->input_insns[insn_index];
+    const cs_mips * info = &insn->detail->mips;
+    uint8_t op_index;
+
+    for (op_index = 0; op_index != info->op_count; op_index++)
+    {
+      const cs_mips_op * op = &info->operands[op_index];
+
+      if (op->type == MIPS_OP_REG && op->reg == reg)
+        return FALSE;
+    }
+  }
+
+  return TRUE;
 }
 
 guint

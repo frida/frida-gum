@@ -24,12 +24,39 @@ typedef GArray GumInvocationStack;
 typedef guint GumInvocationState;
 typedef void (* GumInterceptorLockedFunc) (gpointer user_data);
 
-typedef enum
+typedef enum {
+  GUM_INTERCEPTOR_SCENARIO_ONLINE,
+  GUM_INTERCEPTOR_SCENARIO_OFFLINE,
+} GumInterceptorScenario;
+
+typedef enum {
+  GUM_INVOCATION_IGNORABLE,
+  GUM_INVOCATION_UNIGNORABLE,
+} GumInvocationIgnorability;
+
+typedef struct _GumInterceptorOptions GumInterceptorOptions;
+typedef struct _GumAttachOptions GumAttachOptions;
+typedef struct _GumReplaceOptions GumReplaceOptions;
+
+struct _GumInterceptorOptions
 {
-  GUM_ATTACH_FLAGS_NONE        = 0,
-  GUM_ATTACH_FLAGS_UNIGNORABLE = (1 << 0),
-  GUM_ATTACH_FLAGS_FORCE       = (1 << 1),
-} GumAttachFlags;
+  gint scratch_register;
+  GumInterceptorScenario scenario;
+  GumRelocationPolicy relocation_policy;
+};
+
+struct _GumAttachOptions
+{
+  GumInterceptorOptions instrumentation;
+  gpointer listener_function_data;
+  GumInvocationIgnorability ignorability;
+};
+
+struct _GumReplaceOptions
+{
+  GumInterceptorOptions instrumentation;
+  gpointer replacement_data;
+};
 
 typedef enum
 {
@@ -53,16 +80,16 @@ GUM_API GumInterceptor * gum_interceptor_obtain (void);
 
 GUM_API GumAttachReturn gum_interceptor_attach (GumInterceptor * self,
     gpointer function_address, GumInvocationListener * listener,
-    gpointer listener_function_data, GumAttachFlags flags);
+    const GumAttachOptions * options);
 GUM_API void gum_interceptor_detach (GumInterceptor * self,
     GumInvocationListener * listener);
 
 GUM_API GumReplaceReturn gum_interceptor_replace (GumInterceptor * self,
     gpointer function_address, gpointer replacement_function,
-    gpointer replacement_data, gpointer * original_function);
+    gpointer * original_function, const GumReplaceOptions * options);
 GumReplaceReturn gum_interceptor_replace_fast (GumInterceptor * self,
     gpointer function_address, gpointer replacement_function,
-    gpointer * original_function);
+    gpointer * original_function, const GumInterceptorOptions * options);
 GUM_API void gum_interceptor_revert (GumInterceptor * self,
     gpointer function_address);
 

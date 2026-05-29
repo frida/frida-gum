@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -616,9 +616,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
     listener_function_data = NULL;
   }
 
+  GumAttachOptions options = {};
+  options.listener_function_data = listener_function_data;
   auto attach_ret = gum_interceptor_attach (module->interceptor, target,
-      GUM_INVOCATION_LISTENER (listener), listener_function_data,
-      GUM_ATTACH_FLAGS_NONE);
+      GUM_INVOCATION_LISTENER (listener), &options);
 
   if (attach_ret == GUM_ATTACH_OK)
   {
@@ -689,8 +690,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
       &replacement_data))
     return;
 
+  GumReplaceOptions options = {};
+  options.replacement_data = replacement_data;
   auto replace_ret = gum_interceptor_replace (module->interceptor, target,
-      replacement_function, replacement_data, NULL);
+      replacement_function, NULL, &options);
 
   gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
 }
@@ -702,7 +705,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
     return;
 
   auto replace_ret = gum_interceptor_replace_fast (module->interceptor, target,
-      replacement_function, &original_function);
+      replacement_function, &original_function, NULL);
 
   gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
 

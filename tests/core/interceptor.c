@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -178,8 +178,7 @@ TESTCASE (attach_to_own_api)
   listener->user_data = fixture->result;
 
   gum_interceptor_attach (fixture->interceptor, target_function,
-      GUM_INVOCATION_LISTENER (listener), NULL,
-      GUM_ATTACH_FLAGS_NONE);
+      GUM_INVOCATION_LISTENER (listener), NULL);
   target_function (fixture->result);
   gum_interceptor_detach (fixture->interceptor,
       GUM_INVOCATION_LISTENER (listener));
@@ -210,8 +209,7 @@ TESTCASE (attach_detach_torture)
     listener = test_callback_listener_new ();
 
     gum_interceptor_attach (fixture->interceptor, target_function,
-        GUM_INVOCATION_LISTENER (listener), NULL,
-        GUM_ATTACH_FLAGS_NONE);
+        GUM_INVOCATION_LISTENER (listener), NULL);
     gum_interceptor_detach (fixture->interceptor,
         GUM_INVOCATION_LISTENER (listener));
     interceptor_fixture_detach (fixture, 0);
@@ -380,15 +378,18 @@ TESTCASE (function_data)
   TestFunctionDataListener * fd_listener;
   GumInvocationListener * listener;
   gpointer a_data = "a", b_data = "b";
+  GumAttachOptions a_options = { 0, }, b_options = { 0, };
 
   fd_listener =
       g_object_new (TEST_TYPE_FUNCTION_DATA_LISTENER, NULL);
   listener = GUM_INVOCATION_LISTENER (fd_listener);
+  a_options.listener_function_data = a_data;
+  b_options.listener_function_data = b_data;
   g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
-      target_nop_function_a, listener, a_data, GUM_ATTACH_FLAGS_NONE),
+      target_nop_function_a, listener, &a_options),
       ==, GUM_ATTACH_OK);
   g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
-      target_nop_function_b, listener, b_data, GUM_ATTACH_FLAGS_NONE),
+      target_nop_function_b, listener, &b_options),
       ==, GUM_ATTACH_OK);
 
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 0);
@@ -534,7 +535,7 @@ TESTCASE (already_attached)
   g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
       target_function, GUM_INVOCATION_LISTENER (
           fixture->listener_context[0]->listener),
-      NULL, GUM_ATTACH_FLAGS_NONE), ==, GUM_ATTACH_ALREADY_ATTACHED);
+      NULL), ==, GUM_ATTACH_ALREADY_ATTACHED);
 }
 
 TESTCASE (relative_proxy_function)
@@ -617,6 +618,7 @@ TESTCASE (replace_one)
 {
   gpointer (* malloc_impl) (gsize size);
   guint counter = 0;
+  GumReplaceOptions options = { 0, };
   volatile gpointer ret;
 
   if (RUNNING_ON_VALGRIND)
@@ -627,8 +629,9 @@ TESTCASE (replace_one)
 
   malloc_impl = interceptor_fixture_get_libc_malloc ();
 
+  options.replacement_data = &counter;
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor, malloc_impl,
-      replacement_malloc, &counter, NULL), ==, GUM_REPLACE_OK);
+      replacement_malloc, NULL, &options), ==, GUM_REPLACE_OK);
   ret = malloc_impl (0x42);
 
   /*
@@ -657,6 +660,7 @@ TESTCASE (replace_two)
 {
   gpointer malloc_impl, free_impl;
   guint malloc_counter = 0, free_counter = 0;
+  GumReplaceOptions options = { 0, };
   volatile gpointer ret;
 
   if (RUNNING_ON_VALGRIND)
@@ -668,11 +672,12 @@ TESTCASE (replace_two)
   malloc_impl = interceptor_fixture_get_libc_malloc ();
   free_impl = interceptor_fixture_get_libc_free ();
 
+  options.replacement_data = &malloc_counter;
   gum_interceptor_replace (fixture->interceptor, malloc_impl,
-      replacement_malloc_calling_malloc_and_replaced_free, &malloc_counter,
-      NULL);
+      replacement_malloc_calling_malloc_and_replaced_free, NULL, &options);
+  options.replacement_data = &free_counter;
   gum_interceptor_replace (fixture->interceptor, free_impl,
-      replacement_free_doing_nothing, &free_counter, NULL);
+      replacement_free_doing_nothing, NULL, &options);
 
   ret = malloc (0x42);
   g_assert_nonnull (ret);
@@ -730,9 +735,11 @@ replacement_free_doing_nothing (gpointer mem)
 TESTCASE (replace_then_attach)
 {
   guint target_counter = 0;
+  GumReplaceOptions options = { 0, };
 
+  options.replacement_data = &target_counter;
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
-      target_function, replacement_target_function, &target_counter, NULL),
+      target_function, replacement_target_function, NULL, &options),
       ==, GUM_REPLACE_OK);
   interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
   target_function (fixture->result);
@@ -745,6 +752,7 @@ TESTCASE (replace_keep_original)
   gpointer (* malloc_impl) (gsize size);
   gpointer (* original_impl) (gsize size) = NULL;
   guint counter = 0;
+  GumReplaceOptions options = { 0, };
   volatile gpointer ret;
 
   if (RUNNING_ON_VALGRIND)
@@ -755,8 +763,9 @@ TESTCASE (replace_keep_original)
 
   malloc_impl = interceptor_fixture_get_libc_malloc ();
 
+  options.replacement_data = &counter;
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor, malloc_impl,
-      replacement_malloc, &counter, (void **) &original_impl),
+      replacement_malloc, (void **) &original_impl, &options),
       ==, GUM_REPLACE_OK);
   g_assert_nonnull (original_impl);
   ret = original_impl (0x42);
@@ -875,7 +884,7 @@ TESTCASE (replace_then_replace_fast)
         target_function, replacement_target_function, NULL, NULL),
       ==, GUM_REPLACE_OK);
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
-        target_function, replacement_target_function, NULL),
+        target_function, replacement_target_function, NULL, NULL),
       ==, GUM_REPLACE_WRONG_TYPE);
   gum_interceptor_revert (fixture->interceptor, target_function);
 }
@@ -890,11 +899,10 @@ TESTCASE (attach_then_replace_fast)
   listener->user_data = fixture->result;
 
   g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
-        target_function, GUM_INVOCATION_LISTENER (listener), NULL,
-        GUM_ATTACH_FLAGS_NONE),
+        target_function, GUM_INVOCATION_LISTENER (listener), NULL),
       ==, GUM_ATTACH_OK);
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
-        target_function, replacement_target_function, NULL),
+        target_function, replacement_target_function, NULL, NULL),
       ==, GUM_REPLACE_WRONG_TYPE);
   gum_interceptor_detach (fixture->interceptor,
       GUM_INVOCATION_LISTENER (listener));
@@ -905,7 +913,7 @@ TESTCASE (attach_then_replace_fast)
 TESTCASE (replace_fast_then_replace)
 {
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
-        target_function, replacement_target_function, NULL),
+        target_function, replacement_target_function, NULL, NULL),
       ==, GUM_REPLACE_OK);
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
         target_function, replacement_target_function, NULL, NULL),
@@ -923,12 +931,11 @@ TESTCASE (replace_fast_then_attach)
   listener->user_data = fixture->result;
 
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
-        target_function, replacement_target_function, NULL),
+        target_function, replacement_target_function, NULL, NULL),
       ==, GUM_REPLACE_OK);
 
   g_assert_cmpint (gum_interceptor_attach (fixture->interceptor,
-        target_function, GUM_INVOCATION_LISTENER (listener), NULL,
-        GUM_ATTACH_FLAGS_NONE),
+        target_function, GUM_INVOCATION_LISTENER (listener), NULL),
       ==, GUM_ATTACH_WRONG_TYPE);
 
   gum_interceptor_revert (fixture->interceptor, target_function);
@@ -938,10 +945,10 @@ TESTCASE (replace_fast_then_attach)
 TESTCASE (replace_fast_then_replace_fast)
 {
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
-        target_function, replacement_target_function, NULL),
+        target_function, replacement_target_function, NULL, NULL),
       ==, GUM_REPLACE_OK);
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
-        target_function, replacement_target_function, NULL),
+        target_function, replacement_target_function, NULL, NULL),
       ==, GUM_REPLACE_ALREADY_REPLACED);
   gum_interceptor_revert (fixture->interceptor, target_function);
 }
@@ -958,7 +965,7 @@ TESTCASE (i_can_has_replaceability_fast)
     UnsupportedFunction * func = &unsupported_functions[i];
 
     g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
-          func->code + func->code_offset, replacement_malloc, NULL),
+          func->code + func->code_offset, replacement_malloc, NULL, NULL),
         ==, GUM_REPLACE_WRONG_SIGNATURE);
   }
 
@@ -971,7 +978,7 @@ TESTCASE (replace_one_fast)
 
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
         target_function, replacement_target_function_fast,
-        (gpointer *) &target_function_fast),
+        (gpointer *) &target_function_fast, NULL),
       ==, GUM_REPLACE_OK);
 
   result = target_function (fixture->result);
@@ -1016,8 +1023,8 @@ TESTCASE (fast_interceptor_performance)
 
   /* Normal Interceptor */
   g_assert_cmpint (gum_interceptor_replace (fixture->interceptor,
-        target_function, replacement_target_function_fast, NULL,
-        (gpointer *) &target_function_fast),
+        target_function, replacement_target_function_fast,
+        (gpointer *) &target_function_fast, NULL),
       ==, GUM_REPLACE_OK);
   g_timer_reset (timer);
 
@@ -1034,7 +1041,7 @@ TESTCASE (fast_interceptor_performance)
   /* Fast Interceptor */
   g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
         target_function, replacement_target_function_fast,
-        (gpointer *) &target_function_fast),
+        (gpointer *) &target_function_fast, NULL),
       ==, GUM_REPLACE_OK);
   g_timer_reset (timer);
   for (gsize i = 0; i != 1000000; i++)

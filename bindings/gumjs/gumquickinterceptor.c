@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -476,6 +476,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   gpointer target, cb_ptr;
   GumQuickInvocationListener * listener = NULL;
   gpointer listener_function_data;
+  GumAttachOptions options = { 0, };
   GumAttachReturn attach_ret;
 
   self = gumjs_get_parent_module (core);
@@ -553,9 +554,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   listener->parent = self;
 
+  options.listener_function_data = listener_function_data;
   attach_ret = gum_interceptor_attach (self->interceptor, target,
-      GUM_INVOCATION_LISTENER (listener), listener_function_data,
-      GUM_ATTACH_FLAGS_NONE);
+      GUM_INVOCATION_LISTENER (listener), &options);
 
   if (attach_ret != GUM_ATTACH_OK)
     goto unable_to_attach;
@@ -636,6 +637,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   GumQuickInterceptor * self;
   gpointer target, replacement_function, replacement_data;
   JSValue replacement_value;
+  GumReplaceOptions options = { 0, };
   GumReplaceReturn replace_ret;
 
   self = gumjs_get_parent_module (core);
@@ -649,8 +651,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
       &replacement_function))
     return JS_EXCEPTION;
 
+  options.replacement_data = replacement_data;
   replace_ret = gum_interceptor_replace (self->interceptor, target,
-      replacement_function, replacement_data, NULL);
+      replacement_function, NULL, &options);
   if (replace_ret != GUM_REPLACE_OK)
     return gum_quick_handle_replace_ret (ctx, target, replace_ret);
 
@@ -676,7 +679,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
     return JS_EXCEPTION;
 
   replace_ret = gum_interceptor_replace_fast (self->interceptor, target,
-      replacement_function, &original_function);
+      replacement_function, &original_function, NULL);
   if (replace_ret != GUM_REPLACE_OK)
     return gum_quick_handle_replace_ret (ctx, target, replace_ret);
 
