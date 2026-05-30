@@ -365,6 +365,7 @@ gum_test_count_unwind_frame (struct _Unwind_Context * context,
 TESTCASE (can_unwind_through_objc_trampoline)
 {
   guint baseline, through_trampoline = 0;
+  GumReplaceOptions options = { 0, };
   gpointer init_with_url;
   id url;
 
@@ -372,8 +373,9 @@ TESTCASE (can_unwind_through_objc_trampoline)
 
   init_with_url = method_getImplementation (class_getInstanceMethod (
       objc_getClass ("NSBundle"), sel_registerName ("initWithURL:")));
+  options.replacement_data = &through_trampoline;
   gum_interceptor_replace (fixture->interceptor, init_with_url,
-      gum_test_count_frames_replacement, &through_trampoline, NULL);
+      gum_test_count_frames_replacement, NULL, &options);
 
   url = gum_objc_call (objc_getClass ("NSURL"), "fileURLWithPath:",
       gum_objc_call (objc_getClass ("NSString"), "stringWithUTF8String:",
