@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,6 +21,8 @@ G_DECLARE_FINAL_TYPE (GumExceptorBackend, gum_exceptor_backend, GUM,
 
 G_GNUC_INTERNAL GumExceptorBackend * gum_exceptor_backend_new (
     GumExceptionHandler handler, gpointer user_data);
+
+G_GNUC_INTERNAL GumExceptorMode _gum_exceptor_get_mode (void);
 
 G_END_DECLS
 

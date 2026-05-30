@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -16,6 +16,12 @@ G_BEGIN_DECLS
 
 #define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
 G_DECLARE_FINAL_TYPE (GumExceptor, gum_exceptor, GUM, EXCEPTOR, GObject)
+
+typedef enum {
+  GUM_EXCEPTOR_MODE_FULL,
+  GUM_EXCEPTOR_MODE_HANDLER_ONLY,
+  GUM_EXCEPTOR_MODE_OFF
+} GumExceptorMode;
 
 #if defined (GUM_GIR_COMPILATION)
   typedef int GumExceptorNativeJmpBuf;
@@ -81,7 +87,7 @@ struct _GumExceptorScope
   GumExceptorScope * next;
 };
 
-GUM_API void gum_exceptor_disable (void);
+GUM_API void gum_exceptor_set_mode (GumExceptorMode mode);
 
 GUM_API GumExceptor * gum_exceptor_obtain (void);
 

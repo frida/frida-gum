@@ -758,8 +758,14 @@ namespace Gum {
 	}
 
 	public class Exceptor : GLib.Object {
-		public static void disable ();
+		public static void set_mode (Gum.ExceptorMode mode);
 		public static Exceptor obtain ();
+	}
+
+	public enum ExceptorMode {
+		FULL,
+		HANDLER_ONLY,
+		OFF,
 	}
 
 	public class UnwindBroker : GLib.Object {

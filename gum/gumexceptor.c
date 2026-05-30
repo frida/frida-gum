@@ -50,7 +50,7 @@ G_DEFINE_TYPE (GumExceptor, gum_exceptor, G_TYPE_OBJECT)
 
 G_LOCK_DEFINE_STATIC (the_exceptor);
 static GumExceptor * the_exceptor = NULL;
-static gboolean gum_exceptor_is_available = TRUE;
+static GumExceptorMode gum_exceptor_mode = GUM_EXCEPTOR_MODE_FULL;
 
 static void
 gum_exceptor_class_init (GumExceptorClass * klass)
@@ -97,12 +97,34 @@ gum_exceptor_finalize (GObject * object)
   G_OBJECT_CLASS (gum_exceptor_parent_class)->finalize (object);
 }
 
+/**
+ * gum_exceptor_set_mode:
+ * @mode: the desired exceptor mode
+ *
+ * Configures how the exceptor handles exceptions:
+ *
+ * - %GUM_EXCEPTOR_MODE_FULL: install signal handlers and hook
+ *   signal()/sigaction() so the target cannot override them (default).
+ * - %GUM_EXCEPTOR_MODE_HANDLER_ONLY: install signal handlers but leave
+ *   signal()/sigaction() alone, so the target is free to replace them.
+ * - %GUM_EXCEPTOR_MODE_OFF: don't install anything.
+ *
+ * The signal()/sigaction() distinction is only meaningful on POSIX backends.
+ * Must be called before the first gum_exceptor_obtain(), as the backend is
+ * created on first obtain.
+ */
 void
-gum_exceptor_disable (void)
+gum_exceptor_set_mode (GumExceptorMode mode)
 {
   g_assert (the_exceptor == NULL);
 
-  gum_exceptor_is_available = FALSE;
+  gum_exceptor_mode = mode;
+}
+
+GumExceptorMode
+_gum_exceptor_get_mode (void)
+{
+  return gum_exceptor_mode;
 }
 
 /**
@@ -153,7 +175,7 @@ gum_exceptor_reset (GumExceptor * self)
 {
   g_clear_object (&self->backend);
 
-  if (gum_exceptor_is_available)
+  if (gum_exceptor_mode != GUM_EXCEPTOR_MODE_OFF)
   {
     self->backend = gum_exceptor_backend_new (
         (GumExceptionHandler) gum_exceptor_handle_exception, self);
