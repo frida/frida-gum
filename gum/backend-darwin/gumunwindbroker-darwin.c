@@ -96,6 +96,7 @@ _gum_unwind_broker_backend_activate (void)
 
   export = gum_module_find_export_by_name (libdyld, "_dyld_find_unwind_sections");
   g_assert (export != 0);
+
   g_object_unref (libdyld);
 
   gum_unwind_dyld_find_sections_original =

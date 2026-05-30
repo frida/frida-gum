@@ -577,6 +577,7 @@ static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
 static GumExecCtx * gum_stalker_get_exec_ctx (void);
 static GumExecCtx * gum_stalker_find_exec_ctx_by_thread_id (GumStalker * self,
     GumThreadId thread_id);
+
 static GumAddress gum_stalker_translate_unwind_pc (
     GumUnwindPcTranslator * translator, GumAddress code_address);
 static gboolean gum_stalker_install_unwind_resume_context (
