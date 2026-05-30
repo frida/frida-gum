@@ -19,6 +19,9 @@ G_GNUC_INTERNAL GumAddress _gum_unwind_broker_dispatch_translate (
 G_GNUC_INTERNAL gboolean _gum_unwind_broker_dispatch_install_resume_context (
     gpointer unwind_context, GumAddress real_resume_ip);
 
+G_GNUC_INTERNAL void _gum_unwind_broker_set_ip (gpointer unwind_context,
+    GumAddress ip);
+
 G_GNUC_INTERNAL void _gum_unwind_broker_backend_activate (void);
 G_GNUC_INTERNAL void _gum_unwind_broker_backend_deactivate (void);
 

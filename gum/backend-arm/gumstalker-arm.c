@@ -16,6 +16,7 @@
 #include "gumspinlock.h"
 #include "gumstalker-priv.h"
 #include "gumunwindbroker.h"
+#include "gumunwindbroker-priv.h"
 #include "gumthumbreader.h"
 #include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
@@ -1833,8 +1834,7 @@ gum_stalker_install_unwind_resume_context (GumUnwindPcTranslator * translator,
 
   resume_ip = gum_exec_ctx_switch_block (ctx, NULL,
       GSIZE_TO_POINTER (real_resume_ip), NULL);
-  _Unwind_SetIP ((struct _Unwind_Context *) unwind_context,
-      GPOINTER_TO_SIZE (resume_ip));
+  _gum_unwind_broker_set_ip (unwind_context, GPOINTER_TO_SIZE (resume_ip));
 
   ctx->pending_calls--;
 
