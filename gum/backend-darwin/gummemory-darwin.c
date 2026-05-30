@@ -38,7 +38,7 @@ struct _GumAllocNearContext
 
 extern kern_return_t mach_vm_page_info (vm_map_read_t target_task,
     mach_vm_address_t address, vm_page_info_flavor_t flavor,
-    vm_page_info_t info, mach_msg_type_number_t *infoCnt);
+    vm_page_info_t info, mach_msg_type_number_t * infoCnt);
 
 static kern_return_t gum_mach_vm_protect (vm_map_t target_task,
     mach_vm_address_t address, mach_vm_size_t size, boolean_t set_maximum,

@@ -356,7 +356,8 @@ gum_darwin_module_resolver_rebuild_indexes (GumDarwinModuleResolver * self,
 
       if (g_str_has_prefix (path, self->sysroot))
       {
-        g_hash_table_insert (by_name, g_strdup (gum_module_get_name (mod)), mod);
+        g_hash_table_insert (by_name,
+            g_strdup (gum_module_get_name (mod)), mod);
         g_hash_table_insert (by_name, g_strdup (path + sysroot_length), mod);
       }
     }

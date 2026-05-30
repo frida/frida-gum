@@ -67,7 +67,6 @@ enum GumMemoryValueType
   GUM_MEMORY_VALUE_ANSI_STRING
 };
 
-
 struct GumV8WeakRef
 {
   guint id;

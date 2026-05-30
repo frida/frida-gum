@@ -2144,13 +2144,15 @@ gum_es_program_load_runtime (GumESProgram * self,
 }
 
 static void
-gum_es_program_on_runtime_load_success (const FunctionCallbackInfo<Value> & info)
+gum_es_program_on_runtime_load_success (
+    const FunctionCallbackInfo<Value> & info)
 {
   gum_es_program_on_runtime_loaded (info, Null (info.GetIsolate ()));
 }
 
 static void
-gum_es_program_on_runtime_load_failure (const FunctionCallbackInfo<Value> & info)
+gum_es_program_on_runtime_load_failure (
+    const FunctionCallbackInfo<Value> & info)
 {
   gum_es_program_on_runtime_loaded (info, info[0]);
 }

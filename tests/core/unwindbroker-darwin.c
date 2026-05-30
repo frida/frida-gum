@@ -232,7 +232,8 @@ gum_test_collect_section (const GumDarwinSectionDetails * details,
   }
   else if (strcmp (details->section_name, "__unwind_info") == 0)
   {
-    ctx->sections->compact_unwind_section = GSIZE_TO_POINTER (details->vm_address);
+    ctx->sections->compact_unwind_section =
+        GSIZE_TO_POINTER (details->vm_address);
     ctx->sections->compact_unwind_section_length = details->size;
     ctx->remaining--;
   }

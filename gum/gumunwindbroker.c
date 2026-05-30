@@ -149,8 +149,9 @@ gum_unwind_broker_add_sections_provider (GumUnwindBroker * self,
 }
 
 void
-gum_unwind_broker_remove_sections_provider (GumUnwindBroker * self,
-                                            GumUnwindSectionsProvider * provider)
+gum_unwind_broker_remove_sections_provider (
+    GumUnwindBroker * self,
+    GumUnwindSectionsProvider * provider)
 {
   g_mutex_lock (&self->mutex);
   g_ptr_array_remove (self->sections_providers, provider);

@@ -94,7 +94,8 @@ _gum_unwind_broker_backend_activate (void)
   libdyld = gum_process_find_module_by_name (GUM_LIBDYLD_PATH);
   g_assert (libdyld != NULL);
 
-  export = gum_module_find_export_by_name (libdyld, "_dyld_find_unwind_sections");
+  export = gum_module_find_export_by_name (libdyld,
+      "_dyld_find_unwind_sections");
   g_assert (export != 0);
 
   g_object_unref (libdyld);
@@ -313,7 +314,8 @@ gum_unwind_broker_find_libunwind_vtable (void)
 
   export = gum_module_find_export_by_name (libunwind, "unw_init_local");
   if (export == 0)
-    export = gum_module_find_export_by_name (libunwind, "_Unwind_RaiseException");
+    export = gum_module_find_export_by_name (libunwind,
+        "_Unwind_RaiseException");
   if (export == 0)
     goto beach;
   export = gum_strip_code_address (export);
