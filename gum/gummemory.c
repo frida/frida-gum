@@ -498,11 +498,29 @@ cleanup:
   else if (rwx_supported || !gum_code_segment_is_supported ())
   {
     GumPageProtection protection;
+    GumPageProtection * original_protections;
     GumSuspendOperation suspend_op = { 0, };
 
     protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
 
-    if (!rwx_supported)
+    original_protections = g_newa (GumPageProtection, sorted_addresses->len);
+
+    if (rwx_supported)
+    {
+#ifdef HAVE_LINUX
+      _gum_memory_query_protections (sorted_addresses, original_protections);
+#else
+      for (i = 0; i != sorted_addresses->len; i++)
+      {
+        gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+
+        if (!gum_memory_query_protection (target_page,
+            &original_protections[i]))
+          original_protections[i] = GUM_PAGE_RX;
+      }
+#endif
+    }
+    else
     {
       gum_metal_array_init (&suspend_op.suspended_threads,
           sizeof (GumThreadId));
@@ -561,24 +579,20 @@ cleanup:
     if (apply_num_pages != 0)
       apply (apply_start, apply_target_start, apply_num_pages, apply_data);
 
-    if (!rwx_supported)
+    for (i = 0; i != sorted_addresses->len; i++)
     {
-      /*
-        * We don't bother restoring the protection on RWX systems, as we would
-        * have to determine the old protection to be able to do so safely.
-        *
-        * While we could easily do that, it would add overhead, but it's not
-        * really clear that it would have any tangible upsides.
-        */
-      for (i = 0; i != sorted_addresses->len; i++)
-      {
-        gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+      gpointer target_page = g_ptr_array_index (sorted_addresses, i);
+      GumPageProtection restored;
 
-        if (!gum_try_mprotect (target_page, page_size, GUM_PAGE_RX))
-        {
-          result = FALSE;
-          goto resume_threads;
-        }
+      restored = (rwx_supported &&
+          (original_protections[i] & GUM_PAGE_WRITE) != 0)
+          ? GUM_PAGE_RWX
+          : GUM_PAGE_RX;
+
+      if (!gum_try_mprotect (target_page, page_size, restored))
+      {
+        result = FALSE;
+        goto resume_threads;
       }
     }
 

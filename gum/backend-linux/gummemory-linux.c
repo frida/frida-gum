@@ -100,6 +100,53 @@ gum_memory_query_protection (gconstpointer address,
   return size >= 1;
 }
 
+void
+_gum_memory_query_protections (GPtrArray * sorted_pages,
+                               GumPageProtection * protections)
+{
+  guint i;
+  GumProcMapsIter iter;
+  const gchar * line;
+
+  for (i = 0; i != sorted_pages->len; i++)
+    protections[i] = GUM_PAGE_RX;
+
+  gum_proc_maps_iter_init_for_self (&iter);
+
+  i = 0;
+  while (i != sorted_pages->len && gum_proc_maps_iter_next (&iter, &line))
+  {
+    gpointer start, end;
+    gchar protection[4 + 1];
+    GumPageProtection prot;
+
+    sscanf (line, "%p-%p %s ", &start, &end, protection);
+
+    while (i != sorted_pages->len &&
+        g_ptr_array_index (sorted_pages, i) < start)
+    {
+      i++;
+    }
+
+    prot = GUM_PAGE_NO_ACCESS;
+    if (protection[0] == 'r')
+      prot |= GUM_PAGE_READ;
+    if (protection[1] == 'w')
+      prot |= GUM_PAGE_WRITE;
+    if (protection[2] == 'x')
+      prot |= GUM_PAGE_EXECUTE;
+
+    while (i != sorted_pages->len &&
+        g_ptr_array_index (sorted_pages, i) < end)
+    {
+      protections[i] = prot;
+      i++;
+    }
+  }
+
+  gum_proc_maps_iter_destroy (&iter);
+}
+
 guint8 *
 gum_memory_read (gconstpointer address,
                  gsize len,
