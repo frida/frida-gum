@@ -39,12 +39,16 @@ static void gum_module_registry_finalize (GObject * object);
 static void gum_module_registry_activate (GumModuleRegistry * self);
 
 static void gum_deinit_module_registry (void);
+static void gum_deinit_rtld_notifier_offsets (void);
 
 static gboolean gum_is_cloaked_module (GumModule * module);
 
 G_DEFINE_TYPE (GumModuleRegistry, gum_module_registry, G_TYPE_OBJECT)
 
 static guint gum_module_registry_signals[LAST_SIGNAL] = { 0, };
+
+static guint * gum_rtld_notifier_offsets = NULL;
+static guint gum_rtld_notifier_n_offsets = 0;
 
 static void
 gum_module_registry_class_init (GumModuleRegistryClass * klass)
@@ -147,6 +151,53 @@ static void
 gum_deinit_module_registry (void)
 {
   g_object_unref (gum_module_registry_obtain ());
+}
+
+/**
+ * gum_module_registry_set_rtld_notifier_offsets:
+ * @offsets: (array length=n_offsets) (element-type guint): offsets, relative to
+ *           the dynamic linker base, of call sites that invoke the rtld notifier
+ * @n_offsets: number of entries in @offsets
+ *
+ * Overrides the dynamic-linker notifier hook location(s) used when the registry
+ * is activated. Instead of hooking the well-known notifier stub, Frida hooks the
+ * given call sites, each computed as the dynamic linker base plus an offset.
+ *
+ * Must be called before the first gum_module_registry_obtain(), as activation
+ * (and thus notifier hooking) happens on first obtain.
+ */
+void
+gum_module_registry_set_rtld_notifier_offsets (const guint * offsets,
+                                               guint n_offsets)
+{
+  static gsize registered = FALSE;
+
+  if (g_once_init_enter (&registered))
+  {
+    _gum_register_destructor (gum_deinit_rtld_notifier_offsets);
+
+    g_once_init_leave (&registered, TRUE);
+  }
+
+  g_free (gum_rtld_notifier_offsets);
+
+  gum_rtld_notifier_offsets = (n_offsets != 0)
+      ? g_memdup2 (offsets, n_offsets * sizeof (guint))
+      : NULL;
+  gum_rtld_notifier_n_offsets = n_offsets;
+}
+
+static void
+gum_deinit_rtld_notifier_offsets (void)
+{
+  g_free (gum_rtld_notifier_offsets);
+}
+
+const guint *
+_gum_module_registry_get_rtld_notifier_offsets (guint * n_offsets)
+{
+  *n_offsets = gum_rtld_notifier_n_offsets;
+  return gum_rtld_notifier_offsets;
 }
 
 GPtrArray *

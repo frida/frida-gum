@@ -91,6 +91,8 @@ static gchar * gum_find_mapped_path_by_start (GumAddress wanted_start);
 static gboolean gum_find_range_for_file_id_offset0 (GumFileId * wanted,
     GumMemoryRange * range);
 
+static GumAddress gum_query_rtld_base (void);
+
 static struct r_debug * gum_r_debug;
 static GumProgramModules gum_program_modules;
 static gboolean gum_syncing_modules_from_rtld;
@@ -394,6 +396,9 @@ _gum_module_registry_enumerate_rtld_notifiers (GumFoundRtldNotifierFunc func,
                                                gpointer user_data)
 {
   struct r_debug * dbg = NULL;
+  const guint * offsets;
+  guint n_offsets;
+  GumAddress linker_base;
   GumRtldNotifierDetails notifier;
 
   _gum_module_registry_enumerate_loaded_modules (gum_find_r_debug, &dbg);
@@ -402,9 +407,36 @@ _gum_module_registry_enumerate_rtld_notifiers (GumFoundRtldNotifierFunc func,
 
   gum_r_debug = dbg;
 
+  offsets = _gum_module_registry_get_rtld_notifier_offsets (&n_offsets);
+  linker_base = (n_offsets != 0) ? gum_query_rtld_base () : 0;
+  if (linker_base != 0)
+  {
+    guint i;
+
+    notifier.point_cut = GUM_POINT_ENTER;
+    for (i = 0; i != n_offsets; i++)
+    {
+      notifier.location = GSIZE_TO_POINTER (linker_base + offsets[i]);
+      func (&notifier, user_data);
+    }
+
+    return;
+  }
+
   notifier.location = GSIZE_TO_POINTER (dbg->r_brk);
   notifier.point_cut = GUM_POINT_ENTER;
   func (&notifier, user_data);
+}
+
+static GumAddress
+gum_query_rtld_base (void)
+{
+  const GumProgramModules * pm = _gum_query_program_modules ();
+
+  if (pm->rtld == GUM_PROGRAM_RTLD_NONE || pm->interpreter == NULL)
+    return 0;
+
+  return gum_module_get_range (pm->interpreter)->base_address;
 }
 
 static gboolean

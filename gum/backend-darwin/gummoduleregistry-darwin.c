@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,8 @@
 
 #include "gum/gumdarwin.h"
 #include "gumdarwin-priv.h"
+#include "guminterceptor.h"
+#include "guminvocationlistener.h"
 #include "gummodule-darwin.h"
 
 #include <dlfcn.h>
@@ -32,14 +34,22 @@ static void gum_module_registry_on_image_removed (const struct mach_header * mh,
 static void gum_lldb_image_notifier (enum dyld_image_mode mode,
     guint32 info_count, const struct dyld_image_info info[]);
 
+static GumNativeModule * gum_make_image_module (const struct mach_header * mh,
+    const gchar * name);
 static void gum_add_image (const struct mach_header * mh, const gchar * name);
 static void gum_remove_image (const struct mach_header * mh);
+static void gum_module_registry_synchronize_modules (void);
+static void gum_module_registry_on_rtld_notification (
+    GumInvocationContext * ic, gpointer user_data);
 
 static gsize gum_detect_macho_size (const struct mach_header * mh);
 
 static GumModuleRegistry * gum_registry;
 static GumDarwinModuleResolver * gum_resolver;
 static GumDyldNotifierContext * gum_dyld_notifier_context;
+static GHashTable * gum_current_modules;
+static GumInterceptor * gum_rtld_interceptor;
+static GumInvocationListener * gum_rtld_handler;
 
 void
 _gum_module_registry_activate (GumModuleRegistry * self)
@@ -53,6 +63,67 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 
   if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos, NULL))
     return;
+
+  {
+    const guint * offsets;
+    guint n_offsets;
+
+    offsets = _gum_module_registry_get_rtld_notifier_offsets (&n_offsets);
+    if (n_offsets != 0)
+    {
+      GumAddress dyld_base = infos.dyld_image_load_address;
+      uint32_t count, i;
+      guint j;
+
+      gum_current_modules =
+          g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
+      gum_rtld_interceptor = gum_interceptor_obtain ();
+      gum_rtld_handler = gum_make_probe_listener (
+          gum_module_registry_on_rtld_notification, NULL, NULL);
+
+      _gum_module_registry_reset (gum_registry);
+
+      count = _dyld_image_count ();
+      for (i = 0; i != count; i++)
+      {
+        const struct mach_header * mh = _dyld_get_image_header (i);
+        GumNativeModule * mod =
+            gum_make_image_module (mh, _dyld_get_image_name (i));
+
+        g_hash_table_insert (gum_current_modules,
+            GSIZE_TO_POINTER (GUM_ADDRESS (mh)), g_object_ref (mod));
+        _gum_module_registry_register (gum_registry, GUM_MODULE (mod));
+
+        g_object_unref (mod);
+      }
+
+      gum_interceptor_begin_transaction (gum_rtld_interceptor);
+
+      for (j = 0; j != n_offsets; j++)
+      {
+        gpointer location = GSIZE_TO_POINTER (dyld_base + offsets[j]);
+        GumAttachOptions options = {
+          .ignorability = GUM_INVOCATION_UNIGNORABLE
+        };
+
+        if (gum_interceptor_attach (gum_rtld_interceptor, location,
+              gum_rtld_handler, &options) == GUM_ATTACH_WRONG_SIGNATURE)
+        {
+          options.instrumentation.relocation_policy = GUM_RELOCATION_FORCED;
+          gum_interceptor_attach (gum_rtld_interceptor, location,
+              gum_rtld_handler, &options);
+        }
+      }
+
+      gum_interceptor_end_transaction (gum_rtld_interceptor);
+
+      gum_add_image (GSIZE_TO_POINTER (dyld_base), NULL);
+
+      gum_module_registry_synchronize_modules ();
+
+      return;
+    }
+  }
 
   if (gum_process_get_teardown_requirement () == GUM_TEARDOWN_REQUIREMENT_FULL)
   {
@@ -103,6 +174,20 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 void
 _gum_module_registry_deactivate (GumModuleRegistry * self)
 {
+  if (gum_rtld_interceptor != NULL)
+  {
+    gum_interceptor_detach (gum_rtld_interceptor, gum_rtld_handler);
+
+    g_object_unref (gum_rtld_handler);
+    gum_rtld_handler = NULL;
+
+    g_object_unref (gum_rtld_interceptor);
+    gum_rtld_interceptor = NULL;
+
+    g_hash_table_unref (gum_current_modules);
+    gum_current_modules = NULL;
+  }
+
   if (gum_dyld_notifier_context != NULL)
   {
     GumDyldNotifierContext * context = gum_dyld_notifier_context;
@@ -147,15 +232,14 @@ gum_lldb_image_notifier (enum dyld_image_mode mode,
   return gum_dyld_notifier_context->original (mode, info_count, info);
 }
 
-static void
-gum_add_image (const struct mach_header * mh,
-               const gchar * name)
+static GumNativeModule *
+gum_make_image_module (const struct mach_header * mh,
+                       const gchar * name)
 {
   Dl_info info;
   GumFileMapping file;
   struct proc_regionwithpathinfo region;
   GumMemoryRange range;
-  GumNativeModule * mod;
   const gchar * sysroot;
 
   if (name == NULL)
@@ -183,7 +267,14 @@ gum_add_image (const struct mach_header * mh,
   range.base_address = GUM_ADDRESS (mh);
   range.size = gum_detect_macho_size (mh);
 
-  mod = _gum_native_module_make (name, &range, gum_resolver);
+  return _gum_native_module_make (name, &range, gum_resolver);
+}
+
+static void
+gum_add_image (const struct mach_header * mh,
+               const gchar * name)
+{
+  GumNativeModule * mod = gum_make_image_module (mh, name);
 
   _gum_module_registry_register (gum_registry, GUM_MODULE (mod));
 
@@ -194,6 +285,66 @@ static void
 gum_remove_image (const struct mach_header * mh)
 {
   _gum_module_registry_unregister (gum_registry, GUM_ADDRESS (mh));
+}
+
+static void
+gum_module_registry_synchronize_modules (void)
+{
+  GHashTable * modules;
+  uint32_t count, i;
+  GHashTableIter iter;
+  gpointer base_address;
+  GumModule * module;
+  GQueue added = G_QUEUE_INIT;
+  GQueue removed = G_QUEUE_INIT;
+
+  modules = g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
+
+  count = _dyld_image_count ();
+  for (i = 0; i != count; i++)
+  {
+    const struct mach_header * mh = _dyld_get_image_header (i);
+
+    g_hash_table_insert (modules, GSIZE_TO_POINTER (GUM_ADDRESS (mh)),
+        gum_make_image_module (mh, _dyld_get_image_name (i)));
+  }
+
+  gum_module_registry_lock (gum_registry);
+
+  g_hash_table_iter_init (&iter, modules);
+  while (g_hash_table_iter_next (&iter, &base_address, (gpointer *) &module))
+  {
+    if (!g_hash_table_contains (gum_current_modules, base_address))
+      g_queue_push_tail (&added, g_object_ref (module));
+  }
+
+  g_hash_table_iter_init (&iter, gum_current_modules);
+  while (g_hash_table_iter_next (&iter, &base_address, NULL))
+  {
+    if (!g_hash_table_contains (modules, base_address))
+      g_queue_push_tail (&removed, base_address);
+  }
+
+  g_hash_table_unref (gum_current_modules);
+  gum_current_modules = modules;
+
+  gum_module_registry_unlock (gum_registry);
+
+  while ((base_address = g_queue_pop_head (&removed)) != NULL)
+    _gum_module_registry_unregister (gum_registry, GUM_ADDRESS (base_address));
+
+  while ((module = g_queue_pop_head (&added)) != NULL)
+  {
+    _gum_module_registry_register (gum_registry, module);
+    g_object_unref (module);
+  }
+}
+
+static void
+gum_module_registry_on_rtld_notification (GumInvocationContext * ic,
+                                          gpointer user_data)
+{
+  gum_module_registry_synchronize_modules ();
 }
 
 static gsize

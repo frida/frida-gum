@@ -768,6 +768,10 @@ namespace Gum {
 		OFF,
 	}
 
+	public class ModuleRegistry : GLib.Object {
+		public static void set_rtld_notifier_offsets ([CCode (array_length_type = "guint")] uint[] offsets);
+	}
+
 	public class UnwindBroker : GLib.Object {
 		public static UnwindBroker obtain ();
 		public void add_sections_provider (Gum.UnwindSectionsProvider provider);
