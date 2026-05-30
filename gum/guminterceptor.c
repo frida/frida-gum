@@ -32,6 +32,13 @@
 #define GUM_INTERCEPTOR_LOCK(o) g_rec_mutex_lock (&(o)->mutex)
 #define GUM_INTERCEPTOR_UNLOCK(o) g_rec_mutex_unlock (&(o)->mutex)
 
+#if defined (HAVE_I386)
+# define GUM_INTERCEPTOR_CPU_CONTEXT_SP(c) \
+    ((gpointer) GUM_CPU_CONTEXT_XSP (c))
+#else
+# define GUM_INTERCEPTOR_CPU_CONTEXT_SP(c) ((gpointer) (c)->sp)
+#endif
+
 typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
 typedef guint GumInstrumentationError;
 typedef struct _GumDestroyTask GumDestroyTask;
@@ -118,6 +125,7 @@ struct _GumInvocationStackEntry
 {
   GumFunctionContext * function_ctx;
   gpointer caller_ret_addr;
+  gpointer stack_address;
   GumInvocationContext invocation_context;
   GumCpuContext cpu_context;
   guint8 listener_invocation_data[GUM_MAX_LISTENERS_PER_FUNCTION]
@@ -212,8 +220,15 @@ static void interceptor_thread_context_forget_listener_data (
     InterceptorThreadContext * self, GumInvocationListener * listener);
 static GumInvocationStackEntry * gum_invocation_stack_push (
     GumInvocationStack * stack, GumFunctionContext * function_ctx,
-    gpointer caller_ret_addr, gboolean only_invoke_unignorable_listeners);
+    gpointer caller_ret_addr, gpointer stack_address,
+    gboolean only_invoke_unignorable_listeners);
 static gpointer gum_invocation_stack_pop (GumInvocationStack * stack);
+static void gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
+    gpointer live_stack_address);
+static gboolean gum_invocation_stack_entry_was_unwound_past (
+    const GumInvocationStackEntry * entry, gpointer live_stack_address);
+static void gum_invocation_stack_entry_release_trampoline (
+    const GumInvocationStackEntry * entry);
 static GumInvocationStackEntry * gum_invocation_stack_peek_top (
     GumInvocationStack * stack);
 
@@ -1422,6 +1437,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   GumInvocationStack * stack;
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx = NULL;
+  gpointer stack_address;
   gint system_error;
   gboolean invoke_listeners = TRUE;
   gboolean only_invoke_unignorable_listeners = FALSE;
@@ -1478,18 +1494,22 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     only_invoke_unignorable_listeners = TRUE;
   }
 
+  stack_address = GUM_INTERCEPTOR_CPU_CONTEXT_SP (cpu_context);
+  gum_invocation_stack_reap_unwound (stack, stack_address);
+
   will_trap_on_leave = function_ctx->replacement_function != NULL ||
       (invoke_listeners && function_ctx->has_on_leave_listener);
   if (will_trap_on_leave)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
-        *caller_ret_addr, only_invoke_unignorable_listeners);
+        *caller_ret_addr, stack_address, only_invoke_unignorable_listeners);
     invocation_ctx = &stack_entry->invocation_context;
   }
   else if (invoke_listeners)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
-        function_ctx->function_address, only_invoke_unignorable_listeners);
+        function_ctx->function_address, stack_address,
+        only_invoke_unignorable_listeners);
     invocation_ctx = &stack_entry->invocation_context;
   }
 
@@ -1599,6 +1619,9 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 #endif
 
   interceptor_ctx = get_interceptor_thread_context ();
+
+  gum_invocation_stack_reap_unwound (interceptor_ctx->stack,
+      GUM_INTERCEPTOR_CPU_CONTEXT_SP (cpu_context));
 
   stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
   *next_hop = gum_sign_code_pointer (stack_entry->caller_ret_addr);
@@ -1851,9 +1874,18 @@ interceptor_thread_context_new (void)
 static void
 interceptor_thread_context_destroy (InterceptorThreadContext * context)
 {
+  GumInvocationStack * stack = context->stack;
+  guint i;
+
   g_array_free (context->listener_data_slots, TRUE);
 
-  g_array_free (context->stack, TRUE);
+  for (i = 0; i != stack->len; i++)
+  {
+    gum_invocation_stack_entry_release_trampoline (
+        &g_array_index (stack, GumInvocationStackEntry, i));
+  }
+
+  g_array_free (stack, TRUE);
 
   g_slice_free (InterceptorThreadContext, context);
 }
@@ -1921,6 +1953,7 @@ static GumInvocationStackEntry *
 gum_invocation_stack_push (GumInvocationStack * stack,
                            GumFunctionContext * function_ctx,
                            gpointer caller_ret_addr,
+                           gpointer stack_address,
                            gboolean only_invoke_unignorable_listeners)
 {
   GumInvocationStackEntry * entry;
@@ -1931,6 +1964,7 @@ gum_invocation_stack_push (GumInvocationStack * stack,
       &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
   entry->function_ctx = function_ctx;
   entry->caller_ret_addr = caller_ret_addr;
+  entry->stack_address = stack_address;
   entry->only_invoke_unignorable_listeners = only_invoke_unignorable_listeners;
 
   ctx = &entry->invocation_context;
@@ -1953,6 +1987,40 @@ gum_invocation_stack_pop (GumInvocationStack * stack)
   g_array_set_size (stack, stack->len - 1);
 
   return caller_ret_addr;
+}
+
+static void
+gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
+                                   gpointer live_stack_address)
+{
+  while (stack->len != 0)
+  {
+    GumInvocationStackEntry * entry;
+
+    entry = (GumInvocationStackEntry *)
+        &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
+    if (!gum_invocation_stack_entry_was_unwound_past (entry,
+        live_stack_address))
+      break;
+
+    gum_invocation_stack_entry_release_trampoline (entry);
+    g_array_set_size (stack, stack->len - 1);
+  }
+}
+
+static gboolean
+gum_invocation_stack_entry_was_unwound_past (
+    const GumInvocationStackEntry * entry,
+    gpointer live_stack_address)
+{
+  return (guint8 *) entry->stack_address < (guint8 *) live_stack_address;
+}
+
+static void
+gum_invocation_stack_entry_release_trampoline (
+    const GumInvocationStackEntry * entry)
+{
+  g_atomic_int_dec_and_test (&entry->function_ctx->trampoline_usage_counter);
 }
 
 static GumInvocationStackEntry *
