@@ -24,7 +24,7 @@
 # include "gum-init.h"
 # include "gumelfmodule.h"
 #endif
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
 # include "guminterceptor.h"
 #endif
 
@@ -37,9 +37,7 @@
 #endif
 #ifdef HAVE_LINUX
 # include <sys/syscall.h>
-# ifndef HAVE_ANDROID
-#  include <unwind.h>
-# endif
+# include <unwind.h>
 # ifndef __NR_clone3
 #  define __NR_clone3 435
 # endif
@@ -125,7 +123,7 @@ typedef DWORD GumNativeRegisterValue;
 typedef struct _GumCheckElfSection GumCheckElfSection;
 #endif
 
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
 typedef struct _Unwind_Exception _Unwind_Exception;
 typedef struct _Unwind_Context _Unwind_Context;
 struct dwarf_eh_bases;
@@ -330,9 +328,7 @@ struct _GumExecCtx
   gpointer last_int80;
   gpointer last_syscall;
   GumAddress syscall_end;
-# ifndef HAVE_ANDROID
   GumMetalHashTable * excluded_calls;
-# endif
 #endif
 };
 
@@ -2178,7 +2174,7 @@ static GumAddress
 gum_stalker_translate_unwind_pc (GumUnwindPcTranslator * translator,
                                  GumAddress code_address)
 {
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
   GumExecCtx * ctx;
   gpointer real_address;
 
@@ -2203,7 +2199,7 @@ gum_stalker_install_unwind_resume_context (
     gpointer unwind_context,
     GumAddress real_resume_ip)
 {
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
   GumExecCtx * ctx;
   gpointer resume_ip;
 
@@ -2363,9 +2359,7 @@ gum_exec_ctx_new (GumStalker * stalker,
    */
   gum_exec_ctx_get_plt_got_ranges ();
 
-# ifndef HAVE_ANDROID
   ctx->excluded_calls = gum_metal_hash_table_new (NULL, NULL);
-# endif
 #endif
 
   return ctx;
@@ -2461,7 +2455,7 @@ gum_exec_ctx_dispose (GumExecCtx * ctx)
     gum_exec_block_clear (block);
   }
 
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
   gum_metal_hash_table_unref (ctx->excluded_calls);
 #endif
 }
@@ -4598,7 +4592,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     if (target_is_excluded)
     {
       GumBranchTarget next_instruction = { 0, };
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
       gpointer start_of_call;
       guint call_length;
       gpointer end_of_call;
@@ -4614,13 +4608,13 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       gum_x86_writer_put_inc_reg_ptr (cw, GUM_X86_PTR_DWORD, GUM_X86_XAX);
       gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
       start_of_call = GSIZE_TO_POINTER (cw->pc);
 #endif
 
       gum_x86_relocator_write_one_no_label (gc->relocator);
 
-#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+#ifdef HAVE_LINUX
       call_length = gum_x86_reader_insn_length (start_of_call);
 
       /*
