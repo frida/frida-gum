@@ -156,11 +156,11 @@ namespace Gum {
 		public static Interceptor obtain ();
 
 		public Gum.AttachReturn attach (void * function_address, Gum.InvocationListener listener,
-			void * listener_function_data = null, Gum.AttachFlags flags = NONE);
+			Gum.AttachOptions? options = null);
 		public void detach (Gum.InvocationListener listener);
 
-		public Gum.ReplaceReturn replace (void * function_address, void * replacement_function, void * replacement_data = null,
-			out void * original_function = null);
+		public Gum.ReplaceReturn replace (void * function_address, void * replacement_function,
+			out void * original_function = null, Gum.ReplaceOptions? options = null);
 		public void revert (void * function_address);
 
 		public void begin_transaction ();
@@ -179,6 +179,59 @@ namespace Gum {
 		public bool is_locked ();
 
 		public delegate void LockedFunc ();
+	}
+
+	[CCode (cprefix = "GUM_ATTACH_")]
+	public enum AttachReturn {
+		OK		  =  0,
+		WRONG_SIGNATURE	  = -1,
+		ALREADY_ATTACHED  = -2
+	}
+
+	[CCode (has_type_id = false)]
+	public struct AttachOptions {
+		public Gum.InterceptorOptions instrumentation;
+		public void * listener_function_data;
+		public Gum.InvocationIgnorability ignorability;
+	}
+
+	[CCode (cprefix = "GUM_INVOCATION_")]
+	public enum InvocationIgnorability {
+		IGNORABLE,
+		UNIGNORABLE,
+	}
+
+	[CCode (cprefix = "GUM_REPLACE_")]
+	public enum ReplaceReturn {
+		OK		  =  0,
+		WRONG_SIGNATURE	  = -1,
+		ALREADY_REPLACED  = -2
+	}
+
+	[CCode (has_type_id = false)]
+	public struct ReplaceOptions {
+		public Gum.InterceptorOptions instrumentation;
+		public void * replacement_data;
+	}
+
+	[CCode (has_type_id = false)]
+	public struct InterceptorOptions {
+		public int scratch_register;
+		public Gum.InterceptorScenario scenario;
+		public Gum.RelocationPolicy relocation_policy;
+	}
+
+	[CCode (cprefix = "GUM_INTERCEPTOR_SCENARIO_")]
+	public enum InterceptorScenario {
+		ONLINE,
+		OFFLINE,
+	}
+
+	[CCode (cprefix = "GUM_RELOCATION_")]
+	public enum RelocationPolicy {
+		CHECKED,
+		UNCHECKED,
+		FORCED,
 	}
 
 	[CCode (type_cname = "GumInvocationListenerInterface")]
@@ -743,26 +796,6 @@ namespace Gum {
 		public unowned string symbol_name;
 		public unowned string file_name;
 		public uint line_number;
-	}
-
-	[Flags]
-	public enum AttachFlags {
-		NONE,
-		UNIGNORABLE,
-	}
-
-	[CCode (cprefix = "GUM_ATTACH_")]
-	public enum AttachReturn {
-		OK		  =  0,
-		WRONG_SIGNATURE	  = -1,
-		ALREADY_ATTACHED  = -2
-	}
-
-	[CCode (cprefix = "GUM_REPLACE_")]
-	public enum ReplaceReturn {
-		OK		  =  0,
-		WRONG_SIGNATURE	  = -1,
-		ALREADY_REPLACED  = -2
 	}
 
 	[CCode (cprefix = "GUM_")]
