@@ -7,8 +7,10 @@
 #ifndef __GUM_QUICK_INTERCEPTOR_H__
 #define __GUM_QUICK_INTERCEPTOR_H__
 
+#include "gumquickcodewriter.h"
 #include "gumquickcore.h"
 
+#include <capstone.h>
 #include <gum/guminterceptor.h>
 
 G_BEGIN_DECLS
@@ -40,6 +42,10 @@ struct _GumQuickInterceptor
 
   GumQuickInvocationRetval * cached_invocation_retval;
   gboolean cached_invocation_retval_in_use;
+
+  GumQuickCodeWriter * writer;
+  JSValue defaults_value;
+  csh capstone;
 };
 
 struct _GumQuickInvocationContext
@@ -60,7 +66,7 @@ struct _GumQuickInvocationArgs
 };
 
 G_GNUC_INTERNAL void _gum_quick_interceptor_init (GumQuickInterceptor * self,
-    JSValue ns, GumQuickCore * core);
+    JSValue ns, GumQuickCodeWriter * writer, GumQuickCore * core);
 G_GNUC_INTERNAL void _gum_quick_interceptor_flush (GumQuickInterceptor * self);
 G_GNUC_INTERNAL void _gum_quick_interceptor_dispose (
     GumQuickInterceptor * self);

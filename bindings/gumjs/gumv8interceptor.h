@@ -7,8 +7,10 @@
 #ifndef __GUM_V8_INTERCEPTOR_H__
 #define __GUM_V8_INTERCEPTOR_H__
 
+#include "gumv8codewriter.h"
 #include "gumv8core.h"
 
+#include <capstone.h>
 #include <gum/guminterceptor.h>
 
 struct GumV8InvocationContext;
@@ -46,6 +48,10 @@ struct GumV8Interceptor
 
   GumV8InvocationReturnValue * cached_invocation_return_value;
   gboolean cached_invocation_return_value_in_use;
+
+  GumV8CodeWriter * writer;
+  v8::Global<v8::Object> * defaults_value;
+  csh capstone;
 };
 
 struct GumV8InvocationContext
@@ -67,7 +73,8 @@ struct GumV8InvocationArgs
 };
 
 G_GNUC_INTERNAL void _gum_v8_interceptor_init (GumV8Interceptor * self,
-    GumV8Core * core, v8::Local<v8::ObjectTemplate> scope);
+    GumV8Core * core, GumV8CodeWriter * writer,
+    v8::Local<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_interceptor_realize (GumV8Interceptor * self);
 G_GNUC_INTERNAL void _gum_v8_interceptor_flush (GumV8Interceptor * self);
 G_GNUC_INTERNAL void _gum_v8_interceptor_dispose (GumV8Interceptor * self);

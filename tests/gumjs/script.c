@@ -107,6 +107,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (instructions_can_be_probed)
     TESTENTRY (interceptor_should_support_native_pointer_values)
     TESTENTRY (interceptor_should_support_instrumentation_options)
+    TESTENTRY (interceptor_should_support_custom_redirect)
+    TESTENTRY (interceptor_should_support_default_options)
     TESTENTRY (interceptor_should_handle_bad_pointers)
     TESTENTRY (interceptor_should_refuse_to_attach_without_any_callbacks)
 #ifdef HAVE_DARWIN
@@ -8239,8 +8241,97 @@ TESTCASE (interceptor_should_support_instrumentation_options)
       "    () => {});",
       target_function_int);
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: invalid value: bogus (expected one of: online, offline)");
+      "Error: invalid value: bogus "
+      "(expected one of: default, online, offline)");
 
+  EXPECT_NO_MESSAGES ();
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
+}
+
+TESTCASE (interceptor_should_support_custom_redirect)
+{
+#if defined (HAVE_I386)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach({"
+      "  target: " GUM_PTR_CONST ","
+      "  writeRedirect(d) {"
+      "    send(d.capacity > 0);"
+      "    d.writer.putJmpAddress(d.target);"
+      "  }"
+      "}, {"
+      "  onEnter(args) {"
+      "    send(args[0].toInt32());"
+      "  }"
+      "});", target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach({"
+      "  target: " GUM_PTR_CONST ","
+      "  writeRedirect(d) {"
+      "    send(d.capacity > 0);"
+      "    d.writer.putLdrRegAddress(d.scratchRegister, d.target);"
+      "    d.writer.putBrReg(d.scratchRegister);"
+      "  }"
+      "}, {"
+      "  onEnter(args) {"
+      "    send(args[0].toInt32());"
+      "  }"
+      "});", target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+#else
+  g_print ("<skipping, missing code for current architecture> ");
+#endif
+}
+
+TESTCASE (interceptor_should_support_default_options)
+{
+#if defined (HAVE_I386)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.defaults = {"
+      "  writeRedirect(d) {"
+      "    send(d.capacity > 0);"
+      "    d.writer.putJmpAddress(d.target);"
+      "  }"
+      "};"
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter(args) {"
+      "    send(args[0].toInt32());"
+      "  }"
+      "});", target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_NO_MESSAGES ();
+#elif defined (HAVE_ARM64)
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.defaults = {"
+      "  writeRedirect(d) {"
+      "    send(d.capacity > 0);"
+      "    d.writer.putLdrRegAddress(d.scratchRegister, d.target);"
+      "    d.writer.putBrReg(d.scratchRegister);"
+      "  }"
+      "};"
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter(args) {"
+      "    send(args[0].toInt32());"
+      "  }"
+      "});", target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("42");
   EXPECT_NO_MESSAGES ();
 #else
   g_print ("<skipping, missing code for current architecture> ");

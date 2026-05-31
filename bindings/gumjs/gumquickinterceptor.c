@@ -59,8 +59,15 @@ typedef struct _GumQuickCProbeListener GumQuickCProbeListener;
 typedef struct _GumQuickCProbeListenerClass GumQuickCProbeListenerClass;
 typedef struct _GumQuickInvocationState GumQuickInvocationState;
 typedef struct _GumQuickReplaceEntry GumQuickReplaceEntry;
+typedef struct _GumQuickRedirectClosure GumQuickRedirectClosure;
 
 typedef void (* GumQuickCHook) (GumInvocationContext * ic);
+
+struct _GumQuickRedirectClosure
+{
+  GumQuickInterceptor * parent;
+  JSValue callback;
+};
 
 struct _GumQuickInvocationListener
 {
@@ -159,9 +166,19 @@ static void gum_quick_interceptor_detach (GumQuickInterceptor * self,
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
+GUMJS_DECLARE_GETTER (gumjs_interceptor_get_defaults)
+GUMJS_DECLARE_SETTER (gumjs_interceptor_set_defaults)
 static gboolean gum_quick_interceptor_parse_target (JSContext * ctx,
     JSValueConst value, GumQuickCore * core, gpointer * target,
     GumInterceptorOptions * instrumentation);
+static gboolean gum_quick_interceptor_parse_options (JSContext * ctx,
+    JSValueConst value, GumQuickInterceptor * self,
+    GumInterceptorOptions * instrumentation);
+static void gum_quick_interceptor_clear_redirect (
+    GumInterceptorOptions * instrumentation);
+static GumRedirectWriteResult gum_quick_interceptor_emit_redirect (
+    const GumRedirectWriteDetails * details, gpointer user_data);
+static void gum_quick_redirect_closure_free (gpointer data);
 static gboolean gum_quick_listener_callback_get (JSContext * ctx,
     JSValueConst obj, const gchar * name, GumQuickCore * core,
     JSValue * js_func, GumQuickCHook * c_func);
@@ -285,6 +302,8 @@ static const JSCFunctionListEntry gumjs_interceptor_entries[] =
   JS_CFUNC_DEF ("_replaceFast", 0, gumjs_interceptor_replace_fast),
   JS_CFUNC_DEF ("revert", 0, gumjs_interceptor_revert),
   JS_CFUNC_DEF ("flush", 0, gumjs_interceptor_flush),
+  JS_CGETSET_DEF ("defaults", gumjs_interceptor_get_defaults,
+      gumjs_interceptor_set_defaults),
 };
 
 static const JSClassDef gumjs_invocation_listener_def =
@@ -342,6 +361,7 @@ static const JSCFunctionListEntry gumjs_invocation_retval_entries[] =
 void
 _gum_quick_interceptor_init (GumQuickInterceptor * self,
                              JSValue ns,
+                             GumQuickCodeWriter * writer,
                              GumQuickCore * core)
 {
   JSContext * ctx = core->ctx;
@@ -350,6 +370,11 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
   self->core = core;
 
   self->interceptor = gum_interceptor_obtain ();
+
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
+
+  self->writer = writer;
+  self->defaults_value = JS_NULL;
 
   self->invocation_listeners = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_quick_invocation_listener_destroy);
@@ -454,6 +479,16 @@ _gum_quick_interceptor_dispose (GumQuickInterceptor * self)
 {
   g_assert (self->flush_timer == NULL);
 
+  if (!JS_IsNull (self->defaults_value))
+  {
+    GumInterceptorOptions empty = { 0, };
+
+    gum_interceptor_set_default_options (self->interceptor, &empty);
+
+    JS_FreeValue (self->core->ctx, self->defaults_value);
+    self->defaults_value = JS_NULL;
+  }
+
   gum_quick_invocation_context_release (self->cached_invocation_context);
   gum_quick_invocation_args_release (self->cached_invocation_args);
   gum_quick_invocation_retval_release (self->cached_invocation_retval);
@@ -466,6 +501,8 @@ _gum_quick_interceptor_finalize (GumQuickInterceptor * self)
   g_clear_pointer (&self->replacement_by_address, g_hash_table_unref);
 
   g_clear_pointer (&self->interceptor, g_object_unref);
+
+  cs_close (&self->capstone);
 }
 
 static GumQuickInterceptor *
@@ -571,6 +608,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   attach_ret = gum_interceptor_attach (self->interceptor, target,
       GUM_INVOCATION_LISTENER (listener), &options);
 
+  gum_quick_interceptor_clear_redirect (&options.instrumentation);
+
   if (attach_ret != GUM_ATTACH_OK)
     goto unable_to_attach;
 
@@ -615,6 +654,8 @@ expected_callback:
   }
 propagate_exception:
   {
+    gum_quick_interceptor_clear_redirect (&options.instrumentation);
+
     g_clear_object (&listener);
 
     return JS_EXCEPTION;
@@ -661,10 +702,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
     return JS_EXCEPTION;
   }
 
-  if (!gum_quick_interceptor_parse_target (ctx, args->elements[0], core,
-      &target, &options.instrumentation))
-    return JS_EXCEPTION;
-
   replacement_value = args->elements[1];
   if (!_gum_quick_native_pointer_get (ctx, replacement_value, core,
       &replacement_function))
@@ -678,9 +715,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
       return JS_EXCEPTION;
   }
 
+  if (!gum_quick_interceptor_parse_target (ctx, args->elements[0], core,
+      &target, &options.instrumentation))
+    return JS_EXCEPTION;
+
   options.replacement_data = replacement_data;
   replace_ret = gum_interceptor_replace (self->interceptor, target,
       replacement_function, NULL, &options);
+
+  gum_quick_interceptor_clear_redirect (&options.instrumentation);
+
   if (replace_ret != GUM_REPLACE_OK)
     return gum_quick_handle_replace_ret (ctx, target, replace_ret);
 
@@ -705,17 +749,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
     return JS_EXCEPTION;
   }
 
-  if (!gum_quick_interceptor_parse_target (ctx, args->elements[0], core,
-      &target, &options))
-    return JS_EXCEPTION;
-
   replacement_value = args->elements[1];
   if (!_gum_quick_native_pointer_get (ctx, replacement_value, core,
       &replacement_function))
     return JS_EXCEPTION;
 
+  if (!gum_quick_interceptor_parse_target (ctx, args->elements[0], core,
+      &target, &options))
+    return JS_EXCEPTION;
+
   replace_ret = gum_interceptor_replace_fast (self->interceptor, target,
       replacement_function, &original_function, &options);
+
+  gum_quick_interceptor_clear_redirect (&options);
+
   if (replace_ret != GUM_REPLACE_OK)
     return gum_quick_handle_replace_ret (ctx, target, replace_ret);
 
@@ -733,11 +780,10 @@ gum_quick_interceptor_parse_target (JSContext * ctx,
                                     GumInterceptorOptions * instrumentation)
 {
   gboolean success = FALSE;
-  JSValue target_val = JS_NULL;
-  JSValue scratch_val = JS_NULL;
-  JSValue scenario_val = JS_NULL;
-  JSValue relocation_val = JS_NULL;
-  const char * str = NULL;
+  GumQuickInterceptor * self;
+  JSValue target_val;
+
+  self = gumjs_get_parent_module (core);
 
   target_val = JS_GetPropertyStr (ctx, value, "target");
   if (JS_IsUndefined (target_val))
@@ -746,12 +792,39 @@ gum_quick_interceptor_parse_target (JSContext * ctx,
     return _gum_quick_native_pointer_get (ctx, value, core, target);
   }
 
+  if (!_gum_quick_native_pointer_get (ctx, target_val, core, target))
+    goto beach;
+
+  if (!gum_quick_interceptor_parse_options (ctx, value, self, instrumentation))
+    goto beach;
+
+  success = TRUE;
+
+beach:
+  JS_FreeValue (ctx, target_val);
+
+  return success;
+}
+
+static gboolean
+gum_quick_interceptor_parse_options (JSContext * ctx,
+                                     JSValueConst value,
+                                     GumQuickInterceptor * self,
+                                     GumInterceptorOptions * instrumentation)
+{
+  gboolean success = FALSE;
+  JSValue scratch_val = JS_NULL;
+  JSValue scenario_val = JS_NULL;
+  JSValue relocation_val = JS_NULL;
+  JSValue write_redirect_val = JS_NULL;
+  JSValue space_hint_val = JS_NULL;
+  const char * str = NULL;
+
   scratch_val = JS_GetPropertyStr (ctx, value, "scratchRegister");
   scenario_val = JS_GetPropertyStr (ctx, value, "scenario");
   relocation_val = JS_GetPropertyStr (ctx, value, "relocation");
-
-  if (!_gum_quick_native_pointer_get (ctx, target_val, core, target))
-    goto beach;
+  write_redirect_val = JS_GetPropertyStr (ctx, value, "writeRedirect");
+  space_hint_val = JS_GetPropertyStr (ctx, value, "redirectSpaceHint");
 
   if (!JS_IsUndefined (scratch_val))
   {
@@ -809,17 +882,148 @@ gum_quick_interceptor_parse_target (JSContext * ctx,
     instrumentation->relocation_policy = policy;
   }
 
+  if (!JS_IsUndefined (write_redirect_val))
+  {
+    GumQuickRedirectClosure * closure;
+
+    if (!JS_IsFunction (ctx, write_redirect_val))
+    {
+      _gum_quick_throw_literal (ctx, "writeRedirect must be a function");
+      goto beach;
+    }
+
+    closure = g_slice_new (GumQuickRedirectClosure);
+    closure->parent = self;
+    closure->callback = JS_DupValue (ctx, write_redirect_val);
+
+    instrumentation->write_redirect = gum_quick_interceptor_emit_redirect;
+    instrumentation->write_redirect_data = closure;
+    instrumentation->write_redirect_data_destroy =
+        gum_quick_redirect_closure_free;
+  }
+
+  if (!JS_IsUndefined (space_hint_val))
+  {
+    guint32 hint;
+
+    if (JS_ToUint32 (ctx, &hint, space_hint_val) != 0)
+      goto beach;
+
+    instrumentation->redirect_space_hint = hint;
+  }
+
   success = TRUE;
 
 beach:
   if (str != NULL)
     JS_FreeCString (ctx, str);
+  JS_FreeValue (ctx, space_hint_val);
+  JS_FreeValue (ctx, write_redirect_val);
   JS_FreeValue (ctx, relocation_val);
   JS_FreeValue (ctx, scenario_val);
   JS_FreeValue (ctx, scratch_val);
-  JS_FreeValue (ctx, target_val);
 
   return success;
+}
+
+static void
+gum_quick_interceptor_clear_redirect (GumInterceptorOptions * instrumentation)
+{
+  if (instrumentation->write_redirect_data_destroy == NULL)
+    return;
+
+  instrumentation->write_redirect_data_destroy (
+      instrumentation->write_redirect_data);
+  instrumentation->write_redirect = NULL;
+  instrumentation->write_redirect_data = NULL;
+  instrumentation->write_redirect_data_destroy = NULL;
+}
+
+static GumRedirectWriteResult
+gum_quick_interceptor_emit_redirect (const GumRedirectWriteDetails * details,
+                                     gpointer user_data)
+{
+  GumQuickRedirectClosure * closure = user_data;
+  GumQuickInterceptor * self = closure->parent;
+  GumQuickCore * core = self->core;
+  JSContext * ctx = core->ctx;
+  GumRedirectWriteResult result = GUM_REDIRECT_WRITTEN;
+  GumQuickScope scope;
+  GumQuickDefaultWriter * writer;
+  JSValue wrapper, d, rv;
+
+  _gum_quick_scope_enter (&scope, core);
+
+  wrapper = _gum_quick_default_writer_new (ctx, NULL, self->writer, &writer);
+  _gum_quick_default_writer_reset (writer, details->writer);
+
+  d = JS_NewObject (ctx);
+  JS_SetPropertyStr (ctx, d, "writer", wrapper);
+  JS_SetPropertyStr (ctx, d, "target",
+      _gum_quick_native_pointer_new (ctx, details->target, core));
+#if defined (HAVE_ARM64) || defined (HAVE_MIPS)
+  JS_SetPropertyStr (ctx, d, "scratchRegister", JS_NewString (ctx,
+      cs_reg_name (self->capstone, details->scratch_register)));
+#endif
+  JS_SetPropertyStr (ctx, d, "capacity",
+      JS_NewUint32 (ctx, details->capacity));
+
+  rv = _gum_quick_scope_call (&scope, closure->callback,
+      JS_UNDEFINED, 1, (JSValueConst *) &d);
+  if (JS_IsException (rv))
+    result = GUM_REDIRECT_DECLINED;
+
+  JS_FreeValue (ctx, rv);
+
+  _gum_quick_default_writer_reset (writer, NULL);
+
+  JS_FreeValue (ctx, d);
+
+  _gum_quick_scope_leave (&scope);
+
+  return result;
+}
+
+static void
+gum_quick_redirect_closure_free (gpointer data)
+{
+  GumQuickRedirectClosure * closure = data;
+
+  JS_FreeValue (closure->parent->core->ctx, closure->callback);
+
+  g_slice_free (GumQuickRedirectClosure, closure);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_interceptor_get_defaults)
+{
+  GumQuickInterceptor * self = gumjs_get_parent_module (core);
+
+  if (JS_IsNull (self->defaults_value))
+    return JS_NewObject (ctx);
+
+  return JS_DupValue (ctx, self->defaults_value);
+}
+
+GUMJS_DEFINE_SETTER (gumjs_interceptor_set_defaults)
+{
+  GumQuickInterceptor * self = gumjs_get_parent_module (core);
+  GumInterceptorOptions options = { 0, };
+
+  if (!JS_IsObject (val))
+    return _gum_quick_throw_literal (ctx, "expected an object");
+
+  if (!gum_quick_interceptor_parse_options (ctx, val, self, &options))
+  {
+    gum_quick_interceptor_clear_redirect (&options);
+    return JS_EXCEPTION;
+  }
+
+  gum_interceptor_set_default_options (self->interceptor, &options);
+
+  JS_FreeValue (ctx, self->defaults_value);
+  self->defaults_value = JS_DupValue (ctx, val);
+
+  return JS_UNDEFINED;
 }
 
 static gboolean

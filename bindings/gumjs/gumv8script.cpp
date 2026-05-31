@@ -556,7 +556,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_database_init (&self->database, &self->core, global_templ);
 #endif
     _gum_v8_interceptor_init (&self->interceptor, &self->core,
-        global_templ);
+        &self->code_writer, global_templ);
     _gum_v8_api_resolver_init (&self->api_resolver, &self->core, global_templ);
     _gum_v8_symbol_init (&self->symbol, &self->core, global_templ);
     _gum_v8_cmodule_init (&self->cmodule, &self->core, global_templ);

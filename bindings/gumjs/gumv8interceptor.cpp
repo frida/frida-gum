@@ -46,6 +46,12 @@ using namespace v8;
 
 typedef void (* GumV8CHook) (GumInvocationContext * ic);
 
+struct GumV8RedirectClosure
+{
+  GumV8Interceptor * parent;
+  v8::Global<v8::Function> * callback;
+};
+
 struct GumV8InvocationListener
 {
   GObject object;
@@ -142,9 +148,16 @@ GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
 static gboolean gum_v8_interceptor_parse_target (Local<Value> value,
     gpointer * target, GumInterceptorOptions * instrumentation,
     GumV8Interceptor * module);
+GUMJS_DECLARE_GETTER (gumjs_interceptor_get_defaults)
+GUMJS_DECLARE_SETTER (gumjs_interceptor_set_defaults)
 static gboolean gum_v8_interceptor_parse_options (
     Local<Object> options, GumInterceptorOptions * instrumentation,
     GumV8Interceptor * module);
+static void gum_v8_interceptor_clear_redirect (
+    GumInterceptorOptions * instrumentation);
+static GumRedirectWriteResult gum_v8_interceptor_emit_redirect (
+    const GumRedirectWriteDetails * details, gpointer user_data);
+static void gum_v8_redirect_closure_free (GumV8RedirectClosure * closure);
 static gboolean gum_v8_interceptor_get_callback (Local<Object> obj,
     const gchar * name, Local<Function> * js_func, GumV8CHook * c_func,
     GumV8Interceptor * module);
@@ -274,6 +287,17 @@ static const GumV8Function gumjs_interceptor_functions[] =
   { NULL, NULL }
 };
 
+static const GumV8Property gumjs_interceptor_values[] =
+{
+  {
+    "defaults",
+    gumjs_interceptor_get_defaults,
+    gumjs_interceptor_set_defaults
+  },
+
+  { NULL, NULL, NULL }
+};
+
 static const GumV8Function gumjs_invocation_listener_functions[] =
 {
   { "detach", gumjs_invocation_listener_detach },
@@ -322,6 +346,7 @@ static const GumV8Function gumjs_invocation_return_value_functions[] =
 void
 _gum_v8_interceptor_init (GumV8Interceptor * self,
                           GumV8Core * core,
+                          GumV8CodeWriter * writer,
                           Local<ObjectTemplate> scope)
 {
   auto isolate = core->isolate;
@@ -329,6 +354,11 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
   self->core = core;
 
   self->interceptor = gum_interceptor_obtain ();
+
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
+
+  self->writer = writer;
+  self->defaults_value = nullptr;
 
   self->invocation_listeners = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_invocation_listener_destroy);
@@ -346,6 +376,8 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
 
   auto interceptor = _gum_v8_create_module ("Interceptor", scope, isolate);
   _gum_v8_module_add (module, interceptor, gumjs_interceptor_functions,
+      isolate);
+  _gum_v8_module_add (module, interceptor, gumjs_interceptor_values,
       isolate);
 
   auto listener = _gum_v8_create_class ("InvocationListener", nullptr, scope,
@@ -478,6 +510,16 @@ _gum_v8_interceptor_dispose (GumV8Interceptor * self)
 {
   g_assert (self->flush_timer == NULL);
 
+  if (self->defaults_value != nullptr)
+  {
+    GumInterceptorOptions empty = { 0, };
+
+    gum_interceptor_set_default_options (self->interceptor, &empty);
+
+    delete self->defaults_value;
+    self->defaults_value = nullptr;
+  }
+
   gum_v8_invocation_context_release_persistent (
       self->cached_invocation_context);
   gum_v8_invocation_args_release_persistent (
@@ -530,6 +572,8 @@ _gum_v8_interceptor_finalize (GumV8Interceptor * self)
 
   g_object_unref (self->interceptor);
   self->interceptor = NULL;
+
+  cs_close (&self->capstone);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
@@ -545,10 +589,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   GumAttachOptions options = {};
   auto target_val = info[0];
   auto callback_val = info[1];
-
-  if (!gum_v8_interceptor_parse_target (target_val, &target,
-      &options.instrumentation, module))
-    return;
 
   auto native_pointer = Local<FunctionTemplate>::New (isolate,
       *core->native_pointer);
@@ -633,9 +673,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
     listener_function_data = NULL;
   }
 
+  if (!gum_v8_interceptor_parse_target (target_val, &target,
+      &options.instrumentation, module))
+  {
+    g_object_unref (listener);
+    return;
+  }
+
   options.listener_function_data = listener_function_data;
   auto attach_ret = gum_interceptor_attach (module->interceptor, target,
       GUM_INVOCATION_LISTENER (listener), &options);
+
+  gum_v8_interceptor_clear_redirect (&options.instrumentation);
 
   if (attach_ret == GUM_ATTACH_OK)
   {
@@ -711,10 +760,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   gpointer target, replacement_function, replacement_data = NULL;
   GumReplaceOptions options = {};
 
-  if (!gum_v8_interceptor_parse_target (info[0], &target,
-      &options.instrumentation, module))
-    return;
-
   if (!_gum_v8_native_pointer_get (info[1], &replacement_function, core))
     return;
 
@@ -724,9 +769,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
       return;
   }
 
+  if (!gum_v8_interceptor_parse_target (info[0], &target,
+      &options.instrumentation, module))
+    return;
+
   options.replacement_data = replacement_data;
   auto replace_ret = gum_interceptor_replace (module->interceptor, target,
       replacement_function, NULL, &options);
+
+  gum_v8_interceptor_clear_redirect (&options.instrumentation);
 
   gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
 }
@@ -743,14 +794,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace_fast)
   gpointer target, replacement_function, original_function;
   GumInterceptorOptions options = {};
 
-  if (!gum_v8_interceptor_parse_target (info[0], &target, &options, module))
+  if (!_gum_v8_native_pointer_get (info[1], &replacement_function, core))
     return;
 
-  if (!_gum_v8_native_pointer_get (info[1], &replacement_function, core))
+  if (!gum_v8_interceptor_parse_target (info[0], &target, &options, module))
     return;
 
   auto replace_ret = gum_interceptor_replace_fast (module->interceptor, target,
       replacement_function, &original_function, &options);
+
+  gum_v8_interceptor_clear_redirect (&options);
 
   gum_v8_handle_replace_ret (module, target, info[1], replace_ret);
 
@@ -851,7 +904,144 @@ gum_v8_interceptor_parse_options (Local<Object> options,
     instrumentation->relocation_policy = (GumRelocationPolicy) policy;
   }
 
+  Local<Value> write_redirect_val;
+  if (!options->Get (context,
+      _gum_v8_string_new_ascii (isolate, "writeRedirect"))
+      .ToLocal (&write_redirect_val))
+    return FALSE;
+  if (!write_redirect_val->IsUndefined ())
+  {
+    if (!write_redirect_val->IsFunction ())
+    {
+      _gum_v8_throw_ascii_literal (isolate, "writeRedirect must be a function");
+      return FALSE;
+    }
+
+    auto closure = g_slice_new (GumV8RedirectClosure);
+    closure->parent = module;
+    closure->callback =
+        new Global<Function> (isolate, write_redirect_val.As<Function> ());
+
+    instrumentation->write_redirect = gum_v8_interceptor_emit_redirect;
+    instrumentation->write_redirect_data = closure;
+    instrumentation->write_redirect_data_destroy =
+        (GDestroyNotify) gum_v8_redirect_closure_free;
+  }
+
+  Local<Value> space_hint_val;
+  if (!options->Get (context,
+      _gum_v8_string_new_ascii (isolate, "redirectSpaceHint"))
+      .ToLocal (&space_hint_val))
+    return FALSE;
+  if (!space_hint_val->IsUndefined ())
+  {
+    uint32_t hint;
+    if (!space_hint_val->Uint32Value (context).To (&hint))
+      return FALSE;
+    instrumentation->redirect_space_hint = hint;
+  }
+
   return TRUE;
+}
+
+static GumRedirectWriteResult
+gum_v8_interceptor_emit_redirect (const GumRedirectWriteDetails * details,
+                                  gpointer user_data)
+{
+  auto closure = (GumV8RedirectClosure *) user_data;
+  auto self = closure->parent;
+  auto core = self->core;
+  auto isolate = core->isolate;
+  GumRedirectWriteResult result = GUM_REDIRECT_WRITTEN;
+
+  ScriptScope scope (core->script);
+  auto context = isolate->GetCurrentContext ();
+
+  auto writer = _gum_v8_default_writer_new_persistent (self->writer);
+  _gum_v8_default_writer_reset (writer,
+      (GumV8DefaultWriterImpl *) details->writer);
+
+  auto writer_object = Local<Object>::New (isolate, *writer->object);
+
+  auto d = Object::New (isolate);
+  _gum_v8_object_set (d, "writer", writer_object, core);
+  _gum_v8_object_set_pointer (d, "target", details->target, core);
+#if defined (HAVE_ARM64) || defined (HAVE_MIPS)
+  _gum_v8_object_set_ascii (d, "scratchRegister",
+      cs_reg_name (self->capstone, details->scratch_register), core);
+#endif
+  _gum_v8_object_set_uint (d, "capacity", details->capacity, core);
+
+  auto callback = Local<Function>::New (isolate, *closure->callback);
+  auto recv = Undefined (isolate);
+  Local<Value> argv[] = { d };
+  auto ret = callback->Call (context, recv, G_N_ELEMENTS (argv), argv);
+  if (ret.IsEmpty ())
+  {
+    scope.ProcessAnyPendingException ();
+    result = GUM_REDIRECT_DECLINED;
+  }
+
+  _gum_v8_default_writer_reset (writer, NULL);
+  _gum_v8_default_writer_release_persistent (writer);
+
+  return result;
+}
+
+static void
+gum_v8_interceptor_clear_redirect (GumInterceptorOptions * instrumentation)
+{
+  if (instrumentation->write_redirect_data_destroy == NULL)
+    return;
+
+  instrumentation->write_redirect_data_destroy (
+      instrumentation->write_redirect_data);
+  instrumentation->write_redirect = NULL;
+  instrumentation->write_redirect_data = NULL;
+  instrumentation->write_redirect_data_destroy = NULL;
+}
+
+static void
+gum_v8_redirect_closure_free (GumV8RedirectClosure * closure)
+{
+  delete closure->callback;
+
+  g_slice_free (GumV8RedirectClosure, closure);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_interceptor_get_defaults)
+{
+  if (module->defaults_value == nullptr)
+  {
+    info.GetReturnValue ().Set (Object::New (isolate));
+    return;
+  }
+
+  info.GetReturnValue ().Set (
+      Local<Object>::New (isolate, *module->defaults_value));
+}
+
+GUMJS_DEFINE_SETTER (gumjs_interceptor_set_defaults)
+{
+  if (!value->IsObject ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected an object");
+    return;
+  }
+
+  auto options_obj = value.As<Object> ();
+
+  GumInterceptorOptions options = {};
+  if (!gum_v8_interceptor_parse_options (options_obj, &options, module))
+  {
+    gum_v8_interceptor_clear_redirect (&options);
+    return;
+  }
+
+  gum_interceptor_set_default_options (module->interceptor, &options);
+
+  delete module->defaults_value;
+  module->defaults_value = new Global<Object> (isolate, options_obj);
 }
 
 static gboolean

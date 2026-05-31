@@ -502,7 +502,8 @@ gum_quick_script_create_context (GumQuickScript * self,
 #ifdef HAVE_SQLITE
   _gum_quick_database_init (&self->database, global_obj, core);
 #endif
-  _gum_quick_interceptor_init (&self->interceptor, global_obj, core);
+  _gum_quick_interceptor_init (&self->interceptor, global_obj,
+      &self->code_writer, core);
   _gum_quick_api_resolver_init (&self->api_resolver, global_obj, core);
   _gum_quick_symbol_init (&self->symbol, global_obj, core);
   _gum_quick_cmodule_init (&self->cmodule, global_obj, core);
