@@ -964,10 +964,11 @@ gum_quick_interceptor_emit_redirect (const GumRedirectWriteDetails * details,
   JS_SetPropertyStr (ctx, d, "writer", wrapper);
   JS_SetPropertyStr (ctx, d, "target",
       _gum_quick_native_pointer_new (ctx, details->target, core));
-#if defined (HAVE_ARM64) || defined (HAVE_MIPS)
-  JS_SetPropertyStr (ctx, d, "scratchRegister", JS_NewString (ctx,
-      cs_reg_name (self->capstone, details->scratch_register)));
-#endif
+  if (details->scratch_register != 0)
+  {
+    JS_SetPropertyStr (ctx, d, "scratchRegister", JS_NewString (ctx,
+        cs_reg_name (self->capstone, details->scratch_register)));
+  }
   JS_SetPropertyStr (ctx, d, "capacity",
       JS_NewUint32 (ctx, details->capacity));
 

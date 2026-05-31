@@ -972,10 +972,11 @@ gum_v8_interceptor_emit_redirect (const GumRedirectWriteDetails * details,
   auto d = Object::New (isolate);
   _gum_v8_object_set (d, "writer", writer_object, core);
   _gum_v8_object_set_pointer (d, "target", details->target, core);
-#if defined (HAVE_ARM64) || defined (HAVE_MIPS)
-  _gum_v8_object_set_ascii (d, "scratchRegister",
-      cs_reg_name (self->capstone, details->scratch_register), core);
-#endif
+  if (details->scratch_register != 0)
+  {
+    _gum_v8_object_set_ascii (d, "scratchRegister",
+        cs_reg_name (self->capstone, details->scratch_register), core);
+  }
   _gum_v8_object_set_uint (d, "capacity", details->capacity, core);
 
   auto callback = Local<Function>::New (isolate, *closure->callback);
