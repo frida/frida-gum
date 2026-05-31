@@ -1977,8 +1977,8 @@ gum_stalker_install_unwind_resume_context (GumUnwindPcTranslator * translator,
   if (ctx == NULL)
     return FALSE;
 
-  resume_ip = gum_exec_ctx_switch_block (ctx, NULL,
-      GSIZE_TO_POINTER (real_resume_ip), NULL);
+  resume_ip = (guint8 *) gum_exec_ctx_switch_block (ctx, NULL,
+      GSIZE_TO_POINTER (real_resume_ip), NULL) + GUM_RESTORATION_PROLOG_SIZE;
   _Unwind_SetIP ((struct _Unwind_Context *) unwind_context,
       GPOINTER_TO_SIZE (resume_ip));
 
