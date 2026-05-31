@@ -104,7 +104,7 @@ static gpointer gum_try_resolve_symbol (const gchar * symbol_name,
 
 static void gum_parse_context (gconstpointer context,
     GumCpuContext * ctx);
-static void gum_unparse_context (const GumCpuContext * ctx,
+G_GNUC_UNUSED static void gum_unparse_context (const GumCpuContext * ctx,
     gpointer context);
 
 static GumMemoryOperation gum_infer_memory_operation (gconstpointer address,

@@ -383,7 +383,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 {
   GumExceptor * self = GUM_EXCEPTOR (user_data);
   GumExceptorScope * scope;
-  GumCpuContext * context = &details->context;
+  G_GNUC_UNUSED GumCpuContext * context = &details->context;
 
   GUM_EXCEPTOR_LOCK ();
   scope = g_hash_table_lookup (self->scopes,
