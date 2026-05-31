@@ -25,6 +25,7 @@ typedef guint GumInvocationState;
 typedef void (* GumInterceptorLockedFunc) (gpointer user_data);
 
 typedef enum {
+  GUM_INTERCEPTOR_SCENARIO_DEFAULT,
   GUM_INTERCEPTOR_SCENARIO_ONLINE,
   GUM_INTERCEPTOR_SCENARIO_OFFLINE,
 } GumInterceptorScenario;
@@ -54,6 +55,7 @@ struct _GumInterceptorOptions
   GumRelocationPolicy relocation_policy;
   GumWriteRedirectFunc write_redirect;
   gpointer write_redirect_data;
+  GDestroyNotify write_redirect_data_destroy;
   guint redirect_space_hint;
 };
 
@@ -97,6 +99,9 @@ typedef enum
 } GumReplaceReturn;
 
 GUM_API GumInterceptor * gum_interceptor_obtain (void);
+
+GUM_API void gum_interceptor_set_default_options (GumInterceptor * self,
+    const GumInterceptorOptions * options);
 
 GUM_API GumAttachReturn gum_interceptor_attach (GumInterceptor * self,
     gpointer function_address, GumInvocationListener * listener,

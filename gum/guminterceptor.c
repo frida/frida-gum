@@ -73,6 +73,8 @@ struct _GumInterceptor
   GumInterceptorBackend * backend;
   GumCodeAllocator allocator;
 
+  GumInterceptorOptions options;
+
   volatile guint selected_thread_id;
 
   GumInterceptorTransaction current_transaction;
@@ -290,6 +292,9 @@ gum_interceptor_init (GumInterceptor * self)
 
   gum_code_allocator_init (&self->allocator, GUM_INTERCEPTOR_CODE_SLICE_SIZE);
 
+  self->options.scenario = GUM_INTERCEPTOR_SCENARIO_ONLINE;
+  self->options.relocation_policy = GUM_RELOCATION_CHECKED;
+
   gum_interceptor_transaction_init (&self->current_transaction, self);
 }
 
@@ -308,6 +313,14 @@ gum_interceptor_dispose (GObject * object)
   GUM_INTERCEPTOR_UNLOCK (self);
 
   g_clear_object (&self->unwind_broker);
+
+  if (self->options.write_redirect_data_destroy != NULL)
+  {
+    self->options.write_redirect_data_destroy (
+        self->options.write_redirect_data);
+    self->options.write_redirect_data = NULL;
+    self->options.write_redirect_data_destroy = NULL;
+  }
 
   G_OBJECT_CLASS (gum_interceptor_parent_class)->dispose (object);
 }
@@ -383,6 +396,23 @@ the_interceptor_weak_notify (gpointer data,
   _the_interceptor = NULL;
 
   g_mutex_unlock (&_gum_interceptor_lock);
+}
+
+void
+gum_interceptor_set_default_options (GumInterceptor * self,
+                                     const GumInterceptorOptions * options)
+{
+  GumInterceptorOptions * defaults = &self->options;
+
+  if (defaults->write_redirect_data_destroy != NULL)
+    defaults->write_redirect_data_destroy (defaults->write_redirect_data);
+
+  *defaults = *options;
+
+  if (defaults->scenario == GUM_INTERCEPTOR_SCENARIO_DEFAULT)
+    defaults->scenario = GUM_INTERCEPTOR_SCENARIO_ONLINE;
+  if (defaults->relocation_policy == GUM_RELOCATION_DEFAULT)
+    defaults->relocation_policy = GUM_RELOCATION_CHECKED;
 }
 
 GumAttachReturn
@@ -920,6 +950,8 @@ gum_interceptor_instrument (GumInterceptor * self,
                             GumInstrumentationError * error)
 {
   GumFunctionContext * ctx;
+  GumInterceptorOptions effective;
+  const GumInterceptorOptions * defaults;
   gboolean force;
 
   *error = GUM_INSTRUMENTATION_ERROR_NONE;
@@ -944,14 +976,30 @@ gum_interceptor_instrument (GumInterceptor * self,
   }
 
   ctx = gum_function_context_new (self, function_address, type);
-  ctx->scratch_register = instrumentation->scratch_register;
-  ctx->scenario = instrumentation->scenario;
-  ctx->relocation_policy = instrumentation->relocation_policy;
-  ctx->write_redirect = instrumentation->write_redirect;
-  ctx->write_redirect_data = instrumentation->write_redirect_data;
-  ctx->redirect_space_hint = instrumentation->redirect_space_hint;
+  effective = *instrumentation;
+  defaults = &self->options;
+  if (effective.scratch_register == 0)
+    effective.scratch_register = defaults->scratch_register;
+  if (effective.scenario == GUM_INTERCEPTOR_SCENARIO_DEFAULT)
+    effective.scenario = defaults->scenario;
+  if (effective.relocation_policy == GUM_RELOCATION_DEFAULT)
+    effective.relocation_policy = defaults->relocation_policy;
+  if (effective.write_redirect == NULL)
+  {
+    effective.write_redirect = defaults->write_redirect;
+    effective.write_redirect_data = defaults->write_redirect_data;
+  }
+  if (effective.redirect_space_hint == 0)
+    effective.redirect_space_hint = defaults->redirect_space_hint;
 
-  force = instrumentation->relocation_policy == GUM_RELOCATION_FORCED;
+  ctx->scratch_register = effective.scratch_register;
+  ctx->scenario = effective.scenario;
+  ctx->relocation_policy = effective.relocation_policy;
+  ctx->write_redirect = effective.write_redirect;
+  ctx->write_redirect_data = effective.write_redirect_data;
+  ctx->redirect_space_hint = effective.redirect_space_hint;
+
+  force = effective.relocation_policy == GUM_RELOCATION_FORCED;
 
   if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
   {
