@@ -9,9 +9,9 @@
 
 #include "guminterceptor.h"
 
-static GumInterceptor * gum_unwind_libunwind_interceptor = NULL;
-
 static GumAddress gum_unwind_broker_translate_pc (GumAddress code_address);
+
+static GumInterceptor * gum_unwind_libunwind_interceptor = NULL;
 
 #ifdef HAVE_ARM
 
@@ -163,6 +163,8 @@ typedef struct _Unwind_Exception _Unwind_Exception;
 typedef struct _Unwind_Context _Unwind_Context;
 struct dwarf_eh_bases;
 
+typedef unsigned long (* GumUnwindGetIpFunc) (struct _Unwind_Context *);
+
 extern _Unwind_Reason_Code __gxx_personality_v0 (int version,
     _Unwind_Action actions, uint64_t exception_class,
     _Unwind_Exception * unwind_exception, _Unwind_Context * context)
@@ -174,10 +176,14 @@ extern unsigned long _Unwind_GetIP (struct _Unwind_Context *);
 static _Unwind_Reason_Code gum_unwind_broker_replacement_personality (
     int version, _Unwind_Action actions, uint64_t exception_class,
     _Unwind_Exception * unwind_exception, _Unwind_Context * context);
+static GumAddress gum_unwind_get_untranslated_ip (
+    struct _Unwind_Context * context);
 static const void * gum_unwind_broker_replacement_find_fde (const void * pc,
     struct dwarf_eh_bases * bases);
 static unsigned long gum_unwind_broker_replacement_get_ip (
     struct _Unwind_Context * context);
+
+static gpointer gum_unwind_real_get_ip;
 
 void
 _gum_unwind_broker_backend_activate (void)
@@ -199,7 +205,8 @@ _gum_unwind_broker_backend_activate (void)
   g_assert (res == GUM_REPLACE_OK);
 
   res = gum_interceptor_replace (gum_unwind_libunwind_interceptor,
-      _Unwind_GetIP, gum_unwind_broker_replacement_get_ip, NULL, NULL);
+      _Unwind_GetIP, gum_unwind_broker_replacement_get_ip,
+      &gum_unwind_real_get_ip, NULL);
   g_assert (res == GUM_REPLACE_OK);
 }
 
@@ -228,7 +235,7 @@ gum_unwind_broker_replacement_personality (int version,
   _Unwind_Reason_Code reason;
   GumAddress throw_ip, real_throw_ip;
 
-  throw_ip = _Unwind_GetIP (context);
+  throw_ip = gum_unwind_get_untranslated_ip (context);
   real_throw_ip = gum_unwind_broker_translate_pc (throw_ip);
   if (real_throw_ip == 0)
   {
@@ -242,13 +249,22 @@ gum_unwind_broker_replacement_personality (int version,
       unwind_exception, context);
   if (reason == _URC_INSTALL_CONTEXT)
   {
-    GumAddress real_resume_ip = _Unwind_GetIP (context);
+    GumAddress real_resume_ip = gum_unwind_get_untranslated_ip (context);
 
     _gum_unwind_broker_dispatch_install_resume_context (context,
         real_resume_ip);
   }
 
   return reason;
+}
+
+static GumAddress
+gum_unwind_get_untranslated_ip (struct _Unwind_Context * context)
+{
+  GumUnwindGetIpFunc get_ip =
+      GUM_POINTER_TO_FUNCPTR (GumUnwindGetIpFunc, gum_unwind_real_get_ip);
+
+  return get_ip (context);
 }
 
 static const void *
