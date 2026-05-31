@@ -162,6 +162,7 @@ namespace Gum {
 		public Gum.ReplaceReturn replace (void * function_address, void * replacement_function,
 			out void * original_function = null, Gum.ReplaceOptions? options = null);
 		public void revert (void * function_address);
+		public void set_default_options (Gum.InterceptorOptions options);
 
 		public void begin_transaction ();
 		public void end_transaction ();
@@ -219,7 +220,26 @@ namespace Gum {
 		public int scratch_register;
 		public Gum.InterceptorScenario scenario;
 		public Gum.RelocationPolicy relocation_policy;
+		[CCode (delegate_target_cname = "write_redirect_data")]
+		public unowned Gum.WriteRedirectFunc? write_redirect;
+		public uint redirect_space_hint;
 	}
+
+	[CCode (has_type_id = false)]
+	public struct RedirectWriteDetails {
+		public void * writer;
+		public void * target;
+		public int scratch_register;
+		public uint capacity;
+	}
+
+	[CCode (cprefix = "GUM_REDIRECT_")]
+	public enum RedirectWriteResult {
+		WRITTEN,
+		DECLINED,
+	}
+
+	public delegate Gum.RedirectWriteResult WriteRedirectFunc (Gum.RedirectWriteDetails details);
 
 	[CCode (cprefix = "GUM_INTERCEPTOR_SCENARIO_")]
 	public enum InterceptorScenario {
