@@ -158,6 +158,8 @@ struct _GumQuickReplaceEntry
 static gboolean gum_quick_interceptor_on_flush_timer_tick (
     GumQuickInterceptor * self);
 
+GUMJS_DECLARE_GETTER (gumjs_interceptor_get_defaults)
+GUMJS_DECLARE_SETTER (gumjs_interceptor_set_defaults)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
 static void gum_quick_invocation_listener_destroy (
     GumQuickInvocationListener * listener);
@@ -166,8 +168,6 @@ static void gum_quick_interceptor_detach (GumQuickInterceptor * self,
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
-GUMJS_DECLARE_GETTER (gumjs_interceptor_get_defaults)
-GUMJS_DECLARE_SETTER (gumjs_interceptor_set_defaults)
 static gboolean gum_quick_interceptor_parse_target (JSContext * ctx,
     JSValueConst value, GumQuickCore * core, gpointer * target,
     GumInterceptorOptions * instrumentation);
@@ -296,14 +296,14 @@ static void gum_quick_interceptor_release_invocation_retval (
 
 static const JSCFunctionListEntry gumjs_interceptor_entries[] =
 {
+  JS_CGETSET_DEF ("defaults", gumjs_interceptor_get_defaults,
+      gumjs_interceptor_set_defaults),
   JS_CFUNC_DEF ("_attach", 3, gumjs_interceptor_attach),
   JS_CFUNC_DEF ("detachAll", 0, gumjs_interceptor_detach_all),
   JS_CFUNC_DEF ("_replace", 0, gumjs_interceptor_replace),
   JS_CFUNC_DEF ("_replaceFast", 0, gumjs_interceptor_replace_fast),
   JS_CFUNC_DEF ("revert", 0, gumjs_interceptor_revert),
   JS_CFUNC_DEF ("flush", 0, gumjs_interceptor_flush),
-  JS_CGETSET_DEF ("defaults", gumjs_interceptor_get_defaults,
-      gumjs_interceptor_set_defaults),
 };
 
 static const JSClassDef gumjs_invocation_listener_def =
@@ -516,6 +516,42 @@ static GumQuickInterceptor *
 gumjs_get_parent_module (GumQuickCore * core)
 {
   return _gum_quick_core_load_module_data (core, "interceptor");
+}
+
+GUMJS_DEFINE_GETTER (gumjs_interceptor_get_defaults)
+{
+  GumQuickInterceptor * self = gumjs_get_parent_module (core);
+
+  if (JS_IsNull (self->defaults_value))
+    return JS_NewObject (ctx);
+
+  return JS_DupValue (ctx, self->defaults_value);
+}
+
+GUMJS_DEFINE_SETTER (gumjs_interceptor_set_defaults)
+{
+  GumQuickInterceptor * self = gumjs_get_parent_module (core);
+  GumInterceptorOptions options = { 0, };
+
+  if (!JS_IsObject (val))
+    return _gum_quick_throw_literal (ctx, "expected an object");
+
+  if (!gum_quick_interceptor_parse_options (ctx, val, self, &options))
+  {
+    gum_quick_interceptor_clear_redirect (&options);
+    return JS_EXCEPTION;
+  }
+
+  gum_interceptor_set_default_options (self->interceptor, &options);
+
+  if (self->default_redirect_closure != NULL)
+    gum_quick_redirect_closure_free (self->default_redirect_closure);
+  self->default_redirect_closure = options.write_redirect_data;
+
+  JS_FreeValue (ctx, self->defaults_value);
+  self->defaults_value = JS_DupValue (ctx, val);
+
+  return JS_UNDEFINED;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
@@ -996,42 +1032,6 @@ gum_quick_redirect_closure_free (gpointer data)
   JS_FreeValue (closure->parent->core->ctx, closure->callback);
 
   g_slice_free (GumQuickRedirectClosure, closure);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_interceptor_get_defaults)
-{
-  GumQuickInterceptor * self = gumjs_get_parent_module (core);
-
-  if (JS_IsNull (self->defaults_value))
-    return JS_NewObject (ctx);
-
-  return JS_DupValue (ctx, self->defaults_value);
-}
-
-GUMJS_DEFINE_SETTER (gumjs_interceptor_set_defaults)
-{
-  GumQuickInterceptor * self = gumjs_get_parent_module (core);
-  GumInterceptorOptions options = { 0, };
-
-  if (!JS_IsObject (val))
-    return _gum_quick_throw_literal (ctx, "expected an object");
-
-  if (!gum_quick_interceptor_parse_options (ctx, val, self, &options))
-  {
-    gum_quick_interceptor_clear_redirect (&options);
-    return JS_EXCEPTION;
-  }
-
-  gum_interceptor_set_default_options (self->interceptor, &options);
-
-  if (self->default_redirect_closure != NULL)
-    gum_quick_redirect_closure_free (self->default_redirect_closure);
-  self->default_redirect_closure = options.write_redirect_data;
-
-  JS_FreeValue (ctx, self->defaults_value);
-  self->defaults_value = JS_DupValue (ctx, val);
-
-  return JS_UNDEFINED;
 }
 
 static gboolean

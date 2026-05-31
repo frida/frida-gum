@@ -139,6 +139,8 @@ struct GumV8ReplaceEntry
 static gboolean gum_v8_interceptor_on_flush_timer_tick (
     GumV8Interceptor * self);
 
+GUMJS_DECLARE_GETTER (gumjs_interceptor_get_defaults)
+GUMJS_DECLARE_SETTER (gumjs_interceptor_set_defaults)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
 static void gum_v8_invocation_listener_destroy (
     GumV8InvocationListener * listener);
@@ -148,8 +150,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace_fast)
 static gboolean gum_v8_interceptor_parse_target (Local<Value> value,
     gpointer * target, GumInterceptorOptions * instrumentation,
     GumV8Interceptor * module);
-GUMJS_DECLARE_GETTER (gumjs_interceptor_get_defaults)
-GUMJS_DECLARE_SETTER (gumjs_interceptor_set_defaults)
 static gboolean gum_v8_interceptor_parse_options (
     Local<Object> options, GumInterceptorOptions * instrumentation,
     GumV8Interceptor * module);
@@ -275,6 +275,17 @@ static GumV8InvocationReturnValue *
 static void gum_v8_interceptor_release_invocation_return_value (
     GumV8Interceptor * self, GumV8InvocationReturnValue * retval);
 
+static const GumV8Property gumjs_interceptor_values[] =
+{
+  {
+    "defaults",
+    gumjs_interceptor_get_defaults,
+    gumjs_interceptor_set_defaults
+  },
+
+  { NULL, NULL, NULL }
+};
+
 static const GumV8Function gumjs_interceptor_functions[] =
 {
   { "_attach", gumjs_interceptor_attach },
@@ -285,17 +296,6 @@ static const GumV8Function gumjs_interceptor_functions[] =
   { "flush", gumjs_interceptor_flush },
 
   { NULL, NULL }
-};
-
-static const GumV8Property gumjs_interceptor_values[] =
-{
-  {
-    "defaults",
-    gumjs_interceptor_get_defaults,
-    gumjs_interceptor_set_defaults
-  },
-
-  { NULL, NULL, NULL }
 };
 
 static const GumV8Function gumjs_invocation_listener_functions[] =
@@ -582,6 +582,46 @@ _gum_v8_interceptor_finalize (GumV8Interceptor * self)
   self->interceptor = NULL;
 
   cs_close (&self->capstone);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_interceptor_get_defaults)
+{
+  if (module->defaults_value == nullptr)
+  {
+    info.GetReturnValue ().Set (Object::New (isolate));
+    return;
+  }
+
+  info.GetReturnValue ().Set (
+      Local<Object>::New (isolate, *module->defaults_value));
+}
+
+GUMJS_DEFINE_SETTER (gumjs_interceptor_set_defaults)
+{
+  if (!value->IsObject ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected an object");
+    return;
+  }
+
+  auto options_obj = value.As<Object> ();
+
+  GumInterceptorOptions options = {};
+  if (!gum_v8_interceptor_parse_options (options_obj, &options, module))
+  {
+    gum_v8_interceptor_clear_redirect (&options);
+    return;
+  }
+
+  gum_interceptor_set_default_options (module->interceptor, &options);
+
+  if (module->default_redirect_closure != nullptr)
+    gum_v8_redirect_closure_free (
+        (GumV8RedirectClosure *) module->default_redirect_closure);
+  module->default_redirect_closure = options.write_redirect_data;
+
+  delete module->defaults_value;
+  module->defaults_value = new Global<Object> (isolate, options_obj);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
@@ -1013,46 +1053,6 @@ gum_v8_redirect_closure_free (GumV8RedirectClosure * closure)
   delete closure->callback;
 
   g_slice_free (GumV8RedirectClosure, closure);
-}
-
-GUMJS_DEFINE_GETTER (gumjs_interceptor_get_defaults)
-{
-  if (module->defaults_value == nullptr)
-  {
-    info.GetReturnValue ().Set (Object::New (isolate));
-    return;
-  }
-
-  info.GetReturnValue ().Set (
-      Local<Object>::New (isolate, *module->defaults_value));
-}
-
-GUMJS_DEFINE_SETTER (gumjs_interceptor_set_defaults)
-{
-  if (!value->IsObject ())
-  {
-    _gum_v8_throw_ascii_literal (isolate, "expected an object");
-    return;
-  }
-
-  auto options_obj = value.As<Object> ();
-
-  GumInterceptorOptions options = {};
-  if (!gum_v8_interceptor_parse_options (options_obj, &options, module))
-  {
-    gum_v8_interceptor_clear_redirect (&options);
-    return;
-  }
-
-  gum_interceptor_set_default_options (module->interceptor, &options);
-
-  if (module->default_redirect_closure != nullptr)
-    gum_v8_redirect_closure_free (
-        (GumV8RedirectClosure *) module->default_redirect_closure);
-  module->default_redirect_closure = options.write_redirect_data;
-
-  delete module->defaults_value;
-  module->defaults_value = new Global<Object> (isolate, options_obj);
 }
 
 static gboolean
