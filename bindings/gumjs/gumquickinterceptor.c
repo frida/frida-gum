@@ -375,6 +375,7 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
 
   self->writer = writer;
   self->defaults_value = JS_NULL;
+  self->default_redirect_closure = NULL;
 
   self->invocation_listeners = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_quick_invocation_listener_destroy);
@@ -487,6 +488,12 @@ _gum_quick_interceptor_dispose (GumQuickInterceptor * self)
 
     JS_FreeValue (self->core->ctx, self->defaults_value);
     self->defaults_value = JS_NULL;
+  }
+
+  if (self->default_redirect_closure != NULL)
+  {
+    gum_quick_redirect_closure_free (self->default_redirect_closure);
+    self->default_redirect_closure = NULL;
   }
 
   gum_quick_invocation_context_release (self->cached_invocation_context);
@@ -898,8 +905,6 @@ gum_quick_interceptor_parse_options (JSContext * ctx,
 
     instrumentation->write_redirect = gum_quick_interceptor_emit_redirect;
     instrumentation->write_redirect_data = closure;
-    instrumentation->write_redirect_data_destroy =
-        gum_quick_redirect_closure_free;
   }
 
   if (!JS_IsUndefined (space_hint_val))
@@ -929,14 +934,12 @@ beach:
 static void
 gum_quick_interceptor_clear_redirect (GumInterceptorOptions * instrumentation)
 {
-  if (instrumentation->write_redirect_data_destroy == NULL)
+  if (instrumentation->write_redirect == NULL)
     return;
 
-  instrumentation->write_redirect_data_destroy (
-      instrumentation->write_redirect_data);
+  gum_quick_redirect_closure_free (instrumentation->write_redirect_data);
   instrumentation->write_redirect = NULL;
   instrumentation->write_redirect_data = NULL;
-  instrumentation->write_redirect_data_destroy = NULL;
 }
 
 static GumRedirectWriteResult
@@ -1019,6 +1022,10 @@ GUMJS_DEFINE_SETTER (gumjs_interceptor_set_defaults)
   }
 
   gum_interceptor_set_default_options (self->interceptor, &options);
+
+  if (self->default_redirect_closure != NULL)
+    gum_quick_redirect_closure_free (self->default_redirect_closure);
+  self->default_redirect_closure = options.write_redirect_data;
 
   JS_FreeValue (ctx, self->defaults_value);
   self->defaults_value = JS_DupValue (ctx, val);

@@ -55,7 +55,6 @@ struct _GumInterceptorOptions
   GumRelocationPolicy relocation_policy;
   GumWriteRedirectFunc write_redirect;
   gpointer write_redirect_data;
-  GDestroyNotify write_redirect_data_destroy;
   guint redirect_space_hint;
 };
 

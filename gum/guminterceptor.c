@@ -314,14 +314,6 @@ gum_interceptor_dispose (GObject * object)
 
   g_clear_object (&self->unwind_broker);
 
-  if (self->options.write_redirect_data_destroy != NULL)
-  {
-    self->options.write_redirect_data_destroy (
-        self->options.write_redirect_data);
-    self->options.write_redirect_data = NULL;
-    self->options.write_redirect_data_destroy = NULL;
-  }
-
   G_OBJECT_CLASS (gum_interceptor_parent_class)->dispose (object);
 }
 
@@ -403,9 +395,6 @@ gum_interceptor_set_default_options (GumInterceptor * self,
                                      const GumInterceptorOptions * options)
 {
   GumInterceptorOptions * defaults = &self->options;
-
-  if (defaults->write_redirect_data_destroy != NULL)
-    defaults->write_redirect_data_destroy (defaults->write_redirect_data);
 
   *defaults = *options;
 

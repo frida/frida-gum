@@ -359,6 +359,7 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
 
   self->writer = writer;
   self->defaults_value = nullptr;
+  self->default_redirect_closure = nullptr;
 
   self->invocation_listeners = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_invocation_listener_destroy);
@@ -518,6 +519,13 @@ _gum_v8_interceptor_dispose (GumV8Interceptor * self)
 
     delete self->defaults_value;
     self->defaults_value = nullptr;
+  }
+
+  if (self->default_redirect_closure != nullptr)
+  {
+    gum_v8_redirect_closure_free (
+        (GumV8RedirectClosure *) self->default_redirect_closure);
+    self->default_redirect_closure = nullptr;
   }
 
   gum_v8_invocation_context_release_persistent (
@@ -924,8 +932,6 @@ gum_v8_interceptor_parse_options (Local<Object> options,
 
     instrumentation->write_redirect = gum_v8_interceptor_emit_redirect;
     instrumentation->write_redirect_data = closure;
-    instrumentation->write_redirect_data_destroy =
-        (GDestroyNotify) gum_v8_redirect_closure_free;
   }
 
   Local<Value> space_hint_val;
@@ -991,14 +997,13 @@ gum_v8_interceptor_emit_redirect (const GumRedirectWriteDetails * details,
 static void
 gum_v8_interceptor_clear_redirect (GumInterceptorOptions * instrumentation)
 {
-  if (instrumentation->write_redirect_data_destroy == NULL)
+  if (instrumentation->write_redirect == NULL)
     return;
 
-  instrumentation->write_redirect_data_destroy (
-      instrumentation->write_redirect_data);
+  gum_v8_redirect_closure_free (
+      (GumV8RedirectClosure *) instrumentation->write_redirect_data);
   instrumentation->write_redirect = NULL;
   instrumentation->write_redirect_data = NULL;
-  instrumentation->write_redirect_data_destroy = NULL;
 }
 
 static void
@@ -1039,6 +1044,11 @@ GUMJS_DEFINE_SETTER (gumjs_interceptor_set_defaults)
   }
 
   gum_interceptor_set_default_options (module->interceptor, &options);
+
+  if (module->default_redirect_closure != nullptr)
+    gum_v8_redirect_closure_free (
+        (GumV8RedirectClosure *) module->default_redirect_closure);
+  module->default_redirect_closure = options.write_redirect_data;
 
   delete module->defaults_value;
   module->defaults_value = new Global<Object> (isolate, options_obj);

@@ -51,6 +51,7 @@ struct GumV8Interceptor
 
   GumV8CodeWriter * writer;
   v8::Global<v8::Object> * defaults_value;
+  gpointer default_redirect_closure;
   csh capstone;
 };
 

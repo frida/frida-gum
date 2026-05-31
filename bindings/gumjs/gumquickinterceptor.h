@@ -45,6 +45,7 @@ struct _GumQuickInterceptor
 
   GumQuickCodeWriter * writer;
   JSValue defaults_value;
+  gpointer default_redirect_closure;
   csh capstone;
 };
 

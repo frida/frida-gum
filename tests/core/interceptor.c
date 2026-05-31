@@ -64,7 +64,6 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (custom_redirect_honors_space_hint)
   TESTENTRY (custom_redirect_can_be_declined)
   TESTENTRY (custom_redirect_default_is_inherited)
-  TESTENTRY (custom_redirect_default_data_is_owned)
 #endif
 
   TESTENTRY (i_can_has_replaceability)
@@ -484,7 +483,6 @@ struct _TestRedirectContext
 
 static GumRedirectWriteResult test_interceptor_write_redirect (
     const GumRedirectWriteDetails * details, gpointer user_data);
-static void test_interceptor_on_redirect_data_destroy (gpointer data);
 
 TESTCASE (custom_redirect)
 {
@@ -544,8 +542,6 @@ TESTCASE (custom_redirect_can_be_declined)
   g_assert_cmpstr (fixture->result->str, ==, "|");
 }
 
-static gboolean redirect_data_destroyed = FALSE;
-
 TESTCASE (custom_redirect_default_is_inherited)
 {
   TestRedirectContext rc = { 0, };
@@ -563,25 +559,6 @@ TESTCASE (custom_redirect_default_is_inherited)
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
   gum_interceptor_set_default_options (fixture->interceptor, &cleared);
-}
-
-TESTCASE (custom_redirect_default_data_is_owned)
-{
-  TestRedirectContext rc = { 0, };
-  GumInterceptorOptions defaults = { 0, };
-  GumInterceptorOptions cleared = { 0, };
-
-  redirect_data_destroyed = FALSE;
-
-  defaults.write_redirect = test_interceptor_write_redirect;
-  defaults.write_redirect_data = &rc;
-  defaults.write_redirect_data_destroy =
-      test_interceptor_on_redirect_data_destroy;
-  gum_interceptor_set_default_options (fixture->interceptor, &defaults);
-  g_assert_false (redirect_data_destroyed);
-
-  gum_interceptor_set_default_options (fixture->interceptor, &cleared);
-  g_assert_true (redirect_data_destroyed);
 }
 
 static GumRedirectWriteResult
@@ -607,12 +584,6 @@ test_interceptor_write_redirect (const GumRedirectWriteDetails * details,
 # endif
 
   return GUM_REDIRECT_WRITTEN;
-}
-
-static void
-test_interceptor_on_redirect_data_destroy (gpointer data)
-{
-  redirect_data_destroyed = TRUE;
 }
 
 #endif
