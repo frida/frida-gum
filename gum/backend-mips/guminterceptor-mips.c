@@ -58,11 +58,14 @@ struct _GumMipsFunctionContextData
 {
   guint redirect_code_size;
   mips_reg scratch_reg;
+  guint available_space;
 };
 
 G_STATIC_ASSERT (sizeof (GumMipsFunctionContextData)
     <= sizeof (GumFunctionContextBackendData));
 
+static gboolean gum_interceptor_backend_write_custom_redirect (
+    GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer target);
 static void gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
 static void gum_interceptor_backend_destroy_thunks (
@@ -126,6 +129,35 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   *need_deflector = FALSE;
 
   data->scratch_reg = ctx->scratch_register;
+
+  if (ctx->write_redirect != NULL)
+  {
+    guint scan_bytes;
+
+    scan_bytes = (ctx->redirect_space_hint != 0)
+        ? ctx->redirect_space_hint
+        : GUM_INTERCEPTOR_MAX_REDIRECT_SIZE;
+    gum_mips_relocator_can_relocate (function_address, scan_bytes, scenario,
+        ctx->relocation_policy, &data->available_space, &data->scratch_reg);
+    if (ctx->redirect_space_hint != 0 &&
+        data->available_space > ctx->redirect_space_hint)
+      data->available_space = ctx->redirect_space_hint;
+    if (data->available_space == 0)
+      return FALSE;
+
+    if (data->scratch_reg == MIPS_REG_INVALID)
+    {
+      data->scratch_reg = (ctx->scratch_register != MIPS_REG_INVALID)
+          ? ctx->scratch_register
+          : MIPS_REG_AT;
+    }
+
+    data->redirect_code_size = GUM_HOOK_SIZE;
+    ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+    ctx->redirect_code = g_malloc (data->available_space);
+
+    return TRUE;
+  }
 
   if (gum_mips_relocator_can_relocate (function_address, GUM_HOOK_SIZE,
       scenario, ctx->relocation_policy, &redirect_limit, &data->scratch_reg))
@@ -258,6 +290,15 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T9,
       GUM_ADDRESS (function_address));
 
+  if (ctx->write_redirect != NULL &&
+      !gum_interceptor_backend_write_custom_redirect (self, ctx,
+        ctx->on_enter_trampoline))
+  {
+    gum_code_slice_unref (ctx->trampoline_slice);
+    ctx->trampoline_slice = NULL;
+    return FALSE;
+  }
+
   gum_mips_relocator_reset (rl, function_address, cw);
 
   do
@@ -283,9 +324,39 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   g_assert (gum_mips_writer_offset (cw) <= ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
+  ctx->overwritten_prologue = g_malloc (reloc_bytes);
   gum_memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
 
   return TRUE;
+}
+
+static gboolean
+gum_interceptor_backend_write_custom_redirect (GumInterceptorBackend * self,
+                                               GumFunctionContext * ctx,
+                                               gpointer target)
+{
+  GumMipsFunctionContextData * data = GUM_FCDATA (ctx);
+  GumRedirectWriteResult result;
+  GumMipsWriter rw;
+  GumRedirectWriteDetails details;
+
+  gum_mips_writer_init (&rw, ctx->redirect_code);
+  rw.pc = GUM_ADDRESS (ctx->function_address);
+
+  details.writer = &rw;
+  details.target = target;
+  details.scratch_register = data->scratch_reg;
+  details.capacity = data->available_space;
+
+  result = ctx->write_redirect (&details, ctx->write_redirect_data);
+
+  gum_mips_writer_flush (&rw);
+  data->redirect_code_size = gum_mips_writer_offset (&rw);
+  gum_mips_writer_clear (&rw);
+
+  g_assert (data->redirect_code_size <= data->available_space);
+
+  return result == GUM_REDIRECT_WRITTEN;
 }
 
 void
@@ -310,7 +381,12 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   gum_mips_writer_reset (cw, prologue);
   cw->pc = GUM_ADDRESS (ctx->function_address);
 
-  if (ctx->trampoline_deflector != NULL)
+  if (ctx->write_redirect != NULL)
+  {
+    gum_mips_writer_put_bytes (cw, ctx->redirect_code,
+        data->redirect_code_size);
+  }
+  else if (ctx->trampoline_deflector != NULL)
   {
     /* TODO: implement branch to deflector */
     g_assert_not_reached ();

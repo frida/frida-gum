@@ -28,9 +28,11 @@ enum _GumInterceptorType
 
 union _GumFunctionContextBackendData
 {
-  gchar storage[2 * GLIB_SIZEOF_VOID_P];
-  gpointer p[2];
+  gchar storage[3 * GLIB_SIZEOF_VOID_P];
+  gpointer p[3];
 };
+
+#define GUM_INTERCEPTOR_MAX_REDIRECT_SIZE 128
 
 struct _GumFunctionContext
 {
@@ -50,8 +52,9 @@ struct _GumFunctionContext
   volatile gint trampoline_usage_counter;
 
   gpointer on_enter_trampoline;
-  guint8 overwritten_prologue[32];
+  guint8 * overwritten_prologue;
   guint overwritten_prologue_len;
+  guint8 * redirect_code;
 
   gpointer on_invoke_trampoline;
 
@@ -65,6 +68,9 @@ struct _GumFunctionContext
   gint scratch_register;
   GumInterceptorScenario scenario;
   GumRelocationPolicy relocation_policy;
+  GumWriteRedirectFunc write_redirect;
+  gpointer write_redirect_data;
+  guint redirect_space_hint;
 
   GumFunctionContextBackendData backend_data;
 

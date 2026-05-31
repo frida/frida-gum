@@ -34,15 +34,27 @@ typedef enum {
   GUM_INVOCATION_UNIGNORABLE,
 } GumInvocationIgnorability;
 
+typedef enum _GumRedirectWriteResult {
+  GUM_REDIRECT_WRITTEN,
+  GUM_REDIRECT_DECLINED,
+} GumRedirectWriteResult;
+
 typedef struct _GumInterceptorOptions GumInterceptorOptions;
 typedef struct _GumAttachOptions GumAttachOptions;
 typedef struct _GumReplaceOptions GumReplaceOptions;
+typedef struct _GumRedirectWriteDetails GumRedirectWriteDetails;
+
+typedef GumRedirectWriteResult (* GumWriteRedirectFunc) (
+    const GumRedirectWriteDetails * details, gpointer user_data);
 
 struct _GumInterceptorOptions
 {
   gint scratch_register;
   GumInterceptorScenario scenario;
   GumRelocationPolicy relocation_policy;
+  GumWriteRedirectFunc write_redirect;
+  gpointer write_redirect_data;
+  guint redirect_space_hint;
 };
 
 struct _GumAttachOptions
@@ -56,6 +68,14 @@ struct _GumReplaceOptions
 {
   GumInterceptorOptions instrumentation;
   gpointer replacement_data;
+};
+
+struct _GumRedirectWriteDetails
+{
+  gpointer writer;
+  gpointer target;
+  gint scratch_register;
+  guint capacity;
 };
 
 typedef enum

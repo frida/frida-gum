@@ -7,6 +7,12 @@
 
 #include "interceptor-fixture.c"
 
+#if defined (HAVE_I386)
+# include "gumx86writer.h"
+#elif defined (HAVE_ARM64)
+# include "gumarm64writer.h"
+#endif
+
 TESTLIST_BEGIN (interceptor)
   TESTENTRY (cpu_register_clobber)
   TESTENTRY (cpu_flag_clobber)
@@ -52,6 +58,12 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (detach)
   TESTENTRY (listener_ref_count)
   TESTENTRY (function_data)
+
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
+  TESTENTRY (custom_redirect)
+  TESTENTRY (custom_redirect_honors_space_hint)
+  TESTENTRY (custom_redirect_can_be_declined)
+#endif
 
   TESTENTRY (i_can_has_replaceability)
   TESTENTRY (already_replaced)
@@ -456,6 +468,102 @@ TESTCASE (function_data)
   gum_interceptor_detach (fixture->interceptor, listener);
   g_object_unref (fd_listener);
 }
+
+#if defined (HAVE_I386) || defined (HAVE_ARM64)
+
+typedef struct _TestRedirectContext TestRedirectContext;
+
+struct _TestRedirectContext
+{
+  guint num_calls;
+  guint capacity;
+  gboolean should_decline;
+};
+
+static GumRedirectWriteResult
+test_interceptor_write_redirect (const GumRedirectWriteDetails * details,
+                                 gpointer user_data)
+{
+  TestRedirectContext * rc = user_data;
+
+  rc->num_calls++;
+  rc->capacity = details->capacity;
+
+  if (rc->should_decline)
+    return GUM_REDIRECT_DECLINED;
+
+# if defined (HAVE_I386)
+  gum_x86_writer_put_jmp_address (details->writer,
+      GUM_ADDRESS (details->target));
+# else
+  gum_arm64_writer_put_ldr_reg_address (details->writer,
+      (arm64_reg) details->scratch_register, GUM_ADDRESS (details->target));
+  gum_arm64_writer_put_br_reg (details->writer,
+      (arm64_reg) details->scratch_register);
+# endif
+
+  return GUM_REDIRECT_WRITTEN;
+}
+
+TESTCASE (custom_redirect)
+{
+  TestRedirectContext rc = { 0, };
+  GumAttachOptions options = { 0, };
+
+  options.instrumentation.write_redirect = test_interceptor_write_redirect;
+  options.instrumentation.write_redirect_data = &rc;
+
+  g_assert_cmpint (interceptor_fixture_try_attach_with_options (fixture, 0,
+      target_function, '>', '<', &options), ==, GUM_ATTACH_OK);
+  g_assert_cmpuint (rc.num_calls, ==, 1);
+  g_assert_cmpuint (rc.capacity, >, 0);
+
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
+
+  interceptor_fixture_detach (fixture, 0);
+
+  g_string_truncate (fixture->result, 0);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "|");
+}
+
+TESTCASE (custom_redirect_honors_space_hint)
+{
+  TestRedirectContext rc = { 0, };
+  GumAttachOptions options = { 0, };
+
+  options.instrumentation.write_redirect = test_interceptor_write_redirect;
+  options.instrumentation.write_redirect_data = &rc;
+  options.instrumentation.redirect_space_hint = 64;
+
+  g_assert_cmpint (interceptor_fixture_try_attach_with_options (fixture, 0,
+      target_function, '>', '<', &options), ==, GUM_ATTACH_OK);
+  g_assert_cmpuint (rc.capacity, >, 0);
+  g_assert_cmpuint (rc.capacity, <=, 64);
+
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
+}
+
+TESTCASE (custom_redirect_can_be_declined)
+{
+  TestRedirectContext rc = { 0, };
+  GumAttachOptions options = { 0, };
+
+  rc.should_decline = TRUE;
+  options.instrumentation.write_redirect = test_interceptor_write_redirect;
+  options.instrumentation.write_redirect_data = &rc;
+
+  g_assert_cmpint (interceptor_fixture_try_attach_with_options (fixture, 0,
+      target_function, '>', '<', &options), ==, GUM_ATTACH_WRONG_SIGNATURE);
+  g_assert_cmpuint (rc.num_calls, ==, 1);
+
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "|");
+}
+
+#endif
 
 TESTCASE (cpu_register_clobber)
 {

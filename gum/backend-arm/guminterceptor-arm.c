@@ -60,6 +60,7 @@ struct _GumArmFunctionContextData
 {
   guint full_redirect_size;
   guint redirect_code_size;
+  guint available_space;
 };
 
 G_STATIC_ASSERT (sizeof (GumArmFunctionContextData)
@@ -71,6 +72,10 @@ static gboolean gum_interceptor_backend_emit_arm_trampolines (
 static gboolean gum_interceptor_backend_emit_thumb_trampolines (
     GumInterceptorBackend * self, GumFunctionContext * ctx,
     gpointer function_address);
+static gboolean gum_interceptor_backend_write_arm_custom_redirect (
+    GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer target);
+static gboolean gum_interceptor_backend_write_thumb_custom_redirect (
+    GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer target);
 
 static void gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
@@ -149,6 +154,38 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
       ? GUM_SCENARIO_OFFLINE
       : GUM_SCENARIO_ONLINE;
 
+  if (ctx->write_redirect != NULL)
+  {
+    guint scan_bytes;
+
+    scan_bytes = (ctx->redirect_space_hint != 0)
+        ? ctx->redirect_space_hint
+        : GUM_INTERCEPTOR_MAX_REDIRECT_SIZE;
+    if (is_thumb)
+    {
+      data->full_redirect_size = GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_SIZE;
+      gum_thumb_relocator_can_relocate (function_address, scan_bytes, scenario,
+          &data->available_space);
+    }
+    else
+    {
+      data->full_redirect_size = GUM_INTERCEPTOR_ARM_FULL_REDIRECT_SIZE;
+      gum_arm_relocator_can_relocate (function_address, scan_bytes,
+          &data->available_space);
+    }
+    if (ctx->redirect_space_hint != 0 &&
+        data->available_space > ctx->redirect_space_hint)
+      data->available_space = ctx->redirect_space_hint;
+    if (data->available_space == 0)
+      return FALSE;
+
+    data->redirect_code_size = data->full_redirect_size;
+    ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+    ctx->redirect_code = g_malloc (data->available_space);
+
+    return TRUE;
+  }
+
   if (is_thumb)
   {
     data->full_redirect_size = GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_SIZE;
@@ -220,6 +257,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   if (!success)
     return FALSE;
 
+  ctx->overwritten_prologue = g_malloc (ctx->overwritten_prologue_len);
   gum_memcpy (ctx->overwritten_prologue, func, ctx->overwritten_prologue_len);
 
   return TRUE;
@@ -250,7 +288,17 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
     deflector_target = ctx->on_enter_trampoline;
   }
 
-  if (data->redirect_code_size != data->full_redirect_size)
+  if (ctx->write_redirect != NULL &&
+      !gum_interceptor_backend_write_arm_custom_redirect (self, ctx,
+        deflector_target))
+  {
+    gum_code_slice_unref (ctx->trampoline_slice);
+    ctx->trampoline_slice = NULL;
+    return FALSE;
+  }
+
+  if (ctx->write_redirect == NULL &&
+      data->redirect_code_size != data->full_redirect_size)
   {
     GumAddressSpec caller;
     gpointer return_address;
@@ -350,7 +398,17 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
     deflector_target = ctx->on_enter_trampoline;
   }
 
-  if (data->redirect_code_size != data->full_redirect_size)
+  if (ctx->write_redirect != NULL &&
+      !gum_interceptor_backend_write_thumb_custom_redirect (self, ctx,
+        deflector_target))
+  {
+    gum_code_slice_unref (ctx->trampoline_slice);
+    ctx->trampoline_slice = NULL;
+    return FALSE;
+  }
+
+  if (ctx->write_redirect == NULL &&
+      data->redirect_code_size != data->full_redirect_size)
   {
     GumAddressSpec caller;
     gpointer return_address;
@@ -552,6 +610,66 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
   return TRUE;
 }
 
+static gboolean
+gum_interceptor_backend_write_arm_custom_redirect (
+    GumInterceptorBackend * self,
+    GumFunctionContext * ctx,
+    gpointer target)
+{
+  GumArmFunctionContextData * data = GUM_FCDATA (ctx);
+  GumRedirectWriteResult result;
+  GumArmWriter rw;
+  GumRedirectWriteDetails details;
+
+  gum_arm_writer_init (&rw, ctx->redirect_code);
+  rw.pc = GUM_ADDRESS (_gum_interceptor_backend_get_function_address (ctx));
+
+  details.writer = &rw;
+  details.target = target;
+  details.scratch_register = ctx->scratch_register;
+  details.capacity = data->available_space;
+
+  result = ctx->write_redirect (&details, ctx->write_redirect_data);
+
+  gum_arm_writer_flush (&rw);
+  data->redirect_code_size = gum_arm_writer_offset (&rw);
+  gum_arm_writer_clear (&rw);
+
+  g_assert (data->redirect_code_size <= data->available_space);
+
+  return result == GUM_REDIRECT_WRITTEN;
+}
+
+static gboolean
+gum_interceptor_backend_write_thumb_custom_redirect (
+    GumInterceptorBackend * self,
+    GumFunctionContext * ctx,
+    gpointer target)
+{
+  GumArmFunctionContextData * data = GUM_FCDATA (ctx);
+  GumRedirectWriteResult result;
+  GumThumbWriter rw;
+  GumRedirectWriteDetails details;
+
+  gum_thumb_writer_init (&rw, ctx->redirect_code);
+  rw.pc = GUM_ADDRESS (_gum_interceptor_backend_get_function_address (ctx));
+
+  details.writer = &rw;
+  details.target = target;
+  details.scratch_register = ctx->scratch_register;
+  details.capacity = data->available_space;
+
+  result = ctx->write_redirect (&details, ctx->write_redirect_data);
+
+  gum_thumb_writer_flush (&rw);
+  data->redirect_code_size = gum_thumb_writer_offset (&rw);
+  gum_thumb_writer_clear (&rw);
+
+  g_assert (data->redirect_code_size <= data->available_space);
+
+  return result == GUM_REDIRECT_WRITTEN;
+}
+
 void
 _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
                                              GumFunctionContext * ctx)
@@ -580,7 +698,12 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     gum_thumb_writer_reset (tw, prologue);
     tw->pc = function_address;
 
-    if (ctx->trampoline_deflector != NULL)
+    if (ctx->write_redirect != NULL)
+    {
+      gum_thumb_writer_put_bytes (tw, ctx->redirect_code,
+          data->redirect_code_size);
+    }
+    else if (ctx->trampoline_deflector != NULL)
     {
       if (data->redirect_code_size == GUM_INTERCEPTOR_THUMB_LINK_REDIRECT_SIZE)
       {
@@ -617,7 +740,12 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     gum_arm_writer_reset (aw, prologue);
     aw->pc = function_address;
 
-    if (ctx->trampoline_deflector != NULL)
+    if (ctx->write_redirect != NULL)
+    {
+      gum_arm_writer_put_bytes (aw, ctx->redirect_code,
+          data->redirect_code_size);
+    }
+    else if (ctx->trampoline_deflector != NULL)
     {
       g_assert (data->redirect_code_size ==
           GUM_INTERCEPTOR_ARM_TINY_REDIRECT_SIZE);

@@ -120,6 +120,9 @@ struct _TestInterceptorFixture
   ListenerContext * listener_context[2];
 };
 
+static GumAttachReturn interceptor_fixture_try_attach_with_options (
+    TestInterceptorFixture * h, guint listener_index, gpointer test_func,
+    gchar enter_char, gchar leave_char, const GumAttachOptions * options);
 static void listener_context_free (ListenerContext * ctx);
 static void listener_context_on_enter (ListenerContext * self,
     GumInvocationContext * context);
@@ -221,6 +224,18 @@ interceptor_fixture_try_attach (TestInterceptorFixture * h,
                                 gchar enter_char,
                                 gchar leave_char)
 {
+  return interceptor_fixture_try_attach_with_options (h, listener_index,
+      test_func, enter_char, leave_char, NULL);
+}
+
+static GumAttachReturn
+interceptor_fixture_try_attach_with_options (TestInterceptorFixture * h,
+                                             guint listener_index,
+                                             gpointer test_func,
+                                             gchar enter_char,
+                                             gchar leave_char,
+                                             const GumAttachOptions * options)
+{
   GumAttachReturn result;
   ListenerContext * ctx;
 
@@ -245,7 +260,7 @@ interceptor_fixture_try_attach (TestInterceptorFixture * h,
   ctx->leave_char = leave_char;
 
   result = gum_interceptor_attach (h->interceptor, test_func,
-      GUM_INVOCATION_LISTENER (ctx->listener), NULL);
+      GUM_INVOCATION_LISTENER (ctx->listener), options);
   if (result == GUM_ATTACH_OK)
   {
     h->listener_context[listener_index] = ctx;

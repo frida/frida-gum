@@ -947,6 +947,9 @@ gum_interceptor_instrument (GumInterceptor * self,
   ctx->scratch_register = instrumentation->scratch_register;
   ctx->scenario = instrumentation->scenario;
   ctx->relocation_policy = instrumentation->relocation_policy;
+  ctx->write_redirect = instrumentation->write_redirect;
+  ctx->write_redirect_data = instrumentation->write_redirect_data;
+  ctx->redirect_space_hint = instrumentation->redirect_space_hint;
 
   force = instrumentation->relocation_policy == GUM_RELOCATION_FORCED;
 
@@ -1257,6 +1260,9 @@ gum_function_context_finalize (GumFunctionContext * function_ctx)
 
   g_ptr_array_unref (
       (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries));
+
+  g_free (function_ctx->overwritten_prologue);
+  g_free (function_ctx->redirect_code);
 
   g_slice_free (GumFunctionContext, function_ctx);
 }
