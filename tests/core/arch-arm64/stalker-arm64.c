@@ -19,6 +19,16 @@
 
 TESTLIST_BEGIN (stalker)
 
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  TESTGROUP_BEGIN ("ExceptionHandling")
+    TESTENTRY (no_exceptions)
+    TESTENTRY (try_and_catch)
+    TESTENTRY (try_and_catch_excluded)
+    TESTENTRY (try_and_dont_catch)
+    TESTENTRY (try_and_dont_catch_excluded)
+  TESTGROUP_END ()
+#endif
+
   /* EVENTS */
   TESTENTRY (no_events)
   TESTENTRY (call)
@@ -2651,3 +2661,5 @@ sleeping_dummy (gpointer data)
 
   return NULL;
 }
+
+#include "../stalker-exceptions.c"

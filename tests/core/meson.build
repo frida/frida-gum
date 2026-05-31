@@ -83,7 +83,7 @@ endif
 
 core_link_with = []
 
-if host_os_family == 'linux' and host_arch in ['x86', 'x86_64']
+if host_os_family == 'linux' and host_arch in ['x86', 'x86_64', 'arm64']
   gum_tests_core_exceptions = static_library('gum-tests-core-exceptions',
     ['arch-x86/stalker-x86-exceptions.cpp'],
     include_directories: test_incdirs,
