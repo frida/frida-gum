@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -32,6 +32,7 @@ typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumMemoryRange GumMemoryRange;
 typedef struct _GumFileMapping GumFileMapping;
 typedef struct _GumMatchPattern GumMatchPattern;
+typedef struct _GumPointerMatch GumPointerMatch;
 
 typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
 
@@ -91,6 +92,12 @@ struct _GumFileMapping
   gsize size;
 };
 
+struct _GumPointerMatch
+{
+  GumAddress address;
+  gsize value;
+};
+
 typedef gboolean (* GumFoundRangeFunc) (const GumRangeDetails * details,
     gpointer user_data);
 typedef void (* GumMemoryPatchApplyFunc) (gpointer mem, gpointer user_data);
@@ -132,6 +139,8 @@ GUM_API gboolean gum_memory_mark_code (gpointer address, gsize size);
 GUM_API void gum_memory_scan (const GumMemoryRange * range,
     const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
     gpointer user_data);
+GUM_API GArray * gum_memory_find_pointers (const GumMemoryRange * ranges,
+    guint n_ranges, const gsize * values, guint n_values, gsize mask);
 
 GUM_API GType gum_match_pattern_get_type (void) G_GNUC_CONST;
 GUM_API GumMatchPattern * gum_match_pattern_new_from_string (

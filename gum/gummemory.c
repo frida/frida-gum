@@ -55,9 +55,41 @@
 # include "gum/gumdarwin.h"
 #endif
 
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+# include <emmintrin.h>
+# define GUM_HAVE_POINTER_SCAN_SIMD
+#elif defined (HAVE_ARM64)
+# include <arm_neon.h>
+# define GUM_HAVE_POINTER_SCAN_SIMD
+#endif
+
+#ifdef GUM_HAVE_POINTER_SCAN_SIMD
+# if defined (HAVE_I386)
+typedef __m128i GumScanVec;
+#  define GUM_SCAN_VEC_SET1(value) _mm_set1_epi64x (value)
+#  define GUM_SCAN_VEC_LOAD(p) _mm_loadu_si128 ((const __m128i *) (p))
+#  define GUM_SCAN_VEC_AND(a, b) _mm_and_si128 (a, b)
+#  define GUM_SCAN_VEC_OR(a, b) _mm_or_si128 (a, b)
+# elif defined (HAVE_ARM64)
+typedef uint64x2_t GumScanVec;
+#  define GUM_SCAN_VEC_SET1(value) vdupq_n_u64 (value)
+#  define GUM_SCAN_VEC_LOAD(p) vld1q_u64 ((const guint64 *) (p))
+#  define GUM_SCAN_VEC_AND(a, b) vandq_u64 (a, b)
+#  define GUM_SCAN_VEC_OR(a, b) vorrq_u64 (a, b)
+# endif
+#endif
+
+#define GUM_POINTER_SCAN_TILE_WORDS \
+    ((4 * 1024 * 1024) / sizeof (gpointer))
+#define GUM_POINTER_SCAN_INLINE_LIMIT GUM_POINTER_SCAN_TILE_WORDS
+#define GUM_POINTER_SCAN_MAX_WORKERS 4
+
 typedef struct _GumPatchCodeContext GumPatchCodeContext;
 typedef struct _GumPageLump GumPageLump;
 typedef struct _GumSuspendOperation GumSuspendOperation;
+typedef struct _GumPointerScan GumPointerScan;
+typedef struct _GumPointerScanTile GumPointerScanTile;
+typedef struct _GumPointerScanTask GumPointerScanTask;
 
 struct _GumMatchPattern
 {
@@ -86,6 +118,27 @@ struct _GumSuspendOperation
 {
   GumThreadId current_thread_id;
   GumMetalArray suspended_threads;
+};
+
+struct _GumPointerScan
+{
+  const gsize * values;
+  guint n_values;
+  gsize mask;
+  GArray * tiles;
+};
+
+struct _GumPointerScanTile
+{
+  const gsize * words;
+  gsize n_words;
+};
+
+struct _GumPointerScanTask
+{
+  GumPointerScan * scan;
+  const GumPointerScanTile * tile;
+  GArray * matches;
 };
 
 static void gum_apply_patch_code (gpointer mem, gpointer target_page,
@@ -119,6 +172,35 @@ static void gum_match_token_free (GumMatchToken * token);
 static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 static void gum_match_token_append_with_mask (GumMatchToken * self,
     guint8 byte, guint8 mask);
+
+static GArray * gum_pointer_scan_tiles_from_ranges (
+    const GumMemoryRange * ranges, guint n_ranges);
+static gsize gum_pointer_scan_count_words (GArray * tiles);
+static void gum_pointer_scan_run_parallel (GumPointerScan * self,
+    GArray * matches);
+static void gum_pointer_scan_process_task (gpointer data, gpointer user_data);
+static void gum_pointer_scan_run_inline (GumPointerScan * self,
+    GArray * matches);
+static void gum_pointer_scan_process_tile (GumPointerScan * self,
+    const GumPointerScanTile * tile, GArray * matches);
+#ifdef GUM_HAVE_POINTER_SCAN_SIMD
+static gsize gum_pointer_scan_process_vectors (GumPointerScan * self,
+    const gsize * words, gsize n_words, GArray * matches);
+static void gum_pointer_scan_process_single (GumPointerScan * self,
+    const gsize * words, gsize n_vectors, GArray * matches);
+static void gum_pointer_scan_process_few (GumPointerScan * self,
+    const gsize * words, gsize n_vectors, GArray * matches);
+static void gum_pointer_scan_process_many (GumPointerScan * self,
+    const gsize * words, gsize n_vectors, GArray * matches);
+static GumScanVec gum_pointer_scan_cmpeq (GumScanVec value, GumScanVec masked);
+static void gum_pointer_scan_emit (GArray * matches, const gsize * pair,
+    GumScanVec cmp);
+#endif
+static void gum_pointer_scan_check_word (GumPointerScan * self,
+    const gsize * word, GArray * matches);
+static void gum_pointer_scan_record_match (GArray * matches,
+    const gsize * word);
+static gint gum_pointer_match_compare (gconstpointer a, gconstpointer b);
 
 static guint gum_heap_ref_count = 0;
 #ifndef GUM_USE_SYSTEM_ALLOC
@@ -1251,6 +1333,384 @@ gum_match_token_append_with_mask (GumMatchToken * self,
     self->masks = g_array_new (FALSE, FALSE, sizeof (guint8));
 
   g_array_append_val (self->masks, mask);
+}
+
+/**
+ * gum_memory_find_pointers:
+ * @ranges: (array length=n_ranges): the #GumMemoryRange instances to scan
+ * @n_ranges: the number of @ranges
+ * @values: (array length=n_values): the pointer-width values to look for
+ * @n_values: the number of @values
+ * @mask: bitmask applied to each scanned word and each value before comparing
+ *
+ * Scans @ranges for pointer-aligned words matching any of @values, comparing
+ * under @mask. Use %G_MAXSIZE for an exact match, or e.g.
+ * 0x00007ffffffffff8 to strip arm64e PAC and non-pointer-isa bits.
+ *
+ * Returns: (element-type GumPointerMatch) (transfer full): the matches, sorted
+ *          by address
+ */
+GArray *
+gum_memory_find_pointers (const GumMemoryRange * ranges,
+                          guint n_ranges,
+                          const gsize * values,
+                          guint n_values,
+                          gsize mask)
+{
+  GArray * matches;
+  gsize * masked_values;
+  GumPointerScan scan;
+  guint i;
+
+  matches = g_array_new (FALSE, FALSE, sizeof (GumPointerMatch));
+
+  masked_values = g_newa (gsize, n_values);
+  for (i = 0; i != n_values; i++)
+    masked_values[i] = values[i] & mask;
+
+  scan.values = masked_values;
+  scan.n_values = n_values;
+  scan.mask = mask;
+  scan.tiles = gum_pointer_scan_tiles_from_ranges (ranges, n_ranges);
+
+  if (gum_pointer_scan_count_words (scan.tiles) < GUM_POINTER_SCAN_INLINE_LIMIT)
+    gum_pointer_scan_run_inline (&scan, matches);
+  else
+    gum_pointer_scan_run_parallel (&scan, matches);
+
+  g_array_sort (matches, gum_pointer_match_compare);
+
+  g_array_free (scan.tiles, TRUE);
+
+  return matches;
+}
+
+static GArray *
+gum_pointer_scan_tiles_from_ranges (const GumMemoryRange * ranges,
+                                    guint n_ranges)
+{
+  GArray * tiles;
+  guint range_index;
+
+  tiles = g_array_new (FALSE, FALSE, sizeof (GumPointerScanTile));
+
+  for (range_index = 0; range_index != n_ranges; range_index++)
+  {
+    const GumMemoryRange * range = &ranges[range_index];
+    gsize start, end;
+    const gsize * words;
+    gsize n_words, offset;
+
+    start = GUM_ALIGN_SIZE (range->base_address, sizeof (gpointer));
+    end = (range->base_address + range->size) & ~(sizeof (gpointer) - 1);
+    if (end <= start)
+      continue;
+
+    words = GSIZE_TO_POINTER (start);
+    n_words = (end - start) / sizeof (gpointer);
+
+    for (offset = 0; offset < n_words; offset += GUM_POINTER_SCAN_TILE_WORDS)
+    {
+      GumPointerScanTile tile;
+
+      tile.words = words + offset;
+      tile.n_words = MIN (GUM_POINTER_SCAN_TILE_WORDS, n_words - offset);
+
+      g_array_append_val (tiles, tile);
+    }
+  }
+
+  return tiles;
+}
+
+static gsize
+gum_pointer_scan_count_words (GArray * tiles)
+{
+  gsize n_words;
+  guint i;
+
+  n_words = 0;
+  for (i = 0; i != tiles->len; i++)
+    n_words += g_array_index (tiles, GumPointerScanTile, i).n_words;
+
+  return n_words;
+}
+
+static void
+gum_pointer_scan_run_parallel (GumPointerScan * self,
+                               GArray * matches)
+{
+  guint max_threads, i;
+  GThreadPool * pool;
+  GArray * tasks;
+
+  max_threads = MIN (g_get_num_processors (), GUM_POINTER_SCAN_MAX_WORKERS);
+  pool = g_thread_pool_new (gum_pointer_scan_process_task, NULL, max_threads,
+      FALSE, NULL);
+
+  tasks = g_array_sized_new (FALSE, FALSE, sizeof (GumPointerScanTask),
+      self->tiles->len);
+  g_array_set_size (tasks, self->tiles->len);
+
+  for (i = 0; i != self->tiles->len; i++)
+  {
+    GumPointerScanTask * task = &g_array_index (tasks, GumPointerScanTask, i);
+
+    task->scan = self;
+    task->tile = &g_array_index (self->tiles, GumPointerScanTile, i);
+    task->matches = g_array_new (FALSE, FALSE, sizeof (GumPointerMatch));
+
+    g_thread_pool_push (pool, task, NULL);
+  }
+
+  g_thread_pool_free (pool, FALSE, TRUE);
+
+  for (i = 0; i != tasks->len; i++)
+  {
+    GArray * task_matches =
+        g_array_index (tasks, GumPointerScanTask, i).matches;
+
+    g_array_append_vals (matches, task_matches->data, task_matches->len);
+
+    g_array_free (task_matches, TRUE);
+  }
+
+  g_array_free (tasks, TRUE);
+}
+
+static void
+gum_pointer_scan_process_task (gpointer data,
+                               gpointer user_data)
+{
+  GumPointerScanTask * task = data;
+
+  gum_pointer_scan_process_tile (task->scan, task->tile, task->matches);
+}
+
+static void
+gum_pointer_scan_run_inline (GumPointerScan * self,
+                             GArray * matches)
+{
+  guint i;
+
+  for (i = 0; i != self->tiles->len; i++)
+  {
+    gum_pointer_scan_process_tile (self,
+        &g_array_index (self->tiles, GumPointerScanTile, i), matches);
+  }
+}
+
+static void
+gum_pointer_scan_process_tile (GumPointerScan * self,
+                               const GumPointerScanTile * tile,
+                               GArray * matches)
+{
+  const gsize * words = tile->words;
+  gsize n_words = tile->n_words;
+  gsize i = 0;
+
+#ifdef GUM_HAVE_POINTER_SCAN_SIMD
+  i = gum_pointer_scan_process_vectors (self, words, n_words, matches);
+#endif
+
+  for (; i != n_words; i++)
+    gum_pointer_scan_check_word (self, words + i, matches);
+}
+
+#ifdef GUM_HAVE_POINTER_SCAN_SIMD
+
+static gsize
+gum_pointer_scan_process_vectors (GumPointerScan * self,
+                                  const gsize * words,
+                                  gsize n_words,
+                                  GArray * matches)
+{
+  gsize n_vectors = n_words / 2;
+  guint n_values = self->n_values;
+
+  if (n_values == 1)
+    gum_pointer_scan_process_single (self, words, n_vectors, matches);
+  else if (n_values >= 2 && n_values <= 4)
+    gum_pointer_scan_process_few (self, words, n_vectors, matches);
+  else if (n_values > 4)
+    gum_pointer_scan_process_many (self, words, n_vectors, matches);
+
+  return n_vectors * 2;
+}
+
+static void
+gum_pointer_scan_process_single (GumPointerScan * self,
+                                 const gsize * words,
+                                 gsize n_vectors,
+                                 GArray * matches)
+{
+  GumScanVec mask = GUM_SCAN_VEC_SET1 (self->mask);
+  GumScanVec value = GUM_SCAN_VEC_SET1 (self->values[0]);
+  gsize i;
+
+  for (i = 0; i != n_vectors; i++)
+  {
+    const gsize * pair = words + i * 2;
+    GumScanVec masked = GUM_SCAN_VEC_AND (GUM_SCAN_VEC_LOAD (pair), mask);
+
+    gum_pointer_scan_emit (matches, pair,
+        gum_pointer_scan_cmpeq (value, masked));
+  }
+}
+
+static void
+gum_pointer_scan_process_few (GumPointerScan * self,
+                              const gsize * words,
+                              gsize n_vectors,
+                              GArray * matches)
+{
+  const gsize * values = self->values;
+  guint n = self->n_values;
+  GumScanVec mask = GUM_SCAN_VEC_SET1 (self->mask);
+  GumScanVec v0 = GUM_SCAN_VEC_SET1 (values[0]);
+  GumScanVec v1 = GUM_SCAN_VEC_SET1 (values[1]);
+  GumScanVec v2 = GUM_SCAN_VEC_SET1 (values[(n > 2) ? 2 : 0]);
+  GumScanVec v3 = GUM_SCAN_VEC_SET1 (values[(n > 3) ? 3 : 0]);
+  gsize i;
+
+  for (i = 0; i != n_vectors; i++)
+  {
+    const gsize * pair = words + i * 2;
+    GumScanVec masked = GUM_SCAN_VEC_AND (GUM_SCAN_VEC_LOAD (pair), mask);
+    GumScanVec cmp = GUM_SCAN_VEC_OR (
+        GUM_SCAN_VEC_OR (gum_pointer_scan_cmpeq (v0, masked),
+            gum_pointer_scan_cmpeq (v1, masked)),
+        GUM_SCAN_VEC_OR (gum_pointer_scan_cmpeq (v2, masked),
+            gum_pointer_scan_cmpeq (v3, masked)));
+
+    gum_pointer_scan_emit (matches, pair, cmp);
+  }
+}
+
+static void
+gum_pointer_scan_process_many (GumPointerScan * self,
+                               const gsize * words,
+                               gsize n_vectors,
+                               GArray * matches)
+{
+  const gsize * values = self->values;
+  guint n_values = self->n_values;
+  GumScanVec mask = GUM_SCAN_VEC_SET1 (self->mask);
+  GumScanVec * value_vecs = g_newa (GumScanVec, n_values);
+  guint v;
+  gsize i;
+
+  for (v = 0; v != n_values; v++)
+    value_vecs[v] = GUM_SCAN_VEC_SET1 (values[v]);
+
+  for (i = 0; i != n_vectors; i++)
+  {
+    const gsize * pair = words + i * 2;
+    GumScanVec masked = GUM_SCAN_VEC_AND (GUM_SCAN_VEC_LOAD (pair), mask);
+    GumScanVec cmp = gum_pointer_scan_cmpeq (value_vecs[0], masked);
+
+    for (v = 1; v != n_values; v++)
+    {
+      cmp = GUM_SCAN_VEC_OR (cmp,
+          gum_pointer_scan_cmpeq (value_vecs[v], masked));
+    }
+
+    gum_pointer_scan_emit (matches, pair, cmp);
+  }
+}
+
+# if defined (HAVE_I386)
+
+static GumScanVec
+gum_pointer_scan_cmpeq (GumScanVec value,
+                        GumScanVec masked)
+{
+  GumScanVec eq = _mm_cmpeq_epi32 (masked, value);
+
+  return _mm_and_si128 (eq, _mm_shuffle_epi32 (eq, _MM_SHUFFLE (2, 3, 0, 1)));
+}
+
+static void
+gum_pointer_scan_emit (GArray * matches,
+                       const gsize * pair,
+                       GumScanVec cmp)
+{
+  int lanes = _mm_movemask_epi8 (cmp);
+
+  if ((lanes & 0x00ff) != 0)
+    gum_pointer_scan_record_match (matches, pair);
+  if ((lanes & 0xff00) != 0)
+    gum_pointer_scan_record_match (matches, pair + 1);
+}
+
+# elif defined (HAVE_ARM64)
+
+static GumScanVec
+gum_pointer_scan_cmpeq (GumScanVec value,
+                        GumScanVec masked)
+{
+  return vceqq_u64 (masked, value);
+}
+
+static void
+gum_pointer_scan_emit (GArray * matches,
+                       const gsize * pair,
+                       GumScanVec cmp)
+{
+  if (vgetq_lane_u64 (cmp, 0) != 0)
+    gum_pointer_scan_record_match (matches, pair);
+  if (vgetq_lane_u64 (cmp, 1) != 0)
+    gum_pointer_scan_record_match (matches, pair + 1);
+}
+
+# endif
+
+#endif
+
+static void
+gum_pointer_scan_check_word (GumPointerScan * self,
+                             const gsize * word,
+                             GArray * matches)
+{
+  gsize masked = *word & self->mask;
+  guint v;
+
+  for (v = 0; v != self->n_values; v++)
+  {
+    if (masked == self->values[v])
+    {
+      gum_pointer_scan_record_match (matches, word);
+      break;
+    }
+  }
+}
+
+static void
+gum_pointer_scan_record_match (GArray * matches,
+                               const gsize * word)
+{
+  GumPointerMatch match;
+
+  match.address = GUM_ADDRESS (word);
+  match.value = *word;
+
+  g_array_append_val (matches, match);
+}
+
+static gint
+gum_pointer_match_compare (gconstpointer a,
+                           gconstpointer b)
+{
+  const GumPointerMatch * ma = a;
+  const GumPointerMatch * mb = b;
+
+  if (ma->address < mb->address)
+    return -1;
+
+  if (ma->address > mb->address)
+    return 1;
+
+  return 0;
 }
 
 void

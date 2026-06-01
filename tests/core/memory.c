@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,6 +26,15 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (scan_range_finds_three_wildcarded_matches)
   TESTENTRY (scan_range_finds_three_masked_matches)
   TESTENTRY (scan_range_finds_three_regex_matches)
+  TESTENTRY (find_pointers_finds_exact_value)
+  TESTENTRY (find_pointers_finds_multiple_values)
+  TESTENTRY (find_pointers_finds_many_values)
+#if GLIB_SIZEOF_VOID_P == 8
+  TESTENTRY (find_pointers_rejects_partial_word_match)
+#endif
+  TESTENTRY (find_pointers_applies_mask)
+  TESTENTRY (find_pointers_returns_sorted_matches_across_tiles)
+  TESTENTRY (find_pointers_returns_empty_array_when_absent)
   TESTENTRY (is_memory_readable_handles_mixed_page_protections)
   TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
   TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
@@ -404,6 +413,171 @@ TESTCASE (scan_range_finds_three_regex_matches)
   g_assert_cmpuint (ctx.number_of_calls, ==, 3);
 
   gum_match_pattern_unref (pattern);
+}
+
+TESTCASE (find_pointers_finds_exact_value)
+{
+  gsize buf[] = { 0x1111, 0xdeadbeef, 0x2222, 0xdeadbeef };
+  GumMemoryRange range;
+  gsize value;
+  GArray * matches;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  value = 0xdeadbeef;
+  matches = gum_memory_find_pointers (&range, 1, &value, 1, G_MAXSIZE);
+
+  g_assert_cmpuint (matches->len, ==, 2);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 0).address, ==,
+      GUM_ADDRESS (&buf[1]));
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 0).value, ==,
+      0xdeadbeef);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 1).address, ==,
+      GUM_ADDRESS (&buf[3]));
+
+  g_array_free (matches, TRUE);
+}
+
+TESTCASE (find_pointers_finds_multiple_values)
+{
+  gsize buf[] = { 0xaaaa, 0xbbbb, 0xcccc, 0xbbbb };
+  GumMemoryRange range;
+  gsize values[] = { 0xaaaa, 0xbbbb };
+  GArray * matches;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  matches = gum_memory_find_pointers (&range, 1, values, G_N_ELEMENTS (values),
+      G_MAXSIZE);
+
+  g_assert_cmpuint (matches->len, ==, 3);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 0).value, ==,
+      0xaaaa);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 1).value, ==,
+      0xbbbb);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 2).value, ==,
+      0xbbbb);
+
+  g_array_free (matches, TRUE);
+}
+
+TESTCASE (find_pointers_finds_many_values)
+{
+  gsize buf[] = { 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70 };
+  GumMemoryRange range;
+  gsize values[] = { 0x20, 0x40, 0x60, 0x70, 0x999 };
+  GArray * matches;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  matches = gum_memory_find_pointers (&range, 1, values, G_N_ELEMENTS (values),
+      G_MAXSIZE);
+
+  g_assert_cmpuint (matches->len, ==, 4);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 0).value, ==, 0x20);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 1).value, ==, 0x40);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 2).value, ==, 0x60);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 3).value, ==, 0x70);
+
+  g_array_free (matches, TRUE);
+}
+
+#if GLIB_SIZEOF_VOID_P == 8
+
+TESTCASE (find_pointers_rejects_partial_word_match)
+{
+  gsize buf[] = { 0x2222222211111111 };
+  GumMemoryRange range;
+  gsize values[] = { 0xaaaaaaaa11111111, 0x22222222bbbbbbbb };
+  GArray * matches;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  matches = gum_memory_find_pointers (&range, 1, values, G_N_ELEMENTS (values),
+      G_MAXSIZE);
+
+  g_assert_cmpuint (matches->len, ==, 0);
+
+  g_array_free (matches, TRUE);
+}
+
+#endif
+
+TESTCASE (find_pointers_applies_mask)
+{
+  gsize buf[] = { 0xff00000000001000, 0x1000 };
+  GumMemoryRange range;
+  gsize value, mask;
+  GArray * matches;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  value = 0x1000;
+  mask = 0x0000ffffffffffff;
+  matches = gum_memory_find_pointers (&range, 1, &value, 1, mask);
+
+  g_assert_cmpuint (matches->len, ==, 2);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 0).value, ==,
+      0xff00000000001000);
+  g_assert_cmphex (g_array_index (matches, GumPointerMatch, 1).value, ==,
+      0x1000);
+
+  g_array_free (matches, TRUE);
+}
+
+TESTCASE (find_pointers_returns_sorted_matches_across_tiles)
+{
+  guint n_words = 4 * 1024 * 1024;
+  gsize * buf;
+  GumMemoryRange range;
+  gsize value;
+  GArray * matches;
+  guint i;
+
+  buf = g_new0 (gsize, n_words);
+  value = 0x1337;
+  buf[7] = value;
+  buf[n_words / 2] = value;
+  buf[n_words - 3] = value;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = n_words * sizeof (gsize);
+
+  matches = gum_memory_find_pointers (&range, 1, &value, 1, G_MAXSIZE);
+
+  g_assert_cmpuint (matches->len, ==, 3);
+  for (i = 1; i != matches->len; i++)
+  {
+    g_assert_cmphex (g_array_index (matches, GumPointerMatch, i - 1).address,
+        <, g_array_index (matches, GumPointerMatch, i).address);
+  }
+
+  g_array_free (matches, TRUE);
+  g_free (buf);
+}
+
+TESTCASE (find_pointers_returns_empty_array_when_absent)
+{
+  gsize buf[] = { 0x1, 0x2, 0x3 };
+  GumMemoryRange range;
+  gsize value;
+  GArray * matches;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  value = 0xabcd;
+  matches = gum_memory_find_pointers (&range, 1, &value, 1, G_MAXSIZE);
+
+  g_assert_nonnull (matches);
+  g_assert_cmpuint (matches->len, ==, 0);
+
+  g_array_free (matches, TRUE);
 }
 
 TESTCASE (is_memory_readable_handles_mixed_page_protections)
