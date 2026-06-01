@@ -509,7 +509,8 @@ TESTCASE (find_pointers_rejects_partial_word_match)
 
 TESTCASE (find_pointers_applies_mask)
 {
-  gsize buf[] = { 0xff00000000001000, 0x1000 };
+  gsize tag = (gsize) 0xff << (8 * (sizeof (gpointer) - 1));
+  gsize buf[] = { tag | 0x1000, 0x1000 };
   GumMemoryRange range;
   gsize value, mask;
   GArray * matches;
@@ -518,12 +519,12 @@ TESTCASE (find_pointers_applies_mask)
   range.size = sizeof (buf);
 
   value = 0x1000;
-  mask = 0x0000ffffffffffff;
+  mask = ~tag;
   matches = gum_memory_find_pointers (&range, 1, &value, 1, mask);
 
   g_assert_cmpuint (matches->len, ==, 2);
   g_assert_cmphex (g_array_index (matches, GumPointerMatch, 0).value, ==,
-      0xff00000000001000);
+      tag | 0x1000);
   g_assert_cmphex (g_array_index (matches, GumPointerMatch, 1).value, ==,
       0x1000);
 
