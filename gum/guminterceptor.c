@@ -227,6 +227,8 @@ static GumInvocationStackEntry * gum_invocation_stack_push (
 static gpointer gum_invocation_stack_pop (GumInvocationStack * stack);
 static void gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
     gpointer live_stack_address);
+static void gum_invocation_stack_reap_unwound_above (
+    GumInvocationStack * stack, GumFunctionContext * returning_ctx);
 static gboolean gum_invocation_stack_entry_was_unwound_past (
     const GumInvocationStackEntry * entry, gpointer live_stack_address);
 static void gum_invocation_stack_entry_release_trampoline (
@@ -1663,8 +1665,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   interceptor_ctx = get_interceptor_thread_context ();
 
-  gum_invocation_stack_reap_unwound (interceptor_ctx->stack,
-      GUM_INTERCEPTOR_CPU_CONTEXT_SP (cpu_context));
+  gum_invocation_stack_reap_unwound_above (interceptor_ctx->stack,
+      function_ctx);
 
   stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
   *next_hop = gum_sign_code_pointer (stack_entry->caller_ret_addr);
@@ -2044,6 +2046,38 @@ gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
         &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
     if (!gum_invocation_stack_entry_was_unwound_past (entry,
         live_stack_address))
+      break;
+
+    gum_invocation_stack_entry_release_trampoline (entry);
+    g_array_set_size (stack, stack->len - 1);
+  }
+}
+
+static void
+gum_invocation_stack_reap_unwound_above (GumInvocationStack * stack,
+                                         GumFunctionContext * returning_ctx)
+{
+  /*
+   * Reap entries sitting above the frame we are about to return from, leaving
+   * that frame on top. Calls nest last-in-first-out, and entries that don't
+   * trap on leave are popped right away on enter, so any entry still stacked
+   * above our frame belongs to a deeper call that was unwound past by a C++
+   * exception or longjmp(), skipping its on-leave trampoline.
+   *
+   * We cannot lean on the leave-time stack pointer the way the on-enter path
+   * does: a callee-clean calling convention such as x86 stdcall pops the
+   * arguments on return, so the leave-time stack pointer sits above our own
+   * recorded stack address, and a frame-pointer-omitting caller and callee
+   * may even share one. Matching on the returning function context sidesteps
+   * both pitfalls.
+   */
+  while (stack->len != 0)
+  {
+    GumInvocationStackEntry * entry;
+
+    entry = (GumInvocationStackEntry *)
+        &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
+    if (entry->function_ctx == returning_ctx)
       break;
 
     gum_invocation_stack_entry_release_trampoline (entry);
