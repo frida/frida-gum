@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
@@ -62,6 +62,7 @@ static gboolean gum_memory_scan_context_emit_match (GumAddress address,
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
 static gboolean gum_append_match (GumAddress address, gsize size,
     GumMemoryScanSyncContext * ctx);
+GUMJS_DECLARE_FUNCTION (gumjs_memory_find_pointers)
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
@@ -82,6 +83,7 @@ static const GumV8Function gumjs_memory_functions[] =
   { "allocUtf16String", gumjs_memory_alloc_utf16_string },
   { "_scan", gumjs_memory_scan },
   { "scanSync", gumjs_memory_scan_sync },
+  { "findPointers", gumjs_memory_find_pointers },
 
   { NULL, NULL }
 };
@@ -557,6 +559,77 @@ gum_append_match (GumAddress address,
 #ifdef _MSC_VER
 # pragma warning (pop)
 #endif
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_find_pointers)
+{
+  GArray * ranges;
+  Local<Array> values_value;
+  Local<Object> options;
+  if (!_gum_v8_args_parse (args, "RA|O?", &ranges, &values_value, &options))
+    return;
+
+  auto context = isolate->GetCurrentContext ();
+
+  gsize mask = G_MAXSIZE;
+  if (!options.IsEmpty ())
+  {
+    Local<Value> mask_value;
+    if (options->Get (context, _gum_v8_string_new_ascii (isolate, "mask"))
+        .ToLocal (&mask_value) && !mask_value->IsUndefined ())
+    {
+      gpointer mask_ptr;
+      if (!_gum_v8_native_pointer_get (mask_value, &mask_ptr, core))
+      {
+        g_array_free (ranges, TRUE);
+        return;
+      }
+
+      mask = GPOINTER_TO_SIZE (mask_ptr);
+    }
+  }
+
+  guint n_values = values_value->Length ();
+  gsize * values = g_new (gsize, n_values);
+  for (guint i = 0; i != n_values; i++)
+  {
+    gpointer ptr;
+    Local<Value> element;
+    if (!values_value->Get (context, i).ToLocal (&element) ||
+        !_gum_v8_native_pointer_get (element, &ptr, core))
+    {
+      g_free (values);
+      g_array_free (ranges, TRUE);
+      return;
+    }
+
+    values[i] = GPOINTER_TO_SIZE (ptr);
+  }
+
+  GArray * matches;
+  {
+    ScriptUnlocker unlocker (core);
+
+    matches = gum_memory_find_pointers ((GumMemoryRange *) ranges->data,
+        ranges->len, values, n_values, GPOINTER_TO_SIZE (mask));
+  }
+
+  auto result = Array::New (isolate, matches->len);
+  for (guint i = 0; i != matches->len; i++)
+  {
+    auto match = &g_array_index (matches, GumPointerMatch, i);
+
+    auto m = Object::New (isolate);
+    _gum_v8_object_set_pointer (m, "address", match->address, core);
+    _gum_v8_object_set_pointer (m, "value", (GumAddress) match->value, core);
+    result->Set (context, i, m).ToChecked ();
+  }
+
+  g_array_free (matches, TRUE);
+  g_free (values);
+  g_array_free (ranges, TRUE);
+
+  info.GetReturnValue ().Set (result);
+}
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {

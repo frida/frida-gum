@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2025 Kenjiro Ichise <ichise@doranekosystems.com>
@@ -65,6 +65,9 @@ static gboolean gum_memory_scan_context_emit_match (GumAddress address,
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
 static gboolean gum_append_match (GumAddress address, gsize size,
     GumMemoryScanSyncContext * sc);
+GUMJS_DECLARE_FUNCTION (gumjs_memory_find_pointers)
+static gboolean gum_quick_memory_values_get (JSContext * ctx, JSValueConst val,
+    GumQuickCore * core, gsize ** values, guint * n_values);
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
@@ -95,6 +98,7 @@ static const JSCFunctionListEntry gumjs_memory_entries[] =
   JS_CFUNC_DEF ("allocUtf16String", 0, gumjs_memory_alloc_utf16_string),
   JS_CFUNC_DEF ("_scan", 0, gumjs_memory_scan),
   JS_CFUNC_DEF ("scanSync", 0, gumjs_memory_scan_sync),
+  JS_CFUNC_DEF ("findPointers", 0, gumjs_memory_find_pointers),
 };
 
 static const JSCFunctionListEntry gumjs_memory_access_monitor_entries[] =
@@ -593,6 +597,129 @@ gum_append_match (GumAddress address,
   sc->index++;
 
   return TRUE;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_find_pointers)
+{
+  JSValue result;
+  GArray * ranges;
+  JSValue values_value;
+  JSValue options = JS_NULL;
+  gsize mask = G_MAXSIZE;
+  gsize * values;
+  guint n_values, i;
+  GArray * matches;
+
+  if (!_gum_quick_args_parse (args, "RA|O?", &ranges, &values_value, &options))
+    return JS_EXCEPTION;
+
+  if (!JS_IsNull (options))
+  {
+    JSValue mask_value = JS_GetPropertyStr (ctx, options, "mask");
+    gpointer mask_ptr;
+
+    if (JS_IsException (mask_value))
+      return JS_EXCEPTION;
+
+    if (!JS_IsUndefined (mask_value))
+    {
+      if (!_gum_quick_native_pointer_get (ctx, mask_value, core, &mask_ptr))
+      {
+        JS_FreeValue (ctx, mask_value);
+        return JS_EXCEPTION;
+      }
+
+      mask = GPOINTER_TO_SIZE (mask_ptr);
+    }
+
+    JS_FreeValue (ctx, mask_value);
+  }
+
+  if (!gum_quick_memory_values_get (ctx, values_value, core, &values,
+      &n_values))
+    return JS_EXCEPTION;
+
+  {
+    GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+
+    _gum_quick_scope_suspend (&scope);
+
+    matches = gum_memory_find_pointers ((GumMemoryRange *) ranges->data,
+        ranges->len, values, n_values, GPOINTER_TO_SIZE (mask));
+
+    _gum_quick_scope_resume (&scope);
+  }
+
+  result = JS_NewArray (ctx);
+
+  for (i = 0; i != matches->len; i++)
+  {
+    GumPointerMatch * match = &g_array_index (matches, GumPointerMatch, i);
+    JSValue m = JS_NewObject (ctx);
+
+    JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, address),
+        _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (match->address),
+            core),
+        JS_PROP_C_W_E);
+    JS_DefinePropertyValue (ctx, m, GUM_QUICK_CORE_ATOM (core, value),
+        _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (match->value),
+            core),
+        JS_PROP_C_W_E);
+
+    JS_DefinePropertyValueUint32 (ctx, result, i, m, JS_PROP_C_W_E);
+  }
+
+  g_array_free (matches, TRUE);
+  g_free (values);
+
+  return result;
+}
+
+static gboolean
+gum_quick_memory_values_get (JSContext * ctx,
+                             JSValueConst val,
+                             GumQuickCore * core,
+                             gsize ** values,
+                             guint * n_values)
+{
+  gsize * result;
+  guint n, i;
+  JSValue element = JS_NULL;
+
+  if (!_gum_quick_array_get_length (ctx, val, core, &n))
+    return FALSE;
+
+  result = g_new (gsize, n);
+
+  for (i = 0; i != n; i++)
+  {
+    gpointer ptr;
+
+    element = JS_GetPropertyUint32 (ctx, val, i);
+    if (JS_IsException (element))
+      goto propagate_exception;
+
+    if (!_gum_quick_native_pointer_get (ctx, element, core, &ptr))
+      goto propagate_exception;
+
+    result[i] = GPOINTER_TO_SIZE (ptr);
+
+    JS_FreeValue (ctx, element);
+    element = JS_NULL;
+  }
+
+  *values = result;
+  *n_values = n;
+
+  return TRUE;
+
+propagate_exception:
+  {
+    JS_FreeValue (ctx, element);
+    g_free (result);
+
+    return FALSE;
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)

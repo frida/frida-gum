@@ -155,6 +155,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (memory_scan_should_be_interruptible)
     TESTENTRY (memory_scan_handles_unreadable_memory)
     TESTENTRY (memory_scan_handles_bad_arguments)
+    TESTENTRY (memory_pointers_can_be_found)
     TESTENTRY (memory_access_can_be_monitored)
     TESTENTRY (memory_access_can_be_monitored_one_range)
     TESTENTRY (memory_access_monitor_provides_thread_id)
@@ -9019,6 +9020,39 @@ TESTCASE (memory_scan_handles_bad_arguments)
   );
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: expected a callback value");
+}
+
+TESTCASE (memory_pointers_can_be_found)
+{
+  gsize haystack[] = { 0x1111, 0xdeadbeef, 0x2222, 0xdeadbeef };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const matches = Memory.findPointers("
+      "    [{ base: " GUM_PTR_CONST ", size: %" G_GSIZE_FORMAT " }],"
+      "    [ptr(0xdeadbeef)]);"
+      "send(matches.length);"
+      "for (const m of matches) {"
+      "  const index = m.address.sub(" GUM_PTR_CONST ").toInt32() /"
+      "      Process.pointerSize;"
+      "  send(`${index} ${m.value}`);"
+      "}"
+      "send('done');",
+      haystack, sizeof (haystack), haystack);
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("\"1 0xdeadbeef\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"3 0xdeadbeef\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const matches = Memory.findPointers("
+      "    { base: " GUM_PTR_CONST ", size: %" G_GSIZE_FORMAT " },"
+      "    [ptr(0xbeef)],"
+      "    { mask: ptr(0xffff) });"
+      "send(matches.length);"
+      "send('done');",
+      haystack, sizeof (haystack));
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
 }
 
 TESTCASE (memory_access_can_be_monitored)
