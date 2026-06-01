@@ -416,8 +416,21 @@ if gir_scanner.found()
     '--program=' + gum_introspect.full_path(),
   ]
 
+  # The scanner runs gum-introspect through --program, and on Debian-derived
+  # distros its deb-elf-get-needed wrapper opens that executable eagerly. Only
+  # the object files, not the linked executable, would otherwise be on the
+  # gir's dependency graph, letting the link race the scan. Feed an empty
+  # generated header gated on the executable into the gir sources so the
+  # executable is always linked before the scan runs.
+  gum_introspect_built = custom_target('gum-introspect-built',
+    input: gum_introspect,
+    output: 'gum-introspect-built.h',
+    command: [python, '-c', 'import sys; open(sys.argv[1], "w").close()',
+      '@OUTPUT@'],
+  )
+
   gnome.generate_gir(gum,
-    sources: [gum_sources, gum_headers, gum_enum_h],
+    sources: [gum_sources, gum_headers, gum_enum_h, gum_introspect_built],
     namespace: 'Gum',
     nsversion: api_version,
     identifier_prefix: 'Gum',
