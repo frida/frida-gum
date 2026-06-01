@@ -463,7 +463,7 @@ namespace Gum {
 		public bool mark_code (void * address, size_t size);
 
 		public void scan (Gum.MemoryRange range, Gum.MatchPattern pattern, Gum.Memory.ScanMatchFunc func);
-		public GLib.Array<Gum.PointerMatch?> find_pointers (Gum.MemoryRange[] ranges, size_t[] values, size_t mask);
+		public GLib.Array<Gum.PointerMatch> find_pointers (Gum.MemoryRange[] ranges, size_t[] values, size_t mask);
 
 		public void * allocate (void * address, size_t size, size_t alignment, Gum.PageProtection prot);
 		public bool free (void * address, size_t size);
