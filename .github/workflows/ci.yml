@@ -54,7 +54,7 @@ jobs:
         include:
           - { id: windows-x86_64, runner: '"windows-latest"'                    }
           - { id: windows-x86,    runner: '"windows-latest"'                    }
-          - { id: macos-x86_64,   runner: '"macos-13"'                          }
+          - { id: macos-x86_64,   runner: '"macos-latest"'                      }
           - { id: macos-arm64,    runner: '"macos-latest"'                      }
           - { id: linux-x86_64,   runner: '"ubuntu-latest"'                     }
           - { id: linux-x86,      runner: '"ubuntu-latest"'                     }
@@ -70,15 +70,23 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install gcc-multilib lib32stdc++-13-dev
+      - name: Install Rosetta
+        if: matrix.id == 'macos-x86_64'
+        run: softwareupdate --install-rosetta --agree-to-license
       - name: Build
         if: ${{ startsWith(matrix.id, 'windows-') }}
         run: |
           .\configure ${{ env.GUM_OPTIONS }}
           .\make
       - name: Build
-        if: ${{ !startsWith(matrix.id, 'windows-') && matrix.id != 'linux-x86' }}
+        if: ${{ !startsWith(matrix.id, 'windows-') && matrix.id != 'linux-x86' && matrix.id != 'macos-x86_64' }}
         run: |
           ./configure ${{ env.GUM_OPTIONS }}
+          make
+      - name: Build
+        if: matrix.id == 'macos-x86_64'
+        run: |
+          ./configure --host=macos-x86_64 ${{ env.GUM_OPTIONS }}
           make
       - name: Build
         if: matrix.id == 'linux-x86'
