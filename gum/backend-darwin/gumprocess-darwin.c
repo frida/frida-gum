@@ -2203,6 +2203,12 @@ _gum_darwin_fill_file_mapping (gint pid,
   if (len == 0)
     return FALSE;
 
+  if (address < region->prp_prinfo.pri_address ||
+      address >= region->prp_prinfo.pri_address + region->prp_prinfo.pri_size)
+  {
+    return FALSE;
+  }
+
   file->path = region->prp_vip.vip_path;
   file->offset = region->prp_prinfo.pri_offset;
   file->size = region->prp_vip.vip_vi.vi_stat.vst_size;
