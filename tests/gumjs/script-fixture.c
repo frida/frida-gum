@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
@@ -41,6 +41,7 @@
 #endif
 #if HAVE_DARWIN
 # include <mach/mach.h>
+# include <sys/sysctl.h>
 #endif
 #ifdef HAVE_QNX
 # include <unix.h>
@@ -790,5 +791,21 @@ test_script_fixture_escape_path (TestScriptFixture * fixture,
   return result;
 #else
   return path;
+#endif
+}
+
+static gboolean
+gum_is_running_under_rosetta (void)
+{
+#if defined (HAVE_DARWIN) && defined (HAVE_I386)
+  int translated = 0;
+  size_t size = sizeof (translated);
+
+  if (sysctlbyname ("sysctl.proc_translated", &translated, &size, NULL, 0) != 0)
+    return FALSE;
+
+  return translated != 0;
+#else
+  return FALSE;
 #endif
 }

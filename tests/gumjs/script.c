@@ -7145,6 +7145,12 @@ TESTCASE (hardware_watchpoint_can_be_set)
   }
 #endif
 
+  if (gum_is_running_under_rosetta ())
+  {
+    g_print ("<skipping, not supported under Rosetta> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "let threads = Process.enumerateThreads();\n"
       "Process.setExceptionHandler(e => {\n"
