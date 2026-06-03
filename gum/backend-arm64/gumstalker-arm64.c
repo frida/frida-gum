@@ -3149,6 +3149,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
 
   if (type == GUM_PROLOG_MINIMAL)
   {
+#ifndef G_OS_NONE
     /* GumCpuContext.v[0:8] plus padding for v[8:32] */
     for (i = 6; i != -2; i -= 2)
     {
@@ -3161,6 +3162,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
           ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,
           ARM64_REG_X19, -size, GUM_INDEX_PRE_ADJUST);
     }
+#endif
 
     /* GumCpuContext.{fp,lr}, LR being a placeholder updated below */
     gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
@@ -3192,6 +3194,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   {
     guint distance_to_top = 0;
 
+#ifndef G_OS_NONE
     /* GumCpuContext.v[32] */
     for (i = 30; i != -2; i -= 2)
     {
@@ -3204,6 +3207,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
 
       distance_to_top += vector_pair_size;
     }
+#endif
 
     /* GumCpuContext.{fp,lr}, LR being a placeholder updated below */
     gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
@@ -3332,6 +3336,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
         ARM64_REG_FP, ARM64_REG_LR,
         ARM64_REG_X20, 16, GUM_INDEX_POST_ADJUST);
 
+#ifndef G_OS_NONE
     /* GumCpuContext.v[0:8] plus padding for v[8:32] */
     for (i = 0; i != 8; i += 2)
     {
@@ -3344,6 +3349,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
           ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,
           ARM64_REG_X20, size, GUM_INDEX_POST_ADJUST);
     }
+#endif
   }
   else if (type == GUM_PROLOG_FULL)
   {
@@ -3381,6 +3387,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
         ARM64_REG_FP, ARM64_REG_LR,
         ARM64_REG_X20, 16, GUM_INDEX_POST_ADJUST);
 
+#ifndef G_OS_NONE
     /* GumCpuContext.v[0:32] */
     for (i = 0; i != 32; i += 2)
     {
@@ -3388,6 +3395,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
           ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,
           ARM64_REG_X20, 2 * sizeof (GumArm64VectorReg), GUM_INDEX_POST_ADJUST);
     }
+#endif
   }
 
   gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_SP, ARM64_REG_X20);

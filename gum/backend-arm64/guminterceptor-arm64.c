@@ -1369,9 +1369,11 @@ gum_emit_prolog (GumArm64Writer * aw)
    * [in/out: cpu_context]
    */
 
+#ifndef G_OS_NONE
   /* Store vector registers */
   for (i = 30; i != -2; i -= 2)
     gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_Q0 + i, ARM64_REG_Q1 + i);
+#endif
 
   /* Store X1-X28, FP, and LR */
   gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_FP, ARM64_REG_LR);
@@ -1415,9 +1417,11 @@ gum_emit_epilog (GumArm64Writer * aw,
     gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X0 + i, ARM64_REG_X1 + i);
   gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_FP, ARM64_REG_LR);
 
+#ifndef G_OS_NONE
   /* Restore vector registers */
   for (i = 0; i != 32; i += 2)
     gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_Q0 + i, ARM64_REG_Q1 + i);
+#endif
 
   gum_arm64_writer_put_ldr_reg_reg_offset_mode (aw, scratch_reg, ARM64_REG_SP,
       16, GUM_INDEX_POST_ADJUST);

@@ -305,7 +305,11 @@ struct _GumArm64CpuContext
   guint64 fp;
   guint64 lr;
 
+#ifndef G_OS_NONE
+  /* Bare-metal threads can be entered with a near-exhausted kernel stack, so
+   * there the trampolines stay integer-only and skip the vector registers. */
   GumArm64VectorReg v[32];
+#endif
 };
 
 struct _GumMipsCpuContext
