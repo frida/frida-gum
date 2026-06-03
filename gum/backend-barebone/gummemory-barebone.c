@@ -190,8 +190,6 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
     return result;
   gum_memory_free (result, size);
 
-  G_PANIC_MISSING_IMPLEMENTATION ();
-
   return NULL;
 }
 
