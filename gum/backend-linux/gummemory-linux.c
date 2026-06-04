@@ -13,10 +13,13 @@
 #include "gum/gumlinux.h"
 #include "valgrind.h"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <linux/unistd.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
@@ -50,8 +53,47 @@
 # error FIXME
 #endif
 
+#define GUM_PROCMAP_QUERY \
+    _IOWR ('f', 17, GumProcmapQuery)
+
+#define GUM_PROCMAP_QUERY_VMA_READABLE         0x01
+#define GUM_PROCMAP_QUERY_VMA_WRITABLE         0x02
+#define GUM_PROCMAP_QUERY_VMA_EXECUTABLE       0x04
+#define GUM_PROCMAP_QUERY_COVERING_OR_NEXT_VMA 0x10
+
+typedef struct _GumProcmapQuery GumProcmapQuery;
+
+struct _GumProcmapQuery
+{
+  guint64 size;
+  guint64 query_flags;
+  guint64 query_addr;
+  guint64 vma_start;
+  guint64 vma_end;
+  guint64 vma_flags;
+  guint64 vma_page_size;
+  guint64 vma_offset;
+  guint64 inode;
+  guint32 dev_major;
+  guint32 dev_minor;
+  guint32 vma_name_size;
+  guint32 build_id_size;
+  guint64 vma_name_addr;
+  guint64 build_id_addr;
+};
+
 static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
+static gboolean gum_memory_get_protection_using_procmap_query (
+    gconstpointer address, gboolean * success, gsize * size,
+    GumPageProtection * prot);
+static gboolean gum_memory_query_protections_using_procmap_query (
+    GPtrArray * sorted_pages, GumPageProtection * protections);
+static gint gum_procmap_query_open (void);
+static gboolean gum_query_vma_using_procmap_query (gint fd, gsize address,
+    GumProcmapQuery * query);
+static GumPageProtection gum_page_protection_from_procmap_query_flags (
+    guint64 vma_flags);
 
 static gssize gum_libc_process_vm_readv (pid_t pid, const struct iovec * local,
     gulong num_local, const struct iovec * remote, gulong num_remote,
@@ -59,6 +101,8 @@ static gssize gum_libc_process_vm_readv (pid_t pid, const struct iovec * local,
 static gssize gum_libc_process_vm_writev (pid_t pid, const struct iovec * local,
     gulong num_local, const struct iovec * remote, gulong num_remote,
     gulong flags);
+
+static gint gum_procmap_query_supported = -1;
 
 gboolean
 gum_memory_is_readable (gconstpointer address,
@@ -111,6 +155,12 @@ _gum_memory_query_protections (GPtrArray * sorted_pages,
   for (i = 0; i != sorted_pages->len; i++)
     protections[i] = GUM_PAGE_RX;
 
+  if (gum_memory_query_protections_using_procmap_query (sorted_pages,
+        protections))
+  {
+    return;
+  }
+
   gum_proc_maps_iter_init_for_self (&iter);
 
   i = 0;
@@ -145,6 +195,112 @@ _gum_memory_query_protections (GPtrArray * sorted_pages,
   }
 
   gum_proc_maps_iter_destroy (&iter);
+}
+
+static gboolean
+gum_memory_query_protections_using_procmap_query (
+    GPtrArray * sorted_pages,
+    GumPageProtection * protections)
+{
+  gboolean success = FALSE;
+  gint fd;
+  guint i;
+
+  fd = gum_procmap_query_open ();
+  if (fd == -1)
+    return FALSE;
+
+  i = 0;
+  while (i != sorted_pages->len)
+  {
+    gpointer page = g_ptr_array_index (sorted_pages, i);
+    GumProcmapQuery query = { 0, };
+    GumPageProtection prot;
+
+    if (!gum_query_vma_using_procmap_query (fd, GPOINTER_TO_SIZE (page),
+        &query))
+      goto beach;
+
+    if (query.vma_end == 0)
+      break;
+
+    prot = gum_page_protection_from_procmap_query_flags (query.vma_flags);
+
+    while (i != sorted_pages->len &&
+        GPOINTER_TO_SIZE (g_ptr_array_index (sorted_pages, i)) <
+          query.vma_start)
+    {
+      i++;
+    }
+
+    while (i != sorted_pages->len &&
+        GPOINTER_TO_SIZE (g_ptr_array_index (sorted_pages, i)) <
+          query.vma_end)
+    {
+      protections[i] = prot;
+      i++;
+    }
+  }
+
+  success = TRUE;
+
+beach:
+  close (fd);
+
+  return success;
+}
+
+static gint
+gum_procmap_query_open (void)
+{
+  if (gum_procmap_query_supported == 0)
+    return -1;
+
+  return open ("/proc/self/maps", O_RDONLY | O_CLOEXEC);
+}
+
+static gboolean
+gum_query_vma_using_procmap_query (gint fd,
+                                   gsize address,
+                                   GumProcmapQuery * query)
+{
+  query->size = sizeof (GumProcmapQuery);
+  query->query_flags = GUM_PROCMAP_QUERY_COVERING_OR_NEXT_VMA;
+  query->query_addr = address;
+
+  if (ioctl (fd, GUM_PROCMAP_QUERY, query) == -1)
+  {
+    if (errno == ENOENT)
+    {
+      query->vma_start = 0;
+      query->vma_end = 0;
+    }
+    else
+    {
+      if (gum_procmap_query_supported == -1)
+        gum_procmap_query_supported = 0;
+      return FALSE;
+    }
+  }
+
+  gum_procmap_query_supported = 1;
+
+  return TRUE;
+}
+
+static GumPageProtection
+gum_page_protection_from_procmap_query_flags (guint64 vma_flags)
+{
+  GumPageProtection prot = GUM_PAGE_NO_ACCESS;
+
+  if ((vma_flags & GUM_PROCMAP_QUERY_VMA_READABLE) != 0)
+    prot |= GUM_PAGE_READ;
+  if ((vma_flags & GUM_PROCMAP_QUERY_VMA_WRITABLE) != 0)
+    prot |= GUM_PAGE_WRITE;
+  if ((vma_flags & GUM_PROCMAP_QUERY_VMA_EXECUTABLE) != 0)
+    prot |= GUM_PAGE_EXECUTE;
+
+  return prot;
 }
 
 guint8 *
@@ -386,6 +542,12 @@ gum_memory_get_protection (gconstpointer address,
   *size = 0;
   *prot = GUM_PAGE_NO_ACCESS;
 
+  if (gum_memory_get_protection_using_procmap_query (address, &success, size,
+        prot))
+  {
+    return success;
+  }
+
   gum_proc_maps_iter_init_for_self (&iter);
 
   while (gum_proc_maps_iter_next (&iter, &line))
@@ -414,6 +576,39 @@ gum_memory_get_protection (gconstpointer address,
   gum_proc_maps_iter_destroy (&iter);
 
   return success;
+}
+
+static gboolean
+gum_memory_get_protection_using_procmap_query (gconstpointer address,
+                                               gboolean * success,
+                                               gsize * size,
+                                               GumPageProtection * prot)
+{
+  gint fd;
+  GumProcmapQuery query = { 0, };
+  gboolean queried;
+
+  fd = gum_procmap_query_open ();
+  if (fd == -1)
+    return FALSE;
+
+  queried = gum_query_vma_using_procmap_query (fd, GPOINTER_TO_SIZE (address),
+      &query);
+
+  close (fd);
+
+  if (!queried)
+    return FALSE;
+
+  if (query.vma_start <= GPOINTER_TO_SIZE (address) &&
+      GPOINTER_TO_SIZE (address) < query.vma_end)
+  {
+    *success = TRUE;
+    *size = 1;
+    *prot = gum_page_protection_from_procmap_query_flags (query.vma_flags);
+  }
+
+  return TRUE;
 }
 
 static gssize
