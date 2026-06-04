@@ -2477,11 +2477,12 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
 
   memset (ctx->v, 0, sizeof (ctx->v));
 
-  for (i = 0; i != sizeof (mc->__reserved); )
+  for (i = 0; i + sizeof (struct _aarch64_ctx) <= sizeof (mc->__reserved); )
   {
     struct _aarch64_ctx * head = (struct _aarch64_ctx *) &mc->__reserved[i];
 
-    if (head->magic == 0)
+    if (head->magic == 0 || head->size < sizeof (struct _aarch64_ctx) ||
+        i + head->size > sizeof (mc->__reserved))
       break;
 
     switch (head->magic)
@@ -2644,11 +2645,12 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   mc->regs[29] = ctx->fp;
   mc->regs[30] = ctx->lr;
 
-  for (i = 0; i != sizeof (mc->__reserved); )
+  for (i = 0; i + sizeof (struct _aarch64_ctx) <= sizeof (mc->__reserved); )
   {
     struct _aarch64_ctx * head = (struct _aarch64_ctx *) &mc->__reserved[i];
 
-    if (head->magic == 0)
+    if (head->magic == 0 || head->size < sizeof (struct _aarch64_ctx) ||
+        i + head->size > sizeof (mc->__reserved))
       break;
 
     switch (head->magic)
