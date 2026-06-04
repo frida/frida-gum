@@ -1740,11 +1740,23 @@ gum_ensure_code_readable (gconstpointer address,
 
   for (cur_page = start_page; cur_page != end_page; cur_page += page_size)
   {
-    if (!g_hash_table_contains (gum_softened_code_pages, cur_page))
+    GumPageProtection prot;
+
+    if (g_hash_table_contains (gum_softened_code_pages, cur_page))
+      continue;
+
+    if (!gum_memory_query_protection (cur_page, &prot))
+      continue;
+
+    if ((prot & GUM_PAGE_READ) != 0)
     {
-      if (gum_try_mprotect ((gpointer) cur_page, page_size, GUM_PAGE_RWX))
-        g_hash_table_add (gum_softened_code_pages, (gpointer) cur_page);
+      g_hash_table_add (gum_softened_code_pages, (gpointer) cur_page);
+      continue;
     }
+
+    if (gum_try_mprotect ((gpointer) cur_page, page_size,
+        prot | GUM_PAGE_READ))
+      g_hash_table_add (gum_softened_code_pages, (gpointer) cur_page);
   }
 
   G_UNLOCK (gum_softened_code_pages);
