@@ -10,9 +10,14 @@
 #include "gummodule.h"
 
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <glib.h>
 #include <pthread.h>
 #include <unistd.h>
+
+#ifndef O_CLOEXEC
+# define O_CLOEXEC 0x80000
+#endif
 
 G_BEGIN_DECLS
 

@@ -55,10 +55,6 @@ typedef guint32 u32;
 # include <gnu/libc-version.h>
 #endif
 
-#ifndef O_CLOEXEC
-# define O_CLOEXEC 0x80000
-#endif
-
 #ifndef FUTEX_WAIT_PRIVATE
 # define FUTEX_PRIVATE_FLAG 128
 # define FUTEX_WAIT_PRIVATE (FUTEX_WAIT | FUTEX_PRIVATE_FLAG)
