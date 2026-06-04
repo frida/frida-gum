@@ -72,7 +72,11 @@ jobs:
           sudo apt-get install gcc-multilib lib32stdc++-13-dev
       - name: Install Rosetta
         if: matrix.id == 'macos-x86_64'
-        run: softwareupdate --install-rosetta --agree-to-license
+        run: |
+          softwareupdate --install-rosetta --agree-to-license
+          echo 'int main (void) { return 0; }' > /tmp/warmup.c
+          arch -x86_64 clang -arch x86_64 -dynamiclib /tmp/warmup.c \
+              -o /tmp/warmup.dylib
       - name: Build
         if: ${{ startsWith(matrix.id, 'windows-') }}
         run: |
