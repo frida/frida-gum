@@ -2910,7 +2910,11 @@ TESTCASE (thumb_many_callouts_should_not_overflow_literal_pool)
       add_callout_for_every_instruction, &num_callouts, NULL);
   fixture->sink->mask = GUM_NOTHING;
 
-  code = g_malloc ((MANY_CALLOUTS_INSN_COUNT + 1) * sizeof (guint16));
+  /*
+   * Each add emits an IT AL prefix plus the add itself, i.e. two halfwords,
+   * so reserve two slots per instruction in addition to the trailing bx.
+   */
+  code = g_malloc (((MANY_CALLOUTS_INSN_COUNT * 2) + 1) * sizeof (guint16));
   gum_thumb_writer_init (&cw, code);
   for (i = 0; i != MANY_CALLOUTS_INSN_COUNT; i++)
     gum_thumb_writer_put_add_reg_imm (&cw, ARM_REG_R0, 1);
