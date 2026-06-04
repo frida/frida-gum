@@ -2092,6 +2092,107 @@ namespace Gum {
 	}
 
 	[Compact]
+	[CCode (cheader_filename = "gum/arch-x86/gumx86writer.h", ref_function = "gum_x86_writer_ref", unref_function = "gum_x86_writer_unref", has_type_id = false)]
+	public class X86Writer {
+		public Gum.Address pc;
+
+		public X86Writer (void * code_address);
+
+		public void reset (void * code_address);
+
+		public void * cur ();
+		public uint offset ();
+
+		public bool flush ();
+
+		public bool put_label (void * id);
+
+		public bool put_call_address (Gum.Address address);
+		public bool put_call_reg (Gum.X86Reg reg);
+		public bool put_jmp_address (Gum.Address address);
+		public bool put_jmp_reg (Gum.X86Reg reg);
+		public void put_jcc_short_label (Gum.X86Insn instruction_id, void * label_id, Gum.BranchHint hint);
+
+		public bool put_lock_cmpxchg_reg_ptr_reg (Gum.X86Reg dst_reg, Gum.X86Reg src_reg);
+		public bool put_add_reg_imm (Gum.X86Reg reg, ssize_t imm_value);
+		public bool put_xor_reg_reg (Gum.X86Reg dst_reg, Gum.X86Reg src_reg);
+		public bool put_test_reg_reg (Gum.X86Reg reg_a, Gum.X86Reg reg_b);
+
+		public bool put_mov_reg_u32 (Gum.X86Reg dst_reg, uint32 imm_value);
+		public bool put_mov_reg_u64 (Gum.X86Reg dst_reg, uint64 imm_value);
+		public void put_mov_reg_address (Gum.X86Reg dst_reg, Gum.Address address);
+		public bool put_mov_reg_offset_ptr_reg (Gum.X86Reg dst_reg, ssize_t dst_offset, Gum.X86Reg src_reg);
+		public bool put_mov_reg_reg_offset_ptr (Gum.X86Reg dst_reg, Gum.X86Reg src_reg, ssize_t src_offset);
+
+		public void put_push_u32 (uint32 imm_value);
+		public bool put_push_reg (Gum.X86Reg reg);
+		public bool put_pop_reg (Gum.X86Reg reg);
+
+		public void put_nop ();
+	}
+
+	[CCode (cheader_filename = "gum/arch-x86/gumx86writer.h", cprefix = "GUM_X86_", has_type_id = false)]
+	public enum X86Reg {
+		EAX,
+		ECX,
+		EDX,
+		EBX,
+		ESP,
+		EBP,
+		ESI,
+		EDI,
+		R8D,
+		R9D,
+		R10D,
+		R11D,
+		R12D,
+		R13D,
+		R14D,
+		R15D,
+		EIP,
+		RAX,
+		RCX,
+		RDX,
+		RBX,
+		RSP,
+		RBP,
+		RSI,
+		RDI,
+		R8,
+		R9,
+		R10,
+		R11,
+		R12,
+		R13,
+		R14,
+		R15,
+		RIP,
+		XAX,
+		XCX,
+		XDX,
+		XBX,
+		XSP,
+		XBP,
+		XSI,
+		XDI,
+		XIP,
+		NONE,
+	}
+
+	[CCode (cname = "x86_insn", cheader_filename = "gum/arch-x86/gumx86writer.h", cprefix = "X86_INS_", has_type_id = false)]
+	public enum X86Insn {
+		JE,
+		JNE,
+	}
+
+	[CCode (cheader_filename = "gum/gumdefs.h", cprefix = "GUM_", has_type_id = false)]
+	public enum BranchHint {
+		NO_HINT,
+		LIKELY,
+		UNLIKELY,
+	}
+
+	[Compact]
 	[CCode (cheader_filename = "gum/arch-arm64/gumarm64writer.h", ref_function = "gum_arm64_writer_ref", unref_function = "gum_arm64_writer_unref", has_type_id = false)]
 	public class Arm64Writer {
 		public int ref_count;
