@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -137,8 +137,20 @@ TESTLIST_BEGIN (stalker)
   TESTGROUP_END ()
 TESTLIST_END ()
 
+typedef struct _CodePatcher CodePatcher;
 typedef struct _RunOnThreadCtx RunOnThreadCtx;
 typedef struct _TestThreadSyncData TestThreadSyncData;
+
+struct _CodePatcher
+{
+  GThread * thread;
+  volatile gint request;
+  volatile gint done;
+  volatile gboolean stop;
+  GumAddress code;
+  guint offset;
+  GumAddress value;
+};
 
 struct _RunOnThreadCtx
 {
@@ -154,6 +166,12 @@ struct _TestThreadSyncData
   GumThreadId thread_id;
   gboolean * done;
 };
+
+static void code_patcher_start (CodePatcher * self);
+static void code_patcher_stop (CodePatcher * self);
+static void patch_code_pointer_on_thread (CodePatcher * patcher,
+    GumAddress code, guint offset, GumAddress value);
+static gpointer code_patcher_worker (gpointer data);
 
 static guint32 pretend_workload (const GumMemoryRange * runner_range);
 static guint32 crc32b (const guint8 * message, gsize size);
@@ -2240,12 +2258,14 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
   GumAddress func;
   guint (* f) (void);
   guint value;
+  CodePatcher patcher;
 
   func = DUP_TESTCODE (self_modifying_code_should_be_detected);
   f = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
+  code_patcher_start (&patcher);
   gum_stalker_set_trust_threshold (fixture->stalker, -1);
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
@@ -2253,17 +2273,19 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
   value = f ();
   g_assert_cmpuint (value, ==, 1);
 
-  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800002));
+  patch_code_pointer_on_thread (&patcher, func, 4, GSIZE_TO_LE (0xe2800002));
   value = f ();
   g_assert_cmpuint (value, ==, 2);
   f ();
   f ();
 
-  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800003));
+  patch_code_pointer_on_thread (&patcher, func, 4, GSIZE_TO_LE (0xe2800003));
   value = f ();
   g_assert_cmpuint (value, ==, 3);
 
   gum_stalker_unfollow_me (fixture->stalker);
+
+  code_patcher_stop (&patcher);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
@@ -2273,12 +2295,14 @@ TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
   GumAddress func;
   guint (* f) (void);
   guint value;
+  CodePatcher patcher;
 
   func = DUP_TESTCODE (self_modifying_code_should_be_detected);
   f = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
+  code_patcher_start (&patcher);
   gum_stalker_set_trust_threshold (fixture->stalker, 0);
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
@@ -2286,11 +2310,13 @@ TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
   value = f ();
   g_assert_cmpuint (value, ==, 1);
 
-  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800002));
+  patch_code_pointer_on_thread (&patcher, func, 4, GSIZE_TO_LE (0xe2800002));
   value = f ();
   g_assert_cmpuint (value, ==, 1);
 
   gum_stalker_unfollow_me (fixture->stalker);
+
+  code_patcher_stop (&patcher);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
@@ -2300,12 +2326,14 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
   GumAddress func;
   guint (* f) (void);
   guint value;
+  CodePatcher patcher;
 
   func = DUP_TESTCODE (self_modifying_code_should_be_detected);
   f = GUM_POINTER_TO_FUNCPTR (guint (*) (void), func);
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
+  code_patcher_start (&patcher);
   gum_stalker_set_trust_threshold (fixture->stalker, 1);
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
@@ -2313,17 +2341,19 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
   value = f ();
   g_assert_cmpuint (value, ==, 1);
 
-  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800002));
+  patch_code_pointer_on_thread (&patcher, func, 4, GSIZE_TO_LE (0xe2800002));
   value = f ();
   g_assert_cmpuint (value, ==, 2);
   f ();
   f ();
 
-  patch_code_pointer (func, 4, GSIZE_TO_LE (0xe2800003));
+  patch_code_pointer_on_thread (&patcher, func, 4, GSIZE_TO_LE (0xe2800003));
   value = f ();
   g_assert_cmpuint (value, ==, 2);
 
   gum_stalker_unfollow_me (fixture->stalker);
+
+  code_patcher_stop (&patcher);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
@@ -3608,6 +3638,69 @@ TESTCASE (heap_api)
   gum_stalker_unfollow_me (fixture->stalker);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
+}
+
+static void
+code_patcher_start (CodePatcher * self)
+{
+  self->request = 0;
+  self->done = 0;
+  self->stop = FALSE;
+  self->thread = g_thread_new ("code-patcher", code_patcher_worker, self);
+}
+
+static void
+code_patcher_stop (CodePatcher * self)
+{
+  self->stop = TRUE;
+  g_thread_join (self->thread);
+}
+
+static void
+patch_code_pointer_on_thread (CodePatcher * patcher,
+                              GumAddress code,
+                              guint offset,
+                              GumAddress value)
+{
+  gint request;
+
+  /*
+   * Run the patch on the unstalked patcher thread: tracing patch_code()'s
+   * /proc/self/maps read never settles at trust threshold -1.
+   */
+  patcher->code = code;
+  patcher->offset = offset;
+  patcher->value = value;
+
+  request = patcher->request + 1;
+  patcher->request = request;
+
+  while (patcher->done < request)
+    ;
+}
+
+static gpointer
+code_patcher_worker (gpointer data)
+{
+  CodePatcher * self = data;
+  gint served = 0;
+
+  while (!self->stop)
+  {
+    if (self->request > served)
+    {
+      patch_code_pointer (self->code, self->offset, self->value);
+
+      served++;
+      self->done = served;
+    }
+    else
+    {
+      g_thread_yield ();
+    }
+  }
+
+  return NULL;
 }
 
 static void

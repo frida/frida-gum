@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -114,8 +114,19 @@ struct _GumTestStalkerObserver
 
 #endif
 
+typedef struct _CodePatcher CodePatcher;
 typedef struct _RunOnThreadCtx RunOnThreadCtx;
 typedef struct _TestThreadSyncData TestThreadSyncData;
+
+struct _CodePatcher
+{
+  GThread * thread;
+  volatile gint request;
+  volatile gint done;
+  volatile gboolean stop;
+  gpointer target;
+  guint32 insn;
+};
 
 struct _RunOnThreadCtx
 {
@@ -166,7 +177,11 @@ static void insert_callout_after_cmp (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void bump_num_cmp_callouts (GumCpuContext * cpu_context,
     gpointer user_data);
-static void patch_instruction (gpointer code, guint offset, guint32 insn);
+static void code_patcher_start (CodePatcher * self);
+static void code_patcher_stop (CodePatcher * self);
+static void patch_instruction (CodePatcher * patcher, gpointer code,
+    guint offset, guint32 insn);
+static gpointer code_patcher_worker (gpointer data);
 static void do_patch_instruction (gpointer mem, gpointer user_data);
 #ifndef HAVE_WINDOWS
 static gpointer increment_integer (gpointer data);
@@ -1845,27 +1860,31 @@ run_stalked_into_termination (gpointer data)
 TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
 {
   FlatFunc f;
+  CodePatcher patcher;
 
   f = (FlatFunc) test_arm64_stalker_fixture_dup_code (fixture, flat_code,
       sizeof (flat_code));
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
+  code_patcher_start (&patcher);
   gum_stalker_set_trust_threshold (fixture->stalker, -1);
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
   g_assert_cmpuint (f (), ==, 2);
 
-  patch_instruction (f, 4, 0x1100a400);
+  patch_instruction (&patcher, f, 4, 0x1100a400);
   g_assert_cmpuint (f (), ==, 42);
   f ();
   f ();
 
-  patch_instruction (f, 4, 0x1114e000);
+  patch_instruction (&patcher, f, 4, 0x1114e000);
   g_assert_cmpuint (f (), ==, 1337);
 
   gum_stalker_unfollow_me (fixture->stalker);
+
+  code_patcher_stop (&patcher);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
@@ -1873,22 +1892,26 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
 TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
 {
   FlatFunc f;
+  CodePatcher patcher;
 
   f = (FlatFunc) test_arm64_stalker_fixture_dup_code (fixture, flat_code,
       sizeof (flat_code));
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
+  code_patcher_start (&patcher);
   gum_stalker_set_trust_threshold (fixture->stalker, 0);
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
   g_assert_cmpuint (f (), ==, 2);
 
-  patch_instruction (f, 4, 0x1100a400);
+  patch_instruction (&patcher, f, 4, 0x1100a400);
   g_assert_cmpuint (f (), ==, 2);
 
   gum_stalker_unfollow_me (fixture->stalker);
+
+  code_patcher_stop (&patcher);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
@@ -1896,27 +1919,31 @@ TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
 TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
 {
   FlatFunc f;
+  CodePatcher patcher;
 
   f = (FlatFunc) test_arm64_stalker_fixture_dup_code (fixture, flat_code,
       sizeof (flat_code));
 
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
+  code_patcher_start (&patcher);
   gum_stalker_set_trust_threshold (fixture->stalker, 1);
   gum_stalker_follow_me (fixture->stalker, fixture->transformer,
       GUM_EVENT_SINK (fixture->sink));
 
   g_assert_cmpuint (f (), ==, 2);
 
-  patch_instruction (f, 4, 0x1100a400);
+  patch_instruction (&patcher, f, 4, 0x1100a400);
   g_assert_cmpuint (f (), ==, 42);
   f ();
   f ();
 
-  patch_instruction (f, 4, 0x1114e000);
+  patch_instruction (&patcher, f, 4, 0x1114e000);
   g_assert_cmpuint (f (), ==, 42);
 
   gum_stalker_unfollow_me (fixture->stalker);
+
+  code_patcher_stop (&patcher);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 }
@@ -2003,12 +2030,66 @@ bump_num_cmp_callouts (GumCpuContext * cpu_context,
 }
 
 static void
-patch_instruction (gpointer code,
+code_patcher_start (CodePatcher * self)
+{
+  self->request = 0;
+  self->done = 0;
+  self->stop = FALSE;
+  self->thread = g_thread_new ("code-patcher", code_patcher_worker, self);
+}
+
+static void
+code_patcher_stop (CodePatcher * self)
+{
+  self->stop = TRUE;
+  g_thread_join (self->thread);
+}
+
+static void
+patch_instruction (CodePatcher * patcher,
+                   gpointer code,
                    guint offset,
                    guint32 insn)
 {
-  gum_memory_patch_code ((guint8 *) code + offset, sizeof (insn),
-      do_patch_instruction, GSIZE_TO_POINTER (insn));
+  gint request;
+
+  /*
+   * Run the patch on the unstalked patcher thread: tracing patch_code()'s
+   * /proc/self/maps read never settles at trust threshold -1.
+   */
+  patcher->target = (guint8 *) code + offset;
+  patcher->insn = insn;
+
+  request = patcher->request + 1;
+  patcher->request = request;
+
+  while (patcher->done < request)
+    ;
+}
+
+static gpointer
+code_patcher_worker (gpointer data)
+{
+  CodePatcher * self = data;
+  gint served = 0;
+
+  while (!self->stop)
+  {
+    if (self->request > served)
+    {
+      gum_memory_patch_code (self->target, sizeof (self->insn),
+          do_patch_instruction, GSIZE_TO_POINTER (self->insn));
+
+      served++;
+      self->done = served;
+    }
+    else
+    {
+      g_thread_yield ();
+    }
+  }
+
+  return NULL;
 }
 
 static void
