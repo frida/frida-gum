@@ -994,7 +994,8 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
     {
       const GumSegmentCommand64 * sc = command_in;
 
-      is_linkedit_command = sc->fileoff == layout->linkedit_offset_in;
+      /* XXX: It is known that some files in the wild have segments of 0KB at the same position as __LINKEDIT, so filesize check is needed */
+      is_linkedit_command = (sc->filesize > 0 && sc->fileoff == layout->linkedit_offset_in);
     }
 
     if (is_linkedit_command)
@@ -1220,6 +1221,78 @@ gum_darwin_grafter_transform_load_commands (gconstpointer commands_in,
 }
 
 static gboolean
+gum_arm64_branch_is_unconditional (const cs_insn * insn)
+{
+  switch (insn->detail->arm64.cc)
+  {
+    case ARM64_CC_INVALID:
+    case ARM64_CC_AL:
+    case ARM64_CC_NV:
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
+static gboolean
+gum_darwin_grafter_write_with_relocations (GumArm64Writer * cw,
+                                           guint32 overwritten_insn,
+                                           GumAddress code_addr) {
+  /* XXX: Naive implementation of instruction relocation, not all conditions are supported currently */
+  gboolean result = FALSE;
+  csh capstone;
+
+  cs_arch_register_arm64 ();
+  cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  cs_insn * insn = cs_malloc (capstone);
+  size_t size = 4;
+  const uint8_t * code = (const uint8_t *) &overwritten_insn;
+  if (cs_disasm_iter (capstone, &code, &size, &code_addr, insn)) {
+    const cs_arm64 * detail = &(insn->detail->arm64);
+    const cs_arm64_op * operands = detail->operands;
+    switch (insn->id) {
+      case ARM64_INS_BL:
+        gum_arm64_writer_put_bl_imm(cw, operands[0].imm);
+        result |= true;
+        break;
+      case ARM64_INS_ADRP:
+        gum_arm64_writer_put_adrp_reg_address(cw, operands[0].reg, operands[1].imm);
+        result |= true;
+        break;
+      case ARM64_INS_B:
+        if (gum_arm64_branch_is_unconditional (insn)) {
+          gum_arm64_writer_put_b_imm(cw, operands[0].imm);
+          result |= true;
+        } else {
+          /* TODO: Support these instructions for relocation */
+          g_printerr("Unsupported relocation of conditional B mnemonic before %#02llx\n", code_addr);
+        }
+        break;
+      case ARM64_INS_LDR:
+      case ARM64_INS_LDRSW:
+        if (operands[1].type == ARM64_OP_IMM) {
+          /* TODO: Support these instructions for relocation */
+          g_printerr("Unsupported relocation of immediate LDR(SW) mnemonic before %#02llx\n", code_addr);
+        }
+        break;
+      case ARM64_INS_ADR:
+      case ARM64_INS_CBZ:
+      case ARM64_INS_CBNZ:
+      case ARM64_INS_TBZ:
+      case ARM64_INS_TBNZ:
+        /* TODO: Support these instructions for relocation */
+        g_printerr("Unsupported relocation of unsafe (%s) mnemonic before %#02llx\n", insn->mnemonic, code_addr);
+        break;
+    }
+  }
+
+  cs_close(&capstone);
+  return result;
+}
+
+static gboolean
 gum_darwin_grafter_emit_segments (gpointer output,
                                   const GumGraftedLayout * layout,
                                   GArray * code_offsets,
@@ -1351,7 +1424,12 @@ gum_darwin_grafter_emit_segments (gpointer output,
 
       g_assert (cw.pc == trampoline_addr +
           G_STRUCT_OFFSET (GumGraftedHookTrampoline, on_invoke));
-      /* TODO: use Arm64Relocator */
+
+      /* XXX: At the moment, Arm64Relocator it can generate multiple instructions from a single jump instruction, so we use different and more simple relocation */
+      if (!gum_darwin_grafter_write_with_relocations(&cw, overwritten_insn, code_addr)) {
+        gum_arm64_writer_put_instruction (&cw, overwritten_insn);
+      }
+
       gum_arm64_writer_put_instruction (&cw, overwritten_insn);
       gum_arm64_writer_put_b_imm (&cw, code_addr + sizeof (overwritten_insn));
 
