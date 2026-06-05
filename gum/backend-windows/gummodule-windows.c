@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2025 William Tan <1284324+Ninja3047@users.noreply.github.com>
  *
@@ -304,6 +304,7 @@ gum_native_module_enumerate_exports (GumModule * module,
         : GUM_EXPORT_VARIABLE;
     details.name = (const gchar *) &mod_base[name_rvas[i]];
     details.address = GUM_ADDRESS (func_address);
+    details.size = -1;
 
     if (!func (&details, user_data))
       goto beach;

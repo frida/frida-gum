@@ -584,6 +584,8 @@ gum_darwin_module_resolver_resolve_export (
     result->address = gum_sign_code_address (result->address);
   }
 
+  result->size = -1;
+
   return TRUE;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -448,6 +448,13 @@ gum_emit_export (const GumExportDetails * details,
       _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
           core),
       JS_PROP_C_W_E);
+  if (details->size != -1)
+  {
+    JS_DefinePropertyValue (ctx, exp,
+        GUM_QUICK_CORE_ATOM (core, size),
+        JS_NewInt64 (ctx, details->size),
+        JS_PROP_C_W_E);
+  }
 
   return gum_quick_enumerate_context_collect (ec, exp);
 }

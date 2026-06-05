@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -502,6 +502,9 @@ gum_emit_export (const GumExportDetails * details,
   exp->Set (context, ec->address,
       _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->address), core))
       .FromJust ();
+
+  if (details->size != -1)
+    _gum_v8_object_set_uint (exp, "size", details->size, core);
 
   return ec->Collect (exp);
 }

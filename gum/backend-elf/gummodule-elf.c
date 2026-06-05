@@ -341,6 +341,7 @@ gum_native_module_enumerate_exports (GumModule * module,
       d.name = name;
       d.address = gum_module_find_export_by_name (module, name);
       g_assert (d.address != 0);
+      d.size = -1;
 
       if (!func (&d, user_data))
         return;

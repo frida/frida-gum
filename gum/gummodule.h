@@ -105,6 +105,7 @@ struct _GumExportDetails
   GumExportType type;
   const gchar * name;
   GumAddress address;
+  gssize size;
 };
 
 struct _GumSymbolDetails

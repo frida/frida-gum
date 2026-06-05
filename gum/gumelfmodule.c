@@ -1785,6 +1785,7 @@ gum_emit_elf_export (const GumElfSymbolDetails * details,
         : GUM_EXPORT_VARIABLE;
     d.name = details->name;
     d.address = details->address;
+    d.size = details->size;
 
     if (!ctx->func (&d, ctx->user_data))
       return FALSE;

@@ -691,6 +691,7 @@ namespace Gum {
 		public Gum.ExportType type;
 		public string name;
 		public Gum.Address address;
+		public ssize_t size;
 	}
 
 	[CCode (cprefix = "GUM_SYMBOL_")]
@@ -709,6 +710,7 @@ namespace Gum {
 		public Gum.SymbolSection? section;
 		public string name;
 		public Gum.Address address;
+		public ssize_t size;
 	}
 
 	public struct SymbolSection {
