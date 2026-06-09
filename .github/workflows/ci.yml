@@ -76,6 +76,7 @@ jobs:
         include:
           - { id: windows-x86_64, runner: '"windows-latest"'                    }
           - { id: windows-x86,    runner: '"windows-latest"'                    }
+          - { id: windows-arm64,  runner: '"windows-11-arm"'                    }
           - { id: macos-x86_64,   runner: '"macos-latest"'                      }
           - { id: macos-arm64,    runner: '"macos-latest"'                      }
           - { id: linux-x86_64,   runner: '"ubuntu-latest"'                     }
