@@ -41,11 +41,11 @@ GUMJS_DECLARE_FINALIZER (gumjs_control_flow_graph_finalize)
 GUMJS_DECLARE_GETTER (gumjs_control_flow_graph_get_entrypoint)
 GUMJS_DECLARE_GETTER (gumjs_control_flow_graph_get_entry_block)
 GUMJS_DECLARE_GETTER (gumjs_control_flow_graph_get_blocks)
-GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_block_containing)
+GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_find_block_containing)
 GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_dominates)
 GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_enumerate_dominating_sites)
 static gboolean gum_quick_collect_dominating_site (gconstpointer site,
-    gsize window, GumQuickDominatingSitesContext * dc);
+    gsize capacity, GumQuickDominatingSitesContext * dc);
 
 static JSValue gum_quick_basic_block_new (JSContext * ctx,
     GumQuickControlFlowGraph * parent, JSValue cfg,
@@ -71,8 +71,8 @@ static const JSCFunctionListEntry gumjs_control_flow_graph_entries[] =
   JS_CGETSET_DEF ("entrypoint", gumjs_control_flow_graph_get_entrypoint, NULL),
   JS_CGETSET_DEF ("entryBlock", gumjs_control_flow_graph_get_entry_block, NULL),
   JS_CGETSET_DEF ("blocks", gumjs_control_flow_graph_get_blocks, NULL),
-  JS_CFUNC_DEF ("blockContaining", 0,
-      gumjs_control_flow_graph_block_containing),
+  JS_CFUNC_DEF ("findBlockContaining", 0,
+      gumjs_control_flow_graph_find_block_containing),
   JS_CFUNC_DEF ("dominates", 0, gumjs_control_flow_graph_dominates),
   JS_CFUNC_DEF ("enumerateDominatingSites", 0,
       gumjs_control_flow_graph_enumerate_dominating_sites),
@@ -267,7 +267,7 @@ GUMJS_DEFINE_GETTER (gumjs_control_flow_graph_get_blocks)
   return result;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_control_flow_graph_block_containing)
+GUMJS_DEFINE_FUNCTION (gumjs_control_flow_graph_find_block_containing)
 {
   GumQuickControlFlowGraph * parent;
   GumQuickControlFlowGraphValue * self;
@@ -282,7 +282,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_control_flow_graph_block_containing)
   if (!_gum_quick_args_parse (args, "p", &address))
     return JS_EXCEPTION;
 
-  index = gum_control_flow_graph_find_block (self->handle, address);
+  index = gum_control_flow_graph_find_block_containing (self->handle, address);
   if (index == GUM_CONTROL_FLOW_GRAPH_NO_BLOCK)
     return JS_NULL;
 
@@ -335,7 +335,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_control_flow_graph_enumerate_dominating_sites)
 
 static gboolean
 gum_quick_collect_dominating_site (gconstpointer site,
-                                   gsize window,
+                                   gsize capacity,
                                    GumQuickDominatingSitesContext * dc)
 {
   JSContext * ctx = dc->ctx;
@@ -346,8 +346,8 @@ gum_quick_collect_dominating_site (gconstpointer site,
   JS_DefinePropertyValue (ctx, element, GUM_QUICK_CORE_ATOM (core, address),
       _gum_quick_native_pointer_new (ctx, (gpointer) site, core),
       JS_PROP_C_W_E);
-  JS_DefinePropertyValueStr (ctx, element, "window",
-      JS_NewInt64 (ctx, window), JS_PROP_C_W_E);
+  JS_DefinePropertyValueStr (ctx, element, "capacity",
+      JS_NewInt64 (ctx, capacity), JS_PROP_C_W_E);
 
   JS_DefinePropertyValueUint32 (ctx, dc->elements, dc->n++, element,
       JS_PROP_C_W_E);
@@ -543,7 +543,7 @@ GUMJS_DEFINE_GETTER (gumjs_basic_block_get_instructions)
   i = 0;
   for (address = start; address != end; )
   {
-    const cs_insn * insn = gum_control_flow_graph_find_instruction (
+    const cs_insn * insn = gum_control_flow_graph_find_instruction_containing (
         self->handle, GSIZE_TO_POINTER (address));
 
     JS_DefinePropertyValueUint32 (ctx, result, i++,

@@ -32,13 +32,13 @@ struct _GumTestCode
 struct _GumCollectedSites
 {
   gconstpointer sites[16];
-  gsize windows[16];
+  gsize capacities[16];
   guint n;
 };
 
 static gboolean gum_test_find_range (gconstpointer address,
     GumMemoryRange * range, gpointer user_data);
-static gboolean gum_test_collect_site (gconstpointer site, gsize window,
+static gboolean gum_test_collect_site (gconstpointer site, gsize capacity,
     gpointer user_data);
 
 /*
@@ -79,9 +79,9 @@ TESTCASE (single_range_dominators_and_sites)
       gum_test_collect_site, &sites);
 
   g_assert_cmpuint (sites.n, ==, 3);
-  g_assert_true (sites.sites[0] == code + 0x09 && sites.windows[0] == 3);
-  g_assert_true (sites.sites[1] == code + 0x03 && sites.windows[1] == 6);
-  g_assert_true (sites.sites[2] == code + 0x00 && sites.windows[2] == 9);
+  g_assert_true (sites.sites[0] == code + 0x09 && sites.capacities[0] == 3);
+  g_assert_true (sites.sites[1] == code + 0x03 && sites.capacities[1] == 6);
+  g_assert_true (sites.sites[2] == code + 0x00 && sites.capacities[2] == 9);
 
   gum_control_flow_graph_free (cfg);
 }
@@ -173,13 +173,13 @@ gum_test_find_range (gconstpointer address,
 
 static gboolean
 gum_test_collect_site (gconstpointer site,
-                       gsize window,
+                       gsize capacity,
                        gpointer user_data)
 {
   GumCollectedSites * collected = user_data;
 
   collected->sites[collected->n] = site;
-  collected->windows[collected->n] = window;
+  collected->capacities[collected->n] = capacity;
   collected->n++;
 
   return TRUE;

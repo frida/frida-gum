@@ -45,11 +45,11 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_control_flow_graph_construct)
 GUMJS_DECLARE_GETTER (gumjs_control_flow_graph_get_entrypoint)
 GUMJS_DECLARE_GETTER (gumjs_control_flow_graph_get_entry_block)
 GUMJS_DECLARE_GETTER (gumjs_control_flow_graph_get_blocks)
-GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_block_containing)
+GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_find_block_containing)
 GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_dominates)
 GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_enumerate_dominating_sites)
 static gboolean gum_v8_collect_dominating_site (gconstpointer site,
-    gsize window, GumV8DominatingSitesContext * dc);
+    gsize capacity, GumV8DominatingSitesContext * dc);
 static GumV8ControlFlowGraphValue * gum_v8_control_flow_graph_value_new (
     Local<Object> wrapper, GumControlFlowGraph * handle,
     gconstpointer entrypoint, GumV8ControlFlowGraph * module);
@@ -81,7 +81,7 @@ static const GumV8Property gumjs_control_flow_graph_values[] =
 
 static const GumV8Function gumjs_control_flow_graph_functions[] =
 {
-  { "blockContaining", gumjs_control_flow_graph_block_containing },
+  { "findBlockContaining", gumjs_control_flow_graph_find_block_containing },
   { "dominates", gumjs_control_flow_graph_dominates },
   { "enumerateDominatingSites",
       gumjs_control_flow_graph_enumerate_dominating_sites },
@@ -227,14 +227,15 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_control_flow_graph_get_blocks,
   info.GetReturnValue ().Set (result);
 }
 
-GUMJS_DEFINE_CLASS_METHOD (gumjs_control_flow_graph_block_containing,
+GUMJS_DEFINE_CLASS_METHOD (gumjs_control_flow_graph_find_block_containing,
                            GumV8ControlFlowGraphValue)
 {
   gpointer address;
   if (!_gum_v8_args_parse (args, "p", &address))
     return;
 
-  guint index = gum_control_flow_graph_find_block (self->handle, address);
+  guint index =
+      gum_control_flow_graph_find_block_containing (self->handle, address);
   if (index == GUM_CONTROL_FLOW_GRAPH_NO_BLOCK)
   {
     info.GetReturnValue ().SetNull ();
@@ -276,7 +277,7 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_control_flow_graph_enumerate_dominating_sites,
 
 static gboolean
 gum_v8_collect_dominating_site (gconstpointer site,
-                                gsize window,
+                                gsize capacity,
                                 GumV8DominatingSitesContext * dc)
 {
   auto core = dc->module->core;
@@ -285,7 +286,7 @@ gum_v8_collect_dominating_site (gconstpointer site,
 
   auto element = Object::New (isolate);
   _gum_v8_object_set_pointer (element, "address", (gpointer) site, core);
-  _gum_v8_object_set_uint (element, "window", window, core);
+  _gum_v8_object_set_uint (element, "capacity", capacity, core);
 
   dc->elements->Set (context, dc->n++, element).Check ();
 
@@ -419,8 +420,8 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_basic_block_get_instructions,
   guint i = 0;
   for (GumAddress address = start; address != end; )
   {
-    auto insn = gum_control_flow_graph_find_instruction (self->handle,
-        GSIZE_TO_POINTER (address));
+    auto insn = gum_control_flow_graph_find_instruction_containing (
+        self->handle, GSIZE_TO_POINTER (address));
 
     result->Set (context, i++,
         _gum_v8_instruction_new (module->instruction->capstone, insn, FALSE,
