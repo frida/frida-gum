@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2024 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
@@ -115,6 +115,8 @@ GUM_API GumModule * gum_process_get_main_module (void);
 GUM_API GumModule * gum_process_get_libc_module (void);
 GUM_API GumModule * gum_process_find_module_by_name (const gchar * name);
 GUM_API GumModule * gum_process_find_module_by_address (GumAddress address);
+GUM_API gboolean gum_process_find_function_range (gconstpointer address,
+    GumMemoryRange * range);
 GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
 GUM_API void gum_process_enumerate_ranges (GumPageProtection prot,
