@@ -690,6 +690,85 @@ gum_interceptor_flush (GumInterceptor * self)
   return flushed;
 }
 
+gboolean
+gum_interceptor_flush_function (GumInterceptor * self,
+                                gconstpointer function_address)
+{
+  gboolean flushed = TRUE;
+
+  GUM_INTERCEPTOR_LOCK (self);
+
+  if (self->current_transaction.level == 0)
+  {
+    gpointer target;
+    GList * cur;
+
+    gum_interceptor_transaction_begin (&self->current_transaction);
+    gum_interceptor_transaction_end (&self->current_transaction);
+
+    target = gum_interceptor_resolve (self, (gpointer) function_address);
+
+    for (cur = self->current_transaction.pending_destroy_tasks->head;
+        cur != NULL;
+        cur = cur->next)
+    {
+      GumDestroyTask * task = cur->data;
+
+      if (task->ctx->function_address == target)
+      {
+        flushed = FALSE;
+        break;
+      }
+    }
+  }
+  else
+  {
+    flushed = FALSE;
+  }
+
+  GUM_INTERCEPTOR_UNLOCK (self);
+
+  return flushed;
+}
+
+gboolean
+gum_interceptor_flush_listener (GumInterceptor * self,
+                                GumInvocationListener * listener)
+{
+  gboolean flushed = TRUE;
+
+  GUM_INTERCEPTOR_LOCK (self);
+
+  if (self->current_transaction.level == 0)
+  {
+    GList * cur;
+
+    gum_interceptor_transaction_begin (&self->current_transaction);
+    gum_interceptor_transaction_end (&self->current_transaction);
+
+    for (cur = self->current_transaction.pending_destroy_tasks->head;
+        cur != NULL;
+        cur = cur->next)
+    {
+      GumDestroyTask * task = cur->data;
+
+      if (task->data == listener)
+      {
+        flushed = FALSE;
+        break;
+      }
+    }
+  }
+  else
+  {
+    flushed = FALSE;
+  }
+
+  GUM_INTERCEPTOR_UNLOCK (self);
+
+  return flushed;
+}
+
 /**
  * gum_interceptor_get_current_invocation:
  *

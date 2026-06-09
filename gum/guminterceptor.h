@@ -120,6 +120,10 @@ GUM_API void gum_interceptor_revert (GumInterceptor * self,
 GUM_API void gum_interceptor_begin_transaction (GumInterceptor * self);
 GUM_API void gum_interceptor_end_transaction (GumInterceptor * self);
 GUM_API gboolean gum_interceptor_flush (GumInterceptor * self);
+GUM_API gboolean gum_interceptor_flush_function (GumInterceptor * self,
+    gconstpointer function_address);
+GUM_API gboolean gum_interceptor_flush_listener (GumInterceptor * self,
+    GumInvocationListener * listener);
 
 GUM_API GumInvocationContext * gum_interceptor_get_current_invocation (void);
 GUM_API GumInvocationContext * gum_interceptor_get_live_replacement_invocation (
