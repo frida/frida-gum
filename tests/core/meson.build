@@ -4,6 +4,7 @@ endif
 
 core_sources = [
   'tls.c',
+  'controlflowgraph.c',
   'cloak.c',
   'memory.c',
   'process.c',

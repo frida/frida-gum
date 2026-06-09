@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -178,6 +178,7 @@ main (gint argc, gchar * argv[])
   /* Core */
   TESTLIST_REGISTER (testutil);
   TESTLIST_REGISTER (tls);
+  TESTLIST_REGISTER (cfg);
   TESTLIST_REGISTER (cloak);
   TESTLIST_REGISTER (memory);
   TESTLIST_REGISTER (process);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,6 +11,7 @@
 
 #include <gum/gumapiresolver.h>
 #include <gum/gumbacktracer.h>
+#include <gum/gumcontrolflowgraph.h>
 #include <gum/gumcloak.h>
 #include <gum/gumcodeallocator.h>
 #include <gum/gumcodesegment.h>
