@@ -109,6 +109,10 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             gboolean force)
 {
   GumX86FunctionContextData * data = GUM_FCDATA (ctx);
+  GumRelocationScenario scenario =
+      (ctx->scenario == GUM_INTERCEPTOR_SCENARIO_OFFLINE)
+      ? GUM_SCENARIO_OFFLINE
+      : GUM_SCENARIO_ONLINE;
 #if GLIB_SIZEOF_VOID_P == 4
   data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
 
@@ -163,7 +167,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
         ? ctx->redirect_space_hint
         : GUM_INTERCEPTOR_MAX_REDIRECT_SIZE;
     gum_x86_relocator_can_relocate (ctx->function_address, scan_bytes,
-        &data->available_space);
+        scenario, &data->available_space);
     if (ctx->redirect_space_hint != 0 &&
         data->available_space > ctx->redirect_space_hint)
       data->available_space = ctx->redirect_space_hint;
@@ -176,7 +180,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   }
 
   if (!force && !gum_x86_relocator_can_relocate (ctx->function_address,
-        data->redirect_code_size, NULL))
+        data->redirect_code_size, scenario, NULL))
     goto not_enough_space;
 
   return TRUE;

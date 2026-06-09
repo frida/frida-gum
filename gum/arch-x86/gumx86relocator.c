@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -400,6 +400,7 @@ gum_x86_relocator_put_label_for (GumX86Relocator * self,
 gboolean
 gum_x86_relocator_can_relocate (gpointer address,
                                 guint min_bytes,
+                                GumRelocationScenario scenario,
                                 guint * maximum)
 {
   guint n = 0;
@@ -415,11 +416,37 @@ gum_x86_relocator_can_relocate (gpointer address,
 
   do
   {
-    reloc_bytes = gum_x86_relocator_read_one (&rl, NULL);
+    const cs_insn * insn;
+    gboolean safe_to_relocate_further;
+
+    reloc_bytes = gum_x86_relocator_read_one (&rl, &insn);
     if (reloc_bytes == 0)
       break;
 
     n = reloc_bytes;
+
+    if (scenario == GUM_SCENARIO_ONLINE)
+    {
+      switch (insn->id)
+      {
+        case X86_INS_CALL:
+        case X86_INS_SYSCALL:
+        case X86_INS_SYSENTER:
+        case X86_INS_INT:
+          safe_to_relocate_further = FALSE;
+          break;
+        default:
+          safe_to_relocate_further = TRUE;
+          break;
+      }
+    }
+    else
+    {
+      safe_to_relocate_further = TRUE;
+    }
+
+    if (!safe_to_relocate_further)
+      break;
   }
   while (reloc_bytes < min_bytes);
 
