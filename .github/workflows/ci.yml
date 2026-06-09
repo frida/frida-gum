@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - '**'
   pull_request:
     branches:
       - main
@@ -41,12 +43,32 @@ jobs:
               --force-fallback-for=libdwarf
           make
       - name: Upload GObject introspection data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gum-gir
           path: |
             build/gum/Gum-1.0.gir
             build/gum/Gum-1.0.typelib
+
+  publish-gir:
+    if: ${{ github.ref_type == 'tag' }}
+    needs: gir
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download GObject introspection data
+        uses: actions/download-artifact@v8
+        with:
+          name: gum-gir
+          path: gir
+      - name: Attach to GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            gir/Gum-1.0.gir
+            gir/Gum-1.0.typelib
+          prerelease: ${{ contains(github.ref_name, 'snapshot') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   native:
     strategy:
