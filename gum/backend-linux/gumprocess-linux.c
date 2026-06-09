@@ -437,7 +437,7 @@ static gboolean gum_linux_find_start_impl (GumLinuxPThreadSpec * spec);
 #if defined (HAVE_I386)
 static gpointer gum_linux_find_dominating_start_hook (gpointer call_site);
 static gboolean gum_linux_try_use_dominating_site (gconstpointer site,
-    gsize window, gpointer user_data);
+    gsize capacity, gpointer user_data);
 #endif
 static gboolean gum_linux_is_call (cs_insn * insn);
 static gboolean gum_linux_create_thread (GumLinuxThreadCtx * ctx,
@@ -3787,7 +3787,7 @@ gum_linux_find_dominating_start_hook (gpointer call_site)
 
 static gboolean
 gum_linux_try_use_dominating_site (gconstpointer site,
-                                   gsize window,
+                                   gsize capacity,
                                    gpointer user_data)
 {
   GumDominatingHookSite * ctx = user_data;
@@ -3795,14 +3795,14 @@ gum_linux_try_use_dominating_site (gconstpointer site,
   const cs_detail * detail;
   uint8_t i;
 
-  if (window < GUM_START_HOOK_REDIRECT_SIZE)
+  if (capacity < GUM_START_HOOK_REDIRECT_SIZE)
     return TRUE;
 
   if ((const guint8 *) site + GUM_START_HOOK_REDIRECT_SIZE >
       (const guint8 *) ctx->call_site)
     return TRUE;
 
-  insn = gum_control_flow_graph_find_instruction (ctx->cfg, site);
+  insn = gum_control_flow_graph_find_instruction_containing (ctx->cfg, site);
   detail = insn->detail;
   for (i = 0; i != detail->groups_count; i++)
   {

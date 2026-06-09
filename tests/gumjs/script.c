@@ -8202,7 +8202,7 @@ TESTCASE (cfg_can_be_built)
       "const entry = cfg.entryBlock;"
       "send(entry !== null);"
       "send(cfg.blocks.length > 0);"
-      "send(cfg.blockContaining(entry.start).start.equals(entry.start));"
+      "send(cfg.findBlockContaining(entry.start).start.equals(entry.start));"
       "send(cfg.dominates(entry.start, entry.start));"
       "const insns = entry.instructions;"
       "send(insns.length > 0);"
@@ -8228,7 +8228,7 @@ TESTCASE (cfg_dominating_sites_can_be_enumerated)
       "const sites = cfg.enumerateDominatingSites(entry.start);"
       "send(sites.length > 0);"
       "send(sites[0].address.equals(entry.start));"
-      "send(typeof sites[0].window === 'number');",
+      "send(typeof sites[0].capacity === 'number');",
       gum_get_answer_to_life_universe_and_everything);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");

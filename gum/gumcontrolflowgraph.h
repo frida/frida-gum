@@ -37,7 +37,7 @@ typedef gboolean (* GumControlFlowGraphFindRangeFunc) (gconstpointer address,
 /**
  * GumFoundDominatingSiteFunc:
  * @site: instruction-aligned address that dominates the target
- * @window: number of contiguous bytes at @site with no incoming branch and
+ * @capacity: number of contiguous bytes at @site with no incoming branch and
  *          within a single range — how much may be overwritten by a redirect
  *          without another control-flow edge landing inside it
  * @user_data: data passed to the dominating-site enumerator
@@ -45,7 +45,7 @@ typedef gboolean (* GumControlFlowGraphFindRangeFunc) (gconstpointer address,
  * Returns: %TRUE to keep enumerating, %FALSE to stop
  */
 typedef gboolean (* GumFoundDominatingSiteFunc) (gconstpointer site,
-    gsize window, gpointer user_data);
+    gsize capacity, gpointer user_data);
 
 GUM_API GumControlFlowGraph * gum_control_flow_graph_new (gconstpointer entry,
     cs_arch arch, cs_mode mode, GumControlFlowGraphFindRangeFunc find_range,
@@ -70,8 +70,8 @@ GUM_API guint gum_control_flow_graph_get_num_blocks (
     GumControlFlowGraph * self);
 GUM_API guint gum_control_flow_graph_get_entry_block (
     GumControlFlowGraph * self);
-GUM_API guint gum_control_flow_graph_find_block (GumControlFlowGraph * self,
-    gconstpointer address);
+GUM_API guint gum_control_flow_graph_find_block_containing (
+    GumControlFlowGraph * self, gconstpointer address);
 GUM_API void gum_control_flow_graph_get_block_bounds (
     GumControlFlowGraph * self, guint index, GumAddress * start,
     GumAddress * end);
@@ -82,7 +82,7 @@ GUM_API guint gum_control_flow_graph_get_block_successors (
 GUM_API guint gum_control_flow_graph_get_block_predecessors (
     GumControlFlowGraph * self, guint index, const guint ** predecessors);
 
-GUM_API const cs_insn * gum_control_flow_graph_find_instruction (
+GUM_API const cs_insn * gum_control_flow_graph_find_instruction_containing (
     GumControlFlowGraph * self, gconstpointer address);
 
 G_END_DECLS

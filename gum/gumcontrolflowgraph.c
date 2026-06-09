@@ -265,10 +265,10 @@ gum_control_flow_graph_enumerate_dominating_sites (
     for (i = boundaries->len; i != 0; i--)
     {
       GumAddress site = g_array_index (boundaries, GumAddress, i - 1);
-      gsize window =
+      gsize capacity =
           gum_control_flow_graph_next_branch_target (self, site) - site;
 
-      if (!func (GSIZE_TO_POINTER (site), window, user_data))
+      if (!func (GSIZE_TO_POINTER (site), capacity, user_data))
       {
         g_array_free (boundaries, TRUE);
         return;
@@ -300,7 +300,7 @@ gum_control_flow_graph_get_entry_block (GumControlFlowGraph * self)
 }
 
 guint
-gum_control_flow_graph_find_block (GumControlFlowGraph * self,
+gum_control_flow_graph_find_block_containing (GumControlFlowGraph * self,
                                    gconstpointer address)
 {
   return gum_control_flow_graph_block_index_for_address (self,
@@ -359,7 +359,7 @@ gum_control_flow_graph_get_block_predecessors (GumControlFlowGraph * self,
 }
 
 const cs_insn *
-gum_control_flow_graph_find_instruction (GumControlFlowGraph * self,
+gum_control_flow_graph_find_instruction_containing (GumControlFlowGraph * self,
                                          gconstpointer address)
 {
   const GumControlFlowGraphInsn * insn =
