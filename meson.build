@@ -401,14 +401,11 @@ if glib_dep_native.type_name() == 'internal' or native_cc.has_function('g_thread
 endif
 gio_dep_native = dependency('gio-2.0', native: true)
 
-capstone_arch_mappings = {
-  'x86_64': 'x86',
-  's390x': 'sysz',
-}
 capstone_options = [
   'default_library=static',
   'profile=' + (diet ? 'tiny' : 'full'),
-  'archs=' + capstone_arch_mappings.get(host_arch, host_arch),
+  'archs=all',
+  'use_arch_registration=true',
   'x86_att_disable=true',
   'cli=disabled',
 ]
