@@ -480,7 +480,7 @@ static gboolean
 gum_find_function_range_from_unwind_info (gconstpointer address,
                                           GumMemoryRange * range)
 {
-#if defined (HAVE_WINDOWS) && (GLIB_SIZEOF_VOID_P == 8 || defined (HAVE_ARM))
+#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8
   PRUNTIME_FUNCTION function;
   DWORD64 image_base;
 
@@ -490,7 +490,31 @@ gum_find_function_range_from_unwind_info (gconstpointer address,
     return FALSE;
 
   range->base_address = image_base + function->BeginAddress;
+# ifdef HAVE_ARM64
+  {
+    /*
+     * On ARM64 the entry has no EndAddress; the function length (in 32-bit
+     * words) lives either packed into UnwindData when its low two bits are
+     * set, or in the .xdata record it points to otherwise.
+     */
+    DWORD unwind = function->UnwindData;
+    guint32 length;
+
+    if ((unwind & 0x3) != 0)
+    {
+      length = (unwind >> 2) & 0x7ff;
+    }
+    else
+    {
+      const DWORD * xdata = GSIZE_TO_POINTER (image_base + unwind);
+      length = *xdata & 0x3ffff;
+    }
+
+    range->size = (gsize) length * sizeof (guint32);
+  }
+# else
   range->size = function->EndAddress - function->BeginAddress;
+# endif
 
   return TRUE;
 #elif defined (GUM_FUNCTION_RANGE_USES_COMPACT_UNWIND)
