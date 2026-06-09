@@ -155,6 +155,7 @@ static void gum_v8_module_observer_invoke (GumV8ModuleObserver * self,
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_range_by_address)
 static gboolean gum_store_range_if_containing_address (
     const GumRangeDetails * details, GumV8FindRangeByAddressContext * fc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_function_range)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumV8EnumerateContext<GumV8Process> * ec);
@@ -195,6 +196,7 @@ static const GumV8Function gumjs_process_functions[] =
   { "enumerateModules", gumjs_process_enumerate_modules },
   { "attachModuleObserver", gumjs_process_attach_module_observer },
   { "findRangeByAddress", gumjs_process_find_range_by_address },
+  { "findFunctionRange", gumjs_process_find_function_range },
   { "_enumerateRanges", gumjs_process_enumerate_ranges },
   { "enumerateSystemRanges", gumjs_process_enumerate_system_ranges },
   { "enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges },
@@ -1005,6 +1007,26 @@ gum_store_range_if_containing_address (const GumRangeDetails * details,
   }
 
   return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_function_range)
+{
+  gpointer ptr;
+  if (!_gum_v8_args_parse (args, "p", &ptr))
+    return;
+
+  GumMemoryRange range;
+  if (!gum_process_find_function_range (ptr, &range))
+  {
+    info.GetReturnValue ().SetNull ();
+    return;
+  }
+
+  auto result = Object::New (isolate);
+  _gum_v8_object_set_pointer (result, "base", range.base_address, core);
+  _gum_v8_object_set_uint (result, "size", range.size, core);
+
+  info.GetReturnValue ().Set (result);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)

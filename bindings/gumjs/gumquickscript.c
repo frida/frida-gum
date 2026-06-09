@@ -12,6 +12,7 @@
 #include "gumquickcmodule.h"
 #include "gumquickcoderelocator.h"
 #include "gumquickcodewriter.h"
+#include "gumquickcontrolflowgraph.h"
 #include "gumquickcore.h"
 #include "gumquickfile.h"
 #include "gumquickinstruction.h"
@@ -79,6 +80,7 @@ struct _GumQuickScript
   GumQuickSymbol symbol;
   GumQuickCModule cmodule;
   GumQuickInstruction instruction;
+  GumQuickControlFlowGraph control_flow_graph;
   GumQuickCodeWriter code_writer;
   GumQuickCodeRelocator code_relocator;
   GumQuickStalker stalker;
@@ -173,6 +175,7 @@ struct _GumQuickWorker
   GumQuickSymbol symbol;
   GumQuickCModule cmodule;
   GumQuickInstruction instruction;
+  GumQuickControlFlowGraph control_flow_graph;
   GumQuickCodeWriter code_writer;
   GumQuickCodeRelocator code_relocator;
   GumQuickCloak cloak;
@@ -508,6 +511,8 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_symbol_init (&self->symbol, global_obj, core);
   _gum_quick_cmodule_init (&self->cmodule, global_obj, core);
   _gum_quick_instruction_init (&self->instruction, global_obj, core);
+  _gum_quick_control_flow_graph_init (&self->control_flow_graph, global_obj,
+      &self->instruction, core);
   _gum_quick_code_writer_init (&self->code_writer, global_obj, core);
   _gum_quick_code_relocator_init (&self->code_relocator, global_obj,
       &self->code_writer, &self->instruction, core);
@@ -557,6 +562,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     _gum_quick_stalker_dispose (&self->stalker);
     _gum_quick_code_relocator_dispose (&self->code_relocator);
     _gum_quick_code_writer_dispose (&self->code_writer);
+    _gum_quick_control_flow_graph_dispose (&self->control_flow_graph);
     _gum_quick_instruction_dispose (&self->instruction);
     _gum_quick_cmodule_dispose (&self->cmodule);
     _gum_quick_symbol_dispose (&self->symbol);
@@ -604,6 +610,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
   _gum_quick_stalker_finalize (&self->stalker);
   _gum_quick_code_relocator_finalize (&self->code_relocator);
   _gum_quick_code_writer_finalize (&self->code_writer);
+  _gum_quick_control_flow_graph_finalize (&self->control_flow_graph);
   _gum_quick_instruction_finalize (&self->instruction);
   _gum_quick_cmodule_finalize (&self->cmodule);
   _gum_quick_symbol_finalize (&self->symbol);
@@ -1211,6 +1218,8 @@ _gum_quick_script_make_worker (GumQuickScript * self,
     _gum_quick_symbol_init (&worker->symbol, global_obj, core);
     _gum_quick_cmodule_init (&worker->cmodule, global_obj, core);
     _gum_quick_instruction_init (&worker->instruction, global_obj, core);
+    _gum_quick_control_flow_graph_init (&worker->control_flow_graph, global_obj,
+        &worker->instruction, core);
     _gum_quick_code_writer_init (&worker->code_writer, global_obj, core);
     _gum_quick_code_relocator_init (&worker->code_relocator, global_obj,
         &worker->code_writer, &worker->instruction, core);
@@ -1316,6 +1325,7 @@ _gum_quick_worker_unref (GumQuickWorker * worker)
 
     _gum_quick_code_relocator_dispose (&worker->code_relocator);
     _gum_quick_code_writer_dispose (&worker->code_writer);
+    _gum_quick_control_flow_graph_dispose (&worker->control_flow_graph);
     _gum_quick_instruction_dispose (&worker->instruction);
     _gum_quick_cmodule_dispose (&worker->cmodule);
     _gum_quick_symbol_dispose (&worker->symbol);
@@ -1354,6 +1364,7 @@ _gum_quick_worker_unref (GumQuickWorker * worker)
   {
     _gum_quick_code_relocator_finalize (&worker->code_relocator);
     _gum_quick_code_writer_finalize (&worker->code_writer);
+    _gum_quick_control_flow_graph_finalize (&worker->control_flow_graph);
     _gum_quick_instruction_finalize (&worker->instruction);
     _gum_quick_cmodule_finalize (&worker->cmodule);
     _gum_quick_symbol_finalize (&worker->symbol);

@@ -167,6 +167,7 @@ static void gum_quick_module_observer_invoke (GumQuickModuleObserver * self,
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_range_by_address)
 static gboolean gum_store_range_if_containing_address (
     const GumRangeDetails * details, GumQuickFindRangeByAddressContext * fc);
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_function_range)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     GumQuickEnumerateContext * ec);
@@ -212,6 +213,7 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("attachModuleObserver", 0,
       gumjs_process_attach_module_observer),
   JS_CFUNC_DEF ("findRangeByAddress", 0, gumjs_process_find_range_by_address),
+  JS_CFUNC_DEF ("findFunctionRange", 0, gumjs_process_find_function_range),
   JS_CFUNC_DEF ("_enumerateRanges", 0, gumjs_process_enumerate_ranges),
   JS_CFUNC_DEF ("enumerateSystemRanges", 0,
       gumjs_process_enumerate_system_ranges),
@@ -1079,6 +1081,20 @@ gum_store_range_if_containing_address (const GumRangeDetails * details,
   }
 
   return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_function_range)
+{
+  gpointer ptr;
+  GumMemoryRange range;
+
+  if (!_gum_quick_args_parse (args, "p", &ptr))
+    return JS_EXCEPTION;
+
+  if (!gum_process_find_function_range (ptr, &range))
+    return JS_NULL;
+
+  return _gum_quick_memory_range_new (ctx, &range, core);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)

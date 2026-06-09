@@ -561,6 +561,8 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_symbol_init (&self->symbol, &self->core, global_templ);
     _gum_v8_cmodule_init (&self->cmodule, &self->core, global_templ);
     _gum_v8_instruction_init (&self->instruction, &self->core, global_templ);
+    _gum_v8_control_flow_graph_init (&self->control_flow_graph,
+        &self->instruction, &self->core, global_templ);
     _gum_v8_code_writer_init (&self->code_writer, &self->core, global_templ);
     _gum_v8_code_relocator_init (&self->code_relocator, &self->code_writer,
         &self->instruction, &self->core, global_templ);
@@ -601,6 +603,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_symbol_realize (&self->symbol);
     _gum_v8_cmodule_realize (&self->cmodule);
     _gum_v8_instruction_realize (&self->instruction);
+    _gum_v8_control_flow_graph_realize (&self->control_flow_graph);
     _gum_v8_code_writer_realize (&self->code_writer);
     _gum_v8_code_relocator_realize (&self->code_relocator);
     _gum_v8_stalker_realize (&self->stalker);
@@ -1145,6 +1148,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
     _gum_v8_stalker_dispose (&self->stalker);
     _gum_v8_code_relocator_dispose (&self->code_relocator);
     _gum_v8_code_writer_dispose (&self->code_writer);
+    _gum_v8_control_flow_graph_dispose (&self->control_flow_graph);
     _gum_v8_instruction_dispose (&self->instruction);
     _gum_v8_cmodule_dispose (&self->cmodule);
     _gum_v8_symbol_dispose (&self->symbol);
@@ -1182,6 +1186,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   _gum_v8_stalker_finalize (&self->stalker);
   _gum_v8_code_relocator_finalize (&self->code_relocator);
   _gum_v8_code_writer_finalize (&self->code_writer);
+  _gum_v8_control_flow_graph_finalize (&self->control_flow_graph);
   _gum_v8_instruction_finalize (&self->instruction);
   _gum_v8_cmodule_finalize (&self->cmodule);
   _gum_v8_symbol_finalize (&self->symbol);

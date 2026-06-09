@@ -14,6 +14,7 @@
 #include "gumv8cmodule.h"
 #include "gumv8coderelocator.h"
 #include "gumv8codewriter.h"
+#include "gumv8controlflowgraph.h"
 #include "gumv8core.h"
 #include "gumv8file.h"
 #include "gumv8instruction.h"
@@ -99,6 +100,7 @@ struct _GumV8Script
   GumV8Symbol symbol;
   GumV8CModule cmodule;
   GumV8Instruction instruction;
+  GumV8ControlFlowGraph control_flow_graph;
   GumV8CodeWriter code_writer;
   GumV8CodeRelocator code_relocator;
   GumV8Stalker stalker;

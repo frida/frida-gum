@@ -187,6 +187,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_ranges_can_be_enumerated)
     TESTENTRY (process_ranges_can_be_enumerated_with_neighbors_coalesced)
     TESTENTRY (process_range_can_be_looked_up_from_address)
+    TESTENTRY (process_function_range_can_be_looked_up_from_address)
     TESTENTRY (process_system_ranges_can_be_enumerated)
 #ifdef HAVE_DARWIN
     TESTENTRY (process_malloc_ranges_can_be_enumerated)
@@ -196,6 +197,11 @@ TESTLIST_BEGIN (script)
   TESTGROUP_BEGIN ("RunOnThread")
     TESTENTRY (process_can_run_on_thread_with_success)
     TESTENTRY (process_can_run_on_thread_with_failure)
+  TESTGROUP_END ()
+
+  TESTGROUP_BEGIN ("ControlFlowGraph")
+    TESTENTRY (cfg_can_be_built)
+    TESTENTRY (cfg_dominating_sites_can_be_enumerated)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("Module")
@@ -6154,6 +6160,19 @@ TESTCASE (process_range_can_be_looked_up_from_address)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
+TESTCASE (process_function_range_can_be_looked_up_from_address)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const f = " GUM_PTR_CONST ".strip();"
+      "const range = Process.findFunctionRange(f);"
+      "send(range !== null);"
+      "send(range.base.compare(f) <= 0 &&"
+      "    f.compare(range.base.add(range.size)) < 0);",
+      gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
 #ifdef HAVE_DARWIN
 
 TESTCASE (process_malloc_ranges_can_be_enumerated)
@@ -8174,6 +8193,46 @@ TESTCASE (replaced_function_should_have_invocation_context)
   target_function_int (7);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (cfg_can_be_built)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const cfg = new ControlFlowGraph(" GUM_PTR_CONST ");"
+      "const entry = cfg.entryBlock;"
+      "send(entry !== null);"
+      "send(cfg.blocks.length > 0);"
+      "send(cfg.blockContaining(entry.start).start.equals(entry.start));"
+      "send(cfg.dominates(entry.start, entry.start));"
+      "const insns = entry.instructions;"
+      "send(insns.length > 0);"
+      "send(insns[0].address.equals(entry.start));"
+      "send(Array.isArray(entry.successors));"
+      "send(Array.isArray(entry.predecessors));",
+      gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (cfg_dominating_sites_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const cfg = new ControlFlowGraph(" GUM_PTR_CONST ");"
+      "const entry = cfg.entryBlock;"
+      "const sites = cfg.enumerateDominatingSites(entry.start);"
+      "send(sites.length > 0);"
+      "send(sites[0].address.equals(entry.start));"
+      "send(typeof sites[0].window === 'number');",
+      gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 TESTCASE (instructions_can_be_probed)
