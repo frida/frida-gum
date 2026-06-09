@@ -82,8 +82,8 @@ typedef struct _GumMipsDebugRegs GumDebugRegs;
 #ifdef HAVE_GLIBC
 # define GUM_MAX_LIST_WALK_ATTEMPTS        10
 # define GUM_LINUX_MAX_THREADS             (256 * 1024)
-# define GUM_MAX_FIND_LIST_HEAD_ATTEMPTS   5
-# define GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS 10
+# define GUM_MAX_FIND_LIST_HEAD_ATTEMPTS   200
+# define GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS 200
 # define GUM_MAX_PTHREAD_SIZE              2048
 # define GUM_TID_CHECK_TIMES               5
 # define GUM_MAX_INSTRUCTION_SIZE          15
@@ -3051,8 +3051,7 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
 {
   guint tries;
   gboolean found_list_head = FALSE;
-  gboolean found_custom_stack_list_anchor = FALSE;
-  gboolean found_default_stack_list_anchor = FALSE;
+  gboolean found_lock = FALSE;
 
   /*
    * We create two threads in quick succession in the hopes that they will be
@@ -3078,29 +3077,24 @@ gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
   if (!gum_linux_find_tid_offset (spec))
     return FALSE;
 
+  /*
+   * The two list anchors are global addresses in libc, but a transient
+   * just-exited thread can momentarily masquerade as the anchor during the
+   * walk, yielding a wrong-but-self-consistent result. gum_linux_find_lock
+   * cross-checks the two anchors against the expected globals layout, so we
+   * re-detect until they agree.
+   */
   for (tries = 0; tries != GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS; tries++)
   {
-    if (gum_linux_find_list_anchor (spec, TRUE))
+    if (gum_linux_find_list_anchor (spec, TRUE) &&
+        gum_linux_find_list_anchor (spec, FALSE) &&
+        gum_linux_find_lock (spec))
     {
-      found_custom_stack_list_anchor = TRUE;
+      found_lock = TRUE;
       break;
     }
   }
-  if (!found_custom_stack_list_anchor)
-    return FALSE;
-
-  for (tries = 0; tries != GUM_MAX_FIND_LIST_ANCHOR_ATTEMPTS; tries++)
-  {
-    if (gum_linux_find_list_anchor (spec, FALSE))
-    {
-      found_default_stack_list_anchor = TRUE;
-      break;
-    }
-  }
-  if (!found_default_stack_list_anchor)
-    return FALSE;
-
-  if (!gum_linux_find_lock (spec))
+  if (!found_lock)
     return FALSE;
 
   if (!gum_linux_find_start_impl (spec))
