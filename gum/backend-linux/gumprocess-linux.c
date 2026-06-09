@@ -10,12 +10,16 @@
 #include "gumprocess-priv.h"
 
 #include "gum-init.h"
+#include "gumcontrolflowgraph.h"
 #include "gummodule-elf.h"
 #include "gum/gumandroid.h"
 #include "gum/gumlinux.h"
 #include "gumlinux-priv.h"
 #include "gummodulemap.h"
 #include "valgrind.h"
+#if defined (HAVE_I386)
+# include "gumx86relocator.h"
+#endif
 
 #include <capstone.h>
 #include <errno.h>
@@ -430,6 +434,11 @@ static gboolean gum_test_pthread_globals_if_containing_address (
 static gboolean gum_linux_find_lock (GumLinuxPThreadSpec * spec);
 static gboolean gum_linux_get_libc_version (guint * major, guint * minor);
 static gboolean gum_linux_find_start_impl (GumLinuxPThreadSpec * spec);
+#if defined (HAVE_I386)
+static gpointer gum_linux_find_dominating_start_hook (gpointer call_site);
+static gboolean gum_linux_try_use_dominating_site (gconstpointer site,
+    gsize window, gpointer user_data);
+#endif
 static gboolean gum_linux_is_call (cs_insn * insn);
 static gboolean gum_linux_create_thread (GumLinuxThreadCtx * ctx,
     gboolean custom_stack);
@@ -3713,6 +3722,14 @@ gum_linux_find_start_impl (GumLinuxPThreadSpec * spec)
   if (!found_start)
     goto beach;
 
+#if defined (HAVE_I386)
+  {
+    gpointer hook = gum_linux_find_dominating_start_hook (spec->start_impl);
+    if (hook != NULL)
+      spec->start_impl = hook;
+  }
+#endif
+
   success = TRUE;
 
 beach:
@@ -3729,6 +3746,80 @@ beach:
 
   return success;
 }
+
+#if defined (HAVE_I386)
+
+#define GUM_START_HOOK_REDIRECT_SIZE 5
+
+typedef struct _GumDominatingHookSite GumDominatingHookSite;
+
+struct _GumDominatingHookSite
+{
+  GumControlFlowGraph * cfg;
+  gconstpointer call_site;
+  gpointer hook;
+};
+
+static gpointer
+gum_linux_find_dominating_start_hook (gpointer call_site)
+{
+  GumMemoryRange function;
+  GumControlFlowGraph * cfg;
+  GumDominatingHookSite ctx;
+
+  if (!gum_process_find_function_range (call_site, &function))
+    return NULL;
+
+  cfg = gum_control_flow_graph_new_for_function (
+      GSIZE_TO_POINTER (function.base_address));
+
+  ctx.cfg = cfg;
+  ctx.call_site = call_site;
+  ctx.hook = NULL;
+
+  gum_control_flow_graph_enumerate_dominating_sites (cfg, call_site,
+      gum_linux_try_use_dominating_site, &ctx);
+
+  gum_control_flow_graph_free (cfg);
+
+  return ctx.hook;
+}
+
+static gboolean
+gum_linux_try_use_dominating_site (gconstpointer site,
+                                   gsize window,
+                                   gpointer user_data)
+{
+  GumDominatingHookSite * ctx = user_data;
+  const cs_insn * insn;
+  const cs_detail * detail;
+  uint8_t i;
+
+  if (window < GUM_START_HOOK_REDIRECT_SIZE)
+    return TRUE;
+
+  if ((const guint8 *) site + GUM_START_HOOK_REDIRECT_SIZE >
+      (const guint8 *) ctx->call_site)
+    return TRUE;
+
+  insn = gum_control_flow_graph_find_instruction (ctx->cfg, site);
+  detail = insn->detail;
+  for (i = 0; i != detail->groups_count; i++)
+  {
+    uint8_t group = detail->groups[i];
+    if (group == CS_GRP_JUMP || group == CS_GRP_CALL || group == CS_GRP_RET)
+      return TRUE;
+  }
+
+  if (!gum_x86_relocator_can_relocate ((gpointer) site,
+        GUM_START_HOOK_REDIRECT_SIZE, GUM_SCENARIO_ONLINE, NULL))
+    return TRUE;
+
+  ctx->hook = (gpointer) site;
+  return FALSE;
+}
+
+#endif
 
 static gboolean
 gum_linux_is_call (cs_insn * insn)
