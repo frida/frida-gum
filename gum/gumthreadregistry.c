@@ -87,11 +87,7 @@ gum_thread_registry_dispose (GObject * object)
 {
   GumThreadRegistry * self = GUM_THREAD_REGISTRY (object);
 
-  GUM_THREAD_REGISTRY_LOCK (self);
-
   _gum_thread_registry_deactivate (self);
-
-  GUM_THREAD_REGISTRY_UNLOCK (self);
 
   G_OBJECT_CLASS (gum_thread_registry_parent_class)->dispose (object);
 }
@@ -125,7 +121,7 @@ gum_thread_registry_obtain (void)
 
     registry = g_object_new (GUM_TYPE_THREAD_REGISTRY, NULL);
 
-    _gum_register_destructor (gum_deinit_thread_registry);
+    _gum_register_early_destructor (gum_deinit_thread_registry);
 
     g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (registry));
   }

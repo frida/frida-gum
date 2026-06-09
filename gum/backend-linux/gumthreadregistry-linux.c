@@ -105,12 +105,26 @@ _gum_thread_registry_deactivate (GumThreadRegistry * self)
 
   for (i = 0; i != G_N_ELEMENTS (handlers); i++)
   {
+    if (*handlers[i] != NULL)
+      gum_interceptor_detach (gum_thread_interceptor, *handlers[i]);
+  }
+
+  for (i = 0; i != G_N_ELEMENTS (handlers); i++)
+  {
+    if (*handlers[i] == NULL)
+      continue;
+
+    while (!gum_interceptor_flush_listener (gum_thread_interceptor,
+          *handlers[i]))
+      g_thread_yield ();
+  }
+
+  for (i = 0; i != G_N_ELEMENTS (handlers); i++)
+  {
     GumInvocationListener ** handler = handlers[i];
 
     if (*handler != NULL)
     {
-      gum_interceptor_detach (gum_thread_interceptor, *handler);
-
       g_object_unref (*handler);
       *handler = NULL;
     }
