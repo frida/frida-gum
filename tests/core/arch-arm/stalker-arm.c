@@ -293,14 +293,14 @@ TESTCASE (arm_no_events)
 {
   INVOKE_ARM_EXPECTING (GUM_NOTHING, arm_flat_code, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 }
 
 TESTCASE (thumb_no_events)
 {
   INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_flat_code, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 }
 
 TESTCASE (arm_exec_events_generated)
@@ -309,7 +309,7 @@ TESTCASE (arm_exec_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_EXEC, arm_flat_code, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==,
+  g_assert_cmpuint (fixture->sink->events->length, ==,
       INVOKER_INSN_COUNT + (CODE_SIZE (arm_flat_code) / 4));
 
   GUM_ASSERT_EVENT_ADDR (exec, 0, location,
@@ -338,7 +338,7 @@ TESTCASE (thumb_exec_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_EXEC, thumb_flat_code, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==,
+  g_assert_cmpuint (fixture->sink->events->length, ==,
       INVOKER_INSN_COUNT + (CODE_SIZE (thumb_flat_code) / 2));
 
   GUM_ASSERT_EVENT_ADDR (exec, 0, location,
@@ -368,7 +368,7 @@ TESTCASE (arm_call_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_CALL, arm_flat_code, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_CALL_INSN_COUNT);
 
   GUM_ASSERT_EVENT_ADDR (call, 0, target, func);
   GUM_ASSERT_EVENT_ADDR (call, 0, depth, 0);
@@ -380,7 +380,7 @@ TESTCASE (thumb_call_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_CALL, thumb_flat_code, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_CALL_INSN_COUNT);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_CALL_INSN_COUNT);
 
   GUM_ASSERT_EVENT_ADDR (call, 0, target, func + 1);
   GUM_ASSERT_EVENT_ADDR (call, 0, depth, 0);
@@ -404,7 +404,7 @@ TESTCASE (arm_block_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_block_events, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 1);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + (3 * 4));
@@ -429,7 +429,7 @@ TESTCASE (thumb_block_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_block_events, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 1);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func + 1);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + (4 * 2) + 1);
@@ -462,7 +462,7 @@ TESTCASE (arm_nested_call_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_CALL, arm_nested_call, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==,
+  g_assert_cmpuint (fixture->sink->events->length, ==,
       INVOKER_CALL_INSN_COUNT + 3);
 
   GUM_ASSERT_EVENT_ADDR (call, 0, target, func);
@@ -507,7 +507,7 @@ TESTCASE (thumb_nested_call_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_CALL, thumb_nested_call, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==,
+  g_assert_cmpuint (fixture->sink->events->length, ==,
       INVOKER_CALL_INSN_COUNT + 3);
 
   GUM_ASSERT_EVENT_ADDR (call, 0, target, func + 1);
@@ -532,7 +532,7 @@ TESTCASE (arm_nested_ret_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_RET, arm_nested_call, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 4);
 
   GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + (13 * 4));
   GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + (10 * 4));
@@ -556,7 +556,7 @@ TESTCASE (thumb_nested_ret_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_nested_call, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 4);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 4);
 
   GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 30 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 24 + 1);
@@ -798,7 +798,8 @@ TESTCASE (arm_excluded_range)
     fixture->sink->mask = GUM_EXEC;
     g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 2);
 
-    g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
+    g_assert_cmpuint (fixture->sink->events->length, ==,
+        INVOKER_INSN_COUNT + 6);
 
     GUM_ASSERT_EVENT_ADDR (exec, 2, location, func);
     GUM_ASSERT_EVENT_ADDR (exec, 3, location, func + 4);
@@ -841,7 +842,8 @@ TESTCASE (thumb_excluded_range)
     fixture->sink->mask = GUM_EXEC;
     g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 2);
 
-    g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 5);
+    g_assert_cmpuint (fixture->sink->events->length, ==,
+        INVOKER_INSN_COUNT + 5);
 
     GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
     GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
@@ -893,7 +895,7 @@ TESTCASE (arm_excluded_range_call_events)
     fixture->sink->mask = GUM_CALL;
     g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 4);
 
-    g_assert_cmpuint (fixture->sink->events->len, ==,
+    g_assert_cmpuint (fixture->sink->events->length, ==,
         INVOKER_CALL_INSN_COUNT + 2);
 
     GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 12);
@@ -950,7 +952,7 @@ TESTCASE (thumb_excluded_range_call_events)
     fixture->sink->mask = GUM_CALL;
     g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 4);
 
-    g_assert_cmpuint (fixture->sink->events->len, ==,
+    g_assert_cmpuint (fixture->sink->events->length, ==,
         INVOKER_CALL_INSN_COUNT + 2);
 
     GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 6 + 1);
@@ -982,7 +984,7 @@ TESTCASE (arm_excluded_range_ret_events)
     fixture->sink->mask = GUM_RET;
     g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 4);
 
-    g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+    g_assert_cmpuint (fixture->sink->events->length, ==, 2);
 
     GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 28);
     GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 20);
@@ -1012,7 +1014,7 @@ TESTCASE (thumb_excluded_range_ret_events)
     fixture->sink->mask = GUM_RET;
     g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 4);
 
-    g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+    g_assert_cmpuint (fixture->sink->events->length, ==, 2);
 
     GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20 + 1);
     GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 14 + 1);
@@ -1042,7 +1044,7 @@ TESTCASE (arm_pop_pc_ret_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_RET, arm_pop_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 2);
 
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
@@ -1074,7 +1076,7 @@ TESTCASE (thumb_pop_pc_ret_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_pop_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 2);
 
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
@@ -1106,7 +1108,7 @@ TESTCASE (arm_pop_just_pc_ret_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_RET, arm_pop_just_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 2);
 
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
@@ -1138,7 +1140,7 @@ TESTCASE (thumb_pop_just_pc_ret_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_pop_just_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 2);
 
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
@@ -1170,7 +1172,7 @@ TESTCASE (thumb_pop_just_pc2_ret_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_pop_just_pc2, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 1);
 
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
@@ -1199,7 +1201,7 @@ TESTCASE (arm_ldm_pc_ret_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_RET, arm_ldm_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 2);
 
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
@@ -1232,7 +1234,7 @@ TESTCASE (thumb_ldm_pc_ret_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_ldm_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 2);
 
   g_assert_cmpint (
       g_array_index (fixture->sink->events, GumEvent, 0).type, ==, GUM_RET);
@@ -1278,7 +1280,7 @@ TESTCASE (arm_branch_cc_block_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_b_cc, 10);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 4);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 16);
@@ -1327,7 +1329,7 @@ TESTCASE (thumb_branch_cc_block_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_b_cc, 10);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 4);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, start, func + 1);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 10 + 1);
@@ -1374,7 +1376,7 @@ TESTCASE (thumb_cbz_cbnz_block_events_generated)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_cbz_cbnz, 6);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 4);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, start, func + 1);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 12 + 1);
@@ -1415,7 +1417,7 @@ TESTCASE (thumb2_mov_pc_reg_exec_events_generated)
   fixture->sink->mask = GUM_EXEC;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 1);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_INSN_COUNT + 6);
 
   GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
   GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
@@ -1435,7 +1437,7 @@ TESTCASE (thumb2_mov_pc_reg_without_thumb_bit_set)
   fixture->sink->mask = GUM_EXEC;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 1);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_INSN_COUNT + 6);
 
   GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
   GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
@@ -1471,7 +1473,7 @@ TESTCASE (thumb2_mov_pc_reg_no_clobber_reg)
   fixture->sink->mask = GUM_EXEC;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 0);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 7);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_INSN_COUNT + 7);
 
   GUM_ASSERT_EVENT_ADDR (exec, 2, location, func +  0 + 1);
   GUM_ASSERT_EVENT_ADDR (exec, 3, location, func +  2 + 1);
@@ -1524,7 +1526,7 @@ TESTCASE (arm_branch_link_cc_block_events_generated)
 
   func = INVOKE_ARM_EXPECTING (GUM_CALL, arm_bl_cc, 5);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==,
+  g_assert_cmpuint (fixture->sink->events->length, ==,
       INVOKER_CALL_INSN_COUNT + 2);
 
   GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 16);
@@ -1583,7 +1585,7 @@ TESTCASE (arm_cc_excluded_range)
     fixture->sink->mask = GUM_CALL;
     g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 1);
 
-    g_assert_cmpuint (fixture->sink->events->len, ==,
+    g_assert_cmpuint (fixture->sink->events->length, ==,
         INVOKER_CALL_INSN_COUNT + 1);
 
     GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 16);
@@ -1616,7 +1618,7 @@ TESTCASE (arm_ldr_pc)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 1);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 12);
@@ -1652,7 +1654,7 @@ TESTCASE (arm_ldr_pc_pre_index_imm)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 1);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 16);
@@ -1686,7 +1688,7 @@ TESTCASE (arm_ldr_pc_post_index_imm)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 1);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 16);
@@ -1722,7 +1724,7 @@ TESTCASE (arm_ldr_pc_pre_index_imm_negative)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 1);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 16);
@@ -1756,7 +1758,7 @@ TESTCASE (arm_ldr_pc_post_index_imm_negative)
   fixture->sink->mask = GUM_BLOCK;
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 0xbabababb);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 1);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 16);
@@ -1789,7 +1791,7 @@ TESTCASE (arm_ldr_pc_shift)
 
   g_assert_cmpuint (FOLLOW_AND_INVOKE (func), ==, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 }
 
 TESTCODE (arm_sub_pc,
@@ -1810,7 +1812,7 @@ TESTCASE (arm_sub_pc)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_sub_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 2);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 8);
@@ -1837,7 +1839,7 @@ TESTCASE (arm_add_pc)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_add_pc, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 2);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 8);
@@ -1859,7 +1861,7 @@ TESTCASE (arm_ldmia_pc)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, arm_ldmia_pc, 0);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 16);
@@ -1883,7 +1885,7 @@ TESTCASE (thumb_it_eq)
 {
   INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_eq, 1);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 }
 
 TESTCODE (thumb_it_al,
@@ -1903,7 +1905,7 @@ TESTCASE (thumb_it_al)
 {
   INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_al, 7);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 }
 
 TESTCODE (thumb_it_eq_branch,
@@ -1930,7 +1932,7 @@ TESTCASE (thumb_it_eq_branch)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_it_eq_branch, 0);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 2);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func + 1);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 10 + 1);
@@ -1963,7 +1965,7 @@ TESTCASE (thumb_itt_eq_branch)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_itt_eq_branch, 1);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 2);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func + 1);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 14 + 1);
@@ -1996,7 +1998,7 @@ TESTCASE (thumb_ite_eq_branch)
 
   func = INVOKE_THUMB_EXPECTING (GUM_BLOCK, thumb_ite_eq_branch, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 2);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, start, func + 1);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX, end, func + 14 + 1);
@@ -2030,7 +2032,7 @@ TESTCASE (thumb_it_eq_branch_link)
 
   func = INVOKE_THUMB_EXPECTING (GUM_CALL, thumb_it_eq_branch_link, 1);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==,
+  g_assert_cmpuint (fixture->sink->events->length, ==,
       INVOKER_CALL_INSN_COUNT + 1);
 
   GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 10 + 1);
@@ -2056,7 +2058,8 @@ TESTCASE (thumb_it_eq_branch_link_excluded)
     fixture->sink->mask = GUM_EXEC;
     g_assert_cmpuint (FOLLOW_AND_INVOKE (func + 1), ==, 1);
 
-    g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 10);
+    g_assert_cmpuint (fixture->sink->events->length, ==,
+        INVOKER_INSN_COUNT + 10);
 
     GUM_ASSERT_EVENT_ADDR (exec,  2, location, func +  0 + 1);
     GUM_ASSERT_EVENT_ADDR (exec,  3, location, func +  2 + 1);
@@ -2094,7 +2097,7 @@ TESTCASE (thumb_it_eq_pop)
 
   func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_it_eq_pop, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 3);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 3);
 
   GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 26 + 1);
   GUM_ASSERT_EVENT_ADDR (ret, 0, target, func + 10 + 1);
@@ -2136,7 +2139,7 @@ TESTCODE (thumb_itttt_eq_blx_reg,
 TESTCASE (thumb_itttt_eq_blx_reg)
 {
   INVOKE_THUMB_EXPECTING (GUM_EXEC | GUM_CALL, thumb_itttt_eq_blx_reg, 4);
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 16);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_INSN_COUNT + 16);
 }
 
 TESTCODE (thumb_it_flags,
@@ -2156,7 +2159,7 @@ TESTCASE (thumb_it_flags)
 {
   INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_flags, 3);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 }
 
 TESTCODE (thumb_it_flags2,
@@ -2176,7 +2179,7 @@ TESTCASE (thumb_it_flags2)
 {
   INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_it_flags2, 2);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 }
 
 TESTCODE (thumb_tbb,
@@ -2208,7 +2211,7 @@ TESTCASE (thumb_tbb)
 
   func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_tbb, 5);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 1);
 
   GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 20 + 1);
 }
@@ -2248,7 +2251,7 @@ TESTCASE (thumb_tbh)
 
   func = INVOKE_THUMB_EXPECTING (GUM_RET, thumb_tbh, 3);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 1);
 
   GUM_ASSERT_EVENT_ADDR (ret, 0, location, func + 24 + 1);
 }
@@ -2293,7 +2296,7 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
 
   code_patcher_stop (&patcher);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
@@ -2324,7 +2327,7 @@ TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
 
   code_patcher_stop (&patcher);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
@@ -2361,7 +2364,7 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
 
   code_patcher_stop (&patcher);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 TESTCODE (call_thumb,
@@ -2393,7 +2396,7 @@ TESTCASE (call_thumb)
 
   func = INVOKE_ARM_EXPECTING (GUM_CALL, call_thumb, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==,
+  g_assert_cmpuint (fixture->sink->events->length, ==,
       INVOKER_CALL_INSN_COUNT + 3);
 
   GUM_ASSERT_EVENT_ADDR (call, 1, location, func + 12);
@@ -2438,7 +2441,7 @@ TESTCASE (branch_thumb)
 
   func = INVOKE_ARM_EXPECTING (GUM_BLOCK, branch_thumb, 3);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_BLOCK_COUNT + 4);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_BLOCK_COUNT + 4);
 
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, start, func);
   GUM_ASSERT_EVENT_ADDR (block, INVOKEE_BLOCK_INDEX + 0, end, func + 24);
@@ -2498,7 +2501,7 @@ TESTCASE (can_follow_workload)
 
   g_assert_cmpuint (crc_followed, ==, crc);
 
-  GUM_ASSERT_EVENT_ADDR (ret, fixture->sink->events->len - 1, location,
+  GUM_ASSERT_EVENT_ADDR (ret, fixture->sink->events->length - 1, location,
       func + 12);
 }
 
@@ -3475,7 +3478,7 @@ TESTCASE (arm_exclusive_load_store_should_not_be_disturbed)
   g_assert_cmpint (val, ==, 6);
   g_assert_cmpint (num_cmp_callouts, ==, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 19);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 19);
 }
 
 TESTCODE (thumb_ldrex_strex,
@@ -3522,7 +3525,7 @@ TESTCASE (thumb_exclusive_load_store_should_not_be_disturbed)
   g_assert_cmpint (val, ==, 6);
   g_assert_cmpint (num_cmp_callouts, ==, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 19);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 19);
 }
 
 static void
@@ -3566,7 +3569,7 @@ TESTCASE (follow_syscall)
   g_usleep (1);
   gum_stalker_unfollow_me (fixture->stalker);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 TESTCASE (follow_thread)
@@ -3593,7 +3596,7 @@ TESTCASE (follow_thread)
   sdc_put_follow_confirmation (&channel);
 
   sdc_await_run_confirmation (&channel);
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 
   gum_stalker_unfollow (fixture->stalker, thread_id);
   sdc_put_unfollow_confirmation (&channel);
@@ -3605,7 +3608,7 @@ TESTCASE (follow_thread)
 
   g_thread_join (thread);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 
   sdc_finalize (&channel);
 
@@ -3731,7 +3734,7 @@ TESTCASE (heap_api)
   free (p);
   gum_stalker_unfollow_me (fixture->stalker);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 static void
