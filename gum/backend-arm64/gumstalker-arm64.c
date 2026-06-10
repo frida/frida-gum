@@ -331,6 +331,10 @@ struct _GumCodeSlab
   GumSlab slab;
 
   gpointer invalidator;
+  gpointer prolog_minimal;
+  gpointer epilog_minimal;
+  gpointer prolog_full;
+  gpointer epilog_full;
 };
 
 struct _GumSlowSlab
@@ -583,6 +587,8 @@ static void gum_stalker_invoke_callout (GumCalloutEntry * entry,
     GumCpuContext * cpu_context);
 
 static void gum_exec_ctx_write_prolog (GumExecCtx * ctx, GumPrologType type,
+    GumArm64Writer * cw);
+static void gum_exec_ctx_write_epilog_with_helper (gpointer helper,
     GumArm64Writer * cw);
 static void gum_exec_ctx_write_epilog (GumExecCtx * ctx, GumPrologType type,
     GumArm64Writer * cw);
@@ -3050,6 +3056,13 @@ gum_exec_ctx_write_epilog (GumExecCtx * ctx,
       ? ctx->last_epilog_minimal
       : ctx->last_epilog_full;
 
+  gum_exec_ctx_write_epilog_with_helper (helper, cw);
+}
+
+static void
+gum_exec_ctx_write_epilog_with_helper (gpointer helper,
+                                       GumArm64Writer * cw)
+{
   gum_arm64_writer_put_bl_imm (cw, GUM_ADDRESS (helper));
   gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw, ARM64_REG_X19,
       ARM64_REG_X20, ARM64_REG_SP, 16 + GUM_RED_ZONE_SIZE,
@@ -3077,6 +3090,17 @@ gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx)
       &ctx->last_invalidator, gum_exec_ctx_write_invalidator);
   ctx->code_slab->invalidator = ctx->last_invalidator;
   ctx->slow_slab->invalidator = ctx->last_invalidator;
+
+  /*
+   * Remember the helpers reachable from this code slab, so that any future
+   * backpatching of a call/jump emitted into it (which may happen long after
+   * ctx->last_* has moved on to a slab too far away for a direct branch) can
+   * still reach a prolog/epilog helper using an immediate branch.
+   */
+  ctx->code_slab->prolog_minimal = ctx->last_prolog_minimal;
+  ctx->code_slab->epilog_minimal = ctx->last_epilog_minimal;
+  ctx->code_slab->prolog_full = ctx->last_prolog_full;
+  ctx->code_slab->epilog_full = ctx->last_epilog_full;
 }
 
 static void
@@ -3967,7 +3991,12 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
   gum_arm64_writer_reset (cw, code_start);
 
   if (opened_prolog != GUM_PROLOG_NONE)
-    gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
+  {
+    gpointer epilog = (opened_prolog == GUM_PROLOG_MINIMAL)
+        ? from->code_slab->epilog_minimal
+        : from->code_slab->epilog_full;
+    gum_exec_ctx_write_epilog_with_helper (epilog, cw);
+  }
 
   gum_exec_ctx_write_adjust_depth (ctx, cw, 1);
 
@@ -4031,7 +4060,12 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
   gum_arm64_writer_reset (cw, code_start);
 
   if (opened_prolog != GUM_PROLOG_NONE)
-    gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
+  {
+    gpointer epilog = (opened_prolog == GUM_PROLOG_MINIMAL)
+        ? from->code_slab->epilog_minimal
+        : from->code_slab->epilog_full;
+    gum_exec_ctx_write_epilog_with_helper (epilog, cw);
+  }
 
   gum_exec_block_write_jmp_to_block_start (block, target);
 
@@ -5636,6 +5670,10 @@ gum_code_slab_init (GumCodeSlab * code_slab,
   gum_slab_init (&code_slab->slab, slab_size, memory_size, header_size);
 
   code_slab->invalidator = NULL;
+  code_slab->prolog_minimal = NULL;
+  code_slab->epilog_minimal = NULL;
+  code_slab->prolog_full = NULL;
+  code_slab->epilog_full = NULL;
 }
 
 static void
