@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -303,7 +303,11 @@ TESTCASE (user_time_by_id_other)
   user_time_b = gum_sampler_sample (fixture->sampler);
 
   g_assert_cmpuint (user_time_a, !=, 0);
-  g_assert_cmpuint (user_time_b, >, user_time_a);
+  /*
+   * The user-time clock can be coarse, so two samples taken close together
+   * may land in the same tick. Only require that it does not go backwards.
+   */
+  g_assert_cmpuint (user_time_b, >=, user_time_a);
 
   done = TRUE;
   g_thread_join (thread);
