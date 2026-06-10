@@ -6646,6 +6646,16 @@ gum_find_thread_exit_implementation (void)
   g_object_unref (libthr);
 
   return GSIZE_TO_POINTER (result);
+#elif defined (HAVE_WINDOWS)
+  GumAddress result;
+  GumModule * ntdll;
+
+  ntdll = gum_process_find_module_by_name ("ntdll.dll");
+  g_assert (ntdll != NULL);
+  result = gum_module_find_export_by_name (ntdll, "RtlExitUserThread");
+  g_object_unref (ntdll);
+
+  return GSIZE_TO_POINTER (result);
 #else
   return NULL;
 #endif
