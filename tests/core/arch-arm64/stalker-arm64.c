@@ -269,7 +269,7 @@ invoke_flat (TestArm64StalkerFixture * fixture,
 TESTCASE (no_events)
 {
   invoke_flat (fixture, GUM_NOTHING);
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 }
 
 TESTCASE (call)
@@ -279,7 +279,7 @@ TESTCASE (call)
 
   func = invoke_flat (fixture, GUM_CALL);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 2);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_CALL);
   ev = &g_array_index (fixture->sink->events, GumEvent, 0).call;
@@ -294,7 +294,7 @@ TESTCASE (ret)
 
   func = invoke_flat (fixture, GUM_RET);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 1);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 1);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       0).type, ==, GUM_RET);
 
@@ -312,7 +312,7 @@ TESTCASE (exec)
 
   func = invoke_flat (fixture, GUM_EXEC);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 4);
+  g_assert_cmpuint (fixture->sink->events->length, ==, INVOKER_INSN_COUNT + 4);
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent,
       INVOKER_IMPL_OFFSET).type, ==, GUM_EXEC);
   ev =
@@ -375,7 +375,7 @@ TESTCASE (call_depth)
   r = func (2);
 
   g_assert_cmpint (r, ==, 12);
-  g_assert_cmpuint (fixture->sink->events->len, ==, 5);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 5);
   g_assert_cmpint (NTH_EVENT_AS_CALL (0)->depth, ==, 0);
   g_assert_cmpint (NTH_EVENT_AS_CALL (1)->depth, ==, 1);
   g_assert_cmpint (NTH_EVENT_AS_RET (2)->depth, ==, 2);
@@ -1175,11 +1175,11 @@ TESTCASE (exclude_bl)
   memory_range.size = 4 * 2;
   gum_stalker_exclude (fixture->stalker, &memory_range);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 24);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 24);
 }
 
 TESTCASE (exclude_blr)
@@ -1235,14 +1235,14 @@ TESTCASE (exclude_blr)
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 
   g_assert_cmpint (func (2), ==, 12);
 
 #ifdef HAVE_DARWIN
-  g_assert_cmpuint (fixture->sink->events->len, ==, 41);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 41);
 #else
-  g_assert_cmpuint (fixture->sink->events->len, ==, 42);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 42);
 #endif
 
   gum_free_pages (code);
@@ -1301,11 +1301,11 @@ TESTCASE (exclude_bl_with_unfollow)
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 
   g_assert_cmpint (func (2), ==, 12);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 20);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 20);
 
   gum_free_pages (code);
 }
@@ -1365,11 +1365,11 @@ TESTCASE (exclude_blr_with_unfollow)
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, gum_sign_code_pointer (code));
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 
   g_assert_cmpint (func (2), ==, 12);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 21);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 21);
 
   gum_free_pages (code);
 }
@@ -1787,11 +1787,11 @@ TESTCASE (follow_misaligned_stack)
   func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (fixture,
       code_template, sizeof (code_template));
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 42);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 21);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 21);
 }
 
 TESTCASE (follow_syscall)
@@ -1803,7 +1803,7 @@ TESTCASE (follow_syscall)
   g_usleep (1);
   gum_stalker_unfollow_me (fixture->stalker);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 TESTCASE (follow_thread)
@@ -1830,7 +1830,7 @@ TESTCASE (follow_thread)
   sdc_put_follow_confirmation (&channel);
 
   sdc_await_run_confirmation (&channel);
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 
   gum_stalker_unfollow (fixture->stalker, thread_id);
   sdc_put_unfollow_confirmation (&channel);
@@ -1842,7 +1842,7 @@ TESTCASE (follow_thread)
 
   g_thread_join (thread);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 
   sdc_finalize (&channel);
 
@@ -1947,7 +1947,7 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)
 
   code_patcher_stop (&patcher);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
@@ -1974,7 +1974,7 @@ TESTCASE (self_modifying_code_should_not_be_detected_with_threshold_zero)
 
   code_patcher_stop (&patcher);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
@@ -2006,7 +2006,7 @@ TESTCASE (self_modifying_code_should_be_detected_with_threshold_one)
 
   code_patcher_stop (&patcher);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 TESTCASE (exclusive_load_store_should_not_be_disturbed)
@@ -2047,7 +2047,7 @@ TESTCASE (exclusive_load_store_should_not_be_disturbed)
   fixture->transformer = gum_stalker_transformer_make_from_callback (
       insert_callout_after_cmp, &num_cmp_callouts, NULL);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 0);
 
   val = 5;
   num_cmp_callouts = 0;
@@ -2055,7 +2055,7 @@ TESTCASE (exclusive_load_store_should_not_be_disturbed)
   g_assert_cmpuint (val, ==, 6);
   g_assert_cmpint (num_cmp_callouts, ==, 4);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 17);
+  g_assert_cmpuint (fixture->sink->events->length, ==, 17);
 }
 
 static void
@@ -2209,7 +2209,7 @@ TESTCASE (heap_api)
   free (p);
   gum_stalker_unfollow_me (fixture->stalker);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);

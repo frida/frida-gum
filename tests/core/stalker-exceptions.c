@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -37,7 +37,7 @@ TESTCASE (no_exceptions)
   test_check_followed ();
   gum_stalker_unfollow_me (fixture->stalker);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 
   if (g_test_verbose ())
     g_print ("val: 0x%08x\n", val);

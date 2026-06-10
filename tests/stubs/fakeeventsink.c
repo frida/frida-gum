@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -41,7 +41,9 @@ gum_fake_event_sink_iface_init (gpointer g_iface,
 static void
 gum_fake_event_sink_init (GumFakeEventSink * self)
 {
-  self->events = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent), 16384);
+  self->events = g_slice_new (GumMetalArray);
+  gum_metal_array_init (self->events, sizeof (GumEvent));
+  gum_metal_array_ensure_capacity (self->events, 16384);
 }
 
 static void
@@ -49,7 +51,8 @@ gum_fake_event_sink_finalize (GObject * obj)
 {
   GumFakeEventSink * self = GUM_FAKE_EVENT_SINK (obj);
 
-  g_array_free (self->events, TRUE);
+  gum_metal_array_free (self->events);
+  g_slice_free (GumMetalArray, self->events);
 
   G_OBJECT_CLASS (gum_fake_event_sink_parent_class)->finalize (obj);
 }
@@ -68,7 +71,7 @@ void
 gum_fake_event_sink_reset (GumFakeEventSink * self)
 {
   self->mask = 0;
-  g_array_set_size (self->events, 0);
+  gum_metal_array_remove_all (self->events);
 }
 
 const GumCallEvent *
@@ -77,7 +80,7 @@ gum_fake_event_sink_get_nth_event_as_call (GumFakeEventSink * self,
 {
   const GumEvent * ev;
 
-  ev = &g_array_index (self->events, GumEvent, n);
+  ev = gum_metal_array_element_at (self->events, n);
   g_assert_cmpint (ev->type, ==, GUM_CALL);
   return &ev->call;
 }
@@ -88,7 +91,7 @@ gum_fake_event_sink_get_nth_event_as_ret (GumFakeEventSink * self,
 {
   const GumEvent * ev;
 
-  ev = &g_array_index (self->events, GumEvent, n);
+  ev = gum_metal_array_element_at (self->events, n);
   g_assert_cmpint (ev->type, ==, GUM_RET);
   return &ev->ret;
 }
@@ -99,7 +102,7 @@ gum_fake_event_sink_get_nth_event_as_exec (GumFakeEventSink * self,
 {
   const GumEvent * ev;
 
-  ev = &g_array_index (self->events, GumEvent, n);
+  ev = gum_metal_array_element_at (self->events, n);
   g_assert_cmpint (ev->type, ==, GUM_EXEC);
   return &ev->exec;
 }
@@ -109,11 +112,11 @@ gum_fake_event_sink_dump (GumFakeEventSink * self)
 {
   guint i;
 
-  g_print ("%u events\n", self->events->len);
+  g_print ("%u events\n", self->events->length);
 
-  for (i = 0; i < self->events->len; i++)
+  for (i = 0; i < self->events->length; i++)
   {
-    GumEvent * ev = &g_array_index (self->events, GumEvent, i);
+    GumEvent * ev = gum_metal_array_element_at (self->events, i);
 
     switch (ev->type)
     {
@@ -150,5 +153,5 @@ gum_fake_event_sink_process (GumEventSink * sink,
 {
   GumFakeEventSink * self = GUM_FAKE_EVENT_SINK (sink);
 
-  g_array_append_val (self->events, *event);
+  *((GumEvent *) gum_metal_array_append (self->events)) = *event;
 }

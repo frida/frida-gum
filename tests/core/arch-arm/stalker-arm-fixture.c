@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -68,7 +68,7 @@
     {                                                                     \
       GUM_EVENT_TYPE_ ## TYPE * ev;                                       \
                                                                           \
-      g_assert_cmpuint (fixture->sink->events->len, >, INDEX);            \
+      g_assert_cmpuint (fixture->sink->events->length, >, INDEX);            \
       g_assert_cmpint (g_array_index (fixture->sink->events,              \
           GumEvent, INDEX).type, ==, GUM_EVENT_TYPE_NAME_ ## TYPE);       \
                                                                           \

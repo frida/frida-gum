@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,5 +32,5 @@ TESTCASE (foundation)
 
   gum_stalker_unfollow_me (fixture->stalker);
 
-  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+  g_assert_cmpuint (fixture->sink->events->length, >, 0);
 }
