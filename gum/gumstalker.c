@@ -85,6 +85,238 @@ G_DEFINE_TYPE_EXTENDED (GumCallbackStalkerTransformer,
 G_DEFINE_INTERFACE (GumStalkerObserver, gum_stalker_observer, G_TYPE_OBJECT)
 
 /**
+ * GumStalker:
+ *
+ * Traces execution by dynamically recompiling code as a thread runs.
+ *
+ * Stalker follows a thread one basic block at a time, JIT-compiling a shadow
+ * copy of each block just before it executes. That shadow copy can be observed
+ * and rewritten on the way through, which makes it possible to:
+ *
+ * - Receive a stream of events — every call, return, block and instruction —
+ *   through a [iface@Gum.EventSink].
+ * - Inspect and rewrite the instructions of each block through a
+ *   [iface@Gum.StalkerTransformer], for instance to insert a
+ *   [callback@Gum.StalkerCallout] that runs your own C function with access to
+ *   the live register state. For hot paths, emitting instrumentation inline is
+ *   much cheaper than a callout — see [method@Gum.StalkerIterator.put_callout].
+ *
+ * Compiled blocks are cached per thread; the trust threshold
+ * ([method@Gum.Stalker.set_trust_threshold]) governs how aggressively that
+ * cache is reused in the presence of self-modifying code. Ranges of memory can
+ * be left to run uninstrumented with [method@Gum.Stalker.exclude], which is
+ * also much faster for code you have no interest in.
+ *
+ * Tracing begins with [method@Gum.Stalker.follow_me] for the calling thread, or
+ * [method@Gum.Stalker.follow] for another thread, and ends at the matching
+ * unfollow.
+ *
+ * ## Tracing the current thread
+ *
+ * ```c
+ * static void on_exec (GumStalkerIterator * iterator,
+ *     GumStalkerOutput * output, gpointer user_data);
+ *
+ * void
+ * trace (void)
+ * {
+ *   g_autoptr(GumStalker) stalker = gum_stalker_new ();
+ *   GumStalkerTransformer * transformer =
+ *       gum_stalker_transformer_make_from_callback (on_exec, NULL, NULL);
+ *
+ *   gum_stalker_follow_me (stalker, transformer, NULL);
+ *   // ... code to trace runs here ...
+ *   gum_stalker_unfollow_me (stalker);
+ *
+ *   g_object_unref (transformer);
+ * }
+ *
+ * static void
+ * on_exec (GumStalkerIterator * iterator,
+ *          GumStalkerOutput * output,
+ *          gpointer user_data)
+ * {
+ *   const cs_insn * insn;
+ *
+ *   while (gum_stalker_iterator_next (iterator, &insn))
+ *   {
+ *     // Inspect insn here, then emit it into the recompiled block.
+ *     gum_stalker_iterator_keep (iterator);
+ *   }
+ * }
+ * ```
+ */
+
+/**
+ * gum_stalker_is_supported:
+ *
+ * Checks whether Stalker is available on the current architecture and OS.
+ *
+ * Returns: %TRUE if Stalker is supported
+ */
+
+/**
+ * gum_stalker_new:
+ *
+ * Creates a new Stalker.
+ *
+ * Returns: (transfer full): a new #GumStalker
+ */
+
+/**
+ * gum_stalker_exclude:
+ * @self: a #GumStalker
+ * @range: the memory range to exclude
+ *
+ * Marks @range as off-limits: while a followed thread executes inside it, it
+ * runs natively instead of being traced, resuming tracing once it returns.
+ * Besides skipping code you have no interest in — which is also much faster —
+ * this is essential for ranges that must not be instrumented, such as the
+ * runtime backing Stalker itself.
+ */
+
+/**
+ * gum_stalker_get_trust_threshold:
+ * @self: a #GumStalker
+ *
+ * Gets the trust threshold; see [method@Gum.Stalker.set_trust_threshold].
+ *
+ * Returns: the current trust threshold
+ */
+
+/**
+ * gum_stalker_set_trust_threshold:
+ * @self: a #GumStalker
+ * @trust_threshold: number of times a block must be seen unchanged before it is
+ *   trusted
+ *
+ * Controls how Stalker copes with self-modifying code. Each recompiled block is
+ * cached alongside a snapshot of the original bytes; when the block is reached
+ * again Stalker compares the current code against that snapshot and recompiles
+ * only if it actually changed. The trust threshold is how many times a block
+ * must be found unchanged before Stalker stops doing that comparison and trusts
+ * the cached copy outright.
+ *
+ * Higher values keep re-validating for longer, paying for the comparison (plus
+ * the prolog/epilog needed to enter Stalker) on each execution. 0 trusts a
+ * block immediately, never re-checking it. -1 never trusts the cache, so the
+ * snapshot is always compared — but even then a block is only recompiled when
+ * the code has genuinely changed, not on every execution. The default is 1.
+ */
+
+/**
+ * gum_stalker_flush:
+ * @self: a #GumStalker
+ *
+ * Flushes the event sinks of all current sessions, ensuring any events still
+ * buffered are delivered.
+ */
+
+/**
+ * gum_stalker_stop:
+ * @self: a #GumStalker
+ *
+ * Unfollows every thread still being traced and removes all call probes, then
+ * reclaims the associated resources.
+ */
+
+/**
+ * gum_stalker_garbage_collect:
+ * @self: a #GumStalker
+ *
+ * Reclaims resources left behind by threads that have unfollowed or exited but
+ * could not be cleaned up synchronously, e.g. because they might still have
+ * been executing instrumented code. Call this periodically until it returns
+ * %FALSE to drain such garbage.
+ *
+ * Returns: %TRUE if garbage still remains and another pass should be made later
+ */
+
+/**
+ * gum_stalker_follow_me:
+ * @self: a #GumStalker
+ * @transformer: (nullable) (transfer none): transformer to rewrite the traced
+ *   code, or %NULL for the default
+ * @sink: (nullable) (transfer none): sink to receive the events, or %NULL
+ *
+ * Starts tracing the calling thread, continuing from the caller's return
+ * address. Each subsequently executed block is passed through @transformer and
+ * any generated events are delivered to @sink. Stop with
+ * [method@Gum.Stalker.unfollow_me].
+ */
+
+/**
+ * gum_stalker_unfollow_me:
+ * @self: a #GumStalker
+ *
+ * Stops tracing the calling thread, which must currently be followed by
+ * [method@Gum.Stalker.follow_me].
+ */
+
+/**
+ * gum_stalker_is_following_me:
+ * @self: a #GumStalker
+ *
+ * Checks whether the calling thread is currently being traced.
+ *
+ * Returns: %TRUE if the calling thread is currently being traced
+ */
+
+/**
+ * gum_stalker_follow:
+ * @self: a #GumStalker
+ * @thread_id: ID of the thread to trace
+ * @transformer: (nullable) (transfer none): transformer to rewrite the traced
+ *   code, or %NULL for the default
+ * @sink: (nullable) (transfer none): sink to receive the events, or %NULL
+ *
+ * Starts tracing the thread identified by @thread_id. When @thread_id is the
+ * calling thread this behaves like [method@Gum.Stalker.follow_me]; otherwise
+ * the target thread is briefly suspended so it can be made to start executing
+ * instrumented code. Stop with [method@Gum.Stalker.unfollow].
+ */
+
+/**
+ * gum_stalker_unfollow:
+ * @self: a #GumStalker
+ * @thread_id: ID of the thread to stop tracing
+ *
+ * Stops tracing the thread identified by @thread_id. The thread resumes running
+ * its original, uninstrumented code.
+ */
+
+/**
+ * gum_stalker_activate:
+ * @self: a #GumStalker
+ * @target: address at which tracing should resume in earnest
+ *
+ * Resumes tracing on the calling thread after a
+ * [method@Gum.Stalker.deactivate], following it even through excluded ranges
+ * until execution reaches @target, at which point normal behavior resumes.
+ * @target must be the start of a basic block. This is primarily useful for
+ * fuzzing; see [method@Gum.Stalker.prefetch] for the bigger picture.
+ */
+
+/**
+ * gum_stalker_deactivate:
+ * @self: a #GumStalker
+ *
+ * Pauses tracing on the calling thread while leaving it followed, so it runs
+ * natively until [method@Gum.Stalker.activate] is called. Has no effect if the
+ * thread is not being traced.
+ */
+
+/**
+ * gum_stalker_set_observer:
+ * @self: a #GumStalker
+ * @observer: (nullable) (transfer none): the observer, or %NULL to remove it
+ *
+ * Sets a [iface@Gum.StalkerObserver] that receives fine-grained notifications
+ * about Stalker's internals, such as backpatches and engine statistics. Mainly
+ * of interest for diagnostics and performance work.
+ */
+
+/**
  * gum_stalker_prefetch:
  *
  * This API is intended for use during fuzzing scenarios such as AFL forkserver.
@@ -197,6 +429,103 @@ G_DEFINE_INTERFACE (GumStalkerObserver, gum_stalker_observer, G_TYPE_OBJECT)
  *    END LOOP:
  */
 
+/**
+ * gum_stalker_prefetch_backpatch:
+ * @self: a #GumStalker
+ * @notification: the backpatch to apply
+ *
+ * Applies a backpatch previously reported through a
+ * [iface@Gum.StalkerObserver]. The companion to [method@Gum.Stalker.prefetch]
+ * for fork-server fuzzing: it lets the parent reproduce the inter-block
+ * backpatches discovered by a child so forked children inherit them too.
+ */
+
+/**
+ * gum_stalker_recompile:
+ * @self: a #GumStalker
+ * @address: address of the block to recompile
+ *
+ * Forces the cached block at @address to be recompiled, e.g. after something
+ * the transformer depends on has changed.
+ */
+
+/**
+ * gum_stalker_backpatch_get_from:
+ * @backpatch: a #GumBackpatch
+ *
+ * Gets the address of the block a backpatch originates from.
+ *
+ * Returns: the address of the block the backpatch originates from
+ */
+
+/**
+ * gum_stalker_backpatch_get_to:
+ * @backpatch: a #GumBackpatch
+ *
+ * Gets the address of the block a backpatch points to.
+ *
+ * Returns: the address of the block the backpatch points to
+ */
+
+/**
+ * gum_stalker_invalidate:
+ * @self: a #GumStalker
+ * @address: address whose cached block should be invalidated
+ *
+ * Drops the cached instrumented block covering @address on every followed
+ * thread, so it is recompiled the next time it runs. Use this when the
+ * underlying code, or the way you want it instrumented, has changed.
+ */
+
+/**
+ * gum_stalker_invalidate_for_thread:
+ * @self: a #GumStalker
+ * @thread_id: ID of the thread whose cache should be invalidated
+ * @address: address whose cached block should be invalidated
+ *
+ * Like [method@Gum.Stalker.invalidate], but limited to the thread identified by
+ * @thread_id.
+ */
+
+/**
+ * gum_stalker_add_call_probe:
+ * @self: a #GumStalker
+ * @target_address: address of the function whose calls should be probed
+ * @callback: (scope notified): function to call for each observed call
+ * @data: data to pass to @callback
+ * @notify: (nullable): destroy notify for @data
+ *
+ * Registers @callback to be invoked whenever a followed thread calls
+ * @target_address, giving it access to the call's arguments through the
+ * supplied [struct@Gum.CallDetails]. Cheaper than a transformer when all you
+ * need is to observe calls to a specific function.
+ *
+ * Returns: an ID that can be passed to [method@Gum.Stalker.remove_call_probe]
+ */
+
+/**
+ * gum_stalker_remove_call_probe:
+ * @self: a #GumStalker
+ * @id: ID returned by [method@Gum.Stalker.add_call_probe]
+ *
+ * Removes the call probe identified by @id.
+ */
+
+/**
+ * gum_stalker_run_on_thread:
+ * @self: a #GumStalker
+ * @thread_id: ID of the thread to run @func on
+ * @func: (scope notified): function to run on the target thread
+ * @data: data to pass to @func
+ * @data_destroy: (nullable): destroy notify for @data
+ *
+ * Arranges for @func to run on the thread identified by @thread_id, with that
+ * thread's register state, by briefly hijacking it through Stalker. Returns
+ * once @func has been scheduled; it may not have run yet. Use
+ * [method@Gum.Stalker.run_on_thread_sync] to wait for completion.
+ *
+ * Returns: %TRUE if the request was accepted
+ */
 gboolean
 gum_stalker_run_on_thread (GumStalker * self,
                            GumThreadId thread_id,
@@ -328,13 +657,6 @@ gum_do_run_on_thread_sync (const GumCpuContext * cpu_context,
   g_mutex_unlock (&rc->mutex);
 }
 
-/**
- * gum_stalker_iterator_get_capstone: (skip)
- * @self: the iterator
- *
- * Returns the Capstone handle for the current iterator.
- */
-
 static void
 gum_stalker_transformer_default_init (GumStalkerTransformerInterface * iface)
 {
@@ -381,6 +703,18 @@ gum_stalker_transformer_make_from_callback (
   return GUM_STALKER_TRANSFORMER (transformer);
 }
 
+/**
+ * gum_stalker_transformer_transform_block:
+ * @self: a #GumStalkerTransformer
+ * @iterator: iterator over the instructions of the block being recompiled
+ * @output: where the recompiled instructions are written
+ *
+ * Transforms a single basic block, reading its instructions from @iterator and
+ * emitting the recompiled form into @output. Stalker calls this for each block;
+ * a [iface@Gum.StalkerTransformer] implementation overrides it to inspect and
+ * rewrite the code, typically driving @iterator with
+ * [method@Gum.StalkerIterator.next] and [method@Gum.StalkerIterator.keep].
+ */
 void
 gum_stalker_transformer_transform_block (GumStalkerTransformer * self,
                                          GumStalkerIterator * iterator,
@@ -486,11 +820,63 @@ gum_callback_stalker_transformer_transform_block (
  */
 
 /**
+ * gum_stalker_iterator_keep:
+ * @self: a #GumStalkerIterator
+ *
+ * Emits the current instruction — the one most recently returned by
+ * [method@Gum.StalkerIterator.next] — unchanged into the recompiled block. A
+ * transformer that wants to preserve an instruction must call this; skipping it
+ * drops the instruction from the output.
+ */
+
+/**
+ * gum_stalker_iterator_get_memory_access:
+ * @self: a #GumStalkerIterator
+ *
+ * Reports whether it is safe to insert instrumentation at the current position.
+ * Within an exclusive load/store sequence the access is reported as restricted,
+ * letting a transformer avoid inserting callouts that would clobber the
+ * exclusive monitor and break the sequence.
+ *
+ * Returns: the memory access restriction at the current instruction
+ */
+
+/**
+ * gum_stalker_iterator_put_callout:
+ * @self: a #GumStalkerIterator
+ * @callout: (scope notified): function to call at this point during execution
+ * @data: data to pass to @callout
+ * @data_destroy: (nullable): destroy notify for @data
+ *
+ * Inserts a call to @callout at the current position in the recompiled block.
+ * At run time @callout is invoked with the live [struct@Gum.CpuContext], which
+ * it may also modify, making this the most convenient way to run your own C
+ * code inline with the traced thread.
+ *
+ * Be aware that a callout is relatively expensive: calling out to C means
+ * saving and restoring a fair amount of register state to honor the platform's
+ * ABI, on every execution of the instrumented point. For hot paths such as
+ * logging, it is often far faster to emit your own instructions directly into
+ * the block through the [struct@Gum.StalkerOutput] writer instead — for
+ * example dedicating a scratch register that points into a buffer you fill as
+ * instructions execute and flush at the end of the block. This is considerably
+ * harder to get right, but can move performance to a different level. (Even so,
+ * a callout is still far cheaper than a tracer that single-steps the CPU.)
+ */
+
+/**
  * gum_stalker_iterator_put_chaining_return:
  * @self: a #GumStalkerIterator
  *
  * Puts a chaining return at the current location in the output
  * instruction stream.
+ */
+
+/**
+ * gum_stalker_iterator_get_capstone: (skip)
+ * @self: the iterator
+ *
+ * Returns the Capstone handle for the current iterator.
  */
 
 static void
