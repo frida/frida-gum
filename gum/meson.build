@@ -66,6 +66,7 @@ gum_sources = [
   'gumleb.c',
   'gumlibc.c',
   'gummemory.c',
+  'gummemoryaccessmonitor.c',
   'gummemorymap.c',
   'gummetalarray.c',
   'gummetalhash.c',
