@@ -24,6 +24,9 @@ G_GNUC_INTERNAL void _gum_quick_worker_terminate (GumQuickWorker * self);
 G_GNUC_INTERNAL void _gum_quick_worker_post (GumQuickWorker * self,
     const gchar * message, GBytes * data);
 
+G_GNUC_INTERNAL void _gum_quick_script_dispose_cancelled_script (
+    GumQuickScript * self);
+
 G_GNUC_INTERNAL JSValue _gum_quick_script_rethrow_parse_error_with_decorations (
     GumQuickScript * self, JSContext * ctx, const gchar * name);
 

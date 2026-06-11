@@ -60,6 +60,12 @@ gum_script_unload_sync (GumScript * self,
 }
 
 void
+gum_script_cancel (GumScript * self)
+{
+  GUM_SCRIPT_GET_IFACE (self)->cancel (self);
+}
+
+void
 gum_script_set_message_handler (GumScript * self,
                                 GumScriptMessageHandler handler,
                                 gpointer data,
