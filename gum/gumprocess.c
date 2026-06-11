@@ -26,7 +26,7 @@
 # define GUM_FUNCTION_RANGE_USES_COMPACT_UNWIND 1
 #elif defined (HAVE_ARM)
 # define GUM_FUNCTION_RANGE_USES_EXIDX 1
-#else
+#elif defined (HAVE_LINUX) || defined (HAVE_FREEBSD) || defined (HAVE_QNX)
 # define GUM_FUNCTION_RANGE_USES_DWARF 1
 #endif
 
