@@ -10,11 +10,16 @@
 #include "gumexceptorbackend.h"
 
 #include <string.h>
+#if defined (G_OS_WIN32) && defined (HAVE_ARM64)
+# include <windows.h>
+#endif
 
 typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 
 #define GUM_EXCEPTOR_LOCK()   (g_mutex_lock (&self->mutex))
 #define GUM_EXCEPTOR_UNLOCK() (g_mutex_unlock (&self->mutex))
+
+#define GUM_LONGJMP_VALUE 1
 
 struct _GumExceptor
 {
@@ -45,6 +50,9 @@ static gboolean gum_exceptor_handle_scope_exception (
     GumExceptionDetails * details, gpointer user_data);
 
 static void gum_exceptor_scope_perform_longjmp (GumExceptorScope * scope);
+#if defined (G_OS_WIN32) && defined (HAVE_ARM64)
+static void gum_exceptor_scope_restore_context (GumExceptorScope * scope);
+#endif
 
 G_DEFINE_TYPE (GumExceptor, gum_exceptor, G_TYPE_OBJECT)
 
@@ -514,6 +522,55 @@ gum_exceptor_scope_perform_longjmp (GumExceptorScope * self)
 # ifdef HAVE_ANDROID
   sigprocmask (SIG_SETMASK, &self->mask, NULL);
 # endif
-  GUM_NATIVE_LONGJMP (self->env, 1);
+# if defined (G_OS_WIN32) && defined (HAVE_ARM64)
+  gum_exceptor_scope_restore_context (self);
+# else
+  GUM_NATIVE_LONGJMP (self->env, GUM_LONGJMP_VALUE);
+# endif
 #endif
 }
+
+#if defined (G_OS_WIN32) && defined (HAVE_ARM64)
+
+/*
+ * Windows longjmp() unwinds the stack with RtlUnwindEx(), but recovery resumes
+ * into a synthetic frame whose return address is a sentinel (see
+ * gum_exceptor_handle_scope_exception()), so unwinding through it makes the
+ * arm64 unwinder abort with STATUS_BAD_FUNCTION_TABLE. The x86_64 path dodges
+ * this with a non-unwinding _setjmp(env, NULL); arm64 has no equivalent, so
+ * restore the registers saved by setjmp() ourselves.
+ */
+static void
+gum_exceptor_scope_restore_context (GumExceptorScope * self)
+{
+  const _JUMP_BUFFER * jb = (const _JUMP_BUFFER *) (gconstpointer) self->env;
+  CONTEXT ctx;
+  guint i;
+
+  RtlCaptureContext (&ctx);
+
+  ctx.X19 = jb->X19;
+  ctx.X20 = jb->X20;
+  ctx.X21 = jb->X21;
+  ctx.X22 = jb->X22;
+  ctx.X23 = jb->X23;
+  ctx.X24 = jb->X24;
+  ctx.X25 = jb->X25;
+  ctx.X26 = jb->X26;
+  ctx.X27 = jb->X27;
+  ctx.X28 = jb->X28;
+  ctx.Fp = jb->Fp;
+  ctx.Lr = jb->Lr;
+  ctx.Sp = jb->Sp;
+  ctx.Pc = jb->Lr;
+  ctx.Fpcr = jb->Fpcr;
+  ctx.Fpsr = jb->Fpsr;
+  for (i = 0; i != G_N_ELEMENTS (jb->D); i++)
+    ctx.V[8 + i].D[0] = jb->D[i];
+
+  ctx.X0 = GUM_LONGJMP_VALUE;
+
+  RtlRestoreContext (&ctx, NULL);
+}
+
+#endif
