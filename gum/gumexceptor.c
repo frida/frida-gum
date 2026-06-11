@@ -46,6 +46,114 @@ static gboolean gum_exceptor_handle_scope_exception (
 
 static void gum_exceptor_scope_perform_longjmp (GumExceptorScope * scope);
 
+/**
+ * GumExceptor:
+ *
+ * Catches and handles hardware and software exceptions, such as access
+ * violations, illegal instructions and arithmetic errors.
+ *
+ * It serves two complementary needs:
+ *
+ * - *Scoped recovery*: wrap risky code in a `gum_exceptor_try()` /
+ *   [method@Gum.Exceptor.catch] pair to recover from a fault instead of
+ *   crashing, much like structured exception handling.
+ * - *Handlers*: register a [callback@Gum.ExceptionHandler] with
+ *   [method@Gum.Exceptor.add] to be consulted whenever an exception occurs —
+ *   the mechanism behind [class@Gum.MemoryAccessMonitor] and the Interceptor's
+ *   exception-aware trampolines.
+ *
+ * ## Recovering from a fault
+ *
+ * ```c
+ * g_autoptr(GumExceptor) exceptor = gum_exceptor_obtain ();
+ * GumExceptorScope scope;
+ *
+ * if (gum_exceptor_try (exceptor, &scope))
+ * {
+ *   // Risky operation that might fault.
+ *   read_possibly_unmapped (ptr);
+ * }
+ *
+ * if (gum_exceptor_catch (exceptor, &scope))
+ * {
+ *   g_autofree gchar * desc =
+ *       gum_exception_details_to_string (&scope.exception);
+ *   g_print ("Caught: %s\n", desc);
+ * }
+ * ```
+ */
+
+/**
+ * GumExceptorScope:
+ * @exception: details of the caught exception, valid once
+ *   [method@Gum.Exceptor.catch] has returned %TRUE
+ *
+ * An exception-handling scope established by `gum_exceptor_try()`. Declare one
+ * on the stack and pass its address to the try/catch pair.
+ */
+
+/**
+ * GumExceptionDetails:
+ * @thread_id: ID of the thread that raised the exception
+ * @type: the kind of exception
+ * @address: address of the instruction that triggered it
+ * @memory: for access violations, details of the offending access
+ * @context: CPU context at the point of the exception, which a handler may
+ *   modify to change how execution resumes
+ * @native_context: (nullable): the platform-native context structure
+ *
+ * Describes an exception, as delivered to a [callback@Gum.ExceptionHandler] or
+ * exposed through a [struct@Gum.ExceptorScope].
+ */
+
+/**
+ * GumExceptionType:
+ * @GUM_EXCEPTION_ABORT: an abort
+ * @GUM_EXCEPTION_ACCESS_VIOLATION: an invalid memory access
+ * @GUM_EXCEPTION_GUARD_PAGE: a guard-page access
+ * @GUM_EXCEPTION_ILLEGAL_INSTRUCTION: an illegal instruction
+ * @GUM_EXCEPTION_STACK_OVERFLOW: a stack overflow
+ * @GUM_EXCEPTION_ARITHMETIC: an arithmetic error, e.g. division by zero
+ * @GUM_EXCEPTION_BREAKPOINT: a breakpoint trap
+ * @GUM_EXCEPTION_SINGLE_STEP: a single-step trap
+ * @GUM_EXCEPTION_SYSTEM: some other system exception
+ *
+ * The kind of exception that occurred.
+ */
+
+/**
+ * GumExceptionMemoryDetails:
+ * @operation: the kind of memory access attempted
+ * @address: the address that was accessed
+ *
+ * Memory-access information for an access-violation exception.
+ */
+
+/**
+ * GumExceptionHandler:
+ * @details: details of the exception
+ * @user_data: data passed to [method@Gum.Exceptor.add]
+ *
+ * The type of function invoked when an exception occurs. A handler may inspect
+ * and modify @details — including its CPU context — and return %TRUE to mark
+ * the exception handled so execution resumes, or %FALSE to let the next handler
+ * try.
+ *
+ * Returns: %TRUE if the exception was handled
+ */
+
+/**
+ * GumExceptorMode:
+ * @GUM_EXCEPTOR_MODE_FULL: install handlers and hook signal()/sigaction() so
+ *   the target cannot override them
+ * @GUM_EXCEPTOR_MODE_HANDLER_ONLY: install handlers but leave
+ *   signal()/sigaction() alone
+ * @GUM_EXCEPTOR_MODE_OFF: install nothing
+ *
+ * How aggressively the exceptor takes over exception handling. See
+ * [func@Gum.Exceptor.set_mode].
+ */
+
 G_DEFINE_TYPE (GumExceptor, gum_exceptor, G_TYPE_OBJECT)
 
 G_LOCK_DEFINE_STATIC (the_exceptor);
@@ -170,6 +278,14 @@ the_exceptor_weak_notify (gpointer data,
   G_UNLOCK (the_exceptor);
 }
 
+/**
+ * gum_exceptor_reset:
+ * @self: the exceptor
+ *
+ * Re-installs the exceptor's backend, reasserting its exception handling in
+ * case something has taken over the relevant signal handlers since it was last
+ * set up. Does nothing in %GUM_EXCEPTOR_MODE_OFF.
+ */
 void
 gum_exceptor_reset (GumExceptor * self)
 {
@@ -301,6 +417,17 @@ _gum_exceptor_prepare_try (GumExceptor * self,
   GUM_EXCEPTOR_UNLOCK ();
 }
 
+/**
+ * gum_exceptor_catch:
+ * @self: the exceptor
+ * @scope: the scope previously passed to `gum_exceptor_try()`
+ *
+ * Ends an exception-handling scope opened with `gum_exceptor_try()` and reports
+ * whether an exception was caught. When it returns %TRUE, the exception is
+ * described by @scope's `exception` field.
+ *
+ * Returns: %TRUE if an exception occurred within the scope
+ */
 gboolean
 gum_exceptor_catch (GumExceptor * self,
                     GumExceptorScope * scope)
@@ -316,6 +443,16 @@ gum_exceptor_catch (GumExceptor * self,
   return scope->exception_occurred;
 }
 
+/**
+ * gum_exceptor_has_scope:
+ * @self: the exceptor
+ * @thread_id: ID of the thread to check
+ *
+ * Checks whether the given thread is currently inside a `gum_exceptor_try()`
+ * scope.
+ *
+ * Returns: %TRUE if @thread_id has an active try scope
+ */
 gboolean
 gum_exceptor_has_scope (GumExceptor * self, GumThreadId thread_id)
 {
@@ -328,6 +465,14 @@ gum_exceptor_has_scope (GumExceptor * self, GumThreadId thread_id)
   return scope != NULL;
 }
 
+/**
+ * gum_exception_details_to_string:
+ * @details: the exception details
+ *
+ * Formats @details as a human-readable string.
+ *
+ * Returns: (transfer full): a newly-allocated description; free with g_free()
+ */
 gchar *
 gum_exception_details_to_string (const GumExceptionDetails * details)
 {
