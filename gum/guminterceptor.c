@@ -525,16 +525,16 @@ gum_interceptor_set_default_options (GumInterceptor * self,
 /**
  * gum_interceptor_attach:
  * @self: the interceptor
- * @function_address: (not nullable): address to intercept
+ * @target: (not nullable): address to intercept
  * @listener: (transfer none): listener notified on enter and leave
  * @options: (nullable): attach options, or %NULL for the defaults
  *
- * Attaches @listener so that it is notified right before @function_address is
- * entered and right after it returns. The same listener may be attached to any
- * number of addresses, and multiple listeners may be attached to the same
- * address. The original code is left in place.
+ * Attaches @listener so that it is notified right before @target is entered and
+ * right after it returns. The same listener may be attached to any number of
+ * addresses, and multiple listeners may be attached to the same address. The
+ * original code is left in place.
  *
- * @function_address need not be a function entry: a listener that implements
+ * @target need not be a function entry: a listener that implements
  * only `on_enter` acts as a probe and may be placed at an arbitrary
  * instruction to observe execution reaching that point.
  *
@@ -545,7 +545,7 @@ gum_interceptor_set_default_options (GumInterceptor * self,
  */
 GumAttachReturn
 gum_interceptor_attach (GumInterceptor * self,
-                        gpointer function_address,
+                        gpointer target,
                         GumInvocationListener * listener,
                         const GumAttachOptions * options)
 {
@@ -562,10 +562,10 @@ gum_interceptor_attach (GumInterceptor * self,
   gum_interceptor_transaction_begin (&self->current_transaction);
   self->current_transaction.is_dirty = TRUE;
 
-  function_address = gum_interceptor_resolve (self, function_address);
+  target = gum_interceptor_resolve (self, target);
 
   function_ctx = gum_interceptor_instrument (self, GUM_INTERCEPTOR_TYPE_DEFAULT,
-      function_address, &options->instrumentation, &error);
+      target, &options->instrumentation, &error);
 
   if (function_ctx == NULL)
     goto instrumentation_error;
@@ -818,17 +818,16 @@ beach:
 /**
  * gum_interceptor_revert:
  * @self: the interceptor
- * @function_address: (not nullable): address of the function to revert
+ * @target: (not nullable): address of the function to revert
  *
- * Reverts a previous [method@Gum.Interceptor.replace] of @function_address,
- * restoring the original function. Has no effect if the function was not
- * replaced.
+ * Reverts a previous [method@Gum.Interceptor.replace] of @target, restoring the
+ * original function. Has no effect if the function was not replaced.
  *
  * The change takes effect immediately unless a transaction is open.
  */
 void
 gum_interceptor_revert (GumInterceptor * self,
-                        gpointer function_address)
+                        gpointer target)
 {
   GumFunctionContext * function_ctx;
 
@@ -836,10 +835,10 @@ gum_interceptor_revert (GumInterceptor * self,
   gum_interceptor_transaction_begin (&self->current_transaction);
   self->current_transaction.is_dirty = TRUE;
 
-  function_address = gum_interceptor_resolve (self, function_address);
+  target = gum_interceptor_resolve (self, target);
 
   function_ctx = (GumFunctionContext *) g_hash_table_lookup (
-      self->function_by_address, function_address);
+      self->function_by_address, target);
   if (function_ctx == NULL)
     goto beach;
 
@@ -848,7 +847,7 @@ gum_interceptor_revert (GumInterceptor * self,
 
   if (gum_function_context_is_empty (function_ctx))
   {
-    g_hash_table_remove (self->function_by_address, function_address);
+    g_hash_table_remove (self->function_by_address, target);
   }
 
 beach:

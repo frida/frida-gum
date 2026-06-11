@@ -155,13 +155,13 @@ namespace Gum {
 	public class Interceptor : GLib.Object {
 		public static Interceptor obtain ();
 
-		public Gum.AttachReturn attach (void * function_address, Gum.InvocationListener listener,
+		public Gum.AttachReturn attach (void * target, Gum.InvocationListener listener,
 			Gum.AttachOptions? options = null);
 		public void detach (Gum.InvocationListener listener);
 
 		public Gum.ReplaceReturn replace (void * function_address, void * replacement_function,
 			out void * original_function = null, Gum.ReplaceOptions? options = null);
-		public void revert (void * function_address);
+		public void revert (void * target);
 		public void set_default_options (Gum.InterceptorOptions options);
 
 		public void begin_transaction ();

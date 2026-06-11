@@ -103,7 +103,7 @@ GUM_API void gum_interceptor_set_default_options (GumInterceptor * self,
     const GumInterceptorOptions * options);
 
 GUM_API GumAttachReturn gum_interceptor_attach (GumInterceptor * self,
-    gpointer function_address, GumInvocationListener * listener,
+    gpointer target, GumInvocationListener * listener,
     const GumAttachOptions * options);
 GUM_API void gum_interceptor_detach (GumInterceptor * self,
     GumInvocationListener * listener);
@@ -115,7 +115,7 @@ GumReplaceReturn gum_interceptor_replace_fast (GumInterceptor * self,
     gpointer function_address, gpointer replacement_function,
     gpointer * original_function, const GumInterceptorOptions * options);
 GUM_API void gum_interceptor_revert (GumInterceptor * self,
-    gpointer function_address);
+    gpointer target);
 
 GUM_API void gum_interceptor_begin_transaction (GumInterceptor * self);
 GUM_API void gum_interceptor_end_transaction (GumInterceptor * self);
