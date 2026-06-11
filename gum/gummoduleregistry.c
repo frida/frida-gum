@@ -43,6 +43,38 @@ static void gum_deinit_rtld_notifier_offsets (void);
 
 static gboolean gum_is_cloaked_module (GumModule * module);
 
+/**
+ * GumModuleRegistry:
+ *
+ * Low-level registry of the process's loaded modules, emitting signals as
+ * libraries are loaded and unloaded.
+ *
+ * Most code should reach for the higher-level Process API, such as
+ * `gum_process_enumerate_modules()`, or a [class@Gum.ModuleMap] snapshot. Use
+ * the registry directly when you need to know *when* modules come and go:
+ * obtain it with [method@Gum.ModuleRegistry.obtain] and connect to its
+ * [signal@Gum.ModuleRegistry::module-added] and
+ * [signal@Gum.ModuleRegistry::module-removed] signals. Hold
+ * [method@Gum.ModuleRegistry.lock] across a sequence of operations that need a
+ * stable view.
+ */
+
+/**
+ * GumModuleRegistry::module-added:
+ * @self: the module registry
+ * @module: the module that was loaded
+ *
+ * Emitted when a module is loaded into the process.
+ */
+
+/**
+ * GumModuleRegistry::module-removed:
+ * @self: the module registry
+ * @module: the module that was unloaded
+ *
+ * Emitted when a module is unloaded from the process.
+ */
+
 G_DEFINE_TYPE (GumModuleRegistry, gum_module_registry, G_TYPE_OBJECT)
 
 static guint gum_module_registry_signals[LAST_SIGNAL] = { 0, };
@@ -246,12 +278,28 @@ gum_module_registry_enumerate_modules (GumModuleRegistry * self,
   GUM_MODULE_REGISTRY_UNLOCK (self);
 }
 
+/**
+ * gum_module_registry_lock:
+ * @self: module registry
+ *
+ * Acquires the registry lock, preventing concurrent modification while held.
+ * Use this to keep the module set stable across several operations, for example
+ * while holding on to a #GumModule obtained from it. Balance with
+ * [method@Gum.ModuleRegistry.unlock]. Enumeration already takes the lock
+ * internally.
+ */
 void
 gum_module_registry_lock (GumModuleRegistry * self)
 {
   GUM_MODULE_REGISTRY_LOCK (self);
 }
 
+/**
+ * gum_module_registry_unlock:
+ * @self: module registry
+ *
+ * Releases the registry lock acquired with [method@Gum.ModuleRegistry.lock].
+ */
 void
 gum_module_registry_unlock (GumModuleRegistry * self)
 {
