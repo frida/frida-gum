@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2021-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2021-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -169,6 +169,50 @@ static GByteArray * gum_merge_lazy_binds_into_binds (
 static void gum_replay_bind_state_transitions (const guint8 * start,
     const guint8 * end, GumBindState * state);
 
+/**
+ * GumDarwinGrafter:
+ *
+ * Grafts instrumentation trampolines into a Mach-O binary ahead of time.
+ *
+ * Where code signing is strictly enforced, executable pages cannot be patched
+ * at runtime, so [class@Gum.Interceptor] cannot hook by rewriting code on the
+ * fly. The grafter works around this by reserving a trampoline at each chosen
+ * code offset and writing the modified binary back to disk; once that binary is
+ * loaded, the interceptor claims the matching grafted trampoline instead of
+ * patching. This is what the `gum-graft` command-line tool wraps.
+ *
+ * Choose the offsets to instrument explicitly with
+ * [method@Gum.DarwinGrafter.add] and/or have them ingested automatically via
+ * [flags@Gum.DarwinGrafterFlags], then call [method@Gum.DarwinGrafter.graft].
+ *
+ * ```c
+ * g_autoptr(GError) error = NULL;
+ * GumDarwinGrafter * grafter = gum_darwin_grafter_new_from_file (
+ *     "/path/to/app", GUM_DARWIN_GRAFTER_FLAGS_INGEST_FUNCTION_STARTS);
+ *
+ * gum_darwin_grafter_add (grafter, 0x4118);
+ *
+ * if (!gum_darwin_grafter_graft (grafter, &error))
+ *   g_printerr ("Failed to graft: %s\n", error->message);
+ *
+ * g_object_unref (grafter);
+ * ```
+ */
+
+/**
+ * GumDarwinGrafterFlags:
+ * @GUM_DARWIN_GRAFTER_FLAGS_NONE: only graft offsets added explicitly
+ * @GUM_DARWIN_GRAFTER_FLAGS_INGEST_FUNCTION_STARTS: also graft every function
+ *   listed in `LC_FUNCTION_STARTS`
+ * @GUM_DARWIN_GRAFTER_FLAGS_INGEST_IMPORTS: also graft imported functions
+ * @GUM_DARWIN_GRAFTER_FLAGS_TRANSFORM_LAZY_BINDS: rewrite lazy binds into
+ *   regular binds (experimental)
+ *
+ * Controls which code offsets a [class@Gum.DarwinGrafter] picks up
+ * automatically, in addition to those added with
+ * [method@Gum.DarwinGrafter.add].
+ */
+
 G_DEFINE_TYPE (GumDarwinGrafter, gum_darwin_grafter, G_TYPE_OBJECT)
 
 static void
@@ -249,6 +293,15 @@ gum_darwin_grafter_set_property (GObject * object,
   }
 }
 
+/**
+ * gum_darwin_grafter_new_from_file:
+ * @path: path to the Mach-O binary to instrument
+ * @flags: flags controlling automatic ingestion of code offsets
+ *
+ * Creates a grafter for the binary at @path.
+ *
+ * Returns: (transfer full): a new #GumDarwinGrafter
+ */
 GumDarwinGrafter *
 gum_darwin_grafter_new_from_file (const gchar * path,
                                   GumDarwinGrafterFlags flags)
@@ -259,6 +312,14 @@ gum_darwin_grafter_new_from_file (const gchar * path,
       NULL);
 }
 
+/**
+ * gum_darwin_grafter_add:
+ * @self: a #GumDarwinGrafter
+ * @code_offset: file offset of the instruction to reserve a trampoline for
+ *
+ * Adds @code_offset to the set of locations that will receive a grafted
+ * trampoline. The offset is relative to the start of the Mach-O image.
+ */
 void
 gum_darwin_grafter_add (GumDarwinGrafter * self,
                         guint32 code_offset)
@@ -266,6 +327,18 @@ gum_darwin_grafter_add (GumDarwinGrafter * self,
   g_array_append_val (self->code_offsets, code_offset);
 }
 
+/**
+ * gum_darwin_grafter_graft:
+ * @self: a #GumDarwinGrafter
+ * @error: return location for a #GError
+ *
+ * Grafts trampolines for all collected code offsets and writes the modified
+ * binary back to its original path. Fails if the binary has already been
+ * grafted; if there is nothing to instrument it succeeds without touching the
+ * file.
+ *
+ * Returns: %TRUE on success, %FALSE on failure with @error set
+ */
 gboolean
 gum_darwin_grafter_graft (GumDarwinGrafter * self,
                           GError ** error)
