@@ -31,6 +31,18 @@ static void gum_memory_map_finalize (GObject * object);
 static gboolean gum_memory_map_add_range (const GumRangeDetails * details,
     gpointer user_data);
 
+/**
+ * GumMemoryMap:
+ *
+ * A snapshot of the process's mapped memory ranges matching a given page
+ * protection, for fast containment checks.
+ *
+ * Create one for the protection you care about — for example readable and
+ * executable memory — then ask whether an address range falls within mapped
+ * memory with [method@Gum.MemoryMap.contains]. Refresh it with
+ * [method@Gum.MemoryMap.update] after the memory layout may have changed.
+ */
+
 G_DEFINE_TYPE (GumMemoryMap, gum_memory_map, G_TYPE_OBJECT)
 
 static void
@@ -57,6 +69,15 @@ gum_memory_map_finalize (GObject * object)
   G_OBJECT_CLASS (gum_memory_map_parent_class)->finalize (object);
 }
 
+/**
+ * gum_memory_map_new:
+ * @prot: protection the included ranges must have
+ *
+ * Creates a memory map of the process's currently mapped ranges whose
+ * protection includes @prot.
+ *
+ * Returns: (transfer full): a new #GumMemoryMap
+ */
 GumMemoryMap *
 gum_memory_map_new (GumPageProtection prot)
 {
@@ -70,6 +91,15 @@ gum_memory_map_new (GumPageProtection prot)
   return map;
 }
 
+/**
+ * gum_memory_map_contains:
+ * @self: memory map
+ * @range: the range to test
+ *
+ * Checks whether @range lies entirely within a single mapped range of the map.
+ *
+ * Returns: %TRUE if @range is fully contained
+ */
 gboolean
 gum_memory_map_contains (GumMemoryMap * self,
                          const GumMemoryRange * range)
@@ -93,6 +123,14 @@ gum_memory_map_contains (GumMemoryMap * self,
   return FALSE;
 }
 
+/**
+ * gum_memory_map_update:
+ * @self: memory map
+ *
+ * Refreshes the map from the process's current memory layout. Call this after
+ * memory may have been mapped or unmapped, since a stale map can give wrong
+ * answers.
+ */
 void
 gum_memory_map_update (GumMemoryMap * self)
 {
