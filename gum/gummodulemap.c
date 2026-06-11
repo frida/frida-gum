@@ -27,6 +27,29 @@ static gint gum_module_compare_base (GumModule ** lhs_module,
 static gint gum_module_compare_to_key (const GumAddress * key_ptr,
     GumModule ** member);
 
+/**
+ * GumModuleMap:
+ *
+ * A snapshot of the process's loaded modules, ordered for fast lookup of the
+ * module containing a given address.
+ *
+ * The map is populated when created and can be refreshed with
+ * [method@Gum.ModuleMap.update] after modules are loaded or unloaded. A
+ * filtered map retains only the modules accepted by a
+ * [callback@Gum.ModuleMapFilterFunc], handy for narrowing lookups to a subset
+ * such as your own modules.
+ */
+
+/**
+ * GumModuleMapFilterFunc:
+ * @module: the module being considered
+ * @user_data: data passed to [ctor@Gum.ModuleMap.new_filtered]
+ *
+ * Decides whether @module should be included in a filtered module map.
+ *
+ * Returns: %TRUE to include @module, %FALSE to skip it
+ */
+
 G_DEFINE_TYPE (GumModuleMap, gum_module_map, G_TYPE_OBJECT)
 
 static void
@@ -60,6 +83,13 @@ gum_module_map_dispose (GObject * object)
   G_OBJECT_CLASS (gum_module_map_parent_class)->dispose (object);
 }
 
+/**
+ * gum_module_map_new:
+ *
+ * Creates a module map covering all of the process's currently loaded modules.
+ *
+ * Returns: (transfer full): a new #GumModuleMap
+ */
 GumModuleMap *
 gum_module_map_new (void)
 {
@@ -72,6 +102,17 @@ gum_module_map_new (void)
   return map;
 }
 
+/**
+ * gum_module_map_new_filtered:
+ * @func: (scope notified): filter deciding which modules to include
+ * @data: data to pass to @func
+ * @data_destroy: (nullable): destroy notify for @data
+ *
+ * Creates a module map containing only the modules for which @func returns
+ * %TRUE.
+ *
+ * Returns: (transfer full): a new #GumModuleMap
+ */
 GumModuleMap *
 gum_module_map_new_filtered (GumModuleMapFilterFunc func,
                              gpointer data,
@@ -115,6 +156,14 @@ gum_module_map_find (GumModuleMap * self,
   return *entry;
 }
 
+/**
+ * gum_module_map_update:
+ * @self: module map
+ *
+ * Refreshes the map from the process's current set of loaded modules. Call this
+ * after modules may have been loaded or unloaded, since lookups through a stale
+ * map can otherwise return wrong results.
+ */
 void
 gum_module_map_update (GumModuleMap * self)
 {
