@@ -244,6 +244,114 @@ static gboolean gum_interceptor_has (GumInterceptor * self,
 static gpointer gum_page_address_from_pointer (gpointer ptr);
 static gint gum_page_address_compare (gconstpointer * a, gconstpointer * b);
 
+/**
+ * GumInterceptor:
+ *
+ * Intercepts execution through inline hooking.
+ *
+ * Three complementary mechanisms are offered:
+ *
+ * - *Attaching* a [iface@Gum.InvocationListener] to a function, to be notified
+ *   right before it is entered and right after it returns, while leaving the
+ *   original function in place. This is the classic enter/leave hook.
+ * - *Probing* a single point in the code with a listener that implements only
+ *   `on_enter`, typically one from [func@Gum.make_probe_listener]. Because the
+ *   target is an arbitrary address rather than a function entry, a probe can be
+ *   placed in the middle of a function to observe execution reaching a specific
+ *   instruction. A call listener given a %NULL `on_leave` is not equivalent: it
+ *   still traps the return and counts toward
+ *   [method@Gum.InvocationContext.get_depth].
+ * - *Replacing* a function outright with your own implementation. Your
+ *   replacement can still reach the original by calling the function's own
+ *   address: the interceptor routes such a call to the original instead of
+ *   recursing back into the replacement. (The lighter
+ *   [method@Gum.Interceptor.replace_fast] instead hands you a dedicated
+ *   pointer for this.)
+ *
+ * A batch of changes can be grouped into a transaction so that they are
+ * activated as a unit, which is both faster and atomic from the target's point
+ * of view; see [method@Gum.Interceptor.begin_transaction].
+ *
+ * ## Attaching a listener
+ *
+ * ```c
+ * static void on_enter (GumInvocationContext * ic, gpointer user_data);
+ * static void on_leave (GumInvocationContext * ic, gpointer user_data);
+ *
+ * void
+ * instrument (void)
+ * {
+ *   g_autoptr(GumInterceptor) interceptor = gum_interceptor_obtain ();
+ *   GumInvocationListener * listener =
+ *       gum_make_call_listener (on_enter, on_leave, NULL, NULL);
+ *
+ *   gum_interceptor_begin_transaction (interceptor);
+ *   gum_interceptor_attach (interceptor,
+ *       GSIZE_TO_POINTER (gum_module_find_global_export_by_name ("open")),
+ *       listener, NULL);
+ *   gum_interceptor_end_transaction (interceptor);
+ * }
+ * ```
+ *
+ * ## Replacing a function
+ *
+ * ```c
+ * static int (* libc_open) (const char * path, int oflag, ...);
+ *
+ * static int
+ * replacement_open (const char * path, int oflag, ...)
+ * {
+ *   g_printerr ("open(\"%s\")\n", path);
+ *   return libc_open (path, oflag); // reaches the original
+ * }
+ *
+ * void
+ * instrument (void)
+ * {
+ *   g_autoptr(GumInterceptor) interceptor = gum_interceptor_obtain ();
+ *
+ *   libc_open = GSIZE_TO_POINTER (
+ *       gum_module_find_global_export_by_name ("open"));
+ *
+ *   gum_interceptor_replace (interceptor, libc_open, replacement_open,
+ *       NULL, NULL);
+ * }
+ * ```
+ *
+ * ## Ahead-of-time instrumentation
+ *
+ * Inline hooking normally rewrites code at runtime, but some platforms forbid
+ * that: where code signing is strictly enforced (e.g. iOS), executable pages
+ * cannot be patched on the fly. For these, trampolines can be *grafted* into a
+ * Mach-O binary ahead of time with [class@Gum.DarwinGrafter] — exposed as the
+ * `gum-graft` command-line tool — which reserves a trampoline at each code
+ * offset you intend to hook.
+ *
+ * At runtime [method@Gum.Interceptor.attach] and
+ * [method@Gum.Interceptor.replace] then claim the matching grafted trampoline
+ * instead of patching code, so interception works without writable code. If a
+ * target has no grafted trampoline while code signing requires one, the attach
+ * or replace fails with `GUM_ATTACH_POLICY_VIOLATION` /
+ * `GUM_REPLACE_POLICY_VIOLATION`.
+ */
+
+/**
+ * GumInterceptorScenario:
+ * @GUM_INTERCEPTOR_SCENARIO_DEFAULT: use the interceptor's configured default
+ * @GUM_INTERCEPTOR_SCENARIO_ONLINE: other threads may be executing the target
+ *   code, so it must be instrumented conservatively
+ * @GUM_INTERCEPTOR_SCENARIO_OFFLINE: the target is quiescent, allowing more
+ *   aggressive rewriting
+ *
+ * Whether other threads may be running the code being instrumented. When the
+ * target is known to be quiescent — for example a process freshly created with
+ * `spawn()` whose main thread is still suspended before `main()` —
+ * %GUM_INTERCEPTOR_SCENARIO_OFFLINE lets it rewrite more freely, e.g.
+ * overwriting past a `CALL` since no other thread can already be inside the
+ * call waiting to return. %GUM_INTERCEPTOR_SCENARIO_ONLINE is the safe choice
+ * for live processes where such concurrency is possible.
+ */
+
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT)
 
 static GMutex _gum_interceptor_lock;
@@ -392,6 +500,14 @@ the_interceptor_weak_notify (gpointer data,
   g_mutex_unlock (&_gum_interceptor_lock);
 }
 
+/**
+ * gum_interceptor_set_default_options:
+ * @self: the interceptor
+ * @options: (not nullable): the options to use as defaults
+ *
+ * Sets the instrumentation options applied when a subsequent attach or replace
+ * is given no options of its own.
+ */
 void
 gum_interceptor_set_default_options (GumInterceptor * self,
                                      const GumInterceptorOptions * options)
@@ -406,6 +522,27 @@ gum_interceptor_set_default_options (GumInterceptor * self,
     defaults->relocation_policy = GUM_RELOCATION_CHECKED;
 }
 
+/**
+ * gum_interceptor_attach:
+ * @self: the interceptor
+ * @function_address: (not nullable): address to intercept
+ * @listener: (transfer none): listener notified on enter and leave
+ * @options: (nullable): attach options, or %NULL for the defaults
+ *
+ * Attaches @listener so that it is notified right before @function_address is
+ * entered and right after it returns. The same listener may be attached to any
+ * number of addresses, and multiple listeners may be attached to the same
+ * address. The original code is left in place.
+ *
+ * @function_address need not be a function entry: a listener that implements
+ * only `on_enter` acts as a probe and may be placed at an arbitrary
+ * instruction to observe execution reaching that point.
+ *
+ * The change takes effect immediately unless a transaction is open.
+ *
+ * Returns: %GUM_ATTACH_OK on success, or another [enum@Gum.AttachReturn]
+ *   describing why the function could not be instrumented
+ */
 GumAttachReturn
 gum_interceptor_attach (GumInterceptor * self,
                         gpointer function_address,
@@ -475,6 +612,17 @@ beach:
   }
 }
 
+/**
+ * gum_interceptor_detach:
+ * @self: the interceptor
+ * @listener: (transfer none): the listener to detach
+ *
+ * Detaches @listener from every function it is currently attached to, undoing
+ * any [method@Gum.Interceptor.attach] calls made with it. Functions left
+ * without any listeners or replacement are restored to their original state.
+ *
+ * The change takes effect immediately unless a transaction is open.
+ */
 void
 gum_interceptor_detach (GumInterceptor * self,
                         GumInvocationListener * listener)
@@ -521,6 +669,27 @@ gum_interceptor_detach (GumInterceptor * self,
   gum_interceptor_unignore_current_thread (self);
 }
 
+/**
+ * gum_interceptor_replace:
+ * @self: the interceptor
+ * @function_address: (not nullable): address of the function to replace
+ * @replacement_function: (not nullable): address of the replacement
+ * @original_function: (out) (optional) (nullable): return location for a
+ *   pointer through which the original function can be called, or %NULL
+ * @options: (nullable): replace options, or %NULL for the defaults
+ *
+ * Replaces @function_address with @replacement_function, so that any call to
+ * it ends up in the replacement instead. The replacement can still reach the
+ * original by calling @function_address itself — the interceptor routes that
+ * call to the original rather than recursing — or through @original_function
+ * if a pointer is more convenient.
+ *
+ * Undo with [method@Gum.Interceptor.revert]. The change takes effect
+ * immediately unless a transaction is open.
+ *
+ * Returns: %GUM_REPLACE_OK on success, or another [enum@Gum.ReplaceReturn]
+ *   describing why the function could not be instrumented
+ */
 GumReplaceReturn
 gum_interceptor_replace (GumInterceptor * self,
                          gpointer function_address,
@@ -538,6 +707,29 @@ gum_interceptor_replace (GumInterceptor * self,
       original_function, &options->instrumentation);
 }
 
+/**
+ * gum_interceptor_replace_fast:
+ * @self: the interceptor
+ * @function_address: (not nullable): address of the function to replace
+ * @replacement_function: (not nullable): address of the replacement
+ * @original_function: (out) (optional) (nullable): return location for a
+ *   pointer through which the original function can still be called, or %NULL
+ * @options: (nullable): instrumentation options, or %NULL for the defaults
+ *
+ * Like [method@Gum.Interceptor.replace], but trades flexibility for speed by
+ * patching @function_address to branch straight to @replacement_function with
+ * no trampoline in between. A trampoline is only involved if you ask for
+ * @original_function, which you must use to reach the original — unlike
+ * [method@Gum.Interceptor.replace], calling @function_address again would just
+ * re-enter the replacement. A target replaced this way cannot also be attached
+ * to; use [method@Gum.Interceptor.replace] if you need that.
+ *
+ * Prefer this when the hook is on a hot path and the extra machinery of the
+ * default replacement is not needed.
+ *
+ * Returns: %GUM_REPLACE_OK on success, or another [enum@Gum.ReplaceReturn]
+ *   describing why the function could not be instrumented
+ */
 GumReplaceReturn
 gum_interceptor_replace_fast (GumInterceptor * self,
                               gpointer function_address,
@@ -623,6 +815,17 @@ beach:
   }
 }
 
+/**
+ * gum_interceptor_revert:
+ * @self: the interceptor
+ * @function_address: (not nullable): address of the function to revert
+ *
+ * Reverts a previous [method@Gum.Interceptor.replace] of @function_address,
+ * restoring the original function. Has no effect if the function was not
+ * replaced.
+ *
+ * The change takes effect immediately unless a transaction is open.
+ */
 void
 gum_interceptor_revert (GumInterceptor * self,
                         gpointer function_address)
@@ -653,6 +856,16 @@ beach:
   GUM_INTERCEPTOR_UNLOCK (self);
 }
 
+/**
+ * gum_interceptor_begin_transaction:
+ * @self: the interceptor
+ *
+ * Begins a transaction, deferring activation of any attach, replace and revert
+ * operations until the matching [method@Gum.Interceptor.end_transaction].
+ * Batching changes this way is faster and lets a set of modifications be
+ * applied as a unit. Transactions nest; only ending the outermost one applies
+ * the changes.
+ */
 void
 gum_interceptor_begin_transaction (GumInterceptor * self)
 {
@@ -661,6 +874,13 @@ gum_interceptor_begin_transaction (GumInterceptor * self)
   GUM_INTERCEPTOR_UNLOCK (self);
 }
 
+/**
+ * gum_interceptor_end_transaction:
+ * @self: the interceptor
+ *
+ * Ends a transaction started with [method@Gum.Interceptor.begin_transaction].
+ * Ending the outermost transaction activates all changes made since it began.
+ */
 void
 gum_interceptor_end_transaction (GumInterceptor * self)
 {
@@ -669,6 +889,20 @@ gum_interceptor_end_transaction (GumInterceptor * self)
   GUM_INTERCEPTOR_UNLOCK (self);
 }
 
+/**
+ * gum_interceptor_flush:
+ * @self: the interceptor
+ *
+ * Completes any teardown still pending from earlier detaches and reverts. When
+ * a listener is detached or a replacement reverted the hook stops firing
+ * immediately, but the memory backing its instrumentation can only be released
+ * once no thread is left executing inside it, so that step is deferred. Call
+ * this to force a pass and learn whether it finished. Does nothing while a
+ * transaction is open.
+ *
+ * Returns: %TRUE if no teardown remains pending, %FALSE if some instrumented
+ *   code may still be executing
+ */
 gboolean
 gum_interceptor_flush (GumInterceptor * self)
 {
@@ -690,6 +924,17 @@ gum_interceptor_flush (GumInterceptor * self)
   return flushed;
 }
 
+/**
+ * gum_interceptor_flush_function:
+ * @self: the interceptor
+ * @function_address: (not nullable): address of the function of interest
+ *
+ * Like [method@Gum.Interceptor.flush], but reports specifically whether the
+ * instrumentation for @function_address is no longer in use, so its memory can
+ * be reclaimed.
+ *
+ * Returns: %TRUE if @function_address has no pending teardown left
+ */
 gboolean
 gum_interceptor_flush_function (GumInterceptor * self,
                                 gconstpointer function_address)
@@ -731,6 +976,17 @@ gum_interceptor_flush_function (GumInterceptor * self,
   return flushed;
 }
 
+/**
+ * gum_interceptor_flush_listener:
+ * @self: the interceptor
+ * @listener: (transfer none): the listener of interest
+ *
+ * Like [method@Gum.Interceptor.flush], but reports specifically whether
+ * @listener is no longer referenced by any in-flight invocation, so it is safe
+ * to release.
+ *
+ * Returns: %TRUE if @listener has no pending teardown left
+ */
 gboolean
 gum_interceptor_flush_listener (GumInterceptor * self,
                                 GumInvocationListener * listener)
@@ -838,6 +1094,23 @@ gum_interceptor_get_current_stack (void)
   return context->stack;
 }
 
+/**
+ * gum_interceptor_ignore_current_thread:
+ * @self: the interceptor
+ *
+ * Temporarily stops the calling thread's calls into hooked code from
+ * triggering listeners. The typical use is to bracket work done internally by
+ * an injected payload — for example its own worker threads — so that a user's
+ * hooks observe only the target process's activity, not the payload's own
+ * calls into the functions it has hooked.
+ *
+ * Listeners marked unignorable still fire (see
+ * [enum@Gum.InvocationIgnorability]). Note that re-entrancy from within a
+ * listener's own `on_enter`/`on_leave` is already prevented automatically, so
+ * this is not needed for that.
+ *
+ * Nestable, and balanced by [method@Gum.Interceptor.unignore_current_thread].
+ */
 void
 gum_interceptor_ignore_current_thread (GumInterceptor * self)
 {
@@ -847,6 +1120,13 @@ gum_interceptor_ignore_current_thread (GumInterceptor * self)
   interceptor_ctx->ignore_level++;
 }
 
+/**
+ * gum_interceptor_unignore_current_thread:
+ * @self: the interceptor
+ *
+ * Undoes one [method@Gum.Interceptor.ignore_current_thread] on the calling
+ * thread.
+ */
 void
 gum_interceptor_unignore_current_thread (GumInterceptor * self)
 {
@@ -856,6 +1136,15 @@ gum_interceptor_unignore_current_thread (GumInterceptor * self)
   interceptor_ctx->ignore_level--;
 }
 
+/**
+ * gum_interceptor_maybe_unignore_current_thread:
+ * @self: the interceptor
+ *
+ * Undoes one [method@Gum.Interceptor.ignore_current_thread], but only if the
+ * calling thread is currently being ignored.
+ *
+ * Returns: %TRUE if the thread was being ignored and is now one level less so
+ */
 gboolean
 gum_interceptor_maybe_unignore_current_thread (GumInterceptor * self)
 {
@@ -869,12 +1158,28 @@ gum_interceptor_maybe_unignore_current_thread (GumInterceptor * self)
   return TRUE;
 }
 
+/**
+ * gum_interceptor_ignore_other_threads:
+ * @self: the interceptor
+ *
+ * Restricts interception to the calling thread: invocations on all other
+ * threads stop triggering listeners until
+ * [method@Gum.Interceptor.unignore_other_threads] is called.
+ */
 void
 gum_interceptor_ignore_other_threads (GumInterceptor * self)
 {
   self->selected_thread_id = gum_process_get_current_thread_id ();
 }
 
+/**
+ * gum_interceptor_unignore_other_threads:
+ * @self: the interceptor
+ *
+ * Lifts a previous [method@Gum.Interceptor.ignore_other_threads], resuming
+ * interception on all threads. Must be called from the same thread that
+ * ignored the others.
+ */
 void
 gum_interceptor_unignore_other_threads (GumInterceptor * self)
 {
@@ -882,6 +1187,18 @@ gum_interceptor_unignore_other_threads (GumInterceptor * self)
   self->selected_thread_id = 0;
 }
 
+/**
+ * gum_invocation_stack_translate:
+ * @self: the invocation stack
+ * @return_address: a potentially hijacked return address
+ *
+ * Translates @return_address back to its real value. While a listener is
+ * active the interceptor temporarily replaces on-stack return addresses with
+ * its own trampoline; this resolves such an address to the caller's true
+ * return address, leaving any unrelated address unchanged.
+ *
+ * Returns: the real return address
+ */
 gpointer
 gum_invocation_stack_translate (GumInvocationStack * self,
                                 gpointer return_address)
@@ -900,12 +1217,28 @@ gum_invocation_stack_translate (GumInvocationStack * self,
   return return_address;
 }
 
+/**
+ * gum_interceptor_save:
+ * @state: (out): return location for the saved state
+ *
+ * Records the calling thread's current invocation depth into @state, to be
+ * restored later with [func@Gum.Interceptor.restore]. Use this around a
+ * non-local exit such as a `longjmp()` that would otherwise skip the
+ * bookkeeping the interceptor does as intercepted calls return.
+ */
 void
 gum_interceptor_save (GumInvocationState * state)
 {
   *state = gum_interceptor_get_current_stack ()->len;
 }
 
+/**
+ * gum_interceptor_restore:
+ * @state: (in): the state previously saved with [func@Gum.Interceptor.save]
+ *
+ * Unwinds the calling thread's invocation stack back to the depth recorded in
+ * @state, releasing any entries skipped by a non-local exit.
+ */
 void
 gum_interceptor_restore (GumInvocationState * state)
 {
@@ -949,6 +1282,15 @@ gum_interceptor_with_lock_held (GumInterceptor * self,
   GUM_INTERCEPTOR_UNLOCK (self);
 }
 
+/**
+ * gum_interceptor_is_locked:
+ * @self: the interceptor
+ *
+ * Checks whether the interceptor lock is currently held, e.g. to decide
+ * whether it is safe to make changes from a signal handler.
+ *
+ * Returns: %TRUE if the lock is held
+ */
 gboolean
 gum_interceptor_is_locked (GumInterceptor * self)
 {
