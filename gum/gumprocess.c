@@ -901,47 +901,6 @@ gum_emit_range_if_not_cloaked (const GumRangeDetails * details,
  * @func with #GumMallocRangeDetails about each range found.
  */
 
-/**
- * gum_module_enumerate_imports:
- * @self: module
- * @func: (scope call): function called with #GumImportDetails
- * @user_data: data to pass to @func
- *
- * Enumerates imports of the specified module, calling @func with
- * #GumImportDetails about each import found.
- */
-
-/**
- * gum_module_enumerate_exports:
- * @self: module
- * @func: (scope call): function called with #GumExportDetails
- * @user_data: data to pass to @func
- *
- * Enumerates exports of the specified module, calling @func with
- * #GumExportDetails about each export found.
- */
-
-/**
- * gum_module_enumerate_symbols:
- * @self: module
- * @func: (scope call): function called with #GumSymbolDetails
- * @user_data: data to pass to @func
- *
- * Enumerates symbols of the specified module, calling @func with
- * #GumSymbolDetails about each symbol found.
- */
-
-/**
- * gum_module_enumerate_ranges:
- * @self: module
- * @prot: bitfield specifying the minimum protection
- * @func: (scope call): function called with #GumRangeDetails
- * @user_data: data to pass to @func
- *
- * Enumerates memory ranges of the specified module that satisfy @prot,
- * calling @func with #GumRangeDetails about each such range found.
- */
-
 const gchar *
 gum_code_signing_policy_to_string (GumCodeSigningPolicy policy)
 {
