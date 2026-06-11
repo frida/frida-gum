@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Install dependencies
@@ -84,7 +84,7 @@ jobs:
     runs-on: ${{ fromJSON(matrix.runner) }}
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Install gcc-multilib
@@ -122,13 +122,13 @@ jobs:
           make
       - name: Upload Gum devkit
         if: ${{ !startsWith(matrix.id, 'linux-') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gum-devkit-${{ matrix.id }}
           path: build/gum/devkit/
       - name: Upload GumJS devkit
         if: ${{ !startsWith(matrix.id, 'linux-') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gumjs-devkit-${{ matrix.id }}
           path: build/bindings/gumjs/devkit/
@@ -149,7 +149,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Install toolchain
@@ -162,13 +162,13 @@ jobs:
           make
       - name: Upload Gum devkit
         if: ${{ !startsWith(matrix.id, 'linux-') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gum-devkit-${{ matrix.id }}
           path: build/gum/devkit/
       - name: Upload GumJS devkit
         if: ${{ !startsWith(matrix.id, 'linux-') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gumjs-devkit-${{ matrix.id }}
           path: build/bindings/gumjs/devkit/
@@ -182,7 +182,7 @@ jobs:
     container: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Build
@@ -190,12 +190,12 @@ jobs:
           ./configure --host=$XTOOLS_HOST ${{ env.GUM_OPTIONS }}
           make
       - name: Upload Gum devkit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gum-devkit-linux-${{ matrix.arch }}
           path: build/gum/devkit/
       - name: Upload GumJS devkit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gumjs-devkit-linux-${{ matrix.arch }}
           path: build/bindings/gumjs/devkit/
@@ -212,7 +212,7 @@ jobs:
     container: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Build
@@ -220,12 +220,12 @@ jobs:
           ./configure --host=$XTOOLS_HOST --without-prebuilds=sdk:host ${{ env.GUM_OPTIONS }}
           make
       - name: Upload Gum devkit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gum-devkit-linux-${{ matrix.arch }}
           path: build/gum/devkit/
       - name: Upload GumJS devkit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gumjs-devkit-linux-${{ matrix.arch }}
           path: build/bindings/gumjs/devkit/
@@ -351,7 +351,7 @@ jobs:
     runs-on: ${{ startsWith(matrix.id, 'ios-') && 'macos-latest' || 'ubuntu-latest' }}
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - uses: nttld/setup-ndk@v1
@@ -368,12 +368,12 @@ jobs:
           ./configure --host=${{ matrix.id }} ${{ env.GUM_OPTIONS }}
           make
       - name: Upload Gum devkit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gum-devkit-${{ matrix.id }}
           path: build/gum/devkit/
       - name: Upload GumJS devkit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gumjs-devkit-${{ matrix.id }}
           path: build/bindings/gumjs/devkit/
@@ -414,7 +414,7 @@ jobs:
     container: ghcr.io/frida/qnx-tools:latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Build
@@ -423,12 +423,12 @@ jobs:
               ./configure --host=arm-unknown-nto-qnx6.5.0eabi ${{ env.GUM_OPTIONS }}
           make
       - name: Upload Gum devkit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gum-devkit-qnx-armeabi
           path: build/gum/devkit/
       - name: Upload GumJS devkit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gumjs-devkit-qnx-armeabi
           path: build/bindings/gumjs/devkit/
@@ -450,7 +450,7 @@ jobs:
     container: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Build
