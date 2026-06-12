@@ -78,6 +78,8 @@ struct _GumV8Script
   GumV8ScriptBackend * backend;
 
   GumScriptState state;
+  GRecMutex cancellation_mutex;
+  gboolean is_cancelled;
   GSList * on_unload;
   v8::Isolate * isolate;
   GumV8Core core;
