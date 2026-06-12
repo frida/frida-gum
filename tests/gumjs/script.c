@@ -547,6 +547,10 @@ TESTLIST_BEGIN (script)
   TESTENTRY (exceptions_can_be_handled)
   TESTENTRY (debugger_can_be_enabled)
   TESTENTRY (cloaked_items_can_be_queried_added_and_removed)
+
+  TESTENTRY (script_can_be_cancelled)
+  TESTENTRY (script_cancel_is_idempotent)
+  TESTENTRY (script_cancel_during_load_should_auto_dispose)
 TESTLIST_END ()
 
 typedef int (* TargetFunctionInt) (int arg);
@@ -12632,4 +12636,74 @@ target_function_variable_sleepyness (guint n)
   gum_script_dummy_global_to_trick_optimizer += n;
 
   g_usleep (n);
+}
+
+TESTCASE (script_can_be_cancelled)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send('hello');");
+  EXPECT_SEND_MESSAGE_WITH ("\"hello\"");
+  EXPECT_NO_MESSAGES ();
+
+  gum_script_cancel (fixture->script);
+
+  gum_script_unload_sync (fixture->script, NULL);
+  g_object_unref (fixture->script);
+  fixture->script = NULL;
+}
+
+TESTCASE (script_cancel_is_idempotent)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send('hello');");
+  EXPECT_SEND_MESSAGE_WITH ("\"hello\"");
+  EXPECT_NO_MESSAGES ();
+
+  gum_script_cancel (fixture->script);
+  gum_script_cancel (fixture->script);
+
+  gum_script_unload_sync (fixture->script, NULL);
+  g_object_unref (fixture->script);
+  fixture->script = NULL;
+}
+
+static gpointer
+load_script_worker (gpointer data)
+{
+  GumScript * script = (GumScript *) data;
+
+  gum_script_load_sync (script, NULL);
+
+  return NULL;
+}
+
+TESTCASE (script_cancel_during_load_should_auto_dispose)
+{
+  GError * err = NULL;
+  GumScript * script;
+  GThread * worker;
+
+  /* Create a script with an infinite loop that can only exit via cancel. */
+  script = gum_script_backend_create_sync (fixture->backend, "testcase",
+      "while (true) {}",
+      NULL, NULL, &err);
+  g_assert_nonnull (script);
+  g_assert_null (err);
+
+  gum_script_set_message_handler (script,
+      test_script_fixture_store_message, fixture, NULL);
+
+  /* Start loading (and executing) on a worker thread — this blocks in the
+   * infinite loop until we interrupt it. */
+  worker = g_thread_new ("cancel-test-loader", load_script_worker, script);
+
+  /* Give the JS thread time to enter the loop. */
+  g_usleep (G_USEC_PER_SEC / 10);
+
+  /* Cancel from this thread — interrupts execution and triggers auto-dispose
+   * once the load task completes. */
+  gum_script_cancel (script);
+
+  /* Worker must return, proving the infinite loop was interrupted. */
+  g_thread_join (worker);
+
+  g_object_unref (script);
 }
