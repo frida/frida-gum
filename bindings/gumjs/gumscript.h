@@ -33,6 +33,7 @@ struct _GumScriptInterface
       GAsyncReadyCallback callback, gpointer user_data);
   void (* unload_finish) (GumScript * self, GAsyncResult * result);
   void (* unload_sync) (GumScript * self, GCancellable * cancellable);
+  void (* cancel) (GumScript * self);
 
   void (* set_message_handler) (GumScript * self,
       GumScriptMessageHandler handler, gpointer data,
@@ -57,6 +58,7 @@ GUM_API void gum_script_unload (GumScript * self, GCancellable * cancellable,
 GUM_API void gum_script_unload_finish (GumScript * self, GAsyncResult * result);
 GUM_API void gum_script_unload_sync (GumScript * self,
     GCancellable * cancellable);
+GUM_API void gum_script_cancel (GumScript * self);
 
 GUM_API void gum_script_set_message_handler (GumScript * self,
     GumScriptMessageHandler handler, gpointer data,
