@@ -50,6 +50,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_dominates)
 GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_enumerate_dominating_sites)
 static gboolean gum_v8_collect_dominating_site (gconstpointer site,
     gsize capacity, GumV8DominatingSitesContext * dc);
+GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_to_json)
 static GumV8ControlFlowGraphValue * gum_v8_control_flow_graph_value_new (
     Local<Object> wrapper, GumControlFlowGraph * handle,
     gconstpointer entrypoint, GumV8ControlFlowGraph * module);
@@ -64,11 +65,15 @@ GUMJS_DECLARE_GETTER (gumjs_basic_block_get_successors)
 GUMJS_DECLARE_GETTER (gumjs_basic_block_get_predecessors)
 GUMJS_DECLARE_GETTER (gumjs_basic_block_get_immediate_dominator)
 GUMJS_DECLARE_GETTER (gumjs_basic_block_get_instructions)
+GUMJS_DECLARE_FUNCTION (gumjs_basic_block_to_json)
 static Local<Object> gum_v8_basic_block_new (Local<Object> cfg,
     GumControlFlowGraph * handle, guint index, GumV8ControlFlowGraph * module);
 static void gum_v8_basic_block_value_free (GumV8BasicBlockValue * self);
 static void gum_v8_basic_block_value_on_weak_notify (
     const WeakCallbackInfo<GumV8BasicBlockValue> & info);
+
+static Local<Object> gum_v8_properties_to_json (Local<Object> object,
+    const GumV8Property * properties, Isolate * isolate);
 
 static const GumV8Property gumjs_control_flow_graph_values[] =
 {
@@ -85,6 +90,7 @@ static const GumV8Function gumjs_control_flow_graph_functions[] =
   { "dominates", gumjs_control_flow_graph_dominates },
   { "enumerateDominatingSites",
       gumjs_control_flow_graph_enumerate_dominating_sites },
+  { "toJSON", gumjs_control_flow_graph_to_json },
 
   { NULL, NULL }
 };
@@ -99,6 +105,13 @@ static const GumV8Property gumjs_basic_block_values[] =
   { "instructions", gumjs_basic_block_get_instructions, NULL },
 
   { NULL, NULL, NULL }
+};
+
+static const GumV8Function gumjs_basic_block_functions[] =
+{
+  { "toJSON", gumjs_basic_block_to_json },
+
+  { NULL, NULL }
 };
 
 void
@@ -122,6 +135,7 @@ _gum_v8_control_flow_graph_init (GumV8ControlFlowGraph * self,
   auto basic_block = _gum_v8_create_class ("BasicBlock", nullptr, scope, module,
       isolate);
   _gum_v8_class_add (basic_block, gumjs_basic_block_values, module, isolate);
+  _gum_v8_class_add (basic_block, gumjs_basic_block_functions, module, isolate);
   self->basic_block = new Global<FunctionTemplate> (isolate, basic_block);
 }
 
@@ -293,6 +307,12 @@ gum_v8_collect_dominating_site (gconstpointer site,
   return TRUE;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_control_flow_graph_to_json)
+{
+  info.GetReturnValue ().Set (gum_v8_properties_to_json (info.This (),
+      gumjs_control_flow_graph_values, isolate));
+}
+
 static GumV8ControlFlowGraphValue *
 gum_v8_control_flow_graph_value_new (Local<Object> wrapper,
                                      GumControlFlowGraph * handle,
@@ -433,6 +453,12 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_basic_block_get_instructions,
   info.GetReturnValue ().Set (result);
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_basic_block_to_json)
+{
+  info.GetReturnValue ().Set (gum_v8_properties_to_json (info.This (),
+      gumjs_basic_block_values, isolate));
+}
+
 static Local<Object>
 gum_v8_basic_block_new (Local<Object> cfg,
                         GumControlFlowGraph * handle,
@@ -477,4 +503,22 @@ gum_v8_basic_block_value_on_weak_notify (
   HandleScope handle_scope (info.GetIsolate ());
   auto self = info.GetParameter ();
   g_hash_table_remove (self->module->blocks, self);
+}
+
+static Local<Object>
+gum_v8_properties_to_json (Local<Object> object,
+                           const GumV8Property * properties,
+                           Isolate * isolate)
+{
+  auto context = isolate->GetCurrentContext ();
+
+  auto result = Object::New (isolate);
+  for (const GumV8Property * p = properties; p->name != NULL; p++)
+  {
+    auto name = _gum_v8_string_new_ascii (isolate, p->name);
+    auto value = object->Get (context, name).ToLocalChecked ();
+    result->Set (context, name, value).Check ();
+  }
+
+  return result;
 }

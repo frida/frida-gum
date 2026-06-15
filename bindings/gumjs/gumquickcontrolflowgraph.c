@@ -46,6 +46,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_dominates)
 GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_enumerate_dominating_sites)
 static gboolean gum_quick_collect_dominating_site (gconstpointer site,
     gsize capacity, GumQuickDominatingSitesContext * dc);
+GUMJS_DECLARE_FUNCTION (gumjs_control_flow_graph_to_json)
 
 static JSValue gum_quick_basic_block_new (JSContext * ctx,
     GumQuickControlFlowGraph * parent, JSValue cfg,
@@ -59,6 +60,10 @@ GUMJS_DECLARE_GETTER (gumjs_basic_block_get_successors)
 GUMJS_DECLARE_GETTER (gumjs_basic_block_get_predecessors)
 GUMJS_DECLARE_GETTER (gumjs_basic_block_get_immediate_dominator)
 GUMJS_DECLARE_GETTER (gumjs_basic_block_get_instructions)
+GUMJS_DECLARE_FUNCTION (gumjs_basic_block_to_json)
+
+static JSValue gum_quick_properties_to_json (JSContext * ctx, JSValue obj,
+    const JSCFunctionListEntry * entries, guint n);
 
 static const JSClassDef gumjs_control_flow_graph_def =
 {
@@ -76,6 +81,7 @@ static const JSCFunctionListEntry gumjs_control_flow_graph_entries[] =
   JS_CFUNC_DEF ("dominates", 0, gumjs_control_flow_graph_dominates),
   JS_CFUNC_DEF ("enumerateDominatingSites", 0,
       gumjs_control_flow_graph_enumerate_dominating_sites),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_control_flow_graph_to_json),
 };
 
 static const JSClassDef gumjs_basic_block_def =
@@ -94,6 +100,7 @@ static const JSCFunctionListEntry gumjs_basic_block_entries[] =
   JS_CGETSET_DEF ("immediateDominator",
       gumjs_basic_block_get_immediate_dominator, NULL),
   JS_CGETSET_DEF ("instructions", gumjs_basic_block_get_instructions, NULL),
+  JS_CFUNC_DEF ("toJSON", 0, gumjs_basic_block_to_json),
 };
 
 void
@@ -355,6 +362,13 @@ gum_quick_collect_dominating_site (gconstpointer site,
   return TRUE;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_control_flow_graph_to_json)
+{
+  return gum_quick_properties_to_json (ctx, this_val,
+      gumjs_control_flow_graph_entries,
+      G_N_ELEMENTS (gumjs_control_flow_graph_entries));
+}
+
 static JSValue
 gum_quick_basic_block_new (JSContext * ctx,
                            GumQuickControlFlowGraph * parent,
@@ -556,4 +570,45 @@ GUMJS_DEFINE_GETTER (gumjs_basic_block_get_instructions)
   }
 
   return result;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_basic_block_to_json)
+{
+  return gum_quick_properties_to_json (ctx, this_val, gumjs_basic_block_entries,
+      G_N_ELEMENTS (gumjs_basic_block_entries));
+}
+
+static JSValue
+gum_quick_properties_to_json (JSContext * ctx,
+                              JSValue obj,
+                              const JSCFunctionListEntry * entries,
+                              guint n)
+{
+  JSValue result;
+  guint i;
+
+  result = JS_NewObject (ctx);
+
+  for (i = 0; i != n; i++)
+  {
+    const JSCFunctionListEntry * e = &entries[i];
+    JSValue val;
+
+    if (e->def_type != JS_DEF_CGETSET)
+      continue;
+
+    val = JS_GetPropertyStr (ctx, obj, e->name);
+    if (JS_IsException (val))
+      goto propagate_exception;
+    JS_SetPropertyStr (ctx, result, e->name, val);
+  }
+
+  return result;
+
+propagate_exception:
+  {
+    JS_FreeValue (ctx, result);
+
+    return JS_EXCEPTION;
+  }
 }

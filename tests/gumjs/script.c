@@ -8208,8 +8208,12 @@ TESTCASE (cfg_can_be_built)
       "send(insns.length > 0);"
       "send(insns[0].address.equals(entry.start));"
       "send(Array.isArray(entry.successors));"
-      "send(Array.isArray(entry.predecessors));",
+      "send(Array.isArray(entry.predecessors));"
+      "send(Object.keys(JSON.parse(JSON.stringify(cfg))).length > 0);"
+      "send(Object.keys(JSON.parse(JSON.stringify(entry))).length > 0);",
       gum_get_answer_to_life_universe_and_everything);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
