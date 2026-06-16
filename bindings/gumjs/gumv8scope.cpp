@@ -1,6 +1,7 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -43,6 +44,10 @@ ScriptScope::ScriptScope (GumV8Script * parent)
   {
     g_queue_init (&tick_callbacks_storage);
     g_queue_init (&scheduled_sources_storage);
+
+    g_rec_mutex_lock (&parent->interrupt_mutex);
+    parent->executing = TRUE;
+    g_rec_mutex_unlock (&parent->interrupt_mutex);
   }
 
   parent->inspector->idleFinished ();
@@ -55,7 +60,18 @@ ScriptScope::~ScriptScope ()
   ProcessAnyPendingException ();
 
   if (this == root_scope)
+  {
     PerformPendingIO ();
+
+    g_rec_mutex_lock (&parent->interrupt_mutex);
+    parent->executing = FALSE;
+    if (parent->interrupt == GUM_INTERRUPT_ONCE)
+    {
+      parent->isolate->CancelTerminateExecution ();
+      parent->interrupt = GUM_INTERRUPT_NONE;
+    }
+    g_rec_mutex_unlock (&parent->interrupt_mutex);
+  }
 
   parent->inspector->idleStarted ();
 
@@ -80,7 +96,12 @@ ScriptScope::~ScriptScope ()
 void
 ScriptScope::ProcessAnyPendingException ()
 {
-  if (trycatch.HasCaught ())
+  if (trycatch.HasTerminated ())
+  {
+    trycatch.Reset ();
+    _gum_v8_script_handle_termination (parent);
+  }
+  else if (trycatch.HasCaught ())
   {
     auto exception = trycatch.Exception ();
     trycatch.Reset ();

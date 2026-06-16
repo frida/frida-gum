@@ -45,6 +45,8 @@ namespace Gum {
 		public void load_sync (GLib.Cancellable? cancellable = null);
 		public async void unload (GLib.Cancellable? cancellable = null);
 		public void unload_sync (GLib.Cancellable? cancellable = null);
+		public void interrupt ();
+		public void terminate ();
 
 		public void set_message_handler (owned Gum.Script.MessageHandler? handler);
 		public void post (string message, GLib.Bytes? data = null);

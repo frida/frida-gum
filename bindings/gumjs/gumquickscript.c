@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -37,6 +38,7 @@
 #endif
 
 typedef guint GumScriptState;
+typedef guint GumInterruptState;
 typedef struct _GumUnloadNotifyCallback GumUnloadNotifyCallback;
 typedef void (* GumUnloadNotifyFunc) (GumQuickScript * self,
     gpointer user_data);
@@ -56,6 +58,9 @@ struct _GumQuickScript
   GumQuickScriptBackend * backend;
 
   GumScriptState state;
+  GRecMutex interrupt_mutex;
+  GumInterruptState interrupt;
+  gboolean executing;
   GSList * on_unload;
   JSRuntime * rt;
   JSContext * ctx;
@@ -110,6 +115,13 @@ enum _GumScriptState
   GUM_SCRIPT_STATE_LOADED,
   GUM_SCRIPT_STATE_UNLOADING,
   GUM_SCRIPT_STATE_UNLOADED
+};
+
+enum _GumInterruptState
+{
+  GUM_INTERRUPT_NONE,
+  GUM_INTERRUPT_ONCE,
+  GUM_INTERRUPT_FOREVER
 };
 
 struct _GumUnloadNotifyCallback
@@ -242,6 +254,13 @@ static void gum_quick_script_complete_unload_task (GumQuickScript * self,
 static void gum_quick_script_try_unload (GumQuickScript * self);
 static void gum_quick_script_once_unloaded (GumQuickScript * self,
     GumUnloadNotifyFunc func, gpointer data, GDestroyNotify data_destroy);
+static void gum_quick_script_interrupt (GumScript * script);
+static void gum_quick_script_terminate (GumScript * script);
+
+static int gum_quick_script_interrupt_handler (JSRuntime * runtime,
+    void * opaque);
+static void gum_quick_register_interrupt_handler (GumQuickScript * script);
+static void gum_quick_remove_interrupt_handler (GumQuickScript * script);
 
 static void gum_quick_script_set_message_handler (GumScript * script,
     GumScriptMessageHandler handler, gpointer data,
@@ -327,6 +346,8 @@ gum_quick_script_iface_init (gpointer g_iface,
   iface->unload = gum_quick_script_unload;
   iface->unload_finish = gum_quick_script_unload_finish;
   iface->unload_sync = gum_quick_script_unload_sync;
+  iface->interrupt = gum_quick_script_interrupt;
+  iface->terminate = gum_quick_script_terminate;
 
   iface->set_message_handler = gum_quick_script_set_message_handler;
   iface->post = gum_quick_script_post;
@@ -354,6 +375,7 @@ gum_quick_script_dispose (GObject * object)
 
   gum_quick_script_set_message_handler (script, NULL, NULL, NULL);
 
+  g_rec_mutex_lock (&self->interrupt_mutex);
   if (self->state == GUM_SCRIPT_STATE_LOADED)
   {
     /* dispose() will be triggered again at the end of unload() */
@@ -367,6 +389,7 @@ gum_quick_script_dispose (GObject * object)
     g_clear_pointer (&self->main_context, g_main_context_unref);
     g_clear_pointer (&self->backend, g_object_unref);
   }
+  g_rec_mutex_unlock (&self->interrupt_mutex);
 
   G_OBJECT_CLASS (gum_quick_script_parent_class)->dispose (object);
 }
@@ -375,6 +398,8 @@ static void
 gum_quick_script_finalize (GObject * object)
 {
   GumQuickScript * self = GUM_QUICK_SCRIPT (object);
+
+  g_rec_mutex_clear (&self->interrupt_mutex);
 
   g_free (self->name);
   g_free (self->source);
@@ -533,6 +558,11 @@ gum_quick_script_create_context (GumQuickScript * self,
   g_bytes_unref (self->bytecode);
   self->bytecode = NULL;
 
+  g_rec_mutex_init (&self->interrupt_mutex);
+  self->interrupt = GUM_INTERRUPT_NONE;
+  self->executing = FALSE;
+  gum_quick_register_interrupt_handler (self);
+
   return TRUE;
 
 malformed_program:
@@ -597,6 +627,14 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 
     JS_FreeContext (self->ctx);
     self->ctx = NULL;
+
+    gum_quick_remove_interrupt_handler (self);
+    self->interrupt = GUM_INTERRUPT_NONE;
+    /*
+     * NOTE: interrupt_mutex is NOT cleared here. dispose() locks it after
+     * destroy_context runs (via unload), so it must remain valid until
+     * finalize().
+     */
 
     JS_FreeRuntime (self->rt);
     self->rt = NULL;
@@ -882,6 +920,7 @@ gum_quick_script_complete_load_task (GumScriptTask * task)
   GumQuickScript * self;
   GumQuickCore * core;
   GumQuickScope scope;
+  gboolean terminating;
 
   self = GUM_QUICK_SCRIPT (
       g_async_result_get_source_object (G_ASYNC_RESULT (task)));
@@ -891,9 +930,15 @@ gum_quick_script_complete_load_task (GumScriptTask * task)
   _gum_quick_core_unpin (core);
   _gum_quick_scope_leave (&scope);
 
+  g_rec_mutex_lock (&self->interrupt_mutex);
   self->state = GUM_SCRIPT_STATE_LOADED;
+  terminating = self->interrupt == GUM_INTERRUPT_FOREVER;
+  g_rec_mutex_unlock (&self->interrupt_mutex);
 
   gum_script_task_return_pointer (task, NULL, NULL);
+
+  if (terminating)
+    gum_quick_script_unload (GUM_SCRIPT (self), NULL, NULL, NULL);
 
   g_object_unref (self);
 
@@ -944,10 +989,16 @@ gum_quick_script_do_unload (GumScriptTask * task,
                             gpointer task_data,
                             GCancellable * cancellable)
 {
+  g_rec_mutex_lock (&self->interrupt_mutex);
   if (self->state != GUM_SCRIPT_STATE_LOADED)
+  {
+    g_rec_mutex_unlock (&self->interrupt_mutex);
     goto invalid_operation;
-
+  }
   self->state = GUM_SCRIPT_STATE_UNLOADING;
+  self->interrupt = GUM_INTERRUPT_NONE;
+  g_rec_mutex_unlock (&self->interrupt_mutex);
+
   gum_quick_script_once_unloaded (self,
       (GumUnloadNotifyFunc) gum_quick_script_complete_unload_task,
       g_object_ref (task), g_object_unref);
@@ -1031,6 +1082,90 @@ gum_quick_script_once_unloaded (GumQuickScript * self,
   callback->data_destroy = data_destroy;
 
   self->on_unload = g_slist_append (self->on_unload, callback);
+}
+
+static void
+gum_quick_script_interrupt (GumScript * script)
+{
+  GumQuickScript * self = GUM_QUICK_SCRIPT (script);
+
+  g_rec_mutex_lock (&self->interrupt_mutex);
+  if (self->executing && self->interrupt == GUM_INTERRUPT_NONE)
+    self->interrupt = GUM_INTERRUPT_ONCE;
+  g_rec_mutex_unlock (&self->interrupt_mutex);
+}
+
+static void
+gum_quick_script_terminate (GumScript * script)
+{
+  GumQuickScript * self = GUM_QUICK_SCRIPT (script);
+
+  g_rec_mutex_lock (&self->interrupt_mutex);
+  self->interrupt = GUM_INTERRUPT_FOREVER;
+  if (self->state == GUM_SCRIPT_STATE_LOADED)
+    gum_quick_script_unload (script, NULL, NULL, NULL);
+  g_rec_mutex_unlock (&self->interrupt_mutex);
+}
+
+void
+_gum_quick_script_on_scope_entered (GumQuickCore * core)
+{
+  GumQuickScript * self = core->script;
+
+  if (core != &self->core)
+    return;
+
+  g_rec_mutex_lock (&self->interrupt_mutex);
+  self->executing = TRUE;
+  g_rec_mutex_unlock (&self->interrupt_mutex);
+}
+
+void
+_gum_quick_script_on_scope_left (GumQuickCore * core)
+{
+  GumQuickScript * self = core->script;
+
+  if (core != &self->core)
+    return;
+
+  g_rec_mutex_lock (&self->interrupt_mutex);
+  self->executing = FALSE;
+  if (self->interrupt == GUM_INTERRUPT_ONCE)
+    self->interrupt = GUM_INTERRUPT_NONE;
+  g_rec_mutex_unlock (&self->interrupt_mutex);
+}
+
+static int
+gum_quick_script_interrupt_handler (JSRuntime * runtime,
+                                    void * opaque)
+{
+  GumQuickScript * script = opaque;
+  int rc;
+
+  g_rec_mutex_lock (&script->interrupt_mutex);
+  rc = script->interrupt != GUM_INTERRUPT_NONE;
+  if (script->interrupt == GUM_INTERRUPT_ONCE)
+    script->interrupt = GUM_INTERRUPT_NONE;
+  g_rec_mutex_unlock (&script->interrupt_mutex);
+
+  return rc;
+}
+
+static void
+gum_quick_register_interrupt_handler (GumQuickScript * script)
+{
+  g_rec_mutex_lock (&script->interrupt_mutex);
+  g_assert (script->interrupt == GUM_INTERRUPT_NONE);
+  g_rec_mutex_unlock (&script->interrupt_mutex);
+
+  JS_SetInterruptHandler (script->rt, gum_quick_script_interrupt_handler,
+      script);
+}
+
+static void
+gum_quick_remove_interrupt_handler (GumQuickScript * script)
+{
+  JS_SetInterruptHandler (script->rt, NULL, NULL);
 }
 
 static void

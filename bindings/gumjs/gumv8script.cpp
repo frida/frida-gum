@@ -1,7 +1,8 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -182,6 +183,8 @@ static void gum_v8_script_complete_unload_task (GumV8Script * self,
 static void gum_v8_script_try_unload (GumV8Script * self);
 static void gum_v8_script_once_unloaded (GumV8Script * self,
     GumUnloadNotifyFunc func, gpointer data, GDestroyNotify data_destroy);
+static void gum_v8_script_interrupt (GumScript * script);
+static void gum_v8_script_terminate (GumScript * script);
 
 static void gum_v8_script_set_message_handler (GumScript * script,
     GumScriptMessageHandler handler, gpointer data,
@@ -309,6 +312,8 @@ gum_v8_script_iface_init (gpointer g_iface,
   iface->unload = gum_v8_script_unload;
   iface->unload_finish = gum_v8_script_unload_finish;
   iface->unload_sync = gum_v8_script_unload_sync;
+  iface->interrupt = gum_v8_script_interrupt;
+  iface->terminate = gum_v8_script_terminate;
 
   iface->set_message_handler = gum_v8_script_set_message_handler;
   iface->post = gum_v8_script_post;
@@ -377,6 +382,7 @@ gum_v8_script_dispose (GObject * object)
 
   gum_v8_script_set_message_handler (script, NULL, NULL, NULL);
 
+  g_rec_mutex_lock (&self->interrupt_mutex);
   if (self->state == GUM_SCRIPT_STATE_LOADED)
   {
     /* dispose() will be triggered again at the end of unload() */
@@ -428,6 +434,7 @@ gum_v8_script_dispose (GObject * object)
     g_clear_pointer (&self->main_context, g_main_context_unref);
     g_clear_pointer (&self->backend, g_object_unref);
   }
+  g_rec_mutex_unlock (&self->interrupt_mutex);
 
   G_OBJECT_CLASS (gum_v8_script_parent_class)->dispose (object);
 }
@@ -436,6 +443,8 @@ static void
 gum_v8_script_finalize (GObject * object)
 {
   auto self = GUM_V8_SCRIPT (object);
+
+  g_rec_mutex_clear (&self->interrupt_mutex);
 
   g_cond_clear (&self->inspector_cond);
   g_mutex_clear (&self->inspector_mutex);
@@ -622,6 +631,10 @@ gum_v8_script_create_context (GumV8Script * self,
 
   g_free (self->source);
   self->source = NULL;
+
+  g_rec_mutex_init (&self->interrupt_mutex);
+  self->interrupt = GUM_INTERRUPT_NONE;
+  self->executing = FALSE;
 
   return TRUE;
 }
@@ -1180,6 +1193,13 @@ gum_v8_script_destroy_context (GumV8Script * self)
   delete self->context;
   self->context = nullptr;
 
+  self->interrupt = GUM_INTERRUPT_NONE;
+  /*
+   * NOTE: interrupt_mutex is NOT cleared here. dispose() locks it after
+   * destroy_context runs (via unload), so it must remain valid until
+   * finalize().
+   */
+
   _gum_v8_profiler_finalize (&self->profiler);
   _gum_v8_sampler_finalize (&self->sampler);
   _gum_v8_cloak_finalize (&self->cloak);
@@ -1354,7 +1374,12 @@ gum_v8_script_execute_entrypoints (GumV8Script * self,
         auto result = code->Run (context);
         _gum_v8_ignore_result (result);
 
-        if (trycatch.HasCaught ())
+        if (trycatch.HasTerminated ())
+        {
+          trycatch.Reset ();
+          _gum_v8_script_handle_termination (self);
+        }
+        else if (trycatch.HasCaught ())
         {
           auto exception = trycatch.Exception ();
           trycatch.Reset ();
@@ -1423,9 +1448,15 @@ gum_v8_script_complete_load_task (GumScriptTask * task)
     _gum_v8_core_unpin (&self->core);
   }
 
+  g_rec_mutex_lock (&self->interrupt_mutex);
   self->state = GUM_SCRIPT_STATE_LOADED;
+  gboolean terminating = self->interrupt == GUM_INTERRUPT_FOREVER;
+  g_rec_mutex_unlock (&self->interrupt_mutex);
 
   gum_script_task_return_pointer (task, NULL, NULL);
+
+  if (terminating)
+    gum_v8_script_unload (GUM_SCRIPT (self), NULL, NULL, NULL);
 
   g_object_unref (self);
 
@@ -1474,10 +1505,15 @@ gum_v8_script_do_unload (GumScriptTask * task,
                          gpointer task_data,
                          GCancellable * cancellable)
 {
+  g_rec_mutex_lock (&self->interrupt_mutex);
   if (self->state != GUM_SCRIPT_STATE_LOADED)
+  {
+    g_rec_mutex_unlock (&self->interrupt_mutex);
     goto invalid_operation;
-
+  }
   self->state = GUM_SCRIPT_STATE_UNLOADING;
+  g_rec_mutex_unlock (&self->interrupt_mutex);
+
   gum_v8_script_once_unloaded (self,
       (GumUnloadNotifyFunc) gum_v8_script_complete_unload_task,
       g_object_ref (task), g_object_unref);
@@ -1558,6 +1594,43 @@ gum_v8_script_once_unloaded (GumV8Script * self,
   callback->data_destroy = data_destroy;
 
   self->on_unload = g_slist_append (self->on_unload, callback);
+}
+
+static void
+gum_v8_script_interrupt (GumScript * script)
+{
+  auto self = GUM_V8_SCRIPT (script);
+  gboolean executing;
+
+  g_rec_mutex_lock (&self->interrupt_mutex);
+  executing = self->executing;
+  if (executing && self->interrupt == GUM_INTERRUPT_NONE)
+    self->interrupt = GUM_INTERRUPT_ONCE;
+  g_rec_mutex_unlock (&self->interrupt_mutex);
+
+  if (executing)
+    self->isolate->TerminateExecution ();
+}
+
+static void
+gum_v8_script_terminate (GumScript * script)
+{
+  auto self = GUM_V8_SCRIPT (script);
+
+  g_rec_mutex_lock (&self->interrupt_mutex);
+  self->interrupt = GUM_INTERRUPT_FOREVER;
+  if (self->state == GUM_SCRIPT_STATE_LOADED)
+    gum_v8_script_unload (script, NULL, NULL, NULL);
+  g_rec_mutex_unlock (&self->interrupt_mutex);
+
+  if (self->isolate != NULL)
+    self->isolate->TerminateExecution ();
+}
+
+void
+_gum_v8_script_handle_termination (GumV8Script * self)
+{
+  self->isolate->CancelTerminateExecution ();
 }
 
 static void

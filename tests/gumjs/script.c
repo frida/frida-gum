@@ -8,6 +8,7 @@
  * Copyright (C) 2024 Hillel Pinto <hillelpinto3@gmail.com>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -43,6 +44,11 @@ TESTLIST_BEGIN (script)
 #ifndef HAVE_WINDOWS
   TESTENTRY (crash_on_thread_holding_js_lock_should_not_deadlock)
 #endif
+
+  TESTENTRY (script_can_be_interrupted)
+  TESTENTRY (script_interrupt_is_idempotent)
+  TESTENTRY (script_can_be_terminated)
+  TESTENTRY (script_interrupt_while_idle_is_ignored)
 
   TESTGROUP_BEGIN ("Thread")
     TESTENTRY (thread_can_be_forced_to_sleep)
@@ -731,6 +737,9 @@ static int target_function_nested_a (int arg);
 static int target_function_nested_b (int arg);
 static int target_function_nested_c (int arg);
 static void target_function_variable_sleepyness (guint n);
+
+static gpointer load_script_worker (gpointer data);
+static GumScript * create_endless_script (TestScriptFixture * fixture);
 
 static TargetFunctionInt target_function_original = NULL;
 static GPrivate target_thread_string_value = G_PRIVATE_INIT (g_free);
@@ -12636,4 +12645,103 @@ target_function_variable_sleepyness (guint n)
   gum_script_dummy_global_to_trick_optimizer += n;
 
   g_usleep (n);
+}
+
+TESTCASE (script_can_be_interrupted)
+{
+  GumScript * script;
+  GThread * worker;
+
+  script = create_endless_script (fixture);
+
+  worker = g_thread_new ("interrupt-test-loader", load_script_worker, script);
+
+  g_usleep (G_USEC_PER_SEC / 10);
+
+  gum_script_interrupt (script);
+
+  g_thread_join (worker);
+
+  gum_script_unload_sync (script, NULL);
+
+  g_object_unref (script);
+}
+
+TESTCASE (script_interrupt_is_idempotent)
+{
+  GumScript * script;
+  GThread * worker;
+
+  script = create_endless_script (fixture);
+
+  worker = g_thread_new ("interrupt-test-loader", load_script_worker, script);
+
+  g_usleep (G_USEC_PER_SEC / 10);
+
+  gum_script_interrupt (script);
+  gum_script_interrupt (script);
+
+  g_thread_join (worker);
+
+  gum_script_unload_sync (script, NULL);
+
+  g_object_unref (script);
+}
+
+TESTCASE (script_can_be_terminated)
+{
+  GumScript * script;
+  GThread * worker;
+
+  script = create_endless_script (fixture);
+
+  worker = g_thread_new ("terminate-test-loader", load_script_worker, script);
+
+  g_usleep (G_USEC_PER_SEC / 10);
+
+  gum_script_terminate (script);
+
+  g_thread_join (worker);
+
+  g_object_unref (script);
+}
+
+TESTCASE (script_interrupt_while_idle_is_ignored)
+{
+  COMPILE_AND_LOAD_SCRIPT ("recv('poke', () => { send('pokeBack'); });");
+  EXPECT_NO_MESSAGES ();
+
+  gum_script_interrupt (fixture->script);
+
+  POST_MESSAGE ("{\"type\":\"poke\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+static gpointer
+load_script_worker (gpointer data)
+{
+  GumScript * script = (GumScript *) data;
+
+  gum_script_load_sync (script, NULL);
+
+  return NULL;
+}
+
+static GumScript *
+create_endless_script (TestScriptFixture * fixture)
+{
+  GumScript * script;
+  GError * error = NULL;
+
+  script = gum_script_backend_create_sync (fixture->backend, "testcase",
+      "while (true) {}",
+      NULL, NULL, &error);
+  g_assert_nonnull (script);
+  g_assert_null (error);
+
+  gum_script_set_message_handler (script,
+      test_script_fixture_store_message, fixture, NULL);
+
+  return script;
 }

@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -33,6 +34,8 @@ struct _GumScriptInterface
       GAsyncReadyCallback callback, gpointer user_data);
   void (* unload_finish) (GumScript * self, GAsyncResult * result);
   void (* unload_sync) (GumScript * self, GCancellable * cancellable);
+  void (* interrupt) (GumScript * self);
+  void (* terminate) (GumScript * self);
 
   void (* set_message_handler) (GumScript * self,
       GumScriptMessageHandler handler, gpointer data,
@@ -57,6 +60,8 @@ GUM_API void gum_script_unload (GumScript * self, GCancellable * cancellable,
 GUM_API void gum_script_unload_finish (GumScript * self, GAsyncResult * result);
 GUM_API void gum_script_unload_sync (GumScript * self,
     GCancellable * cancellable);
+GUM_API void gum_script_interrupt (GumScript * self);
+GUM_API void gum_script_terminate (GumScript * self);
 
 GUM_API void gum_script_set_message_handler (GumScript * self,
     GumScriptMessageHandler handler, gpointer data,

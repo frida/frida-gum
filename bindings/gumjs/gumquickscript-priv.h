@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2020-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +24,9 @@ G_GNUC_INTERNAL void _gum_quick_worker_unref (GumQuickWorker * worker);
 G_GNUC_INTERNAL void _gum_quick_worker_terminate (GumQuickWorker * self);
 G_GNUC_INTERNAL void _gum_quick_worker_post (GumQuickWorker * self,
     const gchar * message, GBytes * data);
+
+G_GNUC_INTERNAL void _gum_quick_script_on_scope_entered (GumQuickCore * core);
+G_GNUC_INTERNAL void _gum_quick_script_on_scope_left (GumQuickCore * core);
 
 G_GNUC_INTERNAL JSValue _gum_quick_script_rethrow_parse_error_with_decorations (
     GumQuickScript * self, JSContext * ctx, const gchar * name);

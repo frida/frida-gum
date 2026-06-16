@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -57,6 +58,18 @@ gum_script_unload_sync (GumScript * self,
                         GCancellable * cancellable)
 {
   GUM_SCRIPT_GET_IFACE (self)->unload_sync (self, cancellable);
+}
+
+void
+gum_script_interrupt (GumScript * self)
+{
+  GUM_SCRIPT_GET_IFACE (self)->interrupt (self);
+}
+
+void
+gum_script_terminate (GumScript * self)
+{
+  GUM_SCRIPT_GET_IFACE (self)->terminate (self);
 }
 
 void

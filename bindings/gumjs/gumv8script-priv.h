@@ -1,6 +1,7 @@
 /*
- * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -49,6 +50,13 @@ enum GumScriptState
   GUM_SCRIPT_STATE_UNLOADED
 };
 
+enum GumInterruptState
+{
+  GUM_INTERRUPT_NONE,
+  GUM_INTERRUPT_ONCE,
+  GUM_INTERRUPT_FOREVER
+};
+
 enum GumV8InspectorState
 {
   GUM_V8_RUNNING,
@@ -78,6 +86,9 @@ struct _GumV8Script
   GumV8ScriptBackend * backend;
 
   GumScriptState state;
+  GRecMutex interrupt_mutex;
+  GumInterruptState interrupt;
+  gboolean executing;
   GSList * on_unload;
   v8::Isolate * isolate;
   GumV8Core core;
@@ -161,5 +172,6 @@ G_GNUC_INTERNAL v8::MaybeLocal<v8::Module> _gum_v8_script_load_module (
     GumV8Script * self, const gchar * name, const gchar * source);
 G_GNUC_INTERNAL void _gum_v8_script_register_source_map (GumV8Script * self,
     const gchar * name, gchar * source_map);
+G_GNUC_INTERNAL void _gum_v8_script_handle_termination (GumV8Script * self);
 
 #endif

@@ -4,6 +4,7 @@
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
+ * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -181,6 +182,8 @@ struct _GumQuickCallbackContext
 
 static gboolean gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
     gpointer user_data);
+static gboolean gum_quick_exception_is_interrupt (JSContext * ctx,
+    JSValueConst exception);
 
 static void gum_quick_flush_callback_free (GumQuickFlushCallback * self);
 static gboolean gum_quick_flush_callback_notify (GumQuickFlushCallback * self);
@@ -1961,6 +1964,8 @@ _gum_quick_scope_enter (GumQuickScope * self,
     core->current_owner = gum_process_get_current_thread_id ();
 
     JS_Enter (core->rt);
+
+    _gum_quick_script_on_scope_entered (core);
   }
 
   g_queue_init (&self->tick_callbacks);
@@ -2064,9 +2069,29 @@ _gum_quick_scope_catch_and_emit (GumQuickScope * self)
   if (JS_IsNull (exception))
     return;
 
+  if (gum_quick_exception_is_interrupt (ctx, exception))
+  {
+    JS_FreeValue (ctx, exception);
+    return;
+  }
+
   _gum_quick_core_on_unhandled_exception (core, exception);
 
   JS_FreeValue (ctx, exception);
+}
+
+static gboolean
+gum_quick_exception_is_interrupt (JSContext * ctx,
+                                  JSValueConst exception)
+{
+  gboolean is_interrupt;
+  const char * message;
+
+  message = JS_ToCString (ctx, exception);
+  is_interrupt = strstr (message, "InternalError: interrupted") != NULL;
+  JS_FreeCString (ctx, message);
+
+  return is_interrupt;
 }
 
 void
@@ -2130,6 +2155,8 @@ _gum_quick_scope_leave (GumQuickScope * self)
 
   if (core->mutex_depth == 1)
   {
+    _gum_quick_script_on_scope_left (core);
+
     JS_Leave (core->rt);
 
     core->current_scope = NULL;
