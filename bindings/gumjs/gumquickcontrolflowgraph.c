@@ -61,6 +61,8 @@ GUMJS_DECLARE_GETTER (gumjs_basic_block_get_predecessors)
 GUMJS_DECLARE_GETTER (gumjs_basic_block_get_immediate_dominator)
 GUMJS_DECLARE_GETTER (gumjs_basic_block_get_instructions)
 GUMJS_DECLARE_FUNCTION (gumjs_basic_block_to_json)
+static JSValue gum_quick_basic_block_start_new (JSContext * ctx,
+    GumControlFlowGraph * handle, guint index, GumQuickCore * core);
 
 static JSValue gum_quick_properties_to_json (JSContext * ctx, JSValue obj,
     const JSCFunctionListEntry * entries, guint n);
@@ -574,8 +576,74 @@ GUMJS_DEFINE_GETTER (gumjs_basic_block_get_instructions)
 
 GUMJS_DEFINE_FUNCTION (gumjs_basic_block_to_json)
 {
-  return gum_quick_properties_to_json (ctx, this_val, gumjs_basic_block_entries,
-      G_N_ELEMENTS (gumjs_basic_block_entries));
+  GumQuickControlFlowGraph * parent;
+  GumQuickBasicBlockValue * self;
+  JSValue result, successors, predecessors;
+  GumAddress start, end;
+  const guint * neighbors;
+  guint n, i, dominator;
+
+  parent = gumjs_get_parent_module (core);
+
+  if (!gum_quick_basic_block_get (ctx, this_val, parent, &self))
+    return JS_EXCEPTION;
+
+  result = JS_NewObject (ctx);
+
+  gum_control_flow_graph_get_block_bounds (self->handle, self->index, &start,
+      &end);
+  JS_SetPropertyStr (ctx, result, "start",
+      _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (start), core));
+  JS_SetPropertyStr (ctx, result, "end",
+      _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (end), core));
+
+  successors = JS_NewArray (ctx);
+  n = gum_control_flow_graph_get_block_successors (self->handle, self->index,
+      &neighbors);
+  for (i = 0; i != n; i++)
+  {
+    JS_DefinePropertyValueUint32 (ctx, successors, i,
+        gum_quick_basic_block_start_new (ctx, self->handle, neighbors[i], core),
+        JS_PROP_C_W_E);
+  }
+  JS_SetPropertyStr (ctx, result, "successors", successors);
+
+  predecessors = JS_NewArray (ctx);
+  n = gum_control_flow_graph_get_block_predecessors (self->handle, self->index,
+      &neighbors);
+  for (i = 0; i != n; i++)
+  {
+    JS_DefinePropertyValueUint32 (ctx, predecessors, i,
+        gum_quick_basic_block_start_new (ctx, self->handle, neighbors[i], core),
+        JS_PROP_C_W_E);
+  }
+  JS_SetPropertyStr (ctx, result, "predecessors", predecessors);
+
+  dominator = gum_control_flow_graph_get_block_immediate_dominator (
+      self->handle, self->index);
+  JS_SetPropertyStr (ctx, result, "immediateDominator",
+      (dominator == GUM_CONTROL_FLOW_GRAPH_NO_BLOCK)
+          ? JS_NULL
+          : gum_quick_basic_block_start_new (ctx, self->handle, dominator,
+                core));
+
+  JS_SetPropertyStr (ctx, result, "instructions",
+      JS_GetPropertyStr (ctx, this_val, "instructions"));
+
+  return result;
+}
+
+static JSValue
+gum_quick_basic_block_start_new (JSContext * ctx,
+                                 GumControlFlowGraph * handle,
+                                 guint index,
+                                 GumQuickCore * core)
+{
+  GumAddress start, end;
+
+  gum_control_flow_graph_get_block_bounds (handle, index, &start, &end);
+
+  return _gum_quick_native_pointer_new (ctx, GSIZE_TO_POINTER (start), core);
 }
 
 static JSValue

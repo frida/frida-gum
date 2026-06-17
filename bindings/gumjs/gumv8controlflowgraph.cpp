@@ -68,6 +68,8 @@ GUMJS_DECLARE_GETTER (gumjs_basic_block_get_instructions)
 GUMJS_DECLARE_FUNCTION (gumjs_basic_block_to_json)
 static Local<Object> gum_v8_basic_block_new (Local<Object> cfg,
     GumControlFlowGraph * handle, guint index, GumV8ControlFlowGraph * module);
+static Local<Value> gum_v8_basic_block_start_new (GumControlFlowGraph * handle,
+    guint index, GumV8Core * core);
 static void gum_v8_basic_block_value_free (GumV8BasicBlockValue * self);
 static void gum_v8_basic_block_value_on_weak_notify (
     const WeakCallbackInfo<GumV8BasicBlockValue> & info);
@@ -455,8 +457,77 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_basic_block_get_instructions,
 
 GUMJS_DEFINE_FUNCTION (gumjs_basic_block_to_json)
 {
-  info.GetReturnValue ().Set (gum_v8_properties_to_json (info.This (),
-      gumjs_basic_block_values, isolate));
+  auto self = (GumV8BasicBlockValue *)
+      info.This ()->GetAlignedPointerFromInternalField (0);
+  auto context = isolate->GetCurrentContext ();
+
+  GumAddress start, end;
+  gum_control_flow_graph_get_block_bounds (self->handle, self->index, &start,
+      &end);
+
+  auto result = Object::New (isolate);
+
+  result->Set (context, _gum_v8_string_new_ascii (isolate, "start"),
+      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (start), core)).Check ();
+  result->Set (context, _gum_v8_string_new_ascii (isolate, "end"),
+      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (end), core)).Check ();
+
+  const guint * neighbors;
+
+  guint n = gum_control_flow_graph_get_block_successors (self->handle,
+      self->index, &neighbors);
+  auto successors = Array::New (isolate);
+  for (guint i = 0; i != n; i++)
+  {
+    successors->Set (context, i,
+        gum_v8_basic_block_start_new (self->handle, neighbors[i], core))
+        .Check ();
+  }
+  result->Set (context, _gum_v8_string_new_ascii (isolate, "successors"),
+      successors).Check ();
+
+  n = gum_control_flow_graph_get_block_predecessors (self->handle, self->index,
+      &neighbors);
+  auto predecessors = Array::New (isolate);
+  for (guint i = 0; i != n; i++)
+  {
+    predecessors->Set (context, i,
+        gum_v8_basic_block_start_new (self->handle, neighbors[i], core))
+        .Check ();
+  }
+  result->Set (context, _gum_v8_string_new_ascii (isolate, "predecessors"),
+      predecessors).Check ();
+
+  guint dominator = gum_control_flow_graph_get_block_immediate_dominator (
+      self->handle, self->index);
+  Local<Value> immediate_dominator;
+  if (dominator == GUM_CONTROL_FLOW_GRAPH_NO_BLOCK)
+    immediate_dominator = Null (isolate);
+  else
+    immediate_dominator = gum_v8_basic_block_start_new (self->handle, dominator,
+        core);
+  result->Set (context,
+      _gum_v8_string_new_ascii (isolate, "immediateDominator"),
+      immediate_dominator).Check ();
+
+  auto instructions = info.This ()->Get (context,
+      _gum_v8_string_new_ascii (isolate, "instructions")).ToLocalChecked ();
+  result->Set (context, _gum_v8_string_new_ascii (isolate, "instructions"),
+      instructions).Check ();
+
+  info.GetReturnValue ().Set (result);
+}
+
+static Local<Value>
+gum_v8_basic_block_start_new (GumControlFlowGraph * handle,
+                              guint index,
+                              GumV8Core * core)
+{
+  GumAddress start, end;
+
+  gum_control_flow_graph_get_block_bounds (handle, index, &start, &end);
+
+  return _gum_v8_native_pointer_new (GSIZE_TO_POINTER (start), core);
 }
 
 static Local<Object>

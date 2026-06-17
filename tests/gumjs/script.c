@@ -207,6 +207,7 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("ControlFlowGraph")
     TESTENTRY (cfg_can_be_built)
+    TESTENTRY (cfg_with_cycle_can_be_serialized)
     TESTENTRY (cfg_dominating_sites_can_be_enumerated)
   TESTGROUP_END ()
 
@@ -8228,6 +8229,22 @@ TESTCASE (cfg_can_be_built)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+TESTCASE (cfg_with_cycle_can_be_serialized)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const cfg = new ControlFlowGraph(" GUM_PTR_CONST ");"
+      "const json = JSON.parse(JSON.stringify(cfg));"
+      "send(json.blocks.length > 1);"
+      "const block = json.blocks.find(b => b.successors.length > 1 ||"
+      "    b.predecessors.length > 1);"
+      "send(block !== undefined);"
+      "send(typeof block.successors[0] === 'string');",
+      gum_toupper);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
