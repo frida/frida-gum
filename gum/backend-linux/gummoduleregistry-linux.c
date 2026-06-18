@@ -33,6 +33,10 @@ typedef ElfW(auxv_t) * (* GumReadAuxvFunc) (void);
 
 typedef struct _GumFileId GumFileId;
 
+#ifdef HAVE_MUSL
+typedef struct _GumRtldNotifierScan GumRtldNotifierScan;
+#endif
+
 struct _GumEnumerateModulesContext
 {
   GumFoundModuleFunc func;
@@ -53,6 +57,16 @@ struct _GumFileId
   dev_t device;
   ino_t inode;
 };
+
+#ifdef HAVE_MUSL
+struct _GumRtldNotifierScan
+{
+  gpointer stub;
+  GumFoundRtldNotifierFunc func;
+  gpointer user_data;
+  gboolean found;
+};
+#endif
 
 static void gum_enumerate_modules_using_libc (GumDlIteratePhdrImpl iterate_phdr,
     GumFoundModuleFunc func, gpointer user_data);
@@ -92,6 +106,12 @@ static gboolean gum_find_range_for_file_id_offset0 (GumFileId * wanted,
     GumMemoryRange * range);
 
 static GumAddress gum_query_rtld_base (void);
+#ifdef HAVE_MUSL
+static gboolean gum_emit_rtld_notifier_call_sites (gpointer stub,
+    GumModule * linker, GumFoundRtldNotifierFunc func, gpointer user_data);
+static gboolean gum_emit_rtld_notifier_call_sites_in_range (
+    const GumRangeDetails * details, gpointer user_data);
+#endif
 
 static struct r_debug * gum_r_debug;
 static GumProgramModules gum_program_modules;
@@ -423,6 +443,17 @@ _gum_module_registry_enumerate_rtld_notifiers (GumFoundRtldNotifierFunc func,
     return;
   }
 
+#ifdef HAVE_MUSL
+  /* The stub is too small to hook without clobbering the next function. */
+  {
+    const GumProgramModules * pm = _gum_query_program_modules ();
+
+    if (gum_emit_rtld_notifier_call_sites (GSIZE_TO_POINTER (dbg->r_brk),
+        pm->interpreter, func, user_data))
+      return;
+  }
+#endif
+
   notifier.location = GSIZE_TO_POINTER (dbg->r_brk);
   notifier.point_cut = GUM_POINT_ENTER;
   func (&notifier, user_data);
@@ -438,6 +469,94 @@ gum_query_rtld_base (void)
 
   return gum_module_get_range (pm->interpreter)->base_address;
 }
+
+#ifdef HAVE_MUSL
+
+static gboolean
+gum_emit_rtld_notifier_call_sites (gpointer stub,
+                                   GumModule * linker,
+                                   GumFoundRtldNotifierFunc func,
+                                   gpointer user_data)
+{
+  GumRtldNotifierScan scan;
+
+  scan.stub = stub;
+  scan.func = func;
+  scan.user_data = user_data;
+  scan.found = FALSE;
+
+  gum_module_enumerate_ranges (linker, GUM_PAGE_EXECUTE,
+      gum_emit_rtld_notifier_call_sites_in_range, &scan);
+
+  return scan.found;
+}
+
+static gboolean
+gum_emit_rtld_notifier_call_sites_in_range (const GumRangeDetails * details,
+                                            gpointer user_data)
+{
+# if defined (HAVE_I386)
+  GumRtldNotifierScan * scan = user_data;
+  const guint8 * end, * cursor;
+  const guint8 call_near_relative = 0xe8;
+
+  end = GSIZE_TO_POINTER (details->range->base_address + details->range->size);
+  for (cursor = GSIZE_TO_POINTER (details->range->base_address);
+      end - cursor >= 5;
+      cursor++)
+  {
+    const guint8 * target;
+    GumRtldNotifierDetails notifier;
+
+    if (*cursor != call_near_relative)
+      continue;
+
+    target = cursor + 5 + GINT32_FROM_LE (*((const gint32 *) (cursor + 1)));
+    if (target != scan->stub)
+      continue;
+
+    notifier.location = (gpointer) cursor;
+    notifier.point_cut = GUM_POINT_ENTER;
+    scan->func (&notifier, scan->user_data);
+
+    scan->found = TRUE;
+  }
+# elif defined (HAVE_ARM64)
+  GumRtldNotifierScan * scan = user_data;
+  const guint8 * end, * cursor;
+  const guint32 branch_with_link = 0x25;
+
+  end = GSIZE_TO_POINTER (details->range->base_address + details->range->size);
+  for (cursor = GSIZE_TO_POINTER (details->range->base_address);
+      end - cursor >= 4;
+      cursor += 4)
+  {
+    guint32 insn;
+    gint32 imm26;
+    const guint8 * target;
+    GumRtldNotifierDetails notifier;
+
+    insn = GUINT32_FROM_LE (*((const guint32 *) cursor));
+    if ((insn >> 26) != branch_with_link)
+      continue;
+
+    imm26 = (gint32) (insn << 6) >> 6;
+    target = cursor + (gssize) imm26 * 4;
+    if (target != scan->stub)
+      continue;
+
+    notifier.location = (gpointer) cursor;
+    notifier.point_cut = GUM_POINT_ENTER;
+    scan->func (&notifier, scan->user_data);
+
+    scan->found = TRUE;
+  }
+# endif
+
+  return TRUE;
+}
+
+#endif
 
 static gboolean
 gum_find_r_debug (GumModule * module,
