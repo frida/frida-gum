@@ -257,7 +257,7 @@ Object.defineProperties(ModuleMap.prototype, {
     value: function (address) {
       const details = this.find(address);
       if (details === null)
-        throw new Error('unable to find module containing ' + address);
+        throw new Error(`unable to find module containing ${address}`);
       return details;
     }
   },
@@ -266,7 +266,7 @@ Object.defineProperties(ModuleMap.prototype, {
     value: function (address) {
       const name = this.findName(address);
       if (name === null)
-        throw new Error('unable to find module containing ' + address);
+        throw new Error(`unable to find module containing ${address}`);
       return name;
     }
   },
@@ -275,7 +275,7 @@ Object.defineProperties(ModuleMap.prototype, {
     value: function (address) {
       const path = this.findPath(address);
       if (path === null)
-        throw new Error('unable to find module containing ' + address);
+        throw new Error(`unable to find module containing ${address}`);
       return path;
     }
   },
@@ -312,7 +312,7 @@ Object.defineProperties(Process, {
     value: function (address) {
       const module = Process.findModuleByAddress(address);
       if (module === null)
-        throw new Error('unable to find module containing ' + address);
+        throw new Error(`unable to find module containing ${address}`);
       return module;
     }
   },
@@ -321,7 +321,7 @@ Object.defineProperties(Process, {
     value: function (name) {
       const module = Process.findModuleByName(name);
       if (module === null)
-        throw new Error("unable to find module '" + name + "'");
+        throw new Error(`unable to find module '${name}'`);
       return module;
     }
   },
@@ -330,7 +330,7 @@ Object.defineProperties(Process, {
     value: function (address) {
       const range = Process.findRangeByAddress(address);
       if (range === null)
-        throw new Error('unable to find range containing ' + address);
+        throw new Error(`unable to find range containing ${address}`);
       return range;
     }
   },
