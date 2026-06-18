@@ -334,6 +334,15 @@ Object.defineProperties(Process, {
       return range;
     }
   },
+  getFunctionRange: {
+    enumerable: true,
+    value: function (address) {
+      const range = Process.findFunctionRange(address);
+      if (range === null)
+        throw new Error(`unable to find function containing ${address}`);
+      return range;
+    }
+  },
 });
 
 Object.defineProperties(Thread, {
