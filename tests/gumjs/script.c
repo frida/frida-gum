@@ -184,6 +184,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_debugger_status_is_available)
     TESTENTRY (process_id_is_available)
     TESTENTRY (process_current_thread_id_is_available)
+    TESTENTRY (process_thread_can_be_looked_up_by_id)
     TESTENTRY (process_threads_can_be_enumerated)
     TESTENTRY (process_threads_have_names)
     TESTENTRY (process_modules_can_be_enumerated)
@@ -5832,6 +5833,47 @@ TESTCASE (process_current_thread_id_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(typeof Process.getCurrentThreadId());");
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
+}
+
+TESTCASE (process_thread_can_be_looked_up_by_id)
+{
+#ifdef HAVE_LINUX
+  if (!check_exception_handling_testable ())
+    return;
+#endif
+
+#ifdef HAVE_MIPS
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const id = Process.getCurrentThreadId();"
+      "const t = Process.getThreadById(id);"
+      "send(t.id === id && t.context !== undefined);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "try {"
+      "  Process.getThreadById(0x7fffffff);"
+      "  send('no throw');"
+      "} catch (e) {"
+      "  send(e instanceof Error);"
+      "}");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const id = Process.getCurrentThreadId();"
+      "const t = Process.findThreadById(id);"
+      "send(t !== null && t.id === id && t.context !== undefined);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.findThreadById(0x7fffffff));");
+  EXPECT_SEND_MESSAGE_WITH ("null");
 }
 
 TESTCASE (process_threads_can_be_enumerated)

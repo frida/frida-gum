@@ -108,6 +108,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_thread_by_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_collect_thread (const GumThreadDetails * details,
     GPtrArray * threads);
@@ -188,6 +189,7 @@ static const GumV8Function gumjs_process_functions[] =
   { "getTmpDir", gumjs_process_get_tmp_dir },
   { "isDebuggerAttached", gumjs_process_is_debugger_attached },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id },
+  { "findThreadById", gumjs_process_find_thread_by_id },
   { "enumerateThreads", gumjs_process_enumerate_threads },
   { "attachThreadObserver", gumjs_process_attach_thread_observer },
   { "_runOnThread", gumjs_process_run_on_thread },
@@ -389,6 +391,30 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 {
   info.GetReturnValue ().Set ((uint32_t) gum_process_get_current_thread_id ());
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_thread_by_id)
+{
+  GumThreadId thread_id;
+  if (!_gum_v8_args_parse (args, "Z", &thread_id))
+    return;
+
+  GumThreadDetails * details;
+  {
+    ScriptUnlocker unlocker (core);
+
+    details = gum_process_find_thread_by_id (thread_id, GUM_THREAD_FLAGS_ALL);
+  }
+
+  if (details == NULL)
+  {
+    info.GetReturnValue ().SetNull ();
+    return;
+  }
+
+  info.GetReturnValue ().Set (_gum_v8_thread_new (details, module->thread));
+
+  gum_thread_details_free (details);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)

@@ -284,6 +284,15 @@ Object.defineProperties(ModuleMap.prototype, {
 makeEnumerateRanges(Process);
 
 Object.defineProperties(Process, {
+  getThreadById: {
+    enumerable: true,
+    value: function (id) {
+      const thread = Process.findThreadById(id);
+      if (thread === null)
+        throw new Error(`unable to find thread with id ${id}`);
+      return thread;
+    }
+  },
   runOnThread: {
     enumerable: true,
     value: function (threadId, callback) {

@@ -118,6 +118,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
+GUMJS_DECLARE_FUNCTION (gumjs_process_find_thread_by_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_collect_thread (const GumThreadDetails * details,
     GPtrArray * threads);
@@ -203,6 +204,7 @@ static const JSCFunctionListEntry gumjs_process_entries[] =
   JS_CFUNC_DEF ("getTmpDir", 0, gumjs_process_get_tmp_dir),
   JS_CFUNC_DEF ("isDebuggerAttached", 0, gumjs_process_is_debugger_attached),
   JS_CFUNC_DEF ("getCurrentThreadId", 0, gumjs_process_get_current_thread_id),
+  JS_CFUNC_DEF ("findThreadById", 0, gumjs_process_find_thread_by_id),
   JS_CFUNC_DEF ("enumerateThreads", 0, gumjs_process_enumerate_threads),
   JS_CFUNC_DEF ("attachThreadObserver", 0,
       gumjs_process_attach_thread_observer),
@@ -398,6 +400,33 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 {
   return JS_NewInt64 (ctx, gum_process_get_current_thread_id ());
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_find_thread_by_id)
+{
+  GumThreadId thread_id;
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+  GumThreadDetails * details;
+  JSValue result;
+
+  if (!_gum_quick_args_parse (args, "Z", &thread_id))
+    return JS_EXCEPTION;
+
+  _gum_quick_scope_suspend (&scope);
+
+  details = gum_process_find_thread_by_id (thread_id, GUM_THREAD_FLAGS_ALL);
+
+  _gum_quick_scope_resume (&scope);
+
+  if (details == NULL)
+    return JS_NULL;
+
+  result = _gum_quick_thread_new (ctx, details,
+      gumjs_get_parent_module (core)->thread);
+
+  gum_thread_details_free (details);
+
+  return result;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
