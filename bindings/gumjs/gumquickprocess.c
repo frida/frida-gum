@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
@@ -119,8 +119,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
-static gboolean gum_emit_thread (const GumThreadDetails * details,
-    GumQuickEnumerateContext * ec);
+static gboolean gum_collect_thread (const GumThreadDetails * details,
+    GPtrArray * threads);
 GUMJS_DECLARE_FUNCTION (gumjs_process_attach_thread_observer)
 static GumQuickThreadObserver * gum_quick_thread_observer_ref (
     GumQuickThreadObserver * observer);
@@ -402,22 +402,44 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 {
+  GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
+  GPtrArray * threads;
   GumQuickEnumerateContext ec;
+  guint i;
+
+  threads = g_ptr_array_new_with_free_func (
+      (GDestroyNotify) gum_thread_details_free);
+
+  _gum_quick_scope_suspend (&scope);
+
+  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_collect_thread,
+      threads, GUM_THREAD_FLAGS_ALL);
+
+  _gum_quick_scope_resume (&scope);
 
   gum_quick_enumerate_context_begin (&ec, core);
 
-  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &ec,
-      GUM_THREAD_FLAGS_ALL);
+  for (i = 0; i != threads->len; i++)
+  {
+    const GumThreadDetails * details = g_ptr_array_index (threads, i);
+
+    if (!gum_quick_enumerate_context_collect (&ec,
+        _gum_quick_thread_new (ec.ctx, details, ec.parent->thread)))
+      break;
+  }
+
+  g_ptr_array_unref (threads);
 
   return gum_quick_enumerate_context_end (&ec);
 }
 
 static gboolean
-gum_emit_thread (const GumThreadDetails * details,
-                 GumQuickEnumerateContext * ec)
+gum_collect_thread (const GumThreadDetails * details,
+                    GPtrArray * threads)
 {
-  return gum_quick_enumerate_context_collect (ec,
-      _gum_quick_thread_new (ec->ctx, details, ec->parent->thread));
+  g_ptr_array_add (threads, gum_thread_details_copy (details));
+
+  return TRUE;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_attach_thread_observer)

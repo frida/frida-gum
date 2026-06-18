@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
@@ -109,8 +109,8 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_tmp_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
-static gboolean gum_emit_thread (const GumThreadDetails * details,
-    GumV8EnumerateContext<GumV8Process> * ec);
+static gboolean gum_collect_thread (const GumThreadDetails * details,
+    GPtrArray * threads);
 GUMJS_DECLARE_FUNCTION (gumjs_process_attach_thread_observer)
 static GumV8ThreadObserver * gum_v8_thread_observer_ref (
     GumV8ThreadObserver * observer);
@@ -393,19 +393,38 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 {
+  GPtrArray * threads = g_ptr_array_new_with_free_func (
+      (GDestroyNotify) gum_thread_details_free);
+
+  {
+    ScriptUnlocker unlocker (core);
+
+    gum_process_enumerate_threads ((GumFoundThreadFunc) gum_collect_thread,
+        threads, GUM_THREAD_FLAGS_ALL);
+  }
+
   GumV8EnumerateContext<GumV8Process> ec (isolate, module);
 
-  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &ec,
-      GUM_THREAD_FLAGS_ALL);
+  for (guint i = 0; i != threads->len; i++)
+  {
+    auto details = (const GumThreadDetails *) g_ptr_array_index (threads, i);
+
+    if (!ec.Collect (_gum_v8_thread_new (details, ec.parent->thread)))
+      break;
+  }
+
+  g_ptr_array_unref (threads);
 
   info.GetReturnValue ().Set (ec.End ());
 }
 
 static gboolean
-gum_emit_thread (const GumThreadDetails * details,
-                 GumV8EnumerateContext<GumV8Process> * ec)
+gum_collect_thread (const GumThreadDetails * details,
+                    GPtrArray * threads)
 {
-  return ec->Collect (_gum_v8_thread_new (details, ec->parent->thread));
+  g_ptr_array_add (threads, gum_thread_details_copy (details));
+
+  return TRUE;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_attach_thread_observer)
