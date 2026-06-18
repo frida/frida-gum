@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -33,6 +33,8 @@ static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
 static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
     debug_greg_t * gregs);
 
+static gboolean gum_collect_thread_details (GumThreadDetails * details,
+    const debug_thread_t * thread, GumThreadFlags flags, gchar * name_buffer);
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
 
 static GumModule * gum_libc_module;
@@ -117,6 +119,32 @@ beach:
   close (fd);
 
   return found;
+}
+
+GumThreadDetails *
+gum_process_find_thread_by_id (GumThreadId thread_id,
+                               GumThreadFlags flags)
+{
+  GumThreadDetails * result = NULL;
+  gint fd;
+  debug_thread_t thread = { 0, };
+  GumThreadDetails details = { 0, };
+  gchar thread_name[_NTO_THREAD_NAME_MAX];
+
+  fd = open ("/proc/self/as", O_RDONLY);
+  g_assert (fd != -1);
+
+  thread.tid = thread_id;
+  if (devctl (fd, DCMD_PROC_TIDSTATUS, &thread, sizeof (thread), NULL) == 0 &&
+      thread.tid == thread_id && thread.state != STATE_DEAD)
+  {
+    if (gum_collect_thread_details (&details, &thread, flags, thread_name))
+      result = gum_thread_details_copy (&details);
+  }
+
+  close (fd);
+
+  return result;
 }
 
 gboolean
@@ -206,36 +234,46 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
     if (thread.state == STATE_DEAD)
       continue;
 
-    details.id = thread.tid;
-
-    if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
-    {
-      if (pthread_getname_np (thread.tid, thread_name,
-            sizeof (thread_name)) == 0 && thread_name[0] != '\0')
-      {
-        details.name = thread_name;
-        details.flags |= GUM_THREAD_FLAGS_NAME;
-      }
-    }
-
-    if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
-    {
-      details.state = gum_thread_state_from_system_thread_state (thread.state);
-      details.flags |= GUM_THREAD_FLAGS_STATE;
-    }
-
-    if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
-    {
-      if (!gum_process_modify_thread (details.id, gum_store_cpu_context,
-            &details.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
-        continue;
-      details.flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
-    }
-
-    carry_on = func (&details, user_data);
+    if (gum_collect_thread_details (&details, &thread, flags, thread_name))
+      carry_on = func (&details, user_data);
   }
 
   close (fd);
+}
+
+static gboolean
+gum_collect_thread_details (GumThreadDetails * details,
+                            const debug_thread_t * thread,
+                            GumThreadFlags flags,
+                            gchar * name_buffer)
+{
+  details->id = thread->tid;
+
+  if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
+  {
+    if (pthread_getname_np (thread->tid, name_buffer,
+          _NTO_THREAD_NAME_MAX) == 0 && name_buffer[0] != '\0')
+    {
+      details->name = name_buffer;
+      details->flags |= GUM_THREAD_FLAGS_NAME;
+    }
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+  {
+    details->state = gum_thread_state_from_system_thread_state (thread->state);
+    details->flags |= GUM_THREAD_FLAGS_STATE;
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+  {
+    if (!gum_process_modify_thread (details->id, gum_store_cpu_context,
+          &details->cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
+      return FALSE;
+    details->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+  }
+
+  return TRUE;
 }
 
 static void

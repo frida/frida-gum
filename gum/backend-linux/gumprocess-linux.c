@@ -370,6 +370,11 @@ struct _GumFindFunctionByPrefixContext
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
     Dl_info * info);
 
+static void gum_collect_thread_entrypoint (GumThreadDetails * entry,
+    pthread_t thread, const GumLinuxPThreadSpec * spec, GumThreadFlags flags);
+static gboolean gum_fill_thread_details (GumThreadDetails * entry,
+    GumThreadFlags flags);
+
 static void gum_do_modify_thread (GumThreadId thread_id, GumRegs * regs,
     gpointer user_data);
 static gboolean gum_linux_modify_thread (GumThreadId thread_id,
@@ -541,6 +546,48 @@ gum_process_has_thread (GumThreadId thread_id)
   sprintf (path, "/proc/self/task/%" G_GSIZE_MODIFIER "u", thread_id);
 
   return g_file_test (path, G_FILE_TEST_EXISTS);
+}
+
+GumThreadDetails *
+gum_process_find_thread_by_id (GumThreadId thread_id,
+                               GumThreadFlags flags)
+{
+  GumThreadDetails * details = NULL;
+  const GumLinuxPThreadSpec * spec;
+  GumLinuxPThreadIter iter;
+  pthread_t thread;
+
+  spec = gum_linux_query_pthread_spec ();
+
+  gum_linux_lock_pthread_list (spec);
+
+  gum_linux_pthread_iter_init (&iter, spec);
+  while (gum_linux_pthread_iter_next (&iter, &thread))
+  {
+    if (gum_linux_query_pthread_tid (thread, spec) == thread_id)
+    {
+      details = g_slice_new0 (GumThreadDetails);
+      details->id = thread_id;
+      gum_collect_thread_entrypoint (details, thread, spec, flags);
+      break;
+    }
+  }
+
+  gum_linux_unlock_pthread_list (spec);
+
+  if (details == NULL)
+    return NULL;
+
+  if (!gum_fill_thread_details (details, flags))
+    goto fill_failed;
+
+  return details;
+
+fill_failed:
+  {
+    gum_thread_details_free (details);
+    return NULL;
+  }
 }
 
 gboolean
@@ -1076,26 +1123,9 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   while (gum_linux_pthread_iter_next (&iter, &thread))
   {
     GumThreadDetails entry = { 0, };
-    gpointer start_routine;
 
     entry.id = gum_linux_query_pthread_tid (thread, spec);
-
-    start_routine = gum_linux_query_pthread_start_routine (thread, spec);
-    if (start_routine != NULL)
-    {
-      if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
-      {
-        entry.entrypoint.routine = GUM_ADDRESS (start_routine);
-        entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
-      }
-
-      if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
-      {
-        entry.entrypoint.parameter = GUM_ADDRESS (
-            gum_linux_query_pthread_start_parameter (thread, spec));
-        entry.flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
-      }
-    }
+    gum_collect_thread_entrypoint (&entry, thread, spec, flags);
 
     g_array_append_val (entries, entry);
   }
@@ -1105,45 +1135,77 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   for (i = 0; i != entries->len; i++)
   {
     GumThreadDetails * entry;
-    gchar * name = NULL;
     gboolean carry_on = TRUE;
 
     entry = &g_array_index (entries, GumThreadDetails, i);
 
-    if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
-    {
-      name = gum_linux_query_thread_name (entry->id);
-      if (name != NULL)
-      {
-        entry->name = name;
-        entry->flags |= GUM_THREAD_FLAGS_NAME;
-      }
-    }
+    if (gum_fill_thread_details (entry, flags))
+      carry_on = func (entry, user_data);
 
-    if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
-    {
-      if (!gum_linux_query_thread_state (entry->id, &entry->state))
-        goto skip;
-      entry->flags |= GUM_THREAD_FLAGS_STATE;
-    }
-
-    if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
-    {
-      if (!gum_linux_query_thread_cpu_context (entry->id, &entry->cpu_context))
-        goto skip;
-      entry->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
-    }
-
-    carry_on = func (entry, user_data);
-
-skip:
-    g_free (name);
+    g_free ((gpointer) entry->name);
 
     if (!carry_on)
       break;
   }
 
   g_array_unref (entries);
+}
+
+static void
+gum_collect_thread_entrypoint (GumThreadDetails * entry,
+                               pthread_t thread,
+                               const GumLinuxPThreadSpec * spec,
+                               GumThreadFlags flags)
+{
+  gpointer start_routine;
+
+  start_routine = gum_linux_query_pthread_start_routine (thread, spec);
+  if (start_routine == NULL)
+    return;
+
+  if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+  {
+    entry->entrypoint.routine = GUM_ADDRESS (start_routine);
+    entry->flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
+  {
+    entry->entrypoint.parameter = GUM_ADDRESS (
+        gum_linux_query_pthread_start_parameter (thread, spec));
+    entry->flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
+  }
+}
+
+static gboolean
+gum_fill_thread_details (GumThreadDetails * entry,
+                         GumThreadFlags flags)
+{
+  if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
+  {
+    gchar * name = gum_linux_query_thread_name (entry->id);
+    if (name != NULL)
+    {
+      entry->name = name;
+      entry->flags |= GUM_THREAD_FLAGS_NAME;
+    }
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+  {
+    if (!gum_linux_query_thread_state (entry->id, &entry->state))
+      return FALSE;
+    entry->flags |= GUM_THREAD_FLAGS_STATE;
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+  {
+    if (!gum_linux_query_thread_cpu_context (entry->id, &entry->cpu_context))
+      return FALSE;
+    entry->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+  }
+
+  return TRUE;
 }
 
 gboolean

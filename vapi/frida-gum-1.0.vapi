@@ -386,6 +386,7 @@ namespace Gum {
 		public Gum.ProcessId get_id ();
 		public Gum.ThreadId get_current_thread_id ();
 		public bool has_thread (Gum.ThreadId thread_id);
+		public Gum.ThreadDetails? find_thread_by_id (Gum.ThreadId thread_id, Gum.ThreadFlags flags = ALL);
 		public bool modify_thread (Gum.ThreadId thread_id, Gum.ModifyThreadFunc func, Gum.ModifyThreadFlags flags = NONE);
 		public void enumerate_threads (Gum.FoundThreadFunc func, Gum.ThreadFlags flags = ALL);
 		public unowned Module get_main_module ();

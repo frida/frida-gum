@@ -259,6 +259,100 @@ beach:
   return found;
 }
 
+GumThreadDetails *
+gum_process_find_thread_by_id (GumThreadId thread_id,
+                               GumThreadFlags flags)
+{
+  GumThreadDetails * details;
+
+  details = g_slice_new0 (GumThreadDetails);
+  details->id = thread_id;
+
+  if ((flags & (GUM_THREAD_FLAGS_NAME |
+                GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
+                GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER)) != 0)
+  {
+    const GumDarwinPThreadSpec * spec;
+    GumDarwinPThreadIter iter;
+    pthread_t pth;
+    gboolean found = FALSE;
+
+    spec = gum_darwin_query_pthread_spec ();
+
+    gum_darwin_lock_pthread_list (spec);
+
+    gum_darwin_pthread_iter_init (&iter, spec);
+    while (gum_darwin_pthread_iter_next (&iter, &pth))
+    {
+      gpointer start_routine;
+
+      if (gum_darwin_query_pthread_port (pth, spec) != thread_id)
+        continue;
+
+      found = TRUE;
+
+      if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
+      {
+        const gchar * name = gum_darwin_query_pthread_name (pth, spec);
+        if (name != NULL)
+        {
+          details->name = g_strdup (name);
+          details->flags |= GUM_THREAD_FLAGS_NAME;
+        }
+      }
+
+      start_routine = gum_darwin_query_pthread_start_routine (pth, spec);
+      if (start_routine != NULL)
+      {
+        if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0)
+        {
+          details->entrypoint.routine = GUM_ADDRESS (start_routine);
+          details->flags |= GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE;
+        }
+
+        if ((flags & GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER) != 0)
+        {
+          details->entrypoint.parameter = GUM_ADDRESS (
+              gum_darwin_query_pthread_start_parameter (pth, spec));
+          details->flags |= GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
+        }
+      }
+
+      break;
+    }
+
+    gum_darwin_unlock_pthread_list (spec);
+
+    if (!found)
+      goto query_failed;
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+  {
+    if (!gum_darwin_query_thread_state (thread_id, &details->state))
+      goto query_failed;
+    details->flags |= GUM_THREAD_FLAGS_STATE;
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+  {
+    if (!gum_darwin_query_thread_cpu_context (thread_id, &details->cpu_context))
+      goto query_failed;
+    details->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+  }
+
+  if (flags == GUM_THREAD_FLAGS_NONE && !gum_process_has_thread (thread_id))
+    goto query_failed;
+
+  return details;
+
+query_failed:
+  {
+    gum_thread_details_free (details);
+    return NULL;
+  }
+}
+
 gboolean
 gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,

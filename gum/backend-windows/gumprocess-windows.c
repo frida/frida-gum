@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -205,6 +205,23 @@ gum_process_has_thread (GumThreadId thread_id)
   }
 
   return found;
+}
+
+GumThreadDetails *
+gum_process_find_thread_by_id (GumThreadId thread_id,
+                               GumThreadFlags flags)
+{
+  GumThreadDetails * result = NULL;
+  GumThreadDetails thread;
+  gpointer storage;
+
+  if (gum_windows_query_thread_details (thread_id, flags, &thread, &storage))
+  {
+    result = gum_thread_details_copy (&thread);
+    g_free (storage);
+  }
+
+  return result;
 }
 
 gboolean

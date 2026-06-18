@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
@@ -34,6 +34,8 @@
     TESTENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TESTLIST_BEGIN (process)
+  TESTENTRY (find_thread_by_id)
+  TESTENTRY (find_thread_by_id_includes_cloaked)
   TESTENTRY (process_threads)
   TESTENTRY (process_threads_exclude_cloaked)
   TESTENTRY (process_threads_should_include_name)
@@ -180,6 +182,57 @@ static gboolean section_found_cb (const GumSectionDetails * details,
     gpointer user_data);
 static gboolean dep_found_cb (const GumDependencyDetails * details,
     gpointer user_data);
+
+TESTCASE (find_thread_by_id)
+{
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  GumThreadId thread_id;
+  GumThreadDetails * details;
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  thread = create_sleeping_dummy_thread_sync ("find-by-id", &done, &thread_id);
+
+  details = gum_process_find_thread_by_id (thread_id, GUM_THREAD_FLAGS_ALL);
+  g_assert_nonnull (details);
+  g_assert_cmpuint (details->id, ==, thread_id);
+  g_assert_true ((details->flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0);
+  gum_thread_details_free (details);
+
+  details = gum_process_find_thread_by_id (G_MAXSIZE, GUM_THREAD_FLAGS_ALL);
+  g_assert_null (details);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+TESTCASE (find_thread_by_id_includes_cloaked)
+{
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  GumThreadId thread_id;
+  GumThreadDetails * details;
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  thread = create_sleeping_dummy_thread_sync ("find-cloaked", &done,
+      &thread_id);
+
+  gum_cloak_add_thread (thread_id);
+
+  details = gum_process_find_thread_by_id (thread_id, GUM_THREAD_FLAGS_ALL);
+  g_assert_nonnull (details);
+  g_assert_cmpuint (details->id, ==, thread_id);
+  gum_thread_details_free (details);
+
+  gum_cloak_remove_thread (thread_id);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
 
 TESTCASE (process_threads)
 {

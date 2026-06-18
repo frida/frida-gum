@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -37,6 +37,13 @@ gboolean
 gum_process_has_thread (GumThreadId thread_id)
 {
   return FALSE;
+}
+
+GumThreadDetails *
+gum_process_find_thread_by_id (GumThreadId thread_id,
+                               GumThreadFlags flags)
+{
+  return NULL;
 }
 
 gboolean

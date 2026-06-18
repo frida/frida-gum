@@ -280,6 +280,19 @@ gum_process_set_code_signing_policy (GumCodeSigningPolicy policy)
  */
 
 /**
+ * gum_process_find_thread_by_id:
+ * @thread_id: ID of the thread to find
+ * @flags: flags specifying the desired level of detail
+ *
+ * Looks up a single thread by its ID. Unlike
+ * [func@Gum.process_enumerate_threads], cloaked threads are not hidden: an
+ * explicit lookup by ID always returns the thread if it exists.
+ *
+ * Returns: (nullable) (transfer full): the thread's #GumThreadDetails, or %NULL
+ * if no such thread exists
+ */
+
+/**
  * gum_process_enumerate_threads:
  * @func: (scope call): function called with #GumThreadDetails
  * @user_data: data to pass to @func

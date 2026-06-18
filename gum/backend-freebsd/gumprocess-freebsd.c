@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -57,6 +57,9 @@ static void gum_store_cpu_context (GumThreadId thread_id,
 
 static gchar * gum_query_program_path_for_target (int target, GError ** error);
 
+static struct kinfo_proc * gum_query_threads (guint * count);
+static void gum_thread_details_from_proc (GumThreadDetails * thread,
+    const struct kinfo_proc * p, GumThreadFlags flags);
 static GumThreadState gum_thread_state_from_proc (const struct kinfo_proc * p);
 static GumPageProtection gum_page_protection_from_vmentry (int native_prot);
 
@@ -133,6 +136,36 @@ gboolean
 gum_process_has_thread (GumThreadId thread_id)
 {
   return thr_kill (thread_id, 0) == 0;
+}
+
+GumThreadDetails *
+gum_process_find_thread_by_id (GumThreadId thread_id,
+                               GumThreadFlags flags)
+{
+  GumThreadDetails * result = NULL;
+  struct kinfo_proc * threads;
+  guint n, i;
+
+  threads = gum_query_threads (&n);
+  if (threads == NULL)
+    return NULL;
+
+  for (i = 0; i != n; i++)
+  {
+    const struct kinfo_proc * p = &threads[i];
+    GumThreadDetails thread = { 0, };
+
+    if (p->ki_tid != thread_id)
+      continue;
+
+    if (gum_thread_details_from_proc (&thread, p, flags))
+      result = gum_thread_details_copy (&thread);
+    break;
+  }
+
+  g_free (threads);
+
+  return result;
 }
 
 gboolean
@@ -340,10 +373,33 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
                                 gpointer user_data,
                                 GumThreadFlags flags)
 {
-  int mib[4];
-  struct kinfo_proc * threads = NULL;
-  size_t size;
+  struct kinfo_proc * threads;
   guint n, i;
+
+  threads = gum_query_threads (&n);
+  if (threads == NULL)
+    return;
+
+  for (i = 0; i != n; i++)
+  {
+    GumThreadDetails thread = { 0, };
+
+    if (!gum_thread_details_from_proc (&thread, &threads[i], flags))
+      continue;
+
+    if (!func (&thread, user_data))
+      break;
+  }
+
+  g_free (threads);
+}
+
+static struct kinfo_proc *
+gum_query_threads (guint * count)
+{
+  struct kinfo_proc * threads = NULL;
+  int mib[4];
+  size_t size;
 
   mib[0] = CTL_KERN;
   mib[1] = KERN_PROC;
@@ -352,7 +408,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
 
   size = 0;
   if (sysctl (mib, G_N_ELEMENTS (mib), NULL, &size, NULL, 0) != 0)
-    goto beach;
+    return NULL;
 
   while (TRUE)
   {
@@ -367,48 +423,50 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
 
     still_too_small = errno == ENOMEM && size == previous_size;
     if (!still_too_small)
-      goto beach;
+    {
+      g_free (threads);
+      return NULL;
+    }
 
     size += size / 10;
   }
 
-  n = size / sizeof (struct kinfo_proc);
-  for (i = 0; i != n; i++)
+  *count = size / sizeof (struct kinfo_proc);
+
+  return threads;
+}
+
+static gboolean
+gum_thread_details_from_proc (GumThreadDetails * thread,
+                              const struct kinfo_proc * p,
+                              GumThreadFlags flags)
+{
+  thread->id = p->ki_tid;
+
+  if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
   {
-    struct kinfo_proc * p = &threads[i];
-    GumThreadDetails thread = { 0, };
-
-    thread.id = p->ki_tid;
-
-    if ((flags & GUM_THREAD_FLAGS_NAME) != 0)
+    if (p->ki_tdname[0] != '\0')
     {
-      if (p->ki_tdname[0] != '\0')
-      {
-        thread.name = p->ki_tdname;
-        thread.flags |= GUM_THREAD_FLAGS_NAME;
-      }
+      thread->name = p->ki_tdname;
+      thread->flags |= GUM_THREAD_FLAGS_NAME;
     }
-
-    if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
-    {
-      thread.state = gum_thread_state_from_proc (p);
-      thread.flags |= GUM_THREAD_FLAGS_STATE;
-    }
-
-    if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
-    {
-      if (!gum_process_modify_thread (thread.id, gum_store_cpu_context,
-            &thread.cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
-        continue;
-      thread.flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
-    }
-
-    if (!func (&thread, user_data))
-      break;
   }
 
-beach:
-  g_free (threads);
+  if ((flags & GUM_THREAD_FLAGS_STATE) != 0)
+  {
+    thread->state = gum_thread_state_from_proc (p);
+    thread->flags |= GUM_THREAD_FLAGS_STATE;
+  }
+
+  if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+  {
+    if (!gum_process_modify_thread (thread->id, gum_store_cpu_context,
+          &thread->cpu_context, GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY))
+      return FALSE;
+    thread->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+  }
+
+  return TRUE;
 }
 
 static void
