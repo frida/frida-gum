@@ -723,13 +723,6 @@ gum_native_module_find_export_by_name (GumModule * module,
 {
   GumNativeModule * self = GUM_NATIVE_MODULE (module);
 
-  if (self->resolver->task == mach_task_self ())
-  {
-    gpointer handle = _gum_native_module_get_handle (self);
-    if (handle != NULL)
-      return GUM_ADDRESS (dlsym (handle, symbol_name));
-  }
-
   return gum_darwin_module_resolver_find_export_address (self->resolver,
       _gum_native_module_get_darwin_module (self), symbol_name);
 }
