@@ -61,7 +61,10 @@ struct _GumFileId
 #ifdef HAVE_MUSL
 struct _GumRtldNotifierScan
 {
-  gpointer stub;
+  GumAddress base;
+  GumAddress stub_offset;
+  gconstpointer file_data;
+  gsize file_size;
   GumFoundRtldNotifierFunc func;
   gpointer user_data;
   gboolean found;
@@ -109,8 +112,8 @@ static GumAddress gum_query_rtld_base (void);
 #ifdef HAVE_MUSL
 static gboolean gum_emit_rtld_notifier_call_sites (gpointer stub,
     GumModule * linker, GumFoundRtldNotifierFunc func, gpointer user_data);
-static gboolean gum_emit_rtld_notifier_call_sites_in_range (
-    const GumRangeDetails * details, gpointer user_data);
+static gboolean gum_emit_rtld_notifier_call_sites_in_segment (
+    const GumElfSegmentDetails * segment, gpointer user_data);
 #endif
 
 static struct r_debug * gum_r_debug;
@@ -444,19 +447,17 @@ _gum_module_registry_enumerate_rtld_notifiers (GumFoundRtldNotifierFunc func,
   }
 
 #ifdef HAVE_MUSL
-  /* The stub is too small to hook without clobbering the next function. */
   {
     const GumProgramModules * pm = _gum_query_program_modules ();
 
-    if (gum_emit_rtld_notifier_call_sites (GSIZE_TO_POINTER (dbg->r_brk),
-        pm->interpreter, func, user_data))
-      return;
+    gum_emit_rtld_notifier_call_sites (GSIZE_TO_POINTER (dbg->r_brk),
+        pm->interpreter, func, user_data);
   }
-#endif
-
+#else
   notifier.location = GSIZE_TO_POINTER (dbg->r_brk);
   notifier.point_cut = GUM_POINT_ENTER;
   func (&notifier, user_data);
+#endif
 }
 
 static GumAddress
@@ -479,77 +480,93 @@ gum_emit_rtld_notifier_call_sites (gpointer stub,
                                    gpointer user_data)
 {
   GumRtldNotifierScan scan;
+  GumElfModule * image;
 
-  scan.stub = stub;
+  image = gum_elf_module_new_from_file (gum_module_get_path (linker), NULL);
+  if (image == NULL)
+    return FALSE;
+
+  scan.base = gum_module_get_range (linker)->base_address;
+  scan.stub_offset = GUM_ADDRESS (stub) - scan.base;
+  scan.file_data = gum_elf_module_get_file_data (image, &scan.file_size);
   scan.func = func;
   scan.user_data = user_data;
   scan.found = FALSE;
 
-  gum_module_enumerate_ranges (linker, GUM_PAGE_EXECUTE,
-      gum_emit_rtld_notifier_call_sites_in_range, &scan);
+  gum_elf_module_enumerate_segments (image,
+      gum_emit_rtld_notifier_call_sites_in_segment, &scan);
+
+  g_object_unref (image);
 
   return scan.found;
 }
 
 static gboolean
-gum_emit_rtld_notifier_call_sites_in_range (const GumRangeDetails * details,
-                                            gpointer user_data)
+gum_emit_rtld_notifier_call_sites_in_segment (
+    const GumElfSegmentDetails * segment,
+    gpointer user_data)
 {
-# if defined (HAVE_I386)
   GumRtldNotifierScan * scan = user_data;
-  const guint8 * end, * cursor;
-  const guint8 call_near_relative = 0xe8;
+  const guint8 * code, * end, * cursor;
 
-  end = GSIZE_TO_POINTER (details->range->base_address + details->range->size);
-  for (cursor = GSIZE_TO_POINTER (details->range->base_address);
-      end - cursor >= 5;
-      cursor++)
+  if ((segment->protection & GUM_PAGE_EXECUTE) == 0)
+    return TRUE;
+
+  code = (const guint8 *) scan->file_data + segment->file_offset;
+  end = code + segment->file_size;
+
+# if defined (HAVE_I386)
   {
-    const guint8 * target;
-    GumRtldNotifierDetails notifier;
+    const guint8 call_near_relative = 0xe8;
 
-    if (*cursor != call_near_relative)
-      continue;
+    for (cursor = code; end - cursor >= 5; cursor++)
+    {
+      GumAddress site_offset, target_offset;
+      GumRtldNotifierDetails notifier;
 
-    target = cursor + 5 + GINT32_FROM_LE (*((const gint32 *) (cursor + 1)));
-    if (target != scan->stub)
-      continue;
+      if (*cursor != call_near_relative)
+        continue;
 
-    notifier.location = (gpointer) cursor;
-    notifier.point_cut = GUM_POINT_ENTER;
-    scan->func (&notifier, scan->user_data);
+      site_offset = segment->vm_address + (cursor - code);
+      target_offset = site_offset + 5 +
+          GINT32_FROM_LE (*((const gint32 *) (cursor + 1)));
+      if (target_offset != scan->stub_offset)
+        continue;
 
-    scan->found = TRUE;
+      notifier.location = GSIZE_TO_POINTER (scan->base + site_offset);
+      notifier.point_cut = GUM_POINT_ENTER;
+      scan->func (&notifier, scan->user_data);
+
+      scan->found = TRUE;
+    }
   }
 # elif defined (HAVE_ARM64)
-  GumRtldNotifierScan * scan = user_data;
-  const guint8 * end, * cursor;
-  const guint32 branch_with_link = 0x25;
-
-  end = GSIZE_TO_POINTER (details->range->base_address + details->range->size);
-  for (cursor = GSIZE_TO_POINTER (details->range->base_address);
-      end - cursor >= 4;
-      cursor += 4)
   {
-    guint32 insn;
-    gint32 imm26;
-    const guint8 * target;
-    GumRtldNotifierDetails notifier;
+    const guint32 branch_with_link = 0x25;
 
-    insn = GUINT32_FROM_LE (*((const guint32 *) cursor));
-    if ((insn >> 26) != branch_with_link)
-      continue;
+    for (cursor = code; end - cursor >= 4; cursor += 4)
+    {
+      guint32 insn;
+      gint32 imm26;
+      GumAddress site_offset, target_offset;
+      GumRtldNotifierDetails notifier;
 
-    imm26 = (gint32) (insn << 6) >> 6;
-    target = cursor + (gssize) imm26 * 4;
-    if (target != scan->stub)
-      continue;
+      insn = GUINT32_FROM_LE (*((const guint32 *) cursor));
+      if ((insn >> 26) != branch_with_link)
+        continue;
 
-    notifier.location = (gpointer) cursor;
-    notifier.point_cut = GUM_POINT_ENTER;
-    scan->func (&notifier, scan->user_data);
+      imm26 = (gint32) (insn << 6) >> 6;
+      site_offset = segment->vm_address + (cursor - code);
+      target_offset = site_offset + (gssize) imm26 * 4;
+      if (target_offset != scan->stub_offset)
+        continue;
 
-    scan->found = TRUE;
+      notifier.location = GSIZE_TO_POINTER (scan->base + site_offset);
+      notifier.point_cut = GUM_POINT_ENTER;
+      scan->func (&notifier, scan->user_data);
+
+      scan->found = TRUE;
+    }
   }
 # endif
 
