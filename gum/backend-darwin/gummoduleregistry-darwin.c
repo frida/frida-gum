@@ -82,6 +82,8 @@ static void gum_resident_add_notifier_on_image_event (
     const struct mach_header * mh, intptr_t vmaddr_slide);
 
 static void gum_module_registry_begin_tracking (gboolean on_leave);
+static void gum_module_registry_snapshot_modules (void);
+static void gum_module_registry_start_change_tracking (gboolean on_leave);
 static void gum_module_registry_attach_notifier (gpointer location);
 
 static gsize gum_detect_macho_size (const struct mach_header * mh);
@@ -572,16 +574,17 @@ gum_resident_add_notifier_on_image_event (const struct mach_header * mh,
 static void
 gum_module_registry_begin_tracking (gboolean on_leave)
 {
+  gum_module_registry_snapshot_modules ();
+  gum_module_registry_start_change_tracking (on_leave);
+}
+
+static void
+gum_module_registry_snapshot_modules (void)
+{
   uint32_t count, i;
 
   gum_current_modules =
       g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
-  gum_rtld_interceptor = gum_interceptor_obtain ();
-  gum_rtld_handler = on_leave
-      ? gum_make_call_listener (NULL,
-          gum_module_registry_on_rtld_notification, NULL, NULL)
-      : gum_make_probe_listener (
-          gum_module_registry_on_rtld_notification, NULL, NULL);
 
   _gum_module_registry_reset (gum_registry);
 
@@ -598,6 +601,17 @@ gum_module_registry_begin_tracking (gboolean on_leave)
 
     g_object_unref (mod);
   }
+}
+
+static void
+gum_module_registry_start_change_tracking (gboolean on_leave)
+{
+  gum_rtld_interceptor = gum_interceptor_obtain ();
+  gum_rtld_handler = on_leave
+      ? gum_make_call_listener (NULL,
+          gum_module_registry_on_rtld_notification, NULL, NULL)
+      : gum_make_probe_listener (
+          gum_module_registry_on_rtld_notification, NULL, NULL);
 }
 
 static void
