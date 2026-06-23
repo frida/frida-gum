@@ -9,8 +9,13 @@
 #ifndef __GUMDEFS_H__
 #define __GUMDEFS_H__
 
+#include <capstone.h>
 #include <glib.h>
 #include <gum/gumenumtypes.h>
+
+#if CS_API_MAJOR >= 6
+# define CS_ARCH_ARM64 CS_ARCH_AARCH64
+#endif
 
 #if !defined (GUM_STATIC) && defined (G_OS_WIN32)
 #  ifdef GUM_EXPORTS
