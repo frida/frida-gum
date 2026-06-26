@@ -33,7 +33,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_checksum_peek_digest)
 static GumChecksum * gum_checksum_new (GChecksumType type);
 static void gum_checksum_free (GumChecksum * self);
 
-static GumChecksum * gum_checksum_copy (GumChecksum *self);
+static GumChecksum * gum_checksum_copy (GumChecksum * self);
 
 static gboolean gum_quick_checksum_type_get (JSContext * ctx,
     const gchar * name, GChecksumType * type);
@@ -335,7 +335,7 @@ gum_checksum_new (GChecksumType type)
 }
 
 static GumChecksum *
-gum_checksum_copy (GumChecksum *self)
+gum_checksum_copy (GumChecksum * self)
 {
   GumChecksum * cs;
 
