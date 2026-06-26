@@ -24,11 +24,16 @@ GUMJS_DECLARE_FUNCTION (gumjs_checksum_compute)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_checksum_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_checksum_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_checksum_update)
+GUMJS_DECLARE_FUNCTION (gumjs_checksum_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_checksum_get_string)
+GUMJS_DECLARE_FUNCTION (gumjs_checksum_peek_string)
 GUMJS_DECLARE_FUNCTION (gumjs_checksum_get_digest)
+GUMJS_DECLARE_FUNCTION (gumjs_checksum_peek_digest)
 
 static GumChecksum * gum_checksum_new (GChecksumType type);
 static void gum_checksum_free (GumChecksum * self);
+
+static GumChecksum * gum_checksum_copy (GumChecksum *self);
 
 static gboolean gum_quick_checksum_type_get (JSContext * ctx,
     const gchar * name, GChecksumType * type);
@@ -47,8 +52,11 @@ static const JSCFunctionListEntry gumjs_checksum_module_entries[] =
 static const JSCFunctionListEntry gumjs_checksum_entries[] =
 {
   JS_CFUNC_DEF ("update", 1, gumjs_checksum_update),
+  JS_CFUNC_DEF ("copy", 0, gumjs_checksum_copy),
   JS_CFUNC_DEF ("getString", 0, gumjs_checksum_get_string),
+  JS_CFUNC_DEF ("peekString", 0, gumjs_checksum_peek_string),
   JS_CFUNC_DEF ("getDigest", 0, gumjs_checksum_get_digest),
+  JS_CFUNC_DEF ("peekDigest", 0, gumjs_checksum_peek_digest),
 };
 
 void
@@ -224,6 +232,21 @@ invalid_operation:
   }
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_checksum_copy)
+{
+  GumChecksum * self;
+  JSValue wrapper;
+
+  if (!gum_checksum_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  wrapper = JS_NewObjectClass (ctx,
+      gumjs_get_parent_module (core)->checksum_class);
+  JS_SetOpaque (wrapper, gum_checksum_copy (self));
+
+  return wrapper;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_checksum_get_string)
 {
   GumChecksum * self;
@@ -234,6 +257,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_checksum_get_string)
   self->closed = TRUE;
 
   return JS_NewString (ctx, g_checksum_get_string (self->handle));
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_checksum_peek_string)
+{
+  JSValue result;
+  GumChecksum * self;
+  GChecksum * clone;
+
+  if (!gum_checksum_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  clone = g_checksum_copy (self->handle);
+  result = JS_NewString (ctx, g_checksum_get_string (clone));
+  g_checksum_free (clone);
+
+  return result;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_checksum_get_digest)
@@ -258,6 +297,30 @@ GUMJS_DEFINE_FUNCTION (gumjs_checksum_get_digest)
   return result;
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_checksum_peek_digest)
+{
+  JSValue result;
+  GumChecksum * self;
+  GChecksum * clone;
+  gsize length;
+  guint8 * data;
+
+  if (!gum_checksum_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  clone = g_checksum_copy (self->handle);
+
+  length = g_checksum_type_get_length (self->type);
+  data = g_malloc (length);
+  result = JS_NewArrayBuffer (ctx, data, length, _gum_quick_array_buffer_free,
+      data, FALSE);
+
+  g_checksum_get_digest (clone, data, &length);
+  g_checksum_free (clone);
+
+  return result;
+}
+
 static GumChecksum *
 gum_checksum_new (GChecksumType type)
 {
@@ -267,6 +330,19 @@ gum_checksum_new (GChecksumType type)
   cs->handle = g_checksum_new (type);
   cs->type = type;
   cs->closed = FALSE;
+
+  return cs;
+}
+
+static GumChecksum *
+gum_checksum_copy (GumChecksum *self)
+{
+  GumChecksum * cs;
+
+  cs = g_slice_new (GumChecksum);
+  cs->handle = g_checksum_copy (self->handle);
+  cs->type = self->type;
+  cs->closed = self->closed;
 
   return cs;
 }
