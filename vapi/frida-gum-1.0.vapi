@@ -522,6 +522,12 @@ namespace Gum {
 		public uint32 eax;
 	}
 
+	public struct X64VectorReg {
+		public uint8 q[16];
+		public double d[2];
+		public float s[4];
+	}
+
 	public struct X64CpuContext {
 		public uint64 rip;
 
@@ -542,6 +548,8 @@ namespace Gum {
 		public uint64 rdx;
 		public uint64 rcx;
 		public uint64 rax;
+
+		public Gum.X64VectorReg xmm[16];
 	}
 
 	public struct ArmCpuContext {

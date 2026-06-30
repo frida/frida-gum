@@ -567,6 +567,9 @@ gum_emit_prolog (GumX86Writer * cw,
   guint8 fxsave[] = {
     0x0f, 0xae, 0x04, 0x24 /* fxsave [esp] */
   };
+#if GLIB_SIZEOF_VOID_P == 8
+  guint8 rep_movsq[] = { 0xf3, 0x48, 0xa5 };
+#endif
 
   /*
    * Set up our stack frame:
@@ -579,7 +582,11 @@ gum_emit_prolog (GumX86Writer * cw,
    */
   gum_x86_writer_put_pushfx (cw);
   gum_x86_writer_put_cld (cw); /* C ABI mandates this */
-  gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
+#if GLIB_SIZEOF_VOID_P == 8
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP,
+      sizeof (((GumCpuContext *) NULL)->xmm)); /* GumCpuContext.xmm */
+#endif
+  gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip/xmm */
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP,
       GUM_X86_XSP, -((gssize) sizeof (gpointer))); /* GumCpuContext.xip */
 
@@ -594,6 +601,16 @@ gum_emit_prolog (GumX86Writer * cw,
   gum_x86_writer_put_and_reg_u32 (cw, GUM_X86_XSP, (guint32) ~(16 - 1));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 512);
   gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
+
+#if GLIB_SIZEOF_VOID_P == 8
+  /* Harvest XMM0-15 from the fxsave image into GumCpuContext.xmm. */
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSI, GUM_X86_XSP, 160);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XDI, GUM_X86_XBX,
+      G_STRUCT_OFFSET (GumCpuContext, xmm));
+  gum_x86_writer_put_mov_reg_u32 (cw, GUM_X86_ECX,
+      sizeof (((GumCpuContext *) NULL)->xmm) / sizeof (guint64));
+  gum_x86_writer_put_bytes (cw, rep_movsq, sizeof (rep_movsq));
+#endif
 }
 
 static void
@@ -603,6 +620,17 @@ gum_emit_epilog (GumX86Writer * cw,
   guint8 fxrstor[] = {
     0x0f, 0xae, 0x0c, 0x24 /* fxrstor [esp] */
   };
+#if GLIB_SIZEOF_VOID_P == 8
+  guint8 rep_movsq[] = { 0xf3, 0x48, 0xa5 };
+
+  /* Fold any changes to GumCpuContext.xmm back into the fxsave image. */
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSI, GUM_X86_XBX,
+      G_STRUCT_OFFSET (GumCpuContext, xmm));
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XDI, GUM_X86_XSP, 160);
+  gum_x86_writer_put_mov_reg_u32 (cw, GUM_X86_ECX,
+      sizeof (((GumCpuContext *) NULL)->xmm) / sizeof (guint64));
+  gum_x86_writer_put_bytes (cw, rep_movsq, sizeof (rep_movsq));
+#endif
 
   gum_x86_writer_put_bytes (cw, fxrstor, sizeof (fxrstor));
   gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XSP, GUM_X86_XBX);
@@ -611,6 +639,10 @@ gum_emit_epilog (GumX86Writer * cw,
       GUM_X86_XSP, sizeof (gpointer)); /* discard
                                           GumCpuContext.xip */
   gum_x86_writer_put_popax (cw);
+#if GLIB_SIZEOF_VOID_P == 8
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP, GUM_X86_XSP,
+      sizeof (((GumCpuContext *) NULL)->xmm)); /* discard GumCpuContext.xmm */
+#endif
   gum_x86_writer_put_popfx (cw);
 
   if (point_cut == GUM_POINT_LEAVE)

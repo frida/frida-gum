@@ -70,8 +70,10 @@
 #endif
 #define GUM_MINIMAL_PROLOG_RETURN_OFFSET \
     ((GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX + 2) * sizeof (gpointer))
+#define GUM_FULL_PROLOG_FRAME_SIZE \
+    (GUM_CPU_CONTEXT_OFFSET_XAX + sizeof (gpointer))
 #define GUM_FULL_PROLOG_RETURN_OFFSET \
-    (sizeof (GumCpuContext) + sizeof (gpointer))
+    (GUM_FULL_PROLOG_FRAME_SIZE + sizeof (gpointer))
 #define GUM_X86_THUNK_ARGLIST_STACK_RESERVE 64 /* x64 ABI compatibility */
 
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->mutex)
@@ -3517,7 +3519,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
         -(gssize) sizeof (gpointer));
 
     gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XAX, GUM_X86_XSP,
-        sizeof (GumCpuContext) + 2 * sizeof (gpointer) + GUM_RED_ZONE_SIZE);
+        GUM_FULL_PROLOG_FRAME_SIZE + 2 * sizeof (gpointer) + GUM_RED_ZONE_SIZE);
     gum_x86_writer_put_mov_near_ptr_reg (cw, GUM_ADDRESS (&ctx->app_stack),
         GUM_X86_XAX);
 
@@ -3858,20 +3860,20 @@ gum_exec_ctx_load_real_register_from_full_frame_into (GumExecCtx * ctx,
   if (source_meta >= GUM_X86_XAX && source_meta <= GUM_X86_XBX)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
-        GUM_X86_XBX, sizeof (GumCpuContext) -
+        GUM_X86_XBX, GUM_FULL_PROLOG_FRAME_SIZE -
         ((source_meta - GUM_X86_XAX + 1) * sizeof (gpointer)));
   }
   else if (source_meta >= GUM_X86_XBP && source_meta <= GUM_X86_XDI)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
-        GUM_X86_XBX, sizeof (GumCpuContext) -
+        GUM_X86_XBX, GUM_FULL_PROLOG_FRAME_SIZE -
         ((source_meta - GUM_X86_XAX + 1) * sizeof (gpointer)));
   }
 #if GLIB_SIZEOF_VOID_P == 8
   else if (source_meta >= GUM_X86_R8 && source_meta <= GUM_X86_R15)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
-        GUM_X86_XBX, sizeof (GumCpuContext) -
+        GUM_X86_XBX, GUM_FULL_PROLOG_FRAME_SIZE -
         ((source_meta - GUM_X86_RAX + 1) * sizeof (gpointer)));
   }
 #endif
