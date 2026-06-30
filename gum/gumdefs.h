@@ -54,6 +54,7 @@ typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
 typedef struct _GumIA32CpuContext GumIA32CpuContext;
 typedef struct _GumX64CpuContext GumX64CpuContext;
+typedef union _GumX64VectorReg GumX64VectorReg;
 typedef struct _GumArmCpuContext GumArmCpuContext;
 typedef union _GumArmVectorReg GumArmVectorReg;
 typedef struct _GumArm64CpuContext GumArm64CpuContext;
@@ -241,6 +242,13 @@ struct _GumIA32CpuContext
   guint32 eax;
 };
 
+union _GumX64VectorReg
+{
+  guint8 q[16];
+  gdouble d[2];
+  gfloat s[4];
+};
+
 struct _GumX64CpuContext
 {
   guint64 rip;
@@ -262,6 +270,8 @@ struct _GumX64CpuContext
   guint64 rdx;
   guint64 rcx;
   guint64 rax;
+
+  GumX64VectorReg xmm[16];
 };
 
 union _GumArmVectorReg
