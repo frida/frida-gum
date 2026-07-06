@@ -531,7 +531,7 @@ gum_darwin_symbolicator_synthesize_details_from_address (
     GumDebugSymbolDetails * details)
 {
   gboolean success = FALSE;
-  GumModule * module;
+  GumModule * module = NULL;
   GumDarwinModule * darwin_module;
   GArray * functions;
   GumFunction key, * match;
