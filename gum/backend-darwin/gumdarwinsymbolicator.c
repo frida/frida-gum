@@ -55,6 +55,7 @@ struct _GumDarwinSymbolicator
 
   CSSymbolicatorRef handle;
 
+  GRWLock rwlock; /* guards following fields */
   GumApiResolver * objc_resolver;
   GumModuleMap * modules;
   GHashTable * functions;
@@ -103,7 +104,8 @@ static gboolean gum_darwin_symbolicator_synthesize_details_from_address (
     GumDarwinSymbolicator * self, GumAddress address,
     GumDebugSymbolDetails * details);
 static GArray * gum_darwin_symbolicator_get_functions_for_module (
-    GumDarwinSymbolicator * self, GumDarwinModule * module);
+    GumDarwinSymbolicator * self, GumDarwinModule * module,
+    gboolean write_locked);
 static gboolean gum_collect_functions (
     const GumDarwinFunctionStartsDetails * details, gpointer user_data);
 static gint gum_compare_functions (const GumFunction * key,
@@ -193,6 +195,7 @@ gum_darwin_symbolicator_init (GumDarwinSymbolicator * self)
 {
   self->functions = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) g_array_unref);
+  g_rw_lock_init (&self->rwlock);
 }
 
 static void
@@ -209,6 +212,7 @@ gum_darwin_symbolicator_dispose (GObject * object)
   g_clear_pointer (&self->functions, g_hash_table_unref);
   g_clear_object (&self->modules);
   g_clear_object (&self->objc_resolver);
+  g_rw_lock_clear (&self->rwlock);
 
   G_OBJECT_CLASS (gum_darwin_symbolicator_parent_class)->dispose (object);
 }
@@ -527,14 +531,21 @@ gum_darwin_symbolicator_synthesize_details_from_address (
     GumDebugSymbolDetails * details)
 {
   gboolean success = FALSE;
-  GumModule * module;
+  GumModule * module = NULL;
   GumDarwinModule * darwin_module;
   GArray * functions;
   GumFunction key, * match;
   gchar * symbol_name = NULL;
+  gboolean write_locked = FALSE;
 
+  g_rw_lock_reader_lock (&self->rwlock);
+
+retry:
   if (self->objc_resolver == NULL)
   {
+    if (!write_locked)
+      goto write_lock;
+
     GumApiResolver * resolver = gum_api_resolver_make ("objc");
     if (resolver == NULL)
       goto beach;
@@ -542,7 +553,12 @@ gum_darwin_symbolicator_synthesize_details_from_address (
   }
 
   if (self->modules == NULL)
+  {
+    if (!write_locked)
+      goto write_lock;
+
     self->modules = gum_module_map_new ();
+  }
 
   module = gum_module_map_find (self->modules, address);
   if (module == NULL)
@@ -551,8 +567,10 @@ gum_darwin_symbolicator_synthesize_details_from_address (
   darwin_module =
       _gum_native_module_get_darwin_module (GUM_NATIVE_MODULE (module));
 
-  functions =
-      gum_darwin_symbolicator_get_functions_for_module (self, darwin_module);
+  functions = gum_darwin_symbolicator_get_functions_for_module (
+      self, darwin_module, write_locked);
+  if (functions == NULL)
+    goto write_lock;
 
   key.address = gum_strip_code_address (address);
   key.size = 0;
@@ -586,12 +604,25 @@ beach:
 
   g_free (symbol_name);
 
+  if (write_locked)
+    g_rw_lock_writer_unlock (&self->rwlock);
+  else
+    g_rw_lock_reader_unlock (&self->rwlock);
+
   return success;
+
+write_lock:
+  g_assert (!write_locked);
+  g_rw_lock_reader_unlock (&self->rwlock);
+  g_rw_lock_writer_lock (&self->rwlock);
+  write_locked = TRUE;
+  goto retry;
 }
 
 static GArray *
 gum_darwin_symbolicator_get_functions_for_module (GumDarwinSymbolicator * self,
-                                                  GumDarwinModule * module)
+                                                  GumDarwinModule * module,
+                                                  gboolean write_locked)
 {
   GArray * functions;
   GumCollectFunctionsOperation op;
@@ -599,6 +630,9 @@ gum_darwin_symbolicator_get_functions_for_module (GumDarwinSymbolicator * self,
   functions = g_hash_table_lookup (self->functions, module);
   if (functions != NULL)
     return functions;
+
+  if (!write_locked)
+    return NULL;
 
   functions = g_array_new (FALSE, FALSE, sizeof (GumFunction));
   g_hash_table_insert (self->functions, module, functions);

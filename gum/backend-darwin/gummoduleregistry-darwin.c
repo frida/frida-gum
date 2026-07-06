@@ -512,7 +512,8 @@ gum_create_resident_notifier (void)
       (guint8 *) code + layout.noop_offset);
   notifier->handler = notifier->noop;
 
-  _dyld_register_func_for_add_image (GUM_POINTER_TO_FUNCPTR (GumAddImageNotifier,
+  _dyld_register_func_for_add_image (GUM_POINTER_TO_FUNCPTR (
+      GumAddImageNotifier,
       gum_sign_code_pointer ((guint8 *) code + layout.entry_offset)));
 
   notifier->handler = gum_strip_code_pointer (
