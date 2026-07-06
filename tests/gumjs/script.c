@@ -463,6 +463,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (sha384_can_be_computed_for_string)
     TESTENTRY (sha512_can_be_computed_for_string)
     TESTENTRY (requesting_unknown_checksum_for_string_should_throw)
+    TESTENTRY (checksum_can_be_copied)
+    TESTENTRY (checksum_can_be_peeked)
   TESTGROUP_END ()
 
 #ifdef HAVE_SQLITE
@@ -4335,6 +4337,53 @@ TESTCASE (requesting_unknown_checksum_for_string_should_throw)
   COMPILE_AND_LOAD_SCRIPT ("send(Checksum.compute('bogus', 'abc'));");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: unsupported checksum type");
+}
+
+TESTCASE (checksum_can_be_copied)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const checksum = new Checksum('md5');"
+      "checksum.update('ab');"
+      "const copied = checksum.copy();"
+
+      "send(checksum.update('c').getString());"
+      "send(copied.update('c').getString());"
+
+      "const closed = checksum.copy();"
+      "closed.update('d');"
+      );
+
+  EXPECT_SEND_MESSAGE_WITH ("\"900150983cd24fb0d6963f7d28e17f72\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"900150983cd24fb0d6963f7d28e17f72\"");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: checksum is closed");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (checksum_can_be_peeked)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const checksum = new Checksum('md5');"
+      "checksum.update('ab');"
+
+      "const view = new DataView(checksum.peekDigest());"
+      "send(["
+      "  view.getUint32(0).toString(16),"
+      "  view.getUint32(4).toString(16),"
+      "  view.getUint32(8).toString(16),"
+      "  view.getUint32(12).toString(16)"
+      "].join(''));"
+
+      "send(checksum.peekString());"
+      "send(checksum.update('c').getString());"
+
+      "checksum.update('d');"
+      );
+
+  EXPECT_SEND_MESSAGE_WITH ("\"187ef4436122d1cc2f40dc2b92f0eba0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"187ef4436122d1cc2f40dc2b92f0eba0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"900150983cd24fb0d6963f7d28e17f72\"");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: checksum is closed");
+  EXPECT_NO_MESSAGES ();
 }
 
 #ifdef HAVE_SQLITE

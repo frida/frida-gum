@@ -25,11 +25,16 @@ GUMJS_DECLARE_FUNCTION (gumjs_checksum_compute)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_checksum_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_checksum_update)
+GUMJS_DECLARE_FUNCTION (gumjs_checksum_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_checksum_get_string)
+GUMJS_DECLARE_FUNCTION (gumjs_checksum_peek_string)
 GUMJS_DECLARE_FUNCTION (gumjs_checksum_get_digest)
+GUMJS_DECLARE_FUNCTION (gumjs_checksum_peek_digest)
 
 static GumChecksum * gum_checksum_new (Local<Object> wrapper,
     GChecksumType type, GumV8Checksum * module);
+static Local<Object> gum_checksum_copy (GumChecksum * self);
+
 static void gum_checksum_free (GumChecksum * self);
 static void gum_checksum_on_weak_notify (
     const WeakCallbackInfo<GumChecksum> & info);
@@ -47,8 +52,11 @@ static const GumV8Function gumjs_checksum_module_functions[] =
 static const GumV8Function gumjs_checksum_functions[] =
 {
   { "update", gumjs_checksum_update },
+  { "copy", gumjs_checksum_copy },
   { "getString", gumjs_checksum_get_string },
+  { "peekString", gumjs_checksum_peek_string },
   { "getDigest", gumjs_checksum_get_digest },
+  { "peekDigest", gumjs_checksum_peek_digest },
 
   { NULL, NULL }
 };
@@ -210,12 +218,27 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_checksum_update, GumChecksum)
   info.GetReturnValue ().Set (info.This ());
 }
 
+GUMJS_DEFINE_CLASS_METHOD (gumjs_checksum_copy, GumChecksum)
+{
+  info.GetReturnValue ().Set (gum_checksum_copy (self));
+}
+
 GUMJS_DEFINE_CLASS_METHOD (gumjs_checksum_get_string, GumChecksum)
 {
   self->closed = TRUE;
 
   info.GetReturnValue ().Set (
       _gum_v8_string_new_ascii (isolate, g_checksum_get_string (self->handle)));
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_checksum_peek_string, GumChecksum)
+{
+  auto clone = g_checksum_copy (self->handle);
+
+  info.GetReturnValue ().Set (
+      _gum_v8_string_new_ascii (isolate, g_checksum_get_string (clone)));
+
+  g_checksum_free (clone);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_checksum_get_digest, GumChecksum)
@@ -227,6 +250,19 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_checksum_get_digest, GumChecksum)
   auto store = result.As<ArrayBuffer> ()->GetBackingStore ();
 
   g_checksum_get_digest (self->handle, (guint8 *) store->Data (), &length);
+
+  info.GetReturnValue ().Set (result);
+}
+
+GUMJS_DEFINE_CLASS_METHOD (gumjs_checksum_peek_digest, GumChecksum)
+{
+  size_t length = g_checksum_type_get_length (self->type);
+  auto result = ArrayBuffer::New (isolate, length);
+  auto store = result.As<ArrayBuffer> ()->GetBackingStore ();
+
+  auto clone = g_checksum_copy (self->handle);
+  g_checksum_get_digest (clone, (guint8 *) store->Data (), &length);
+  g_checksum_free (clone);
 
   info.GetReturnValue ().Set (result);
 }
@@ -248,6 +284,28 @@ gum_checksum_new (Local<Object> wrapper,
   g_hash_table_add (module->checksums, cs);
 
   return cs;
+}
+
+static Local<Object>
+gum_checksum_copy (GumChecksum * self)
+{
+  auto cs = g_slice_new (GumChecksum);
+  auto clone = Local<Object>::New (self->module->core->isolate,
+          *self->wrapper)->Clone ();
+  cs->wrapper = new Global<Object> (self->module->core->isolate,
+      clone);
+  cs->handle = g_checksum_copy (self->handle);
+  cs->type = self->type;
+  cs->closed = self->closed;
+  cs->module = self->module;
+
+  cs->wrapper->SetWeak (cs, gum_checksum_on_weak_notify,
+      WeakCallbackType::kParameter);
+  clone->SetAlignedPointerInInternalField (0, cs);
+
+  g_hash_table_add (self->module->checksums, cs);
+
+  return clone;
 }
 
 static void
