@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -41,6 +42,7 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (allocate_handles_alignment)
   TESTENTRY (allocate_near_handles_alignment)
   TESTENTRY (mprotect_handles_page_boundaries)
+  TESTENTRY (patch_code_does_not_apply_while_threads_suspended)
 TESTLIST_END ()
 
 typedef struct _TestForEachContext {
@@ -53,6 +55,12 @@ typedef struct _TestForEachContext {
 
 static gboolean match_found_cb (GumAddress address, gsize size,
     gpointer user_data);
+static gpointer gum_patch_lock_holder (gpointer data);
+static void gum_patch_gated_apply (gpointer mem, gpointer user_data);
+
+static GMutex gum_patch_gate;
+static volatile gint gum_patch_holder_ready;
+static volatile gint gum_patch_holder_release;
 
 TESTCASE (read_from_valid_address_should_succeed)
 {
@@ -744,4 +752,55 @@ match_found_cb (GumAddress address,
   ctx->number_of_calls++;
 
   return ctx->value_to_return;
+}
+
+TESTCASE (patch_code_does_not_apply_while_threads_suspended)
+{
+  GThread * holder;
+  guint8 * code;
+
+  g_mutex_init (&gum_patch_gate);
+  g_atomic_int_set (&gum_patch_holder_ready, 0);
+  g_atomic_int_set (&gum_patch_holder_release, 0);
+
+  holder = g_thread_new ("patch-lock-holder", gum_patch_lock_holder, NULL);
+  while (g_atomic_int_get (&gum_patch_holder_ready) == 0)
+    g_thread_yield ();
+
+  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  code[0] = 0x00;
+  gum_mprotect (code, gum_query_page_size (), GUM_PAGE_RX);
+
+  gum_memory_patch_code (code, 1, gum_patch_gated_apply, NULL);
+
+  g_assert_cmphex (code[0], ==, 0xc3);
+
+  g_thread_join (holder);
+
+  gum_free_pages (code);
+  g_mutex_clear (&gum_patch_gate);
+}
+
+static gpointer
+gum_patch_lock_holder (gpointer data)
+{
+  g_mutex_lock (&gum_patch_gate);
+  g_atomic_int_set (&gum_patch_holder_ready, 1);
+  while (g_atomic_int_get (&gum_patch_holder_release) == 0)
+    g_thread_yield ();
+  g_mutex_unlock (&gum_patch_gate);
+
+  return NULL;
+}
+
+static void
+gum_patch_gated_apply (gpointer mem,
+                       gpointer user_data)
+{
+  *((guint8 *) mem) = 0xc3;
+
+  g_atomic_int_set (&gum_patch_holder_release, 1);
+
+  g_mutex_lock (&gum_patch_gate);
+  g_mutex_unlock (&gum_patch_gate);
 }
