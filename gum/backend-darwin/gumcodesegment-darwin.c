@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -147,7 +148,12 @@ gum_code_segment_is_supported (void)
 {
 #if (defined (HAVE_MACOS) && defined (HAVE_ARM64)) || \
     defined (HAVE_IOS) || defined (HAVE_TVOS)
-  /* Not going to work on newer kernels, such as on iOS >= 15.6.1. */
+  /*
+   * Broke on newer kernels, such as on iOS >= 15.6.1, but works again on
+   * iOS >= 17.6 (xnu >= 10063.142.1).
+   */
+  if (gum_darwin_check_xnu_version (10063, 142, 1))
+    return TRUE;
   return !gum_darwin_check_xnu_version (8020, 142, 0);
 #else
   return FALSE;
