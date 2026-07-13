@@ -2,6 +2,7 @@
  * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020      Duy Phan Thanh <phanthanhduypr@gmail.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -70,6 +71,8 @@
 #endif
 #define GUM_MINIMAL_PROLOG_RETURN_OFFSET \
     ((GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX + 2) * sizeof (gpointer))
+#define GUM_FULL_PROLOG_GPR_TOP_OFFSET \
+    (GUM_CPU_CONTEXT_OFFSET_XAX + sizeof (gpointer))
 #define GUM_FULL_PROLOG_RETURN_OFFSET \
     (sizeof (GumCpuContext) + sizeof (gpointer))
 #define GUM_X86_THUNK_ARGLIST_STACK_RESERVE 64 /* x64 ABI compatibility */
@@ -3511,7 +3514,9 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   }
   else /* GUM_PROLOG_FULL */
   {
-    gum_x86_writer_put_pushax (cw); /* All of GumCpuContext except for xip */
+    gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP,
+        sizeof (((GumCpuContext *) NULL)->xmm)); /* GumCpuContext.xmm */
+    gum_x86_writer_put_pushax (cw); /* All of GumCpuContext except xip/xmm */
     /* GumCpuContext.xip gets filled out later */
     gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP, GUM_X86_XSP,
         -(gssize) sizeof (gpointer));
@@ -3530,6 +3535,15 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   gum_x86_writer_put_and_reg_u32 (cw, GUM_X86_XSP, (guint32) ~(16 - 1));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 512);
   gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
+
+  if (type == GUM_PROLOG_FULL)
+  {
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XAX,
+        GUM_X86_XSP, GUM_FXSAVE_OFFSET_XMM);
+    gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
+        GUM_X86_XBX, G_STRUCT_OFFSET (GumCpuContext, xmm),
+        GUM_X86_XAX);
+  }
 
   /*
    * Skip the YMM upper-half save on Windows 7 32-bit (WoW64) processes.
@@ -3633,6 +3647,8 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
     gum_x86_writer_put_pop_reg (cw, GUM_X86_XAX); /* Discard
                                                      GumCpuContext.xip */
     gum_x86_writer_put_popax (cw);
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP, GUM_X86_XSP,
+        sizeof (((GumCpuContext *) NULL)->xmm)); /* Discard GumCpuContext.xmm */
   }
 
   gum_x86_writer_put_popfx (cw);
@@ -3858,20 +3874,20 @@ gum_exec_ctx_load_real_register_from_full_frame_into (GumExecCtx * ctx,
   if (source_meta >= GUM_X86_XAX && source_meta <= GUM_X86_XBX)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
-        GUM_X86_XBX, sizeof (GumCpuContext) -
+        GUM_X86_XBX, GUM_FULL_PROLOG_GPR_TOP_OFFSET -
         ((source_meta - GUM_X86_XAX + 1) * sizeof (gpointer)));
   }
   else if (source_meta >= GUM_X86_XBP && source_meta <= GUM_X86_XDI)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
-        GUM_X86_XBX, sizeof (GumCpuContext) -
+        GUM_X86_XBX, GUM_FULL_PROLOG_GPR_TOP_OFFSET -
         ((source_meta - GUM_X86_XAX + 1) * sizeof (gpointer)));
   }
 #if GLIB_SIZEOF_VOID_P == 8
   else if (source_meta >= GUM_X86_R8 && source_meta <= GUM_X86_R15)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
-        GUM_X86_XBX, sizeof (GumCpuContext) -
+        GUM_X86_XBX, GUM_FULL_PROLOG_GPR_TOP_OFFSET -
         ((source_meta - GUM_X86_RAX + 1) * sizeof (gpointer)));
   }
 #endif

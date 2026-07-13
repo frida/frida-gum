@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -169,6 +169,9 @@ gum_exceptor_backend_dispatch (EXCEPTION_POINTERS * exception_info)
   }
 
   gum_windows_parse_context (context, cpu_context);
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  cpu_context->xmm = (GumX86VectorReg *) &context->Xmm0;
+#endif
   ed.native_context = context;
 
   g_private_set (&gum_active_context_key, context);

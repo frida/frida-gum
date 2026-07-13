@@ -3,6 +3,7 @@
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -575,11 +576,13 @@ gum_emit_prolog (GumX86Writer * cw,
    * [cpu_flags]
    * [cpu_context] <-- xbx points to the start of the cpu_context
    * [alignment_padding]
-   * [extended_context]
+   * [extended_context] <-- cpu_context.xmm points into the fxsave image here
    */
   gum_x86_writer_put_pushfx (cw);
   gum_x86_writer_put_cld (cw); /* C ABI mandates this */
-  gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP,
+      sizeof (((GumCpuContext *) NULL)->xmm)); /* GumCpuContext.xmm */
+  gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip/xmm */
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP,
       GUM_X86_XSP, -((gssize) sizeof (gpointer))); /* GumCpuContext.xip */
 
@@ -594,6 +597,12 @@ gum_emit_prolog (GumX86Writer * cw,
   gum_x86_writer_put_and_reg_u32 (cw, GUM_X86_XSP, (guint32) ~(16 - 1));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 512);
   gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
+
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XAX,
+      GUM_X86_XSP, GUM_FXSAVE_OFFSET_XMM);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_X86_XBX, G_STRUCT_OFFSET (GumCpuContext, xmm),
+      GUM_X86_XAX);
 }
 
 static void
@@ -611,6 +620,8 @@ gum_emit_epilog (GumX86Writer * cw,
       GUM_X86_XSP, sizeof (gpointer)); /* discard
                                           GumCpuContext.xip */
   gum_x86_writer_put_popax (cw);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSP, GUM_X86_XSP,
+      sizeof (((GumCpuContext *) NULL)->xmm)); /* discard GumCpuContext.xmm */
   gum_x86_writer_put_popfx (cw);
 
   if (point_cut == GUM_POINT_LEAVE)

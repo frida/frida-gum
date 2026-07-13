@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -54,6 +54,7 @@ typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
 typedef struct _GumIA32CpuContext GumIA32CpuContext;
 typedef struct _GumX64CpuContext GumX64CpuContext;
+typedef union _GumX86VectorReg GumX86VectorReg;
 typedef struct _GumArmCpuContext GumArmCpuContext;
 typedef union _GumArmVectorReg GumArmVectorReg;
 typedef struct _GumArm64CpuContext GumArm64CpuContext;
@@ -69,6 +70,9 @@ typedef guint GumRelocationScenario;
  * GUM_DEFAULT_CS_MODE: (skip)
  */
 # define GUM_DEFAULT_CS_MODE CS_MODE_32
+# define GUM_CPU_CONTEXT_HAS_OUT_OF_LINE_VECTORS 1
+# define GUM_X86_XMM_REG_COUNT 8
+# define GUM_FXSAVE_OFFSET_XMM 160
 typedef GumIA32CpuContext GumCpuContext;
 #elif defined (_M_X64) || defined (__x86_64__)
 # define GUM_NATIVE_CPU GUM_CPU_AMD64
@@ -78,6 +82,9 @@ typedef GumIA32CpuContext GumCpuContext;
  * GUM_DEFAULT_CS_MODE: (skip)
  */
 # define GUM_DEFAULT_CS_MODE CS_MODE_64
+# define GUM_CPU_CONTEXT_HAS_OUT_OF_LINE_VECTORS 1
+# define GUM_X86_XMM_REG_COUNT 16
+# define GUM_FXSAVE_OFFSET_XMM 160
 typedef GumX64CpuContext GumCpuContext;
 #elif defined (_M_ARM) || defined (__arm__)
 # define GUM_NATIVE_CPU GUM_CPU_ARM
@@ -227,6 +234,13 @@ enum _GumBranchHint
   GUM_UNLIKELY
 };
 
+union _GumX86VectorReg
+{
+  guint8 q[16];
+  gdouble d[2];
+  gfloat s[4];
+};
+
 struct _GumIA32CpuContext
 {
   guint32 eip;
@@ -239,6 +253,8 @@ struct _GumIA32CpuContext
   guint32 edx;
   guint32 ecx;
   guint32 eax;
+
+  GumX86VectorReg * xmm;
 };
 
 struct _GumX64CpuContext
@@ -262,6 +278,8 @@ struct _GumX64CpuContext
   guint64 rdx;
   guint64 rcx;
   guint64 rax;
+
+  GumX86VectorReg * xmm;
 };
 
 union _GumArmVectorReg
@@ -577,6 +595,12 @@ GUM_API void gum_cpu_context_replace_nth_argument (GumCpuContext * self,
 GUM_API gpointer gum_cpu_context_get_return_value (GumCpuContext * self);
 GUM_API void gum_cpu_context_replace_return_value (GumCpuContext * self,
     gpointer value);
+
+#define GUM_TYPE_CPU_CONTEXT (gum_cpu_context_get_type ())
+GUM_API GType gum_cpu_context_get_type (void) G_GNUC_CONST;
+GUM_API GumCpuContext * gum_cpu_context_copy (
+    const GumCpuContext * cpu_context);
+GUM_API void gum_cpu_context_free (GumCpuContext * cpu_context);
 
 GUM_API GType gum_address_get_type (void) G_GNUC_CONST;
 

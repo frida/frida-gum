@@ -807,6 +807,8 @@ gum_freebsd_parse_ucontext (const ucontext_t * uc,
   ctx->edx = mc->mc_edx;
   ctx->ecx = mc->mc_ecx;
   ctx->eax = mc->mc_eax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   const mcontext_t * mc = &uc->uc_mcontext;
 
@@ -829,6 +831,9 @@ gum_freebsd_parse_ucontext (const ucontext_t * uc,
   ctx->rdx = mc->mc_rdx;
   ctx->rcx = mc->mc_rcx;
   ctx->rax = mc->mc_rax;
+
+  ctx->xmm = (GumX86VectorReg *)
+      ((const guint8 *) mc->mc_fpstate + GUM_FXSAVE_OFFSET_XMM);
 #elif defined (HAVE_ARM64)
   const struct gpregs * gp = &uc->uc_mcontext.mc_gpregs;
   gsize i;
@@ -924,6 +929,8 @@ gum_freebsd_parse_regs (const struct reg * regs,
   ctx->edx = regs->r_edx;
   ctx->ecx = regs->r_ecx;
   ctx->eax = regs->r_eax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   ctx->rip = regs->r_rip;
 
@@ -944,6 +951,8 @@ gum_freebsd_parse_regs (const struct reg * regs,
   ctx->rdx = regs->r_rdx;
   ctx->rcx = regs->r_rcx;
   ctx->rax = regs->r_rax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_ARM64)
   gsize i;
 

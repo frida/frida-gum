@@ -588,6 +588,9 @@ gum_parse_context (gconstpointer context,
   const ucontext_t * uc = context;
 
   gum_darwin_parse_native_thread_state (&uc->uc_mcontext->__ss, ctx);
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  ctx->xmm = (GumX86VectorReg *) &uc->uc_mcontext->__fs.__fpu_xmm0;
+#endif
 }
 
 static void

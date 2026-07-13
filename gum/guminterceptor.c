@@ -130,6 +130,9 @@ struct _GumInvocationStackEntry
   gpointer stack_address;
   GumInvocationContext invocation_context;
   GumCpuContext cpu_context;
+#ifdef GUM_CPU_CONTEXT_HAS_OUT_OF_LINE_VECTORS
+  GumX86VectorReg cpu_context_vectors[GUM_X86_XMM_REG_COUNT];
+#endif
   guint8 listener_invocation_data[GUM_MAX_LISTENERS_PER_FUNCTION]
       [GUM_MAX_LISTENER_DATA];
   gboolean calling_replacement;
@@ -229,6 +232,8 @@ static void gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
     gpointer live_stack_address);
 static void gum_invocation_stack_reap_unwound_above (
     GumInvocationStack * stack, GumFunctionContext * returning_ctx);
+static void gum_invocation_stack_entry_snapshot_cpu_context (
+    GumInvocationStackEntry * entry, const GumCpuContext * cpu_context);
 static gboolean gum_invocation_stack_entry_was_unwound_past (
     const GumInvocationStackEntry * entry, gpointer live_stack_address);
 static void gum_invocation_stack_entry_release_trampoline (
@@ -2038,7 +2043,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   if (function_ctx->replacement_function != NULL)
   {
     stack_entry->calling_replacement = TRUE;
-    stack_entry->cpu_context = *cpu_context;
+    gum_invocation_stack_entry_snapshot_cpu_context (stack_entry, cpu_context);
     stack_entry->original_system_error = system_error;
     invocation_ctx->cpu_context = &stack_entry->cpu_context;
     invocation_ctx->backend = &interceptor_ctx->replacement_backend;
@@ -2503,6 +2508,19 @@ gum_invocation_stack_reap_unwound_above (GumInvocationStack * stack,
     gum_invocation_stack_entry_release_trampoline (entry);
     g_array_set_size (stack, stack->len - 1);
   }
+}
+
+static void
+gum_invocation_stack_entry_snapshot_cpu_context (
+    GumInvocationStackEntry * entry,
+    const GumCpuContext * cpu_context)
+{
+  entry->cpu_context = *cpu_context;
+#ifdef GUM_CPU_CONTEXT_HAS_OUT_OF_LINE_VECTORS
+  gum_memcpy (entry->cpu_context_vectors, cpu_context->xmm,
+      sizeof (entry->cpu_context_vectors));
+  entry->cpu_context.xmm = entry->cpu_context_vectors;
+#endif
 }
 
 static gboolean

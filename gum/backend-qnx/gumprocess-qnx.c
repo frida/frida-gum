@@ -686,6 +686,8 @@ gum_cpu_context_from_qnx (const debug_greg_t * gregs,
   ctx->edx = regs->edx;
   ctx->ecx = regs->ecx;
   ctx->eax = regs->eax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_ARM)
   const ARM_CPU_REGISTERS * regs = &gregs->arm;
 
@@ -798,6 +800,8 @@ gum_qnx_parse_ucontext (const ucontext_t * uc,
   ctx->edx = cpu->edx;
   ctx->ecx = cpu->ecx;
   ctx->eax = cpu->eax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_ARM)
   const ARM_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
   guint i;

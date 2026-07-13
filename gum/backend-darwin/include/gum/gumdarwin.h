@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -104,10 +104,16 @@ typedef struct nlist_64 gum_nlist_t;
 typedef x86_thread_state_t GumDarwinUnifiedThreadState;
 # if GLIB_SIZEOF_VOID_P == 4
 typedef x86_thread_state32_t GumDarwinNativeThreadState;
+typedef x86_float_state32_t GumDarwinNativeFloatState;
 typedef x86_debug_state32_t GumDarwinNativeDebugState;
+#  define GUM_DARWIN_FLOAT_STATE_COUNT x86_FLOAT_STATE32_COUNT
+#  define GUM_DARWIN_FLOAT_STATE_FLAVOR x86_FLOAT_STATE32
 # else
 typedef x86_thread_state64_t GumDarwinNativeThreadState;
+typedef x86_float_state64_t GumDarwinNativeFloatState;
 typedef x86_debug_state64_t GumDarwinNativeDebugState;
+#  define GUM_DARWIN_FLOAT_STATE_COUNT x86_FLOAT_STATE64_COUNT
+#  define GUM_DARWIN_FLOAT_STATE_FLAVOR x86_FLOAT_STATE64
 # endif
 # define GUM_DARWIN_THREAD_STATE_COUNT x86_THREAD_STATE_COUNT
 # define GUM_DARWIN_THREAD_STATE_FLAVOR x86_THREAD_STATE

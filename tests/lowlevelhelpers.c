@@ -443,7 +443,7 @@ gum_emit_test_clobber_regs_function (gpointer mem,
 # if GLIB_SIZEOF_VOID_P == 4
   /* Load first argument */
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_ECX,
-      GUM_X86_ESP, sizeof (GumCpuContext) + 4);
+      GUM_X86_ESP, GUM_CPU_CONTEXT_OFFSET_XAX + sizeof (gpointer) + 4);
 
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_EAX,
       GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, eax));
@@ -519,7 +519,7 @@ gum_emit_test_clobber_regs_function (gpointer mem,
 # if GLIB_SIZEOF_VOID_P == 4
   /* Load second argument */
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_X86_ECX,
-      GUM_X86_ESP, 4 + sizeof (GumCpuContext) + 8);
+      GUM_X86_ESP, 4 + GUM_CPU_CONTEXT_OFFSET_XAX + sizeof (gpointer) + 8);
 
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_X86_ECX, G_STRUCT_OFFSET (GumCpuContext, eax),

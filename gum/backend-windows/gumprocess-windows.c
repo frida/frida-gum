@@ -250,11 +250,15 @@ gum_process_modify_thread (GumThreadId thread_id,
   if (SuspendThread (thread) == (DWORD) -1)
     goto beach;
 
-  context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+  context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER |
+      CONTEXT_FLOATING_POINT;
   if (!GetThreadContext (thread, &context))
     goto beach;
 
   gum_windows_parse_context (&context, &cpu_context);
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  cpu_context.xmm = (GumX86VectorReg *) &context.Xmm0;
+#endif
   func (thread_id, &cpu_context, user_data);
   gum_windows_unparse_context (&cpu_context, &context);
 
@@ -1159,6 +1163,8 @@ gum_windows_parse_context (const CONTEXT * context,
   cpu_context->edx = context->Edx;
   cpu_context->ecx = context->Ecx;
   cpu_context->eax = context->Eax;
+
+  cpu_context->xmm = NULL;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   cpu_context->rip = context->Rip;
 
@@ -1179,6 +1185,8 @@ gum_windows_parse_context (const CONTEXT * context,
   cpu_context->rdx = context->Rdx;
   cpu_context->rcx = context->Rcx;
   cpu_context->rax = context->Rax;
+
+  cpu_context->xmm = NULL;
 #else
   guint i;
 

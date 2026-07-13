@@ -5,6 +5,7 @@
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
  * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -720,6 +721,36 @@ static const JSClassDef gumjs_cpu_context_def =
           sizeof (self->handle->R)); \
     }
 
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM(A, INDEX) \
+    GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
+    { \
+      GumQuickCpuContext * self; \
+      \
+      if (!_gum_quick_cpu_context_unwrap (ctx, this_val, core, &self)) \
+        return JS_EXCEPTION; \
+      \
+      if (self->handle->xmm == NULL) \
+        return JS_NULL; \
+      \
+      return JS_NewArrayBufferCopy (ctx, self->handle->xmm[INDEX].q, \
+          sizeof (self->handle->xmm[INDEX].q)); \
+    } \
+    \
+    GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
+    { \
+      GumQuickCpuContext * self; \
+      \
+      if (!_gum_quick_cpu_context_unwrap (ctx, this_val, core, &self)) \
+        return JS_EXCEPTION; \
+      \
+      if (self->handle->xmm == NULL) \
+        return _gum_quick_throw_literal (ctx, \
+            "vector registers are not available"); \
+      \
+      return gumjs_cpu_context_set_vector (self, ctx, val, \
+          self->handle->xmm[INDEX].q, sizeof (self->handle->xmm[INDEX].q)); \
+    }
+
 #define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE(A, R) \
     GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
     { \
@@ -801,6 +832,15 @@ GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (esi)
 GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (edi)
 
 GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (eip)
+
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm0, 0)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm1, 1)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm2, 2)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm3, 3)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm4, 4)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm5, 5)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm6, 6)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm7, 7)
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
 GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rax)
 GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rcx)
@@ -821,6 +861,23 @@ GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r14)
 GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r15)
 
 GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rip)
+
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm0, 0)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm1, 1)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm2, 2)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm3, 3)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm4, 4)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm5, 5)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm6, 6)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm7, 7)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm8, 8)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm9, 9)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm10, 10)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm11, 11)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm12, 12)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm13, 13)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm14, 14)
+GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm15, 15)
 #elif defined (HAVE_ARM)
 GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (pc)
 GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (sp)
@@ -1124,6 +1181,15 @@ static const JSCFunctionListEntry gumjs_cpu_context_entries[] =
   GUM_EXPORT_CPU_CONTEXT_ACCESSOR (edi),
 
   GUM_EXPORT_CPU_CONTEXT_ACCESSOR (eip),
+
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm0),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm1),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm2),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm3),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm4),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm5),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm6),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm7),
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   GUM_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (pc, rip),
   GUM_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (sp, rsp),
@@ -1147,6 +1213,23 @@ static const JSCFunctionListEntry gumjs_cpu_context_entries[] =
   GUM_EXPORT_CPU_CONTEXT_ACCESSOR (r15),
 
   GUM_EXPORT_CPU_CONTEXT_ACCESSOR (rip),
+
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm0),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm1),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm2),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm3),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm4),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm5),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm6),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm7),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm8),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm9),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm10),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm11),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm12),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm13),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm14),
+  GUM_EXPORT_CPU_CONTEXT_ACCESSOR (xmm15),
 #elif defined (HAVE_ARM)
   GUM_EXPORT_CPU_CONTEXT_ACCESSOR (pc),
   GUM_EXPORT_CPU_CONTEXT_ACCESSOR (sp),
