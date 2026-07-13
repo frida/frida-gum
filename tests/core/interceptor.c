@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -52,6 +53,7 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (function_arguments)
   TESTENTRY (function_return_value)
   TESTENTRY (function_cpu_context_on_enter)
+  TESTENTRY (function_cpu_context_xmm_on_enter)
   TESTENTRY (ignore_current_thread)
   TESTENTRY (ignore_current_thread_nested)
   TESTENTRY (ignore_other_threads)
@@ -93,6 +95,9 @@ static gpointer replacement_malloc (gsize size);
 static gpointer replacement_target_function (GString * str);
 static gpointer (* target_function_fast) (GString * str) = NULL;
 static gpointer replacement_target_function_fast (GString * str);
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+static gdouble gum_test_xmm_clobber (gdouble x);
+#endif
 
 TESTCASE (attach_one)
 {
@@ -309,6 +314,25 @@ TESTCASE (function_cpu_context_on_enter)
   }
 #else
   g_print ("<skipping, missing code for current architecture> ");
+#endif
+}
+
+TESTCASE (function_cpu_context_xmm_on_enter)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  GumCpuContext * cpu_context;
+
+  interceptor_fixture_attach (fixture, 0, gum_test_xmm_clobber, 'a', 'b');
+
+  g_assert_cmpfloat (gum_test_xmm_clobber (4.5), ==, 9.0);
+  g_assert_cmpstr (fixture->result->str, ==, "ab");
+
+  cpu_context = &fixture->listener_context[0]->last_on_enter_cpu_context;
+  g_assert_cmpfloat (cpu_context->xmm[0].d[0], ==, 4.5);
+
+  interceptor_fixture_detach (fixture, 0);
+#else
+  g_print ("<skipping, not applicable to current architecture> ");
 #endif
 }
 
@@ -1190,3 +1214,13 @@ TESTCASE (fast_interceptor_performance)
   g_print ("<duration_fast=%f duration_default=%f ratio=%f> ",
       duration_fast, duration_default, duration_fast / duration_default);
 }
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+
+static gdouble GUM_NOINLINE
+gum_test_xmm_clobber (gdouble x)
+{
+  return x * 2.0;
+}
+
+#endif

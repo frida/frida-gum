@@ -1,10 +1,37 @@
 /*
- * Copyright (C) 2008-2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumdefs.h"
+
+#include <string.h>
+
+G_DEFINE_BOXED_TYPE (GumCpuContext, gum_cpu_context, gum_cpu_context_copy,
+    gum_cpu_context_free)
+
+GumCpuContext *
+gum_cpu_context_copy (const GumCpuContext * cpu_context)
+{
+  gsize vectors_size;
+  GumCpuContext * copy;
+
+  vectors_size = GUM_X86_XMM_REG_COUNT * sizeof (GumX86VectorReg);
+
+  copy = g_malloc (sizeof (GumCpuContext) + vectors_size);
+  *copy = *cpu_context;
+  copy->xmm = (GumX86VectorReg *) (copy + 1);
+  memcpy (copy->xmm, cpu_context->xmm, vectors_size);
+
+  return copy;
+}
+
+void
+gum_cpu_context_free (GumCpuContext * cpu_context)
+{
+  g_free (cpu_context);
+}
 
 gpointer
 gum_cpu_context_get_nth_argument (GumCpuContext * self,

@@ -1,10 +1,25 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumdefs.h"
+
+G_DEFINE_BOXED_TYPE (GumCpuContext, gum_cpu_context, gum_cpu_context_copy,
+    gum_cpu_context_free)
+
+GumCpuContext *
+gum_cpu_context_copy (const GumCpuContext * cpu_context)
+{
+  return g_memdup2 (cpu_context, sizeof (GumCpuContext));
+}
+
+void
+gum_cpu_context_free (GumCpuContext * cpu_context)
+{
+  g_free (cpu_context);
+}
 
 gpointer
 gum_cpu_context_get_nth_argument (GumCpuContext * self,

@@ -1392,7 +1392,11 @@ gum_darwin_modify_thread (mach_port_t thread,
   mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
   thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
   GumCpuContext cpu_context, original_cpu_context;
-# if defined (HAVE_ARM) || defined (HAVE_ARM64)
+# if defined (HAVE_I386)
+  GumDarwinNativeFloatState float_state, original_float_state;
+  mach_msg_type_number_t float_state_count = GUM_DARWIN_FLOAT_STATE_COUNT;
+  thread_state_flavor_t float_state_flavor = GUM_DARWIN_FLOAT_STATE_FLAVOR;
+# elif defined (HAVE_ARM) || defined (HAVE_ARM64)
   GumDarwinNativeNeonState neon_state;
   mach_msg_type_number_t neon_state_count = GUM_DARWIN_NEON_STATE_COUNT;
   thread_state_flavor_t neon_state_flavor = GUM_DARWIN_NEON_STATE_FLAVOR;
@@ -1418,7 +1422,15 @@ gum_darwin_modify_thread (mach_port_t thread,
 
   gum_darwin_parse_unified_thread_state (&state, &cpu_context);
 
-# if defined (HAVE_ARM) || defined (HAVE_ARM64)
+# if defined (HAVE_I386)
+  kr = thread_get_state (thread, float_state_flavor,
+      (thread_state_t) &float_state, &float_state_count);
+  if (kr != KERN_SUCCESS)
+    goto beach;
+
+  cpu_context.xmm = (GumX86VectorReg *) &float_state.__fpu_xmm0;
+  memcpy (&original_float_state, &float_state, sizeof (float_state));
+# elif defined (HAVE_ARM) || defined (HAVE_ARM64)
   kr = thread_get_state (thread, neon_state_flavor,
       (thread_state_t) &neon_state, &neon_state_count);
   if (kr != KERN_SUCCESS)
@@ -1447,6 +1459,16 @@ gum_darwin_modify_thread (mach_port_t thread,
         (thread_state_t) &neon_state, neon_state_count);
 # endif
   }
+
+# if defined (HAVE_I386)
+  if (memcmp (&float_state, &original_float_state, sizeof (float_state)) != 0)
+  {
+    kr = thread_set_state (thread, float_state_flavor,
+        (thread_state_t) &float_state, float_state_count);
+    if (kr != KERN_SUCCESS)
+      goto beach;
+  }
+# endif
 
 beach:
   if (is_suspended)
@@ -2831,6 +2853,8 @@ gum_darwin_parse_native_thread_state (const GumDarwinNativeThreadState * ts,
   ctx->edx = ts->__edx;
   ctx->ecx = ts->__ecx;
   ctx->eax = ts->__eax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   ctx->rip = ts->__rip;
 
@@ -2851,6 +2875,8 @@ gum_darwin_parse_native_thread_state (const GumDarwinNativeThreadState * ts,
   ctx->rdx = ts->__rdx;
   ctx->rcx = ts->__rcx;
   ctx->rax = ts->__rax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_ARM)
   guint n;
 

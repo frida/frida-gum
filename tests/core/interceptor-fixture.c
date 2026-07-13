@@ -111,6 +111,9 @@ struct _ListenerContext
   gsize last_seen_argument;
   gpointer last_return_value;
   GumCpuContext last_on_enter_cpu_context;
+#ifdef GUM_CPU_CONTEXT_HAS_OUT_OF_LINE_VECTORS
+  GumX86VectorReg last_on_enter_cpu_context_vectors[GUM_X86_XMM_REG_COUNT];
+#endif
 };
 
 struct _TestInterceptorFixture
@@ -323,6 +326,12 @@ listener_context_on_enter (ListenerContext * self,
   self->last_seen_argument = (gsize)
       gum_invocation_context_get_nth_argument (context, 0);
   self->last_on_enter_cpu_context = *context->cpu_context;
+#ifdef GUM_CPU_CONTEXT_HAS_OUT_OF_LINE_VECTORS
+  memcpy (self->last_on_enter_cpu_context_vectors, context->cpu_context->xmm,
+      sizeof (self->last_on_enter_cpu_context_vectors));
+  self->last_on_enter_cpu_context.xmm =
+      self->last_on_enter_cpu_context_vectors;
+#endif
 
   self->last_thread_id = gum_invocation_context_get_thread_id (context);
 }

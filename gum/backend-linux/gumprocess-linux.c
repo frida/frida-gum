@@ -2459,6 +2459,8 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
   ctx->edx = gr[REG_EDX];
   ctx->ecx = gr[REG_ECX];
   ctx->eax = gr[REG_EAX];
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   const greg_t * gr = uc->uc_mcontext.gregs;
 
@@ -2481,6 +2483,8 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
   ctx->rdx = gr[REG_RDX];
   ctx->rcx = gr[REG_RCX];
   ctx->rax = gr[REG_RAX];
+
+  ctx->xmm = (GumX86VectorReg *) uc->uc_mcontext.fpregs->_xmm;
 #elif defined (HAVE_ARM) && defined (HAVE_LEGACY_MCONTEXT)
   const elf_greg_t * gr = uc->uc_mcontext.gregs;
 
@@ -2800,6 +2804,8 @@ gum_parse_gp_regs (const GumGPRegs * regs,
   ctx->edx = regs->edx;
   ctx->ecx = regs->ecx;
   ctx->eax = regs->eax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   ctx->rip = regs->rip;
 
@@ -2820,6 +2826,8 @@ gum_parse_gp_regs (const GumGPRegs * regs,
   ctx->rdx = regs->rdx;
   ctx->rcx = regs->rcx;
   ctx->rax = regs->rax;
+
+  ctx->xmm = NULL;
 #elif defined (HAVE_ARM)
   gsize i;
 

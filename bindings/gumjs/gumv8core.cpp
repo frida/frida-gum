@@ -6,6 +6,7 @@
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -402,6 +403,10 @@ GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_gpr)
 GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_gpr)
 G_GNUC_UNUSED GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_vector)
 G_GNUC_UNUSED GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_vector)
+#ifdef HAVE_I386
+GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_xmm)
+GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_xmm)
+#endif
 G_GNUC_UNUSED GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_double)
 G_GNUC_UNUSED GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_double)
 G_GNUC_UNUSED GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_float)
@@ -740,6 +745,15 @@ _gum_v8_core_init (GumV8Core * self,
         DEFAULT, \
         DontDelete)
 
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM(A, INDEX) \
+    cpu_context_object->SetAccessor ( \
+        _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
+        gumjs_cpu_context_get_xmm, \
+        gumjs_cpu_context_set_xmm, \
+        Integer::NewFromUnsigned (isolate, INDEX), \
+        DEFAULT, \
+        DontDelete)
+
 #define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_DOUBLE(A, R) \
     cpu_context_object->SetAccessor ( \
         _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
@@ -784,6 +798,15 @@ _gum_v8_core_init (GumV8Core * self,
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (edi);
 
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (eip);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm0, 0);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm1, 1);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm2, 2);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm3, 3);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm4, 4);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm5, 5);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm6, 6);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm7, 7);
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (pc, rip);
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR_ALIASED (sp, rsp);
@@ -807,6 +830,23 @@ _gum_v8_core_init (GumV8Core * self,
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (r15);
 
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (rip);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm0, 0);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm1, 1);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm2, 2);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm3, 3);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm4, 4);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm5, 5);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm6, 6);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm7, 7);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm8, 8);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm9, 9);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm10, 10);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm11, 11);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm12, 12);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm13, 13);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm14, 14);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_XMM (xmm15, 15);
 #elif defined (HAVE_ARM)
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (pc);
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_GPR (sp);
@@ -4237,6 +4277,80 @@ gumjs_cpu_context_set_vector (Local<Name> property,
 
   g_bytes_unref (new_bytes);
 }
+
+#ifdef HAVE_I386
+
+static void
+gumjs_cpu_context_get_xmm (Local<Name> property,
+                           const PropertyCallbackInfo<Value> & info)
+{
+  auto wrapper = info.Holder ();
+  auto cpu_context =
+      (GumCpuContext *) wrapper->GetAlignedPointerFromInternalField (0);
+  guint index = info.Data ().As<Integer> ()->Value ();
+
+  if (cpu_context->xmm == NULL)
+  {
+    info.GetReturnValue ().SetNull ();
+    return;
+  }
+
+  GumX86VectorReg * reg = &cpu_context->xmm[index];
+
+  auto result = ArrayBuffer::New (info.GetIsolate (), sizeof (reg->q));
+  auto store = result.As<ArrayBuffer> ()->GetBackingStore ();
+  memcpy (store->Data (), reg->q, sizeof (reg->q));
+
+  info.GetReturnValue ().Set (result);
+}
+
+static void
+gumjs_cpu_context_set_xmm (Local<Name> property,
+                           Local<Value> value,
+                           const PropertyCallbackInfo<void> & info)
+{
+  auto isolate = info.GetIsolate ();
+  auto wrapper = info.Holder ();
+  auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
+  auto cpu_context =
+      (GumCpuContext *) wrapper->GetAlignedPointerFromInternalField (0);
+  bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
+  guint index = info.Data ().As<Integer> ()->Value ();
+
+  if (!is_mutable)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid operation");
+    return;
+  }
+
+  if (cpu_context->xmm == NULL)
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "vector registers are not available");
+    return;
+  }
+
+  GumX86VectorReg * reg = &cpu_context->xmm[index];
+
+  GBytes * new_bytes = _gum_v8_bytes_get (value, core);
+  if (new_bytes == NULL)
+    return;
+
+  gsize new_size;
+  gconstpointer new_data = g_bytes_get_data (new_bytes, &new_size);
+  if (new_size != sizeof (reg->q))
+  {
+    g_bytes_unref (new_bytes);
+    _gum_v8_throw_ascii_literal (isolate, "incorrect vector size");
+    return;
+  }
+
+  memcpy (reg->q, new_data, new_size);
+
+  g_bytes_unref (new_bytes);
+}
+
+#endif
 
 static void
 gumjs_cpu_context_get_double (Local<Name> property,
