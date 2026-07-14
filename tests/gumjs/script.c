@@ -10998,6 +10998,8 @@ TESTCASE (script_can_be_compiled_to_bytecode)
 
     EXPECT_NO_MESSAGES ();
 
+    gum_script_unload_sync (script, NULL);
+
     g_object_unref (script);
   }
   else
