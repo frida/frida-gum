@@ -77,8 +77,10 @@ static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
 static void gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
     GumFoundModuleFunc func, gpointer user_data);
+#ifdef HAVE_MUSL
 static gpointer gum_link_map_as_module_handle (GumNativeModule * module,
     gpointer user_data);
+#endif
 static void gum_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     gpointer user_data);
 static gpointer gum_create_module_handle (GumNativeModule * module,
@@ -247,8 +249,20 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
 
     gum_compute_elf_range_from_ehdr ((const ElfW(Ehdr) *) lm->l_addr, &range);
 
+    /*
+     * On musl the link_map is a safe dlsym() handle, so we use it directly and
+     * avoid dlopen()ing anything while the rtld notifier holds its lock. On
+     * glibc a startup link_map may carry a scope that isn't a valid dlsym()
+     * starting point (e.g. the libpthread.so.0 stub crashes ld's lookup), so we
+     * create a proper dlopen() handle lazily like the other enumeration paths.
+     */
+#ifdef HAVE_MUSL
     module = _gum_native_module_make (lm->l_name, &range,
         gum_link_map_as_module_handle, (gpointer) lm, NULL, NULL);
+#else
+    module = _gum_native_module_make (lm->l_name, &range,
+        gum_create_module_handle, NULL, NULL, (GDestroyNotify) dlclose);
+#endif
 
     carry_on = func (GUM_MODULE (module), user_data);
 
@@ -262,12 +276,16 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
     func (pm->vdso, user_data);
 }
 
+#ifdef HAVE_MUSL
+
 static gpointer
 gum_link_map_as_module_handle (GumNativeModule * module,
                                gpointer user_data)
 {
   return user_data;
 }
+
+#endif
 
 static void
 gum_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
