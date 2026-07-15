@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
@@ -356,6 +356,21 @@ GUM_API gboolean gum_x86_writer_put_fxsave_reg_ptr (GumX86Writer * self,
     GumX86Reg reg);
 GUM_API gboolean gum_x86_writer_put_fxrstor_reg_ptr (GumX86Writer * self,
     GumX86Reg reg);
+
+GUM_API gboolean gum_x86_writer_put_vmovdqu64_reg_offset_ptr_zmm (
+    GumX86Writer * self, GumX86Reg dst_base, gssize dst_offset, guint src_zmm);
+GUM_API gboolean gum_x86_writer_put_vmovdqu64_zmm_reg_offset_ptr (
+    GumX86Writer * self, guint dst_zmm, GumX86Reg src_base, gssize src_offset);
+GUM_API gboolean gum_x86_writer_put_vextracti64x4_reg_offset_ptr_zmm (
+    GumX86Writer * self, GumX86Reg dst_base, gssize dst_offset, guint src_zmm,
+    guint8 imm);
+GUM_API gboolean gum_x86_writer_put_vinserti64x4_zmm_reg_offset_ptr (
+    GumX86Writer * self, guint dst_zmm, GumX86Reg src_base, gssize src_offset,
+    guint8 imm);
+GUM_API gboolean gum_x86_writer_put_kmovq_reg_offset_ptr_kreg (
+    GumX86Writer * self, GumX86Reg dst_base, gssize dst_offset, guint src_kreg);
+GUM_API gboolean gum_x86_writer_put_kmovq_kreg_reg_offset_ptr (
+    GumX86Writer * self, guint dst_kreg, GumX86Reg src_base, gssize src_offset);
 
 GUM_API void gum_x86_writer_put_u8 (GumX86Writer * self, guint8 value);
 GUM_API void gum_x86_writer_put_s8 (GumX86Writer * self, gint8 value);

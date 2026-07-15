@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
@@ -79,6 +79,12 @@ static gboolean gum_x86_writer_put_near_jmp (GumX86Writer * self,
 static void gum_x86_writer_put_ud2 (GumX86Writer * self);
 static gboolean gum_x86_writer_put_fx_save_or_restore_reg_ptr (
     GumX86Writer * self, guint8 operation, GumX86Reg reg);
+static gboolean gum_x86_writer_put_vector_base_offset (GumX86Writer * self,
+    guint map, guint pp, gboolean w, guint length, guint8 opcode, guint reg,
+    guint vvvv, guint tuple, GumX86Reg base_reg, gssize offset,
+    gboolean has_imm, guint8 imm);
+static gboolean gum_x86_writer_put_kmov_base_offset (GumX86Writer * self,
+    guint8 opcode, guint mask_reg, GumX86Reg base_reg, gssize offset);
 static void gum_x86_writer_describe_cpu_reg (GumX86Writer * self,
     GumX86Reg reg, GumX86RegInfo * ri);
 
@@ -3082,6 +3088,174 @@ gum_x86_writer_put_fx_save_or_restore_reg_ptr (GumX86Writer * self,
 
   if (ri.index == 4)
     gum_x86_writer_put_u8 (self, 0x24);
+
+  return TRUE;
+}
+
+gboolean
+gum_x86_writer_put_vmovdqu64_reg_offset_ptr_zmm (GumX86Writer * self,
+                                                 GumX86Reg dst_base,
+                                                 gssize dst_offset,
+                                                 guint src_zmm)
+{
+  return gum_x86_writer_put_vector_base_offset (self, 1, 2, TRUE, 2, 0x7f,
+      src_zmm, 0, 64, dst_base, dst_offset, FALSE, 0);
+}
+
+gboolean
+gum_x86_writer_put_vmovdqu64_zmm_reg_offset_ptr (GumX86Writer * self,
+                                                 guint dst_zmm,
+                                                 GumX86Reg src_base,
+                                                 gssize src_offset)
+{
+  return gum_x86_writer_put_vector_base_offset (self, 1, 2, TRUE, 2, 0x6f,
+      dst_zmm, 0, 64, src_base, src_offset, FALSE, 0);
+}
+
+gboolean
+gum_x86_writer_put_vextracti64x4_reg_offset_ptr_zmm (GumX86Writer * self,
+                                                     GumX86Reg dst_base,
+                                                     gssize dst_offset,
+                                                     guint src_zmm,
+                                                     guint8 imm)
+{
+  return gum_x86_writer_put_vector_base_offset (self, 3, 1, TRUE, 2, 0x3b,
+      src_zmm, 0, 32, dst_base, dst_offset, TRUE, imm);
+}
+
+gboolean
+gum_x86_writer_put_vinserti64x4_zmm_reg_offset_ptr (GumX86Writer * self,
+                                                    guint dst_zmm,
+                                                    GumX86Reg src_base,
+                                                    gssize src_offset,
+                                                    guint8 imm)
+{
+  return gum_x86_writer_put_vector_base_offset (self, 3, 1, TRUE, 2, 0x3a,
+      dst_zmm, dst_zmm, 32, src_base, src_offset, TRUE, imm);
+}
+
+gboolean
+gum_x86_writer_put_kmovq_reg_offset_ptr_kreg (GumX86Writer * self,
+                                              GumX86Reg dst_base,
+                                              gssize dst_offset,
+                                              guint src_kreg)
+{
+  return gum_x86_writer_put_kmov_base_offset (self, 0x91, src_kreg, dst_base,
+      dst_offset);
+}
+
+gboolean
+gum_x86_writer_put_kmovq_kreg_reg_offset_ptr (GumX86Writer * self,
+                                              guint dst_kreg,
+                                              GumX86Reg src_base,
+                                              gssize src_offset)
+{
+  return gum_x86_writer_put_kmov_base_offset (self, 0x90, dst_kreg, src_base,
+      src_offset);
+}
+
+static gboolean
+gum_x86_writer_put_vector_base_offset (GumX86Writer * self,
+                                       guint map,
+                                       guint pp,
+                                       gboolean w,
+                                       guint length,
+                                       guint8 opcode,
+                                       guint reg,
+                                       guint vvvv,
+                                       guint tuple,
+                                       GumX86Reg base_reg,
+                                       gssize offset,
+                                       gboolean has_imm,
+                                       guint8 imm)
+{
+  GumX86RegInfo base;
+  guint r, x, b, r_prime, vvvv_field, v_prime, mod;
+  gboolean base_forces_disp, has_disp, disp_fits_in_i8;
+
+  gum_x86_writer_describe_cpu_reg (self, base_reg, &base);
+  if (base.width != 64)
+    return FALSE;
+
+  base_forces_disp = base.meta == GUM_X86_META_XBP;
+  has_disp = offset != 0 || base_forces_disp;
+  disp_fits_in_i8 = has_disp && offset % (gssize) tuple == 0 &&
+      GUM_IS_WITHIN_INT8_RANGE (offset / (gssize) tuple);
+  mod = !has_disp ? 0 : (disp_fits_in_i8 ? 1 : 2);
+
+  r = (reg & 8) ? 0 : 1;
+  x = 1;
+  b = base.index_is_extended ? 0 : 1;
+  r_prime = (reg & 16) ? 0 : 1;
+  vvvv_field = ~vvvv & 0xf;
+  v_prime = (vvvv & 16) ? 0 : 1;
+
+  gum_x86_writer_put_u8 (self, 0x62);
+  gum_x86_writer_put_u8 (self,
+      (r << 7) | (x << 6) | (b << 5) | (r_prime << 4) | (map & 0x3));
+  gum_x86_writer_put_u8 (self,
+      (w ? 0x80 : 0) | (vvvv_field << 3) | (1 << 2) | (pp & 0x3));
+  gum_x86_writer_put_u8 (self, ((length & 0x3) << 5) | (v_prime << 3));
+  gum_x86_writer_put_u8 (self, opcode);
+  gum_x86_writer_put_u8 (self,
+      (mod << 6) | ((reg & 0x7) << 3) | (base.index & 0x7));
+
+  if (base.index == 4)
+    gum_x86_writer_put_u8 (self, 0x24);
+
+  if (mod == 1)
+    gum_x86_writer_put_s8 (self, (gint8) (offset / (gssize) tuple));
+  else if (mod == 2)
+  {
+    *((gint32 *) self->code) = GINT32_TO_LE (offset);
+    gum_x86_writer_commit (self, 4);
+  }
+
+  if (has_imm)
+    gum_x86_writer_put_u8 (self, imm);
+
+  return TRUE;
+}
+
+static gboolean
+gum_x86_writer_put_kmov_base_offset (GumX86Writer * self,
+                                     guint8 opcode,
+                                     guint mask_reg,
+                                     GumX86Reg base_reg,
+                                     gssize offset)
+{
+  GumX86RegInfo base;
+  guint b, mod;
+  gboolean base_forces_disp, has_disp, disp_fits_in_i8;
+
+  gum_x86_writer_describe_cpu_reg (self, base_reg, &base);
+  if (base.width != 64)
+    return FALSE;
+
+  base_forces_disp = base.meta == GUM_X86_META_XBP;
+  has_disp = offset != 0 || base_forces_disp;
+  disp_fits_in_i8 = has_disp && GUM_IS_WITHIN_INT8_RANGE (offset);
+  mod = !has_disp ? 0 : (disp_fits_in_i8 ? 1 : 2);
+
+  b = base.index_is_extended ? 0 : 1;
+
+  gum_x86_writer_put_u8 (self, 0xc4);
+  gum_x86_writer_put_u8 (self, (1 << 7) | (1 << 6) | (b << 5) | 0x01);
+  gum_x86_writer_put_u8 (self, (1 << 7) | (0xf << 3));
+  gum_x86_writer_put_u8 (self, opcode);
+  gum_x86_writer_put_u8 (self,
+      (mod << 6) | ((mask_reg & 0x7) << 3) | (base.index & 0x7));
+
+  if (base.index == 4)
+    gum_x86_writer_put_u8 (self, 0x24);
+
+  if (mod == 1)
+    gum_x86_writer_put_s8 (self, (gint8) offset);
+  else if (mod == 2)
+  {
+    *((gint32 *) self->code) = GINT32_TO_LE (offset);
+    gum_x86_writer_commit (self, 4);
+  }
 
   return TRUE;
 }
