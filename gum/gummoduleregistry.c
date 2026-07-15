@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Sam Sun <samsun@nvidia.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +9,7 @@
 
 #include "gum-init.h"
 #include "gumcloak.h"
+#include "guminterceptor-priv.h"
 #include "gummoduleregistry-priv.h"
 
 #define GUM_MODULE_REGISTRY_LOCK(r) g_rec_mutex_lock (&(r)->mutex)
@@ -382,6 +384,8 @@ _gum_module_registry_unregister (GumModuleRegistry * self,
   }
 
   GUM_MODULE_REGISTRY_UNLOCK (self);
+
+  _gum_interceptor_forget_all_hooks_in_range (gum_module_get_range (mod));
 
   if (being_observed && !gum_is_cloaked_module (mod))
     g_signal_emit (self, gum_module_registry_signals[MODULE_REMOVED], 0, mod);

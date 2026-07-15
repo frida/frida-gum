@@ -39,6 +39,10 @@ if host_os_family != 'windows'
   shared_module('prebuiltcmodule', 'prebuiltcmodule.c',
     name_prefix: '',
   )
+
+  shared_module('module-registry-target', 'module-registry-target.c',
+    name_prefix: '',
+  )
 else
   test_data_stamp = []
 endif

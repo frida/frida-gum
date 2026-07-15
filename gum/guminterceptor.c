@@ -3,6 +3,7 @@
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
+ * Copyright (C) 2026 Sam Sun <samsun@nvidia.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -193,6 +194,7 @@ static GumFunctionContext * gum_function_context_new (
     GumInterceptorType type);
 static void gum_function_context_finalize (GumFunctionContext * function_ctx);
 static void gum_function_context_destroy (GumFunctionContext * function_ctx);
+static void gum_function_context_discard (GumFunctionContext * function_ctx);
 static void gum_function_context_perform_destroy (
     GumFunctionContext * function_ctx);
 static gboolean gum_function_context_is_empty (
@@ -245,6 +247,8 @@ static gpointer gum_interceptor_resolve (GumInterceptor * self,
     gpointer address);
 static gboolean gum_interceptor_has (GumInterceptor * self,
     gpointer function_address);
+static void gum_interceptor_discard_function_contexts_in_range (
+    GumInterceptor * self, const GumMemoryRange * range);
 
 static gpointer gum_page_address_from_pointer (gpointer ptr);
 static gint gum_page_address_compare (gconstpointer * a, gconstpointer * b);
@@ -1323,6 +1327,56 @@ gum_interceptor_detect_hook_size (gconstpointer code,
   return _gum_interceptor_backend_detect_hook_size (code, capstone, insn);
 }
 
+void
+_gum_interceptor_forget_all_hooks_in_range (const GumMemoryRange * range)
+{
+  GumInterceptor * interceptor;
+
+  g_mutex_lock (&_gum_interceptor_lock);
+  interceptor = (_the_interceptor != NULL)
+      ? g_object_ref (_the_interceptor)
+      : NULL;
+  g_mutex_unlock (&_gum_interceptor_lock);
+
+  if (interceptor == NULL)
+    return;
+
+  gum_interceptor_discard_function_contexts_in_range (interceptor, range);
+
+  g_object_unref (interceptor);
+}
+
+static void
+gum_interceptor_discard_function_contexts_in_range (
+    GumInterceptor * self,
+    const GumMemoryRange * range)
+{
+  GHashTableIter iter;
+  gpointer value;
+
+  GUM_INTERCEPTOR_LOCK (self);
+  gum_interceptor_transaction_begin (&self->current_transaction);
+
+  g_hash_table_iter_init (&iter, self->function_by_address);
+  while (g_hash_table_iter_next (&iter, NULL, &value))
+  {
+    GumFunctionContext * function_ctx = value;
+    GumAddress function_address = GUM_ADDRESS (
+        _gum_interceptor_backend_get_function_address (function_ctx));
+
+    if (!GUM_MEMORY_RANGE_INCLUDES (range, function_address))
+      continue;
+
+    self->current_transaction.is_dirty = TRUE;
+
+    g_hash_table_iter_steal (&iter);
+    gum_function_context_discard (function_ctx);
+  }
+
+  gum_interceptor_transaction_end (&self->current_transaction);
+  GUM_INTERCEPTOR_UNLOCK (self);
+}
+
 gpointer
 _gum_interceptor_peek_top_caller_return_address (void)
 {
@@ -1745,6 +1799,19 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
     gum_interceptor_transaction_schedule_update (transaction, function_ctx,
         gum_interceptor_deactivate);
   }
+
+  gum_interceptor_transaction_schedule_destroy (transaction, function_ctx,
+      (GDestroyNotify) gum_function_context_perform_destroy, function_ctx);
+}
+
+static void
+gum_function_context_discard (GumFunctionContext * function_ctx)
+{
+  GumInterceptorTransaction * transaction =
+      &function_ctx->interceptor->current_transaction;
+
+  function_ctx->destroyed = TRUE;
+  function_ctx->activated = FALSE;
 
   gum_interceptor_transaction_schedule_destroy (transaction, function_ctx,
       (GDestroyNotify) gum_function_context_perform_destroy, function_ctx);
