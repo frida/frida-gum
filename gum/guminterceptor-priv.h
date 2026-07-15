@@ -2,6 +2,7 @@
  * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
+ * Copyright (C) 2026 Sam Sun <samsun@nvidia.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +13,7 @@
 #include "guminterceptor.h"
 
 #include "gumcodeallocator.h"
+#include "gummemory.h"
 #include "gumspinlock.h"
 #include "gumtls.h"
 
@@ -79,6 +81,9 @@ struct _GumFunctionContext
 
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
+
+G_GNUC_INTERNAL void _gum_interceptor_forget_all_hooks_in_range (
+    const GumMemoryRange * range);
 
 G_GNUC_INTERNAL gboolean _gum_function_context_begin_invocation (
     GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
