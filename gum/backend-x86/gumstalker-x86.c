@@ -3558,6 +3558,28 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
   {
     gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 0x100);
     gum_x86_writer_put_bytes (cw, upper_ymm_saver, sizeof (upper_ymm_saver));
+
+#if GLIB_SIZEOF_VOID_P == 8
+    if ((ctx->stalker->cpu_features & GUM_CPU_AVX512) != 0)
+    {
+      guint i;
+
+      gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 16 * 32);
+      for (i = 0; i != 16; i++)
+        gum_x86_writer_put_vextracti64x4_reg_offset_ptr_zmm (cw, GUM_X86_XSP,
+            i * 32, i, 1);
+
+      gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 16 * 64);
+      for (i = 16; i != 32; i++)
+        gum_x86_writer_put_vmovdqu64_reg_offset_ptr_zmm (cw, GUM_X86_XSP,
+            (i - 16) * 64, i);
+
+      gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP, 8 * 8);
+      for (i = 0; i != 8; i++)
+        gum_x86_writer_put_kmovq_reg_offset_ptr_kreg (cw, GUM_X86_XSP,
+            i * 8, i);
+    }
+#endif
   }
 
   /* Jump to our caller but leave it on the stack */
@@ -3618,6 +3640,27 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
   if ((ctx->stalker->cpu_features & GUM_CPU_AVX2) != 0 &&
       !_gum_windows_is_win7_wow64 ())
   {
+#if GLIB_SIZEOF_VOID_P == 8
+    if ((ctx->stalker->cpu_features & GUM_CPU_AVX512) != 0)
+    {
+      guint i;
+
+      for (i = 0; i != 8; i++)
+        gum_x86_writer_put_kmovq_kreg_reg_offset_ptr (cw, i, GUM_X86_XSP,
+            i * 8);
+      gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XSP, 8 * 8);
+
+      for (i = 16; i != 32; i++)
+        gum_x86_writer_put_vmovdqu64_zmm_reg_offset_ptr (cw, i, GUM_X86_XSP,
+            (i - 16) * 64);
+      gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XSP, 16 * 64);
+
+      for (i = 0; i != 16; i++)
+        gum_x86_writer_put_vinserti64x4_zmm_reg_offset_ptr (cw, i, GUM_X86_XSP,
+            i * 32, 1);
+      gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XSP, 16 * 32);
+    }
+#endif
     gum_x86_writer_put_bytes (cw, upper_ymm_restorer,
         sizeof (upper_ymm_restorer));
     gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XSP, 0x100);
