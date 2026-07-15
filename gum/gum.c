@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Stefano Moioli <smxdev4@gmail.com>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  *
@@ -700,6 +700,7 @@ gum_do_query_cpu_features (void)
 {
   GumCpuFeatures features = 0;
   gboolean cpu_supports_avx2 = FALSE;
+  gboolean cpu_supports_avx512 = FALSE;
   gboolean cpu_supports_cet_ss = FALSE;
   gboolean os_enabled_xsave = FALSE;
   guint a, b, c, d;
@@ -707,6 +708,7 @@ gum_do_query_cpu_features (void)
   if (gum_get_cpuid (7, &a, &b, &c, &d))
   {
     cpu_supports_avx2 = (b & (1 << 5)) != 0;
+    cpu_supports_avx512 = (b & (1 << 16)) != 0;
     cpu_supports_cet_ss = (c & (1 << 7)) != 0;
   }
 
@@ -715,6 +717,9 @@ gum_do_query_cpu_features (void)
 
   if (cpu_supports_avx2 && os_enabled_xsave)
     features |= GUM_CPU_AVX2;
+
+  if (cpu_supports_avx512 && os_enabled_xsave)
+    features |= GUM_CPU_AVX512;
 
   if (cpu_supports_cet_ss)
     features |= GUM_CPU_CET_SS;
