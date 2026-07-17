@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1822,12 +1823,17 @@ gum_emit_arm64_resolve_if_needed (const GumDarwinBindDetails * details,
 {
   GumDarwinMapper * self = ctx->mapper;
   GumArm64Writer * aw = ctx->aw;
+  gboolean bind_target_stored_by_chain_processor;
   GumDarwinMapping * dependency;
   GumDarwinSymbolValue value;
   gboolean success;
   GumAddress entry;
 
   if (details->type != GUM_DARWIN_BIND_POINTER)
+    return TRUE;
+
+  bind_target_stored_by_chain_processor = self->threaded_symbols != NULL;
+  if (bind_target_stored_by_chain_processor)
     return TRUE;
 
   dependency = gum_darwin_mapper_get_dependency_by_ordinal (self,
