@@ -93,7 +93,7 @@ static gboolean gum_query_program_ranges (GumReadAuxvFunc read_auxv,
 static ElfW(auxv_t) * gum_read_auxv_from_proc (void);
 static ElfW(auxv_t) * gum_read_auxv_from_stack (void);
 static gboolean gum_query_main_thread_stack_range (GumMemoryRange * range);
-static void gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
+static gboolean gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
     GumMemoryRange * range);
 static void gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
     ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress base_address,
@@ -229,15 +229,12 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
                                      GumFoundModuleFunc func,
                                      gpointer user_data)
 {
-  GHashTable * named_ranges;
+  GHashTable * named_ranges = NULL;
   const struct link_map * lm;
   gboolean carry_on = TRUE;
 
-  named_ranges = gum_linux_collect_named_ranges ();
-
   for (lm = gum_r_debug->r_map; lm != NULL && carry_on; lm = lm->l_next)
   {
-    GumLinuxNamedRange * named_range;
     GumMemoryRange range;
     GumNativeModule * module;
 
@@ -247,13 +244,19 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
       continue;
     }
 
-    named_range = g_hash_table_lookup (named_ranges,
-        GSIZE_TO_POINTER (lm->l_addr));
-    if (named_range == NULL)
-      continue;
+    if (!gum_compute_elf_range_from_ehdr ((const ElfW(Ehdr) *) lm->l_addr,
+        &range))
+    {
+      GumLinuxNamedRange * named_range;
 
-    range.base_address = GUM_ADDRESS (named_range->base);
-    range.size = named_range->size;
+      if (named_ranges == NULL)
+        named_ranges = gum_linux_collect_named_ranges ();
+
+      named_range = g_hash_table_lookup (named_ranges,
+          GSIZE_TO_POINTER (lm->l_addr));
+      range.base_address = GUM_ADDRESS (named_range->base);
+      range.size = named_range->size;
+    }
 
     module = _gum_native_module_make (lm->l_name, &range,
         gum_link_map_as_module_handle, (gpointer) lm, NULL, NULL);
@@ -266,7 +269,8 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
   if (carry_on && pm->vdso != NULL)
     func (pm->vdso, user_data);
 
-  g_hash_table_unref (named_ranges);
+  if (named_ranges != NULL)
+    g_hash_table_unref (named_ranges);
 }
 
 static gpointer
@@ -912,19 +916,27 @@ gum_query_main_thread_stack_range (GumMemoryRange * range)
   return range->size != 0;
 }
 
-static void
+static gboolean
 gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
                                  GumMemoryRange * range)
 {
+  gsize phdrs_end;
+  gboolean phdrs_mapped_with_ehdr;
+
+  range->base_address = 0;
+  range->size = 0;
+
   if (ehdr == NULL)
-  {
-    range->base_address = 0;
-    range->size = 0;
-    return;
-  }
+    return TRUE;
+
+  phdrs_end = ehdr->e_phoff + (gsize) ehdr->e_phnum * ehdr->e_phentsize;
+  phdrs_mapped_with_ehdr = phdrs_end <= gum_query_page_size ();
+  if (!phdrs_mapped_with_ehdr)
+    return FALSE;
 
   gum_compute_elf_range_from_phdrs ((gconstpointer) ehdr + ehdr->e_phoff,
       ehdr->e_phentsize, ehdr->e_phnum, GUM_ADDRESS (ehdr), range);
+  return TRUE;
 }
 
 static void
