@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1611,7 +1611,11 @@ GumV8PageAllocator::AllocatePages (void * address,
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
 
   gpointer base = NULL;
-#ifdef HAVE_DARWIN
+  /*
+   * Restricted to macOS: on iOS these MAP_JIT pages resist our
+   * SetPermissions(), so we let gum_memory_allocate() serve V8's code range.
+   */
+#ifdef HAVE_MACOS
   if (permissions == PageAllocator::kNoAccessWillJitLater)
   {
     g_assert (alignment == gum_query_page_size ());
