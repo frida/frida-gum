@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025-2026 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -537,96 +537,6 @@ gum_clear_cache (gpointer address,
 {
   sys_icache_invalidate (address, size);
   sys_dcache_flush (address, size);
-}
-
-gpointer
-gum_try_alloc_n_pages (guint n_pages,
-                       GumPageProtection prot)
-{
-  return gum_try_alloc_n_pages_near (n_pages, prot, NULL);
-}
-
-gpointer
-gum_try_alloc_n_pages_near (guint n_pages,
-                            GumPageProtection prot,
-                            const GumAddressSpec * spec)
-{
-  guint8 * base;
-  gsize page_size, size;
-
-  page_size = gum_query_page_size ();
-  size = (1 + n_pages) * page_size;
-
-  base = gum_memory_allocate_near (spec, size, page_size, prot);
-  if (base == NULL)
-    return NULL;
-
-  if ((prot & GUM_PAGE_EXECUTE) == 0 || !gum_memory_can_remap_writable ())
-  {
-    if ((prot & GUM_PAGE_WRITE) == 0)
-      gum_mprotect (base, page_size, GUM_PAGE_RW);
-
-    *((gsize *) base) = size;
-
-    gum_mprotect (base, page_size, GUM_PAGE_READ);
-  }
-  else
-  {
-    gpointer writable;
-
-    gum_mprotect (base, page_size, GUM_PAGE_RX);
-
-    if (gum_darwin_is_debugger_mapping_enforced ())
-    {
-      GumPagePlanBuilder plan;
-
-      _gum_page_plan_builder_init (&plan);
-
-      _gum_page_plan_builder_add_pages (&plan, base, 1 + n_pages);
-
-      if (!_gum_page_plan_builder_post (&plan))
-        g_abort ();
-
-      _gum_page_plan_builder_free (&plan);
-    }
-
-    writable = gum_memory_try_remap_writable_pages (base, 1);
-    g_assert (writable != NULL);
-
-    *((gsize *) writable) = size;
-
-    gum_memory_dispose_writable_pages (writable, 1);
-  }
-
-  return base + page_size;
-}
-
-void
-gum_query_page_allocation_range (gconstpointer mem,
-                                 guint size,
-                                 GumMemoryRange * range)
-{
-  gsize page_size = gum_query_page_size ();
-
-  range->base_address = GUM_ADDRESS (mem - page_size);
-  range->size = size + page_size;
-}
-
-void
-gum_free_pages (gpointer mem)
-{
-  gsize page_size;
-  mach_vm_address_t address;
-  mach_vm_size_t size;
-  G_GNUC_UNUSED kern_return_t kr;
-
-  page_size = gum_query_page_size ();
-
-  address = GPOINTER_TO_SIZE (mem) - page_size;
-  size = *((gsize *) address);
-
-  kr = mach_vm_deallocate (mach_task_self (), address, size);
-  g_assert (kr == KERN_SUCCESS);
 }
 
 gpointer

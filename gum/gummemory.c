@@ -713,8 +713,10 @@ gum_memory_patch_code_pages_via_mprotect (GPtrArray * sorted_addresses,
     return TRUE;
   }
 
-  scratch = gum_alloc_n_pages (sorted_addresses->len, GUM_PAGE_RW);
-  pristine = gum_alloc_n_pages (sorted_addresses->len, GUM_PAGE_RW);
+  scratch = gum_memory_allocate (NULL, sorted_addresses->len * page_size,
+      page_size, GUM_PAGE_RW);
+  pristine = gum_memory_allocate (NULL, sorted_addresses->len * page_size,
+      page_size, GUM_PAGE_RW);
 
   source_page = scratch;
   for (i = 0; i != sorted_addresses->len; i++)
@@ -840,8 +842,8 @@ gum_memory_patch_code_pages_via_mprotect (GPtrArray * sorted_addresses,
 
   gum_metal_array_free (&suspend_op.suspended_threads);
 
-  gum_free_pages (scratch);
-  gum_free_pages (pristine);
+  gum_memory_free (scratch, sorted_addresses->len * page_size);
+  gum_memory_free (pristine, sorted_addresses->len * page_size);
 
   return result;
 }
@@ -2117,31 +2119,6 @@ gum_internal_free (gpointer mem)
 }
 
 #endif
-
-gpointer
-gum_alloc_n_pages (guint n_pages,
-                   GumPageProtection prot)
-{
-  gpointer result;
-
-  result = gum_try_alloc_n_pages (n_pages, prot);
-  g_assert (result != NULL);
-
-  return result;
-}
-
-gpointer
-gum_alloc_n_pages_near (guint n_pages,
-                        GumPageProtection prot,
-                        const GumAddressSpec * spec)
-{
-  gpointer result;
-
-  result = gum_try_alloc_n_pages_near (n_pages, prot, spec);
-  g_assert (result != NULL);
-
-  return result;
-}
 
 gboolean
 gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,

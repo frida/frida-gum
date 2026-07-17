@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -149,51 +149,6 @@ gum_clear_cache (gpointer address,
                  gsize size)
 {
   FlushInstructionCache (GetCurrentProcess (), address, size);
-}
-
-gpointer
-gum_try_alloc_n_pages (guint n_pages,
-                       GumPageProtection prot)
-{
-  return gum_try_alloc_n_pages_near (n_pages, prot, NULL);
-}
-
-gpointer
-gum_try_alloc_n_pages_near (guint n_pages,
-                            GumPageProtection prot,
-                            const GumAddressSpec * spec)
-{
-  gpointer result;
-  gsize page_size, size;
-
-  page_size = gum_query_page_size ();
-  size = n_pages * page_size;
-
-  result = gum_memory_allocate_near (spec, size, page_size, prot);
-  if (result != NULL && prot == GUM_PAGE_NO_ACCESS)
-  {
-    gum_memory_recommit (result, size, prot);
-  }
-
-  return result;
-}
-
-void
-gum_query_page_allocation_range (gconstpointer mem,
-                                 guint size,
-                                 GumMemoryRange * range)
-{
-  range->base_address = GUM_ADDRESS (mem);
-  range->size = size;
-}
-
-void
-gum_free_pages (gpointer mem)
-{
-  BOOL success G_GNUC_UNUSED;
-
-  success = VirtualFree (mem, 0, MEM_RELEASE);
-  g_assert (success);
 }
 
 gpointer

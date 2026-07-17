@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -61,61 +61,6 @@ guint
 _gum_memory_backend_query_page_size (void)
 {
   return sysconf (_SC_PAGE_SIZE);
-}
-
-gpointer
-gum_try_alloc_n_pages (guint n_pages,
-                       GumPageProtection prot)
-{
-  return gum_try_alloc_n_pages_near (n_pages, prot, NULL);
-}
-
-gpointer
-gum_try_alloc_n_pages_near (guint n_pages,
-                            GumPageProtection prot,
-                            const GumAddressSpec * spec)
-{
-  guint8 * base;
-  gsize page_size, size;
-
-  page_size = gum_query_page_size ();
-  size = (1 + n_pages) * page_size;
-
-  base = gum_memory_allocate_near (spec, size, page_size, prot);
-  if (base == NULL)
-    return NULL;
-
-  if ((prot & GUM_PAGE_WRITE) == 0)
-    gum_mprotect (base, page_size, GUM_PAGE_RW);
-
-  *((gsize *) base) = size;
-
-  gum_mprotect (base, page_size, GUM_PAGE_READ);
-
-  return base + page_size;
-}
-
-void
-gum_query_page_allocation_range (gconstpointer mem,
-                                 guint size,
-                                 GumMemoryRange * range)
-{
-  gsize page_size = gum_query_page_size ();
-
-  range->base_address = GUM_ADDRESS (mem - page_size);
-  range->size = size + page_size;
-}
-
-void
-gum_free_pages (gpointer mem)
-{
-  guint8 * start;
-  gsize size;
-
-  start = mem - gum_query_page_size ();
-  size = *((gsize *) start);
-
-  gum_memory_release (start, size);
 }
 
 gpointer

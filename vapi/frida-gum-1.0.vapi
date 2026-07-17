@@ -38,13 +38,6 @@ namespace Gum {
 	public void * memdup (void * mem, size_t byte_size);
 	public void free (void * mem);
 
-	public void * alloc_n_pages (uint n_pages, Gum.PageProtection prot);
-	public void * try_alloc_n_pages (uint n_pages, Gum.PageProtection prot);
-	public void * alloc_n_pages_near (uint n_pages, Gum.PageProtection prot, Gum.AddressSpec spec);
-	public void * try_alloc_n_pages_near (uint n_pages, Gum.PageProtection prot, Gum.AddressSpec spec);
-	public void query_page_allocation_range (void * mem, uint size, out Gum.MemoryRange range);
-	public void free_pages (void * mem);
-
 	public void * memory_allocate (void * address, size_t size, size_t alignment, Gum.PageProtection prot);
 	public void * memory_allocate_near (Gum.AddressSpec spec, size_t size, size_t alignment, Gum.PageProtection prot);
 	public bool memory_free (void * address, size_t size);

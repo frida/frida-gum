@@ -176,16 +176,6 @@ GUM_API gpointer gum_memalign (gsize alignment, gsize size);
 GUM_API gpointer gum_memdup (gconstpointer mem, gsize byte_size);
 GUM_API void gum_free (gpointer mem);
 
-GUM_API gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection prot);
-GUM_API gpointer gum_try_alloc_n_pages (guint n_pages, GumPageProtection prot);
-GUM_API gpointer gum_alloc_n_pages_near (guint n_pages, GumPageProtection prot,
-    const GumAddressSpec * spec);
-GUM_API gpointer gum_try_alloc_n_pages_near (guint n_pages,
-    GumPageProtection prot, const GumAddressSpec * spec);
-GUM_API void gum_query_page_allocation_range (gconstpointer mem, guint size,
-    GumMemoryRange * range);
-GUM_API void gum_free_pages (gpointer mem);
-
 GUM_API gpointer gum_memory_allocate (gpointer address, gsize size,
     gsize alignment, GumPageProtection prot);
 GUM_API gpointer gum_memory_allocate_near (const GumAddressSpec * spec,
