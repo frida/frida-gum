@@ -128,6 +128,8 @@ gum_page_pool_constructed (GObject * object)
   self->available = self->size;
   self->pool = gum_memory_allocate (NULL, self->size * self->page_size,
       self->page_size, GUM_PAGE_NO_ACCESS);
+  gum_memory_recommit (self->pool, self->size * self->page_size,
+      GUM_PAGE_NO_ACCESS);
   self->pool_end = self->pool + (self->size * self->page_size);
   self->block_details = g_malloc0 (self->size * sizeof (GumBlockDetails));
 }

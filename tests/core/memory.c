@@ -730,6 +730,7 @@ TESTCASE (mprotect_handles_page_boundaries)
   page_size = gum_query_page_size ();
   pages = gum_memory_allocate (NULL, 2 * page_size, page_size,
       GUM_PAGE_NO_ACCESS);
+  gum_memory_recommit (pages, 2 * page_size, GUM_PAGE_NO_ACCESS);
 
   gum_mprotect (pages + page_size - 1, 2, GUM_PAGE_RW);
   pages[page_size - 1] = 0x13;
