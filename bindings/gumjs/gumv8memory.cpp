@@ -166,6 +166,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
       return _gum_v8_throw_ascii_literal (isolate,
           "unable to allocate free page(s) near address");
     }
+    if (prot == GUM_PAGE_NO_ACCESS)
+      gum_memory_recommit (result, size, prot);
 
     res = _gum_v8_native_resource_new_from_pages (result, size, core);
   }
@@ -183,8 +185,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
     }
     else
     {
-      res = _gum_v8_native_resource_new_from_pages (
-          gum_memory_allocate (NULL, size, page_size, prot), size, core);
+      gpointer result;
+
+      result = gum_memory_allocate (NULL, size, page_size, prot);
+      if (prot == GUM_PAGE_NO_ACCESS)
+        gum_memory_recommit (result, size, prot);
+
+      res = _gum_v8_native_resource_new_from_pages (result, size, core);
     }
   }
 
