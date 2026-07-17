@@ -2,7 +2,7 @@
  * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2019 Jon Wilson <jonwilson@zepler.net>
- * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1443,6 +1443,30 @@ gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self,
     gum_arm64_writer_put_instruction (self, rd.sf | 0x2a000000 | rd.index |
         (GUM_MREG_ZR << 5) | (rs.index << 16));
   }
+
+  return TRUE;
+}
+
+gboolean
+gum_arm64_writer_put_movk_reg_imm (GumArm64Writer * self,
+                                   arm64_reg reg,
+                                   guint16 imm,
+                                   guint shift)
+{
+  GumArm64RegInfo ri;
+  guint hw;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  if (shift % 16 != 0 || shift > 48)
+    return FALSE;
+
+  hw = shift / 16;
+  if (ri.width == 32 && hw > 1)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self,
+      ri.sf | 0x72800000 | (hw << 21) | (imm << 5) | ri.index);
 
   return TRUE;
 }

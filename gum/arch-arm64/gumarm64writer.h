@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
- * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -203,6 +203,8 @@ GUM_API void gum_arm64_writer_put_mov_reg_nzcv (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API void gum_arm64_writer_put_mov_nzcv_reg (GumArm64Writer * self,
     arm64_reg reg);
+GUM_API gboolean gum_arm64_writer_put_movk_reg_imm (GumArm64Writer * self,
+    arm64_reg reg, guint16 imm, guint shift);
 GUM_API gboolean gum_arm64_writer_put_uxtw_reg_reg (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg src_reg);
 GUM_API gboolean gum_arm64_writer_put_add_reg_reg_imm (GumArm64Writer * self,
