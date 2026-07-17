@@ -1769,6 +1769,25 @@ gum_arm64_writer_put_xpaci_reg (GumArm64Writer * self,
   return TRUE;
 }
 
+gboolean
+gum_arm64_writer_put_pacia_reg_reg (GumArm64Writer * self,
+                                    arm64_reg dst_reg,
+                                    arm64_reg mod_reg)
+{
+  GumArm64RegInfo rd, rm;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+  gum_arm64_writer_describe_reg (self, mod_reg, &rm);
+
+  if (rd.width != 64 || rm.width != 64)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self,
+      0xdac10000 | rd.index | (rm.index << 5));
+
+  return TRUE;
+}
+
 void
 gum_arm64_writer_put_nop (GumArm64Writer * self)
 {
