@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,28 +23,34 @@ TESTLIST_END ()
 
 TESTCASE (range_clip_should_not_include_uncloaked)
 {
+  gsize page_size;
   gpointer page;
   GumMemoryRange range;
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   range.base_address = GUM_ADDRESS (page);
-  range.size = gum_query_page_size ();
+  range.size = page_size;
   g_assert_null (gum_cloak_clip_range (&range));
 
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 }
 
 TESTCASE (range_clip_should_handle_full_clip)
 {
+  gsize page_size;
   gpointer page;
   GumMemoryRange range;
   GArray * clipped;
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   range.base_address = GUM_ADDRESS (page);
-  range.size = gum_query_page_size ();
+  range.size = page_size;
   gum_cloak_add_range (&range);
 
   clipped = gum_cloak_clip_range (&range);
@@ -54,7 +60,7 @@ TESTCASE (range_clip_should_handle_full_clip)
 
   gum_cloak_remove_range (&range);
 
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 }
 
 TESTCASE (range_clip_should_handle_bottom_clip)
@@ -66,9 +72,9 @@ TESTCASE (range_clip_should_handle_bottom_clip)
   GArray * clipped;
   GumMemoryRange * r;
 
-  pages = gum_alloc_n_pages (2, GUM_PAGE_RW);
-
   page_size = gum_query_page_size ();
+
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
 
   cloaked_range.base_address = GUM_ADDRESS (pages);
   cloaked_range.size = page_size;
@@ -86,7 +92,7 @@ TESTCASE (range_clip_should_handle_bottom_clip)
 
   gum_cloak_remove_range (&cloaked_range);
 
-  gum_free_pages (pages);
+  gum_memory_free (pages, 2 * page_size);
 }
 
 TESTCASE (range_clip_should_handle_middle_clip)
@@ -98,9 +104,9 @@ TESTCASE (range_clip_should_handle_middle_clip)
   GArray * clipped;
   GumMemoryRange * r;
 
-  pages = gum_alloc_n_pages (3, GUM_PAGE_RW);
-
   page_size = gum_query_page_size ();
+
+  pages = gum_memory_allocate (NULL, 3 * page_size, page_size, GUM_PAGE_RW);
 
   cloaked_range.base_address = GUM_ADDRESS (pages) + page_size;
   cloaked_range.size = page_size;
@@ -121,7 +127,7 @@ TESTCASE (range_clip_should_handle_middle_clip)
 
   gum_cloak_remove_range (&cloaked_range);
 
-  gum_free_pages (pages);
+  gum_memory_free (pages, 3 * page_size);
 }
 
 TESTCASE (range_clip_should_handle_top_clip)
@@ -133,9 +139,9 @@ TESTCASE (range_clip_should_handle_top_clip)
   GArray * clipped;
   GumMemoryRange * r;
 
-  pages = gum_alloc_n_pages (2, GUM_PAGE_RW);
-
   page_size = gum_query_page_size ();
+
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
 
   cloaked_range.base_address = GUM_ADDRESS (pages) + page_size;
   cloaked_range.size = page_size;
@@ -153,25 +159,28 @@ TESTCASE (range_clip_should_handle_top_clip)
 
   gum_cloak_remove_range (&cloaked_range);
 
-  gum_free_pages (pages);
+  gum_memory_free (pages, 2 * page_size);
 }
 
 TESTCASE (full_range_removal_should_impact_clip)
 {
+  gsize page_size;
   gpointer page;
   GumMemoryRange range;
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   range.base_address = GUM_ADDRESS (page);
-  range.size = gum_query_page_size ();
+  range.size = page_size;
 
   gum_cloak_add_range (&range);
   gum_cloak_remove_range (&range);
 
   g_assert_null (gum_cloak_clip_range (&range));
 
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 }
 
 TESTCASE (partial_range_removal_should_impact_clip)
@@ -183,9 +192,9 @@ TESTCASE (partial_range_removal_should_impact_clip)
   GArray * clipped;
   GumMemoryRange * r;
 
-  pages = gum_alloc_n_pages (3, GUM_PAGE_RW);
-
   page_size = gum_query_page_size ();
+
+  pages = gum_memory_allocate (NULL, 3 * page_size, page_size, GUM_PAGE_RW);
 
   cloaked_range.base_address = GUM_ADDRESS (pages);
   cloaked_range.size = 3 * page_size;
@@ -217,5 +226,5 @@ TESTCASE (partial_range_removal_should_impact_clip)
   clipped = gum_cloak_clip_range (&full_range);
   g_assert_null (clipped);
 
-  gum_free_pages (pages);
+  gum_memory_free (pages, 3 * page_size);
 }

@@ -23,7 +23,7 @@ struct _GumFakeEventSink
 
   GumEventType mask;
   /*
-   * Page-backed (GumMetalArray uses gum_alloc_n_pages()), so appending an
+   * Page-backed (GumMetalArray uses gum_memory_allocate()), so appending an
    * event never re-enters the heap allocator. The sink's process() runs on
    * the stalked thread, which may be executing instrumented allocator code
    * while holding the heap lock -- a g_array_append() there would deadlock.

@@ -120,7 +120,9 @@ struct _TestArmStalkerFixture
   const GumMemoryRange * runner_range;
 
   guint8 * code;
+  gsize code_size;
   guint8 * invoker;
+  gsize invoker_size;
 };
 
 struct _UnfollowTransformContext
@@ -186,7 +188,7 @@ test_arm_stalker_fixture_teardown (TestArmStalkerFixture * fixture,
   g_object_unref (fixture->stalker);
 
   if (fixture->code != NULL)
-    gum_free_pages (fixture->code);
+    gum_memory_free (fixture->code, fixture->code_size);
 }
 
 static GumAddress
@@ -195,14 +197,18 @@ test_arm_stalker_fixture_dup_code (TestArmStalkerFixture * fixture,
                                    guint tpl_size)
 {
   GumAddressSpec spec;
+  gsize page_size;
 
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
 
   if (fixture->code != NULL)
-    gum_free_pages (fixture->code);
-  fixture->code = gum_alloc_n_pages_near (
-      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RW, &spec);
+    gum_memory_free (fixture->code, fixture->code_size);
+
+  page_size = gum_query_page_size ();
+  fixture->code_size = ((tpl_size / page_size) + 1) * page_size;
+  fixture->code = gum_memory_allocate_near (&spec, fixture->code_size,
+      page_size, GUM_PAGE_RW);
   memcpy (fixture->code, tpl_code, tpl_size);
   gum_memory_mark_code (fixture->code, tpl_size);
 
@@ -249,12 +255,17 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
 {
   guint32 retval;
   GumAddressSpec spec;
+  gsize page_size;
   GumArmWriter cw;
   GCallback stalked_func;
 
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
-  fixture->invoker = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
+
+  page_size = gum_query_page_size ();
+  fixture->invoker_size = page_size;
+  fixture->invoker = gum_memory_allocate_near (&spec, fixture->invoker_size,
+      page_size, GUM_PAGE_RW);
 
   gum_arm_writer_init (&cw, fixture->invoker);
 
@@ -299,7 +310,7 @@ test_arm_stalker_fixture_follow_and_invoke (TestArmStalkerFixture * fixture,
   stalked_func = GUM_POINTER_TO_FUNCPTR (GCallback, fixture->invoker);
   stalked_func ();
 
-  gum_free_pages (fixture->invoker);
+  gum_memory_free (fixture->invoker, fixture->invoker_size);
 
   return retval;
 }

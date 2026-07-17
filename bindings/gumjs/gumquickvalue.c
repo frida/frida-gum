@@ -1535,9 +1535,29 @@ _gum_quick_native_resource_new (JSContext * ctx,
   res = g_slice_new (GumQuickNativeResource);
   ptr = &res->native_pointer;
   ptr->value = data;
+  res->size = 0;
+  res->owns_pages = FALSE;
   res->notify = notify;
 
   JS_SetOpaque (wrapper, res);
+
+  return wrapper;
+}
+
+JSValue
+_gum_quick_native_resource_new_from_pages (JSContext * ctx,
+                                           gpointer data,
+                                           gsize size,
+                                           GumQuickCore * core)
+{
+  JSValue wrapper;
+  GumQuickNativeResource * res;
+
+  wrapper = _gum_quick_native_resource_new (ctx, data, NULL, core);
+
+  res = JS_GetOpaque (wrapper, core->native_resource_class);
+  res->size = size;
+  res->owns_pages = TRUE;
 
   return wrapper;
 }

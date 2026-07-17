@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -53,10 +53,12 @@ gum_cycle_sampler_iface_init (gpointer g_iface,
 static void
 gum_cycle_sampler_init (GumCycleSampler * self)
 {
+  gsize page_size;
   GumX86Writer cw;
   GumX86Reg first_arg_reg;
 
-  self->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  page_size = gum_query_page_size ();
+  self->code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RWX);
   gum_x86_writer_init (&cw, self->code);
   gum_x86_writer_put_lfence (&cw);
   gum_x86_writer_put_rdtsc (&cw);
@@ -76,7 +78,7 @@ gum_cycle_sampler_finalize (GObject * object)
 {
   GumCycleSampler * self = GUM_CYCLE_SAMPLER (object);
 
-  gum_free_pages (self->code);
+  gum_memory_free (self->code, gum_query_page_size ());
 
   G_OBJECT_CLASS (gum_cycle_sampler_parent_class)->finalize (object);
 }

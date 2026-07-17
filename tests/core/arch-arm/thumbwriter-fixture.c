@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,6 +20,7 @@
 typedef struct _TestThumbWriterFixture
 {
   gpointer output;
+  gsize output_size;
   GumThumbWriter tw;
 } TestThumbWriterFixture;
 
@@ -27,7 +28,12 @@ static void
 test_thumb_writer_fixture_setup (TestThumbWriterFixture * fixture,
                                  gconstpointer data)
 {
-  fixture->output = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  gsize page_size;
+
+  page_size = gum_query_page_size ();
+  fixture->output_size = page_size;
+  fixture->output = gum_memory_allocate (NULL, fixture->output_size,
+      page_size, GUM_PAGE_RW);
   gum_thumb_writer_init (&fixture->tw, fixture->output);
 }
 
@@ -36,7 +42,7 @@ test_thumb_writer_fixture_teardown (TestThumbWriterFixture * fixture,
                                     gconstpointer data)
 {
   gum_thumb_writer_clear (&fixture->tw);
-  gum_free_pages (fixture->output);
+  gum_memory_free (fixture->output, fixture->output_size);
 }
 
 #define assert_output_n_equals(n, v) \

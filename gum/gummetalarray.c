@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,15 +11,18 @@
 
 #include <string.h>
 
+static gsize gum_metal_array_storage_size (GumMetalArray * self);
 static guint gum_round_up_to_page_size (guint size);
 
 void
 gum_metal_array_init (GumMetalArray * array,
                       guint element_size)
 {
-  array->data = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  guint page_size = gum_query_page_size ();
+
+  array->data = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   array->length = 0;
-  array->capacity = gum_query_page_size () / element_size;
+  array->capacity = page_size / element_size;
 
   array->element_size = element_size;
 }
@@ -27,11 +30,11 @@ gum_metal_array_init (GumMetalArray * array,
 void
 gum_metal_array_free (GumMetalArray * array)
 {
-  array->element_size = 0;
+  gum_memory_free (array->data, gum_metal_array_storage_size (array));
 
+  array->element_size = 0;
   array->capacity = 0;
   array->length = 0;
-  gum_free_pages (array->data);
   array->data = NULL;
 }
 
@@ -92,16 +95,10 @@ gum_metal_array_get_extents (GumMetalArray * self,
                              gpointer * start,
                              gpointer * end)
 {
-  GumMemoryRange range;
-  guint size;
+  gsize size = gum_metal_array_storage_size (self);
 
-  size = (guint) ((guint8 *) gum_metal_array_element_at (self, self->capacity) -
-      (guint8 *) self->data);
-  gum_query_page_allocation_range (self->data, gum_round_up_to_page_size (size),
-      &range);
-
-  *start = GSIZE_TO_POINTER (range.base_address);
-  *end = GSIZE_TO_POINTER (range.base_address + range.size);
+  *start = self->data;
+  *end = (guint8 *) self->data + size;
 }
 
 void
@@ -120,12 +117,19 @@ gum_metal_array_ensure_capacity (GumMetalArray * self,
   if (size_in_bytes % page_size != 0)
     size_in_pages++;
 
-  new_data = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+  new_data = gum_memory_allocate (NULL, size_in_pages * page_size, page_size,
+      GUM_PAGE_RW);
   gum_memcpy (new_data, self->data, self->length * self->element_size);
 
-  gum_free_pages (self->data);
+  gum_memory_free (self->data, gum_metal_array_storage_size (self));
   self->data = new_data;
   self->capacity = (size_in_pages * page_size) / self->element_size;
+}
+
+static gsize
+gum_metal_array_storage_size (GumMetalArray * self)
+{
+  return gum_round_up_to_page_size (self->capacity * self->element_size);
 }
 
 static guint

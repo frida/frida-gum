@@ -201,14 +201,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
           "size must be a multiple of page size");
     }
 
-    result = gum_try_alloc_n_pages_near (size / page_size, prot, &spec);
+    result = gum_memory_allocate_near (&spec, size, page_size, prot);
     if (result == NULL)
     {
       return _gum_quick_throw_literal (ctx,
           "unable to allocate free page(s) near address");
     }
 
-    return _gum_quick_native_resource_new (ctx, result, gum_free_pages, core);
+    return _gum_quick_native_resource_new_from_pages (ctx, result, size, core);
   }
   else
   {
@@ -225,9 +225,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
     }
     else
     {
-      return _gum_quick_native_resource_new (ctx,
-          gum_alloc_n_pages (size / page_size, prot), gum_free_pages,
-          core);
+      return _gum_quick_native_resource_new_from_pages (ctx,
+          gum_memory_allocate (NULL, size, page_size, prot), size, core);
     }
   }
 }

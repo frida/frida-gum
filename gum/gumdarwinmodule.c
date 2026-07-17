@@ -30,6 +30,7 @@ typedef struct _GumEmitInitOffsetsContext GumEmitInitOffsetsContext;
 typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
 
 typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
+typedef struct _GumPageAllocation GumPageAllocation;
 
 enum
 {
@@ -108,6 +109,12 @@ struct _GumExportsTrieForeachContext
   const guint8 * exports_end;
 };
 
+struct _GumPageAllocation
+{
+  gpointer data;
+  gsize size;
+};
+
 static void gum_darwin_module_constructed (GObject * object);
 static void gum_darwin_module_finalize (GObject * object);
 static void gum_darwin_module_get_property (GObject * object,
@@ -137,6 +144,9 @@ static gboolean gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
     GBytes * blob, GError ** error);
 static gboolean gum_darwin_module_load_image_from_memory (
     GumDarwinModule * self, GError ** error);
+static GBytes * gum_page_allocation_new_bytes (gpointer data,
+    gsize content_size, gsize allocation_size);
+static void gum_page_allocation_free (GumPageAllocation * self);
 static gboolean gum_darwin_module_can_load (GumDarwinModule * self,
     GumDarwinCpuType cpu_type, GumDarwinCpuSubtype cpu_subtype);
 static gboolean gum_darwin_module_take_image (GumDarwinModule * self,
@@ -2110,12 +2120,13 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
   if (size % page_size != 0)
     size_in_pages++;
 
-  data = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+  data = gum_memory_allocate (NULL, size_in_pages * page_size, page_size,
+      GUM_PAGE_RW);
   memcpy (data, g_mapped_file_get_contents (file), size);
 
   g_clear_pointer (&file, g_mapped_file_unref);
 
-  blob = g_bytes_new_with_free_func (data, size, gum_free_pages, data);
+  blob = gum_page_allocation_new_bytes (data, size, size_in_pages * page_size);
 
   success = gum_darwin_module_load_image_from_blob (self, blob, error);
 
@@ -2140,6 +2151,7 @@ gum_darwin_module_load_image_header_from_filesystem (GumDarwinModule * self,
   GMappedFile * file;
   gsize page_size, size, size_in_pages;
   gpointer data;
+  gsize data_size;
   GBytes * blob;
   gsize header_size, cursor;
   gboolean is_fat;
@@ -2149,7 +2161,8 @@ gum_darwin_module_load_image_header_from_filesystem (GumDarwinModule * self,
     goto not_found;
 
   page_size = gum_query_page_size ();
-  data = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  data = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  data_size = page_size;
   size = page_size;
 
   header_size = 0;
@@ -2162,7 +2175,7 @@ gum_darwin_module_load_image_header_from_filesystem (GumDarwinModule * self,
     if (!gum_darwin_module_get_header_offset_size (self, data, size,
         &header_offset, &header_size, error))
     {
-      gum_free_pages (data);
+      gum_memory_free (data, data_size);
       g_clear_pointer (&file, g_mapped_file_unref);
       return FALSE;
     }
@@ -2178,15 +2191,16 @@ gum_darwin_module_load_image_header_from_filesystem (GumDarwinModule * self,
 
   if (size_in_pages != 1)
   {
-    gum_free_pages (data);
-    data = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+    gum_memory_free (data, data_size);
+    data_size = size_in_pages * page_size;
+    data = gum_memory_allocate (NULL, data_size, page_size, GUM_PAGE_RW);
   }
 
   memcpy (data, g_mapped_file_get_contents (file) + cursor, header_size);
 
   g_clear_pointer (&file, g_mapped_file_unref);
 
-  blob = g_bytes_new_with_free_func (data, header_size, gum_free_pages, data);
+  blob = gum_page_allocation_new_bytes (data, header_size, data_size);
 
   success = gum_darwin_module_load_image_from_blob (self, blob, error);
 
@@ -2340,10 +2354,12 @@ gum_darwin_module_load_image_from_blob (GumDarwinModule * self,
     if (blob_size % page_size != 0)
       size_in_pages++;
 
-    copy = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+    copy = gum_memory_allocate (NULL, size_in_pages * page_size, page_size,
+        GUM_PAGE_RW);
     memcpy (copy, blob_start, blob_size);
 
-    blob = g_bytes_new_with_free_func (copy, blob_size, gum_free_pages, copy);
+    blob = gum_page_allocation_new_bytes (copy, blob_size,
+        size_in_pages * page_size);
     blob_start = copy;
     blob_end = blob_start + blob_size;
 
@@ -2488,6 +2504,29 @@ invalid_task:
         "Process is dead");
     return FALSE;
   }
+}
+
+static GBytes *
+gum_page_allocation_new_bytes (gpointer data,
+                               gsize content_size,
+                               gsize allocation_size)
+{
+  GumPageAllocation * allocation;
+
+  allocation = g_slice_new (GumPageAllocation);
+  allocation->data = data;
+  allocation->size = allocation_size;
+
+  return g_bytes_new_with_free_func (data, content_size,
+      (GDestroyNotify) gum_page_allocation_free, allocation);
+}
+
+static void
+gum_page_allocation_free (GumPageAllocation * self)
+{
+  gum_memory_free (self->data, self->size);
+
+  g_slice_free (GumPageAllocation, self);
 }
 
 static gboolean

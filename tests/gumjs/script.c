@@ -5811,12 +5811,14 @@ TESTCASE (process_pointer_size_is_available)
 TESTCASE (process_should_support_nested_signal_handling)
 {
 #ifdef HAVE_LINUX
+  gsize page_size;
   gpointer page;
 
   if (!check_exception_handling_testable ())
     return;
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_NO_ACCESS);
+  page_size = gum_query_page_size ();
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_NO_ACCESS);
 
   COMPILE_AND_LOAD_SCRIPT ("Process.setExceptionHandler(details => {"
           "Memory.protect(" GUM_PTR_CONST ", Process.pageSize, 'rw-');"
@@ -5831,7 +5833,7 @@ TESTCASE (process_should_support_nested_signal_handling)
   *((guint8 *) page) = 1;
   EXPECT_SEND_MESSAGE_WITH ("\"error\"");
 
-  gum_free_pages ((gpointer) page);
+  gum_memory_free ((gpointer) page, page_size);
 #else
   g_print ("<skipping, only supported on Linux for now> ");
 #endif
@@ -9247,9 +9249,9 @@ TESTCASE (memory_access_can_be_monitored)
   if (!check_exception_handling_testable ())
     return;
 
-  a = gum_alloc_n_pages (2, GUM_PAGE_RW);
-  b = gum_alloc_n_pages (1, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
+  a = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
+  b = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   COMPILE_AND_LOAD_SCRIPT (
       "MemoryAccessMonitor.enable([{ base: " GUM_PTR_CONST ", size: %u },"
@@ -9275,8 +9277,8 @@ TESTCASE (memory_access_can_be_monitored)
   EXPECT_SEND_MESSAGE_WITH ("[\"read\",true,\"0x%" G_GSIZE_MODIFIER "x\","
       "1,0,2,2]", GPOINTER_TO_SIZE (b + page_size - 1));
 
-  gum_free_pages ((gpointer) b);
-  gum_free_pages ((gpointer) a);
+  gum_memory_free ((gpointer) b, page_size);
+  gum_memory_free ((gpointer) a, 2 * page_size);
 }
 
 TESTCASE (memory_access_can_be_monitored_one_range)
@@ -9287,8 +9289,8 @@ TESTCASE (memory_access_can_be_monitored_one_range)
   if (!check_exception_handling_testable ())
     return;
 
-  a = gum_alloc_n_pages (2, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
+  a = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
 
   COMPILE_AND_LOAD_SCRIPT (
       "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
@@ -9309,7 +9311,7 @@ TESTCASE (memory_access_can_be_monitored_one_range)
   EXPECT_SEND_MESSAGE_WITH ("[\"write\",true,\"0x%" G_GSIZE_MODIFIER "x\","
       "0,0,1,1]", GPOINTER_TO_SIZE (a + page_size));
 
-  gum_free_pages ((gpointer) a);
+  gum_memory_free ((gpointer) a, 2 * page_size);
 }
 
 TESTCASE (memory_access_monitor_provides_thread_id)
@@ -9320,8 +9322,8 @@ TESTCASE (memory_access_monitor_provides_thread_id)
   if (!check_exception_handling_testable ())
     return;
 
-  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
+  a = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   COMPILE_AND_LOAD_SCRIPT (
       "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
@@ -9336,7 +9338,7 @@ TESTCASE (memory_access_monitor_provides_thread_id)
   EXPECT_SEND_MESSAGE_WITH ("[%" G_GSIZE_MODIFIER "u]",
       gum_process_get_current_thread_id ());
 
-  gum_free_pages ((gpointer) a);
+  gum_memory_free ((gpointer) a, page_size);
 }
 
 TESTCASE (memory_access_monitor_provides_cpu_context)
@@ -9347,8 +9349,8 @@ TESTCASE (memory_access_monitor_provides_cpu_context)
   if (!check_exception_handling_testable ())
     return;
 
-  a = gum_alloc_n_pages (1, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
+  a = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   COMPILE_AND_LOAD_SCRIPT (
       "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
@@ -9363,7 +9365,7 @@ TESTCASE (memory_access_monitor_provides_cpu_context)
   a[0] = 1;
   EXPECT_SEND_MESSAGE_WITH ("[true,false]");
 
-  gum_free_pages ((gpointer) a);
+  gum_memory_free ((gpointer) a, page_size);
 }
 
 TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
@@ -9378,8 +9380,8 @@ TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
   if (!check_exception_handling_testable ())
     return;
 
-  a = gum_alloc_n_pages (1, GUM_PAGE_RX);
   page_size = gum_query_page_size ();
+  a = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RX);
 
   gum_memory_patch_code ((gpointer) a, 4, put_return_instruction, NULL);
   func = (gsize (*) (void)) gum_sign_code_pointer ((gpointer) a);
@@ -9413,7 +9415,7 @@ TESTCASE (memory_access_monitor_cpu_context_can_be_modified)
   g_assert_cmphex (ret, ==, expected_ret);
 
   g_free (set_return_value_code);
-  gum_free_pages ((gpointer) a);
+  gum_memory_free ((gpointer) a, page_size);
 }
 
 static void
@@ -9576,21 +9578,23 @@ TESTCASE (memory_can_be_duped)
 
 TESTCASE (memory_can_be_protected)
 {
+  gsize page_size;
   gpointer buf;
   gboolean exception_on_read, exception_on_write;
 
-  buf = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  buf = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Memory.protect(" GUM_PTR_CONST ", 1, 'r--'));",
-      buf, gum_query_page_size ());
+      buf, page_size);
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   if (gum_process_is_debugger_attached ())
   {
     g_print ("<only partially tested, debugger is attached> ");
 
-    gum_free_pages (buf);
+    gum_memory_free (buf, page_size);
 
     return;
   }
@@ -9604,7 +9608,7 @@ TESTCASE (memory_can_be_protected)
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(Memory.protect(" GUM_PTR_CONST ", uint64(1), '---'));",
-      buf, gum_query_page_size ());
+      buf, page_size);
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   /* avoid overlapping signal handlers */
@@ -9614,14 +9618,16 @@ TESTCASE (memory_can_be_protected)
   g_assert_true (exception_on_read);
   g_assert_true (exception_on_write);
 
-  gum_free_pages (buf);
+  gum_memory_free (buf, page_size);
 }
 
 TESTCASE (memory_protection_can_be_queried)
 {
+  gsize page_size;
   gpointer buf;
 
-  buf = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  buf = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   COMPILE_AND_LOAD_SCRIPT (
       "const x = " GUM_PTR_CONST ";"
@@ -9639,23 +9645,25 @@ TESTCASE (memory_protection_can_be_queried)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
 
-  gum_free_pages (buf);
+  gum_memory_free (buf, page_size);
 }
 
 TESTCASE (code_can_be_patched)
 {
+  gsize page_size;
   guint8 * code;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   code[7] = 0xc3;
-  gum_mprotect (code, gum_query_page_size (), GUM_PAGE_RX);
+  gum_mprotect (code, page_size, GUM_PAGE_RX);
 
   COMPILE_AND_LOAD_SCRIPT ("Memory.patchCode(" GUM_PTR_CONST ", 1, ptr => {"
           "ptr.writeU8(0x90);"
       "});", code + 7);
   g_assert_cmphex (code[7], ==, 0x90);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (utf8_string_can_be_allocated)
@@ -11972,6 +11980,7 @@ TESTCASE (globals_can_be_dynamically_generated)
 
 TESTCASE (exceptions_can_be_handled)
 {
+  gsize page_size;
   gpointer page;
   gboolean exception_on_read, exception_on_write;
 
@@ -11985,12 +11994,13 @@ TESTCASE (exceptions_can_be_handled)
 
   EXPECT_NO_MESSAGES ();
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
-  gum_mprotect (page, gum_query_page_size (), GUM_PAGE_NO_ACCESS);
+  page_size = gum_query_page_size ();
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_mprotect (page, page_size, GUM_PAGE_NO_ACCESS);
   gum_try_read_and_write_at (page, 0, &exception_on_read, &exception_on_write);
   g_assert_true (exception_on_read);
   g_assert_true (exception_on_write);
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 
   EXPECT_SEND_MESSAGE_WITH ("\"w00t\"");
   EXPECT_SEND_MESSAGE_WITH ("\"w00t\"");

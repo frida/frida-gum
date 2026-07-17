@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -51,6 +51,7 @@ typedef struct _TestStalkerFixture
   const GumMemoryRange * runner_range;
 
   guint8 * code;
+  gsize code_size;
   guint8 * last_invoke_calladdr;
   guint8 * last_invoke_retaddr;
 } TestStalkerFixture;
@@ -100,7 +101,7 @@ test_stalker_fixture_teardown (TestStalkerFixture * fixture,
   g_object_unref (fixture->stalker);
 
   if (fixture->code != NULL)
-    gum_free_pages (fixture->code);
+    gum_memory_free (fixture->code, fixture->code_size);
 }
 
 static guint8 *
@@ -109,14 +110,17 @@ test_stalker_fixture_dup_code (TestStalkerFixture * fixture,
                                guint tpl_size)
 {
   GumAddressSpec spec;
+  gsize page_size;
 
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
 
   if (fixture->code != NULL)
-    gum_free_pages (fixture->code);
-  fixture->code = gum_alloc_n_pages_near (
-      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RW, &spec);
+    gum_memory_free (fixture->code, fixture->code_size);
+  page_size = gum_query_page_size ();
+  fixture->code_size = ((tpl_size / page_size) + 1) * page_size;
+  fixture->code = gum_memory_allocate_near (&spec, fixture->code_size,
+      page_size, GUM_PAGE_RW);
   memcpy (fixture->code, tpl_code, tpl_size);
   gum_memory_mark_code (fixture->code, tpl_size);
 
@@ -145,6 +149,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   GumAddressSpec spec;
   gint ret;
   guint8 * code;
+  gsize page_size;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
   guint align_correction_follow = 0;
@@ -160,7 +165,8 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
 
-  code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate_near (&spec, page_size, page_size, GUM_PAGE_RW);
 
   gum_x86_writer_init (&cw, code);
 
@@ -200,7 +206,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
   invoke_func ();
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 
   return ret;
 }

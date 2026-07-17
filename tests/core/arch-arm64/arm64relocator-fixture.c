@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +23,7 @@
 typedef struct _TestArm64RelocatorFixture
 {
   guint8 * output;
+  gsize output_size;
   GumArm64Writer aw;
   GumArm64Relocator rl;
   gboolean rl_initialized;
@@ -33,8 +34,12 @@ test_arm64_relocator_fixture_setup (TestArm64RelocatorFixture * fixture,
                                     gconstpointer data)
 {
   GumArm64Writer * aw = &fixture->aw;
+  gsize page_size;
 
-  fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  fixture->output_size = page_size;
+  fixture->output = (guint8 *) gum_memory_allocate (NULL, fixture->output_size,
+      page_size, GUM_PAGE_RW);
 
   gum_arm64_writer_init (aw, fixture->output);
   aw->target_os = GUM_OS_LINUX;
@@ -51,7 +56,7 @@ test_arm64_relocator_fixture_teardown (TestArm64RelocatorFixture * fixture,
 
   gum_arm64_writer_clear (&fixture->aw);
 
-  gum_free_pages (fixture->output);
+  gum_memory_free (fixture->output, fixture->output_size);
 }
 
 static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };

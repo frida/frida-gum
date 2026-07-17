@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -126,7 +126,8 @@ gum_page_pool_constructed (GObject * object)
   GumPagePool * self = GUM_PAGE_POOL (object);
 
   self->available = self->size;
-  self->pool = gum_alloc_n_pages (self->size, GUM_PAGE_NO_ACCESS);
+  self->pool = gum_memory_allocate (NULL, self->size * self->page_size,
+      self->page_size, GUM_PAGE_NO_ACCESS);
   self->pool_end = self->pool + (self->size * self->page_size);
   self->block_details = g_malloc0 (self->size * sizeof (GumBlockDetails));
 }
@@ -137,7 +138,7 @@ gum_page_pool_finalize (GObject * object)
   GumPagePool * self = GUM_PAGE_POOL (object);
 
   g_free (self->block_details);
-  gum_free_pages (self->pool);
+  gum_memory_free (self->pool, self->size * self->page_size);
 
   G_OBJECT_CLASS (gum_page_pool_parent_class)->finalize (object);
 }

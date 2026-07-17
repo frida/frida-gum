@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -924,15 +924,16 @@ allocate_clobber_test_invoker_func (ClobberTestFunc target_func,
 
   addr_spec.near_address =
       gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (target_func));
+
+  page_size = gum_query_page_size ();
 #if defined (HAVE_ARM)
   addr_spec.max_distance = GUM_ARM_B_MAX_DISTANCE;
 #elif defined (HAVE_ARM64)
   addr_spec.max_distance = GUM_ARM64_B_MAX_DISTANCE;
 #else
-  addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
+  addr_spec.max_distance = G_MAXINT32 - page_size;
 #endif
 
-  page_size = gum_query_page_size ();
   *code_size = page_size;
 
   code = gum_memory_allocate_near (&addr_spec, *code_size, page_size,
@@ -963,8 +964,11 @@ unsupported_function_list_new (guint * count)
 #endif
   };
   UnsupportedFunction * result;
+  gsize page_size;
 
-  result = (UnsupportedFunction *) gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  result = (UnsupportedFunction *) gum_memory_allocate (NULL, page_size,
+      page_size, GUM_PAGE_RW);
   memcpy (result, unsupported_functions, sizeof (unsupported_functions));
   *count = G_N_ELEMENTS (unsupported_functions);
 
@@ -974,7 +978,7 @@ unsupported_function_list_new (guint * count)
 void
 unsupported_function_list_free (UnsupportedFunction * functions)
 {
-  gum_free_pages (functions);
+  gum_memory_free (functions, gum_query_page_size ());
 }
 
 #ifdef HAVE_I386
@@ -983,11 +987,14 @@ ProxyFunc
 proxy_func_new_relative_with_target (TargetFunc target_func)
 {
   GumAddressSpec addr_spec;
+  gsize page_size;
   guint8 * func;
 
   addr_spec.near_address = target_func;
-  addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
-  func = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
+  page_size = gum_query_page_size ();
+  addr_spec.max_distance = G_MAXINT32 - page_size;
+  func = (guint8 *) gum_memory_allocate_near (&addr_spec,
+      page_size, page_size, GUM_PAGE_RWX);
   func[0] = 0xe9;
   *((gint32 *) (func + 1)) =
       ((gssize) target_func) - (gssize) (func + 5);
@@ -999,8 +1006,11 @@ ProxyFunc
 proxy_func_new_absolute_indirect_with_target (TargetFunc target_func)
 {
   guint8 * func;
+  gsize page_size;
 
-  func = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  page_size = gum_query_page_size ();
+  func = (guint8 *) gum_memory_allocate (NULL, page_size, page_size,
+      GUM_PAGE_RWX);
   func[0] = 0xff;
   func[1] = 0x25;
 # if GLIB_SIZEOF_VOID_P == 4
@@ -1017,8 +1027,11 @@ ProxyFunc
 proxy_func_new_two_jumps_with_target (TargetFunc target_func)
 {
   guint8 * func;
+  gsize page_size;
 
-  func = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  page_size = gum_query_page_size ();
+  func = (guint8 *) gum_memory_allocate (NULL, page_size, page_size,
+      GUM_PAGE_RWX);
   func[0] = 0xe9;
   *((gint32 *) (func + 1)) = (guint8 *) (func + 20) - (func + 5);
 
@@ -1038,11 +1051,14 @@ ProxyFunc
 proxy_func_new_early_call_with_target (TargetFunc target_func)
 {
   GumAddressSpec addr_spec;
+  gsize page_size;
   guint8 * func, * code;
 
   addr_spec.near_address = target_func;
-  addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
-  func = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
+  page_size = gum_query_page_size ();
+  addr_spec.max_distance = G_MAXINT32 - page_size;
+  func = (guint8 *) gum_memory_allocate_near (&addr_spec,
+      page_size, page_size, GUM_PAGE_RWX);
 
   code = func;
 
@@ -1088,11 +1104,14 @@ ProxyFunc
 proxy_func_new_early_rip_relative_call_with_target (TargetFunc target_func)
 {
   GumAddressSpec addr_spec;
+  gsize page_size;
   guint8 * func, * code;
 
   addr_spec.near_address = target_func;
-  addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
-  func = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
+  page_size = gum_query_page_size ();
+  addr_spec.max_distance = G_MAXINT32 - page_size;
+  func = gum_memory_allocate_near (&addr_spec, page_size,
+      page_size, GUM_PAGE_RWX);
 
   code = func;
 
@@ -1127,7 +1146,7 @@ proxy_func_new_early_rip_relative_call_with_target (TargetFunc target_func)
 void
 proxy_func_free (ProxyFunc proxy_func)
 {
-  gum_free_pages ((gpointer) (gsize) proxy_func);
+  gum_memory_free ((gpointer) (gsize) proxy_func, gum_query_page_size ());
 }
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -27,10 +27,12 @@ TESTLIST_END ()
 TESTCASE (attach_to_unaligned_function)
 {
   gpointer page, code;
+  gsize page_size;
   GumThumbWriter tw;
   gint (* f) (void);
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  page_size = gum_query_page_size ();
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RWX);
   code = page + 2;
 
   /* Aligned on a 2 byte boundary and minimum 8 bytes long */
@@ -61,7 +63,7 @@ TESTCASE (attach_to_unaligned_function)
   g_assert_cmpint (f (), ==, 1337);
   g_assert_cmpstr (fixture->result->str, ==, "");
 
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 }
 
 #endif

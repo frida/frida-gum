@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -366,18 +366,19 @@ TESTCASE (ldr_u32)
 TESTCASE (ldr_in_large_block)
 {
   const gsize code_size_in_pages = 1;
-  gsize code_size;
+  gsize page_size, code_size;
   gpointer code;
   gint (* impl) (void);
 
-  code_size = code_size_in_pages * gum_query_page_size ();
-  code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code_size = code_size_in_pages * page_size;
+  code = gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW);
   gum_memory_patch_code (code, code_size, gum_emit_ldr_in_large_block, code);
 
   impl = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (code) | 1);
   g_assert_cmpint (impl (), ==, 0x1337);
 
-  gum_free_pages (code);
+  gum_memory_free (code, code_size);
 }
 
 static void

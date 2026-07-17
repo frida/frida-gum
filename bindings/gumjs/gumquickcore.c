@@ -4040,7 +4040,9 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
   if (r == NULL)
     return;
 
-  if (r->notify != NULL)
+  if (r->owns_pages)
+    gum_memory_free (r->native_pointer.value, r->size);
+  else if (r->notify != NULL)
     r->notify (r->native_pointer.value);
 
   g_slice_free (GumQuickNativeResource, r);

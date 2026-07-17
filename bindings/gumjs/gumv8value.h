@@ -46,6 +46,8 @@ G_GNUC_INTERNAL GBytes * _gum_v8_bytes_try_get (v8::Local<v8::Value> value,
 
 G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new (
     gpointer data, gsize size, GDestroyNotify notify, GumV8Core * core);
+G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new_from_pages (
+    gpointer data, gsize size, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_native_resource_free (GumV8NativeResource * block);
 
 G_GNUC_INTERNAL GumV8KernelResource * _gum_v8_kernel_resource_new (

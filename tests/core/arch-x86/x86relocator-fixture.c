@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +23,7 @@
 typedef struct _TestRelocatorFixture
 {
   guint8 * output;
+  gsize output_size;
   GumX86Writer cw;
   GumX86Relocator rl;
 } TestRelocatorFixture;
@@ -40,7 +41,9 @@ test_relocator_fixture_setup (TestRelocatorFixture * fixture,
   as.near_address = (gpointer) stack_data;
   as.max_distance = G_MAXINT32 - page_size;
 
-  fixture->output = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
+  fixture->output_size = page_size;
+  fixture->output = (guint8 *) gum_memory_allocate_near (&as,
+      fixture->output_size, page_size, GUM_PAGE_RW);
   memset (fixture->output, 0, page_size);
 
   gum_x86_writer_init (&fixture->cw, fixture->output);
@@ -52,7 +55,7 @@ test_relocator_fixture_teardown (TestRelocatorFixture * fixture,
 {
   gum_x86_relocator_clear (&fixture->rl);
   gum_x86_writer_clear (&fixture->cw);
-  gum_free_pages (fixture->output);
+  gum_memory_free (fixture->output, fixture->output_size);
 }
 
 static void

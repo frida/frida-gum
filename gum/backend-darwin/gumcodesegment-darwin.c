@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -187,7 +187,7 @@ gum_test_mapping (void)
 
   page_size = gum_query_page_size ();
 
-  scratch = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  scratch = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   /*
    * Dirty the page before making it executable so the kernel treats it like
    * real committed code. A pristine page can be remapped even on kernels
@@ -203,7 +203,7 @@ gum_test_mapping (void)
       scratch);
 
   gum_code_segment_free (segment);
-  gum_free_pages (scratch);
+  gum_memory_free (scratch, page_size);
 
   return success;
 }
@@ -223,11 +223,12 @@ gum_code_segment_new (gsize size,
 
   if (spec == NULL)
   {
-    data = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+    data = gum_memory_allocate (NULL, virtual_size, page_size, GUM_PAGE_RW);
   }
   else
   {
-    data = gum_try_alloc_n_pages_near (size_in_pages, GUM_PAGE_RW, spec);
+    data = gum_memory_allocate_near (spec, virtual_size, page_size,
+        GUM_PAGE_RW);
     if (data == NULL)
       return NULL;
   }
@@ -263,8 +264,8 @@ gum_code_segment_new_full (gpointer data,
   {
     GumMemoryRange range;
 
-    gum_query_page_allocation_range (segment->data, segment->virtual_size,
-        &range);
+    range.base_address = GUM_ADDRESS (segment->data);
+    range.size = segment->virtual_size;
 
     gum_cloak_add_range (&range);
   }
@@ -282,10 +283,10 @@ gum_code_segment_free (GumCodeSegment * segment)
   {
     GumMemoryRange range;
 
-    gum_query_page_allocation_range (segment->data, segment->virtual_size,
-        &range);
+    range.base_address = GUM_ADDRESS (segment->data);
+    range.size = segment->virtual_size;
 
-    gum_free_pages (segment->data);
+    gum_memory_free (segment->data, segment->virtual_size);
 
     gum_cloak_remove_range (&range);
   }

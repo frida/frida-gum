@@ -777,6 +777,7 @@ _gum_v8_native_resource_new (gpointer data,
       WeakCallbackType::kParameter);
   resource->data = data;
   resource->size = size;
+  resource->owns_pages = FALSE;
   resource->notify = notify;
   resource->core = core;
 
@@ -787,6 +788,16 @@ _gum_v8_native_resource_new (gpointer data,
   return resource;
 }
 
+GumV8NativeResource *
+_gum_v8_native_resource_new_from_pages (gpointer data,
+                                        gsize size,
+                                        GumV8Core * core)
+{
+  auto resource = _gum_v8_native_resource_new (data, size, NULL, core);
+  resource->owns_pages = TRUE;
+  return resource;
+}
+
 void
 _gum_v8_native_resource_free (GumV8NativeResource * resource)
 {
@@ -794,7 +805,9 @@ _gum_v8_native_resource_free (GumV8NativeResource * resource)
       -((gssize) resource->size));
 
   delete resource->instance;
-  if (resource->notify != NULL)
+  if (resource->owns_pages)
+    gum_memory_free (resource->data, resource->size);
+  else if (resource->notify != NULL)
     resource->notify (resource->data);
   g_slice_free (GumV8NativeResource, resource);
 }

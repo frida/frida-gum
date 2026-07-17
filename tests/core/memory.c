@@ -93,8 +93,8 @@ TESTCASE (read_from_unaligned_address_should_succeed)
   gsize n_bytes_read;
   guint8 * data;
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   last_byte = ((guint8 *) page) + page_size - 1;
   *last_byte = 42;
@@ -104,12 +104,13 @@ TESTCASE (read_from_unaligned_address_should_succeed)
   g_assert_cmpuint (*data, ==, 42);
   g_free (data);
 
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 }
 
 TESTCASE (read_across_two_pages_should_return_correct_data)
 {
   GRand * rand;
+  gsize page_size;
   guint8 * pages;
   guint size, i, start_offset;
   gchar * expected_checksum, * actual_checksum;
@@ -117,8 +118,9 @@ TESTCASE (read_across_two_pages_should_return_correct_data)
   gsize n_bytes_read;
 
   rand = g_rand_new_with_seed (42);
-  pages = gum_alloc_n_pages (2, GUM_PAGE_RW);
-  size = 2 * gum_query_page_size ();
+  page_size = gum_query_page_size ();
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
+  size = 2 * page_size;
   start_offset = (size / 2) - 1;
   for (i = start_offset; i != size; i++)
   {
@@ -138,7 +140,7 @@ TESTCASE (read_across_two_pages_should_return_correct_data)
   g_free (data);
 
   g_free (expected_checksum);
-  gum_free_pages (pages);
+  gum_memory_free (pages, 2 * page_size);
   g_rand_free (rand);
 }
 
@@ -149,8 +151,8 @@ TESTCASE (read_beyond_page_should_return_partial_data)
   gsize n_bytes_read;
   guint8 * data;
 
-  page = gum_alloc_n_pages (2, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
+  page = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
   gum_mprotect (page + page_size, page_size, GUM_PAGE_NO_ACCESS);
 
   data = gum_memory_read (page, 2 * page_size, &n_bytes_read);
@@ -163,7 +165,7 @@ TESTCASE (read_beyond_page_should_return_partial_data)
   g_assert_cmpuint (n_bytes_read, ==, 1);
   g_free (data);
 
-  gum_free_pages (page);
+  gum_memory_free (page, 2 * page_size);
 }
 
 TESTCASE (write_to_valid_address_should_succeed)
@@ -595,9 +597,9 @@ TESTCASE (is_memory_readable_handles_mixed_page_protections)
   guint page_size;
   guint8 * left_guard, * first_page, * second_page, * right_guard;
 
-  pages = gum_alloc_n_pages (4, GUM_PAGE_RW);
-
   page_size = gum_query_page_size ();
+
+  pages = gum_memory_allocate (NULL, 4 * page_size, page_size, GUM_PAGE_RW);
 
   left_guard = pages;
   first_page = left_guard + page_size;
@@ -621,7 +623,7 @@ TESTCASE (is_memory_readable_handles_mixed_page_protections)
   g_assert_false (gum_memory_is_readable (second_page + page_size, 1));
   g_assert_false (gum_memory_is_readable (second_page + page_size - 1, 2));
 
-  gum_free_pages (pages);
+  gum_memory_free (pages, 4 * page_size);
 }
 
 TESTCASE (alloc_n_pages_returns_aligned_rw_address)
@@ -629,9 +631,9 @@ TESTCASE (alloc_n_pages_returns_aligned_rw_address)
   gpointer page;
   guint page_size;
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
-
   page_size = gum_query_page_size ();
+
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   g_assert_cmpuint (GPOINTER_TO_SIZE (page) % page_size, ==, 0);
 
@@ -641,28 +643,27 @@ TESTCASE (alloc_n_pages_returns_aligned_rw_address)
   *((gsize *) page) = 42;
   g_assert_cmpuint (*((gsize *) page), ==, 42);
 
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 }
 
 TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
 {
   GumAddressSpec as;
   guint variable_on_stack;
-  gpointer page;
   guint page_size;
+  gpointer page;
   gsize actual_distance;
 
   as.near_address = &variable_on_stack;
   as.max_distance = G_MAXINT32;
 
-  page = gum_try_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
+  page_size = gum_query_page_size ();
+  page = gum_memory_allocate_near (&as, page_size, page_size, GUM_PAGE_RW);
   if (page == NULL)
   {
     g_print ("<skipping, not supported on this system> ");
     return;
   }
-
-  page_size = gum_query_page_size ();
 
   g_assert_cmpuint (GPOINTER_TO_SIZE (page) % page_size, ==, 0);
 
@@ -675,7 +676,7 @@ TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   actual_distance = ABS ((guint8 *) page - (guint8 *) as.near_address);
   g_assert_cmpuint (actual_distance, <=, as.max_distance);
 
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 }
 
 TESTCASE (allocate_handles_alignment)
@@ -726,14 +727,15 @@ TESTCASE (mprotect_handles_page_boundaries)
   guint8 * pages;
   guint page_size;
 
-  pages = gum_alloc_n_pages (2, GUM_PAGE_NO_ACCESS);
   page_size = gum_query_page_size ();
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size,
+      GUM_PAGE_NO_ACCESS);
 
   gum_mprotect (pages + page_size - 1, 2, GUM_PAGE_RW);
   pages[page_size - 1] = 0x13;
   pages[page_size] = 0x37;
 
-  gum_free_pages (pages);
+  gum_memory_free (pages, 2 * page_size);
 }
 
 static gboolean
@@ -757,6 +759,7 @@ match_found_cb (GumAddress address,
 TESTCASE (patch_code_does_not_apply_while_threads_suspended)
 {
   GThread * holder;
+  gsize page_size;
   guint8 * code;
 
   g_mutex_init (&gum_patch_gate);
@@ -767,9 +770,10 @@ TESTCASE (patch_code_does_not_apply_while_threads_suspended)
   while (g_atomic_int_get (&gum_patch_holder_ready) == 0)
     g_thread_yield ();
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   code[0] = 0x00;
-  gum_mprotect (code, gum_query_page_size (), GUM_PAGE_RX);
+  gum_mprotect (code, page_size, GUM_PAGE_RX);
 
   gum_memory_patch_code (code, 1, gum_patch_gated_apply, NULL);
 
@@ -777,7 +781,7 @@ TESTCASE (patch_code_does_not_apply_while_threads_suspended)
 
   g_thread_join (holder);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
   g_mutex_clear (&gum_patch_gate);
 }
 

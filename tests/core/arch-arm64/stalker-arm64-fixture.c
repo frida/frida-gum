@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -43,6 +43,7 @@ typedef struct _TestArm64StalkerFixture
   const GumMemoryRange * runner_range;
 
   guint8 * code;
+  gsize code_size;
   guint8 * last_invoke_calladdr;
   guint8 * last_invoke_retaddr;
 } TestArm64StalkerFixture;
@@ -104,7 +105,7 @@ test_arm64_stalker_fixture_teardown (TestArm64StalkerFixture * fixture,
   g_object_unref (fixture->stalker);
 
   if (fixture->code != NULL)
-    gum_free_pages (fixture->code);
+    gum_memory_free (fixture->code, fixture->code_size);
 }
 
 static GCallback
@@ -113,14 +114,17 @@ test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
                                      guint tpl_size)
 {
   GumAddressSpec spec;
+  gsize page_size;
 
   spec.near_address = gum_strip_code_pointer (gum_stalker_follow_me);
   spec.max_distance = G_MAXINT32 / 2;
 
   if (fixture->code != NULL)
-    gum_free_pages (fixture->code);
-  fixture->code = gum_alloc_n_pages_near (
-      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RW, &spec);
+    gum_memory_free (fixture->code, fixture->code_size);
+  page_size = gum_query_page_size ();
+  fixture->code_size = ((tpl_size / page_size) + 1) * page_size;
+  fixture->code = gum_memory_allocate_near (&spec, fixture->code_size,
+      page_size, GUM_PAGE_RW);
   memcpy (fixture->code, tpl_code, tpl_size);
   gum_memory_mark_code (fixture->code, tpl_size);
 
@@ -138,6 +142,7 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
                                               gint arg)
 {
   GumAddressSpec spec;
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   gint ret;
@@ -145,7 +150,8 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
 
   spec.near_address = gum_strip_code_pointer (gum_stalker_follow_me);
   spec.max_distance = G_MAXINT32 / 2;
-  code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate_near (&spec, page_size, page_size, GUM_PAGE_RW);
 
   gum_arm64_writer_init (&cw, code);
 
@@ -181,7 +187,7 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
       GUM_POINTER_TO_FUNCPTR (GCallback, gum_sign_code_pointer (code));
   invoke_func ();
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 
   return ret;
 }

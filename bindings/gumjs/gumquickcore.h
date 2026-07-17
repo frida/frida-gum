@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -247,6 +247,8 @@ struct _GumQuickNativeResource
 {
   GumQuickNativePointer native_pointer;
 
+  gsize size;
+  gboolean owns_pages;
   GDestroyNotify notify;
 };
 

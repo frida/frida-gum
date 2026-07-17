@@ -47,11 +47,12 @@ static void gum_emit_const_func (gpointer mem, gpointer user_data);
 TESTCASE (attach_to_thunk_reading_lr)
 {
   const gsize code_size_in_pages = 1;
-  gsize code_size;
+  gsize page_size, code_size;
   GumEmitLrThunkContext ctx;
 
-  code_size = code_size_in_pages * gum_query_page_size ();
-  ctx.code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code_size = code_size_in_pages * page_size;
+  ctx.code = gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW);
   ctx.run = NULL;
   ctx.thunk = NULL;
   ctx.expected_lr = 0;
@@ -65,7 +66,7 @@ TESTCASE (attach_to_thunk_reading_lr)
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
   interceptor_fixture_detach (fixture, 0);
-  gum_free_pages (ctx.code);
+  gum_memory_free (ctx.code, code_size);
 }
 
 static void
@@ -102,11 +103,12 @@ gum_emit_lr_thunk (gpointer mem,
 TESTCASE (attach_to_function_reading_lr)
 {
   const gsize code_size_in_pages = 1;
-  gsize code_size;
+  gsize page_size, code_size;
   GumEmitLrFuncContext ctx;
 
-  code_size = code_size_in_pages * gum_query_page_size ();
-  ctx.code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code_size = code_size_in_pages * page_size;
+  ctx.code = gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW);
   ctx.run = NULL;
   ctx.func = NULL;
   ctx.caller_lr = 0;
@@ -120,7 +122,7 @@ TESTCASE (attach_to_function_reading_lr)
   g_assert_cmpstr (fixture->result->str, ==, "><");
 
   interceptor_fixture_detach (fixture, 0);
-  gum_free_pages (ctx.code);
+  gum_memory_free (ctx.code, code_size);
 }
 
 static void
@@ -156,13 +158,14 @@ gum_emit_lr_func (gpointer mem,
 TESTCASE (attach_with_custom_scratch_register)
 {
   const gsize code_size_in_pages = 1;
-  gsize code_size;
+  gsize page_size, code_size;
   GumEmitConstFuncContext ctx;
   Arm64ListenerContext * lc;
   GumAttachOptions options = { 0, };
 
-  code_size = code_size_in_pages * gum_query_page_size ();
-  ctx.code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code_size = code_size_in_pages * page_size;
+  ctx.code = gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW);
   ctx.run = NULL;
   ctx.clobber_x7 = FALSE;
 
@@ -191,19 +194,20 @@ TESTCASE (attach_with_custom_scratch_register)
   gum_interceptor_detach (fixture->interceptor,
       GUM_INVOCATION_LISTENER (lc->listener));
   arm64_listener_context_free (lc);
-  gum_free_pages (ctx.code);
+  gum_memory_free (ctx.code, code_size);
 }
 
 TESTCASE (attach_rejects_scratch_register_used_by_prologue)
 {
   const gsize code_size_in_pages = 1;
-  gsize code_size;
+  gsize page_size, code_size;
   GumEmitConstFuncContext ctx;
   TestCallbackListener * listener;
   GumAttachOptions options = { 0, };
 
-  code_size = code_size_in_pages * gum_query_page_size ();
-  ctx.code = gum_alloc_n_pages (code_size_in_pages, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code_size = code_size_in_pages * page_size;
+  ctx.code = gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW);
   ctx.run = NULL;
   ctx.clobber_x7 = TRUE;
 
@@ -217,7 +221,7 @@ TESTCASE (attach_rejects_scratch_register_used_by_prologue)
       GUM_ATTACH_WRONG_SIGNATURE);
 
   g_object_unref (listener);
-  gum_free_pages (ctx.code);
+  gum_memory_free (ctx.code, code_size);
 }
 
 static void

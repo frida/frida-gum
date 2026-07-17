@@ -631,6 +631,7 @@ gum_linux_modify_thread (GumThreadId thread_id,
   gboolean success = FALSE;
   GumLinuxModifyThreadContext ctx;
   gssize child;
+  gsize page_size = gum_query_page_size ();
   gpointer stack = NULL;
   gpointer tls = NULL;
   GumUserDesc * desc;
@@ -650,8 +651,8 @@ gum_linux_modify_thread (GumThreadId thread_id,
   if (socketpair (AF_UNIX, SOCK_STREAM, 0, ctx.fd) != 0)
     goto socketpair_failed;
 
-  stack = gum_alloc_n_pages (1, GUM_PAGE_RW);
-  tls = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  stack = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  tls = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   GumUserDesc segment;
@@ -716,7 +717,7 @@ gum_linux_modify_thread (GumThreadId thread_id,
    */
   child = gum_libc_clone (
       gum_linux_do_modify_thread,
-      stack + gum_query_page_size (),
+      stack + page_size,
       CLONE_VM | CLONE_SETTLS,
       &ctx,
       NULL,
@@ -802,8 +803,10 @@ attach_failed:
   }
 beach:
   {
-    g_clear_pointer (&tls, gum_free_pages);
-    g_clear_pointer (&stack, gum_free_pages);
+    if (tls != NULL)
+      gum_memory_free (tls, page_size);
+    if (stack != NULL)
+      gum_memory_free (stack, page_size);
 
     if (ctx.fd[0] != -1)
       close (ctx.fd[0]);
@@ -3944,7 +3947,8 @@ gum_linux_create_thread (GumLinuxThreadCtx * ctx,
     if (GUM_THREAD_STACK_SIZE % page_size != 0)
       num_pages++;
 
-    ctx->stack = gum_alloc_n_pages (num_pages, GUM_PAGE_RW);
+    ctx->stack = gum_memory_allocate (NULL, num_pages * page_size, page_size,
+        GUM_PAGE_RW);
     if (ctx->stack == NULL)
       return FALSE;
 
@@ -3984,7 +3988,7 @@ gum_linux_dispose_thread (GumLinuxThreadCtx * ctx)
     return FALSE;
 
   if (ctx->stack != NULL)
-    gum_free_pages (ctx->stack);
+    gum_memory_free (ctx->stack, GUM_THREAD_STACK_SIZE);
 
   return TRUE;
 }

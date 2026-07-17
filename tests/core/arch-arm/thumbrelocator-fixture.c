@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +23,7 @@
 typedef struct _TestThumbRelocatorFixture
 {
   guint8 * output;
+  gsize output_size;
   GumThumbWriter tw;
   GumThumbRelocator rl;
 } TestThumbRelocatorFixture;
@@ -33,7 +34,12 @@ static void
 test_thumb_relocator_fixture_setup (TestThumbRelocatorFixture * fixture,
                                     gconstpointer data)
 {
-  fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RW);
+  gsize page_size;
+
+  page_size = gum_query_page_size ();
+  fixture->output_size = page_size;
+  fixture->output = (guint8 *) gum_memory_allocate (NULL, fixture->output_size,
+      page_size, GUM_PAGE_RW);
 
   gum_thumb_writer_init (&fixture->tw, fixture->output);
   fixture->tw.pc = 1024;
@@ -45,7 +51,7 @@ test_thumb_relocator_fixture_teardown (TestThumbRelocatorFixture * fixture,
 {
   gum_thumb_relocator_clear (&fixture->rl);
   gum_thumb_writer_clear (&fixture->tw);
-  gum_free_pages (fixture->output);
+  gum_memory_free (fixture->output, fixture->output_size);
 }
 
 static void

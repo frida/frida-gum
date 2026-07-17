@@ -322,6 +322,7 @@ TESTCASE (exec)
 
 TESTCASE (call_depth)
 {
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   gpointer func_a, func_b;
@@ -329,7 +330,8 @@ TESTCASE (call_depth)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -381,7 +383,7 @@ TESTCASE (call_depth)
   g_assert_cmpint (NTH_EVENT_AS_RET (2)->depth, ==, 2);
   g_assert_cmpint (NTH_EVENT_AS_RET (3)->depth, ==, 1);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 typedef struct _CallProbeContext CallProbeContext;
@@ -1184,6 +1186,7 @@ TESTCASE (exclude_bl)
 
 TESTCASE (exclude_blr)
 {
+  gsize page_size;
   StalkerTestFunc func;
   guint8 * code;
   GumArm64Writer cw;
@@ -1193,7 +1196,8 @@ TESTCASE (exclude_blr)
 
   fixture->sink->mask = GUM_EXEC;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1245,11 +1249,12 @@ TESTCASE (exclude_blr)
   g_assert_cmpuint (fixture->sink->events->length, ==, 42);
 #endif
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (exclude_bl_with_unfollow)
 {
+  gsize page_size;
   StalkerTestFunc func;
   guint8 * code;
   GumArm64Writer cw;
@@ -1259,7 +1264,8 @@ TESTCASE (exclude_bl_with_unfollow)
 
   fixture->sink->mask = GUM_EXEC;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1307,11 +1313,12 @@ TESTCASE (exclude_bl_with_unfollow)
 
   g_assert_cmpuint (fixture->sink->events->length, ==, 20);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (exclude_blr_with_unfollow)
 {
+  gsize page_size;
   StalkerTestFunc func;
   guint8 * code;
   GumArm64Writer cw;
@@ -1321,7 +1328,8 @@ TESTCASE (exclude_blr_with_unfollow)
 
   fixture->sink->mask = GUM_EXEC;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1371,18 +1379,20 @@ TESTCASE (exclude_blr_with_unfollow)
 
   g_assert_cmpuint (fixture->sink->events->length, ==, 21);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (unconditional_branch)
 {
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   GumAddress address;
   const gchar * my_ken_lbl = "my_ken";
   StalkerTestFunc func;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1421,11 +1431,12 @@ TESTCASE (unconditional_branch)
 
   g_assert_cmpint (func (2), ==, 13);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (unconditional_branch_reg)
 {
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   GumAddress address;
@@ -1433,7 +1444,8 @@ TESTCASE (unconditional_branch_reg)
   StalkerTestFunc func;
   arm64_reg reg = ARM64_REG_X13;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1477,11 +1489,12 @@ TESTCASE (unconditional_branch_reg)
 
   g_assert_cmpint (func (2), ==, 13);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (conditional_branch)
 {
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   GumAddress address;
@@ -1490,7 +1503,8 @@ TESTCASE (conditional_branch)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1531,11 +1545,12 @@ TESTCASE (conditional_branch)
 
   g_assert_cmpint (r, ==, 1);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (compare_and_branch)
 {
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   const gchar * my_ken_lbl = "my_ken";
@@ -1543,7 +1558,8 @@ TESTCASE (compare_and_branch)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1584,11 +1600,12 @@ TESTCASE (compare_and_branch)
 
   g_assert_cmpint (r, ==, 1);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (test_bit_and_branch)
 {
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   const gchar * my_ken_lbl = "my_ken";
@@ -1596,7 +1613,8 @@ TESTCASE (test_bit_and_branch)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -1637,11 +1655,12 @@ TESTCASE (test_bit_and_branch)
 
   g_assert_cmpint (r, ==, 1);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (follow_std_call)
 {
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   GumAddress address;
@@ -1649,7 +1668,8 @@ TESTCASE (follow_std_call)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X30, ARM64_REG_X29);
@@ -1691,11 +1711,12 @@ TESTCASE (follow_std_call)
 
   g_assert_cmpint (r, ==, 4);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (follow_return)
 {
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   GumAddress address;
@@ -1703,7 +1724,8 @@ TESTCASE (follow_return)
   StalkerTestFunc func;
   gint r;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X30, ARM64_REG_X29);
@@ -1751,7 +1773,7 @@ TESTCASE (follow_return)
 
   g_assert_cmpint (r, ==, 4);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (follow_misaligned_stack)
@@ -2231,13 +2253,15 @@ typedef void (* ClobberFunc) (GumCpuContext * ctx);
 TESTCASE (no_register_clobber)
 {
 #ifndef HAVE_DARWIN
+  gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
   gint i;
   ClobberFunc func;
   GumCpuContext ctx;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_arm64_writer_init (&cw, code);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
@@ -2304,7 +2328,7 @@ TESTCASE (no_register_clobber)
   g_assert_cmphex (ctx.fp, ==, ARM64_REG_FP);
   g_assert_cmphex (ctx.lr, ==, ARM64_REG_LR);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 #endif
 }
 

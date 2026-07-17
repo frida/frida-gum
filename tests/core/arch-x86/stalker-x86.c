@@ -1702,6 +1702,7 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
 {
   GumAddressSpec spec;
   guint8 * code;
+  gsize page_size;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
   guint align_correction_follow = 12;
@@ -1716,7 +1717,8 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
 
-  code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate_near (&spec, page_size, page_size, GUM_PAGE_RW);
 
   gum_x86_writer_init (&cw, code);
 
@@ -1746,7 +1748,7 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
   invoke_func ();
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (follow_stdcall)
@@ -1859,6 +1861,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 {
   GumAddressSpec spec;
   guint8 * code;
+  gsize page_size;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
   guint align_correction_follow = 0;
@@ -1875,7 +1878,8 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   spec.near_address = gum_stalker_follow_me;
   spec.max_distance = G_MAXINT32 / 2;
 
-  code = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &spec);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate_near (&spec, page_size, page_size, GUM_PAGE_RW);
 
   gum_x86_writer_init (&cw, code);
 
@@ -1912,7 +1916,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
   invoke_func ();
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 TESTCASE (call_followed_by_junk)
@@ -2487,13 +2491,15 @@ typedef void (* ClobberFunc) (GumCpuContext * ctx);
 TESTCASE (no_register_clobber)
 {
   guint8 * code;
+  gsize page_size;
   GumX86Writer cw;
   const gchar * my_func_lbl = "my_func";
   const gchar * my_beach_lbl = "my_beach";
   ClobberFunc func;
   GumCpuContext ctx;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   gum_x86_writer_init (&cw, code);
 
   gum_x86_writer_put_pushax (&cw);
@@ -2573,7 +2579,7 @@ TESTCASE (no_register_clobber)
   g_assert_cmphex (ctx.esi, ==, 0x1337);
   g_assert_cmphex (ctx.edi, ==, 0x1227);
 
-  gum_free_pages (code);
+  gum_memory_free (code, page_size);
 }
 
 #endif
@@ -2625,13 +2631,15 @@ TESTCASE (big_block)
 {
   const guint nop_instruction_count = 1000000;
   guint8 * code;
+  gsize page_size;
   GumX86Writer cw;
   guint i;
   StalkerTestFunc func;
 
-  code = gum_alloc_n_pages (
-      (nop_instruction_count / gum_query_page_size ()) + 1,
-      GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL,
+      ((nop_instruction_count / page_size) + 1) * page_size,
+      page_size, GUM_PAGE_RW);
   gum_x86_writer_init (&cw, code);
 
   for (i = 0; i != nop_instruction_count; i++)
@@ -2646,7 +2654,8 @@ TESTCASE (big_block)
           gum_x86_writer_offset (&cw)));
 
   gum_x86_writer_clear (&cw);
-  gum_free_pages (code);
+  gum_memory_free (code,
+      ((nop_instruction_count / page_size) + 1) * page_size);
 
   test_stalker_fixture_follow_and_invoke (fixture, func, -1);
 }

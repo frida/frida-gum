@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -313,10 +313,12 @@ TESTCASE (call_sysapi_r12_plus_i32_offset_ptr_with_xcx_argument_for_amd64)
 TESTCASE (call_with_arguments_should_be_compatible_with_native_abi)
 {
   gpointer page;
+  gsize page_size;
   GumX86Writer cw;
   GCallback func;
 
-  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
 
   gum_x86_writer_init (&cw, page);
   gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
@@ -328,12 +330,12 @@ TESTCASE (call_with_arguments_should_be_compatible_with_native_abi)
   gum_x86_writer_put_ret (&cw);
   gum_x86_writer_clear (&cw);
 
-  gum_mprotect (page, gum_query_page_size (), GUM_PAGE_RX);
+  gum_mprotect (page, page_size, GUM_PAGE_RX);
 
   func = GUM_POINTER_TO_FUNCPTR (GCallback, page);
   func ();
 
-  gum_free_pages (page);
+  gum_memory_free (page, page_size);
 }
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020-2021 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  *
@@ -118,6 +118,7 @@ struct GumV8NativeResource
   v8::Global<v8::Object> * instance;
   gpointer data;
   gsize size;
+  gboolean owns_pages;
   GDestroyNotify notify;
   GumV8Core * core;
 };

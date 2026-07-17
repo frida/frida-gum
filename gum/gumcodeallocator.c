@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -280,17 +280,15 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
     segment = NULL;
     if (spec != NULL)
-    {
-      data = gum_try_alloc_n_pages_near (size_in_pages, protection, spec);
-      if (data == NULL)
-        return NULL;
-    }
+      data = gum_memory_allocate_near (spec, size_in_bytes, page_size,
+          protection);
     else
-    {
-      data = gum_alloc_n_pages (size_in_pages, protection);
-    }
+      data = gum_memory_allocate (NULL, size_in_bytes, page_size, protection);
+    if (data == NULL)
+      return NULL;
 
-    gum_query_page_allocation_range (data, size_in_bytes, &range);
+    range.base_address = GUM_ADDRESS (data);
+    range.size = size_in_bytes;
     gum_cloak_add_range (&range);
 
     pc = data;
@@ -374,15 +372,12 @@ gum_code_pages_unref (GumCodePages * self)
 
         size_in_pages = self->size / gum_query_page_size ();
         gum_memory_dispose_writable_pages (self->data, size_in_pages);
-
-        gum_free_pages (self->pc);
-      }
-      else
-      {
-        gum_free_pages (self->data);
       }
 
-      gum_query_page_allocation_range (self->pc, self->size, &range);
+      gum_memory_free (self->pc, self->size);
+
+      range.base_address = GUM_ADDRESS (self->pc);
+      range.size = self->size;
       gum_cloak_remove_range (&range);
     }
 
