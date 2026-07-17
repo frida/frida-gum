@@ -232,6 +232,8 @@ GUM_API gboolean gum_arm64_writer_put_cmp_reg_reg (GumArm64Writer * self,
 
 GUM_API gboolean gum_arm64_writer_put_xpaci_reg (GumArm64Writer * self,
     arm64_reg reg);
+GUM_API gboolean gum_arm64_writer_put_pacia_reg_reg (GumArm64Writer * self,
+    arm64_reg dst_reg, arm64_reg mod_reg);
 
 GUM_API void gum_arm64_writer_put_nop (GumArm64Writer * self);
 GUM_API void gum_arm64_writer_put_brk_imm (GumArm64Writer * self, guint16 imm);
