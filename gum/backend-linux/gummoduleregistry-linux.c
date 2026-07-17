@@ -229,23 +229,31 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
                                      GumFoundModuleFunc func,
                                      gpointer user_data)
 {
+  GHashTable * named_ranges;
   const struct link_map * lm;
   gboolean carry_on = TRUE;
 
-  for (lm = gum_r_debug->r_map; lm != NULL; lm = lm->l_next)
+  named_ranges = gum_linux_collect_named_ranges ();
+
+  for (lm = gum_r_debug->r_map; lm != NULL && carry_on; lm = lm->l_next)
   {
+    GumLinuxNamedRange * named_range;
     GumMemoryRange range;
     GumNativeModule * module;
 
     if (lm->l_name[0] == '\0')
     {
       carry_on = func (pm->program, user_data);
-      if (!carry_on)
-        break;
       continue;
     }
 
-    gum_compute_elf_range_from_ehdr ((const ElfW(Ehdr) *) lm->l_addr, &range);
+    named_range = g_hash_table_lookup (named_ranges,
+        GSIZE_TO_POINTER (lm->l_addr));
+    if (named_range == NULL)
+      continue;
+
+    range.base_address = GUM_ADDRESS (named_range->base);
+    range.size = named_range->size;
 
     module = _gum_native_module_make (lm->l_name, &range,
         gum_link_map_as_module_handle, (gpointer) lm, NULL, NULL);
@@ -253,13 +261,12 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
     carry_on = func (GUM_MODULE (module), user_data);
 
     g_object_unref (module);
-
-    if (!carry_on)
-      break;
   }
 
   if (carry_on && pm->vdso != NULL)
     func (pm->vdso, user_data);
+
+  g_hash_table_unref (named_ranges);
 }
 
 static gpointer
