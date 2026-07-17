@@ -1447,6 +1447,30 @@ gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self,
   return TRUE;
 }
 
+gboolean
+gum_arm64_writer_put_movk_reg_imm (GumArm64Writer * self,
+                                   arm64_reg reg,
+                                   guint16 imm,
+                                   guint shift)
+{
+  GumArm64RegInfo ri;
+  guint hw;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  if (shift % 16 != 0 || shift > 48)
+    return FALSE;
+
+  hw = shift / 16;
+  if (ri.width == 32 && hw > 1)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self,
+      ri.sf | 0x72800000 | (hw << 21) | (imm << 5) | ri.index);
+
+  return TRUE;
+}
+
 void
 gum_arm64_writer_put_mov_reg_nzcv (GumArm64Writer * self,
                                    arm64_reg reg)
