@@ -452,8 +452,8 @@ gum_find_resident_notifier (void)
   mach_port_t self;
   mach_vm_address_t address = 0;
 
-  handler = gum_strip_code_pointer (
-      GUM_FUNCPTR_TO_POINTER (gum_resident_add_notifier_on_image_event));
+  handler = gum_sign_code_pointer (gum_strip_code_pointer (
+      GUM_FUNCPTR_TO_POINTER (gum_resident_add_notifier_on_image_event)));
   self = mach_task_self ();
 
   while (TRUE)
@@ -509,15 +509,16 @@ gum_create_resident_notifier (void)
   gum_memory_patch_code (code, page_size, gum_write_resident_stub, &layout);
 
   notifier->noop = GUM_POINTER_TO_FUNCPTR (GumAddImageNotifier,
-      (guint8 *) code + layout.noop_offset);
+      gum_sign_code_pointer ((guint8 *) code + layout.noop_offset));
   notifier->handler = notifier->noop;
 
   _dyld_register_func_for_add_image (GUM_POINTER_TO_FUNCPTR (
       GumAddImageNotifier,
       gum_sign_code_pointer ((guint8 *) code + layout.entry_offset)));
 
-  notifier->handler = gum_strip_code_pointer (
-      GUM_FUNCPTR_TO_POINTER (gum_resident_add_notifier_on_image_event));
+  notifier->handler = GUM_POINTER_TO_FUNCPTR (GumAddImageNotifier,
+      gum_sign_code_pointer (gum_strip_code_pointer (
+          GUM_FUNCPTR_TO_POINTER (gum_resident_add_notifier_on_image_event))));
   g_atomic_pointer_set (&notifier->magic,
       GSIZE_TO_POINTER (GUM_RESIDENT_NOTIFIER_MAGIC));
 
