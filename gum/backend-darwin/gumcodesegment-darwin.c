@@ -29,10 +29,20 @@
 
 #define GUM_CS_HASH_SHA1 1
 #define GUM_CS_HASH_SHA1_SIZE 20
+#define GUM_CS_HASH_SHA256 2
+#define GUM_CS_HASH_SHA256_SIZE 32
+
+#define GUM_CS_CD_VERSION_LEGACY 0x00020001
+#define GUM_CS_CD_VERSION_EXECSEG 0x00020400
+#define GUM_CS_CD_HEADER_SIZE_LEGACY 44
+#define GUM_CS_CD_HEADER_SIZE_EXECSEG 88
+
+#define GUM_CS_NUM_SPECIAL_SLOTS 2
 
 #define GUM_OFFSET_NONE -1
 
 typedef struct _GumCodeLayout GumCodeLayout;
+typedef struct _GumCsFlavor GumCsFlavor;
 typedef struct _GumCsSuperBlob GumCsSuperBlob;
 typedef struct _GumCsBlobIndex GumCsBlobIndex;
 typedef struct _GumCsDirectory GumCsDirectory;
@@ -104,6 +114,33 @@ struct _GumCsRequirements
   guint32 count;
 };
 
+struct _GumCsFlavor
+{
+  guint32 cd_version;
+  guint16 cd_header_size;
+  guint8 hash_type;
+  guint8 hash_size;
+  const gchar * identifier;
+};
+
+G_GNUC_UNUSED static const GumCsFlavor gum_cs_flavor_execseg =
+{
+  GUM_CS_CD_VERSION_EXECSEG,
+  GUM_CS_CD_HEADER_SIZE_EXECSEG,
+  GUM_CS_HASH_SHA256,
+  GUM_CS_HASH_SHA256_SIZE,
+  "gum",
+};
+
+G_GNUC_UNUSED static const GumCsFlavor gum_cs_flavor_legacy =
+{
+  GUM_CS_CD_VERSION_LEGACY,
+  GUM_CS_CD_HEADER_SIZE_LEGACY,
+  GUM_CS_HASH_SHA1,
+  GUM_CS_HASH_SHA1_SIZE,
+  "",
+};
+
 enum _GumSandboxFilterType
 {
   GUM_SANDBOX_FILTER_PATH = 1,
@@ -116,11 +153,13 @@ G_GNUC_UNUSED static gboolean gum_test_mapping (void);
 static GumCodeSegment * gum_code_segment_new_full (gpointer data, gsize size,
     gsize virtual_size, gboolean owns_data);
 
-G_GNUC_UNUSED static gboolean gum_code_segment_is_realize_supported (void);
+G_GNUC_UNUSED static const GumCsFlavor * gum_code_segment_query_flavor (void);
+G_GNUC_UNUSED static gboolean gum_code_segment_probe_flavor (
+    const GumCsFlavor * flavor);
 static gboolean gum_code_segment_try_map_into_place (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
 G_GNUC_UNUSED static gboolean gum_code_segment_try_realize (
-    GumCodeSegment * self);
+    GumCodeSegment * self, const GumCsFlavor * flavor);
 G_GNUC_UNUSED static gboolean gum_code_segment_try_map (GumCodeSegment * self,
     gsize source_offset, gsize source_size, gpointer target_address);
 static gboolean gum_code_segment_try_remap_locally (GumCodeSegment * self,
@@ -130,12 +169,16 @@ G_GNUC_UNUSED static gboolean gum_code_segment_try_remap_using_substrated (
     gpointer target_address);
 
 static void gum_code_segment_compute_layout (GumCodeSegment * self,
-    GumCodeLayout * layout);
+    const GumCsFlavor * flavor, GumCodeLayout * layout);
 
 static void gum_put_mach_headers (const gchar * dylib_path,
     const GumCodeLayout * layout, gpointer output, gsize * output_size);
 static void gum_put_code_signature (gconstpointer header, gconstpointer text,
-    const GumCodeLayout * layout, gpointer output);
+    const GumCodeLayout * layout, const GumCsFlavor * flavor, gpointer output);
+static void gum_cs_hash (const GumCsFlavor * flavor, gconstpointer data,
+    gsize size, guint8 * digest);
+static void gum_cs_put_u32_be (guint8 * p, guint32 value);
+static void gum_cs_put_u64_be (guint8 * p, guint64 value);
 
 static gint gum_file_open_tmp (const gchar * tmpl, gchar ** name_used);
 static void gum_file_write_all (gint fd, gssize offset, gconstpointer data,
@@ -316,43 +359,54 @@ void
 gum_code_segment_realize (GumCodeSegment * self)
 {
 #if defined (HAVE_IOS) || defined (HAVE_TVOS)
-  if (gum_code_segment_is_realize_supported ())
+  const GumCsFlavor * flavor = gum_code_segment_query_flavor ();
+  if (flavor != NULL)
+    gum_code_segment_try_realize (self, flavor);
+#endif
+}
+
+static const GumCsFlavor *
+gum_code_segment_query_flavor (void)
+{
+#if defined (HAVE_IOS) || defined (HAVE_TVOS)
+  static gsize cached_flavor = 0;
+
+  if (g_once_init_enter (&cached_flavor))
   {
-    gum_code_segment_try_realize (self);
+    const GumCsFlavor * flavor;
+
+    if (gum_code_segment_probe_flavor (&gum_cs_flavor_execseg))
+      flavor = &gum_cs_flavor_execseg;
+    else if (gum_code_segment_probe_flavor (&gum_cs_flavor_legacy))
+      flavor = &gum_cs_flavor_legacy;
+    else
+      flavor = NULL;
+
+    g_once_init_leave (&cached_flavor,
+        (flavor != NULL) ? GPOINTER_TO_SIZE (flavor) : 1);
   }
+
+  return (cached_flavor == 1) ? NULL : GSIZE_TO_POINTER (cached_flavor);
+#else
+  return NULL;
 #endif
 }
 
 static gboolean
-gum_code_segment_is_realize_supported (void)
+gum_code_segment_probe_flavor (const GumCsFlavor * flavor)
 {
-#if defined (HAVE_IOS) || defined (HAVE_TVOS)
-  static gsize realize_supported = 0;
+  gboolean success;
+  gpointer scratch_page;
+  GumCodeSegment * segment;
 
-  if (g_once_init_enter (&realize_supported))
-  {
-    gboolean supported = FALSE;
-    gpointer scratch_page;
-    GumCodeSegment * segment;
+  segment = gum_code_segment_new (1, NULL);
+  scratch_page = gum_code_segment_get_address (segment);
+  success = gum_code_segment_try_realize (segment, flavor);
+  if (success)
+    success = gum_code_segment_try_map (segment, 0, 1, scratch_page);
+  gum_code_segment_free (segment);
 
-    if (g_file_test ("/usr/libexec/corelliumd", G_FILE_TEST_EXISTS))
-      goto not_necessary;
-
-    segment = gum_code_segment_new (1, NULL);
-    scratch_page = gum_code_segment_get_address (segment);
-    supported = gum_code_segment_try_realize (segment);
-    if (supported)
-      supported = gum_code_segment_try_map (segment, 0, 1, scratch_page);
-    gum_code_segment_free (segment);
-
-not_necessary:
-    g_once_init_leave (&realize_supported, supported + 1);
-  }
-
-  return realize_supported - 1;
-#else
-  return FALSE;
-#endif
+  return success;
 }
 
 void
@@ -405,7 +459,7 @@ gum_code_segment_mark (gpointer code,
   if (gum_process_is_debugger_attached ())
     goto fallback;
 
-  if (gum_code_segment_is_realize_supported ())
+  if (gum_code_segment_query_flavor () != NULL)
   {
     GumCodeSegment * segment;
 
@@ -458,7 +512,8 @@ fallback:
 }
 
 static gboolean
-gum_code_segment_try_realize (GumCodeSegment * self)
+gum_code_segment_try_realize (GumCodeSegment * self,
+                              const GumCsFlavor * flavor)
 {
   gchar * dylib_path;
   GumCodeLayout layout;
@@ -472,13 +527,14 @@ gum_code_segment_try_realize (GumCodeSegment * self)
   if (self->fd == -1)
     return FALSE;
 
-  gum_code_segment_compute_layout (self, &layout);
+  gum_code_segment_compute_layout (self, flavor, &layout);
 
   dylib_header = g_malloc0 (layout.header_file_size);
   gum_put_mach_headers (dylib_path, &layout, dylib_header, &dylib_header_size);
 
   code_signature = g_malloc0 (layout.code_signature_file_size);
-  gum_put_code_signature (dylib_header, self->data, &layout, code_signature);
+  gum_put_code_signature (dylib_header, self->data, &layout, flavor,
+      code_signature);
 
   gum_file_write_all (self->fd, GUM_OFFSET_NONE, dylib_header,
       dylib_header_size);
@@ -581,9 +637,11 @@ gum_code_segment_try_remap_using_substrated (GumCodeSegment * self,
 
 static void
 gum_code_segment_compute_layout (GumCodeSegment * self,
+                                 const GumCsFlavor * flavor,
                                  GumCodeLayout * layout)
 {
   gsize page_size, cs_page_size, cs_hash_count, cs_hash_size;
+  gsize ident_size, special_slots_size, cs_hashes_size, cs_dir_size;
   gsize cs_size, cs_file_size;
 
   page_size = gum_query_page_size ();
@@ -597,9 +655,16 @@ gum_code_segment_compute_layout (GumCodeSegment * self,
   cs_page_size = 4096;
   cs_hash_count =
       (layout->text_file_offset + layout->text_file_size) / cs_page_size;
-  cs_hash_size = GUM_CS_HASH_SHA1_SIZE;
+  cs_hash_size = flavor->hash_size;
 
-  cs_size = 125 + (cs_hash_count * cs_hash_size);
+  ident_size = strlen (flavor->identifier) + 1;
+  special_slots_size = GUM_CS_NUM_SPECIAL_SLOTS * cs_hash_size;
+  cs_hashes_size = cs_hash_count * cs_hash_size;
+  cs_dir_size =
+      flavor->cd_header_size + ident_size + special_slots_size + cs_hashes_size;
+
+  cs_size = sizeof (GumCsSuperBlob) + (2 * sizeof (GumCsBlobIndex)) +
+      cs_dir_size + sizeof (GumCsRequirements);
   cs_file_size = cs_size;
   if (cs_file_size % 4 != 0)
     cs_file_size += 4 - (cs_file_size % 4);
@@ -722,18 +787,24 @@ static void
 gum_put_code_signature (gconstpointer header,
                         gconstpointer text,
                         const GumCodeLayout * layout,
+                        const GumCsFlavor * flavor,
                         gpointer output)
 {
   GumCsSuperBlob * sb;
   GumCsBlobIndex * bi;
   GumCsDirectory * dir;
-  guint8 * ident, * hashes;
-  gsize cs_hashes_size, cs_page_size;
+  guint8 * ident, * special_slots, * hashes;
+  gsize hash_size, ident_size, special_slots_size, cs_hashes_size, cs_dir_size;
+  gsize cs_page_size;
   GumCsRequirements * req;
   gsize i;
 
-  cs_hashes_size =
-      (layout->code_signature_hash_count * layout->code_signature_hash_size);
+  hash_size = flavor->hash_size;
+  ident_size = strlen (flavor->identifier) + 1;
+  special_slots_size = GUM_CS_NUM_SPECIAL_SLOTS * hash_size;
+  cs_hashes_size = layout->code_signature_hash_count * hash_size;
+  cs_dir_size =
+      flavor->cd_header_size + ident_size + special_slots_size + cs_hashes_size;
 
   sb = output;
   sb->magic = GUINT32_TO_BE (GUM_CS_MAGIC_EMBEDDED_SIGNATURE);
@@ -746,68 +817,122 @@ gum_put_code_signature (gconstpointer header,
 
   bi = &sb->index[1];
   bi->type = GUINT32_TO_BE (2);
-  bi->offset = GUINT32_TO_BE (113 + cs_hashes_size);
+  bi->offset = GUINT32_TO_BE (28 + cs_dir_size);
 
   dir = (GumCsDirectory *) (bi + 1);
 
-  ident = ((guint8 *) dir) + 44;
-  hashes = ident + 41;
+  ident = ((guint8 *) dir) + flavor->cd_header_size;
+  special_slots = ident + ident_size;
+  hashes = special_slots + special_slots_size;
 
   dir->magic = GUINT32_TO_BE (GUM_CS_MAGIC_CODE_DIRECTORY);
-  dir->length = GUINT32_TO_BE (85 + cs_hashes_size);
-  dir->version = GUINT32_TO_BE (0x00020001);
+  dir->length = GUINT32_TO_BE (cs_dir_size);
+  dir->version = GUINT32_TO_BE (flavor->cd_version);
   dir->flags = GUINT32_TO_BE (0);
   dir->hash_offset = GUINT32_TO_BE (hashes - (guint8 *) dir);
   dir->ident_offset = GUINT32_TO_BE (ident - (guint8 *) dir);
-  dir->num_special_slots = GUINT32_TO_BE (2);
+  dir->num_special_slots = GUINT32_TO_BE (GUM_CS_NUM_SPECIAL_SLOTS);
   dir->num_code_slots = GUINT32_TO_BE (layout->code_signature_hash_count);
   dir->code_limit =
       GUINT32_TO_BE (layout->text_file_offset + layout->text_file_size);
-  dir->hash_size = layout->code_signature_hash_size;
-  dir->hash_type = GUM_CS_HASH_SHA1;
+  dir->hash_size = hash_size;
+  dir->hash_type = flavor->hash_type;
+  dir->reserved_1 = 0;
   dir->page_size = log2 (layout->code_signature_page_size);
+  dir->reserved_2 = 0;
+
+  if (flavor->cd_version >= GUM_CS_CD_VERSION_EXECSEG)
+  {
+    guint8 * d = (guint8 *) dir;
+
+    gum_cs_put_u32_be (d + 44, 0);
+    gum_cs_put_u32_be (d + 48, 0);
+    gum_cs_put_u32_be (d + 52, 0);
+    gum_cs_put_u64_be (d + 56, 0);
+    gum_cs_put_u64_be (d + 64, layout->text_file_offset);
+    gum_cs_put_u64_be (d + 72, layout->text_file_size);
+    gum_cs_put_u64_be (d + 80, 0);
+  }
+
+  memcpy (ident, flavor->identifier, ident_size);
 
   req = (GumCsRequirements *) (hashes + cs_hashes_size);
   req->magic = GUINT32_TO_BE (GUM_CS_MAGIC_REQUIREMENTS);
   req->length = GUINT32_TO_BE (12);
   req->count = GUINT32_TO_BE (0);
 
-  CC_SHA1 (req, 12, ident + 1);
+  gum_cs_hash (flavor, req, 12, special_slots);
 
   cs_page_size = layout->code_signature_page_size;
 
   for (i = 0; i != layout->header_file_size / cs_page_size; i++)
   {
-    CC_SHA1 (header + (i * cs_page_size), cs_page_size, hashes);
-    hashes += 20;
+    gum_cs_hash (flavor, header + (i * cs_page_size), cs_page_size, hashes);
+    hashes += hash_size;
   }
 
   for (i = 0; i != layout->text_file_size / cs_page_size; i++)
   {
-    CC_SHA1 (text + (i * cs_page_size), cs_page_size, hashes);
-    hashes += 20;
+    gum_cs_hash (flavor, text + (i * cs_page_size), cs_page_size, hashes);
+    hashes += hash_size;
   }
+}
+
+static void
+gum_cs_hash (const GumCsFlavor * flavor,
+             gconstpointer data,
+             gsize size,
+             guint8 * digest)
+{
+  if (flavor->hash_type == GUM_CS_HASH_SHA256)
+    CC_SHA256 (data, size, digest);
+  else
+    CC_SHA1 (data, size, digest);
+}
+
+static void
+gum_cs_put_u32_be (guint8 * p,
+                   guint32 value)
+{
+  value = GUINT32_TO_BE (value);
+  memcpy (p, &value, sizeof (value));
+}
+
+static void
+gum_cs_put_u64_be (guint8 * p,
+                   guint64 value)
+{
+  value = GUINT64_TO_BE (value);
+  memcpy (p, &value, sizeof (value));
 }
 
 static gint
 gum_file_open_tmp (const gchar * tmpl,
                    gchar ** name_used)
 {
-  gchar * path;
-  gint res;
+  gint res = -1;
+  gchar * path = NULL;
+  const gchar * dirs[2];
+  guint i;
 
-  path = g_build_filename (g_get_tmp_dir (), tmpl, NULL);
-  res = g_mkstemp (path);
-  if (res == -1 || !gum_file_check_sandbox_allows (path, "file-map-executable"))
+  dirs[0] = g_get_tmp_dir ();
+  dirs[1] = "/Library/Caches";
+
+  for (i = 0; i != G_N_ELEMENTS (dirs); i++)
   {
-    if (res != -1)
-    {
-      close (res);
-      unlink (path);
-    }
     g_free (path);
-    path = g_build_filename ("/Library/Caches", tmpl, NULL);
+    path = g_build_filename (dirs[i], tmpl, NULL);
+
     res = g_mkstemp (path);
+    if (res == -1)
+      continue;
+
+    if (gum_file_check_sandbox_allows (path, "file-map-executable"))
+      break;
+
+    close (res);
+    unlink (path);
+    res = -1;
   }
 
   if (res != -1)
