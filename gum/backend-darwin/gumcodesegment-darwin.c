@@ -109,10 +109,16 @@ enum _GumSandboxFilterType
   GUM_SANDBOX_FILTER_PATH = 1,
 };
 
+G_GNUC_UNUSED static gboolean
+    gum_can_test_mapping_without_risk_of_xnu_panic (void);
+G_GNUC_UNUSED static gboolean gum_test_mapping (void);
+
 static GumCodeSegment * gum_code_segment_new_full (gpointer data, gsize size,
     gsize virtual_size, gboolean owns_data);
 
 G_GNUC_UNUSED static gboolean gum_code_segment_is_realize_supported (void);
+static gboolean gum_code_segment_try_map_into_place (GumCodeSegment * self,
+    gsize source_offset, gsize source_size, gpointer target_address);
 G_GNUC_UNUSED static gboolean gum_code_segment_try_realize (
     GumCodeSegment * self);
 G_GNUC_UNUSED static gboolean gum_code_segment_try_map (GumCodeSegment * self,
@@ -148,16 +154,58 @@ gum_code_segment_is_supported (void)
 {
 #if (defined (HAVE_MACOS) && defined (HAVE_ARM64)) || \
     defined (HAVE_IOS) || defined (HAVE_TVOS)
-  /*
-   * Broke on newer kernels, such as on iOS >= 15.6.1, but works again on
-   * iOS >= 17.6 (xnu >= 10063.142.1).
-   */
-  if (gum_darwin_check_xnu_version (10063, 142, 1))
-    return TRUE;
-  return !gum_darwin_check_xnu_version (8020, 142, 0);
+  static gsize supported = 0;
+
+  if (g_once_init_enter (&supported))
+  {
+    gboolean is_supported = gum_can_test_mapping_without_risk_of_xnu_panic () &&
+        gum_test_mapping ();
+
+    g_once_init_leave (&supported, is_supported + 1);
+  }
+
+  return supported - 1;
 #else
   return FALSE;
 #endif
+}
+
+static gboolean
+gum_can_test_mapping_without_risk_of_xnu_panic (void)
+{
+  return !gum_darwin_check_xnu_version (8020, 142, 0) ||
+      gum_darwin_check_xnu_version (10063, 142, 1);
+}
+
+static gboolean
+gum_test_mapping (void)
+{
+  gboolean success;
+  gsize page_size;
+  guint8 * scratch;
+  GumCodeSegment * segment;
+
+  page_size = gum_query_page_size ();
+
+  scratch = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  /*
+   * Dirty the page before making it executable so the kernel treats it like
+   * real committed code. A pristine page can be remapped even on kernels
+   * that refuse to remap actual code, which would be a false positive.
+   */
+  scratch[0] = 0;
+  gum_mprotect (scratch, page_size, GUM_PAGE_RX);
+
+  segment = gum_code_segment_new (page_size, NULL);
+  gum_code_segment_realize (segment);
+
+  success = gum_code_segment_try_map_into_place (segment, 0, page_size,
+      scratch);
+
+  gum_code_segment_free (segment);
+  gum_free_pages (scratch);
+
+  return success;
 }
 
 GumCodeSegment *
@@ -314,28 +362,37 @@ gum_code_segment_map (GumCodeSegment * self,
 {
   G_GNUC_UNUSED gboolean mapped_successfully;
 
+  mapped_successfully = gum_code_segment_try_map_into_place (self,
+      source_offset, source_size, target_address);
+
+  g_assert (mapped_successfully);
+}
+
+static gboolean
+gum_code_segment_try_map_into_place (GumCodeSegment * self,
+                                     gsize source_offset,
+                                     gsize source_size,
+                                     gpointer target_address)
+{
 #if defined (HAVE_IOS) || defined (HAVE_TVOS)
   if (self->fd != -1)
   {
-    mapped_successfully = gum_code_segment_try_map (self, source_offset,
-        source_size, target_address);
+    return gum_code_segment_try_map (self, source_offset, source_size,
+        target_address);
   }
-  else
-  {
-    mapped_successfully = gum_code_segment_try_remap_using_substrated (self,
-        source_offset, source_size, target_address);
-    if (!mapped_successfully)
-    {
-      mapped_successfully = gum_code_segment_try_remap_locally (self,
-          source_offset, source_size, target_address);
-    }
-  }
-#else
-  mapped_successfully = gum_code_segment_try_remap_locally (self, source_offset,
-      source_size, target_address);
-#endif
 
-  g_assert (mapped_successfully);
+  if (gum_code_segment_try_remap_using_substrated (self, source_offset,
+      source_size, target_address))
+  {
+    return TRUE;
+  }
+
+  return gum_code_segment_try_remap_locally (self, source_offset, source_size,
+      target_address);
+#else
+  return gum_code_segment_try_remap_locally (self, source_offset, source_size,
+      target_address);
+#endif
 }
 
 gboolean
