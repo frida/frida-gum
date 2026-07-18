@@ -146,10 +146,6 @@ enum _GumSandboxFilterType
   GUM_SANDBOX_FILTER_PATH = 1,
 };
 
-G_GNUC_UNUSED static gboolean
-    gum_can_test_mapping_without_risk_of_xnu_panic (void);
-G_GNUC_UNUSED static gboolean gum_test_mapping (void);
-
 static GumCodeSegment * gum_code_segment_new_full (gpointer data, gsize size,
     gsize virtual_size, gboolean owns_data);
 
@@ -197,58 +193,11 @@ gum_code_segment_is_supported (void)
 {
 #if (defined (HAVE_MACOS) && defined (HAVE_ARM64)) || \
     defined (HAVE_IOS) || defined (HAVE_TVOS)
-  static gsize supported = 0;
-
-  if (g_once_init_enter (&supported))
-  {
-    gboolean is_supported = gum_can_test_mapping_without_risk_of_xnu_panic () &&
-        gum_test_mapping ();
-
-    g_once_init_leave (&supported, is_supported + 1);
-  }
-
-  return supported - 1;
+  /* Not going to work on newer kernels, such as on iOS >= 15.6.1. */
+  return !gum_darwin_check_xnu_version (8020, 142, 0);
 #else
   return FALSE;
 #endif
-}
-
-static gboolean
-gum_can_test_mapping_without_risk_of_xnu_panic (void)
-{
-  return !gum_darwin_check_xnu_version (8020, 142, 0) ||
-      gum_darwin_check_xnu_version (10063, 142, 1);
-}
-
-static gboolean
-gum_test_mapping (void)
-{
-  gboolean success;
-  gsize page_size;
-  guint8 * scratch;
-  GumCodeSegment * segment;
-
-  page_size = gum_query_page_size ();
-
-  scratch = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
-  /*
-   * Dirty the page before making it executable so the kernel treats it like
-   * real committed code. A pristine page can be remapped even on kernels
-   * that refuse to remap actual code, which would be a false positive.
-   */
-  scratch[0] = 0;
-  gum_mprotect (scratch, page_size, GUM_PAGE_RX);
-
-  segment = gum_code_segment_new (page_size, NULL);
-  gum_code_segment_realize (segment);
-
-  success = gum_code_segment_try_map_into_place (segment, 0, page_size,
-      scratch);
-
-  gum_code_segment_free (segment);
-  gum_memory_free (scratch, page_size);
-
-  return success;
 }
 
 GumCodeSegment *
