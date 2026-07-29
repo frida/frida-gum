@@ -1658,6 +1658,10 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       }
       else
       {
+        g_info ("unload-trace: trampoline still in use function=%p "
+            "usage_counter=%d", task->ctx->function_address,
+            task->ctx->trampoline_usage_counter);
+
         interceptor->current_transaction.is_dirty = TRUE;
         g_queue_push_tail (
             interceptor->current_transaction.pending_destroy_tasks, task);

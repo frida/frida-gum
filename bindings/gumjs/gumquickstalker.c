@@ -364,6 +364,9 @@ gum_quick_stalker_on_flush_timer_tick (GumQuickStalker * self)
     _gum_quick_scope_leave (&scope);
   }
 
+  g_info ("unload-trace: stalker flush timer tick pending_garbage=%u",
+      pending_garbage);
+
   return pending_garbage;
 }
 

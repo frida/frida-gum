@@ -1045,6 +1045,9 @@ gum_quick_script_try_unload (GumQuickScript * self)
       (GumQuickFlushNotify) gum_quick_script_try_unload,
       g_object_ref (self), g_object_unref);
 
+  g_info ("unload-trace: try_unload script=%p success=%u usage_count=%u",
+      self, success, self->core.usage_count);
+
   _gum_quick_scope_leave (&scope);
 
   if (success)

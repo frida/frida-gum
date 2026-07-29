@@ -472,6 +472,8 @@ gum_quick_interceptor_on_flush_timer_tick (GumQuickInterceptor * self)
     _gum_quick_scope_leave (&scope);
   }
 
+  g_info ("unload-trace: interceptor flush timer tick flushed=%u", flushed);
+
   return !flushed;
 }
 
