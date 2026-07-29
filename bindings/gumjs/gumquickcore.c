@@ -1948,12 +1948,18 @@ void
 _gum_quick_core_pin (GumQuickCore * self)
 {
   self->usage_count++;
+
+  g_info ("unload-trace: pin core=%p usage_count=%u caller=%p", self,
+      self->usage_count, __builtin_return_address (0));
 }
 
 void
 _gum_quick_core_unpin (GumQuickCore * self)
 {
   self->usage_count--;
+
+  g_info ("unload-trace: unpin core=%p usage_count=%u caller=%p", self,
+      self->usage_count, __builtin_return_address (0));
 }
 
 void
