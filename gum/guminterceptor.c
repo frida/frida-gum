@@ -188,6 +188,7 @@ static void gum_interceptor_transaction_schedule_destroy (
 static void gum_interceptor_transaction_schedule_update (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
     GumUpdateTaskFunc func);
+static gchar * gum_describe_address (gpointer address);
 
 static GumFunctionContext * gum_function_context_new (
     GumInterceptor * interceptor, gpointer function_address,
@@ -1664,9 +1665,13 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       }
       else
       {
-        g_info ("unload-trace: trampoline still in use function=%p "
-            "usage_counter=%d", task->ctx->function_address,
+        gchar * description = gum_describe_address (task->ctx->function_address);
+
+        g_info ("unload-trace: trampoline still in use function=%s "
+            "usage_counter=%d", description,
             task->ctx->trampoline_usage_counter);
+
+        g_free (description);
 
         interceptor->current_transaction.is_dirty = TRUE;
         g_queue_push_tail (
@@ -1725,8 +1730,14 @@ gum_interceptor_transaction_schedule_destroy (GumInterceptorTransaction * self,
 
   g_queue_push_tail (self->pending_destroy_tasks, task);
 
-  g_info ("unload-trace: scheduled destroy function=%p level=%d is_dirty=%u",
-      ctx->function_address, self->level, self->is_dirty);
+  {
+    gchar * description = gum_describe_address (ctx->function_address);
+
+    g_info ("unload-trace: scheduled destroy function=%s level=%d is_dirty=%u",
+        description, self->level, self->is_dirty);
+
+    g_free (description);
+  }
 }
 
 static void
@@ -2659,6 +2670,28 @@ gum_interceptor_has (GumInterceptor * self,
 {
   return g_hash_table_lookup (self->function_by_address,
       function_address) != NULL;
+}
+
+static gchar *
+gum_describe_address (gpointer address)
+{
+  GumModule * module;
+  gchar * description;
+  const gchar * name;
+  GumAddress base;
+
+  module = gum_process_find_module_by_address (GUM_ADDRESS (address));
+  if (module == NULL)
+    return g_strdup_printf ("%p", address);
+
+  name = gum_module_get_name (module);
+  base = gum_module_get_range (module)->base_address;
+  description = g_strdup_printf ("%p (%s!0x%" G_GINT64_MODIFIER "x)", address,
+      name, GUM_ADDRESS (address) - base);
+
+  g_object_unref (module);
+
+  return description;
 }
 
 static gpointer
