@@ -927,6 +927,12 @@ gum_interceptor_flush (GumInterceptor * self)
         g_queue_is_empty (self->current_transaction.pending_destroy_tasks);
   }
 
+  g_info ("unload-trace: interceptor flush flushed=%u level=%d is_dirty=%u "
+      "pending_destroy=%u pending_update=%u", flushed,
+      self->current_transaction.level, self->current_transaction.is_dirty,
+      g_queue_get_length (self->current_transaction.pending_destroy_tasks),
+      g_hash_table_size (self->current_transaction.pending_update_tasks));
+
   GUM_INTERCEPTOR_UNLOCK (self);
 
   return flushed;
@@ -1718,6 +1724,9 @@ gum_interceptor_transaction_schedule_destroy (GumInterceptorTransaction * self,
   task->data = data;
 
   g_queue_push_tail (self->pending_destroy_tasks, task);
+
+  g_info ("unload-trace: scheduled destroy function=%p level=%d is_dirty=%u",
+      ctx->function_address, self->level, self->is_dirty);
 }
 
 static void
