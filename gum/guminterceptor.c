@@ -20,6 +20,7 @@
 #include "gumprocess-priv.h"
 #include "gumtls.h"
 
+#include <dlfcn.h>
 #include <string.h>
 #ifdef HAVE_DARWIN
 # include <mach/mach.h>
@@ -2713,23 +2714,23 @@ gum_report_unbalanced_transaction (gint level)
 static gchar *
 gum_describe_address (gpointer address)
 {
-  GumModule * module;
-  gchar * description;
-  const gchar * name;
-  GumAddress base;
+  Dl_info info;
+  const gchar * module_name;
 
-  module = gum_process_find_module_by_address (GUM_ADDRESS (address));
-  if (module == NULL)
+  if (dladdr (address, &info) == 0)
     return g_strdup_printf ("%p", address);
 
-  name = gum_module_get_name (module);
-  base = gum_module_get_range (module)->base_address;
-  description = g_strdup_printf ("%p (%s!0x%" G_GINT64_MODIFIER "x)", address,
-      name, GUM_ADDRESS (address) - base);
+  module_name = strrchr (info.dli_fname, '/');
+  module_name = (module_name != NULL) ? module_name + 1 : info.dli_fname;
 
-  g_object_unref (module);
+  if (info.dli_sname != NULL)
+  {
+    return g_strdup_printf ("%p (%s!%s+0x%tx)", address, module_name,
+        info.dli_sname, (guint8 *) address - (guint8 *) info.dli_saddr);
+  }
 
-  return description;
+  return g_strdup_printf ("%p (%s!0x%tx)", address, module_name,
+      (guint8 *) address - (guint8 *) info.dli_fbase);
 }
 
 static gpointer
