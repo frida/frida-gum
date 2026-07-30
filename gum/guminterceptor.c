@@ -10,6 +10,7 @@
 
 #include "guminterceptor.h"
 
+#include "gumbacktracer.h"
 #include "gumcodesegment.h"
 #include "guminterceptor-priv.h"
 #include "gumunwindbroker.h"
@@ -188,6 +189,7 @@ static void gum_interceptor_transaction_schedule_destroy (
 static void gum_interceptor_transaction_schedule_update (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
     GumUpdateTaskFunc func);
+static void gum_report_unbalanced_transaction (gint level);
 static gchar * gum_describe_address (gpointer address);
 
 static GumFunctionContext * gum_function_context_new (
@@ -1587,6 +1589,10 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   gpointer address;
 
   self->level--;
+
+  if (self->level < 0)
+    gum_report_unbalanced_transaction (self->level);
+
   if (self->level > 0)
     return;
 
@@ -2670,6 +2676,38 @@ gum_interceptor_has (GumInterceptor * self,
 {
   return g_hash_table_lookup (self->function_by_address,
       function_address) != NULL;
+}
+
+static void
+gum_report_unbalanced_transaction (gint level)
+{
+  GumBacktracer * backtracer;
+  GumReturnAddressArray return_addresses;
+  GString * report;
+  guint i;
+
+  backtracer = gum_backtracer_make_accurate ();
+  if (backtracer == NULL)
+    backtracer = gum_backtracer_make_fuzzy ();
+
+  gum_backtracer_generate (backtracer, NULL, &return_addresses);
+
+  report = g_string_new (NULL);
+  g_string_append_printf (report,
+      "unload-trace: transaction level went negative (%d), ended from:", level);
+  for (i = 0; i != return_addresses.len; i++)
+  {
+    gchar * description = gum_describe_address (return_addresses.items[i]);
+
+    g_string_append_printf (report, "\n  %s", description);
+
+    g_free (description);
+  }
+
+  g_info ("%s", report->str);
+
+  g_string_free (report, TRUE);
+  g_object_unref (backtracer);
 }
 
 static gchar *
