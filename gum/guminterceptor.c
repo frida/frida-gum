@@ -42,7 +42,10 @@
 # define GUM_INTERCEPTOR_CPU_CONTEXT_SP(c) ((gpointer) (c)->sp)
 #endif
 
+#define GUM_TRANSACTION_EVENT_CAPACITY 64
+
 typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
+typedef struct _GumTransactionEvent GumTransactionEvent;
 typedef guint GumInstrumentationError;
 typedef struct _GumDestroyTask GumDestroyTask;
 typedef struct _GumUpdateTask GumUpdateTask;
@@ -63,6 +66,14 @@ struct _GumInterceptorTransaction
   GHashTable * pending_update_tasks;
 
   GumInterceptor * interceptor;
+};
+
+struct _GumTransactionEvent
+{
+  gchar op;
+  gint level;
+  GumThreadId thread_id;
+  gpointer caller;
 };
 
 struct _GumInterceptor
@@ -190,6 +201,8 @@ static void gum_interceptor_transaction_schedule_destroy (
 static void gum_interceptor_transaction_schedule_update (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
     GumUpdateTaskFunc func);
+static void gum_record_transaction_event (gchar op, gint level,
+    gpointer caller);
 static void gum_report_unbalanced_transaction (gint level);
 static gchar * gum_describe_address (gpointer address);
 
@@ -377,6 +390,12 @@ static GPrivate gum_interceptor_context_private =
 static GumTlsKey gum_interceptor_guard_key;
 
 static GumInvocationStack _gum_interceptor_empty_stack = { NULL, 0 };
+
+G_LOCK_DEFINE_STATIC (gum_transaction_events);
+static GumTransactionEvent
+    gum_transaction_events[GUM_TRANSACTION_EVENT_CAPACITY];
+static guint gum_transaction_event_index = 0;
+static guint gum_transaction_event_count = 0;
 
 static void
 gum_interceptor_class_init (GumInterceptorClass * klass)
@@ -1578,6 +1597,9 @@ static void
 gum_interceptor_transaction_begin (GumInterceptorTransaction * self)
 {
   self->level++;
+
+  gum_record_transaction_event ('+', self->level,
+      __builtin_return_address (0));
 }
 
 static void
@@ -1590,6 +1612,8 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   gpointer address;
 
   self->level--;
+
+  gum_record_transaction_event ('-', self->level, __builtin_return_address (0));
 
   if (self->level < 0)
     gum_report_unbalanced_transaction (self->level);
@@ -2680,6 +2704,29 @@ gum_interceptor_has (GumInterceptor * self,
 }
 
 static void
+gum_record_transaction_event (gchar op,
+                              gint level,
+                              gpointer caller)
+{
+  GumTransactionEvent * event;
+
+  G_LOCK (gum_transaction_events);
+
+  event = &gum_transaction_events[gum_transaction_event_index];
+  event->op = op;
+  event->level = level;
+  event->caller = caller;
+  event->thread_id = gum_process_get_current_thread_id ();
+
+  gum_transaction_event_index =
+      (gum_transaction_event_index + 1) % GUM_TRANSACTION_EVENT_CAPACITY;
+  if (gum_transaction_event_count < GUM_TRANSACTION_EVENT_CAPACITY)
+    gum_transaction_event_count++;
+
+  G_UNLOCK (gum_transaction_events);
+}
+
+static void
 gum_report_unbalanced_transaction (gint level)
 {
   GumBacktracer * backtracer;
@@ -2704,6 +2751,24 @@ gum_report_unbalanced_transaction (gint level)
 
     g_free (description);
   }
+
+  G_LOCK (gum_transaction_events);
+
+  g_string_append (report, "\npreceding transaction events, oldest first:");
+  for (i = 0; i != gum_transaction_event_count; i++)
+  {
+    guint slot = (gum_transaction_event_index + GUM_TRANSACTION_EVENT_CAPACITY
+        - gum_transaction_event_count + i) % GUM_TRANSACTION_EVENT_CAPACITY;
+    GumTransactionEvent * event = &gum_transaction_events[slot];
+    gchar * description = gum_describe_address (event->caller);
+
+    g_string_append_printf (report, "\n  %c level=%d thread=%" G_GSIZE_FORMAT
+        " from %s", event->op, event->level, event->thread_id, description);
+
+    g_free (description);
+  }
+
+  G_UNLOCK (gum_transaction_events);
 
   g_info ("%s", report->str);
 
