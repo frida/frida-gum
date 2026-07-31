@@ -638,9 +638,17 @@ if have_gumjs
     'libc=false',
     'bignum=true',
     'atomics=disabled',
-    'stack_check=disabled',
+    'stack_check=' + ((host_os_family == 'none') ? 'enabled' : 'disabled'),
     'stack_mode=' + ((host_os_family == 'none') ? 'optimize' : 'default'),
   ]
+
+  if host_os_family == 'none'
+    # A floor, not a measurement of the target in front of us: the runtime gets
+    # whatever stack its host hands a kernel thread, and the parser overshoots the
+    # limit before rechecking. 14 KiB overflows on arm64 Linux, 12 KiB does not.
+    cdata.set('HAVE_TINY_STACK', 1)
+    cdata.set('GUM_QUICK_TINY_STACK_SIZE', 12 * 1024)
+  endif
 
   quickjs_dep = dependency('quickjs', required: get_option('quickjs'), default_options: quickjs_options)
   cdata.set('HAVE_QUICKJS', quickjs_dep.found())

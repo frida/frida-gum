@@ -267,6 +267,8 @@ gum_quick_script_backend_finalize (GObject * object)
 JSRuntime *
 gum_quick_script_backend_make_runtime (GumQuickScriptBackend * self)
 {
+  JSRuntime * rt;
+
 #ifndef HAVE_ASAN
   const JSMallocFunctions mf = {
     gum_quick_malloc,
@@ -275,10 +277,16 @@ gum_quick_script_backend_make_runtime (GumQuickScriptBackend * self)
     gum_quick_malloc_usable_size
   };
 
-  return JS_NewRuntime2 (&mf, self);
+  rt = JS_NewRuntime2 (&mf, self);
 #else
-  return JS_NewRuntime ();
+  rt = JS_NewRuntime ();
 #endif
+
+#ifdef HAVE_TINY_STACK
+  JS_SetMaxStackSize (rt, GUM_QUICK_TINY_STACK_SIZE);
+#endif
+
+  return rt;
 }
 
 GumESProgram *
