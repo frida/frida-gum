@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -24,6 +24,8 @@ G_GNUC_INTERNAL GumScriptScheduler * gum_v8_script_backend_get_scheduler (
 G_GNUC_INTERNAL gboolean gum_v8_script_backend_is_scope_mutex_trapped (
     GumV8ScriptBackend * self);
 G_GNUC_INTERNAL void gum_v8_script_backend_mark_scope_mutex_trapped (
+    GumV8ScriptBackend * self);
+G_GNUC_INTERNAL void gum_v8_script_backend_unmark_scope_mutex_trapped (
     GumV8ScriptBackend * self);
 
 G_END_DECLS

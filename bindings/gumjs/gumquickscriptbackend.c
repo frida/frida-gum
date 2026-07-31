@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -35,7 +35,7 @@ struct _GumQuickScriptBackend
 
   GMutex mutex;
   GRecMutex scope_mutex;
-  gboolean scope_mutex_trapped;
+  volatile gint scope_mutex_trap_depth;
 
   GumScriptScheduler * scheduler;
 };
@@ -238,7 +238,7 @@ gum_quick_script_backend_init (GumQuickScriptBackend * self)
 {
   g_mutex_init (&self->mutex);
   g_rec_mutex_init (&self->scope_mutex);
-  self->scope_mutex_trapped = FALSE;
+  self->scope_mutex_trap_depth = 0;
 
   self->scheduler = g_object_ref (gum_script_backend_get_scheduler ());
 }
@@ -1170,7 +1170,7 @@ gum_quick_script_backend_with_lock_held (GumScriptBackend * backend,
 {
   GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
 
-  if (self->scope_mutex_trapped)
+  if (g_atomic_int_get (&self->scope_mutex_trap_depth) != 0)
   {
     func (user_data);
     return;
@@ -1186,7 +1186,7 @@ gum_quick_script_backend_is_locked (GumScriptBackend * backend)
 {
   GumQuickScriptBackend * self = GUM_QUICK_SCRIPT_BACKEND (backend);
 
-  if (self->scope_mutex_trapped)
+  if (g_atomic_int_get (&self->scope_mutex_trap_depth) != 0)
     return FALSE;
 
   if (!g_rec_mutex_trylock (&self->scope_mutex))
@@ -1200,13 +1200,20 @@ gum_quick_script_backend_is_locked (GumScriptBackend * backend)
 gboolean
 gum_quick_script_backend_is_scope_mutex_trapped (GumQuickScriptBackend * self)
 {
-  return self->scope_mutex_trapped;
+  return g_atomic_int_get (&self->scope_mutex_trap_depth) != 0;
 }
 
 void
 gum_quick_script_backend_mark_scope_mutex_trapped (GumQuickScriptBackend * self)
 {
-  self->scope_mutex_trapped = TRUE;
+  g_atomic_int_inc (&self->scope_mutex_trap_depth);
+}
+
+void
+gum_quick_script_backend_unmark_scope_mutex_trapped (
+    GumQuickScriptBackend * self)
+{
+  g_atomic_int_add (&self->scope_mutex_trap_depth, -1);
 }
 
 static GumESProgram *

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C) 2020 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -44,7 +44,7 @@ struct _GumV8ScriptBackend
 {
   GObject parent;
 
-  gboolean scope_mutex_trapped;
+  volatile gint scope_mutex_trap_depth;
 
   GMutex mutex;
   GHashTable * live_scripts;
@@ -208,7 +208,7 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
 static void
 gum_v8_script_backend_init (GumV8ScriptBackend * self)
 {
-  self->scope_mutex_trapped = FALSE;
+  self->scope_mutex_trap_depth = 0;
 
   g_mutex_init (&self->mutex);
   self->live_scripts = g_hash_table_new (NULL, NULL);
@@ -775,7 +775,7 @@ gum_v8_script_backend_with_lock_held (GumScriptBackend * backend,
 {
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
 
-  if (self->scope_mutex_trapped)
+  if (g_atomic_int_get (&self->scope_mutex_trap_depth) != 0)
   {
     func (user_data);
     return;
@@ -810,7 +810,7 @@ gum_v8_script_backend_is_locked (GumScriptBackend * backend)
 {
   auto self = GUM_V8_SCRIPT_BACKEND (backend);
 
-  if (self->scope_mutex_trapped)
+  if (g_atomic_int_get (&self->scope_mutex_trap_depth) != 0)
     return FALSE;
 
   GUM_V8_SCRIPT_BACKEND_LOCK (self);
@@ -842,13 +842,19 @@ gum_v8_script_backend_is_locked (GumScriptBackend * backend)
 gboolean
 gum_v8_script_backend_is_scope_mutex_trapped (GumV8ScriptBackend * self)
 {
-  return self->scope_mutex_trapped;
+  return g_atomic_int_get (&self->scope_mutex_trap_depth) != 0;
 }
 
 void
 gum_v8_script_backend_mark_scope_mutex_trapped (GumV8ScriptBackend * self)
 {
-  self->scope_mutex_trapped = TRUE;
+  g_atomic_int_inc (&self->scope_mutex_trap_depth);
+}
+
+void
+gum_v8_script_backend_unmark_scope_mutex_trapped (GumV8ScriptBackend * self)
+{
+  g_atomic_int_add (&self->scope_mutex_trap_depth, -1);
 }
 
 static void

@@ -43,6 +43,7 @@ TESTLIST_BEGIN (script)
   TESTENTRY (timer_cancellation_apis_should_be_forgiving)
 #ifndef HAVE_WINDOWS
   TESTENTRY (crash_on_thread_holding_js_lock_should_not_deadlock)
+  TESTENTRY (recovered_crash_should_not_unbalance_interceptor)
 #endif
 
   TESTENTRY (script_can_be_interrupted)
@@ -564,6 +565,7 @@ typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
 typedef struct _GumNamedSleeperContext GumNamedSleeperContext;
 typedef struct _TestRunOnThreadSyncContext TestRunOnThreadSyncContext;
 typedef struct _GumCrashExceptorContext GumCrashExceptorContext;
+typedef struct _GumRecoverExceptorContext GumRecoverExceptorContext;
 typedef struct _TestTrigger TestTrigger;
 typedef struct _TestNativeReturnStruct TestNativeReturnStruct;
 typedef struct _TestNativeReturnNestedStruct TestNativeReturnNestedStruct;
@@ -596,6 +598,12 @@ struct _GumCrashExceptorContext
 {
   gboolean called;
   GumScriptBackend * backend;
+};
+
+struct _GumRecoverExceptorContext
+{
+  gboolean called;
+  gpointer page;
 };
 
 struct _TestTrigger
@@ -688,6 +696,8 @@ static gpointer invoke_target_function_trigger (gpointer data);
 #ifndef HAVE_WINDOWS
 static void exit_on_sigsegv (int sig, siginfo_t * info, void * context);
 static gboolean on_exceptor_called (GumExceptionDetails * details,
+    gpointer user_data);
+static gboolean on_exceptor_recover (GumExceptionDetails * details,
     gpointer user_data);
 #ifdef HAVE_DARWIN
 static gpointer simulate_crash_handler (gpointer user_data);
@@ -7499,6 +7509,61 @@ TESTCASE (crash_on_thread_holding_js_lock_should_not_deadlock)
   g_object_unref (exceptor);
 }
 
+TESTCASE (recovered_crash_should_not_unbalance_interceptor)
+{
+  GumRecoverExceptorContext recover_ctx;
+  GumExceptor * exceptor;
+  GumInterceptor * interceptor;
+  gpointer page;
+  gsize page_size;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  page_size = gum_query_page_size ();
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_mprotect (page, page_size, GUM_PAGE_NO_ACCESS);
+
+  recover_ctx.called = FALSE;
+  recover_ctx.page = page;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const strcmp = new NativeFunction("
+      "    Module.getGlobalExportByName('strcmp'),"
+      "    'int', ['pointer', 'pointer'],"
+      "    {"
+      "      scheduling: 'exclusive',"
+      "      exceptions: 'propagate'"
+      "    });"
+
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter(args) {"
+      "    strcmp(" GUM_PTR_CONST ", " GUM_PTR_CONST ");"
+      "  }"
+      "});",
+      target_function_int, page, page);
+  EXPECT_NO_MESSAGES ();
+
+  exceptor = gum_exceptor_obtain ();
+  gum_exceptor_add (exceptor, on_exceptor_recover, &recover_ctx);
+
+  target_function_int (42);
+
+  gum_exceptor_remove (exceptor, on_exceptor_recover, &recover_ctx);
+  g_object_unref (exceptor);
+
+  g_assert_true (recover_ctx.called);
+
+  interceptor = gum_interceptor_obtain ();
+  g_assert_true (gum_interceptor_flush (interceptor));
+  g_object_unref (interceptor);
+
+  gum_memory_free (page, page_size);
+}
+
 static void
 exit_on_sigsegv (int sig,
                  siginfo_t * info,
@@ -7524,6 +7589,24 @@ on_exceptor_called (GumExceptionDetails * details,
 #endif
 
   return FALSE;
+}
+
+static gboolean
+on_exceptor_recover (GumExceptionDetails * details,
+                     gpointer user_data)
+{
+  GumRecoverExceptorContext * ctx = user_data;
+
+  if (details->type != GUM_EXCEPTION_ACCESS_VIOLATION)
+    return FALSE;
+  if (details->memory.address != ctx->page)
+    return FALSE;
+
+  ctx->called = TRUE;
+
+  gum_mprotect (ctx->page, gum_query_page_size (), GUM_PAGE_RW);
+
+  return TRUE;
 }
 
 #ifdef HAVE_DARWIN
