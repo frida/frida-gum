@@ -191,8 +191,9 @@ static void gum_interceptor_transaction_init (
 static void gum_interceptor_transaction_destroy (
     GumInterceptorTransaction * transaction);
 static void gum_interceptor_transaction_begin (
-    GumInterceptorTransaction * self);
-static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
+    GumInterceptorTransaction * self, gpointer caller);
+static void gum_interceptor_transaction_end (GumInterceptorTransaction * self,
+    gpointer caller);
 static void gum_apply_updates (gpointer source_page, gpointer target_page,
     guint n_pages, gpointer user_data);
 static void gum_interceptor_transaction_schedule_destroy (
@@ -446,12 +447,14 @@ gum_interceptor_dispose (GObject * object)
   GumInterceptor * self = GUM_INTERCEPTOR (object);
 
   GUM_INTERCEPTOR_LOCK (self);
-  gum_interceptor_transaction_begin (&self->current_transaction);
+  gum_interceptor_transaction_begin (&self->current_transaction,
+      __builtin_return_address (0));
   self->current_transaction.is_dirty = TRUE;
 
   g_hash_table_remove_all (self->function_by_address);
 
-  gum_interceptor_transaction_end (&self->current_transaction);
+  gum_interceptor_transaction_end (&self->current_transaction,
+      __builtin_return_address (0));
   GUM_INTERCEPTOR_UNLOCK (self);
 
   g_clear_object (&self->unwind_broker);
@@ -591,7 +594,8 @@ gum_interceptor_attach (GumInterceptor * self,
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK (self);
-  gum_interceptor_transaction_begin (&self->current_transaction);
+  gum_interceptor_transaction_begin (&self->current_transaction,
+      __builtin_return_address (0));
   self->current_transaction.is_dirty = TRUE;
 
   target = gum_interceptor_resolve (self, target);
@@ -636,7 +640,8 @@ already_attached:
   }
 beach:
   {
-    gum_interceptor_transaction_end (&self->current_transaction);
+    gum_interceptor_transaction_end (&self->current_transaction,
+        __builtin_return_address (0));
     GUM_INTERCEPTOR_UNLOCK (self);
     gum_interceptor_unignore_current_thread (self);
 
@@ -664,7 +669,8 @@ gum_interceptor_detach (GumInterceptor * self,
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK (self);
-  gum_interceptor_transaction_begin (&self->current_transaction);
+  gum_interceptor_transaction_begin (&self->current_transaction,
+      __builtin_return_address (0));
   self->current_transaction.is_dirty = TRUE;
 
   g_hash_table_iter_init (&iter, self->function_by_address);
@@ -696,7 +702,8 @@ gum_interceptor_detach (GumInterceptor * self,
   }
   gum_spinlock_release (&gum_interceptor_thread_context_lock);
 
-  gum_interceptor_transaction_end (&self->current_transaction);
+  gum_interceptor_transaction_end (&self->current_transaction,
+      __builtin_return_address (0));
   GUM_INTERCEPTOR_UNLOCK (self);
   gum_interceptor_unignore_current_thread (self);
 }
@@ -793,7 +800,8 @@ gum_interceptor_replace_with_type (GumInterceptor * self,
   GumInstrumentationError error;
 
   GUM_INTERCEPTOR_LOCK (self);
-  gum_interceptor_transaction_begin (&self->current_transaction);
+  gum_interceptor_transaction_begin (&self->current_transaction,
+      __builtin_return_address (0));
   self->current_transaction.is_dirty = TRUE;
 
   function_address = gum_interceptor_resolve (self, function_address);
@@ -840,7 +848,8 @@ already_replaced:
   }
 beach:
   {
-    gum_interceptor_transaction_end (&self->current_transaction);
+    gum_interceptor_transaction_end (&self->current_transaction,
+        __builtin_return_address (0));
     GUM_INTERCEPTOR_UNLOCK (self);
 
     return result;
@@ -864,7 +873,8 @@ gum_interceptor_revert (GumInterceptor * self,
   GumFunctionContext * function_ctx;
 
   GUM_INTERCEPTOR_LOCK (self);
-  gum_interceptor_transaction_begin (&self->current_transaction);
+  gum_interceptor_transaction_begin (&self->current_transaction,
+      __builtin_return_address (0));
   self->current_transaction.is_dirty = TRUE;
 
   target = gum_interceptor_resolve (self, target);
@@ -883,7 +893,8 @@ gum_interceptor_revert (GumInterceptor * self,
   }
 
 beach:
-  gum_interceptor_transaction_end (&self->current_transaction);
+  gum_interceptor_transaction_end (&self->current_transaction,
+      __builtin_return_address (0));
   GUM_INTERCEPTOR_UNLOCK (self);
 }
 
@@ -901,7 +912,8 @@ void
 gum_interceptor_begin_transaction (GumInterceptor * self)
 {
   GUM_INTERCEPTOR_LOCK (self);
-  gum_interceptor_transaction_begin (&self->current_transaction);
+  gum_interceptor_transaction_begin (&self->current_transaction,
+      __builtin_return_address (0));
   GUM_INTERCEPTOR_UNLOCK (self);
 }
 
@@ -916,7 +928,8 @@ void
 gum_interceptor_end_transaction (GumInterceptor * self)
 {
   GUM_INTERCEPTOR_LOCK (self);
-  gum_interceptor_transaction_end (&self->current_transaction);
+  gum_interceptor_transaction_end (&self->current_transaction,
+      __builtin_return_address (0));
   GUM_INTERCEPTOR_UNLOCK (self);
 }
 
@@ -943,8 +956,10 @@ gum_interceptor_flush (GumInterceptor * self)
 
   if (self->current_transaction.level == 0)
   {
-    gum_interceptor_transaction_begin (&self->current_transaction);
-    gum_interceptor_transaction_end (&self->current_transaction);
+    gum_interceptor_transaction_begin (&self->current_transaction,
+        __builtin_return_address (0));
+    gum_interceptor_transaction_end (&self->current_transaction,
+        __builtin_return_address (0));
 
     flushed =
         g_queue_is_empty (self->current_transaction.pending_destroy_tasks);
@@ -985,8 +1000,10 @@ gum_interceptor_flush_function (GumInterceptor * self,
     gpointer target;
     GList * cur;
 
-    gum_interceptor_transaction_begin (&self->current_transaction);
-    gum_interceptor_transaction_end (&self->current_transaction);
+    gum_interceptor_transaction_begin (&self->current_transaction,
+        __builtin_return_address (0));
+    gum_interceptor_transaction_end (&self->current_transaction,
+        __builtin_return_address (0));
 
     target = gum_interceptor_resolve (self, (gpointer) function_address);
 
@@ -1036,8 +1053,10 @@ gum_interceptor_flush_listener (GumInterceptor * self,
   {
     GList * cur;
 
-    gum_interceptor_transaction_begin (&self->current_transaction);
-    gum_interceptor_transaction_end (&self->current_transaction);
+    gum_interceptor_transaction_begin (&self->current_transaction,
+        __builtin_return_address (0));
+    gum_interceptor_transaction_end (&self->current_transaction,
+        __builtin_return_address (0));
 
     for (cur = self->current_transaction.pending_destroy_tasks->head;
         cur != NULL;
@@ -1384,7 +1403,8 @@ gum_interceptor_discard_function_contexts_in_range (
   gpointer value;
 
   GUM_INTERCEPTOR_LOCK (self);
-  gum_interceptor_transaction_begin (&self->current_transaction);
+  gum_interceptor_transaction_begin (&self->current_transaction,
+      __builtin_return_address (0));
 
   g_hash_table_iter_init (&iter, self->function_by_address);
   while (g_hash_table_iter_next (&iter, NULL, &value))
@@ -1402,7 +1422,8 @@ gum_interceptor_discard_function_contexts_in_range (
     gum_function_context_discard (function_ctx);
   }
 
-  gum_interceptor_transaction_end (&self->current_transaction);
+  gum_interceptor_transaction_end (&self->current_transaction,
+      __builtin_return_address (0));
   GUM_INTERCEPTOR_UNLOCK (self);
 }
 
@@ -1594,16 +1615,17 @@ gum_interceptor_transaction_destroy (GumInterceptorTransaction * transaction)
 }
 
 static void
-gum_interceptor_transaction_begin (GumInterceptorTransaction * self)
+gum_interceptor_transaction_begin (GumInterceptorTransaction * self,
+                                   gpointer caller)
 {
   self->level++;
 
-  gum_record_transaction_event ('+', self->level,
-      __builtin_return_address (0));
+  gum_record_transaction_event ('+', self->level, caller);
 }
 
 static void
-gum_interceptor_transaction_end (GumInterceptorTransaction * self)
+gum_interceptor_transaction_end (GumInterceptorTransaction * self,
+                                 gpointer caller)
 {
   GumInterceptor * interceptor = self->interceptor;
   GumInterceptorTransaction transaction_copy;
@@ -1613,7 +1635,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
   self->level--;
 
-  gum_record_transaction_event ('-', self->level, __builtin_return_address (0));
+  gum_record_transaction_event ('-', self->level, caller);
 
   if (self->level < 0)
     gum_report_unbalanced_transaction (self->level);
