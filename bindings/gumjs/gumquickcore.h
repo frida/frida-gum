@@ -69,6 +69,7 @@ struct _GumQuickCore
   GHashTable * module_data;
   GumQuickScope * current_scope;
   GumThreadId current_owner;
+  GumThreadId transaction_released_owner;
 
   GRecMutex * mutex;
   guint usage_count;

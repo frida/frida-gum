@@ -629,6 +629,7 @@ _gum_v8_core_init (GumV8Core * self,
 
   self->current_scope = nullptr;
   self->current_owner = GUM_THREAD_ID_INVALID;
+  self->transaction_released_owner = GUM_THREAD_ID_INVALID;
   self->usage_count = 0;
   self->flush_notify = NULL;
 
@@ -1154,9 +1155,11 @@ gum_v8_core_handle_crashed_js (GumExceptionDetails * details,
   if (gum_exceptor_has_scope (self->exceptor, thread_id))
     return FALSE;
 
-  if (self->current_owner == thread_id)
+  if (self->current_owner == thread_id &&
+      self->transaction_released_owner != thread_id)
   {
     gum_interceptor_end_transaction (self->script->interceptor.interceptor);
+    self->transaction_released_owner = thread_id;
     gum_v8_script_backend_mark_scope_mutex_trapped (self->backend);
   }
 

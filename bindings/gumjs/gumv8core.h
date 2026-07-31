@@ -49,6 +49,7 @@ struct GumV8Core
 
   ScriptScope * current_scope;
   GumThreadId current_owner;
+  GumThreadId transaction_released_owner;
   volatile guint usage_count;
   volatile GumV8FlushNotify flush_notify;
 

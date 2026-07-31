@@ -57,6 +57,8 @@ G_GNUC_INTERNAL gboolean gum_quick_script_backend_is_scope_mutex_trapped (
     GumQuickScriptBackend * self);
 G_GNUC_INTERNAL void gum_quick_script_backend_mark_scope_mutex_trapped (
     GumQuickScriptBackend * self);
+G_GNUC_INTERNAL void gum_quick_script_backend_unmark_scope_mutex_trapped (
+    GumQuickScriptBackend * self);
 
 G_GNUC_INTERNAL void gum_es_program_free (GumESProgram * program,
     JSContext * ctx);

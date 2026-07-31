@@ -180,7 +180,17 @@ ScriptInterceptorScope::ScriptInterceptorScope (GumV8Script * parent)
 
 ScriptInterceptorScope::~ScriptInterceptorScope ()
 {
-  gum_interceptor_end_transaction (parent->interceptor.interceptor);
+  GumV8Core * core = &parent->core;
+
+  if (core->transaction_released_owner == gum_process_get_current_thread_id ())
+  {
+    core->transaction_released_owner = GUM_THREAD_ID_INVALID;
+    gum_v8_script_backend_unmark_scope_mutex_trapped (core->backend);
+  }
+  else
+  {
+    gum_interceptor_end_transaction (parent->interceptor.interceptor);
+  }
 }
 
 ScriptStalkerScope::ScriptStalkerScope (GumV8Script * parent)

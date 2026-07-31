@@ -1585,6 +1585,7 @@ _gum_quick_core_init (GumQuickCore * self,
       g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
   self->current_scope = NULL;
   self->current_owner = GUM_THREAD_ID_INVALID;
+  self->transaction_released_owner = GUM_THREAD_ID_INVALID;
 
   gum_quick_core_setup_atoms (self);
 
@@ -1774,9 +1775,11 @@ gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
   if (gum_exceptor_has_scope (self->exceptor, thread_id))
     return FALSE;
 
-  if (self->current_owner == thread_id)
+  if (self->current_owner == thread_id &&
+      self->transaction_released_owner != thread_id)
   {
     gum_interceptor_end_transaction (self->interceptor->interceptor);
+    self->transaction_released_owner = thread_id;
     gum_quick_script_backend_mark_scope_mutex_trapped (self->backend);
   }
 
@@ -2258,8 +2261,20 @@ _gum_quick_scope_leave (GumQuickScope * self)
 
   g_rec_mutex_unlock (core->mutex);
 
-  if (self->core->interceptor != NULL)
-    gum_interceptor_end_transaction (self->core->interceptor->interceptor);
+  if (core->interceptor != NULL)
+  {
+    GumThreadId thread_id = gum_process_get_current_thread_id ();
+
+    if (core->transaction_released_owner == thread_id)
+    {
+      core->transaction_released_owner = GUM_THREAD_ID_INVALID;
+      gum_quick_script_backend_unmark_scope_mutex_trapped (core->backend);
+    }
+    else
+    {
+      gum_interceptor_end_transaction (core->interceptor->interceptor);
+    }
+  }
 
   if (flush_notify != NULL)
   {

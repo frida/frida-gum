@@ -25,6 +25,8 @@ G_GNUC_INTERNAL gboolean gum_v8_script_backend_is_scope_mutex_trapped (
     GumV8ScriptBackend * self);
 G_GNUC_INTERNAL void gum_v8_script_backend_mark_scope_mutex_trapped (
     GumV8ScriptBackend * self);
+G_GNUC_INTERNAL void gum_v8_script_backend_unmark_scope_mutex_trapped (
+    GumV8ScriptBackend * self);
 
 G_END_DECLS
 
