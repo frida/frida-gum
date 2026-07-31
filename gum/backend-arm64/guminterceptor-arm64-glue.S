@@ -52,6 +52,9 @@
   stp x25, x26, [sp, GUM_PADDING_SIZE + (28 * 8)]
   stp x27, x28, [sp, GUM_PADDING_SIZE + (30 * 8)]
   stp fp, lr, [sp, GUM_PADDING_SIZE + (32 * 8)]
+/* The frame keeps its size either way, so the GumCpuContext offsets the C side
+   uses are unchanged; only the transfers go.  */
+#ifdef __ARM_FP
   stp q0, q1, [sp, GUM_PADDING_SIZE + (34 * 8) + (0 * 16)]
   stp q2, q3, [sp, GUM_PADDING_SIZE + (34 * 8) + (2 * 16)]
   stp q4, q5, [sp, GUM_PADDING_SIZE + (34 * 8) + (4 * 16)]
@@ -68,6 +71,7 @@
   stp q26, q27, [sp, GUM_PADDING_SIZE + (34 * 8) + (26 * 16)]
   stp q28, q29, [sp, GUM_PADDING_SIZE + (34 * 8) + (28 * 16)]
   stp q30, q31, [sp, GUM_PADDING_SIZE + (34 * 8) + (30 * 16)]
+#endif
 .endm
 
 .macro gum_emit_epilog
@@ -87,6 +91,7 @@
   ldp x25, x26, [sp, GUM_PADDING_SIZE + (28 * 8)]
   ldp x27, x28, [sp, GUM_PADDING_SIZE + (30 * 8)]
   ldp fp, lr, [sp, GUM_PADDING_SIZE + (32 * 8)]
+#ifdef __ARM_FP
   ldp q0, q1, [sp, GUM_PADDING_SIZE + (34 * 8) + (0 * 16)]
   ldp q2, q3, [sp, GUM_PADDING_SIZE + (34 * 8) + (2 * 16)]
   ldp q4, q5, [sp, GUM_PADDING_SIZE + (34 * 8) + (4 * 16)]
@@ -103,6 +108,7 @@
   ldp q26, q27, [sp, GUM_PADDING_SIZE + (34 * 8) + (26 * 16)]
   ldp q28, q29, [sp, GUM_PADDING_SIZE + (34 * 8) + (28 * 16)]
   ldp q30, q31, [sp, GUM_PADDING_SIZE + (34 * 8) + (30 * 16)]
+#endif
 
   ldr x16, [sp, GUM_FRAME_SIZE - (2 * 8)]
   add sp, sp, GUM_FRAME_SIZE

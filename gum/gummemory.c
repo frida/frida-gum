@@ -59,7 +59,7 @@
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
 # include <emmintrin.h>
 # define GUM_HAVE_POINTER_SCAN_SIMD
-#elif defined (HAVE_ARM64)
+#elif defined (HAVE_ARM64) && defined (__ARM_NEON)
 # include <arm_neon.h>
 # define GUM_HAVE_POINTER_SCAN_SIMD
 #endif

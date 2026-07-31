@@ -315,8 +315,12 @@ if host_arch == 'arm64'
     gum_sources += [
       'backend-arm64' / 'guminterceptor-arm64-glue.S',
       'backend-arm64' / 'gumstalker-arm64-glue.S',
-      'backend-arm64' / 'memcpy-advsimd.S',
     ]
+    if cc.get_define('__ARM_FP') != ''
+      gum_sources += [
+        'backend-arm64' / 'memcpy-advsimd.S',
+      ]
+    endif
   endif
 endif
 
