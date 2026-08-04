@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Haiwei Wang <haiwei.wang1109@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -24,6 +25,8 @@ struct _GumCodeGenCtx
 
 static gboolean gum_arm64_relocator_register_is_free (
     const GumArm64Relocator * self, guint n, arm64_reg reg);
+static gpointer gum_arm64_relocator_extract_branch_target (
+    const cs_insn * insn);
 
 static gboolean gum_arm64_branch_is_unconditional (const cs_insn * insn);
 
@@ -400,9 +403,51 @@ gum_arm64_relocator_can_relocate (gpointer address,
     size_t current_code_size;
     gpointer target;
     GHashTableIter iter;
+    guint insn_index;
+    guint num_insns;
 
     checked_targets = g_hash_table_new (NULL, NULL);
     targets_to_check = g_hash_table_new (NULL, NULL);
+
+    /*
+     * Relocated conditional/unconditional branches are rewritten as absolute
+     * jumps back to the original target address. If that target lies inside the
+     * range we are about to overwrite, the rewritten branch would land in the
+     * middle of the redirect patch. Shrink the range so every such target falls
+     * outside it. Also keep out-of-range targets queued for reachability checks
+     * below, since those paths must not jump back into the patch either.
+     */
+    num_insns = n / 4;
+    for (insn_index = 0; insn_index != num_insns; insn_index++)
+    {
+      const cs_insn * input_insn = rl.input_insns[insn_index];
+      gssize offset;
+
+      if (input_insn == NULL)
+        break;
+
+      /* Instruction was cut out by an earlier shrink. */
+      if (insn_index * 4 >= n)
+        break;
+
+      target = gum_arm64_relocator_extract_branch_target (input_insn);
+      if (target == NULL)
+        continue;
+
+      offset = (gssize) target - (gssize) address;
+      if (offset > 0 && offset < (gssize) n)
+        n = (guint) offset;
+      else if (offset >= (gssize) n)
+        g_hash_table_add (targets_to_check, target);
+    }
+
+    /*
+     * If an internal branch forced us to shrink n, rewind so the reachability
+     * scan below starts at the new relocatable boundary rather than wherever
+     * read_one() stopped when trying to satisfy min_bytes.
+     */
+    rl.input_cur = (const guint8 *) address + n;
+    rl.input_pc = GUM_ADDRESS (address) + n;
 
     cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
@@ -429,10 +474,8 @@ gum_arm64_relocator_can_relocate (gpointer address,
         {
           case ARM64_INS_B:
           {
-            cs_arm64_op * op = &d->operands[0];
-
-            g_assert (op->type == ARM64_OP_IMM);
-            target = GSIZE_TO_POINTER (op->imm);
+            target = gum_arm64_relocator_extract_branch_target (insn);
+            g_assert (target != NULL);
             if (!g_hash_table_contains (checked_targets, target))
               g_hash_table_add (targets_to_check, target);
 
@@ -443,23 +486,11 @@ gum_arm64_relocator_can_relocate (gpointer address,
           }
           case ARM64_INS_CBZ:
           case ARM64_INS_CBNZ:
-          {
-            cs_arm64_op * op = &d->operands[1];
-
-            g_assert (op->type == ARM64_OP_IMM);
-            target = GSIZE_TO_POINTER (op->imm);
-            if (!g_hash_table_contains (checked_targets, target))
-              g_hash_table_add (targets_to_check, target);
-
-            break;
-          }
           case ARM64_INS_TBZ:
           case ARM64_INS_TBNZ:
           {
-            cs_arm64_op * op = &d->operands[2];
-
-            g_assert (op->type == ARM64_OP_IMM);
-            target = GSIZE_TO_POINTER (op->imm);
+            target = gum_arm64_relocator_extract_branch_target (insn);
+            g_assert (target != NULL);
             if (!g_hash_table_contains (checked_targets, target))
               g_hash_table_add (targets_to_check, target);
 
@@ -579,6 +610,35 @@ gum_arm64_relocator_register_is_free (const GumArm64Relocator * self,
   }
 
   return TRUE;
+}
+
+static gpointer
+gum_arm64_relocator_extract_branch_target (const cs_insn * insn)
+{
+  const cs_arm64 * d = &insn->detail->arm64;
+  const cs_arm64_op * op;
+
+  switch (insn->id)
+  {
+    case ARM64_INS_B:
+      op = &d->operands[0];
+      break;
+    case ARM64_INS_CBZ:
+    case ARM64_INS_CBNZ:
+      op = &d->operands[1];
+      break;
+    case ARM64_INS_TBZ:
+    case ARM64_INS_TBNZ:
+      op = &d->operands[2];
+      break;
+    default:
+      return NULL;
+  }
+
+  if (op->type != ARM64_OP_IMM)
+    return NULL;
+
+  return GSIZE_TO_POINTER (op->imm);
 }
 
 guint
