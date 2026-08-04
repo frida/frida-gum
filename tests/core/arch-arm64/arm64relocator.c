@@ -20,6 +20,7 @@ TESTLIST_BEGIN (arm64relocator)
   TESTENTRY (b_should_be_rewritten)
   TESTENTRY (bl_should_be_rewritten)
   TESTENTRY (cannot_relocate_with_early_br)
+  TESTENTRY (cannot_relocate_with_internal_cbz_target)
   TESTENTRY (eob_and_eoi_on_br)
   TESTENTRY (eob_and_eoi_on_ret)
 TESTLIST_END ()
@@ -397,6 +398,33 @@ TESTCASE (cannot_relocate_with_early_br)
 
   g_assert_false (gum_arm64_relocator_can_relocate (input, 16,
       GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, NULL));
+}
+
+TESTCASE (cannot_relocate_with_internal_cbz_target)
+{
+  /*
+   * Mirrors libdispatch's dispatch_mach_msg_get_msg(): a leading cbz that lands
+   * inside the first 16 bytes. A full redirect would overwrite the target and
+   * the rewritten cbz would jump into the middle of the patch.
+   */
+  guint32 input[] = {
+    GUINT32_TO_LE (0xb4000061), /* cbz x1, #+12 */
+    GUINT32_TO_LE (0xf9402808), /* ldr x8, [x0, #0x50] */
+    GUINT32_TO_LE (0xf9000028), /* str x8, [x1] */
+    GUINT32_TO_LE (0xb9404808), /* ldr w8, [x0, #0x48] */
+    GUINT32_TO_LE (0x91016000), /* add x0, x0, #0x58 */
+    GUINT32_TO_LE (0x34000048), /* cbz w8, #+8 */
+    GUINT32_TO_LE (0xf9400000), /* ldr x0, [x0] */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret */
+  };
+  guint maximum = 0;
+
+  g_assert_false (gum_arm64_relocator_can_relocate (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, &maximum, NULL));
+  g_assert_cmpuint (maximum, ==, 12);
+  g_assert_true (gum_arm64_relocator_can_relocate (input, 8,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, &maximum, NULL));
+  g_assert_cmpuint (maximum, >=, 8);
 }
 
 TESTCASE (eob_and_eoi_on_br)
