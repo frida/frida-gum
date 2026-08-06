@@ -1877,7 +1877,7 @@ gum_emit_arm64_init_pointer_calls (const GumDarwinInitPointersDetails * details,
   /* init (argc, argv, envp, apple, result) */
   gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X0, ARM64_REG_XZR);
   gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X1, ARM64_REG_X21);
-  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X2, ARM64_REG_X21);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X2, ARM64_REG_XZR);
   gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X3, ARM64_REG_X22);
   gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X4, ARM64_REG_XZR);
   gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X5, ARM64_REG_X19, 0);
@@ -1908,7 +1908,7 @@ gum_emit_arm64_init_offset_calls (const GumDarwinInitOffsetsDetails * details,
   /* init (argc, argv, envp, apple, result) */
   gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X0, ARM64_REG_XZR);
   gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X1, ARM64_REG_X21);
-  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X2, ARM64_REG_X21);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X2, ARM64_REG_XZR);
   gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X3, ARM64_REG_X22);
   gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X4, ARM64_REG_XZR);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X5,
