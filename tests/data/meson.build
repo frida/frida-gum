@@ -25,6 +25,12 @@ if host_os_family != 'windows'
     test_function_filenames += [name]
   endforeach
 
+  if host_os == 'linux' and host_arch == 'x86_64'
+    test_function_filenames += [
+      'module-registry-target-relocated-phdr-linux-x86_64.so',
+    ]
+  endif
+
   test_data = custom_target('gum-tests-data',
     input: test_function_filenames,
     output: test_function_filenames,
