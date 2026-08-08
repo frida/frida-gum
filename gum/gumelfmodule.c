@@ -748,7 +748,12 @@ gum_elf_module_load_program_headers (GumElfModule * self,
   gconstpointer start, end, cursor;
   guint16 i;
 
-  data = gum_elf_module_get_live_data (self, &size);
+  data = gum_elf_module_get_file_data (self, &size);
+  if (data == GSIZE_TO_POINTER (self->base_address))
+  {
+    /* Program headers within the first page are mapped with the ELF header. */
+    size = gum_query_page_size ();
+  }
 
   n = self->ehdr.phnum;
 
