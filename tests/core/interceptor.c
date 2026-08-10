@@ -58,6 +58,9 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (ignore_current_thread_nested)
   TESTENTRY (ignore_other_threads)
   TESTENTRY (detach)
+#ifdef G_OS_UNIX
+  TESTENTRY (flush_should_rescue_parked_invocation)
+#endif
   TESTENTRY (listener_ref_count)
   TESTENTRY (function_data)
 
@@ -87,6 +90,22 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (replace_one_fast)
   TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
+
+#define GUM_TEST_RESCUE_MAX_FLUSHES 1000
+
+#ifdef G_OS_UNIX
+typedef struct _ParkedCallContext ParkedCallContext;
+
+struct _ParkedCallContext
+{
+  gint call_fds[2];
+  gint ready_fds[2];
+  gssize result;
+};
+
+static gpointer park_in_call_worker (gpointer data);
+static G_GNUC_NO_INLINE gssize park_in_call (ParkedCallContext * ctx);
+#endif
 
 #ifdef HAVE_WINDOWS
 static gpointer hit_target_function_repeatedly (gpointer data);
@@ -402,6 +421,75 @@ TESTCASE (detach)
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "c|d");
 }
+
+#ifdef G_OS_UNIX
+
+TESTCASE (flush_should_rescue_parked_invocation)
+{
+  ParkedCallContext ctx;
+  GThread * worker;
+  guint8 byte;
+  guint i;
+  gboolean flushed;
+
+  g_assert_cmpint (pipe (ctx.call_fds), ==, 0);
+  g_assert_cmpint (pipe (ctx.ready_fds), ==, 0);
+  ctx.result = -1;
+
+  interceptor_fixture_attach (fixture, 0, park_in_call, 'a', 'b');
+
+  worker = g_thread_new ("parked-call-worker", park_in_call_worker, &ctx);
+
+  g_assert_cmpint (read (ctx.ready_fds[0], &byte, 1), ==, 1);
+
+  interceptor_fixture_detach (fixture, 0);
+
+  /*
+   * The worker is standing inside park_in_call, so its trampoline stays
+   * claimed and the teardown cannot complete until the interceptor rescues it.
+   */
+  for (i = 0; i != GUM_TEST_RESCUE_MAX_FLUSHES; i++)
+  {
+    flushed = gum_interceptor_flush (fixture->interceptor);
+    if (flushed)
+      break;
+  }
+  g_assert_true (flushed);
+
+  byte = 42;
+  g_assert_cmpint (write (ctx.call_fds[1], &byte, 1), ==, 1);
+
+  g_thread_join (worker);
+  g_assert_cmpint (ctx.result, ==, 1);
+
+  close (ctx.call_fds[0]);
+  close (ctx.call_fds[1]);
+  close (ctx.ready_fds[0]);
+  close (ctx.ready_fds[1]);
+}
+
+static gpointer
+park_in_call_worker (gpointer data)
+{
+  ParkedCallContext * ctx = data;
+
+  ctx->result = park_in_call (ctx);
+
+  return NULL;
+}
+
+static G_GNUC_NO_INLINE gssize
+park_in_call (ParkedCallContext * ctx)
+{
+  guint8 byte = 42;
+
+  if (write (ctx->ready_fds[1], &byte, 1) != 1)
+    return -1;
+
+  return read (ctx->call_fds[0], &byte, 1);
+}
+
+#endif
 
 TESTCASE (listener_ref_count)
 {

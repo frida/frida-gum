@@ -30,6 +30,8 @@
 # define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
 #endif
 
+#define GUM_INTERCEPTOR_STUCK_FLUSH_THRESHOLD 100
+
 #define GUM_INTERCEPTOR_LOCK(o) g_rec_mutex_lock (&(o)->mutex)
 #define GUM_INTERCEPTOR_UNLOCK(o) g_rec_mutex_unlock (&(o)->mutex)
 
@@ -79,6 +81,7 @@ struct _GumInterceptor
   volatile guint selected_thread_id;
 
   GumInterceptorTransaction current_transaction;
+  guint consecutive_stuck_flushes;
 
   GumUnwindBroker * unwind_broker;
 };
@@ -114,6 +117,8 @@ struct _ListenerEntry
 
 struct _InterceptorThreadContext
 {
+  GumThreadId thread_id;
+
   GumInvocationBackend listener_backend;
   GumInvocationBackend replacement_backend;
 
@@ -242,6 +247,12 @@ static void gum_invocation_stack_entry_release_trampoline (
     const GumInvocationStackEntry * entry);
 static GumInvocationStackEntry * gum_invocation_stack_peek_top (
     GumInvocationStack * stack);
+static void gum_interceptor_rescue_stuck_invocations (GumInterceptor * self);
+static void gum_interceptor_rescue_thread (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
+static void gum_invocation_stack_entry_redirect_return (
+    const GumInvocationStackEntry * entry, GumCpuContext * cpu_context,
+    gpointer stack_top);
 
 static gpointer gum_interceptor_resolve (GumInterceptor * self,
     gpointer address);
@@ -915,6 +926,7 @@ gboolean
 gum_interceptor_flush (GumInterceptor * self)
 {
   gboolean flushed = FALSE;
+  gboolean stuck;
 
   GUM_INTERCEPTOR_LOCK (self);
 
@@ -927,7 +939,17 @@ gum_interceptor_flush (GumInterceptor * self)
         g_queue_is_empty (self->current_transaction.pending_destroy_tasks);
   }
 
+  if (flushed)
+    self->consecutive_stuck_flushes = 0;
+  else
+    self->consecutive_stuck_flushes++;
+  stuck =
+      self->consecutive_stuck_flushes == GUM_INTERCEPTOR_STUCK_FLUSH_THRESHOLD;
+
   GUM_INTERCEPTOR_UNLOCK (self);
+
+  if (stuck)
+    gum_interceptor_rescue_stuck_invocations (self);
 
   return flushed;
 }
@@ -2388,6 +2410,8 @@ interceptor_thread_context_new (void)
 
   context = g_slice_new0 (InterceptorThreadContext);
 
+  context->thread_id = gum_process_get_current_thread_id ();
+
   gum_memcpy (&context->listener_backend,
       &gum_interceptor_listener_invocation_backend,
       sizeof (GumInvocationBackend));
@@ -2603,6 +2627,139 @@ gum_invocation_stack_entry_release_trampoline (
     const GumInvocationStackEntry * entry)
 {
   g_atomic_int_dec_and_test (&entry->function_ctx->trampoline_usage_counter);
+}
+
+/*
+ * Last resort for a flush that cannot make progress. A thread parked inside an
+ * intercepted function — blocked in read() on a socket that stays quiet, say —
+ * keeps that function's trampoline claimed for as long as it stays there, and
+ * the teardown scheduled by the detach that orphaned it waits behind it
+ * forever.
+ *
+ * Such a leave has nothing left to deliver once every listener is gone, so we
+ * suspend the thread, put the caller's own return address back where the
+ * trampoline hijacked it, and drop the entry. The parked call then returns
+ * straight to its caller and the trampoline becomes reclaimable.
+ */
+static void
+gum_interceptor_rescue_stuck_invocations (GumInterceptor * self)
+{
+  GArray * candidates;
+  GHashTableIter iter;
+  gpointer key;
+  GumThreadId current_thread_id;
+  guint i;
+
+  candidates = g_array_new (FALSE, FALSE, sizeof (InterceptorThreadContext *));
+  current_thread_id = gum_process_get_current_thread_id ();
+
+  gum_spinlock_acquire (&gum_interceptor_thread_context_lock);
+
+  g_hash_table_iter_init (&iter, gum_interceptor_thread_contexts);
+  while (g_hash_table_iter_next (&iter, &key, NULL))
+  {
+    InterceptorThreadContext * thread_ctx = key;
+
+    if (thread_ctx->thread_id == current_thread_id)
+      continue;
+
+    if (thread_ctx->stack->len == 0)
+      continue;
+
+    g_array_append_val (candidates, thread_ctx);
+  }
+
+  gum_spinlock_release (&gum_interceptor_thread_context_lock);
+
+  for (i = 0; i != candidates->len; i++)
+  {
+    InterceptorThreadContext * thread_ctx =
+        g_array_index (candidates, InterceptorThreadContext *, i);
+
+    gum_process_modify_thread (thread_ctx->thread_id,
+        gum_interceptor_rescue_thread, thread_ctx,
+        GUM_MODIFY_THREAD_FLAGS_ABORT_SAFELY);
+  }
+
+  g_array_unref (candidates);
+}
+
+static void
+gum_interceptor_rescue_thread (GumThreadId thread_id,
+                               GumCpuContext * cpu_context,
+                               gpointer user_data)
+{
+  InterceptorThreadContext * thread_ctx = user_data;
+  GumInvocationStack * stack;
+  gpointer stack_top;
+  gboolean still_registered;
+
+  /*
+   * The thread may have exited while we were getting here, taking its context
+   * with it and leaving its ID up for grabs.
+   */
+  gum_spinlock_acquire (&gum_interceptor_thread_context_lock);
+  still_registered =
+      g_hash_table_contains (gum_interceptor_thread_contexts, thread_ctx);
+  gum_spinlock_release (&gum_interceptor_thread_context_lock);
+  if (!still_registered)
+    return;
+
+  if (thread_ctx->thread_id != thread_id)
+    return;
+
+  stack = thread_ctx->stack;
+  stack_top = GUM_INTERCEPTOR_CPU_CONTEXT_SP (cpu_context);
+
+  while (stack->len != 0)
+  {
+    GumInvocationStackEntry * entry;
+
+    entry = (GumInvocationStackEntry *)
+        &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
+
+    /*
+     * A replacement drives control flow rather than merely observing it, and a
+     * context that still has listeners owes them an on-leave.
+     */
+    if (entry->calling_replacement)
+      break;
+    if (!gum_function_context_is_empty (entry->function_ctx))
+      break;
+
+    gum_invocation_stack_entry_redirect_return (entry, cpu_context, stack_top);
+
+    gum_invocation_stack_entry_release_trampoline (entry);
+    g_array_set_size (stack, stack->len - 1);
+  }
+}
+
+static void
+gum_invocation_stack_entry_redirect_return (
+    const GumInvocationStackEntry * entry,
+    GumCpuContext * cpu_context,
+    gpointer stack_top)
+{
+  gpointer trampoline = entry->function_ctx->on_leave_trampoline;
+  gpointer * slot, * end;
+
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
+  if (GSIZE_TO_POINTER (cpu_context->lr) == trampoline)
+    cpu_context->lr = GPOINTER_TO_SIZE (entry->caller_ret_addr);
+#endif
+
+  /*
+   * The hijacked address was live in a register on entry, so the only place it
+   * can be now is a frame the parked call spilled it into: somewhere between
+   * where the thread is standing and where it was when we took over.
+   */
+  slot = stack_top;
+  end = entry->stack_address;
+  for (; slot <= end; slot++)
+  {
+    if (*slot == trampoline)
+      *slot = entry->caller_ret_addr;
+  }
 }
 
 static GumInvocationStackEntry *
