@@ -56,6 +56,17 @@
 
 typedef struct _GumCloakedRange GumCloakedRange;
 
+typedef enum
+{
+  GUM_KERNEL_CLOAK_ADD_THREAD = 1,
+  GUM_KERNEL_CLOAK_REMOVE_THREAD,
+  GUM_KERNEL_CLOAK_ADD_RANGE,
+  GUM_KERNEL_CLOAK_REMOVE_RANGE,
+  GUM_KERNEL_CLOAK_ADD_FD,
+  GUM_KERNEL_CLOAK_REMOVE_FD,
+  GUM_KERNEL_CLOAK_PING = 32,
+} GumKernelCloakOp;
+
 struct _GumCloak
 {
   guint8 dummy;
@@ -76,6 +87,9 @@ static gint gum_fd_compare (gconstpointer element_a, gconstpointer element_b);
 static void gum_cloak_add_range_unlocked (const GumMemoryRange * range);
 static void gum_cloak_remove_range_unlocked (const GumMemoryRange * range);
 
+static void gum_kernel_cloak_init (void);
+static void gum_kernel_cloak (GumKernelCloakOp op, gsize arg1, gsize arg2);
+
 static GumSpinlock cloak_lock = GUM_SPINLOCK_INIT;
 static GumMetalArray cloaked_threads;
 static GumMetalArray cloaked_ranges;
@@ -87,6 +101,8 @@ _gum_cloak_init (void)
   gum_metal_array_init (&cloaked_threads, sizeof (GumThreadId));
   gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
   gum_metal_array_init (&cloaked_fds, sizeof (gint));
+
+  gum_kernel_cloak_init ();
 }
 
 void
@@ -130,6 +146,8 @@ gum_cloak_add_thread (GumThreadId id)
   *element = id;
 
   gum_spinlock_release (&cloak_lock);
+
+  gum_kernel_cloak (GUM_KERNEL_CLOAK_ADD_THREAD, id, 0);
 }
 
 /**
@@ -151,6 +169,8 @@ gum_cloak_remove_thread (GumThreadId id)
     gum_metal_array_remove_at (&cloaked_threads, index_);
 
   gum_spinlock_release (&cloak_lock);
+
+  gum_kernel_cloak (GUM_KERNEL_CLOAK_REMOVE_THREAD, id, 0);
 }
 
 /**
@@ -263,6 +283,9 @@ gum_cloak_add_range (const GumMemoryRange * range)
   gum_cloak_add_range_unlocked (range);
 
   gum_spinlock_release (&cloak_lock);
+
+  gum_kernel_cloak (GUM_KERNEL_CLOAK_ADD_RANGE, range->base_address,
+      range->size);
 }
 
 /**
@@ -280,6 +303,9 @@ gum_cloak_remove_range (const GumMemoryRange * range)
   gum_cloak_remove_range_unlocked (range);
 
   gum_spinlock_release (&cloak_lock);
+
+  gum_kernel_cloak (GUM_KERNEL_CLOAK_REMOVE_RANGE, range->base_address,
+      range->size);
 }
 
 static void
@@ -629,6 +655,8 @@ gum_cloak_add_file_descriptor (gint fd)
   *element = fd;
 
   gum_spinlock_release (&cloak_lock);
+
+  gum_kernel_cloak (GUM_KERNEL_CLOAK_ADD_FD, fd, 0);
 }
 
 /**
@@ -650,6 +678,8 @@ gum_cloak_remove_file_descriptor (gint fd)
     gum_metal_array_remove_at (&cloaked_fds, index_);
 
   gum_spinlock_release (&cloak_lock);
+
+  gum_kernel_cloak (GUM_KERNEL_CLOAK_REMOVE_FD, fd, 0);
 }
 
 /**
@@ -762,3 +792,52 @@ gum_cloak_is_locked (void)
   gum_spinlock_release (&cloak_lock);
   return FALSE;
 }
+
+#ifdef HAVE_LINUX
+
+# include <unistd.h>
+# include <sys/syscall.h>
+
+/* Must match FRIDA_CONTROL_{MAGIC,TOKEN} in the Frida kernel module. */
+# define GUM_KERNEL_CLOAK_MAGIC 0x46524944
+# define GUM_KERNEL_CLOAK_TOKEN 0x1d5f9e6b2c7a4038ULL
+
+static gboolean gum_kernel_cloak_available = FALSE;
+
+static void
+gum_kernel_cloak_init (void)
+{
+  long reply;
+
+  reply = syscall (SYS_prctl, GUM_KERNEL_CLOAK_MAGIC,
+      GUM_KERNEL_CLOAK_PING, 0, 0, GUM_KERNEL_CLOAK_TOKEN);
+  gum_kernel_cloak_available = reply == GUM_KERNEL_CLOAK_MAGIC;
+}
+
+static void
+gum_kernel_cloak (GumKernelCloakOp op,
+                  gsize arg1,
+                  gsize arg2)
+{
+  if (!gum_kernel_cloak_available)
+    return;
+
+  syscall (SYS_prctl, GUM_KERNEL_CLOAK_MAGIC, op, arg1, arg2,
+      GUM_KERNEL_CLOAK_TOKEN);
+}
+
+#else
+
+static void
+gum_kernel_cloak_init (void)
+{
+}
+
+static void
+gum_kernel_cloak (GumKernelCloakOp op,
+                  gsize arg1,
+                  gsize arg2)
+{
+}
+
+#endif
