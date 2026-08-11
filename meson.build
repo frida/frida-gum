@@ -394,9 +394,14 @@ else
   gio_os_package_dep = disabler()
 endif
 
+frida_glib_probe = '''
+#include <glib.h>
+void * _frida_detect_glib_fork (void) { return (void *) g_thread_set_callbacks; }
+'''
+
 glib_dep_native = dependency('glib-2.0', version: glib_version_req, native: true, default_options: glib_options)
 native_cc = meson.get_compiler('c', native: true)
-if glib_dep_native.type_name() == 'internal' or native_cc.has_function('g_thread_set_callbacks', dependencies: [glib_dep_native])
+if glib_dep_native.type_name() == 'internal' or native_cc.compiles(frida_glib_probe, dependencies: [glib_dep_native], name: 'Frida GLib fork (native)')
   add_project_arguments('-DHAVE_FRIDA_GLIB=1', language: languages, native: true)
 endif
 gio_dep_native = dependency('gio-2.0', native: true)
@@ -479,7 +484,7 @@ if get_option('devkits').length() != 0
   endif
 endif
 
-if glib_dep.type_name() == 'internal' or cc.has_function('g_thread_set_callbacks', dependencies: [glib_dep])
+if glib_dep.type_name() == 'internal' or cc.compiles(frida_glib_probe, dependencies: [glib_dep], name: 'Frida GLib fork')
   cdata.set('HAVE_FRIDA_GLIB', 1)
 endif
 
