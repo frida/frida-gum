@@ -2174,6 +2174,8 @@ gum_quick_exception_is_interrupt (JSContext * ctx,
   const char * message;
 
   message = JS_ToCString (ctx, exception);
+  if (message == NULL)
+    return FALSE;
   is_interrupt = strstr (message, "InternalError: interrupted") != NULL;
   JS_FreeCString (ctx, message);
 
