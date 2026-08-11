@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sched.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1797,8 +1798,9 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
   pthread_attr_t attr;
   gboolean allocated = FALSE;
   void * stack_addr;
-  size_t stack_size;
+  size_t stack_size, guard_size;
   GumMemoryRange * range;
+  stack_t signal_stack;
 
   if (pthread_getattr_np (pthread_self (), &attr) != 0)
     goto beach;
@@ -1807,11 +1809,22 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
   if (pthread_attr_getstack (&attr, &stack_addr, &stack_size) != 0)
     goto beach;
 
-  range = &ranges[0];
-  range->base_address = GUM_ADDRESS (stack_addr);
-  range->size = stack_size;
+  guard_size = 0;
+  pthread_attr_getguardsize (&attr, &guard_size);
 
-  n = 1;
+  range = &ranges[n++];
+  range->base_address = GUM_ADDRESS (stack_addr) - guard_size;
+  range->size = stack_size + guard_size;
+
+  if (n != max_length &&
+      sigaltstack (NULL, &signal_stack) == 0 &&
+      (signal_stack.ss_flags & SS_DISABLE) == 0 &&
+      signal_stack.ss_sp != NULL)
+  {
+    range = &ranges[n++];
+    range->base_address = GUM_ADDRESS (signal_stack.ss_sp);
+    range->size = signal_stack.ss_size;
+  }
 
 beach:
   if (allocated)
