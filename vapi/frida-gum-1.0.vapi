@@ -1174,12 +1174,13 @@ namespace Gum {
 		public Gum.PageProtection protection;
 	}
 
+	[CCode (has_copy_function = false, has_destroy_function = false)]
 	public struct ElfRelocationDetails {
 		public Gum.Address address;
 		public uint32 type;
-		public Gum.ElfSymbolDetails? symbol;
+		public unowned Gum.ElfSymbolDetails? symbol;
 		public int64 addend;
-		public Gum.ElfSectionDetails parent;
+		public unowned Gum.ElfSectionDetails parent;
 	}
 
 	public struct ElfDynamicEntryDetails {
