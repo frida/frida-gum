@@ -66,6 +66,7 @@ static void gum_interceptor_backend_destroy_thunks (
 static void gum_emit_enter_thunk (GumX86Writer * cw, GumAddress base_pc);
 static void gum_emit_leave_thunk (GumX86Writer * cw);
 
+static void gum_emit_ibt_landing_pad (GumX86Writer * cw);
 static void gum_emit_prolog (GumX86Writer * cw, gssize stack_displacement);
 static void gum_emit_epilog (GumX86Writer * cw, GumPointCut point_cut);
 
@@ -222,6 +223,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     ctx->on_enter_trampoline =
         (guint8 *) ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
 
+    gum_emit_ibt_landing_pad (cw);
     gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
     gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (self->enter_thunk->pc));
 
@@ -244,6 +246,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       data->push_to_shadow_stack =
           (guint8 *) ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
 
+      gum_emit_ibt_landing_pad (cw);
       gum_x86_writer_put_call_address (cw, after_push_to_shadow_stack);
     }
 
@@ -259,6 +262,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   ctx->on_invoke_trampoline =
       (guint8 *) ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
+  gum_emit_ibt_landing_pad (cw);
   gum_x86_relocator_reset (rl, ctx->function_address, cw);
 
   if (ctx->write_redirect != NULL)
@@ -499,6 +503,7 @@ gum_emit_enter_thunk (GumX86Writer * cw,
       ? GUM_X86_R12
       : GUM_X86_XDI;
 
+  gum_emit_ibt_landing_pad (cw);
   gum_emit_prolog (cw, return_address_stack_displacement);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSI,
@@ -525,6 +530,7 @@ gum_emit_enter_thunk (GumX86Writer * cw,
         GUM_NO_HINT);
 
     epilog = GSIZE_TO_POINTER (base_pc + gum_x86_writer_offset (cw));
+    gum_emit_ibt_landing_pad (cw);
     gum_emit_epilog (cw, GUM_POINT_ENTER);
 
     gum_x86_writer_put_label (cw, prepare_trap_on_leave);
@@ -544,6 +550,7 @@ gum_emit_leave_thunk (GumX86Writer * cw)
 {
   const gssize next_hop_stack_displacement = -((gssize) sizeof (gpointer));
 
+  gum_emit_ibt_landing_pad (cw);
   gum_emit_prolog (cw, next_hop_stack_displacement);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSI,
@@ -559,6 +566,15 @@ gum_emit_leave_thunk (GumX86Writer * cw)
       GUM_ARG_REGISTER, GUM_X86_XDX);
 
   gum_emit_epilog (cw, GUM_POINT_LEAVE);
+}
+
+static void
+gum_emit_ibt_landing_pad (GumX86Writer * cw)
+{
+  if ((cw->cpu_features & GUM_CPU_CET_IBT) == 0)
+    return;
+
+  gum_x86_writer_put_endbr (cw);
 }
 
 static void
