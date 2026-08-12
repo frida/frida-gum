@@ -82,6 +82,9 @@ TESTLIST_BEGIN (x86writer)
   TESTENTRY (fxrstor_xsp)
   TESTENTRY (fxrstor_r11)
   TESTENTRY (fxrstor_r12)
+
+  TESTENTRY (endbr_for_ia32)
+  TESTENTRY (endbr_for_amd64)
 TESTLIST_END ()
 
 TESTCASE (jump_label)
@@ -873,6 +876,22 @@ TESTCASE (fxrstor_r12)
   const guint8 expected_code[] = { 0x41, 0x0f, 0xae, 0x0c, 0x24 };
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
   gum_x86_writer_put_fxrstor_reg_ptr (&fixture->cw, GUM_X86_R12);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (endbr_for_ia32)
+{
+  const guint8 expected_code[] = { 0xf3, 0x0f, 0x1e, 0xfb };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  gum_x86_writer_put_endbr (&fixture->cw);
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (endbr_for_amd64)
+{
+  const guint8 expected_code[] = { 0xf3, 0x0f, 0x1e, 0xfa };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_put_endbr (&fixture->cw);
   assert_output_equals (expected_code);
 }
 

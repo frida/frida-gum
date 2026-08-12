@@ -2962,6 +2962,16 @@ gum_x86_writer_put_nop (GumX86Writer * self)
 }
 
 void
+gum_x86_writer_put_endbr (GumX86Writer * self)
+{
+  self->code[0] = 0xf3;
+  self->code[1] = 0x0f;
+  self->code[2] = 0x1e;
+  self->code[3] = (self->target_cpu == GUM_CPU_AMD64) ? 0xfa : 0xfb;
+  gum_x86_writer_commit (self, 4);
+}
+
+void
 gum_x86_writer_put_breakpoint (GumX86Writer * self)
 {
   gum_x86_writer_put_u8 (self, 0xcc);

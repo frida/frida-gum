@@ -348,6 +348,7 @@ GUM_API void gum_x86_writer_put_lfence (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_rdtsc (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_pause (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_nop (GumX86Writer * self);
+GUM_API void gum_x86_writer_put_endbr (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_breakpoint (GumX86Writer * self);
 GUM_API void gum_x86_writer_put_padding (GumX86Writer * self, guint n);
 GUM_API void gum_x86_writer_put_nop_padding (GumX86Writer * self, guint n);
