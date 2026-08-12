@@ -56,7 +56,7 @@
 # include "gum/gumdarwin.h"
 #endif
 
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && defined (__SSE2__)
 # include <emmintrin.h>
 # define GUM_HAVE_POINTER_SCAN_SIMD
 #elif defined (HAVE_ARM64) && defined (__ARM_NEON)
