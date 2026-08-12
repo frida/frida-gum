@@ -702,6 +702,7 @@ gum_do_query_cpu_features (void)
   gboolean cpu_supports_avx2 = FALSE;
   gboolean cpu_supports_avx512 = FALSE;
   gboolean cpu_supports_cet_ss = FALSE;
+  gboolean cpu_supports_cet_ibt = FALSE;
   gboolean os_enabled_xsave = FALSE;
   guint a, b, c, d;
 
@@ -710,6 +711,7 @@ gum_do_query_cpu_features (void)
     cpu_supports_avx2 = (b & (1 << 5)) != 0;
     cpu_supports_avx512 = (b & (1 << 16)) != 0;
     cpu_supports_cet_ss = (c & (1 << 7)) != 0;
+    cpu_supports_cet_ibt = (d & (1 << 20)) != 0;
   }
 
   if (gum_get_cpuid (1, &a, &b, &c, &d))
@@ -723,6 +725,9 @@ gum_do_query_cpu_features (void)
 
   if (cpu_supports_cet_ss)
     features |= GUM_CPU_CET_SS;
+
+  if (cpu_supports_cet_ibt)
+    features |= GUM_CPU_CET_IBT;
 
   return features;
 }
