@@ -67,6 +67,9 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (custom_redirect_can_be_declined)
   TESTENTRY (custom_redirect_default_is_inherited)
 #endif
+#ifdef HAVE_I386
+  TESTENTRY (ibt_landing_pad_survives_attach)
+#endif
 
   TESTENTRY (i_can_has_replaceability)
   TESTENTRY (already_replaced)
@@ -530,6 +533,40 @@ TESTCASE (custom_redirect)
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "|");
 }
+
+#ifdef HAVE_I386
+
+TESTCASE (ibt_landing_pad_survives_attach)
+{
+  const guint8 endbr[] =
+      { 0xf3, 0x0f, 0x1e, (GLIB_SIZEOF_VOID_P == 8) ? 0xfa : 0xfb };
+  gsize page_size;
+  guint8 * code;
+  GumX86Writer cw;
+  gint (* target) (void);
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_x86_writer_init (&cw, code);
+  gum_x86_writer_put_bytes (&cw, endbr, sizeof (endbr));
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EAX, 1337);
+  gum_x86_writer_put_ret (&cw);
+  gum_x86_writer_clear (&cw);
+  gum_mprotect (code, page_size, GUM_PAGE_RX);
+  target = (gint (*) (void)) code;
+
+  interceptor_fixture_attach (fixture, 0, target, '>', '<');
+
+  g_assert_cmpint (target (), ==, 1337);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+  g_assert_cmpint (memcmp (code, endbr, sizeof (endbr)), ==, 0);
+
+  interceptor_fixture_detach (fixture, 0);
+
+  gum_memory_free (code, page_size);
+}
+
+#endif
 
 TESTCASE (custom_redirect_honors_space_hint)
 {

@@ -48,6 +48,7 @@ struct _GumInterceptorBackend
 
 struct _GumX86FunctionContextData
 {
+  gpointer hook_address;
   guint redirect_code_size;
   gpointer push_to_shadow_stack;
   guint available_space;
@@ -56,6 +57,7 @@ struct _GumX86FunctionContextData
 G_STATIC_ASSERT (sizeof (GumX86FunctionContextData)
     <= sizeof (GumFunctionContextBackendData));
 
+static gpointer gum_skip_ibt_landing_pad (gpointer address);
 static gboolean gum_interceptor_backend_write_custom_redirect (
     GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer target);
 static void gum_interceptor_backend_create_thunks (
@@ -115,6 +117,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
       (ctx->scenario == GUM_INTERCEPTOR_SCENARIO_OFFLINE)
       ? GUM_SCENARIO_OFFLINE
       : GUM_SCENARIO_ONLINE;
+
+  data->hook_address = gum_skip_ibt_landing_pad (ctx->function_address);
+
 #if GLIB_SIZEOF_VOID_P == 4
   data->redirect_code_size = GUM_INTERCEPTOR_NEAR_REDIRECT_SIZE;
 
@@ -123,7 +128,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   GumAddressSpec spec;
   gsize default_alignment = 0;
 
-  spec.near_address = ctx->function_address;
+  spec.near_address = _gum_interceptor_backend_get_function_address (ctx);
   spec.max_distance = GUM_X86_JMP_MAX_DISTANCE;
 
   /*
@@ -168,7 +173,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     scan_bytes = (ctx->redirect_space_hint != 0)
         ? ctx->redirect_space_hint
         : GUM_INTERCEPTOR_MAX_REDIRECT_SIZE;
-    gum_x86_relocator_can_relocate (ctx->function_address, scan_bytes,
+    gum_x86_relocator_can_relocate (
+        _gum_interceptor_backend_get_function_address (ctx), scan_bytes,
         scenario, &data->available_space);
     if (ctx->redirect_space_hint != 0 &&
         data->available_space > ctx->redirect_space_hint)
@@ -181,7 +187,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     return TRUE;
   }
 
-  if (!force && !gum_x86_relocator_can_relocate (ctx->function_address,
+  if (!force && !gum_x86_relocator_can_relocate (
+        _gum_interceptor_backend_get_function_address (ctx),
         data->redirect_code_size, scenario, NULL))
     goto not_enough_space;
 
@@ -193,6 +200,20 @@ not_enough_space:
     ctx->trampoline_slice = NULL;
     return FALSE;
   }
+}
+
+static gpointer
+gum_skip_ibt_landing_pad (gpointer address)
+{
+  static const guint8 endbr64[] = { 0xf3, 0x0f, 0x1e, 0xfa };
+  static const guint8 endbr32[] = { 0xf3, 0x0f, 0x1e, 0xfb };
+  guint8 * code = address;
+
+  if (memcmp (code, endbr64, sizeof (endbr64)) == 0 ||
+      memcmp (code, endbr32, sizeof (endbr32)) == 0)
+    return code + sizeof (endbr64);
+
+  return code;
 }
 
 gboolean
@@ -263,7 +284,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   ctx->on_invoke_trampoline =
       (guint8 *) ctx->trampoline_slice->pc + gum_x86_writer_offset (cw);
   gum_emit_ibt_landing_pad (cw);
-  gum_x86_relocator_reset (rl, ctx->function_address, cw);
+  gum_x86_relocator_reset (rl,
+      _gum_interceptor_backend_get_function_address (ctx), cw);
 
   if (ctx->write_redirect != NULL)
   {
@@ -289,7 +311,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   if (!gum_x86_relocator_eoi (rl))
   {
     gum_x86_writer_put_jmp_address (cw,
-        GUM_ADDRESS (ctx->function_address) + reloc_bytes);
+        GUM_ADDRESS (_gum_interceptor_backend_get_function_address (ctx)) +
+        reloc_bytes);
   }
 
   gum_x86_writer_flush (cw);
@@ -297,7 +320,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   ctx->overwritten_prologue_len = reloc_bytes;
   ctx->overwritten_prologue = g_malloc (reloc_bytes);
-  gum_memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
+  gum_memcpy (ctx->overwritten_prologue,
+      _gum_interceptor_backend_get_function_address (ctx), reloc_bytes);
 
   return TRUE;
 
@@ -320,7 +344,7 @@ gum_interceptor_backend_write_custom_redirect (GumInterceptorBackend * self,
   GumRedirectWriteDetails details;
 
   gum_x86_writer_init (&rw, ctx->redirect_code);
-  rw.pc = GUM_ADDRESS (ctx->function_address);
+  rw.pc = GUM_ADDRESS (_gum_interceptor_backend_get_function_address (ctx));
 
   details.writer = &rw;
   details.target = target;
@@ -356,7 +380,8 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   guint padding;
 
   gum_x86_writer_reset (cw, prologue);
-  cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
+  cw->pc = GPOINTER_TO_SIZE (
+      _gum_interceptor_backend_get_function_address (ctx));
 
   if (ctx->write_redirect != NULL)
   {
@@ -394,7 +419,7 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
 gpointer
 _gum_interceptor_backend_get_function_address (GumFunctionContext * ctx)
 {
-  return ctx->function_address;
+  return GUM_FCDATA (ctx)->hook_address;
 }
 
 gpointer

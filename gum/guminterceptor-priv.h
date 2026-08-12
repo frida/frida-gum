@@ -30,8 +30,8 @@ enum _GumInterceptorType
 
 union _GumFunctionContextBackendData
 {
-  gchar storage[3 * GLIB_SIZEOF_VOID_P];
-  gpointer p[3];
+  gchar storage[4 * GLIB_SIZEOF_VOID_P];
+  gpointer p[4];
 };
 
 #define GUM_INTERCEPTOR_MAX_REDIRECT_SIZE 128
