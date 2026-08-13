@@ -39,10 +39,10 @@ static gboolean gum_find_text_range (const GumElfSegmentDetails * details,
 static gboolean gum_store_first_match (GumAddress address, gsize size,
     gpointer user_data);
 
+static void gum_compute_elf_range_from_phdr_info (
+    const struct dl_phdr_info * info, GumMemoryRange * range);
 static GumAddress gum_compute_elf_base_address_from_phdr_info (
     const struct dl_phdr_info * info);
-static gsize gum_compute_elf_size_from_program_headers (
-    const ElfW(Phdr) * headers, ElfW(Half) num_headers);
 
 void
 _gum_module_registry_enumerate_loaded_modules (GumFoundModuleFunc func,
@@ -66,9 +66,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   gboolean carry_on;
   GumNativeModule * module;
 
-  range.base_address = gum_compute_elf_base_address_from_phdr_info (info);
-  range.size = gum_compute_elf_size_from_program_headers (info->dlpi_phdr,
-      info->dlpi_phnum);
+  gum_compute_elf_range_from_phdr_info (info, &range);
 
   module = _gum_native_module_make (info->dlpi_name, &range,
       gum_create_module_handle, NULL, NULL, (GDestroyNotify) dlclose);
@@ -218,35 +216,51 @@ _gum_module_registry_handle_rtld_notification (GumSynchronizeModulesFunc sync,
   sync ();
 }
 
+static void
+gum_compute_elf_range_from_phdr_info (const struct dl_phdr_info * info,
+                                      GumMemoryRange * range)
+{
+  GumAddress bias, lowest, highest;
+  gboolean bias_known;
+  gsize page_size_mask;
+  ElfW(Half) i;
+
+  bias = info->dlpi_addr;
+  bias_known = bias != 0;
+  lowest = ~0;
+  highest = 0;
+  page_size_mask = ~((gsize) gum_query_page_size () - 1);
+
+  for (i = 0; i != info->dlpi_phnum; i++)
+  {
+    const ElfW(Phdr) * h = &info->dlpi_phdr[i];
+
+    if (h->p_type == PT_PHDR && !bias_known)
+    {
+      bias = GPOINTER_TO_SIZE (info->dlpi_phdr) - h->p_vaddr;
+      bias_known = TRUE;
+    }
+
+    if (h->p_type == PT_LOAD)
+    {
+      lowest = MIN (h->p_vaddr & page_size_mask, lowest);
+      highest = MAX (h->p_vaddr + h->p_memsz, highest);
+    }
+  }
+
+  if (!bias_known)
+    bias = (GPOINTER_TO_SIZE (info->dlpi_phdr) & page_size_mask) - lowest;
+
+  range->base_address = bias + lowest;
+  range->size = highest - lowest;
+}
+
 static GumAddress
 gum_compute_elf_base_address_from_phdr_info (const struct dl_phdr_info * info)
 {
-  gboolean is_program_itself;
+  GumMemoryRange range;
 
-  is_program_itself = info->dlpi_addr == 0;
+  gum_compute_elf_range_from_phdr_info (info, &range);
 
-  if (is_program_itself)
-  {
-    gsize page_size_mask = ~((gsize) gum_query_page_size () - 1);
-    return GPOINTER_TO_SIZE (info->dlpi_phdr) & page_size_mask;
-  }
-
-  return info->dlpi_addr;
-}
-
-static gsize
-gum_compute_elf_size_from_program_headers (const ElfW(Phdr) * headers,
-                                           ElfW(Half) num_headers)
-{
-  gsize total_size = 0;
-  Elf_Half i;
-
-  for (i = 0; i != num_headers; i++)
-  {
-    const Elf_Phdr * h = &headers[i];
-    if (h->p_type == PT_LOAD)
-      total_size += h->p_memsz;
-  }
-
-  return total_size;
+  return range.base_address;
 }
