@@ -2106,6 +2106,7 @@ namespace Gum {
 		public X86Writer (void * code_address);
 
 		public void reset (void * code_address);
+		public void set_target_cpu (Gum.CpuType cpu_type);
 
 		public void * cur ();
 		public uint offset ();
@@ -2114,28 +2115,70 @@ namespace Gum {
 
 		public bool put_label (void * id);
 
+		public static bool can_branch_directly_between (Gum.Address from, Gum.Address to);
+		public void put_call_address_with_arguments (Gum.CallingConvention conv, Gum.Address func, uint n_args, ...);
+		public void put_call_address_with_arguments_array (Gum.CallingConvention conv, Gum.Address func, [CCode (array_length_pos = 2.1, array_length_type = "guint")] Gum.Argument[] args);
 		public bool put_call_address (Gum.Address address);
 		public bool put_call_reg (Gum.X86Reg reg);
 		public bool put_jmp_address (Gum.Address address);
 		public bool put_jmp_reg (Gum.X86Reg reg);
 		public void put_jcc_short_label (Gum.X86Insn instruction_id, void * label_id, Gum.BranchHint hint);
 
-		public bool put_lock_cmpxchg_reg_ptr_reg (Gum.X86Reg dst_reg, Gum.X86Reg src_reg);
 		public bool put_add_reg_imm (Gum.X86Reg reg, ssize_t imm_value);
-		public bool put_xor_reg_reg (Gum.X86Reg dst_reg, Gum.X86Reg src_reg);
-		public bool put_test_reg_reg (Gum.X86Reg reg_a, Gum.X86Reg reg_b);
+		public bool put_lock_cmpxchg_reg_ptr_reg (Gum.X86Reg dst_reg, Gum.X86Reg src_reg);
 
+		public bool put_xor_reg_reg (Gum.X86Reg dst_reg, Gum.X86Reg src_reg);
+
+		public bool put_mov_reg_reg (Gum.X86Reg dst_reg, Gum.X86Reg src_reg);
 		public bool put_mov_reg_u32 (Gum.X86Reg dst_reg, uint32 imm_value);
 		public bool put_mov_reg_u64 (Gum.X86Reg dst_reg, uint64 imm_value);
 		public void put_mov_reg_address (Gum.X86Reg dst_reg, Gum.Address address);
 		public bool put_mov_reg_offset_ptr_reg (Gum.X86Reg dst_reg, ssize_t dst_offset, Gum.X86Reg src_reg);
 		public bool put_mov_reg_reg_offset_ptr (Gum.X86Reg dst_reg, Gum.X86Reg src_reg, ssize_t src_offset);
 
+		public bool put_lea_reg_reg_offset (Gum.X86Reg dst_reg, Gum.X86Reg src_reg, ssize_t src_offset);
+
 		public void put_push_u32 (uint32 imm_value);
 		public bool put_push_reg (Gum.X86Reg reg);
 		public bool put_pop_reg (Gum.X86Reg reg);
+		public void put_pushax ();
+		public void put_popax ();
+
+		public bool put_test_reg_reg (Gum.X86Reg reg_a, Gum.X86Reg reg_b);
 
 		public void put_nop ();
+	}
+
+	[Compact]
+	[CCode (cheader_filename = "gum/arch-x86/gumx86relocator.h", ref_function = "gum_x86_relocator_ref", unref_function = "gum_x86_relocator_unref", has_type_id = false)]
+	public class X86Relocator {
+		public int ref_count;
+
+		public void * capstone;
+
+		public uint8 * input_start;
+		public uint8 * input_cur;
+		public Gum.Address input_pc;
+		public void ** input_insns;
+		public Gum.X86Writer output;
+
+		public uint inpos;
+		public uint outpos;
+
+		public bool eob;
+		public bool eoi;
+
+		public X86Relocator (void * input_code, Gum.X86Writer output);
+
+		public void reset (void * input_code, Gum.X86Writer output);
+
+		public uint read_one (out void * instruction = null);
+
+		public void * peek_next_write_insn ();
+		public void * peek_next_write_source ();
+		public void skip_one ();
+		public bool write_one ();
+		public void write_all ();
 	}
 
 	[CCode (cheader_filename = "gum/arch-x86/gumx86writer.h", cprefix = "GUM_X86_", has_type_id = false)]
