@@ -96,7 +96,7 @@ static gboolean gum_query_main_thread_stack_range (GumMemoryRange * range);
 static gboolean gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
     GumMemoryRange * range);
 static void gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
-    ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress base_address,
+    ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress bias,
     GumMemoryRange * range);
 static gboolean gum_detect_interpreter_exec_wrapper (
     const gchar * main_image_path, gchar ** payload_path);
@@ -207,7 +207,7 @@ gum_emit_module_from_phdr (struct dl_phdr_info * info,
   gboolean carry_on;
 
   gum_compute_elf_range_from_phdrs (info->dlpi_phdr, sizeof (ElfW(Phdr)),
-      info->dlpi_phnum, 0, &range);
+      info->dlpi_phnum, info->dlpi_addr, &range);
 
   named_range = g_hash_table_lookup (ctx->named_ranges,
       GSIZE_TO_POINTER (range.base_address));
@@ -935,7 +935,7 @@ gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
     return FALSE;
 
   gum_compute_elf_range_from_phdrs ((gconstpointer) ehdr + ehdr->e_phoff,
-      ehdr->e_phentsize, ehdr->e_phnum, GUM_ADDRESS (ehdr), range);
+      ehdr->e_phentsize, ehdr->e_phnum, 0, range);
   return TRUE;
 }
 
@@ -943,16 +943,16 @@ static void
 gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
                                   ElfW(Half) phdr_size,
                                   ElfW(Half) phdr_count,
-                                  GumAddress base_address,
+                                  GumAddress bias,
                                   GumMemoryRange * range)
 {
+  gboolean bias_known;
   GumAddress lowest, highest;
   gsize page_size;
   ElfW(Half) i;
   const ElfW(Phdr) * phdr;
 
-  range->base_address = 0;
-
+  bias_known = bias != 0;
   lowest = ~0;
   highest = 0;
   page_size = gum_query_page_size ();
@@ -961,13 +961,10 @@ gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
       i != phdr_count;
       i++, phdr = (gconstpointer) phdr + phdr_size)
   {
-    if (phdr->p_type == PT_PHDR)
-      range->base_address = GPOINTER_TO_SIZE (phdrs) - phdr->p_offset;
-
-    if (phdr->p_type == PT_LOAD && phdr->p_offset == 0)
+    if (phdr->p_type == PT_PHDR && !bias_known)
     {
-      if (range->base_address == 0)
-        range->base_address = phdr->p_vaddr;
+      bias = GPOINTER_TO_SIZE (phdrs) - phdr->p_vaddr;
+      bias_known = TRUE;
     }
 
     if (phdr->p_type == PT_LOAD)
@@ -977,13 +974,10 @@ gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
     }
   }
 
-  if (range->base_address == 0)
-  {
-    range->base_address = (base_address != 0)
-        ? base_address
-        : GUM_PAGE_START (phdrs, page_size);
-  }
+  if (!bias_known)
+    bias = GUM_PAGE_START (phdrs, page_size) - lowest;
 
+  range->base_address = bias + lowest;
   range->size = highest - lowest;
 }
 
