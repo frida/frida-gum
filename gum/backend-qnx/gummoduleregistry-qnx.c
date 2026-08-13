@@ -50,6 +50,8 @@ gum_module_registry_on_ldd_event (Ldd_Eh_Data_t * ehd,
     const gchar * path;
     GumMemoryRange range;
     const Elf32_Phdr * phdr;
+    GumAddress lowest, highest;
+    gsize page_size_mask;
     guint i;
     GumNativeModule * module;
 
@@ -67,15 +69,21 @@ gum_module_registry_on_ldd_event (Ldd_Eh_Data_t * ehd,
       path = resolved_path;
     }
 
-    range.base_address = map->l_addr;
-    range.size = 0;
-    phdr = (gconstpointer) ehdr + ehdr->e_ehsize;
+    lowest = ~0;
+    highest = 0;
+    page_size_mask = ~((gsize) gum_query_page_size () - 1);
+    phdr = (gconstpointer) ehdr + ehdr->e_phoff;
     for (i = 0; i != ehdr->e_phnum; i++)
     {
       const Elf32_Phdr * h = &phdr[i];
       if (h->p_type == PT_LOAD)
-        range.size += h->p_memsz;
+      {
+        lowest = MIN (h->p_vaddr & page_size_mask, lowest);
+        highest = MAX (h->p_vaddr + h->p_memsz, highest);
+      }
     }
+    range.base_address = map->l_addr + lowest;
+    range.size = highest - lowest;
 
     module = _gum_native_module_make (path, &range, gum_create_module_handle,
         NULL, NULL, (GDestroyNotify) dlclose);
