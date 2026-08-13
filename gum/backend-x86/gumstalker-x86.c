@@ -58,6 +58,12 @@
 #define GUM_EXEC_BLOCK_MIN_CAPACITY (1024 + 8192)
 #define GUM_DATA_BLOCK_MIN_CAPACITY (sizeof (GumExecBlock) + 1024)
 
+#if GLIB_SIZEOF_VOID_P == 4 && \
+    (defined (HAVE_WINDOWS) || defined (HAVE_DARWIN) || \
+     defined (HAVE_LINUX) || defined (HAVE_FREEBSD))
+# define GUM_HAVE_SYSENTER_VIRTUALIZATION 1
+#endif
+
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_INVALIDATE_TRAMPOLINE_SIZE            16
 # define GUM_STATE_PRESERVE_TOPMOST_REGISTER_INDEX 3
@@ -763,7 +769,7 @@ static void gum_exec_block_backpatch_slab (GumExecBlock * block,
     gpointer target);
 static void gum_exec_block_write_single_step_transfer_code (
     GumExecBlock * block, GumGeneratorContext * gc);
-#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
+#ifdef GUM_HAVE_SYSENTER_VIRTUALIZATION
 static void gum_exec_block_write_sysenter_continuation_code (
     GumExecBlock * block, GumGeneratorContext * gc, gpointer saved_ret_addr);
 #endif
@@ -2634,7 +2640,7 @@ GUM_DEFINE_ENTRYGATE (jmp_cond_jcxz)
 
 GUM_DEFINE_ENTRYGATE (jmp_continuation)
 
-#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
+#ifdef GUM_HAVE_SYSENTER_VIRTUALIZATION
 GUM_DEFINE_ENTRYGATE (sysenter_slow_path)
 #endif
 
@@ -5004,7 +5010,7 @@ static GumVirtualizationRequirements
 gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
                                          GumGeneratorContext * gc)
 {
-#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
+#ifdef GUM_HAVE_SYSENTER_VIRTUALIZATION
   GumX86Writer * cw = gc->code_writer;
 #if defined (HAVE_WINDOWS)
   guint8 code[] = {
@@ -5815,7 +5821,7 @@ gum_exec_block_write_single_step_transfer_code (GumExecBlock * block,
       GUM_ADDRESS (gc->instruction->start));
 }
 
-#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
+#ifdef GUM_HAVE_SYSENTER_VIRTUALIZATION
 
 static void
 gum_exec_block_write_sysenter_continuation_code (GumExecBlock * block,
