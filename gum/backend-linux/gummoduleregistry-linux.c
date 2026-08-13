@@ -95,6 +95,9 @@ static ElfW(auxv_t) * gum_read_auxv_from_stack (void);
 static gboolean gum_query_main_thread_stack_range (GumMemoryRange * range);
 static gboolean gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
     GumMemoryRange * range);
+static gboolean gum_phdrs_mapped_at_offset (const ElfW(Phdr) * phdrs,
+    ElfW(Half) phdr_size, ElfW(Half) phdr_count, ElfW(Off) offset,
+    GumAddress * lowest);
 static void gum_compute_elf_range_from_phdrs (const ElfW(Phdr) * phdrs,
     ElfW(Half) phdr_size, ElfW(Half) phdr_count, GumAddress bias,
     GumMemoryRange * range);
@@ -920,8 +923,9 @@ static gboolean
 gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
                                  GumMemoryRange * range)
 {
-  gsize phdrs_end;
-  gboolean phdrs_mapped_with_ehdr;
+  const ElfW(Phdr) * phdrs;
+  gsize phdrs_size;
+  GumAddress lowest;
 
   range->base_address = 0;
   range->size = 0;
@@ -929,14 +933,59 @@ gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
   if (ehdr == NULL)
     return TRUE;
 
-  phdrs_end = ehdr->e_phoff + (gsize) ehdr->e_phnum * ehdr->e_phentsize;
-  phdrs_mapped_with_ehdr = phdrs_end <= gum_query_page_size ();
-  if (!phdrs_mapped_with_ehdr)
+  phdrs = (gconstpointer) ehdr + ehdr->e_phoff;
+  phdrs_size = (gsize) ehdr->e_phnum * ehdr->e_phentsize;
+
+  if (ehdr->e_phoff + phdrs_size > gum_query_page_size () &&
+      !gum_memory_is_readable (phdrs, phdrs_size))
     return FALSE;
 
-  gum_compute_elf_range_from_phdrs ((gconstpointer) ehdr + ehdr->e_phoff,
-      ehdr->e_phentsize, ehdr->e_phnum, 0, range);
+  if (!gum_phdrs_mapped_at_offset (phdrs, ehdr->e_phentsize, ehdr->e_phnum,
+      ehdr->e_phoff, &lowest))
+    return FALSE;
+
+  gum_compute_elf_range_from_phdrs (phdrs, ehdr->e_phentsize, ehdr->e_phnum,
+      GUM_ADDRESS (ehdr) - lowest, range);
   return TRUE;
+}
+
+static gboolean
+gum_phdrs_mapped_at_offset (const ElfW(Phdr) * phdrs,
+                            ElfW(Half) phdr_size,
+                            ElfW(Half) phdr_count,
+                            ElfW(Off) offset,
+                            GumAddress * lowest)
+{
+  const ElfW(Phdr) * holder;
+  GumAddress lowest_vaddr;
+  gsize page_size;
+  ElfW(Half) i;
+  const ElfW(Phdr) * phdr;
+
+  holder = NULL;
+  lowest_vaddr = ~0;
+  page_size = gum_query_page_size ();
+
+  for (i = 0, phdr = phdrs;
+      i != phdr_count;
+      i++, phdr = (gconstpointer) phdr + phdr_size)
+  {
+    if (phdr->p_type != PT_LOAD)
+      continue;
+
+    lowest_vaddr = MIN (GUM_PAGE_START (phdr->p_vaddr, page_size),
+        lowest_vaddr);
+
+    if (offset >= phdr->p_offset && offset < phdr->p_offset + phdr->p_filesz)
+      holder = phdr;
+  }
+
+  if (holder == NULL)
+    return FALSE;
+
+  *lowest = lowest_vaddr;
+
+  return holder->p_vaddr - holder->p_offset == lowest_vaddr;
 }
 
 static void
