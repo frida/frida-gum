@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/pharo-vm.git
-revision = c20eb56703531ae0f0ffb32bc2ceb625a7228b75
+revision = b3302b66e831e3edaee94eb3813e0cb045fc7f5c
 depth = 1
 
 [provide]

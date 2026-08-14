@@ -3,3 +3,5 @@
 /gum/backend-darwin/helpers/build/
 /subprojects/*
 __pycache__/
+/PharoDebug.log
+/crash.dmp
