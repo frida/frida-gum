@@ -661,17 +661,13 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 static void
 gum_exceptor_scope_perform_longjmp (GumExceptorScope * self)
 {
-#ifdef G_OS_NONE
-  g_assert_not_reached ();
-#else
-# ifdef HAVE_ANDROID
+#ifdef HAVE_ANDROID
   sigprocmask (SIG_SETMASK, &self->mask, NULL);
-# endif
-# if defined (G_OS_WIN32) && defined (HAVE_ARM64)
+#endif
+#if defined (G_OS_WIN32) && defined (HAVE_ARM64)
   gum_exceptor_scope_restore_context (self);
-# else
+#else
   GUM_NATIVE_LONGJMP (self->env, GUM_LONGJMP_VALUE);
-# endif
 #endif
 }
 
