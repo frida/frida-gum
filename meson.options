@@ -41,6 +41,12 @@ option('gumjs',
   description: 'Build JavaScript bindings'
 )
 
+option('gumpharo',
+  type: 'feature',
+  value: 'disabled',
+  description: 'Build Pharo bindings'
+)
+
 option('inspector',
   type: 'feature',
   value: 'auto',

@@ -7,3 +7,7 @@ endif
 if have_gumjs or have_inspector
   subdir('gumjs')
 endif
+
+if have_gumpharo
+  subdir('gumpharo')
+endif

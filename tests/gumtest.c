@@ -177,6 +177,9 @@ main (gint argc, gchar * argv[])
 
   /* Core */
   TESTLIST_REGISTER (testutil);
+#ifdef HAVE_GUMPHARO
+  TESTLIST_REGISTER (gumpharo);
+#endif
   TESTLIST_REGISTER (tls);
   TESTLIST_REGISTER (cfg);
   TESTLIST_REGISTER (cloak);

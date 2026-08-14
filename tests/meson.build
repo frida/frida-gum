@@ -26,6 +26,11 @@ if have_gumjs
 else
   gum_tests_gumjs = []
 endif
+if have_gumpharo
+  subdir('gumpharo')
+else
+  gum_tests_gumpharo = []
+endif
 
 subdir('data')
 
@@ -40,6 +45,7 @@ link_targets = [
   gum_tests_prof,
   gum_tests_gumpp,
   gum_tests_gumjs,
+  gum_tests_gumpharo,
 ]
 
 extra_test_deps = [lzma_dep]

@@ -148,9 +148,11 @@ endif
 
 gumpp_opt = get_option('gumpp')
 gumjs_opt = get_option('gumjs')
+gumpharo_opt = get_option('gumpharo')
 inspector_opt = get_option('inspector')
 have_gumpp = not gumpp_opt.disabled()
 have_gumjs = not gumjs_opt.disabled()
+have_gumpharo = not gumpharo_opt.disabled()
 if inspector_opt.auto()
   have_inspector = have_gumjs and host_os_family != 'none'
 else
@@ -386,7 +388,7 @@ endif
 glib_dep = dependency('glib-2.0', version: glib_version_req, default_options: glib_options)
 gobject_dep = dependency('gobject-2.0')
 gio_os_package_name = (host_os_family == 'windows') ? 'gio-windows-2.0' : 'gio-unix-2.0'
-if have_gumjs
+if have_gumjs or have_gumpharo
   gio_dep = dependency('gio-2.0')
   gio_os_package_dep = dependency(gio_os_package_name)
 else
@@ -451,6 +453,7 @@ else
   gir_scanner = disabler()
   gir_dep = disabler()
 endif
+
 
 if get_option('devkits').length() != 0
   if not static
@@ -605,6 +608,11 @@ endif
 
 if have_gumpp
   cdata.set('HAVE_GUMPP', 1)
+endif
+
+if have_gumpharo
+  cdata.set('HAVE_GUMPHARO', 1)
+  pharo_vm_dep = dependency('pharo-vm')
 endif
 
 gumjs_extra_requires = []

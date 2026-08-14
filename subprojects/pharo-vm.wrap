@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/frida/pharo-vm.git
+revision = c20eb56703531ae0f0ffb32bc2ceb625a7228b75
+depth = 1
+
+[provide]
+dependency_names = pharo-vm
