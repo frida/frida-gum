@@ -10,6 +10,11 @@ Class {
 }
 
 { #category : 'instance creation' }
+GumMessage class >> payload: aPayload data: aByteArray [
+	^ self new setPayload: aPayload data: aByteArray
+]
+
+{ #category : 'instance creation' }
 GumMessage class >> fromHandle: aHandle [
 	| json blob |
 	json := GumPrimitives gumPharoMessagePayload: aHandle.

@@ -153,6 +153,10 @@ inspector_opt = get_option('inspector')
 have_gumpp = not gumpp_opt.disabled()
 have_gumjs = not gumjs_opt.disabled()
 have_gumpharo = not gumpharo_opt.disabled()
+if have_gumpharo and host_abi == 'arm64e'
+  warning('Pharo bindings not available for arm64e')
+  have_gumpharo = false
+endif
 if inspector_opt.auto()
   have_inspector = have_gumjs and host_os_family != 'none'
 else
@@ -616,7 +620,7 @@ if have_gumpharo
 endif
 
 gumjs_extra_requires = []
-if have_gumjs or have_inspector
+if have_gumjs or have_inspector or have_gumpharo
   json_glib_dep = dependency('json-glib-1.0', default_options: [
     'default_library=static',
     'introspection=disabled',

@@ -22,11 +22,20 @@ gumpharo_test_image = custom_target('gumpharo-test-image',
     '--output', '@OUTPUT@',
   ],
   depends: [gumpharo_host],
+  depend_files: gumpharo_sources + files(
+    run_command(python, '-c',
+      'import pathlib, sys; ' +
+      '[print(p) for p in sorted(pathlib.Path(sys.argv[1]).rglob("*.st"))]',
+      meson.current_source_dir() / 'pharo',
+      check: true).stdout().strip().split('\n')),
   env: gumpharo_image_env,
 )
 
-gumpharo_test_runner = '''| result |
-result := GumImageTest suite run.
+gumpharo_test_runner = '''| suite result |
+suite := TestSuite new.
+{ GumImageTest. GumScriptTest } do: [ :each |
+  suite addTests: each suite tests ].
+result := suite run.
 Stdio stdout << result printString; lf.
 result hasPassed ifTrue: [ Smalltalk exitSuccess ] ifFalse: [
   (result failures , result errors) do: [ :each |

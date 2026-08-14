@@ -30,4 +30,8 @@ if have_gumjs
   ]
 endif
 
+if have_gumpharo
+  vapis += ['frida-gumpharo-@0@.vapi'.format(api_version)]
+endif
+
 install_data(vapis, install_dir: get_option('prefix') / get_option('datadir') / 'vala' / 'vapi')

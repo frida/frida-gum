@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import ctypes.util
+import os
 import pathlib
 import shutil
 import subprocess
@@ -45,11 +47,26 @@ def stage(handwritten, generated, tests, tonel):
 
 
 def run(*command):
-    result = subprocess.run(command, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+    result = subprocess.run(command, env=environment_with_freetype(),
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if result.returncode != 0:
         sys.stderr.write(result.stdout.decode("utf-8", "replace"))
         raise SystemExit(result.returncode)
+
+
+def environment_with_freetype():
+    environment = os.environ.copy()
+
+    freetype = ctypes.util.find_library("freetype")
+    if freetype is None:
+        return environment
+
+    libdir = str(pathlib.Path(freetype).parent)
+    for name in ("DYLD_FALLBACK_LIBRARY_PATH", "LD_LIBRARY_PATH"):
+        existing = environment.get(name)
+        environment[name] = libdir if existing is None else libdir + os.pathsep + existing
+
+    return environment
 
 
 if __name__ == "__main__":

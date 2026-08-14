@@ -3,7 +3,7 @@ Class {
 	#superclass : 'Object',
 	#classVars : [
 		'Exports',
-		'Handler',
+		'Scripts',
 		'MessageSemaphore',
 		'MessageSemaphoreIndex'
 	],
@@ -19,21 +19,53 @@ GumScript class >> start [
 
 { #category : 'running' }
 GumScript class >> dispatch: aMessage [
-	| payload |
+	| payload kind |
 	payload := aMessage payload.
-	(payload isDictionary and: [ (payload at: 'type' ifAbsent: [ nil ]) = 'gum:eval' ])
-		ifTrue: [ ^ self evaluate: (payload at: 'source') ].
-	^ Handler ifNotNil: [ Handler value: aMessage ]
+	kind := (payload isDictionary)
+		ifTrue: [ payload at: 'type' ifAbsent: [ nil ] ]
+		ifFalse: [ nil ].
+
+	kind = 'gum:create' ifTrue: [ ^ self create: payload ].
+	kind = 'gum:load' ifTrue: [ ^ (self scriptAt: payload) load ].
+	kind = 'gum:unload' ifTrue: [ ^ self destroy: payload ].
+
+	^ (self scriptAt: payload) deliver:
+		(GumMessage payload: (payload at: 'payload') data: aMessage data)
 ]
 
 { #category : 'running' }
-GumScript class >> evaluate: aString [
-	^ self reportingErrorsDo: [ Smalltalk compiler evaluate: aString ]
+GumScript class >> create: aPayload [
+	| context |
+	context := GumScriptContext
+		id: (aPayload at: 'id')
+		name: (aPayload at: 'name')
+		source: (aPayload at: 'source').
+	self scripts at: context id put: context.
+	^ context
+]
+
+{ #category : 'running' }
+GumScript class >> destroy: aPayload [
+	| context |
+	context := self scriptAt: aPayload.
+	context unload.
+	self scripts removeKey: context id ifAbsent: [ nil ].
+	^ context
+]
+
+{ #category : 'running' }
+GumScript class >> scriptAt: aPayload [
+	^ self scripts at: (aPayload at: 'id')
+]
+
+{ #category : 'running' }
+GumScript class >> scripts [
+	^ Scripts ifNil: [ Scripts := Dictionary new ]
 ]
 
 { #category : 'running' }
 GumScript class >> onMessage: aBlock [
-	Handler := aBlock
+	GumCurrentScript value onMessage: aBlock
 ]
 
 { #category : 'rpc' }
@@ -42,15 +74,28 @@ GumScript class >> exports [
 ]
 
 { #category : 'rpc' }
+GumScript class >> export: aName do: aBlock [
+	GumCurrentScript value exports at: aName put: aBlock
+]
+
+{ #category : 'rpc' }
 GumScript class >> call: aName arguments: anArray [
-	| method |
+	^ self reportingErrorsDo: [ self invoke: aName arguments: anArray ]
+]
+
+{ #category : 'rpc' }
+GumScript class >> invoke: aName arguments: anArray [
+	| script block method |
+	script := GumCurrentScript value.
+	script ifNotNil: [
+		block := script exports at: aName ifAbsent: [ nil ].
+		block ifNotNil: [ ^ block valueWithArguments: anArray ] ].
 	method := self exports
 		at: aName
 		ifAbsent: [ ^ self error: 'no such export: ' , aName ].
-	^ self reportingErrorsDo: [
-		method methodClass instanceSide new
-			perform: method selector
-			withArguments: anArray ]
+	^ method methodClass instanceSide new
+		perform: method selector
+		withArguments: anArray
 ]
 
 { #category : 'rpc' }
@@ -163,10 +208,45 @@ GumScript class >> reportingErrorsDo: aBlock [
 		nil ]
 ]
 
+{ #category : 'rpc' }
+GumScript class >> handleRpc: aMessage [
+	| request id |
+	request := aMessage payload.
+	((request isKindOf: Array) and: [
+		request size >= 3 and: [ request first = 'frida:rpc' ] ])
+			ifFalse: [ ^ false ].
+	id := request second.
+	request third = 'call'
+		ifTrue: [
+			[ self replyTo: id with: (self invoke: (request at: 4) arguments: (request at: 5)) ]
+				on: Error
+				do: [ :error | self replyTo: id withError: error ] ]
+		ifFalse: [ self replyTo: id withError: (Error new
+			messageText: 'unsupported rpc operation: ' , request third asString) ].
+	^ true
+]
+
+{ #category : 'rpc' }
+GumScript class >> replyTo: anId with: aValue [
+	self send: { 'frida:rpc'. anId. 'ok'. aValue }
+]
+
+{ #category : 'rpc' }
+GumScript class >> replyTo: anId withError: anException [
+	self send: {
+		'frida:rpc'. anId. 'error'. anException messageText asString.
+		anException class name. self stackFor: anException }
+]
+
 { #category : 'private' }
 GumScript class >> emit: aMessage data: aByteArray [
+	| envelope |
+	envelope := Dictionary new
+		at: 'id' put: (GumCurrentScript value ifNil: [ 0 ] ifNotNil: [ :each | each id ]);
+		at: 'payload' put: aMessage;
+		yourself.
 	GumPrimitives
-		gumPharoPost: (STONJSON toString: aMessage)
+		gumPharoPost: (STONJSON toString: envelope)
 		data: aByteArray
 ]
 
