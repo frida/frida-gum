@@ -6,6 +6,8 @@
 
 #include "gumprocess-priv.h"
 
+#include "gum/gumbarebone.h"
+
 static void gum_throw_not_supported (GError ** error);
 
 GumModule *
@@ -59,6 +61,13 @@ void
 _gum_process_enumerate_threads (GumFoundThreadFunc func,
                                 gpointer user_data,
                                 GumThreadFlags flags)
+{
+  gum_barebone_enumerate_threads (func, user_data);
+}
+
+G_GNUC_WEAK void
+gum_barebone_enumerate_threads (GumFoundThreadFunc func,
+                                gpointer user_data)
 {
 }
 

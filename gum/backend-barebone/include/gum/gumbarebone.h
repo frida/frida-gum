@@ -10,6 +10,7 @@
 #include <gum/gumexceptor.h>
 #include <gum/gummemory.h>
 #include <gum/gummoduleregistry.h>
+#include <gum/gumprocess.h>
 
 G_BEGIN_DECLS
 
@@ -23,6 +24,9 @@ GUM_API gboolean gum_barebone_handle_exception (GumExceptionType type,
 GUM_API void gum_barebone_on_registry_activating (GumModuleRegistry * registry);
 GUM_API void gum_barebone_register_module (GumModuleRegistry * registry,
     GumModule * module);
+
+GUM_API void gum_barebone_enumerate_threads (GumFoundThreadFunc func,
+    gpointer user_data);
 
 G_END_DECLS
 
