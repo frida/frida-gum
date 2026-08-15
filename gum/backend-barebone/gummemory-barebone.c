@@ -7,8 +7,11 @@
 
 #include "gummemory.h"
 
+#include "gumexceptor.h"
 #include "gummemory-priv.h"
 #include "gum/gumbarebone.h"
+
+#include <string.h>
 
 void
 _gum_memory_backend_init (void)
@@ -57,7 +60,43 @@ gum_memory_read (gconstpointer address,
                  gsize len,
                  gsize * n_bytes_read)
 {
-  return NULL;
+  guint8 * result;
+  gsize n = 0;
+  guint page_size;
+  GumExceptor * exceptor;
+  GumExceptorScope scope;
+
+  result = g_malloc (len);
+  page_size = gum_query_page_size ();
+  exceptor = gum_exceptor_obtain ();
+
+  while (n != len)
+  {
+    const guint8 * cursor = (const guint8 *) address + n;
+    gsize available = page_size - (GPOINTER_TO_SIZE (cursor) & (page_size - 1));
+    gsize chunk = MIN (len - n, available);
+
+    if (gum_exceptor_try (exceptor, &scope))
+      memcpy (result + n, cursor, chunk);
+
+    if (gum_exceptor_catch (exceptor, &scope))
+      break;
+
+    n += chunk;
+  }
+
+  g_object_unref (exceptor);
+
+  if (n == 0)
+  {
+    g_free (result);
+    result = NULL;
+  }
+
+  if (n_bytes_read != NULL)
+    *n_bytes_read = n;
+
+  return result;
 }
 
 G_GNUC_WEAK gboolean
@@ -65,7 +104,24 @@ gum_memory_write (gpointer address,
                   const guint8 * bytes,
                   gsize len)
 {
-  return FALSE;
+  gboolean success = FALSE;
+  GumExceptor * exceptor;
+  GumExceptorScope scope;
+
+  exceptor = gum_exceptor_obtain ();
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    memcpy (address, bytes, len);
+    success = TRUE;
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+    success = FALSE;
+
+  g_object_unref (exceptor);
+
+  return success;
 }
 
 G_GNUC_WEAK gboolean
