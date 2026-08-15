@@ -152,6 +152,16 @@ typedef GumMipsCpuContext GumCpuContext;
 # define GUM_NATIVE_ABI_IS_UNIX    1
 #endif
 
+#ifdef GUM_TARGET_ABI_WINDOWS
+# define GUM_TARGET_ABI            GUM_ABI_WINDOWS
+# define GUM_TARGET_ABI_IS_WINDOWS 1
+# define GUM_TARGET_ABI_IS_UNIX    0
+#else
+# define GUM_TARGET_ABI            GUM_NATIVE_ABI
+# define GUM_TARGET_ABI_IS_WINDOWS GUM_NATIVE_ABI_IS_WINDOWS
+# define GUM_TARGET_ABI_IS_UNIX    GUM_NATIVE_ABI_IS_UNIX
+#endif
+
 enum _GumOS
 {
   GUM_OS_NONE,

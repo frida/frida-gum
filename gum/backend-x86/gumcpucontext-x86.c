@@ -46,7 +46,7 @@ gum_cpu_context_get_nth_argument (GumCpuContext * self,
   stack_argument = (gpointer *) (self->rsp + 8);
   switch (n)
   {
-# if GUM_NATIVE_ABI_IS_UNIX
+# if GUM_TARGET_ABI_IS_UNIX
     case 0:  return (gpointer) self->rdi;
     case 1:  return (gpointer) self->rsi;
     case 2:  return (gpointer) self->rdx;
@@ -79,7 +79,7 @@ gum_cpu_context_replace_nth_argument (GumCpuContext * self,
   stack_argument = (gpointer *) (self->rsp + 8);
   switch (n)
   {
-# if GUM_NATIVE_ABI_IS_UNIX
+# if GUM_TARGET_ABI_IS_UNIX
     case 0:  self->rdi             = (guint64) value; break;
     case 1:  self->rsi             = (guint64) value; break;
     case 2:  self->rdx             = (guint64) value; break;

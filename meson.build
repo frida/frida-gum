@@ -208,6 +208,13 @@ if host_executable_format == 'elf'
   cdata.set('HAVE_ELF', 1)
 endif
 
+# Which convention the code we instrument follows. It is our own everywhere except on a
+# bare-metal build aimed at a kernel that does not share it, and nothing about the compiler
+# says so, the machine being what knows.
+if meson.get_external_property('target_abi', '') == 'microsoft'
+  cdata.set('GUM_TARGET_ABI_WINDOWS', 1)
+endif
+
 if have_ptrauth
   cdata.set('HAVE_PTRAUTH', 1)
 endif

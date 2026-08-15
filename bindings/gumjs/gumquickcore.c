@@ -4297,7 +4297,7 @@ gumjs_ffi_function_new (JSContext * ctx,
   }
   else
   {
-    abi = FFI_DEFAULT_ABI;
+    abi = GUM_DEFAULT_FFI_ABI;
   }
 
   if (is_variadic)
@@ -4995,7 +4995,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   }
   else
   {
-    abi = FFI_DEFAULT_ABI;
+    abi = GUM_DEFAULT_FFI_ABI;
   }
 
   cb->closure = ffi_closure_alloc (sizeof (ffi_closure), &ptr->value);

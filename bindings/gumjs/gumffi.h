@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C) 2020 Marcus Mengs <mame8282@googlemail.com>
  *
@@ -9,8 +9,17 @@
 #ifndef __GUM_FFI_H__
 #define __GUM_FFI_H__
 
+#include "gumdefs.h"
+
 #include <ffi.h>
 #include <glib-object.h>
+
+#if defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 8 && !defined (X86_WIN64) && \
+    GUM_TARGET_ABI_IS_WINDOWS
+# define GUM_DEFAULT_FFI_ABI FFI_EFI64
+#else
+# define GUM_DEFAULT_FFI_ABI FFI_DEFAULT_ABI
+#endif
 
 G_BEGIN_DECLS
 

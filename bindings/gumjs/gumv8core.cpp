@@ -3342,7 +3342,7 @@ gumjs_native_function_init (Local<Object> wrapper,
   if (is_variadic)
     nargs_total--;
 
-  abi = FFI_DEFAULT_ABI;
+  abi = GUM_DEFAULT_FFI_ABI;
   if (!params->abi.IsEmpty ())
   {
     if (!gum_v8_ffi_abi_get (core, params->abi, &abi))
@@ -3857,7 +3857,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
       goto error;
   }
 
-  abi = FFI_DEFAULT_ABI;
+  abi = GUM_DEFAULT_FFI_ABI;
   if (!abi_value.IsEmpty ())
   {
     if (!gum_v8_ffi_abi_get (core, abi_value, &abi))
