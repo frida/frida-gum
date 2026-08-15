@@ -82,7 +82,7 @@ _gum_process_collect_main_module (GumModule * module,
   return FALSE;
 }
 
-void
+G_GNUC_WEAK void
 _gum_process_enumerate_ranges (GumPageProtection prot,
                                GumFoundRangeFunc func,
                                gpointer user_data)
