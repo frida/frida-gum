@@ -22,7 +22,7 @@ gum_process_is_debugger_attached (void)
   return FALSE;
 }
 
-GumProcessId
+G_GNUC_WEAK GumProcessId
 gum_process_get_id (void)
 {
   return 0;
