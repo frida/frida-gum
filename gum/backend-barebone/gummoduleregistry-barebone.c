@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,4 +29,11 @@ gum_barebone_register_module (GumModuleRegistry * registry,
                               GumModule * module)
 {
   _gum_module_registry_register (registry, module);
+}
+
+void
+gum_barebone_unregister_module (GumModuleRegistry * registry,
+                                GumAddress base_address)
+{
+  _gum_module_registry_unregister (registry, base_address);
 }
