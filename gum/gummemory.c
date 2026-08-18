@@ -1032,8 +1032,8 @@ gum_memory_scan_raw (const GumMemoryRange * range,
   needle_len = needle->bytes->len;
   pattern_size = gum_match_pattern_get_size (pattern);
 
-  cur = GSIZE_TO_POINTER (range->base_address);
-  end_address = cur + range->size - (pattern_size - needle->offset) + 1;
+  cur = (guint8 *) GSIZE_TO_POINTER (range->base_address) + needle->offset;
+  end_address = cur + range->size - pattern_size + 1;
 
   for (; cur < end_address; cur++)
   {
@@ -1064,7 +1064,7 @@ gum_memory_scan_raw (const GumMemoryRange * range,
       if (!func (GUM_ADDRESS (start), pattern_size, user_data))
         return;
 
-      cur = start + pattern_size - 1;
+      cur = start + pattern_size + needle->offset - 1;
     }
   }
 }
