@@ -27,6 +27,8 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (scan_range_finds_three_wildcarded_matches)
   TESTENTRY (scan_range_finds_three_masked_matches)
   TESTENTRY (scan_range_finds_three_regex_matches)
+  TESTENTRY (scan_range_ignores_match_starting_before_range)
+  TESTENTRY (scan_range_skips_overlapping_matches)
   TESTENTRY (find_pointers_finds_exact_value)
   TESTENTRY (find_pointers_finds_multiple_values)
   TESTENTRY (find_pointers_finds_many_values)
@@ -421,6 +423,61 @@ TESTCASE (scan_range_finds_three_regex_matches)
   gum_memory_scan (&range, pattern, match_found_cb, &ctx);
 
   g_assert_cmpuint (ctx.number_of_calls, ==, 3);
+
+  gum_match_pattern_unref (pattern);
+}
+
+TESTCASE (scan_range_ignores_match_starting_before_range)
+{
+  guint8 buf[] = {
+    0x13, 0x00, 0x37, 0x37,
+    0x00, 0x00, 0x00, 0x00
+  };
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  TestForEachContext ctx;
+
+  range.base_address = GUM_ADDRESS (buf + 2);
+  range.size = 2;
+
+  pattern = gum_match_pattern_new_from_string ("13 ?? 37 37");
+  g_assert_nonnull (pattern);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+
+  gum_memory_scan (&range, pattern, match_found_cb, &ctx);
+
+  g_assert_cmpuint (ctx.number_of_calls, ==, 0);
+
+  gum_match_pattern_unref (pattern);
+}
+
+TESTCASE (scan_range_skips_overlapping_matches)
+{
+  guint8 buf[] = {
+    0x13, 0x00, 0x13, 0x37,
+    0x13, 0x37
+  };
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  TestForEachContext ctx;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  pattern = gum_match_pattern_new_from_string ("13 ?? 13 37");
+  g_assert_nonnull (pattern);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+
+  ctx.expected_address[0] = buf + 0;
+  ctx.expected_size = 4;
+
+  gum_memory_scan (&range, pattern, match_found_cb, &ctx);
+
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 
   gum_match_pattern_unref (pattern);
 }
