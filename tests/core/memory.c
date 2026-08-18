@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2026 Ricardo Marques <marquessricardo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -29,6 +30,8 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (scan_range_finds_three_regex_matches)
   TESTENTRY (scan_range_ignores_match_starting_before_range)
   TESTENTRY (scan_range_skips_overlapping_matches)
+  TESTENTRY (scan_range_finds_three_leading_wildcard_matches)
+  TESTENTRY (scan_range_finds_three_trailing_wildcard_matches)
   TESTENTRY (find_pointers_finds_exact_value)
   TESTENTRY (find_pointers_finds_multiple_values)
   TESTENTRY (find_pointers_finds_many_values)
@@ -248,9 +251,18 @@ TESTCASE (match_pattern_from_string_does_proper_validation)
   g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string ("?? 13");
-  g_assert_null (pattern);
+  g_assert_nonnull (pattern);
+  g_assert_cmpuint (gum_match_pattern_get_size (pattern), ==, 2);
+  g_assert_cmpuint (gum_match_pattern_get_tokens (pattern)->len, ==, 2);
+  gum_match_pattern_unref (pattern);
 
   pattern = gum_match_pattern_new_from_string ("13 ??");
+  g_assert_nonnull (pattern);
+  g_assert_cmpuint (gum_match_pattern_get_size (pattern), ==, 2);
+  g_assert_cmpuint (gum_match_pattern_get_tokens (pattern)->len, ==, 2);
+  gum_match_pattern_unref (pattern);
+
+  pattern = gum_match_pattern_new_from_string ("?? ?? ??");
   g_assert_null (pattern);
 
   pattern = gum_match_pattern_new_from_string (" ");
@@ -478,6 +490,72 @@ TESTCASE (scan_range_skips_overlapping_matches)
   gum_memory_scan (&range, pattern, match_found_cb, &ctx);
 
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  gum_match_pattern_unref (pattern);
+}
+
+TESTCASE (scan_range_finds_three_leading_wildcard_matches)
+{
+  guint8 buf[] = {
+    0xaa, 0x13, 0x37,
+    0x12,
+    0xbb, 0x13, 0x37,
+    0xcc, 0x13, 0x37
+  };
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  TestForEachContext ctx;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  pattern = gum_match_pattern_new_from_string ("?? 13 37");
+  g_assert_nonnull (pattern);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+
+  ctx.expected_address[0] = buf + 0;
+  ctx.expected_address[1] = buf + 4;
+  ctx.expected_address[2] = buf + 7;
+  ctx.expected_size = 3;
+
+  gum_memory_scan (&range, pattern, match_found_cb, &ctx);
+
+  g_assert_cmpuint (ctx.number_of_calls, ==, 3);
+
+  gum_match_pattern_unref (pattern);
+}
+
+TESTCASE (scan_range_finds_three_trailing_wildcard_matches)
+{
+  guint8 buf[] = {
+    0x13, 0x37, 0xaa,
+    0x12,
+    0x13, 0x37, 0xbb,
+    0x13, 0x37, 0xcc
+  };
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  TestForEachContext ctx;
+
+  range.base_address = GUM_ADDRESS (buf);
+  range.size = sizeof (buf);
+
+  pattern = gum_match_pattern_new_from_string ("13 37 ??");
+  g_assert_nonnull (pattern);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+
+  ctx.expected_address[0] = buf + 0;
+  ctx.expected_address[1] = buf + 4;
+  ctx.expected_address[2] = buf + 7;
+  ctx.expected_size = 3;
+
+  gum_memory_scan (&range, pattern, match_found_cb, &ctx);
+
+  g_assert_cmpuint (ctx.number_of_calls, ==, 3);
 
   gum_match_pattern_unref (pattern);
 }

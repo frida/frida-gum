@@ -3,6 +3,7 @@
  * Copyright (C) 2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2026 Ricardo Marques <marquessricardo@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1422,23 +1423,13 @@ gum_match_pattern_push_token (GumMatchPattern * self,
 static gboolean
 gum_match_pattern_seal (GumMatchPattern * self)
 {
-  GumMatchToken * token;
-
   gum_match_pattern_update_computed_size (self);
 
   if (self->size == 0)
     return FALSE;
 
-  token = (GumMatchToken *) g_ptr_array_index (self->tokens, 0);
-  if (token->type == GUM_MATCH_WILDCARD)
-    return FALSE;
-
-  token = (GumMatchToken *) g_ptr_array_index (self->tokens,
-      self->tokens->len - 1);
-  if (token->type == GUM_MATCH_WILDCARD)
-    return FALSE;
-
-  return TRUE;
+  return gum_match_pattern_get_longest_token (self, GUM_MATCH_EXACT) != NULL ||
+      gum_match_pattern_get_longest_token (self, GUM_MATCH_MASK) != NULL;
 }
 
 static GumMatchToken *
