@@ -11,6 +11,7 @@
 #include <gum/gummemory.h>
 #include <gum/gummoduleregistry.h>
 #include <gum/gumprocess.h>
+#include <gum/gumthreadregistry.h>
 
 G_BEGIN_DECLS
 
@@ -29,6 +30,17 @@ GUM_API void gum_barebone_unregister_module (GumModuleRegistry * registry,
 
 GUM_API void gum_barebone_enumerate_threads (GumFoundThreadFunc func,
     gpointer user_data);
+
+GUM_API void gum_barebone_on_thread_registry_activating (
+    GumThreadRegistry * registry);
+GUM_API void gum_barebone_on_thread_registry_deactivating (
+    GumThreadRegistry * registry);
+GUM_API void gum_barebone_register_thread (GumThreadRegistry * registry,
+    const GumThreadDetails * thread);
+GUM_API void gum_barebone_unregister_thread (GumThreadRegistry * registry,
+    GumThreadId id);
+GUM_API void gum_barebone_rename_thread (GumThreadRegistry * registry,
+    GumThreadId id, const gchar * name);
 
 G_END_DECLS
 
