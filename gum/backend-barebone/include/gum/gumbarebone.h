@@ -28,6 +28,10 @@ GUM_API void gum_barebone_register_module (GumModuleRegistry * registry,
 GUM_API void gum_barebone_unregister_module (GumModuleRegistry * registry,
     GumAddress base_address);
 
+GUM_API GumThreadDetails * gum_barebone_find_thread_by_id (
+    GumThreadId thread_id, GumThreadFlags flags);
+GUM_API gboolean gum_barebone_modify_thread (GumThreadId thread_id,
+    GumModifyThreadFunc func, gpointer user_data, GumModifyThreadFlags flags);
 GUM_API void gum_barebone_enumerate_threads (GumFoundThreadFunc func,
     gpointer user_data);
 

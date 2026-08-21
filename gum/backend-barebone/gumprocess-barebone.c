@@ -8,6 +8,16 @@
 
 #include "gum/gumbarebone.h"
 
+typedef struct _GumFindThreadContext GumFindThreadContext;
+
+struct _GumFindThreadContext
+{
+  GumThreadId id;
+  GumThreadDetails * thread;
+};
+
+static gboolean gum_store_matching_thread (const GumThreadDetails * thread,
+    gpointer user_data);
 static void gum_throw_not_supported (GError ** error);
 
 GumModule *
@@ -38,14 +48,36 @@ gum_process_get_current_thread_id (void)
 gboolean
 gum_process_has_thread (GumThreadId thread_id)
 {
-  return FALSE;
+  GumThreadDetails * thread;
+
+  thread = gum_process_find_thread_by_id (thread_id, GUM_THREAD_FLAGS_NONE);
+  if (thread == NULL)
+    return FALSE;
+
+  gum_thread_details_free (thread);
+
+  return TRUE;
 }
 
 GumThreadDetails *
 gum_process_find_thread_by_id (GumThreadId thread_id,
                                GumThreadFlags flags)
 {
-  return NULL;
+  return gum_barebone_find_thread_by_id (thread_id, flags);
+}
+
+G_GNUC_WEAK GumThreadDetails *
+gum_barebone_find_thread_by_id (GumThreadId thread_id,
+                                GumThreadFlags flags)
+{
+  GumFindThreadContext ctx;
+
+  ctx.id = thread_id;
+  ctx.thread = NULL;
+
+  gum_barebone_enumerate_threads (gum_store_matching_thread, &ctx);
+
+  return ctx.thread;
 }
 
 gboolean
@@ -53,6 +85,15 @@ gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data,
                            GumModifyThreadFlags flags)
+{
+  return gum_barebone_modify_thread (thread_id, func, user_data, flags);
+}
+
+G_GNUC_WEAK gboolean
+gum_barebone_modify_thread (GumThreadId thread_id,
+                            GumModifyThreadFunc func,
+                            gpointer user_data,
+                            GumModifyThreadFlags flags)
 {
   return FALSE;
 }
@@ -166,6 +207,20 @@ gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
                                       GError ** error)
 {
   gum_throw_not_supported (error);
+  return FALSE;
+}
+
+static gboolean
+gum_store_matching_thread (const GumThreadDetails * thread,
+                           gpointer user_data)
+{
+  GumFindThreadContext * ctx = user_data;
+
+  if (thread->id != ctx->id)
+    return TRUE;
+
+  ctx->thread = gum_thread_details_copy (thread);
+
   return FALSE;
 }
 
