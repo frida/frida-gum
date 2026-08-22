@@ -15,7 +15,6 @@ gumjs_sources = [
   'gumscripttask.c',
   'gumsourcemap.c',
   'gumffi.c',
-  'gumcmodule.c',
 ]
 
 if host_os_family == 'windows'
@@ -179,28 +178,9 @@ gumjs_runtime_sources = [
   'runtime' / 'console.js',
   'runtime' / 'hexdump.js',
   'runtime' / 'worker.js',
-  'runtime' / 'cmodule-tcc' / 'inttypes.h',
-  'runtime' / 'cmodule-tcc' / 'stdint.h',
-  'runtime' / 'cmodule-tcc' / 'stdio.h',
-  'runtime' / 'cmodule-tcc' / 'stdlib.h',
-  'runtime' / 'cmodule-tcc' / 'string.h',
-  'runtime' / 'cmodule' / 'glib.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumdefs.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumprocess.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummodule.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummodulemap.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummemory.h',
-  'runtime' / 'cmodule' / 'gum' / 'guminterceptor.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumstalker.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummetalarray.h',
-  'runtime' / 'cmodule' / 'gum' / 'gummetalhash.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumspinlock.h',
-  'runtime' / 'cmodule' / 'gum' / 'gumtls.h',
-  'runtime' / 'cmodule' / 'json-glib' / 'json-glib.h',
 ]
 gumjs_runtime_outputs = [
   'runtime.bundle',
-  'gumcmodule-runtime.h',
 ]
 if quickjs_dep.found()
   gumjs_runtime_outputs += 'gumquickscript-runtime.h'
@@ -250,12 +230,8 @@ gumjs_runtime = custom_target('gumjs-runtime',
     meson.current_build_dir(),
     '@PRIVATE_DIR@',
     meson.current_source_dir(),
-    meson.project_source_root() / 'gum',
-    capstone_dep.get_variable('includedir') / 'capstone',
-    libtcc_incdir,
     quickcompile,
     ','.join(backends),
-    host_arch,
     host_machine.endian(),
     '@INPUT@',
   ],

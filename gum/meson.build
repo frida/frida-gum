@@ -42,6 +42,7 @@ gum_headers = [
   'gumsysinternals.h',
   'gumthreadregistry.h',
   'gumtls.h',
+  'gumcmodule.h',
 ]
 
 gum_sources = [
@@ -95,6 +96,7 @@ gum_sources = [
   'arch-arm64' / 'gumarm64relocator.c',
   'arch-mips' / 'gummipswriter.c',
   'arch-mips' / 'gummipsrelocator.c',
+  'gumcmodule.c',
 ]
 
 gum_backend_headers = []
@@ -358,6 +360,58 @@ if libdwarf_dep.found()
   ]
 endif
 
+
+gum_runtime_sources = [
+  'runtime' / 'cmodule-tcc' / 'inttypes.h',
+  'runtime' / 'cmodule-tcc' / 'stdint.h',
+  'runtime' / 'cmodule-tcc' / 'stdio.h',
+  'runtime' / 'cmodule-tcc' / 'stdlib.h',
+  'runtime' / 'cmodule-tcc' / 'string.h',
+  'runtime' / 'cmodule' / 'glib.h',
+  'runtime' / 'cmodule' / 'gum' / 'gumdefs.h',
+  'runtime' / 'cmodule' / 'gum' / 'gumprocess.h',
+  'runtime' / 'cmodule' / 'gum' / 'gummodule.h',
+  'runtime' / 'cmodule' / 'gum' / 'gummodulemap.h',
+  'runtime' / 'cmodule' / 'gum' / 'gummemory.h',
+  'runtime' / 'cmodule' / 'gum' / 'guminterceptor.h',
+  'runtime' / 'cmodule' / 'gum' / 'gumstalker.h',
+  'runtime' / 'cmodule' / 'gum' / 'gummetalarray.h',
+  'runtime' / 'cmodule' / 'gum' / 'gummetalhash.h',
+  'runtime' / 'cmodule' / 'gum' / 'gumspinlock.h',
+  'runtime' / 'cmodule' / 'gum' / 'gumtls.h',
+  'runtime' / 'cmodule' / 'json-glib' / 'json-glib.h',
+]
+
+if libtcc_dep.found()
+  if libtcc_dep.type_name() == 'internal'
+    libtcc_incdir = meson.project_source_root() / 'subprojects' / 'tinycc' / 'include'
+  else
+    libtcc_incdir = libtcc_dep.get_variable('libdir') / 'tcc' / 'include'
+  endif
+else
+  libtcc_incdir = ''
+endif
+
+gum_runtime_outputs = [
+  'gumcmodule-runtime.h',
+]
+
+gum_runtime = custom_target('gum-runtime',
+  input: gum_runtime_sources,
+  output: gum_runtime_outputs,
+  command: [
+    python,
+    files('generate-runtime.py'),
+    meson.current_build_dir(),
+    meson.current_source_dir(),
+    meson.project_source_root() / 'gum',
+    capstone_dep.get_variable('includedir') / 'capstone',
+    libtcc_incdir,
+    host_arch,
+  ],
+)
+
+gum_sources += [gum_runtime]
 install_headers(gum_headers + gum_backend_headers, subdir: install_header_subdir)
 install_headers(gum_x86_headers, subdir: install_header_subdir / 'arch-x86')
 install_headers(gum_arm_headers, subdir: install_header_subdir / 'arch-arm')
@@ -374,8 +428,8 @@ gum_enums = gnome.mkenums('gum-enum-types',
 gum_enum_h = gum_enums[1]
 gum_enums_dep = declare_dependency(sources: [gum_enum_h])
 
-gum_public_deps = [glib_dep, gobject_dep, capstone_dep, gum_enums_dep]
-gum_internal_deps = [glib_dep, gobject_dep, capstone_dep, threads_dep]
+gum_public_deps = [glib_dep, gobject_dep, capstone_dep, gum_enums_dep, libtcc_dep, gio_dep, gio_os_package_dep, json_glib_dep,]
+gum_internal_deps = [glib_dep, gobject_dep, capstone_dep, threads_dep, libtcc_dep, gio_dep, gio_os_package_dep, json_glib_dep,]
 if ffi_dep.found()
   gum_internal_deps += ffi_dep
 endif

@@ -12,7 +12,7 @@
 #include <gio/gio.h>
 #include <gum/gum-init.h>
 #include <gum/gum.h>
-#include <json-glib/json-glib.h>
+#include <runtime/cmodule/json-glib/json-glib.h>
 #ifdef HAVE_DARWIN
 # include <gum/gumdarwinmapper.h>
 #endif
