@@ -20,6 +20,12 @@ static gboolean gum_store_matching_thread (const GumThreadDetails * thread,
     gpointer user_data);
 static void gum_throw_not_supported (GError ** error);
 
+G_GNUC_WEAK const gchar *
+gum_barebone_query_platform (void)
+{
+  return "barebone";
+}
+
 GumModule *
 gum_process_get_libc_module (void)
 {

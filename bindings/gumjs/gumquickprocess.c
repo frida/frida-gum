@@ -9,6 +9,9 @@
 #include "gumquickprocess.h"
 
 #include "gumquickmacros.h"
+#ifdef G_OS_NONE
+# include "gum/gumbarebone.h"
+#endif
 
 #ifdef HAVE_DARWIN
 # include <gum/gumdarwin.h>
@@ -112,6 +115,9 @@ struct _GumQuickFindRangeByAddressContext
 };
 
 static void gumjs_free_main_module_value (GumQuickProcess * self);
+#ifdef G_OS_NONE
+GUMJS_DECLARE_GETTER (gumjs_process_get_platform)
+#endif
 GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
@@ -196,7 +202,11 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_observer_detach)
 static const JSCFunctionListEntry gumjs_process_entries[] =
 {
   JS_PROP_STRING_DEF ("arch", GUM_SCRIPT_ARCH, JS_PROP_C_W_E),
+#ifdef G_OS_NONE
+  JS_CGETSET_DEF ("platform", gumjs_process_get_platform, NULL),
+#else
   JS_PROP_STRING_DEF ("platform", GUM_SCRIPT_PLATFORM, JS_PROP_C_W_E),
+#endif
   JS_PROP_INT32_DEF ("pointerSize", GLIB_SIZEOF_VOID_P, JS_PROP_C_W_E),
   JS_CGETSET_DEF ("mainModule", gumjs_process_get_main_module, NULL),
   JS_CFUNC_DEF ("getCurrentDir", 0, gumjs_process_get_current_dir),
@@ -338,6 +348,15 @@ gumjs_get_parent_module (GumQuickCore * core)
 {
   return _gum_quick_core_load_module_data (core, "process");
 }
+
+#ifdef G_OS_NONE
+
+GUMJS_DEFINE_GETTER (gumjs_process_get_platform)
+{
+  return JS_NewString (ctx, gum_barebone_query_platform ());
+}
+
+#endif
 
 GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
 {
