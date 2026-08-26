@@ -4,6 +4,7 @@
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2026 Ricardo Marques <marquessricardo@gmail.com>
+ * Copyright (C) 2026 IPMegladon <ipmegladon@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +13,7 @@
 
 #include "gumcloak-priv.h"
 #include "gumcodesegment.h"
+#include "gumexceptor.h"
 #include "gumlibc.h"
 #include "gummemory-priv.h"
 #include "gumprocess-priv.h"
@@ -128,6 +130,7 @@ struct _GumPointerScan
   guint n_values;
   gsize mask;
   GArray * tiles;
+  GumExceptor * exceptor;
 };
 
 struct _GumPointerScanTile
@@ -1485,7 +1488,8 @@ gum_match_token_append_with_mask (GumMatchToken * self,
  *
  * Scans @ranges for pointer-aligned words matching any of @values, comparing
  * under @mask. Use %G_MAXSIZE for an exact match, or e.g.
- * 0x00007ffffffffff8 to strip arm64e PAC and non-pointer-isa bits.
+ * 0x00007ffffffffff8 to strip arm64e PAC and non-pointer-isa bits. Memory that
+ * is or becomes inaccessible while scanning is skipped.
  *
  * Returns: (element-type GumPointerMatch) (transfer full): the matches, sorted
  *          by address
@@ -1512,6 +1516,7 @@ gum_memory_find_pointers (const GumMemoryRange * ranges,
   scan.n_values = n_values;
   scan.mask = mask;
   scan.tiles = gum_pointer_scan_tiles_from_ranges (ranges, n_ranges);
+  scan.exceptor = gum_exceptor_obtain ();
 
   if (gum_pointer_scan_count_words (scan.tiles) < GUM_POINTER_SCAN_INLINE_LIMIT)
     gum_pointer_scan_run_inline (&scan, matches);
@@ -1520,6 +1525,7 @@ gum_memory_find_pointers (const GumMemoryRange * ranges,
 
   g_array_sort (matches, gum_pointer_match_compare);
 
+  g_object_unref (scan.exceptor);
   g_array_free (scan.tiles, TRUE);
 
   return matches;
@@ -1645,16 +1651,23 @@ gum_pointer_scan_process_tile (GumPointerScan * self,
                                const GumPointerScanTile * tile,
                                GArray * matches)
 {
-  const gsize * words = tile->words;
-  gsize n_words = tile->n_words;
-  gsize i = 0;
+  GumExceptorScope scope;
+
+  if (gum_exceptor_try (self->exceptor, &scope))
+  {
+    const gsize * words = tile->words;
+    gsize n_words = tile->n_words;
+    gsize i = 0;
 
 #ifdef GUM_HAVE_POINTER_SCAN_SIMD
-  i = gum_pointer_scan_process_vectors (self, words, n_words, matches);
+    i = gum_pointer_scan_process_vectors (self, words, n_words, matches);
 #endif
 
-  for (; i != n_words; i++)
-    gum_pointer_scan_check_word (self, words + i, matches);
+    for (; i != n_words; i++)
+      gum_pointer_scan_check_word (self, words + i, matches);
+  }
+
+  gum_exceptor_catch (self->exceptor, &scope);
 }
 
 #ifdef GUM_HAVE_POINTER_SCAN_SIMD
