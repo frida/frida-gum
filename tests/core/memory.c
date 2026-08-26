@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2026 Ricardo Marques <marquessricardo@gmail.com>
+ * Copyright (C) 2026 IPMegladon <ipmegladon@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -41,6 +42,8 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (find_pointers_applies_mask)
   TESTENTRY (find_pointers_returns_sorted_matches_across_tiles)
   TESTENTRY (find_pointers_returns_empty_array_when_absent)
+  TESTENTRY (find_pointers_skips_inaccessible_range)
+  TESTENTRY (find_pointers_skips_inaccessible_range_in_parallel_scan)
   TESTENTRY (is_memory_readable_handles_mixed_page_protections)
   TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
   TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
@@ -724,6 +727,101 @@ TESTCASE (find_pointers_returns_empty_array_when_absent)
   g_assert_cmpuint (matches->len, ==, 0);
 
   g_array_free (matches, TRUE);
+}
+
+TESTCASE (find_pointers_skips_inaccessible_range)
+{
+  gsize before[] = { 0x1337 };
+  gsize after[] = { 0x1337 };
+  gsize value = 0x1337;
+  guint page_size;
+  guint8 * inaccessible;
+  GumMemoryRange ranges[3];
+  GArray * matches;
+  gboolean found_before = FALSE;
+  gboolean found_after = FALSE;
+  guint i;
+
+  page_size = gum_query_page_size ();
+  inaccessible = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_mprotect (inaccessible, page_size, GUM_PAGE_NO_ACCESS);
+
+  ranges[0].base_address = GUM_ADDRESS (before);
+  ranges[0].size = sizeof (before);
+  ranges[1].base_address = GUM_ADDRESS (inaccessible);
+  ranges[1].size = page_size;
+  ranges[2].base_address = GUM_ADDRESS (after);
+  ranges[2].size = sizeof (after);
+
+  matches = gum_memory_find_pointers (ranges, G_N_ELEMENTS (ranges), &value,
+      1, G_MAXSIZE);
+
+  for (i = 0; i != matches->len; i++)
+  {
+    GumPointerMatch match = g_array_index (matches, GumPointerMatch, i);
+
+    if (match.address == GUM_ADDRESS (before))
+      found_before = TRUE;
+    if (match.address == GUM_ADDRESS (after))
+      found_after = TRUE;
+  }
+
+  g_assert_cmpuint (matches->len, ==, 2);
+  g_assert_true (found_before);
+  g_assert_true (found_after);
+
+  g_array_free (matches, TRUE);
+  gum_memory_free (inaccessible, page_size);
+}
+
+TESTCASE (find_pointers_skips_inaccessible_range_in_parallel_scan)
+{
+  gsize size = 4 * 1024 * 1024;
+  gsize trailing[] = { 0x1337 };
+  gsize value = 0x1337;
+  gsize * large;
+  guint page_size;
+  guint8 * inaccessible;
+  GumMemoryRange ranges[3];
+  GArray * matches;
+  gboolean found_large = FALSE;
+  gboolean found_trailing = FALSE;
+  guint i;
+
+  large = g_new0 (gsize, size / sizeof (gsize));
+  large[0] = value;
+
+  page_size = gum_query_page_size ();
+  inaccessible = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_mprotect (inaccessible, page_size, GUM_PAGE_NO_ACCESS);
+
+  ranges[0].base_address = GUM_ADDRESS (large);
+  ranges[0].size = size;
+  ranges[1].base_address = GUM_ADDRESS (inaccessible);
+  ranges[1].size = page_size;
+  ranges[2].base_address = GUM_ADDRESS (trailing);
+  ranges[2].size = sizeof (trailing);
+
+  matches = gum_memory_find_pointers (ranges, G_N_ELEMENTS (ranges), &value,
+      1, G_MAXSIZE);
+
+  for (i = 0; i != matches->len; i++)
+  {
+    GumPointerMatch match = g_array_index (matches, GumPointerMatch, i);
+
+    if (match.address == GUM_ADDRESS (large))
+      found_large = TRUE;
+    if (match.address == GUM_ADDRESS (trailing))
+      found_trailing = TRUE;
+  }
+
+  g_assert_cmpuint (matches->len, ==, 2);
+  g_assert_true (found_large);
+  g_assert_true (found_trailing);
+
+  g_array_free (matches, TRUE);
+  gum_memory_free (inaccessible, page_size);
+  g_free (large);
 }
 
 TESTCASE (is_memory_readable_handles_mixed_page_protections)
