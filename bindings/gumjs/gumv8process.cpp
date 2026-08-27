@@ -14,6 +14,9 @@
 #include "gumv8scope.h"
 
 #include <string.h>
+#ifdef G_OS_NONE
+# include "gum/gumbarebone.h"
+#endif
 #ifdef HAVE_DARWIN
 # include <gum/gumdarwin.h>
 #endif
@@ -45,7 +48,7 @@
 #elif defined (HAVE_QNX)
 # define GUM_SCRIPT_PLATFORM "qnx"
 #elif defined (G_OS_NONE)
-# define GUM_SCRIPT_PLATFORM "barebone"
+# define GUM_SCRIPT_PLATFORM gum_barebone_query_platform ()
 #endif
 
 using namespace v8;
@@ -248,7 +251,7 @@ _gum_v8_process_init (GumV8Process * self,
   process->Set (_gum_v8_string_new_ascii (isolate, "arch"),
       String::NewFromUtf8Literal (isolate, GUM_SCRIPT_ARCH), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "platform"),
-      String::NewFromUtf8Literal (isolate, GUM_SCRIPT_PLATFORM), ReadOnly);
+      _gum_v8_string_new_ascii (isolate, GUM_SCRIPT_PLATFORM), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "pageSize"),
       Number::New (isolate, gum_query_page_size ()), ReadOnly);
   process->Set (_gum_v8_string_new_ascii (isolate, "pointerSize"),
@@ -1148,8 +1151,8 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
-  _gum_v8_throw_ascii_literal (isolate,
-      "not yet implemented for " GUM_SCRIPT_PLATFORM);
+  _gum_v8_throw_ascii (isolate,
+      "not yet implemented for %s", GUM_SCRIPT_PLATFORM);
 }
 
 #endif

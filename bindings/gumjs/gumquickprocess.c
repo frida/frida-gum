@@ -42,7 +42,7 @@
 #elif defined (HAVE_QNX)
 # define GUM_SCRIPT_PLATFORM "qnx"
 #elif defined (G_OS_NONE)
-# define GUM_SCRIPT_PLATFORM "barebone"
+# define GUM_SCRIPT_PLATFORM gum_barebone_query_platform ()
 #endif
 
 typedef struct _GumQuickEnumerateContext GumQuickEnumerateContext;
@@ -115,9 +115,6 @@ struct _GumQuickFindRangeByAddressContext
 };
 
 static void gumjs_free_main_module_value (GumQuickProcess * self);
-#ifdef G_OS_NONE
-GUMJS_DECLARE_GETTER (gumjs_process_get_platform)
-#endif
 GUMJS_DECLARE_GETTER (gumjs_process_get_main_module)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_dir)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_home_dir)
@@ -202,11 +199,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_observer_detach)
 static const JSCFunctionListEntry gumjs_process_entries[] =
 {
   JS_PROP_STRING_DEF ("arch", GUM_SCRIPT_ARCH, JS_PROP_C_W_E),
-#ifdef G_OS_NONE
-  JS_CGETSET_DEF ("platform", gumjs_process_get_platform, NULL),
-#else
-  JS_PROP_STRING_DEF ("platform", GUM_SCRIPT_PLATFORM, JS_PROP_C_W_E),
-#endif
   JS_PROP_INT32_DEF ("pointerSize", GLIB_SIZEOF_VOID_P, JS_PROP_C_W_E),
   JS_CGETSET_DEF ("mainModule", gumjs_process_get_main_module, NULL),
   JS_CFUNC_DEF ("getCurrentDir", 0, gumjs_process_get_current_dir),
@@ -283,6 +275,8 @@ _gum_quick_process_init (GumQuickProcess * self,
   obj = JS_NewObject (ctx);
   JS_SetPropertyFunctionList (ctx, obj, gumjs_process_entries,
       G_N_ELEMENTS (gumjs_process_entries));
+  JS_DefinePropertyValueStr (ctx, obj, "platform",
+      JS_NewString (ctx, GUM_SCRIPT_PLATFORM), JS_PROP_C_W_E);
   JS_DefinePropertyValueStr (ctx, obj, "id",
       JS_NewInt32 (ctx, gum_process_get_id ()), JS_PROP_C_W_E);
   JS_DefinePropertyValueStr (ctx, obj, "pageSize",
@@ -348,15 +342,6 @@ gumjs_get_parent_module (GumQuickCore * core)
 {
   return _gum_quick_core_load_module_data (core, "process");
 }
-
-#ifdef G_OS_NONE
-
-GUMJS_DEFINE_GETTER (gumjs_process_get_platform)
-{
-  return JS_NewString (ctx, gum_barebone_query_platform ());
-}
-
-#endif
 
 GUMJS_DEFINE_GETTER (gumjs_process_get_main_module)
 {
@@ -1254,8 +1239,8 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
-  return _gum_quick_throw_literal (ctx,
-      "not yet implemented for " GUM_SCRIPT_PLATFORM);
+  return _gum_quick_throw (ctx,
+      "not yet implemented for %s", GUM_SCRIPT_PLATFORM);
 }
 
 #endif
