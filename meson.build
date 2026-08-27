@@ -423,7 +423,8 @@ capstone_options = [
 ]
 capstone_dep = dependency('capstone', version: '>=5.0.0', default_options: capstone_options)
 if capstone_dep.type_name() != 'internal' \
-    and not cc.has_function('cs_arch_register_x86', dependencies: [capstone_dep])
+    and not cc.has_header_symbol('capstone.h', 'cs_arch_register_x86',
+      dependencies: [capstone_dep])
   add_project_arguments(
     '-Dcs_arch_register_x86()=',
     '-Dcs_arch_register_arm()=',
