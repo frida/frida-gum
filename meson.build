@@ -27,6 +27,10 @@ if host_os_family == 'android'
   host_os_family = 'linux'
 endif
 host_os = host_machine.subsystem().split('-')[0]
+host_config = ''
+if host_machine.subsystem().contains('-')
+  host_config = '-' + host_machine.subsystem().split('-')[1]
+endif
 if host_machine.cpu_family() == 'arm'
   host_arch = 'arm'
   host_abi = 'arm'

@@ -18,7 +18,7 @@ custom_target('gumjs-devkit',
   command: [
     mkdevkit,
     'frida-gumjs',
-    f'@host_os@-@host_arch@',
+    f'@host_os@-@host_arch@@host_config@',
     meson.current_build_dir(),
   ] + devkit_options,
   install: true,
