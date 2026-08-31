@@ -4,6 +4,7 @@
  * Copyright (C) 2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
+ * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -618,6 +619,35 @@ gum_arm64_writer_put_br_reg_no_auth (GumArm64Writer * self,
                                      arm64_reg reg)
 {
   return gum_arm64_writer_put_br_reg_with_extra (self, reg, 0);
+}
+
+/*
+ * Jump to the address held by the given register, by whichever means gets us
+ * there. BR traps on a BTI-guarded target that has no landing pad waiting for
+ * us -- the middle of a function we've hooked, say -- whereas RET performs the
+ * same jump and is exempt from the check.
+ *
+ * Where pointer authentication is available we are on arm64e, which doesn't
+ * guard pages this way, so we stick with BR.
+ */
+gboolean
+gum_arm64_writer_put_jmp_reg (GumArm64Writer * self,
+                              arm64_reg reg)
+{
+  if (self->ptrauth_support == GUM_PTRAUTH_SUPPORTED)
+    return gum_arm64_writer_put_br_reg (self, reg);
+
+  return gum_arm64_writer_put_ret_reg (self, reg);
+}
+
+gboolean
+gum_arm64_writer_put_jmp_reg_no_auth (GumArm64Writer * self,
+                                      arm64_reg reg)
+{
+  if (self->ptrauth_support == GUM_PTRAUTH_SUPPORTED)
+    return gum_arm64_writer_put_br_reg_no_auth (self, reg);
+
+  return gum_arm64_writer_put_ret_reg (self, reg);
 }
 
 static gboolean
@@ -1792,6 +1822,17 @@ void
 gum_arm64_writer_put_nop (GumArm64Writer * self)
 {
   gum_arm64_writer_put_instruction (self, 0xd503201f);
+}
+
+/*
+ * Emit a landing pad for the code we're about to generate, so that indirect
+ * branches may reach it on a BTI-guarded page. We accept both jumps and calls,
+ * as our entries are reached in both ways.
+ */
+void
+gum_arm64_writer_put_bti (GumArm64Writer * self)
+{
+  gum_arm64_writer_put_instruction (self, 0xd50324df);
 }
 
 void

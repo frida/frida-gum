@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Haiwei Wang <haiwei.wang1109@gmail.com>
+ * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -758,7 +759,7 @@ gum_arm64_relocator_rewrite_b (GumArm64Relocator * self,
 
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
       gum_arm64_writer_sign (ctx->output, target->imm));
-  gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
+  gum_arm64_writer_put_jmp_reg (ctx->output, ARM64_REG_X16);
 
   return TRUE;
 }
@@ -778,7 +779,7 @@ gum_arm64_relocator_rewrite_b_cond (GumArm64Relocator * self,
   gum_arm64_writer_put_label (ctx->output, is_true);
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
       gum_arm64_writer_sign (ctx->output, target->imm));
-  gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
+  gum_arm64_writer_put_jmp_reg (ctx->output, ARM64_REG_X16);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
 
@@ -817,7 +818,7 @@ gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
   gum_arm64_writer_put_label (ctx->output, is_true);
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
       gum_arm64_writer_sign (ctx->output, target->imm));
-  gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
+  gum_arm64_writer_put_jmp_reg (ctx->output, ARM64_REG_X16);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
 
@@ -850,7 +851,7 @@ gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
   gum_arm64_writer_put_label (ctx->output, is_true);
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
       gum_arm64_writer_sign (ctx->output, target->imm));
-  gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
+  gum_arm64_writer_put_jmp_reg (ctx->output, ARM64_REG_X16);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
 

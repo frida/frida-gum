@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +17,11 @@ TESTLIST_BEGIN (arm64writer)
   TESTENTRY (bl_imm)
   TESTENTRY (bl_label)
   TESTENTRY (br_reg)
+  TESTENTRY (jmp_reg)
+  TESTENTRY (jmp_reg_with_ptrauth)
+  TESTENTRY (jmp_reg_no_auth)
+  TESTENTRY (jmp_reg_no_auth_with_ptrauth)
+  TESTENTRY (bti)
   TESTENTRY (blr_reg)
   TESTENTRY (ret)
 
@@ -171,6 +177,40 @@ TESTCASE (br_reg)
 {
   gum_arm64_writer_put_br_reg (&fixture->aw, ARM64_REG_X3);
   assert_output_n_equals (0, 0xd61f0060);
+}
+
+TESTCASE (jmp_reg)
+{
+  gum_arm64_writer_put_jmp_reg (&fixture->aw, ARM64_REG_X3);
+  assert_output_n_equals (0, 0xd65f0060); /* ret x3 */
+}
+
+TESTCASE (jmp_reg_with_ptrauth)
+{
+  fixture->aw.ptrauth_support = GUM_PTRAUTH_SUPPORTED;
+
+  gum_arm64_writer_put_jmp_reg (&fixture->aw, ARM64_REG_X3);
+  assert_output_n_equals (0, 0xd61f087f); /* braaz x3 */
+}
+
+TESTCASE (jmp_reg_no_auth)
+{
+  gum_arm64_writer_put_jmp_reg_no_auth (&fixture->aw, ARM64_REG_X3);
+  assert_output_n_equals (0, 0xd65f0060); /* ret x3 */
+}
+
+TESTCASE (jmp_reg_no_auth_with_ptrauth)
+{
+  fixture->aw.ptrauth_support = GUM_PTRAUTH_SUPPORTED;
+
+  gum_arm64_writer_put_jmp_reg_no_auth (&fixture->aw, ARM64_REG_X3);
+  assert_output_n_equals (0, 0xd61f0060); /* br x3 */
+}
+
+TESTCASE (bti)
+{
+  gum_arm64_writer_put_bti (&fixture->aw);
+  assert_output_n_equals (0, 0xd50324df); /* bti jc */
 }
 
 TESTCASE (blr_reg)

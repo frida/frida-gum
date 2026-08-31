@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Haiwei Wang <haiwei.wang1109@gmail.com>
+ * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -245,7 +246,7 @@ TESTCASE (cbz_should_be_rewritten)
     GUINT32_TO_LE (0xb4000040), /* cbz x0, #+2       */
     GUINT32_TO_LE (0x14000003), /* b +3              */
     GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
-    GUINT32_TO_LE (0xd61f0200)  /* br x16            */
+    GUINT32_TO_LE (0xd65f0200)  /* ret x16           */
   };
   const cs_insn * insn;
 
@@ -268,7 +269,7 @@ TESTCASE (tbnz_should_be_rewritten)
     GUINT32_TO_LE (0x37480041), /* tbnz w1, #9, #+2  */
     GUINT32_TO_LE (0x14000003), /* b +3              */
     GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
-    GUINT32_TO_LE (0xd61f0200)  /* br x16            */
+    GUINT32_TO_LE (0xd65f0200)  /* ret x16           */
   };
   const cs_insn * insn;
 
@@ -291,7 +292,7 @@ TESTCASE (b_cond_should_be_rewritten)
     GUINT32_TO_LE (0x54000043), /* b.lo #+2          */
     GUINT32_TO_LE (0x14000003), /* b +3              */
     GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
-    GUINT32_TO_LE (0xd61f0200)  /* br x16            */
+    GUINT32_TO_LE (0xd65f0200)  /* ret x16           */
   };
   const cs_insn * insn;
 
@@ -328,7 +329,7 @@ TESTCASE (b_should_be_rewritten)
     { 0x17ffff5a }, 1,  /* b #-664            */
     {
       0x58000050,       /* ldr x16, [pc, #8]  */
-      0xd61f0200,       /* br x16             */
+      0xd65f0200,       /* ret x16            */
       0xffffffff,       /* <calculated PC     */
       0xffffffff        /*  goes here>        */
     }, 4,

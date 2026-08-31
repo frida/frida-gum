@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -716,13 +717,13 @@ gum_insert_deflector (gpointer cave,
     gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_LR);
     gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
         GUM_ADDRESS (ctx->dedicated_target));
-    gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
+    gum_arm64_writer_put_jmp_reg (&aw, ARM64_REG_X0);
   }
   else
   {
     gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
         GUM_ADDRESS (gum_sign_code_pointer (dispatcher->thunk)));
-    gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
+    gum_arm64_writer_put_jmp_reg (&aw, ARM64_REG_X0);
   }
 
   gum_arm64_writer_flush (&aw);
@@ -799,7 +800,7 @@ gum_write_thunk (gpointer thunk,
   gum_arm64_writer_put_instruction (&aw, 0xacc117e4);
   gum_arm64_writer_put_instruction (&aw, 0xacc11fe6);
 
-  gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
+  gum_arm64_writer_put_jmp_reg (&aw, ARM64_REG_X0);
   gum_arm64_writer_clear (&aw);
 # else
   (void) gum_code_deflector_dispatcher_lookup;
