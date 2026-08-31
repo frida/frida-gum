@@ -176,7 +176,7 @@ gum_memory_allocate (gpointer address,
   return NULL;
 }
 
-gpointer
+G_GNUC_WEAK gpointer
 gum_memory_allocate_near (const GumAddressSpec * spec,
                           gsize size,
                           gsize alignment,
