@@ -3,6 +3,7 @@
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
+ * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -125,6 +126,10 @@ GUM_API gboolean gum_arm64_writer_put_br_reg (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API gboolean gum_arm64_writer_put_br_reg_no_auth (GumArm64Writer * self,
     arm64_reg reg);
+GUM_API gboolean gum_arm64_writer_put_jmp_reg (GumArm64Writer * self,
+    arm64_reg reg);
+GUM_API gboolean gum_arm64_writer_put_jmp_reg_no_auth (GumArm64Writer * self,
+    arm64_reg reg);
 GUM_API gboolean gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API gboolean gum_arm64_writer_put_blr_reg_no_auth (GumArm64Writer * self,
@@ -236,6 +241,7 @@ GUM_API gboolean gum_arm64_writer_put_pacia_reg_reg (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg mod_reg);
 
 GUM_API void gum_arm64_writer_put_nop (GumArm64Writer * self);
+GUM_API void gum_arm64_writer_put_bti (GumArm64Writer * self);
 GUM_API void gum_arm64_writer_put_brk_imm (GumArm64Writer * self, guint16 imm);
 GUM_API gboolean gum_arm64_writer_put_mrs (GumArm64Writer * self,
     arm64_reg dst_reg, guint16 system_reg);
