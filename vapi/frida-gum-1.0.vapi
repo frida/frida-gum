@@ -2243,6 +2243,163 @@ namespace Gum {
 	}
 
 	[Compact]
+	[CCode (cheader_filename = "gum/arch-arm/gumarmwriter.h", ref_function = "gum_arm_writer_ref", unref_function = "gum_arm_writer_unref", has_type_id = false)]
+	public class ArmWriter {
+		public int ref_count;
+		public bool flush_on_destroy;
+
+		public Gum.OS target_os;
+
+		public uint32 * base;
+		public uint32 * code;
+		public Gum.Address pc;
+
+		public ArmWriter (void * code_address);
+
+		public void reset (void * code_address);
+
+		public void * cur ();
+		public uint offset ();
+
+		public bool flush ();
+
+		public bool put_label (void * id);
+
+		public void put_call_address_with_arguments (Gum.Address func, uint n_args, ...);
+
+		public void put_branch_address (Gum.Address address);
+
+		public bool can_branch_directly_between (Gum.Address from, Gum.Address to);
+		public void put_b_label (void * label_id);
+
+		public bool put_push_regs (uint n, ...);
+		public bool put_pop_regs (uint n, ...);
+		public bool put_vpush_range (Gum.ArmReg first_reg, Gum.ArmReg last_reg);
+		public bool put_vpop_range (Gum.ArmReg first_reg, Gum.ArmReg last_reg);
+
+		public bool put_ldr_reg_address (Gum.ArmReg reg, Gum.Address address);
+		public void put_ldr_reg_reg (Gum.ArmReg dst_reg, Gum.ArmReg src_reg);
+		public bool put_ldr_reg_reg_offset (Gum.ArmReg dst_reg, Gum.ArmReg src_reg, ssize_t src_offset);
+
+		public void put_str_reg_reg (Gum.ArmReg src_reg, Gum.ArmReg dst_reg);
+		public bool put_str_reg_reg_offset (Gum.ArmReg src_reg, Gum.ArmReg dst_reg, ssize_t dst_offset);
+
+		public void put_mov_reg_reg (Gum.ArmReg dst_reg, Gum.ArmReg src_reg);
+		public void put_mov_reg_cpsr (Gum.ArmReg reg);
+		public void put_mov_cpsr_reg (Gum.ArmReg reg);
+		public bool put_add_reg_u16 (Gum.ArmReg dst_reg, uint16 val);
+		public bool put_add_reg_reg_imm (Gum.ArmReg dst_reg, Gum.ArmReg left_reg, uint32 right_value);
+		public bool put_sub_reg_u16 (Gum.ArmReg dst_reg, uint16 val);
+		public bool put_sub_reg_reg_imm (Gum.ArmReg dst_reg, Gum.ArmReg left_reg, uint32 right_value);
+	}
+
+	[Compact]
+	[CCode (cheader_filename = "gum/arch-arm/gumarmrelocator.h", ref_function = "gum_arm_relocator_ref", unref_function = "gum_arm_relocator_unref", has_type_id = false)]
+	public class ArmRelocator {
+		public int ref_count;
+
+		public void * capstone;
+
+		public uint8 * input_start;
+		public uint8 * input_cur;
+		public Gum.Address input_pc;
+		public Gum.ArmWriter output;
+
+		public uint inpos;
+		public uint outpos;
+
+		public bool eob;
+		public bool eoi;
+
+		public ArmRelocator (void * input_code, Gum.ArmWriter output);
+
+		public void reset (void * input_code, Gum.ArmWriter output);
+
+		public uint read_one (out void * instruction = null);
+
+		public void write_all ();
+	}
+
+	[Compact]
+	[CCode (cheader_filename = "gum/arch-arm/gumthumbwriter.h", ref_function = "gum_thumb_writer_ref", unref_function = "gum_thumb_writer_unref", has_type_id = false)]
+	public class ThumbWriter {
+		public int ref_count;
+		public bool flush_on_destroy;
+
+		public Gum.OS target_os;
+
+		public uint16 * base;
+		public uint16 * code;
+		public Gum.Address pc;
+
+		public ThumbWriter (void * code_address);
+
+		public void reset (void * code_address);
+
+		public void * cur ();
+		public uint offset ();
+
+		public bool flush ();
+
+		public bool put_label (void * id);
+
+		public void put_call_address_with_arguments (Gum.Address func, uint n_args, ...);
+
+		public void put_branch_address (Gum.Address address);
+
+		public bool can_branch_directly_between (Gum.Address from, Gum.Address to);
+		public void put_b_label (void * label_id);
+
+		public bool put_push_regs (uint n_regs, ...);
+		public bool put_pop_regs (uint n_regs, ...);
+		public bool put_vpush_range (Gum.ArmReg first_reg, Gum.ArmReg last_reg);
+		public bool put_vpop_range (Gum.ArmReg first_reg, Gum.ArmReg last_reg);
+
+		public bool put_ldr_reg_address (Gum.ArmReg reg, Gum.Address address);
+		public void put_ldr_reg_reg (Gum.ArmReg dst_reg, Gum.ArmReg src_reg);
+		public bool put_ldr_reg_reg_offset (Gum.ArmReg dst_reg, Gum.ArmReg src_reg, size_t src_offset);
+
+		public void put_str_reg_reg (Gum.ArmReg src_reg, Gum.ArmReg dst_reg);
+		public bool put_str_reg_reg_offset (Gum.ArmReg src_reg, Gum.ArmReg dst_reg, size_t dst_offset);
+
+		public void put_mov_reg_reg (Gum.ArmReg dst_reg, Gum.ArmReg src_reg);
+		public void put_mov_reg_cpsr (Gum.ArmReg reg);
+		public void put_mov_cpsr_reg (Gum.ArmReg reg);
+
+		public bool put_add_reg_imm (Gum.ArmReg dst_reg, ssize_t imm_value);
+		public bool put_add_reg_reg_imm (Gum.ArmReg dst_reg, Gum.ArmReg left_reg, ssize_t right_value);
+		public bool put_sub_reg_imm (Gum.ArmReg dst_reg, ssize_t imm_value);
+		public bool put_sub_reg_reg_imm (Gum.ArmReg dst_reg, Gum.ArmReg left_reg, ssize_t right_value);
+	}
+
+	[Compact]
+	[CCode (cheader_filename = "gum/arch-arm/gumthumbrelocator.h", ref_function = "gum_thumb_relocator_ref", unref_function = "gum_thumb_relocator_unref", has_type_id = false)]
+	public class ThumbRelocator {
+		public int ref_count;
+
+		public void * capstone;
+
+		public uint8 * input_start;
+		public uint8 * input_cur;
+		public Gum.Address input_pc;
+		public Gum.ThumbWriter output;
+
+		public uint inpos;
+		public uint outpos;
+
+		public bool eob;
+		public bool eoi;
+
+		public ThumbRelocator (void * input_code, Gum.ThumbWriter output);
+
+		public void reset (void * input_code, Gum.ThumbWriter output);
+
+		public uint read_one (out void * instruction = null);
+
+		public void write_all ();
+	}
+
+	[Compact]
 	[CCode (cheader_filename = "gum/arch-arm64/gumarm64writer.h", ref_function = "gum_arm64_writer_ref", unref_function = "gum_arm64_writer_unref", has_type_id = false)]
 	public class Arm64Writer {
 		public int ref_count;
@@ -2377,6 +2534,30 @@ namespace Gum {
 
 		public static bool can_relocate (void * address, uint min_bytes, Gum.RelocationScenario scenario, out uint maximum = null, out Gum.Arm64Reg available_scratch_reg = null);
 		public static uint relocate (void * from, uint min_bytes, void * to);
+	}
+
+	[CCode (cname = "arm_reg", cprefix = "ARM_REG_")]
+	public enum ArmReg {
+		R0,
+		R1,
+		R2,
+		R3,
+		R4,
+		R5,
+		R6,
+		R7,
+		R8,
+		R9,
+		R10,
+		R11,
+		R12,
+		SP,
+		LR,
+		PC,
+		Q0,
+		Q7,
+		Q8,
+		Q15,
 	}
 
 	[CCode (cname = "arm64_reg", cprefix = "ARM64_REG_")]
