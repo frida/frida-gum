@@ -79,6 +79,8 @@ gum_register_existing_modules (GumModuleRegistry * registry)
   if (!EnumProcessModules (this_process, modules, modules_size, &modules_size))
     goto beach;
 
+  gum_module_registry_lock (registry);
+
   for (mod_idx = 0; mod_idx != modules_size / sizeof (HMODULE); mod_idx++)
   {
     GumNativeModule * module;
@@ -91,6 +93,8 @@ gum_register_existing_modules (GumModuleRegistry * registry)
 
     g_object_unref (module);
   }
+
+  gum_module_registry_unlock (registry);
 
 beach:
   g_free (modules);
