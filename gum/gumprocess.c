@@ -20,7 +20,9 @@
 # define GUM_OS_LACKS_MODULE_LOOKUP_APIS 1
 #endif
 
-#if defined (HAVE_WINDOWS)
+#if defined (G_OS_NONE)
+/* No unwinder to consult. */
+#elif defined (HAVE_WINDOWS)
 /* Resolved inline through RtlLookupFunctionEntry(). */
 #elif defined (HAVE_DARWIN)
 # define GUM_FUNCTION_RANGE_USES_COMPACT_UNWIND 1
