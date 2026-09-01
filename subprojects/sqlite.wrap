@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/sqlite.git
-revision = 9337327a50008f2d2236112ccb6f44059b1bafbd
+revision = ef9edc77c069f6824bc88352a437f00aabef6e11
 depth = 1
 
 [provide]
