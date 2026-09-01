@@ -24,7 +24,9 @@
 # include <mach/mach.h>
 #endif
 
-#ifdef HAVE_MIPS
+#if defined (HAVE_I386)
+# define GUM_INTERCEPTOR_CODE_SLICE_SIZE 512
+#elif defined (HAVE_MIPS)
 # define GUM_INTERCEPTOR_CODE_SLICE_SIZE 1024
 #else
 # define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
