@@ -21,6 +21,10 @@
 #include "gumspinlock.h"
 #include "gumstalker-priv.h"
 #include "gumunwindbroker.h"
+
+#ifdef HAVE_PTRAUTH
+# include <ptrauth.h>
+#endif
 #ifdef HAVE_LINUX
 # include "gum-init.h"
 # include "guminterceptor.h"

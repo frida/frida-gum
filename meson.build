@@ -90,8 +90,7 @@ if host_arch == 'arm'
   endif
 endif
 
-if host_os_family == 'darwin'
-  have_ptrauth_src = '''
+have_ptrauth_src = '''
 #ifdef __clang__
 # if __has_feature (ptrauth_calls)
 #  define HAVE_PTRAUTH 1
@@ -102,13 +101,10 @@ if host_os_family == 'darwin'
 # error Pointer authentication not supported
 #endif
 '''
-  have_ptrauth = cc.compiles(have_ptrauth_src, name: 'pointer authentication')
+have_ptrauth = cc.compiles(have_ptrauth_src, name: 'pointer authentication')
 
-  if host_arch == 'arm64' and have_ptrauth
-    host_abi = 'arm64e'
-  endif
-else
-  have_ptrauth = false
+if host_os_family == 'darwin' and host_arch == 'arm64' and have_ptrauth
+  host_abi = 'arm64e'
 endif
 
 if cc.sizeof('void *') == 8
