@@ -492,9 +492,12 @@ gum_interceptor_obtain (void)
    * Activate the unwind broker so C++/Objective-C exceptions can propagate
    * through our trampolines. Done outside the lock because the broker's
    * backend re-enters gum_interceptor_obtain () to install its own hooks.
+   * A freestanding target has no such exceptions, and nothing to unwind with.
    */
+#ifndef G_OS_NONE
   if (newly_created)
     interceptor->unwind_broker = gum_unwind_broker_obtain ();
+#endif
 
   return interceptor;
 }
