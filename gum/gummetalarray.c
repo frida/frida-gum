@@ -20,7 +20,7 @@ gum_metal_array_init (GumMetalArray * array,
 {
   guint page_size = gum_query_page_size ();
 
-  array->data = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  array->data = gum_memory_allocate_bookkeeping (page_size, page_size);
   array->length = 0;
   array->capacity = page_size / element_size;
 
@@ -117,8 +117,8 @@ gum_metal_array_ensure_capacity (GumMetalArray * self,
   if (size_in_bytes % page_size != 0)
     size_in_pages++;
 
-  new_data = gum_memory_allocate (NULL, size_in_pages * page_size, page_size,
-      GUM_PAGE_RW);
+  new_data = gum_memory_allocate_bookkeeping (size_in_pages * page_size,
+      page_size);
   gum_memcpy (new_data, self->data, self->length * self->element_size);
 
   gum_memory_free (self->data, gum_metal_array_storage_size (self));

@@ -269,6 +269,13 @@ gum_virtual_alloc (gpointer address,
   return result;
 }
 
+gpointer
+gum_memory_allocate_bookkeeping (gsize size,
+                                 gsize alignment)
+{
+  return gum_memory_allocate (NULL, size, alignment, GUM_PAGE_RW);
+}
+
 gboolean
 gum_memory_free (gpointer address,
                  gsize size)

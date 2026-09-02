@@ -194,6 +194,13 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
   return NULL;
 }
 
+G_GNUC_WEAK gpointer
+gum_memory_allocate_bookkeeping (gsize size,
+                                 gsize alignment)
+{
+  return gum_memory_allocate (NULL, size, alignment, GUM_PAGE_RW);
+}
+
 G_GNUC_WEAK gboolean
 gum_memory_free (gpointer address,
                  gsize size)

@@ -180,6 +180,7 @@ GUM_API gpointer gum_memory_allocate (gpointer address, gsize size,
     gsize alignment, GumPageProtection prot);
 GUM_API gpointer gum_memory_allocate_near (const GumAddressSpec * spec,
     gsize size, gsize alignment, GumPageProtection prot);
+GUM_API gpointer gum_memory_allocate_bookkeeping (gsize size, gsize alignment);
 GUM_API gboolean gum_memory_free (gpointer address, gsize size);
 GUM_API gboolean gum_memory_release (gpointer address, gsize size);
 GUM_API gboolean gum_memory_recommit (gpointer address, gsize size,

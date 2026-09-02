@@ -241,6 +241,13 @@ gum_allocate_page_aligned (gpointer address,
   return (result != MAP_FAILED) ? result : NULL;
 }
 
+gpointer
+gum_memory_allocate_bookkeeping (gsize size,
+                                 gsize alignment)
+{
+  return gum_memory_allocate (NULL, size, alignment, GUM_PAGE_RW);
+}
+
 gboolean
 gum_memory_free (gpointer address,
                  gsize size)

@@ -694,6 +694,13 @@ gum_try_suggest_allocation_base (const GumMemoryRange * range,
   return TRUE;
 }
 
+gpointer
+gum_memory_allocate_bookkeeping (gsize size,
+                                 gsize alignment)
+{
+  return gum_memory_allocate (NULL, size, alignment, GUM_PAGE_RW);
+}
+
 gboolean
 gum_memory_free (gpointer address,
                  gsize size)
