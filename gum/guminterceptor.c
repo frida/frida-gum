@@ -232,14 +232,17 @@ static GumInvocationStackEntry * gum_invocation_stack_push (
     gpointer caller_ret_addr, gpointer stack_address,
     gboolean only_invoke_unignorable_listeners);
 static gpointer gum_invocation_stack_pop (GumInvocationStack * stack);
+static void gum_invocation_stack_remove_entry (GumInvocationStack * stack,
+    GumFunctionContext * function_ctx, gpointer stack_address);
 static void gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
     gpointer live_stack_address);
-static void gum_invocation_stack_reap_unwound_above (
+static GumInvocationStackEntry * gum_invocation_stack_reap_unwound_above (
     GumInvocationStack * stack, GumFunctionContext * returning_ctx);
 static void gum_invocation_stack_entry_snapshot_cpu_context (
     GumInvocationStackEntry * entry, const GumCpuContext * cpu_context);
 static gboolean gum_invocation_stack_entry_was_unwound_past (
-    const GumInvocationStackEntry * entry, gpointer live_stack_address);
+    const GumInvocationStackEntry * entry, gpointer live_stack_address,
+    const GumMemoryRange * ranges, guint n_ranges);
 static void gum_invocation_stack_entry_release_trampoline (
     const GumInvocationStackEntry * entry);
 static GumInvocationStackEntry * gum_invocation_stack_peek_top (
@@ -2143,6 +2146,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   InterceptorThreadContext * interceptor_ctx;
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx;
+  gpointer stack_address;
   GPtrArray * listener_entries;
   gboolean only_invoke_unignorable_listeners;
   guint i;
@@ -2159,11 +2163,22 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   interceptor_ctx = get_interceptor_thread_context ();
 
-  gum_invocation_stack_reap_unwound_above (interceptor_ctx->stack,
+  stack_entry = gum_invocation_stack_reap_unwound_above (interceptor_ctx->stack,
       function_ctx);
+  if (G_UNLIKELY (stack_entry == NULL))
+  {
+    /*
+     * The enter-side frame is gone, so the original return address is too.
+     * Never peek an empty invocation stack: that is UB, and compilers
+     * delete peek_top()'s NULL check, turning len==0 into a wild pointer.
+     */
+    *next_hop = NULL;
+    gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
+    return;
+  }
 
-  stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
   *next_hop = gum_sign_code_pointer (stack_entry->caller_ret_addr);
+  stack_address = stack_entry->stack_address;
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
@@ -2211,7 +2226,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   gum_thread_set_system_error (invocation_ctx->system_error);
 
-  gum_invocation_stack_pop (interceptor_ctx->stack);
+  gum_invocation_stack_remove_entry (interceptor_ctx->stack, function_ctx,
+      stack_address);
 
   gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
 
@@ -2529,9 +2545,36 @@ gum_invocation_stack_pop (GumInvocationStack * stack)
 }
 
 static void
+gum_invocation_stack_remove_entry (GumInvocationStack * stack,
+                                   GumFunctionContext * function_ctx,
+                                   gpointer stack_address)
+{
+  guint i;
+
+  for (i = stack->len; i != 0; i--)
+  {
+    GumInvocationStackEntry * entry;
+
+    entry = (GumInvocationStackEntry *)
+        &g_array_index (stack, GumInvocationStackEntry, i - 1);
+    if (entry->function_ctx == function_ctx &&
+        entry->stack_address == stack_address)
+    {
+      g_array_remove_index (stack, i - 1);
+      return;
+    }
+  }
+}
+
+static void
 gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
                                    gpointer live_stack_address)
 {
+  GumMemoryRange ranges[2];
+  guint n_ranges;
+
+  n_ranges = gum_thread_try_get_ranges (ranges, G_N_ELEMENTS (ranges));
+
   while (stack->len != 0)
   {
     GumInvocationStackEntry * entry;
@@ -2539,7 +2582,7 @@ gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
     entry = (GumInvocationStackEntry *)
         &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
     if (!gum_invocation_stack_entry_was_unwound_past (entry,
-        live_stack_address))
+        live_stack_address, ranges, n_ranges))
       break;
 
     gum_invocation_stack_entry_release_trampoline (entry);
@@ -2547,16 +2590,16 @@ gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
   }
 }
 
-static void
+static GumInvocationStackEntry *
 gum_invocation_stack_reap_unwound_above (GumInvocationStack * stack,
                                          GumFunctionContext * returning_ctx)
 {
   /*
-   * Reap entries sitting above the frame we are about to return from, leaving
-   * that frame on top. Calls nest last-in-first-out, and entries that don't
-   * trap on leave are popped right away on enter, so any entry still stacked
-   * above our frame belongs to a deeper call that was unwound past by a C++
-   * exception or longjmp(), skipping its on-leave trampoline.
+   * Reap entries sitting above the frame we are about to return from. Calls
+   * nest last-in-first-out, and entries that don't trap on leave are popped
+   * right away on enter, so any entry still stacked above our frame belongs
+   * to a deeper call that was unwound past by a C++ exception or longjmp(),
+   * skipping its on-leave trampoline.
    *
    * We cannot lean on the leave-time stack pointer the way the on-enter path
    * does: a callee-clean calling convention such as x86 stdcall pops the
@@ -2564,19 +2607,57 @@ gum_invocation_stack_reap_unwound_above (GumInvocationStack * stack,
    * recorded stack address, and a frame-pointer-omitting caller and callee
    * may even share one. Matching on the returning function context sidesteps
    * both pitfalls.
+   *
+   * Stackful coroutines / fibers multiplex several C stacks onto one OS
+   * thread, so a live frame from another stack may sit above ours. Only
+   * reap intervening entries that look unwound on the same OS thread stack;
+   * leave the rest in place and return our frame even if it is not on top.
    */
-  while (stack->len != 0)
+  guint i;
+  gint matching_index = -1;
+  GumMemoryRange ranges[2];
+  guint n_ranges;
+  GumInvocationStackEntry * matching;
+
+  for (i = stack->len; i != 0; i--)
   {
     GumInvocationStackEntry * entry;
 
     entry = (GumInvocationStackEntry *)
-        &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
+        &g_array_index (stack, GumInvocationStackEntry, i - 1);
     if (entry->function_ctx == returning_ctx)
+    {
+      matching_index = (gint) (i - 1);
       break;
+    }
+  }
+
+  if (matching_index < 0)
+    return NULL;
+
+  matching = (GumInvocationStackEntry *)
+      &g_array_index (stack, GumInvocationStackEntry, matching_index);
+
+  n_ranges = gum_thread_try_get_ranges (ranges, G_N_ELEMENTS (ranges));
+
+  i = stack->len;
+  while (i > (guint) matching_index + 1)
+  {
+    GumInvocationStackEntry * entry;
+
+    i--;
+    entry = (GumInvocationStackEntry *)
+        &g_array_index (stack, GumInvocationStackEntry, i);
+    if (!gum_invocation_stack_entry_was_unwound_past (entry,
+        matching->stack_address, ranges, n_ranges))
+      continue;
 
     gum_invocation_stack_entry_release_trampoline (entry);
-    g_array_set_size (stack, stack->len - 1);
+    g_array_remove_index (stack, i);
   }
+
+  return (GumInvocationStackEntry *)
+      &g_array_index (stack, GumInvocationStackEntry, matching_index);
 }
 
 static void
@@ -2595,9 +2676,34 @@ gum_invocation_stack_entry_snapshot_cpu_context (
 static gboolean
 gum_invocation_stack_entry_was_unwound_past (
     const GumInvocationStackEntry * entry,
-    gpointer live_stack_address)
+    gpointer live_stack_address,
+    const GumMemoryRange * ranges,
+    guint n_ranges)
 {
-  return (guint8 *) entry->stack_address < (guint8 *) live_stack_address;
+  guint i;
+
+  if ((guint8 *) entry->stack_address >= (guint8 *) live_stack_address)
+    return FALSE;
+
+  /*
+   * Fiber / coroutine stacks are not the pthread/OS stack, so a live frame
+   * on a lower-address mmap region must not be treated as unwound just
+   * because the current SP is higher. When the backend cannot report a
+   * thread stack (bare metal, some QNX builds) keep the classic comparison.
+   */
+  if (n_ranges == 0)
+    return TRUE;
+
+  for (i = 0; i != n_ranges; i++)
+  {
+    const GumMemoryRange * r = &ranges[i];
+
+    if (GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (entry->stack_address)) &&
+        GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (live_stack_address)))
+      return TRUE;
+  }
+
+  return FALSE;
 }
 
 static void

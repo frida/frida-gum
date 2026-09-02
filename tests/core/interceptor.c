@@ -8,6 +8,11 @@
 
 #include "interceptor-fixture.c"
 
+#include <setjmp.h>
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+# include <ucontext.h>
+#endif
+
 #if defined (HAVE_I386)
 # include "gumx86writer.h"
 #elif defined (HAVE_ARM64)
@@ -34,6 +39,10 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (attach_two)
   TESTENTRY (attach_to_recursive_function)
   TESTENTRY (attach_to_special_function)
+  TESTENTRY (longjmp_reaps_skipped_leave)
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+  TESTENTRY (stackful_coroutine_does_not_reap_live_frames)
+#endif
 #ifdef G_OS_UNIX
   TESTENTRY (attach_to_pthread_key_create)
 #endif
@@ -102,6 +111,60 @@ static gpointer replacement_target_function_fast (GString * str);
 static gdouble gum_test_xmm_clobber (gdouble x);
 #endif
 
+static GString * gum_test_unwind_log = NULL;
+static jmp_buf gum_test_longjmp_buf;
+
+GUM_HOOK_TARGET static void
+gum_test_longjmp_inner (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'i');
+  longjmp (gum_test_longjmp_buf, 1);
+}
+
+GUM_HOOK_TARGET static void
+gum_test_longjmp_outer (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'o');
+  if (setjmp (gum_test_longjmp_buf) == 0)
+    gum_test_longjmp_inner ();
+  g_string_append_c (gum_test_unwind_log, 'O');
+}
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+static ucontext_t gum_test_uctx_main;
+static ucontext_t gum_test_uctx_a;
+static ucontext_t gum_test_uctx_b;
+
+GUM_HOOK_TARGET static void
+gum_test_fiber_a_work (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'A');
+  swapcontext (&gum_test_uctx_a, &gum_test_uctx_b);
+  g_string_append_c (gum_test_unwind_log, 'a');
+}
+
+GUM_HOOK_TARGET static void
+gum_test_fiber_b_work (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'B');
+  swapcontext (&gum_test_uctx_b, &gum_test_uctx_a);
+  g_string_append_c (gum_test_unwind_log, 'b');
+}
+
+static void
+gum_test_fiber_a_start (void)
+{
+  gum_test_fiber_a_work ();
+  swapcontext (&gum_test_uctx_a, &gum_test_uctx_b);
+}
+
+static void
+gum_test_fiber_b_start (void)
+{
+  gum_test_fiber_b_work ();
+}
+#endif
+
 TESTCASE (attach_one)
 {
   interceptor_fixture_attach (fixture, 0, target_function, '>', '<');
@@ -140,6 +203,54 @@ TESTCASE (attach_to_special_function)
   special_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
+
+TESTCASE (longjmp_reaps_skipped_leave)
+{
+  gum_test_unwind_log = fixture->result;
+
+  interceptor_fixture_attach (fixture, 0, gum_test_longjmp_outer, '>', '<');
+  interceptor_fixture_attach (fixture, 1, gum_test_longjmp_inner, '[', ']');
+
+  gum_test_longjmp_outer ();
+
+  g_assert_cmpstr (fixture->result->str, ==, ">o[iO<");
+}
+
+#if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
+
+TESTCASE (stackful_coroutine_does_not_reap_live_frames)
+{
+  const gsize stack_size = 64 * 1024;
+  gpointer stack_a, stack_b;
+
+  gum_test_unwind_log = fixture->result;
+
+  interceptor_fixture_attach (fixture, 0, gum_test_fiber_a_work, '>', '<');
+  interceptor_fixture_attach (fixture, 1, gum_test_fiber_b_work, '[', ']');
+
+  stack_a = g_malloc (stack_size);
+  stack_b = g_malloc (stack_size);
+
+  g_assert_cmpint (getcontext (&gum_test_uctx_a), ==, 0);
+  gum_test_uctx_a.uc_stack.ss_sp = stack_a;
+  gum_test_uctx_a.uc_stack.ss_size = stack_size;
+  gum_test_uctx_a.uc_link = NULL;
+  makecontext (&gum_test_uctx_a, gum_test_fiber_a_start, 0);
+
+  g_assert_cmpint (getcontext (&gum_test_uctx_b), ==, 0);
+  gum_test_uctx_b.uc_stack.ss_sp = stack_b;
+  gum_test_uctx_b.uc_stack.ss_size = stack_size;
+  gum_test_uctx_b.uc_link = &gum_test_uctx_main;
+  makecontext (&gum_test_uctx_b, gum_test_fiber_b_start, 0);
+
+  g_assert_cmpint (swapcontext (&gum_test_uctx_main, &gum_test_uctx_a), ==, 0);
+  g_assert_cmpstr (fixture->result->str, ==, ">A[Ba<b]");
+
+  g_free (stack_a);
+  g_free (stack_b);
+}
+
+#endif
 
 #ifdef G_OS_UNIX
 
