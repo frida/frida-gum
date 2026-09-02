@@ -1068,12 +1068,14 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 {
   GumArm64Writer * aw = &self->writer;
   GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
-  GumAddress on_enter;
+  GumAddress on_enter, on_enter_bare;
 
   if (ctx->type == GUM_INTERCEPTOR_TYPE_FAST)
     on_enter = GUM_ADDRESS (ctx->replacement_function);
   else
     on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
+  on_enter_bare =
+      GUM_ADDRESS (gum_strip_code_pointer (GSIZE_TO_POINTER (on_enter)));
 
 #ifdef HAVE_DARWIN
   if (ctx->grafted_hook != NULL)
@@ -1117,10 +1119,11 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     switch (data->redirect_code_size)
     {
       case 4:
-        gum_arm64_writer_put_b_imm (aw, on_enter);
+        gum_arm64_writer_put_b_imm (aw, on_enter_bare);
         break;
       case 8:
-        gum_arm64_writer_put_adrp_reg_address (aw, data->scratch_reg, on_enter);
+        gum_arm64_writer_put_adrp_reg_address (aw, data->scratch_reg,
+            on_enter_bare);
         gum_arm64_writer_put_jmp_reg_no_auth (aw, data->scratch_reg);
         break;
       case GUM_INTERCEPTOR_FULL_REDIRECT_SIZE:
