@@ -28,6 +28,9 @@
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
+#ifdef HAVE_TINY_STACK
+# include <gum/gumbarebone.h>
+#endif
 
 #define GUM_QUICK_FFI_FUNCTION_PARAMS_EMPTY { NULL, }
 
@@ -2050,6 +2053,13 @@ _gum_quick_scope_enter (GumQuickScope * self,
     core->current_owner = gum_process_get_current_thread_id ();
 
     JS_Enter (core->rt);
+#ifdef HAVE_TINY_STACK
+    {
+      gsize available = gum_barebone_query_stack_size ();
+      if (available != 0)
+        JS_SetMaxStackSize (core->rt, available - available / 4);
+    }
+#endif
 
     _gum_quick_script_on_scope_entered (core);
   }

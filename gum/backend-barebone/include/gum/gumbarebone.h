@@ -17,6 +17,7 @@ G_BEGIN_DECLS
 
 GUM_API const gchar * gum_barebone_query_platform (void);
 GUM_API guint gum_barebone_query_page_size (void);
+GUM_API gsize gum_barebone_query_stack_size (void);
 GUM_API gpointer gum_barebone_try_remap_writable_pages (gconstpointer * addrs,
     guint n_addrs);
 

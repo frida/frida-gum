@@ -26,6 +26,12 @@ gum_barebone_query_platform (void)
   return "barebone";
 }
 
+G_GNUC_WEAK gsize
+gum_barebone_query_stack_size (void)
+{
+  return 0;
+}
+
 GumModule *
 gum_process_get_libc_module (void)
 {
