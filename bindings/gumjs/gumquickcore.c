@@ -5872,9 +5872,9 @@ gum_quick_exception_sink_handle_exception (GumQuickExceptionSink * self,
 
   result = JS_Call (ctx, self->callback, JS_UNDEFINED, 1, &exception);
   if (JS_IsException (result))
-    _gum_quick_panic (ctx, "Error handler crashed");
-
-  JS_FreeValue (ctx, result);
+    JS_FreeValue (ctx, JS_GetException (ctx));
+  else
+    JS_FreeValue (ctx, result);
 }
 
 static GumQuickMessageSink *
