@@ -120,7 +120,7 @@ struct _TestInterceptorFixture
 {
   GumInterceptor * interceptor;
   GString * result;
-  ListenerContext * listener_context[2];
+  ListenerContext * listener_context[4];
 };
 
 static GumAttachReturn interceptor_fixture_try_attach_with_options (
