@@ -343,7 +343,6 @@ gum_interceptor_backend_emit_arm_trampolines (GumInterceptorBackend * self,
   ctx->on_invoke_trampoline =
       ctx->trampoline_slice->pc + gum_arm_writer_offset (aw);
 
-  gum_arm_writer_reset (aw, ctx->on_invoke_trampoline);
   gum_arm_relocator_reset (ar, function_address, aw);
 
   do
@@ -394,7 +393,8 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
   }
   else
   {
-    ctx->on_enter_trampoline = gum_thumb_writer_cur (tw) + 1;
+    ctx->on_enter_trampoline =
+        (guint8 *) ctx->trampoline_slice->pc + gum_thumb_writer_offset (tw) + 1;
     deflector_target = ctx->on_enter_trampoline;
   }
 
@@ -443,7 +443,8 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
     gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
         GUM_ADDRESS (self->enter_thunk_thumb));
 
-    ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
+    ctx->on_leave_trampoline =
+        (guint8 *) ctx->trampoline_slice->pc + gum_thumb_writer_offset (tw) + 1;
 
     gum_emit_thumb_push_cpu_context_high_part (tw);
     gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R6, GUM_ADDRESS (ctx));
@@ -454,7 +455,8 @@ gum_interceptor_backend_emit_thumb_trampolines (GumInterceptorBackend * self,
     g_assert (gum_thumb_writer_offset (tw) <= ctx->trampoline_slice->size);
   }
 
-  ctx->on_invoke_trampoline = gum_thumb_writer_cur (tw) + 1;
+  ctx->on_invoke_trampoline =
+      (guint8 *) ctx->trampoline_slice->pc + gum_thumb_writer_offset (tw) + 1;
 
   gum_thumb_relocator_reset (tr, function_address, tw);
 
