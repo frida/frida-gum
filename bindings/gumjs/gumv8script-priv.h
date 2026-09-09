@@ -9,6 +9,7 @@
 #ifndef __GUM_V8_SCRIPT_PRIV_H__
 #define __GUM_V8_SCRIPT_PRIV_H__
 
+#include "gumv8api.h"
 #include "gumv8apiresolver.h"
 #include "gumv8checksum.h"
 #include "gumv8cloak.h"
@@ -118,6 +119,7 @@ struct _GumV8Script
   GumV8Cloak cloak;
   GumV8Sampler sampler;
   GumV8Profiler profiler;
+  GumV8Api api;
 
   v8::Global<v8::Context> * context;
   GumESProgram * program;

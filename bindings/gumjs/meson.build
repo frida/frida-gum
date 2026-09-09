@@ -4,6 +4,7 @@ gumjs_headers = [
   'gumjs.h',
   'gumscript.h',
   'gumscriptbackend.h',
+  'gumscriptapi.h',
   'gumscriptscheduler.h',
 ]
 
@@ -11,6 +12,7 @@ gumjs_sources = [
   'gumjs.c',
   'gumscript.c',
   'gumscriptbackend.c',
+  'gumscriptapi.c',
   'gumscriptscheduler.c',
   'gumscripttask.c',
   'gumsourcemap.c',
@@ -52,6 +54,7 @@ if quickjs_dep.found()
     'gumquickcloak.c',
     'gumquickprofiler.c',
     'gumquicksampler.c',
+    'gumquickapi.c',
   ]
   if host_os_family != 'none'
     gumjs_sources += [
@@ -100,6 +103,7 @@ if v8_dep.found()
     'gumv8cloak.cpp',
     'gumv8profiler.cpp',
     'gumv8sampler.cpp',
+    'gumv8api.cpp',
   ]
   if host_os_family != 'none'
     gumjs_sources += [

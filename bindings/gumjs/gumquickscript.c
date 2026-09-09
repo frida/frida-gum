@@ -7,6 +7,7 @@
 
 #include "gumquickscript.h"
 
+#include "gumquickapi.h"
 #include "gumquickapiresolver.h"
 #include "gumquickchecksum.h"
 #include "gumquickcloak.h"
@@ -92,6 +93,7 @@ struct _GumQuickScript
   GumQuickCloak cloak;
   GumQuickSampler sampler;
   GumQuickProfiler profiler;
+  GumQuickApi api;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
@@ -191,6 +193,7 @@ struct _GumQuickWorker
   GumQuickCodeWriter code_writer;
   GumQuickCodeRelocator code_relocator;
   GumQuickCloak cloak;
+  GumQuickApi api;
 };
 
 enum _GumWorkerState
@@ -547,6 +550,7 @@ gum_quick_script_create_context (GumQuickScript * self,
   _gum_quick_sampler_init (&self->sampler, global_obj, core);
   _gum_quick_profiler_init (&self->profiler, global_obj, &self->sampler,
       &self->interceptor, core);
+  _gum_quick_api_init (&self->api, global_obj, core);
 
   JS_FreeValue (ctx, global_obj);
 
@@ -642,6 +646,7 @@ gum_quick_script_destroy_context (GumQuickScript * self)
     core->current_scope = NULL;
   }
 
+  _gum_quick_api_finalize (&self->api);
   _gum_quick_profiler_finalize (&self->profiler);
   _gum_quick_sampler_finalize (&self->sampler);
   _gum_quick_cloak_finalize (&self->cloak);
@@ -1359,6 +1364,7 @@ _gum_quick_script_make_worker (GumQuickScript * self,
     _gum_quick_code_relocator_init (&worker->code_relocator, global_obj,
         &worker->code_writer, &worker->instruction, core);
     _gum_quick_cloak_init (&worker->cloak, global_obj, core);
+    _gum_quick_api_init (&worker->api, global_obj, core);
 
     core->current_scope = NULL;
   }
@@ -1497,6 +1503,7 @@ _gum_quick_worker_unref (GumQuickWorker * worker)
 
   if (worker->state != GUM_WORKER_CREATED)
   {
+    _gum_quick_api_finalize (&worker->api);
     _gum_quick_code_relocator_finalize (&worker->code_relocator);
     _gum_quick_code_writer_finalize (&worker->code_writer);
     _gum_quick_control_flow_graph_finalize (&worker->control_flow_graph);

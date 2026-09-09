@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,7 @@
 #define __GUM_SCRIPT_BACKEND_H__
 
 #include <gumjs/gumscript.h>
+#include <gumjs/gumscriptapi.h>
 #include <gumjs/gumscriptscheduler.h>
 
 G_BEGIN_DECLS
