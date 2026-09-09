@@ -25,6 +25,8 @@ GUM_API gboolean gum_barebone_handle_exception (GumExceptionType type,
     gpointer pc, gpointer accessed_address, GumCpuContext * cpu_context);
 
 GUM_API void gum_barebone_on_registry_activating (GumModuleRegistry * registry);
+GUM_API void gum_barebone_on_registry_deactivating (
+    GumModuleRegistry * registry);
 GUM_API void gum_barebone_register_module (GumModuleRegistry * registry,
     GumModule * module);
 GUM_API void gum_barebone_unregister_module (GumModuleRegistry * registry,

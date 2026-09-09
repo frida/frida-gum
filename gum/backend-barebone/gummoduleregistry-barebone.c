@@ -17,10 +17,16 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 void
 _gum_module_registry_deactivate (GumModuleRegistry * self)
 {
+  gum_barebone_on_registry_deactivating (self);
 }
 
 G_GNUC_WEAK void
 gum_barebone_on_registry_activating (GumModuleRegistry * registry)
+{
+}
+
+G_GNUC_WEAK void
+gum_barebone_on_registry_deactivating (GumModuleRegistry * registry)
 {
 }
 
