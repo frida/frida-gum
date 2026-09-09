@@ -35,6 +35,8 @@
 #define GUM_INTERCEPTOR_LOCK(o) g_rec_mutex_lock (&(o)->mutex)
 #define GUM_INTERCEPTOR_UNLOCK(o) g_rec_mutex_unlock (&(o)->mutex)
 
+#define GUM_INTERCEPTOR_EXTRA_STACK_RANGES 8
+
 #if defined (HAVE_I386)
 # define GUM_INTERCEPTOR_CPU_CONTEXT_SP(c) \
     ((gpointer) GUM_CPU_CONTEXT_XSP (c))
@@ -123,6 +125,10 @@ struct _InterceptorThreadContext
 
   GumInvocationStack * stack;
 
+  GumMemoryRange extra_stack_ranges[GUM_INTERCEPTOR_EXTRA_STACK_RANGES];
+  guint n_extra_stack_ranges;
+  guint extra_stack_range_cursor;
+
   GArray * listener_data_slots;
 };
 
@@ -131,6 +137,7 @@ struct _GumInvocationStackEntry
   GumFunctionContext * function_ctx;
   gpointer caller_ret_addr;
   gpointer stack_address;
+  GumMemoryRange stack_range;
   GumInvocationContext invocation_context;
   GumCpuContext cpu_context;
 #ifdef GUM_CPU_CONTEXT_HAS_OUT_OF_LINE_VECTORS
@@ -227,23 +234,35 @@ static gpointer interceptor_thread_context_get_listener_data (
     gsize required_size);
 static void interceptor_thread_context_forget_listener_data (
     InterceptorThreadContext * self, GumInvocationListener * listener);
+static void gum_interceptor_resolve_stack_range (
+    InterceptorThreadContext * ctx, gpointer sp, GumMemoryRange * range);
+static gboolean gum_interceptor_find_range_containing (
+    const GumRangeDetails * details, gpointer user_data);
+static gboolean gum_memory_ranges_equal (const GumMemoryRange * a,
+    const GumMemoryRange * b);
 static GumInvocationStackEntry * gum_invocation_stack_push (
     GumInvocationStack * stack, GumFunctionContext * function_ctx,
     gpointer caller_ret_addr, gpointer stack_address,
+    const GumMemoryRange * stack_range,
     gboolean only_invoke_unignorable_listeners);
 static gpointer gum_invocation_stack_pop (GumInvocationStack * stack);
+static void gum_invocation_stack_remove_entry (GumInvocationStack * stack,
+    GumFunctionContext * function_ctx, gpointer stack_address);
 static void gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
-    gpointer live_stack_address);
-static void gum_invocation_stack_reap_unwound_above (
-    GumInvocationStack * stack, GumFunctionContext * returning_ctx);
+    gpointer live_stack_address, const GumMemoryRange * live_range);
+static GumInvocationStackEntry * gum_invocation_stack_reap_unwound_above (
+    GumInvocationStack * stack, GumFunctionContext * returning_ctx,
+    const GumMemoryRange * live_range);
 static void gum_invocation_stack_entry_snapshot_cpu_context (
     GumInvocationStackEntry * entry, const GumCpuContext * cpu_context);
 static gboolean gum_invocation_stack_entry_was_unwound_past (
     const GumInvocationStackEntry * entry, gpointer live_stack_address);
 static void gum_invocation_stack_entry_release_trampoline (
     const GumInvocationStackEntry * entry);
-static GumInvocationStackEntry * gum_invocation_stack_peek_top (
-    GumInvocationStack * stack);
+static GumInvocationStackEntry * gum_invocation_stack_peek_top_on_stack (
+    GumInvocationStack * stack, const GumMemoryRange * range);
+static GumInvocationStackEntry * gum_invocation_stack_peek_current (
+    InterceptorThreadContext * ctx);
 
 static gpointer gum_interceptor_resolve (GumInterceptor * self,
     gpointer address);
@@ -1053,7 +1072,7 @@ gum_interceptor_get_current_invocation (void)
   GumInvocationStackEntry * entry;
 
   interceptor_ctx = get_interceptor_thread_context ();
-  entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
+  entry = gum_invocation_stack_peek_current (interceptor_ctx);
   if (entry == NULL)
     return NULL;
 
@@ -1077,7 +1096,7 @@ gum_interceptor_get_live_replacement_invocation (gpointer replacement_function)
   GumInvocationStackEntry * entry;
 
   interceptor_ctx = get_interceptor_thread_context ();
-  entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
+  entry = gum_invocation_stack_peek_current (interceptor_ctx);
   if (entry == NULL)
     return NULL;
   if (!entry->calling_replacement)
@@ -1385,14 +1404,13 @@ gum_interceptor_discard_function_contexts_in_range (
 gpointer
 _gum_interceptor_peek_top_caller_return_address (void)
 {
-  GumInvocationStack * stack;
+  InterceptorThreadContext * interceptor_ctx;
   GumInvocationStackEntry * entry;
 
-  stack = gum_interceptor_get_current_stack ();
-  if (stack->len == 0)
+  interceptor_ctx = get_interceptor_thread_context ();
+  entry = gum_invocation_stack_peek_current (interceptor_ctx);
+  if (entry == NULL)
     return NULL;
-
-  entry = &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
 
   return entry->caller_ret_addr;
 }
@@ -1400,14 +1418,13 @@ _gum_interceptor_peek_top_caller_return_address (void)
 gpointer
 _gum_interceptor_translate_top_return_address (gpointer return_address)
 {
-  GumInvocationStack * stack;
+  InterceptorThreadContext * interceptor_ctx;
   GumInvocationStackEntry * entry;
 
-  stack = gum_interceptor_get_current_stack ();
-  if (stack->len == 0)
+  interceptor_ctx = get_interceptor_thread_context ();
+  entry = gum_invocation_stack_peek_current (interceptor_ctx);
+  if (entry == NULL)
     goto fallback;
-
-  entry = &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
   if (entry->function_ctx->on_leave_trampoline != return_address)
     goto fallback;
 
@@ -1980,6 +1997,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx = NULL;
   gpointer stack_address;
+  GumMemoryRange stack_range;
   gint system_error;
   gboolean invoke_listeners = TRUE;
   gboolean only_invoke_unignorable_listeners = FALSE;
@@ -2002,8 +2020,11 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
+  stack_address = GUM_INTERCEPTOR_CPU_CONTEXT_SP (cpu_context);
+  gum_interceptor_resolve_stack_range (interceptor_ctx, stack_address,
+      &stack_range);
 
-  stack_entry = gum_invocation_stack_peek_top (stack);
+  stack_entry = gum_invocation_stack_peek_top_on_stack (stack, &stack_range);
   if (stack_entry != NULL &&
       stack_entry->calling_replacement &&
       gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (
@@ -2036,21 +2057,21 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     only_invoke_unignorable_listeners = TRUE;
   }
 
-  stack_address = GUM_INTERCEPTOR_CPU_CONTEXT_SP (cpu_context);
-  gum_invocation_stack_reap_unwound (stack, stack_address);
+  gum_invocation_stack_reap_unwound (stack, stack_address, &stack_range);
 
   will_trap_on_leave = function_ctx->replacement_function != NULL ||
       (invoke_listeners && function_ctx->has_on_leave_listener);
   if (will_trap_on_leave)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
-        *caller_ret_addr, stack_address, only_invoke_unignorable_listeners);
+        *caller_ret_addr, stack_address, &stack_range,
+        only_invoke_unignorable_listeners);
     invocation_ctx = &stack_entry->invocation_context;
   }
   else if (invoke_listeners)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
-        function_ctx->function_address, stack_address,
+        function_ctx->function_address, stack_address, &stack_range,
         only_invoke_unignorable_listeners);
     invocation_ctx = &stack_entry->invocation_context;
   }
@@ -2146,6 +2167,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   InterceptorThreadContext * interceptor_ctx;
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx;
+  gpointer stack_address;
+  GumMemoryRange stack_range;
   GPtrArray * listener_entries;
   gboolean only_invoke_unignorable_listeners;
   guint i;
@@ -2161,12 +2184,21 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 #endif
 
   interceptor_ctx = get_interceptor_thread_context ();
+  stack_address = GUM_INTERCEPTOR_CPU_CONTEXT_SP (cpu_context);
+  gum_interceptor_resolve_stack_range (interceptor_ctx, stack_address,
+      &stack_range);
 
-  gum_invocation_stack_reap_unwound_above (interceptor_ctx->stack,
-      function_ctx);
+  stack_entry = gum_invocation_stack_reap_unwound_above (interceptor_ctx->stack,
+      function_ctx, &stack_range);
+  if (stack_entry == NULL)
+  {
+    *next_hop = NULL;
+    gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
+    return;
+  }
 
-  stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
   *next_hop = gum_sign_code_pointer (stack_entry->caller_ret_addr);
+  stack_address = stack_entry->stack_address;
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
@@ -2214,7 +2246,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   gum_thread_set_system_error (invocation_ctx->system_error);
 
-  gum_invocation_stack_pop (interceptor_ctx->stack);
+  gum_invocation_stack_remove_entry (interceptor_ctx->stack, function_ctx,
+      stack_address);
 
   gum_tls_key_set_value (gum_interceptor_guard_key, NULL);
 
@@ -2303,10 +2336,26 @@ gum_interceptor_invocation_get_thread_id (GumInvocationContext * context)
 static guint
 gum_interceptor_invocation_get_depth (GumInvocationContext * context)
 {
-  InterceptorThreadContext * interceptor_ctx =
-      (InterceptorThreadContext *) context->backend->state;
+  InterceptorThreadContext * interceptor_ctx;
+  GumInvocationStackEntry * current;
+  guint depth, i;
 
-  return interceptor_ctx->stack->len - 1;
+  interceptor_ctx = (InterceptorThreadContext *) context->backend->state;
+  current = gum_invocation_stack_peek_current (interceptor_ctx);
+  if (current == NULL)
+    return 0;
+
+  depth = 0;
+  for (i = 0; i != interceptor_ctx->stack->len; i++)
+  {
+    GumInvocationStackEntry * entry;
+
+    entry = &g_array_index (interceptor_ctx->stack, GumInvocationStackEntry, i);
+    if (gum_memory_ranges_equal (&entry->stack_range, &current->stack_range))
+      depth++;
+  }
+
+  return depth - 1;
 }
 
 static gpointer
@@ -2491,11 +2540,95 @@ interceptor_thread_context_forget_listener_data (
   }
 }
 
+typedef struct _GumFindStackRangeContext GumFindStackRangeContext;
+
+struct _GumFindStackRangeContext
+{
+  GumAddress sp;
+  GumMemoryRange * range;
+  gboolean found;
+};
+
+static void
+gum_interceptor_resolve_stack_range (InterceptorThreadContext * ctx,
+                                     gpointer sp,
+                                     GumMemoryRange * range)
+{
+  GumMemoryRange os_ranges[2];
+  guint n, i;
+  GumFindStackRangeContext find;
+
+  n = gum_thread_try_get_ranges (os_ranges, G_N_ELEMENTS (os_ranges));
+  for (i = 0; i != n; i++)
+  {
+    if (GUM_MEMORY_RANGE_INCLUDES (&os_ranges[i], GUM_ADDRESS (sp)))
+    {
+      *range = os_ranges[i];
+      return;
+    }
+  }
+
+  for (i = 0; i != ctx->n_extra_stack_ranges; i++)
+  {
+    if (GUM_MEMORY_RANGE_INCLUDES (&ctx->extra_stack_ranges[i],
+        GUM_ADDRESS (sp)))
+    {
+      *range = ctx->extra_stack_ranges[i];
+      return;
+    }
+  }
+
+  find.sp = GUM_ADDRESS (sp);
+  find.range = range;
+  find.found = FALSE;
+  _gum_process_enumerate_ranges (GUM_PAGE_RW,
+      gum_interceptor_find_range_containing, &find);
+  if (find.found)
+  {
+    guint slot;
+
+    if (ctx->n_extra_stack_ranges != G_N_ELEMENTS (ctx->extra_stack_ranges))
+      slot = ctx->n_extra_stack_ranges++;
+    else
+      slot = ctx->extra_stack_range_cursor++ %
+          G_N_ELEMENTS (ctx->extra_stack_ranges);
+    ctx->extra_stack_ranges[slot] = *range;
+    return;
+  }
+
+  range->base_address = 0;
+  range->size = (gsize) -1;
+}
+
+static gboolean
+gum_interceptor_find_range_containing (const GumRangeDetails * details,
+                                       gpointer user_data)
+{
+  GumFindStackRangeContext * ctx = user_data;
+
+  if (GUM_MEMORY_RANGE_INCLUDES (details->range, ctx->sp))
+  {
+    *ctx->range = *details->range;
+    ctx->found = TRUE;
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_memory_ranges_equal (const GumMemoryRange * a,
+                         const GumMemoryRange * b)
+{
+  return a->base_address == b->base_address && a->size == b->size;
+}
+
 static GumInvocationStackEntry *
 gum_invocation_stack_push (GumInvocationStack * stack,
                            GumFunctionContext * function_ctx,
                            gpointer caller_ret_addr,
                            gpointer stack_address,
+                           const GumMemoryRange * stack_range,
                            gboolean only_invoke_unignorable_listeners)
 {
   GumInvocationStackEntry * entry;
@@ -2507,6 +2640,7 @@ gum_invocation_stack_push (GumInvocationStack * stack,
   entry->function_ctx = function_ctx;
   entry->caller_ret_addr = caller_ret_addr;
   entry->stack_address = stack_address;
+  entry->stack_range = *stack_range;
   entry->only_invoke_unignorable_listeners = only_invoke_unignorable_listeners;
 
   ctx = &entry->invocation_context;
@@ -2532,33 +2666,64 @@ gum_invocation_stack_pop (GumInvocationStack * stack)
 }
 
 static void
-gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
-                                   gpointer live_stack_address)
+gum_invocation_stack_remove_entry (GumInvocationStack * stack,
+                                   GumFunctionContext * function_ctx,
+                                   gpointer stack_address)
 {
-  while (stack->len != 0)
+  guint i;
+
+  for (i = stack->len; i != 0; i--)
   {
     GumInvocationStackEntry * entry;
 
     entry = (GumInvocationStackEntry *)
-        &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
+        &g_array_index (stack, GumInvocationStackEntry, i - 1);
+    if (entry->function_ctx == function_ctx &&
+        entry->stack_address == stack_address)
+    {
+      g_array_remove_index (stack, i - 1);
+      return;
+    }
+  }
+}
+
+static void
+gum_invocation_stack_reap_unwound (GumInvocationStack * stack,
+                                   gpointer live_stack_address,
+                                   const GumMemoryRange * live_range)
+{
+  guint i;
+
+  i = stack->len;
+  while (i != 0)
+  {
+    GumInvocationStackEntry * entry;
+
+    i--;
+    entry = (GumInvocationStackEntry *)
+        &g_array_index (stack, GumInvocationStackEntry, i);
+    if (!gum_memory_ranges_equal (&entry->stack_range, live_range))
+      continue;
+
     if (!gum_invocation_stack_entry_was_unwound_past (entry,
         live_stack_address))
       break;
 
     gum_invocation_stack_entry_release_trampoline (entry);
-    g_array_set_size (stack, stack->len - 1);
+    g_array_remove_index (stack, i);
   }
 }
 
-static void
+static GumInvocationStackEntry *
 gum_invocation_stack_reap_unwound_above (GumInvocationStack * stack,
-                                         GumFunctionContext * returning_ctx)
+                                         GumFunctionContext * returning_ctx,
+                                         const GumMemoryRange * live_range)
 {
   /*
-   * Reap entries sitting above the frame we are about to return from, leaving
-   * that frame on top. Calls nest last-in-first-out, and entries that don't
-   * trap on leave are popped right away on enter, so any entry still stacked
-   * above our frame belongs to a deeper call that was unwound past by a C++
+   * Reap same-stack entries sitting above the frame we are about to return
+   * from. Calls nest last-in-first-out, and entries that don't trap on leave
+   * are popped right away on enter, so any same-stack entry still stacked
+   * after ours belongs to a deeper call that was unwound past by a C++
    * exception or longjmp(), skipping its on-leave trampoline.
    *
    * We cannot lean on the leave-time stack pointer the way the on-enter path
@@ -2567,19 +2732,51 @@ gum_invocation_stack_reap_unwound_above (GumInvocationStack * stack,
    * recorded stack address, and a frame-pointer-omitting caller and callee
    * may even share one. Matching on the returning function context sidesteps
    * both pitfalls.
+   *
+   * Stackful coroutines / fibers multiplex several C stacks onto one OS
+   * thread. Each frame records the memory range of its C stack at enter;
+   * we only match and reap within that range, so a live frame on another
+   * stack is never discarded, including when two fibers call the same
+   * hooked function.
    */
-  while (stack->len != 0)
+  guint i;
+  gint matching_index;
+
+  matching_index = -1;
+  for (i = stack->len; i != 0; i--)
   {
     GumInvocationStackEntry * entry;
 
     entry = (GumInvocationStackEntry *)
-        &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
-    if (entry->function_ctx == returning_ctx)
+        &g_array_index (stack, GumInvocationStackEntry, i - 1);
+    if (entry->function_ctx == returning_ctx &&
+        gum_memory_ranges_equal (&entry->stack_range, live_range))
+    {
+      matching_index = (gint) (i - 1);
       break;
+    }
+  }
+
+  if (matching_index < 0)
+    return NULL;
+
+  i = stack->len;
+  while (i > (guint) matching_index + 1)
+  {
+    GumInvocationStackEntry * entry;
+
+    i--;
+    entry = (GumInvocationStackEntry *)
+        &g_array_index (stack, GumInvocationStackEntry, i);
+    if (!gum_memory_ranges_equal (&entry->stack_range, live_range))
+      continue;
 
     gum_invocation_stack_entry_release_trampoline (entry);
-    g_array_set_size (stack, stack->len - 1);
+    g_array_remove_index (stack, i);
   }
+
+  return (GumInvocationStackEntry *)
+      &g_array_index (stack, GumInvocationStackEntry, matching_index);
 }
 
 static void
@@ -2611,12 +2808,31 @@ gum_invocation_stack_entry_release_trampoline (
 }
 
 static GumInvocationStackEntry *
-gum_invocation_stack_peek_top (GumInvocationStack * stack)
+gum_invocation_stack_peek_top_on_stack (GumInvocationStack * stack,
+                                        const GumMemoryRange * range)
 {
-  if (stack->len == 0)
-    return NULL;
+  guint i;
 
-  return &g_array_index (stack, GumInvocationStackEntry, stack->len - 1);
+  for (i = stack->len; i != 0; i--)
+  {
+    GumInvocationStackEntry * entry;
+
+    entry = &g_array_index (stack, GumInvocationStackEntry, i - 1);
+    if (gum_memory_ranges_equal (&entry->stack_range, range))
+      return entry;
+  }
+
+  return NULL;
+}
+
+static GumInvocationStackEntry *
+gum_invocation_stack_peek_current (InterceptorThreadContext * ctx)
+{
+  guint8 probe;
+  GumMemoryRange range;
+
+  gum_interceptor_resolve_stack_range (ctx, &probe, &range);
+  return gum_invocation_stack_peek_top_on_stack (ctx->stack, &range);
 }
 
 static gpointer
