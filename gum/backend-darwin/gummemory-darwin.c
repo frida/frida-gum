@@ -10,7 +10,9 @@
 #include "gum/gumdarwin.h"
 #include "gumdarwin-priv.h"
 #include "gummemory-priv.h"
+#include "gummemory-jailbreak.h"
 
+#include <dlfcn.h>
 #include <errno.h>
 #include <unistd.h>
 #include <libkern/OSCacheControl.h>
@@ -52,14 +54,32 @@ static gboolean gum_try_suggest_allocation_base (const GumMemoryRange * range,
 static gint gum_page_protection_to_bsd (GumPageProtection prot);
 static gboolean gum_page_is_freshly_allocated (gpointer page, gsize size);
 
+const GumJailbreakMemoryHooks * gum_jailbreak_memory_hooks = NULL;
+
 void
 _gum_memory_backend_init (void)
 {
+#ifdef HAVE_JAILBREAK
+  const GumJailbreakMemoryHooks * (* query) (guint32 version);
+  const GumJailbreakMemoryHooks * hooks;
+
+  query = dlsym (RTLD_DEFAULT, "jb_get_memory_hooks");
+  if (query == NULL)
+    return;
+
+  hooks = query (1);
+  if (hooks == NULL || hooks->version != 1 || hooks->size < sizeof (*hooks) ||
+      hooks->patch_code == NULL || hooks->protect == NULL)
+    return;
+
+  gum_jailbreak_memory_hooks = hooks;
+#endif
 }
 
 void
 _gum_memory_backend_deinit (void)
 {
+  gum_jailbreak_memory_hooks = NULL;
 }
 
 guint
@@ -373,6 +393,9 @@ gum_darwin_write (mach_port_t task,
 gboolean
 gum_memory_can_remap_writable (void)
 {
+  if (gum_jailbreak_memory_hooks != NULL)
+    return FALSE;
+
   return gum_darwin_is_debugger_mapping_enforced ();
 }
 
@@ -437,6 +460,12 @@ gum_mach_vm_protect (vm_map_t target_task,
                      boolean_t set_maximum,
                      vm_prot_t new_protection)
 {
+  if (gum_jailbreak_memory_hooks != NULL)
+  {
+    return gum_jailbreak_memory_hooks->protect (target_task, address, size,
+        set_maximum, new_protection);
+  }
+
 #if defined (HAVE_ARM)
   kern_return_t result;
   guint32 args[] = {
