@@ -56,6 +56,7 @@
 #endif
 #ifdef HAVE_DARWIN
 # include "backend-darwin/gumdarwin-priv.h"
+# include "backend-darwin/gummemory-jailbreak.h"
 # include "gum/gumdarwin.h"
 #endif
 
@@ -160,6 +161,11 @@ static gboolean gum_memory_patch_code_pages_via_code_segment (
     GumMemoryPatchPagesApplyFunc apply, gpointer apply_data);
 static gboolean gum_maybe_suspend_thread (const GumThreadDetails * details,
     gpointer user_data);
+#ifdef HAVE_DARWIN
+static gboolean gum_memory_patch_code_pages_via_jailbreak (
+    GPtrArray * sorted_addresses, gboolean coalesce,
+    GumMemoryPatchPagesApplyFunc apply, gpointer apply_data);
+#endif
 
 static void gum_memory_scan_raw (const GumMemoryRange * range,
     const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
@@ -442,6 +448,14 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
   gsize page_size;
   gboolean rwx_supported;
 
+#ifdef HAVE_DARWIN
+  if (gum_jailbreak_memory_hooks != NULL)
+  {
+    return gum_memory_patch_code_pages_via_jailbreak (sorted_addresses, coalesce,
+        apply, apply_data);
+  }
+#endif
+
   rwx_supported = gum_query_is_rwx_supported ();
   page_size = gum_query_page_size ();
 
@@ -461,6 +475,125 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
         coalesce, page_size, apply, apply_data);
   }
 }
+
+#ifdef HAVE_DARWIN
+static gboolean
+gum_memory_patch_code_pages_via_jailbreak (GPtrArray * sorted_addresses,
+                                         gboolean coalesce,
+                                         GumMemoryPatchPagesApplyFunc apply,
+                                         gpointer apply_data)
+{
+  gboolean success = FALSE;
+  gsize page_size, size;
+  guint8 * scratch, * pristine;
+  guint i;
+  GumSuspendOperation suspend_op = { 0, };
+  gboolean suspended = FALSE;
+
+  if (sorted_addresses->len == 0)
+    return TRUE;
+
+  page_size = gum_query_page_size ();
+  if (sorted_addresses->len > G_MAXSIZE / page_size)
+    return FALSE;
+  size = sorted_addresses->len * page_size;
+
+  scratch = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
+  pristine = gum_memory_allocate (NULL, size, page_size, GUM_PAGE_RW);
+  if (scratch == NULL || pristine == NULL)
+    goto beach;
+
+  for (i = 0; i != sorted_addresses->len; i++)
+  {
+    memcpy (pristine + i * page_size,
+        g_ptr_array_index (sorted_addresses, i), page_size);
+  }
+  memcpy (scratch, pristine, size);
+
+  for (i = 0; i != sorted_addresses->len;)
+  {
+    guint first, count;
+    guint8 * target;
+
+    first = i++;
+    target = g_ptr_array_index (sorted_addresses, first);
+    if (coalesce)
+    {
+      while (i != sorted_addresses->len &&
+          g_ptr_array_index (sorted_addresses, i) ==
+              target + (i - first) * page_size)
+        i++;
+    }
+    count = i - first;
+
+    apply (scratch + first * page_size, target, count, apply_data);
+  }
+
+  gum_metal_array_init (&suspend_op.suspended_threads, sizeof (GumThreadId));
+  suspend_op.current_thread_id = gum_process_get_current_thread_id ();
+  _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
+      GUM_THREAD_FLAGS_NONE);
+  suspended = TRUE;
+
+  for (i = 0; i != sorted_addresses->len; i++)
+  {
+    guint8 * target, * source, * original;
+    gsize offset;
+
+    target = g_ptr_array_index (sorted_addresses, i);
+    source = scratch + i * page_size;
+    original = pristine + i * page_size;
+
+    /* Preserve bytes outside the patch and never split an ARM64 instruction. */
+    for (offset = 0; offset != page_size;)
+    {
+      gsize start;
+      kern_return_t kr;
+
+      if (memcmp (source + offset, original + offset, 4) == 0)
+      {
+        offset += 4;
+        continue;
+      }
+
+      start = offset;
+      do
+      {
+        offset += 4;
+      }
+      while (offset != page_size &&
+          memcmp (source + offset, original + offset, 4) != 0);
+
+      kr = gum_jailbreak_memory_hooks->patch_code (target + start,
+          source + start, offset - start);
+      if (kr != KERN_SUCCESS)
+        goto beach;
+    }
+  }
+
+  success = TRUE;
+
+beach:
+  if (suspended)
+  {
+    for (i = 0; i != suspend_op.suspended_threads.length; i++)
+    {
+      GumThreadId * id = gum_metal_array_element_at (
+          &suspend_op.suspended_threads, i);
+
+      gum_thread_resume (*id, NULL);
+      mach_port_mod_refs (mach_task_self (), *id, MACH_PORT_RIGHT_SEND, -1);
+    }
+    gum_metal_array_free (&suspend_op.suspended_threads);
+  }
+  if (pristine != NULL)
+    gum_memory_free (pristine, size);
+  if (scratch != NULL)
+    gum_memory_free (scratch, size);
+
+  return success;
+}
+#endif
 
 static gboolean
 gum_memory_patch_code_pages_via_remap (GPtrArray * sorted_addresses,
