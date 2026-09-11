@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2021-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Paul de Terrasson de Montleau <devnoname120@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -274,6 +275,10 @@ G_GNUC_INTERNAL void _gum_page_plan_builder_add_pages (
     GumPagePlanBuilder * self, gpointer base, gsize n_pages);
 G_GNUC_INTERNAL gboolean _gum_page_plan_builder_post (
     GumPagePlanBuilder * self);
+
+G_GNUC_INTERNAL gboolean _gum_darwin_has_jailbreak_memory_hooks (void);
+G_GNUC_INTERNAL kern_return_t _gum_darwin_jailbreak_patch_code (
+    gpointer address, gconstpointer data, gsize size);
 
 G_END_DECLS
 
