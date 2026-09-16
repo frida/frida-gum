@@ -37,7 +37,7 @@ GUM_API GumThreadDetails * gum_barebone_find_thread_by_id (
 GUM_API gboolean gum_barebone_modify_thread (GumThreadId thread_id,
     GumModifyThreadFunc func, gpointer user_data, GumModifyThreadFlags flags);
 GUM_API void gum_barebone_enumerate_threads (GumFoundThreadFunc func,
-    gpointer user_data);
+    gpointer user_data, GumThreadFlags flags);
 
 GUM_API void gum_barebone_on_thread_registry_activating (
     GumThreadRegistry * registry);

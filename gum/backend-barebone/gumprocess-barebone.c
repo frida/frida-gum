@@ -87,7 +87,7 @@ gum_barebone_find_thread_by_id (GumThreadId thread_id,
   ctx.id = thread_id;
   ctx.thread = NULL;
 
-  gum_barebone_enumerate_threads (gum_store_matching_thread, &ctx);
+  gum_barebone_enumerate_threads (gum_store_matching_thread, &ctx, flags);
 
   return ctx.thread;
 }
@@ -115,12 +115,13 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
                                 gpointer user_data,
                                 GumThreadFlags flags)
 {
-  gum_barebone_enumerate_threads (func, user_data);
+  gum_barebone_enumerate_threads (func, user_data, flags);
 }
 
 G_GNUC_WEAK void
 gum_barebone_enumerate_threads (GumFoundThreadFunc func,
-                                gpointer user_data)
+                                gpointer user_data,
+                                GumThreadFlags flags)
 {
 }
 
