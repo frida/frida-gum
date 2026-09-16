@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 JC Liang <jcl@nvidia.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -792,6 +793,9 @@ gum_query_program_ranges (GumReadAuxvFunc read_auxv,
     }
   }
   if (phdrs == NULL || phdr_size == 0 || phdr_count == 0)
+    goto beach;
+
+  if (!gum_memory_is_readable (phdrs, (gsize) phdr_size * phdr_count))
     goto beach;
 
   gum_compute_elf_range_from_phdrs (phdrs, phdr_size, phdr_count, 0,
