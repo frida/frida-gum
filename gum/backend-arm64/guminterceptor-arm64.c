@@ -2,6 +2,7 @@
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
+ * Copyright (C) 2026 Jiska Classen <jclassen@seemoo.tu-darmstadt.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -76,6 +77,8 @@ struct _GumArm64FunctionContextData
 G_STATIC_ASSERT (sizeof (GumArm64FunctionContextData)
     <= sizeof (GumFunctionContextBackendData));
 
+static gboolean gum_find_code_range (gconstpointer address,
+    GumMemoryRange * range);
 static gboolean gum_interceptor_backend_write_custom_redirect (
     GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer target);
 
@@ -90,6 +93,8 @@ static void gum_emit_enter_thunk (GumArm64Writer * aw, arm64_reg scratch_reg);
 static void gum_emit_leave_thunk (GumArm64Writer * aw, arm64_reg scratch_reg);
 
 static void gum_emit_prolog (GumArm64Writer * aw);
+static void gum_emit_load_function_context (GumArm64Writer * aw,
+    arm64_reg scratch_reg);
 static void gum_emit_epilog (GumArm64Writer * aw, arm64_reg scratch_reg);
 
 GumInterceptorBackend *
@@ -646,6 +651,7 @@ _gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
 static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
+                                            const GumMemoryRange * code_range,
                                             gboolean force,
                                             gboolean * need_deflector)
 {
@@ -668,8 +674,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     scan_bytes = (ctx->redirect_space_hint != 0)
         ? ctx->redirect_space_hint
         : GUM_INTERCEPTOR_MAX_REDIRECT_SIZE;
-    gum_arm64_relocator_can_relocate (function_address, scan_bytes, scenario,
-        ctx->relocation_policy, &data->available_space, &data->scratch_reg);
+    gum_arm64_relocator_can_relocate_within (function_address, scan_bytes,
+        scenario, ctx->relocation_policy, code_range, &data->available_space,
+        &data->scratch_reg);
     if (ctx->redirect_space_hint != 0 &&
         data->available_space > ctx->redirect_space_hint)
       data->available_space = ctx->redirect_space_hint;
@@ -690,9 +697,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     return TRUE;
   }
 
-  if (gum_arm64_relocator_can_relocate (function_address,
+  if (gum_arm64_relocator_can_relocate_within (function_address,
         GUM_INTERCEPTOR_FULL_REDIRECT_SIZE, scenario, ctx->relocation_policy,
-        &redirect_limit, &data->scratch_reg))
+        code_range, &redirect_limit, &data->scratch_reg))
   {
     data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
 
@@ -794,19 +801,38 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumArm64Relocator * ar = &self->relocator;
   gpointer function_address = ctx->function_address;
   GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
+  GumRelocationScenario scenario =
+      (ctx->scenario == GUM_INTERCEPTOR_SCENARIO_OFFLINE)
+      ? GUM_SCENARIO_OFFLINE
+      : GUM_SCENARIO_ONLINE;
+  GumMemoryRange code_range_storage;
+  const GumMemoryRange * code_range;
   gboolean need_deflector;
-  GumThunkSet * thunks = NULL;
+  arm64_reg leave_scratch_reg;
+  GumThunkSet * enter_thunks = NULL, * leave_thunks = NULL;
   gpointer deflector_target;
   GString * signature;
   gboolean is_eligible_for_lr_rewriting;
   guint reloc_bytes;
 
-  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force,
+  code_range = gum_find_code_range (function_address, &code_range_storage)
+      ? &code_range_storage
+      : NULL;
+
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, code_range, force,
         &need_deflector))
     return FALSE;
 
+  leave_scratch_reg = (ctx->scratch_register != ARM64_REG_INVALID)
+      ? ctx->scratch_register
+      : ARM64_REG_X16;
+
   if (ctx->type != GUM_INTERCEPTOR_TYPE_FAST)
-    thunks = gum_interceptor_backend_get_thunks (self, data->scratch_reg);
+  {
+    enter_thunks =
+        gum_interceptor_backend_get_thunks (self, data->scratch_reg);
+    leave_thunks = gum_interceptor_backend_get_thunks (self, leave_scratch_reg);
+  }
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
   aw->pc = GUM_ADDRESS (ctx->trampoline_slice->pc);
@@ -856,18 +882,19 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     gum_arm64_writer_put_str_reg_reg_offset_mode (aw, scratch_reg,
         ARM64_REG_SP, -16, GUM_INDEX_PRE_ADJUST);
     gum_arm64_writer_put_ldr_reg_address (aw, scratch_reg,
-        GUM_ADDRESS (gum_sign_code_pointer (thunks->enter_thunk)));
+        GUM_ADDRESS (gum_sign_code_pointer (enter_thunks->enter_thunk)));
     gum_arm64_writer_put_br_reg (aw, scratch_reg);
 
     ctx->on_leave_trampoline =
         (guint8 *) ctx->trampoline_slice->pc + gum_arm64_writer_offset (aw);
 
-    gum_arm64_writer_put_ldr_reg_address (aw, scratch_reg, GUM_ADDRESS (ctx));
-    gum_arm64_writer_put_str_reg_reg_offset_mode (aw, scratch_reg,
+    gum_arm64_writer_put_ldr_reg_address (aw, leave_scratch_reg,
+        GUM_ADDRESS (ctx));
+    gum_arm64_writer_put_str_reg_reg_offset_mode (aw, leave_scratch_reg,
         ARM64_REG_SP, -16, GUM_INDEX_PRE_ADJUST);
-    gum_arm64_writer_put_ldr_reg_address (aw, scratch_reg,
-        GUM_ADDRESS (gum_sign_code_pointer (thunks->leave_thunk)));
-    gum_arm64_writer_put_br_reg (aw, scratch_reg);
+    gum_arm64_writer_put_ldr_reg_address (aw, leave_scratch_reg,
+        GUM_ADDRESS (gum_sign_code_pointer (leave_thunks->leave_thunk)));
+    gum_arm64_writer_put_br_reg (aw, leave_scratch_reg);
 
     gum_arm64_writer_flush (aw);
     g_assert (gum_arm64_writer_offset (aw) <= ctx->trampoline_slice->size);
@@ -886,6 +913,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   gum_arm64_relocator_reset (ar, function_address, aw);
+  gum_arm64_relocator_set_scratch_reg (ar, data->scratch_reg);
+  gum_arm64_relocator_set_code_range (ar, code_range);
 
   signature = g_string_sized_new (16);
 
@@ -905,6 +934,13 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     g_string_append (signature, insn->mnemonic);
   }
   while (reloc_bytes < data->redirect_code_size);
+
+  if (!gum_arm64_relocator_read_until_resumable (ar, scenario) && !force)
+  {
+    g_string_free (signature, TRUE);
+    goto relocation_failed;
+  }
+  reloc_bytes = MAX (reloc_bytes, ar->input_cur - ar->input_start);
 
   /*
    * Try to deal with minimal thunks that determine their caller and pass
@@ -990,11 +1026,17 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   if (!ar->eoi)
   {
     GumAddress resume_at;
+    arm64_reg exit_reg;
 
-    resume_at = gum_sign_code_address (
-        GUM_ADDRESS (function_address) + reloc_bytes);
-    gum_arm64_writer_put_ldr_reg_address (aw, data->scratch_reg, resume_at);
-    gum_arm64_writer_put_jmp_reg (aw, data->scratch_reg);
+    resume_at = GUM_ADDRESS (function_address) + reloc_bytes;
+
+    exit_reg = gum_arm64_relocator_pick_exit_reg (ar, resume_at);
+    if (exit_reg == ARM64_REG_INVALID)
+      exit_reg = data->scratch_reg;
+
+    gum_arm64_writer_put_ldr_reg_address (aw, exit_reg,
+        gum_sign_code_address (resume_at));
+    gum_arm64_writer_put_jmp_reg (aw, exit_reg);
   }
 
   gum_arm64_writer_flush (aw);
@@ -1003,6 +1045,32 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   ctx->overwritten_prologue_len = reloc_bytes;
   ctx->overwritten_prologue = g_malloc (reloc_bytes);
   gum_memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
+
+  return TRUE;
+
+relocation_failed:
+  {
+    gum_code_slice_unref (ctx->trampoline_slice);
+    gum_code_deflector_unref (ctx->trampoline_deflector);
+    ctx->trampoline_slice = NULL;
+    ctx->trampoline_deflector = NULL;
+    return FALSE;
+  }
+}
+
+static gboolean
+gum_find_code_range (gconstpointer address,
+                     GumMemoryRange * range)
+{
+  GumModule * module;
+
+  module = gum_process_find_module_by_address (GUM_ADDRESS (address));
+  if (module == NULL)
+    return FALSE;
+
+  *range = *gum_module_get_range (module);
+
+  g_object_unref (module);
 
   return TRUE;
 }
@@ -1318,10 +1386,11 @@ gum_emit_enter_thunk (GumArm64Writer * aw,
 {
   gum_arm64_writer_put_bti (aw);
 
-  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X17, ARM64_REG_SP, 0);
+  gum_arm64_writer_put_ldr_reg_reg_offset (aw, scratch_reg, ARM64_REG_SP, 0);
 
   gum_emit_prolog (aw);
 
+  gum_emit_load_function_context (aw, scratch_reg);
   gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X1, ARM64_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT);
   gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X2, ARM64_REG_SP,
@@ -1331,7 +1400,7 @@ gum_emit_enter_thunk (GumArm64Writer * aw,
 
   gum_arm64_writer_put_call_address_with_arguments (aw,
       GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
-      GUM_ARG_REGISTER, ARM64_REG_X17,
+      GUM_ARG_REGISTER, ARM64_REG_X0,
       GUM_ARG_REGISTER, ARM64_REG_X1,
       GUM_ARG_REGISTER, ARM64_REG_X2,
       GUM_ARG_REGISTER, ARM64_REG_X3);
@@ -1345,10 +1414,11 @@ gum_emit_leave_thunk (GumArm64Writer * aw,
 {
   gum_arm64_writer_put_bti (aw);
 
-  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X17, ARM64_REG_SP, 0);
+  gum_arm64_writer_put_ldr_reg_reg_offset (aw, scratch_reg, ARM64_REG_SP, 0);
 
   gum_emit_prolog (aw);
 
+  gum_emit_load_function_context (aw, scratch_reg);
   gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X1, ARM64_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT);
   gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X2, ARM64_REG_SP,
@@ -1356,7 +1426,7 @@ gum_emit_leave_thunk (GumArm64Writer * aw,
 
   gum_arm64_writer_put_call_address_with_arguments (aw,
       GUM_ADDRESS (_gum_function_context_end_invocation), 3,
-      GUM_ARG_REGISTER, ARM64_REG_X17,
+      GUM_ARG_REGISTER, ARM64_REG_X0,
       GUM_ARG_REGISTER, ARM64_REG_X1,
       GUM_ARG_REGISTER, ARM64_REG_X2);
 
@@ -1405,6 +1475,15 @@ gum_emit_prolog (GumArm64Writer * aw)
       sizeof (GumCpuContext) + 0);
   gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_FP, ARM64_REG_SP,
       sizeof (GumCpuContext));
+}
+
+static void
+gum_emit_load_function_context (GumArm64Writer * aw,
+                                arm64_reg scratch_reg)
+{
+  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X0, ARM64_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, x) +
+      (scratch_reg - ARM64_REG_X0) * sizeof (guint64));
 }
 
 static void

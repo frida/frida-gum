@@ -2,6 +2,7 @@
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Haiwei Wang <haiwei.wang1109@gmail.com>
  * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
+ * Copyright (C) 2026 Jiska Classen <jclassen@seemoo.tu-darmstadt.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +24,14 @@ TESTLIST_BEGIN (arm64relocator)
   TESTENTRY (bl_should_be_rewritten)
   TESTENTRY (cannot_relocate_with_early_br)
   TESTENTRY (cannot_relocate_with_internal_cbz_target)
+  TESTENTRY (scratch_reg_may_be_written_before_read)
+  TESTENTRY (scratch_reg_may_be_outside_the_ip_registers)
+  TESTENTRY (scratch_reg_outside_the_ip_registers_must_be_dead)
+  TESTENTRY (scratch_reg_is_not_freed_by_compare)
+  TESTENTRY (exit_reg_is_not_freed_across_syscall)
+  TESTENTRY (exits_may_use_different_regs)
+  TESTENTRY (relocation_may_extend_to_avoid_jumping_back)
+  TESTENTRY (ip_registers_are_dead_after_leaving_code_range)
   TESTENTRY (eob_and_eoi_on_br)
   TESTENTRY (eob_and_eoi_on_ret)
 TESTLIST_END ()
@@ -427,6 +436,180 @@ TESTCASE (cannot_relocate_with_internal_cbz_target)
   g_assert_true (gum_arm64_relocator_can_relocate (input, 8,
       GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, &maximum, NULL));
   g_assert_cmpuint (maximum, >=, 8);
+}
+
+TESTCASE (scratch_reg_may_be_written_before_read)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0xaa0003f0), /* mov x16, x0    */
+    GUINT32_TO_LE (0x91000400), /* add x0, x0, #1 */
+    GUINT32_TO_LE (0x91000421), /* add x1, x1, #1 */
+    GUINT32_TO_LE (0x91000442), /* add x2, x2, #1 */
+    GUINT32_TO_LE (0xaa0303f0), /* mov x16, x3    */
+    GUINT32_TO_LE (0xd503201f), /* nop            */
+    GUINT32_TO_LE (0xd503201f), /* nop            */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret            */
+  };
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  g_assert_true (gum_arm64_relocator_can_relocate (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, &scratch_reg));
+
+  g_assert_cmpint (scratch_reg, ==, ARM64_REG_X16);
+}
+
+TESTCASE (scratch_reg_may_be_outside_the_ip_registers)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0x8b110200), /* add x0, x16, x17 */
+    GUINT32_TO_LE (0x8b000001), /* add x1, x0, x0   */
+    GUINT32_TO_LE (0x8b010022), /* add x2, x1, x1   */
+    GUINT32_TO_LE (0x8b020043), /* add x3, x2, x2   */
+    GUINT32_TO_LE (0xd2800009), /* mov x9, #0       */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret              */
+  };
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  g_assert_true (gum_arm64_relocator_can_relocate (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, &scratch_reg));
+
+  g_assert_cmpint (scratch_reg, ==, ARM64_REG_X9);
+}
+
+TESTCASE (scratch_reg_outside_the_ip_registers_must_be_dead)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0x8b100000), /* add x0, x0, x16  */
+    GUINT32_TO_LE (0x8b110021), /* add x1, x1, x17  */
+    GUINT32_TO_LE (0x8b000042), /* add x2, x2, x0   */
+    GUINT32_TO_LE (0x8b010063), /* add x3, x3, x1   */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret              */
+  };
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  g_assert_true (gum_arm64_relocator_can_relocate (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, &scratch_reg));
+
+  g_assert_cmpint (scratch_reg, ==, ARM64_REG_INVALID);
+}
+
+TESTCASE (scratch_reg_is_not_freed_by_compare)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0x8b110200), /* add x0, x16, x17 */
+    GUINT32_TO_LE (0x8b000001), /* add x1, x0, x0   */
+    GUINT32_TO_LE (0x8b010022), /* add x2, x1, x1   */
+    GUINT32_TO_LE (0x8b020043), /* add x3, x2, x2   */
+    GUINT32_TO_LE (0xf100093f), /* cmp x9, #2       */
+    GUINT32_TO_LE (0xd2800009), /* mov x9, #0       */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret              */
+  };
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  g_assert_true (gum_arm64_relocator_can_relocate (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, &scratch_reg));
+
+  g_assert_cmpint (scratch_reg, !=, ARM64_REG_X9);
+}
+
+TESTCASE (exit_reg_is_not_freed_across_syscall)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0xd2800030), /* mov x16, #1      */
+    GUINT32_TO_LE (0xd2800051), /* mov x17, #2      */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xd4001001), /* svc #0x80        */
+    GUINT32_TO_LE (0xd2800010), /* mov x16, #0      */
+    GUINT32_TO_LE (0xd2800011), /* mov x17, #0      */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret              */
+  };
+  GumArm64Writer cw;
+  GumArm64Relocator rl;
+  guint i;
+
+  gum_arm64_writer_init (&cw, fixture->output);
+  gum_arm64_relocator_init (&rl, input, &cw);
+  gum_arm64_relocator_set_scratch_reg (&rl, ARM64_REG_X16);
+
+  for (i = 0; i != 4; i++)
+    g_assert_cmpuint (gum_arm64_relocator_read_one (&rl, NULL), !=, 0);
+
+  g_assert_cmpint (gum_arm64_relocator_pick_exit_reg (&rl,
+      GUM_ADDRESS (&input[4])), ==, ARM64_REG_X17);
+
+  gum_arm64_relocator_clear (&rl);
+  gum_arm64_writer_clear (&cw);
+}
+
+TESTCASE (exits_may_use_different_regs)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0xaa0103f1), /* mov x17, x1            */
+    GUINT32_TO_LE (0xf8410e30), /* ldr x16, [x17, #0x10]! */
+    GUINT32_TO_LE (0xb40000d0), /* cbz x16, #0x20         */
+    GUINT32_TO_LE (0xdac11230), /* autia x16, x17         */
+    GUINT32_TO_LE (0xaa1003f1), /* mov x17, x16           */
+    GUINT32_TO_LE (0xdac143f1), /* xpaci x17              */
+    GUINT32_TO_LE (0xeb11021f), /* cmp x16, x17           */
+    GUINT32_TO_LE (0xd65f03c0), /* ret                    */
+    GUINT32_TO_LE (0xd2800008), /* mov x8, #0             */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret                    */
+  };
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  g_assert_true (gum_arm64_relocator_can_relocate (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, &scratch_reg));
+
+  g_assert_cmpint (scratch_reg, ==, ARM64_REG_X16);
+}
+
+TESTCASE (relocation_may_extend_to_avoid_jumping_back)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0x90000011), /* adrp x17, #0             */
+    GUINT32_TO_LE (0xf9400231), /* ldr x17, [x17]           */
+    GUINT32_TO_LE (0xf9400230), /* ldr x16, [x17]           */
+    GUINT32_TO_LE (0xf2e38311), /* movk x17, #0x1c18, lsl #48 */
+    GUINT32_TO_LE (0xd71f0a11), /* braa x16, x17            */
+    GUINT32_TO_LE (0xd503201f)  /* nop                      */
+  };
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  g_assert_true (gum_arm64_relocator_can_relocate (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, &scratch_reg));
+
+  g_assert_cmpint (scratch_reg, ==, ARM64_REG_X16);
+}
+
+TESTCASE (ip_registers_are_dead_after_leaving_code_range)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0xf9400010), /* ldr x16, [x0]    */
+    GUINT32_TO_LE (0xb40000b0), /* cbz x16, #0x18   */
+    GUINT32_TO_LE (0xaa0003f1), /* mov x17, x0      */
+    GUINT32_TO_LE (0xd503201f), /* nop              */
+    GUINT32_TO_LE (0xaa0003e8), /* mov x8, x0       */
+    GUINT32_TO_LE (0xd65f03c0), /* ret              */
+    GUINT32_TO_LE (0x14000400)  /* b #0x1018        */
+  };
+  GumMemoryRange code_range;
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  code_range.base_address = GUM_ADDRESS (input);
+  code_range.size = sizeof (input);
+
+  g_assert_true (gum_arm64_relocator_can_relocate_within (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, &code_range, NULL,
+      &scratch_reg));
+
+  g_assert_cmpint (scratch_reg, ==, ARM64_REG_X16);
 }
 
 TESTCASE (eob_and_eoi_on_br)
