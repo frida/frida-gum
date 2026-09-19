@@ -2,6 +2,7 @@
  * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025-2026 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2026 Paul de Terrasson de Montleau <devnoname120@gmail.com>
+ * Copyright (C) 2026 Jiska Classen <jclassen@seemoo.tu-darmstadt.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -57,6 +58,8 @@ extern kern_return_t mach_vm_page_info (vm_map_read_t target_task,
 static kern_return_t gum_mach_vm_protect (vm_map_t target_task,
     mach_vm_address_t address, mach_vm_size_t size, boolean_t set_maximum,
     vm_prot_t new_protection);
+static kern_return_t gum_protect_with_copy_fallback (vm_map_t task,
+    mach_vm_address_t address, mach_vm_size_t size, vm_prot_t prot);
 static gpointer gum_allocate_page_aligned (gpointer address, gsize size,
     gint prot);
 static gboolean gum_try_alloc_in_range_if_near_enough (
@@ -448,7 +451,7 @@ gum_memory_try_remap_writable_pages (gpointer first_page,
     return NULL;
   }
 
-  if (gum_mach_vm_protect (task, writable_address, size, FALSE,
+  if (gum_protect_with_copy_fallback (task, writable_address, size,
       VM_PROT_READ | VM_PROT_WRITE) != KERN_SUCCESS)
   {
     mach_vm_deallocate (task, writable_address, size);
@@ -561,6 +564,25 @@ gum_mach_vm_protect (vm_map_t target_task,
 #endif
 }
 
+static kern_return_t
+gum_protect_with_copy_fallback (vm_map_t task,
+                                mach_vm_address_t address,
+                                mach_vm_size_t size,
+                                vm_prot_t prot)
+{
+  kern_return_t kr;
+
+  kr = gum_mach_vm_protect (task, address, size, FALSE, prot);
+
+  if (kr != KERN_SUCCESS && (prot & VM_PROT_WRITE) != 0)
+  {
+    kr = gum_mach_vm_protect (task, address, size, FALSE,
+        prot | VM_PROT_COPY);
+  }
+
+  return kr;
+}
+
 gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
@@ -581,8 +603,8 @@ gum_try_mprotect (gpointer address,
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
   mach_prot = gum_page_protection_to_mach (prot);
 
-  kr = gum_mach_vm_protect (mach_task_self (),
-      GPOINTER_TO_SIZE (aligned_address), aligned_size, FALSE, mach_prot);
+  kr = gum_protect_with_copy_fallback (mach_task_self (),
+      GPOINTER_TO_SIZE (aligned_address), aligned_size, mach_prot);
 
   return kr == KERN_SUCCESS;
 }
@@ -832,7 +854,7 @@ gum_page_protection_to_mach (GumPageProtection prot)
   if ((prot & GUM_PAGE_READ) != 0)
     mach_prot |= VM_PROT_READ;
   if ((prot & GUM_PAGE_WRITE) != 0)
-    mach_prot |= VM_PROT_WRITE | VM_PROT_COPY;
+    mach_prot |= VM_PROT_WRITE;
   if ((prot & GUM_PAGE_EXECUTE) != 0)
     mach_prot |= VM_PROT_EXECUTE;
 
