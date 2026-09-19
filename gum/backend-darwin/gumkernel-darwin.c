@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2015-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
+ * Copyright (C) 2026 Jiska Classen <jclassen@seemoo.tu-darmstadt.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -227,6 +228,12 @@ gum_kernel_try_mprotect (GumAddress address,
   mach_prot = gum_page_protection_to_mach (prot);
 
   kr = mach_vm_protect (task, aligned_address, aligned_size, FALSE, mach_prot);
+
+  if (kr != KERN_SUCCESS && (mach_prot & VM_PROT_WRITE) != 0)
+  {
+    kr = mach_vm_protect (task, aligned_address, aligned_size, FALSE,
+        mach_prot | VM_PROT_COPY);
+  }
 
   return kr == KERN_SUCCESS;
 }
