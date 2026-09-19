@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Jiska Classen <jclassen@seemoo.tu-darmstadt.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -954,11 +955,12 @@ unsupported_function_list_new (guint * count)
 #elif defined (HAVE_ARM)
     { "ret",   2, 1, { 0x70, 0x47                                     } },
 #elif defined (HAVE_ARM64)
-    { "ret",   12, 0,
+    { "ret",   16, 0,
       {
-        0xb0, 0x01, 0x80, 0xd2, /* mov x16, #13 */
-        0xb1, 0x04, 0x80, 0xd2, /* mov x17, #37 */
-        0xc0, 0x03, 0x5f, 0xd6, /* ret          */
+        0x69, 0x29, 0x00, 0xa9, /* stp x9, x10, [x11]  */
+        0xcc, 0x35, 0x00, 0xa9, /* stp x12, x13, [x14] */
+        0x2f, 0x42, 0x00, 0xa9, /* stp x15, x16, [x17] */
+        0xc0, 0x03, 0x5f, 0xd6, /* ret                 */
       }
     },
 #endif

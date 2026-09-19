@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Jiska Classen <jclassen@seemoo.tu-darmstadt.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,6 +33,9 @@ struct _GumArm64Relocator
 
   gboolean eob;
   gboolean eoi;
+
+  arm64_reg scratch_reg;
+  GumMemoryRange code_range;
 };
 
 GUM_API GumArm64Relocator * gum_arm64_relocator_new (gconstpointer input_code,
@@ -47,8 +51,17 @@ GUM_API void gum_arm64_relocator_clear (GumArm64Relocator * relocator);
 GUM_API void gum_arm64_relocator_reset (GumArm64Relocator * relocator,
     gconstpointer input_code, GumArm64Writer * output);
 
+GUM_API void gum_arm64_relocator_set_scratch_reg (
+    GumArm64Relocator * relocator, arm64_reg reg);
+GUM_API void gum_arm64_relocator_set_code_range (GumArm64Relocator * relocator,
+    const GumMemoryRange * range);
+
 GUM_API guint gum_arm64_relocator_read_one (GumArm64Relocator * self,
     const cs_insn ** instruction);
+GUM_API gboolean gum_arm64_relocator_read_until_resumable (
+    GumArm64Relocator * self, GumRelocationScenario scenario);
+GUM_API arm64_reg gum_arm64_relocator_pick_exit_reg (GumArm64Relocator * self,
+    GumAddress target);
 
 GUM_API cs_insn * gum_arm64_relocator_peek_next_write_insn (
     GumArm64Relocator * self);
@@ -64,6 +77,10 @@ GUM_API gboolean gum_arm64_relocator_eoi (GumArm64Relocator * self);
 GUM_API gboolean gum_arm64_relocator_can_relocate (gpointer address,
     guint min_bytes, GumRelocationScenario scenario, GumRelocationPolicy policy,
     guint * maximum, arm64_reg * available_scratch_reg);
+GUM_API gboolean gum_arm64_relocator_can_relocate_within (gpointer address,
+    guint min_bytes, GumRelocationScenario scenario, GumRelocationPolicy policy,
+    const GumMemoryRange * code_range, guint * maximum,
+    arm64_reg * available_scratch_reg);
 GUM_API guint gum_arm64_relocator_relocate (gpointer from, guint min_bytes,
     gpointer to);
 

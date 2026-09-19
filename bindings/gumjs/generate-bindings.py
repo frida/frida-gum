@@ -14,7 +14,8 @@ def generate_and_write_bindings(output_dir: Path, source_dir: Path):
                                 'set_target_cpu', 'set_target_abi', 'set_target_os',
                                 'cur', 'offset', 'flush', 'get_cpu_register_for_nth_argument'] }),
         ("relocator", { 'ignore': ['new', 'ref', 'unref', 'init', 'clear', 'reset',
-                                   'read_one', 'is_eob_instruction', 'eob', 'eoi', 'can_relocate'] }),
+                                   'read_one', 'is_eob_instruction', 'eob', 'eoi', 'can_relocate',
+                                   'can_relocate_within'] }),
     ]
 
     flavor_combos = [
@@ -272,11 +273,10 @@ def generate_quick_wrapper_code(component, api):
                         value=arg.name,
                         value_raw=arg.name_raw))
                 else:
-                    lines.append("  if (!_gum_parse_{arch}_{type} (ctx, {value_raw}, &{value}))\n    goto propagate_exception;".format(
+                    lines.append("  if (!_gum_parse_{parser} (ctx, {value_raw}, &{value}))\n    goto propagate_exception;".format(
                         value=arg.name,
                         value_raw=arg.name_raw,
-                        arch=component.arch,
-                        type=arg.type_converter))
+                        parser=parser_name_for_converter(component.arch, arg.type_converter)))
 
         if is_put_array:
             lines.extend(generate_quick_parse_array_elements(array_item_type, array_item_parse_logic).split("\n"))
@@ -289,6 +289,8 @@ def generate_quick_wrapper_code(component, api):
         for arg in args:
             if arg.type_converter == "bytes":
                 arglist.extend([arg.name, arg.name + "_size"])
+            elif arg.passed_by_reference:
+                arglist.append("&" + arg.name)
             else:
                 arglist.append(arg.name)
         if is_put_array:
@@ -349,6 +351,13 @@ def generate_quick_wrapper_code(component, api):
                     "  {",
                     "    return JS_NULL;",
                     "  }",
+                ])
+            elif method.return_type in INVALID_REGISTER_VALUES:
+                lines.extend([
+                    "  if (result == {0})".format(INVALID_REGISTER_VALUES[method.return_type]),
+                    "    return JS_NULL;",
+                    "",
+                    "  return JS_NewString (ctx, cs_reg_name (self->impl->capstone, result));",
                 ])
             else:
                 raise ValueError("Unsupported return type: {0}".format(method.return_type))
@@ -1311,11 +1320,10 @@ def generate_v8_wrapper_code(component, api):
                 else:
                     lines.extend([
                         "  {0} {1};".format(arg.type, arg.name),
-                        "  if (!_gum_parse_{arch}_{type} (isolate, {value_raw}, &{value}))".format(
+                        "  if (!_gum_parse_{parser} (isolate, {value_raw}, &{value}))".format(
                             value=arg.name,
                             value_raw=arg.name_raw_for_cpp(),
-                            arch=component.arch,
-                            type=arg.type_converter_for_cpp()),
+                            parser=parser_name_for_converter(component.arch, arg.type_converter_for_cpp())),
                         "    return;",
                     ])
 
@@ -1330,6 +1338,8 @@ def generate_v8_wrapper_code(component, api):
         for arg in args:
             if arg.type_converter_for_cpp() == "bytes":
                 arglist.extend([arg.name, arg.name + "_size"])
+            elif arg.passed_by_reference:
+                arglist.append("&" + arg.name)
             else:
                 arglist.append(arg.name)
         if is_put_array:
@@ -1378,6 +1388,18 @@ def generate_v8_wrapper_code(component, api):
                     "  else",
                     "  {",
                     "    info.GetReturnValue ().SetNull ();"
+                    "  }",
+                ])
+            elif method.return_type in INVALID_REGISTER_VALUES:
+                lines.extend([
+                    "  if (result != {0})".format(INVALID_REGISTER_VALUES[method.return_type]),
+                    "  {",
+                    "    info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate,",
+                    "        cs_reg_name (self->impl->capstone, result)));",
+                    "  }",
+                    "  else",
+                    "  {",
+                    "    info.GetReturnValue ().SetNull ();",
                     "  }",
                 ])
             else:
@@ -2301,6 +2323,9 @@ writer_enums = {
         ("arm64_index_mode", "GumArm64IndexMode", "GUM_INDEX_", [
             "post-adjust", "signed-offset", "pre-adjust",
         ]),
+        ("relocation_scenario", "GumRelocationScenario", "GUM_SCENARIO_", [
+            "offline", "online",
+        ]),
     ],
     "mips": [
         ("mips_register", "mips_reg", "MIPS_REG_", [
@@ -2619,6 +2644,19 @@ def generate_class_type_definitions(name, arch, flavor, api):
      * defined yet, or there are no more pending references to it"""
         elif method.name == "sign":
             description = "Signs the given pointer value"
+        elif method.name == "set_scratch_reg":
+            description = """Sets the register that exits from the relocated code may use when
+     * it is still untouched by the relocated instructions"""
+        elif method.name == "set_code_range":
+            description = """Sets the range of code that register liveness analysis may look
+     * at. Branches leaving it are assumed to clobber X16 and X17"""
+        elif method.name == "read_until_resumable":
+            description = """Reads further until a scratch register is available for jumping
+     * back to the input code, or the end of input is reached. Returns
+     * `false` if neither happens"""
+        elif method.name == "pick_exit_reg":
+            description = """Picks a register that an exit branching to `target` may use, or
+     * `null` if none is known to be free"""
 
         p = {}
         p.update(params)
@@ -2888,6 +2926,20 @@ def generate_class_api_reference(name, arch, flavor, api):
     defined yet, or there are no more pending references to it."""
         elif method.name == "sign":
             description = "sign the given pointer value"
+        elif method.name == "set_scratch_reg":
+            description = """set the register that exits from the relocated code
+    may use when it is still untouched by the relocated instructions"""
+        elif method.name == "set_code_range":
+            description = """set the range of code that register liveness
+    analysis may look at. Branches leaving it are assumed to clobber X16 and
+    X17."""
+        elif method.name == "read_until_resumable":
+            description = """read further until a scratch register is
+    available for jumping back to the input code, or the end of input is
+    reached. Returns `false` if neither happens."""
+        elif method.name == "pick_exit_reg":
+            description = """pick a register that an exit branching to `target`
+    may use, or `null` if none is known to be free"""
 
         p = {}
         p.update(params)
@@ -2987,6 +3039,19 @@ class Api(object):
                 break
         self.native_register_type = native_register_type
 
+ARCH_NEUTRAL_CONVERTERS = {"relocation_scenario"}
+
+def parser_name_for_converter(arch, converter):
+    if converter in ARCH_NEUTRAL_CONVERTERS:
+        return converter
+    return "{0}_{1}".format(arch, converter)
+
+INVALID_REGISTER_VALUES = {
+    "arm_reg": "ARM_REG_INVALID",
+    "arm64_reg": "ARM64_REG_INVALID",
+    "mips_reg": "MIPS_REG_INVALID",
+}
+
 class Method(object):
     def __init__(self, name, return_type, args):
         is_put_array = name.startswith("put_") and name.endswith("_array")
@@ -3023,6 +3088,8 @@ class Method(object):
             self.return_type_ts = "NativePointer"
         elif return_type == "cs_insn *":
             self.return_type_ts = "Instruction | null"
+        elif return_type in INVALID_REGISTER_VALUES:
+            self.return_type_ts = to_camel_case(return_type.replace("_reg", "_register"), start_high=True) + " | null"
         else:
             raise ValueError("Unsupported return type: {0}".format(return_type))
         self.args = args
@@ -3033,6 +3100,7 @@ class MethodArgument(object):
 
         name_raw = None
         converter = None
+        passed_by_reference = False
 
         if type in ("GumX86Reg", "arm_reg", "arm64_reg", "mips_reg"):
             self.type_raw = "const gchar *"
@@ -3135,11 +3203,17 @@ class MethodArgument(object):
             self.type_raw = "const gchar *"
             self.type_format = "s"
             self.type_ts = "RelocationScenario"
-            converter = "relocator_scenario"
+            converter = "relocation_scenario"
+        elif type == "const GumMemoryRange *":
+            self.type_raw = "GumMemoryRange"
+            self.type_format = "r"
+            self.type_ts = "MemoryRange"
+            passed_by_reference = True
         else:
             raise ValueError("Unhandled type: {0}".format(type))
 
         self.type_converter = converter
+        self.passed_by_reference = passed_by_reference
 
         if name_raw is None:
             name_raw = name if converter is None else "raw_{0}".format(name)

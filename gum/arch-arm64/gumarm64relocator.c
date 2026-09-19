@@ -2,6 +2,7 @@
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Haiwei Wang <haiwei.wang1109@gmail.com>
  * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
+ * Copyright (C) 2026 Jiska Classen <jclassen@seemoo.tu-darmstadt.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -13,8 +14,19 @@
 #include "gummemory.h"
 
 #define GUM_MAX_INPUT_INSN_COUNT (100)
+#define GUM_MAX_LIVENESS_INSN_COUNT (64)
+#define GUM_MAX_LIVENESS_PATH_COUNT (8)
+#define GUM_MAX_RESUME_EXTENSION_INSN_COUNT (16)
+
+#define GUM_GPR_BIT(n) (G_GUINT64_CONSTANT (1) << (n))
+#define GUM_GPR_RANGE(first, last) \
+    ((GUM_GPR_BIT ((last) + 1) - 1) & ~(GUM_GPR_BIT (first) - 1))
+#define GUM_ALL_GPRS GUM_GPR_RANGE (0, 30)
+#define GUM_IP_GPRS (GUM_GPR_BIT (16) | GUM_GPR_BIT (17))
 
 typedef struct _GumCodeGenCtx GumCodeGenCtx;
+typedef struct _GumLivenessPath GumLivenessPath;
+typedef struct _GumReadState GumReadState;
 
 struct _GumCodeGenCtx
 {
@@ -24,8 +36,43 @@ struct _GumCodeGenCtx
   GumArm64Writer * output;
 };
 
-static gboolean gum_arm64_relocator_register_is_free (
-    const GumArm64Relocator * self, guint n, arm64_reg reg);
+struct _GumLivenessPath
+{
+  GumAddress pc;
+  guint64 undecided;
+};
+
+struct _GumReadState
+{
+  const guint8 * input_cur;
+  GumAddress input_pc;
+  guint inpos;
+  gboolean eob;
+  gboolean eoi;
+};
+
+static gboolean gum_arm64_relocator_insn_is_safe_to_relocate (
+    const cs_insn * insn, GumRelocationScenario scenario);
+static arm64_reg gum_arm64_relocator_choose_scratch_reg (
+    GumArm64Relocator * self, gpointer address, GumRelocationScenario scenario,
+    arm64_reg requested_reg);
+static gboolean gum_arm64_relocator_try_scratch_reg (GumArm64Relocator * self,
+    arm64_reg reg, GumRelocationScenario scenario);
+static gboolean gum_arm64_relocator_exits_have_regs (GumArm64Relocator * self);
+static arm64_reg gum_arm64_relocator_pick_exit_reg_at (
+    GumArm64Relocator * self, GumAddress target, guint position);
+static gboolean gum_arm64_relocator_touches_reg_before (
+    GumArm64Relocator * self, arm64_reg reg, guint position);
+static void gum_arm64_relocator_analyze_liveness (GumArm64Relocator * self,
+    GumAddress pc, guint64 * dead, guint64 * live);
+static void gum_arm64_relocator_describe_gpr_access (GumArm64Relocator * self,
+    const cs_insn * insn, guint64 * read, guint64 * written);
+static gboolean gum_arm64_relocator_insn_is_trap (const cs_insn * insn);
+static gboolean gum_arm64_relocator_insn_is_control_flow (
+    GumArm64Relocator * self, const cs_insn * insn);
+static gboolean gum_arm64_relocator_code_range_contains (
+    GumArm64Relocator * self, GumAddress pc);
+static guint64 gum_arm64_gpr_mask (arm64_reg reg);
 static gpointer gum_arm64_relocator_extract_branch_target (
     const cs_insn * insn);
 
@@ -45,6 +92,18 @@ static gboolean gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
+static void gum_arm64_relocator_put_exit (GumArm64Relocator * self,
+    GumCodeGenCtx * ctx, GumAddress target);
+
+static const arm64_reg gum_scratch_reg_candidates[] = {
+  ARM64_REG_X16, ARM64_REG_X17,
+  ARM64_REG_X9, ARM64_REG_X10, ARM64_REG_X11, ARM64_REG_X12, ARM64_REG_X13,
+  ARM64_REG_X14, ARM64_REG_X15,
+  ARM64_REG_X0, ARM64_REG_X1, ARM64_REG_X2, ARM64_REG_X3, ARM64_REG_X4,
+  ARM64_REG_X5, ARM64_REG_X6, ARM64_REG_X7, ARM64_REG_X8,
+  ARM64_REG_X19, ARM64_REG_X20, ARM64_REG_X21, ARM64_REG_X22, ARM64_REG_X23,
+  ARM64_REG_X24, ARM64_REG_X25, ARM64_REG_X26, ARM64_REG_X27, ARM64_REG_X28,
+};
 
 GumArm64Relocator *
 gum_arm64_relocator_new (gconstpointer input_code,
@@ -136,6 +195,27 @@ gum_arm64_relocator_reset (GumArm64Relocator * relocator,
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
+
+  relocator->scratch_reg = ARM64_REG_X16;
+  relocator->code_range.base_address = 0;
+  relocator->code_range.size = 0;
+}
+
+void
+gum_arm64_relocator_set_scratch_reg (GumArm64Relocator * relocator,
+                                     arm64_reg reg)
+{
+  relocator->scratch_reg = reg;
+}
+
+void
+gum_arm64_relocator_set_code_range (GumArm64Relocator * relocator,
+                                    const GumMemoryRange * range)
+{
+  if (range != NULL)
+    relocator->code_range = *range;
+  else
+    relocator->code_range.base_address = relocator->code_range.size = 0;
 }
 
 static guint
@@ -236,6 +316,39 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
   self->input_pc = address;
 
   return self->input_cur - self->input_start;
+}
+
+gboolean
+gum_arm64_relocator_read_until_resumable (GumArm64Relocator * self,
+                                          GumRelocationScenario scenario)
+{
+  guint i;
+
+  for (i = 0; i != GUM_MAX_RESUME_EXTENSION_INSN_COUNT; i++)
+  {
+    const cs_insn * insn;
+
+    if (self->eoi || gum_arm64_relocator_pick_exit_reg (self,
+          self->input_pc) != ARM64_REG_INVALID)
+    {
+      return TRUE;
+    }
+
+    if (gum_arm64_relocator_read_one (self, &insn) == 0 ||
+        !gum_arm64_relocator_insn_is_safe_to_relocate (insn, scenario))
+    {
+      return FALSE;
+    }
+  }
+
+  return FALSE;
+}
+
+arm64_reg
+gum_arm64_relocator_pick_exit_reg (GumArm64Relocator * self,
+                                   GumAddress target)
+{
+  return gum_arm64_relocator_pick_exit_reg_at (self, target, self->inpos);
 }
 
 cs_insn *
@@ -348,6 +461,19 @@ gum_arm64_relocator_can_relocate (gpointer address,
                                   guint * maximum,
                                   arm64_reg * available_scratch_reg)
 {
+  return gum_arm64_relocator_can_relocate_within (address, min_bytes, scenario,
+      policy, NULL, maximum, available_scratch_reg);
+}
+
+gboolean
+gum_arm64_relocator_can_relocate_within (gpointer address,
+                                         guint min_bytes,
+                                         GumRelocationScenario scenario,
+                                         GumRelocationPolicy policy,
+                                         const GumMemoryRange * code_range,
+                                         guint * maximum,
+                                         arm64_reg * available_scratch_reg)
+{
   guint n = 0;
   guint8 * buf;
   GumArm64Writer cw;
@@ -358,11 +484,11 @@ gum_arm64_relocator_can_relocate (gpointer address,
   gum_arm64_writer_init (&cw, buf);
 
   gum_arm64_relocator_init (&rl, address, &cw);
+  gum_arm64_relocator_set_code_range (&rl, code_range);
 
   do
   {
     const cs_insn * insn;
-    gboolean safe_to_relocate_further;
 
     reloc_bytes = gum_arm64_relocator_read_one (&rl, &insn);
     if (reloc_bytes == 0)
@@ -370,26 +496,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
     n = reloc_bytes;
 
-    if (scenario == GUM_SCENARIO_ONLINE)
-    {
-      switch (insn->id)
-      {
-        case ARM64_INS_BL:
-        case ARM64_INS_BLR:
-        case ARM64_INS_SVC:
-          safe_to_relocate_further = FALSE;
-          break;
-        default:
-          safe_to_relocate_further = TRUE;
-          break;
-      }
-    }
-    else
-    {
-      safe_to_relocate_further = TRUE;
-    }
-
-    if (!safe_to_relocate_further)
+    if (!gum_arm64_relocator_insn_is_safe_to_relocate (insn, scenario))
       break;
   }
   while (reloc_bytes < min_bytes);
@@ -449,6 +556,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
      */
     rl.input_cur = (const guint8 *) address + n;
     rl.input_pc = GUM_ADDRESS (address) + n;
+    rl.inpos = n / 4;
 
     cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
@@ -557,25 +665,8 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
   if (available_scratch_reg != NULL)
   {
-    arm64_reg requested_scratch_reg = *available_scratch_reg;
-
-    if (requested_scratch_reg != ARM64_REG_INVALID)
-    {
-      if (!gum_arm64_relocator_register_is_free (&rl, n, requested_scratch_reg))
-        *available_scratch_reg = ARM64_REG_INVALID;
-    }
-    else if (gum_arm64_relocator_register_is_free (&rl, n, ARM64_REG_X16))
-    {
-      *available_scratch_reg = ARM64_REG_X16;
-    }
-    else if (gum_arm64_relocator_register_is_free (&rl, n, ARM64_REG_X17))
-    {
-      *available_scratch_reg = ARM64_REG_X17;
-    }
-    else
-    {
-      *available_scratch_reg = ARM64_REG_INVALID;
-    }
+    *available_scratch_reg = gum_arm64_relocator_choose_scratch_reg (&rl,
+        address, scenario, *available_scratch_reg);
   }
 
   gum_arm64_relocator_clear (&rl);
@@ -589,28 +680,394 @@ gum_arm64_relocator_can_relocate (gpointer address,
 }
 
 static gboolean
-gum_arm64_relocator_register_is_free (const GumArm64Relocator * self,
-                                      guint n,
-                                      arm64_reg reg)
+gum_arm64_relocator_insn_is_safe_to_relocate (const cs_insn * insn,
+                                              GumRelocationScenario scenario)
 {
-  guint insn_index;
+  if (scenario == GUM_SCENARIO_OFFLINE)
+    return TRUE;
 
-  for (insn_index = 0; insn_index != n / 4; insn_index++)
+  switch (insn->id)
   {
-    const cs_insn * insn = self->input_insns[insn_index];
-    const cs_arm64 * info = &insn->detail->arm64;
-    uint8_t op_index;
+    case ARM64_INS_BL:
+    case ARM64_INS_BLR:
+    case ARM64_INS_SVC:
+      return FALSE;
+    default:
+      return TRUE;
+  }
+}
 
-    for (op_index = 0; op_index != info->op_count; op_index++)
+static arm64_reg
+gum_arm64_relocator_choose_scratch_reg (GumArm64Relocator * self,
+                                        gpointer address,
+                                        GumRelocationScenario scenario,
+                                        arm64_reg requested_reg)
+{
+  guint num_block_insns = self->inpos;
+  guint64 dead, live;
+  arm64_reg attempts[3 * G_N_ELEMENTS (gum_scratch_reg_candidates)];
+  guint num_attempts, i;
+
+  gum_arm64_relocator_analyze_liveness (self, GUM_ADDRESS (address), &dead,
+      &live);
+
+  if (requested_reg != ARM64_REG_INVALID)
+  {
+    if ((live & gum_arm64_gpr_mask (requested_reg)) == 0 &&
+        gum_arm64_relocator_try_scratch_reg (self, requested_reg, scenario))
+      return requested_reg;
+
+    return ARM64_REG_INVALID;
+  }
+
+  num_attempts = 0;
+
+  for (i = 0; i != G_N_ELEMENTS (gum_scratch_reg_candidates); i++)
+  {
+    arm64_reg reg = gum_scratch_reg_candidates[i];
+
+    if ((dead & gum_arm64_gpr_mask (reg)) != 0 &&
+        !gum_arm64_relocator_touches_reg_before (self, reg, num_block_insns))
+      attempts[num_attempts++] = reg;
+  }
+
+  if ((live & GUM_GPR_BIT (16)) == 0)
+    attempts[num_attempts++] = ARM64_REG_X16;
+  if ((live & GUM_GPR_BIT (17)) == 0)
+    attempts[num_attempts++] = ARM64_REG_X17;
+
+  for (i = 0; i != G_N_ELEMENTS (gum_scratch_reg_candidates); i++)
+  {
+    arm64_reg reg = gum_scratch_reg_candidates[i];
+
+    if ((dead & gum_arm64_gpr_mask (reg)) != 0)
+      attempts[num_attempts++] = reg;
+  }
+
+  for (i = 0; i != num_attempts; i++)
+  {
+    if (gum_arm64_relocator_try_scratch_reg (self, attempts[i], scenario))
+      return attempts[i];
+  }
+
+  return ARM64_REG_INVALID;
+}
+
+static gboolean
+gum_arm64_relocator_try_scratch_reg (GumArm64Relocator * self,
+                                     arm64_reg reg,
+                                     GumRelocationScenario scenario)
+{
+  GumReadState state = {
+    .input_cur = self->input_cur,
+    .input_pc = self->input_pc,
+    .inpos = self->inpos,
+    .eob = self->eob,
+    .eoi = self->eoi
+  };
+
+  gum_arm64_relocator_set_scratch_reg (self, reg);
+
+  if (gum_arm64_relocator_read_until_resumable (self, scenario) &&
+      gum_arm64_relocator_exits_have_regs (self))
+  {
+    return TRUE;
+  }
+
+  self->input_cur = state.input_cur;
+  self->input_pc = state.input_pc;
+  self->inpos = state.inpos;
+  self->eob = state.eob;
+  self->eoi = state.eoi;
+
+  return FALSE;
+}
+
+static gboolean
+gum_arm64_relocator_exits_have_regs (GumArm64Relocator * self)
+{
+  guint i;
+
+  for (i = 0; i != self->inpos; i++)
+  {
+    gpointer target;
+
+    target = gum_arm64_relocator_extract_branch_target (self->input_insns[i]);
+    if (target != NULL && gum_arm64_relocator_pick_exit_reg_at (self,
+          GUM_ADDRESS (target), i) == ARM64_REG_INVALID)
     {
-      const cs_arm64_op * op = &info->operands[op_index];
-
-      if (op->type == ARM64_OP_REG && op->reg == reg)
-        return FALSE;
+      return FALSE;
     }
   }
 
   return TRUE;
+}
+
+static arm64_reg
+gum_arm64_relocator_pick_exit_reg_at (GumArm64Relocator * self,
+                                      GumAddress target,
+                                      guint position)
+{
+  guint64 dead, live;
+  guint i;
+
+  if (self->scratch_reg != ARM64_REG_INVALID &&
+      !gum_arm64_relocator_touches_reg_before (self, self->scratch_reg,
+        position))
+  {
+    return self->scratch_reg;
+  }
+
+  gum_arm64_relocator_analyze_liveness (self, target, &dead, &live);
+
+  for (i = 0; i != G_N_ELEMENTS (gum_scratch_reg_candidates); i++)
+  {
+    arm64_reg reg = gum_scratch_reg_candidates[i];
+
+    if ((dead & gum_arm64_gpr_mask (reg)) != 0)
+      return reg;
+  }
+
+  return ARM64_REG_INVALID;
+}
+
+static gboolean
+gum_arm64_relocator_touches_reg_before (GumArm64Relocator * self,
+                                        arm64_reg reg,
+                                        guint position)
+{
+  guint64 mask = gum_arm64_gpr_mask (reg);
+  guint first, i;
+
+  first = (position > GUM_MAX_INPUT_INSN_COUNT)
+      ? position - GUM_MAX_INPUT_INSN_COUNT
+      : 0;
+
+  for (i = first; i != position; i++)
+  {
+    guint64 read, written;
+
+    gum_arm64_relocator_describe_gpr_access (self,
+        self->input_insns[i % GUM_MAX_INPUT_INSN_COUNT], &read, &written);
+
+    if (((read | written) & mask) != 0)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+static void
+gum_arm64_relocator_analyze_liveness (GumArm64Relocator * self,
+                                      GumAddress pc,
+                                      guint64 * dead,
+                                      guint64 * live)
+{
+  gssize code_offset = GPOINTER_TO_SIZE (self->input_cur) - self->input_pc;
+  GumLivenessPath paths[GUM_MAX_LIVENESS_PATH_COUNT];
+  guint num_paths, budget;
+  guint64 unknown;
+  cs_insn * insn;
+
+  *live = 0;
+  unknown = 0;
+
+  paths[0].pc = pc;
+  paths[0].undecided = GUM_ALL_GPRS;
+  num_paths = 1;
+  budget = GUM_MAX_LIVENESS_INSN_COUNT;
+
+  insn = cs_malloc (self->capstone);
+
+  while (num_paths != 0)
+  {
+    GumLivenessPath path = paths[--num_paths];
+
+    while (path.undecided != 0)
+    {
+      const uint8_t * code;
+      size_t size;
+      uint64_t address;
+      guint64 read, written;
+      gpointer target;
+
+      code = GSIZE_TO_POINTER (path.pc + code_offset);
+      size = 4;
+      address = path.pc;
+
+      if (budget == 0 || !gum_arm64_relocator_code_range_contains (self,
+            path.pc))
+        break;
+      budget--;
+
+      gum_ensure_code_readable (code, 4);
+      if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
+        break;
+
+      if (gum_arm64_relocator_insn_is_trap (insn))
+      {
+        path.undecided = 0;
+        break;
+      }
+
+      gum_arm64_relocator_describe_gpr_access (self, insn, &read, &written);
+      *live |= read & path.undecided;
+      path.undecided &= ~(read | written);
+
+      if (!gum_arm64_relocator_insn_is_control_flow (self, insn))
+      {
+        path.pc += 4;
+        continue;
+      }
+
+      target = gum_arm64_relocator_extract_branch_target (insn);
+      if (target == NULL)
+        break;
+
+      if (!gum_arm64_relocator_code_range_contains (self, GUM_ADDRESS (target)))
+      {
+        if (gum_arm64_branch_is_unconditional (insn) &&
+            insn->id == ARM64_INS_B)
+        {
+          path.undecided &= ~GUM_IP_GPRS;
+          break;
+        }
+
+        unknown |= path.undecided & ~GUM_IP_GPRS;
+        path.pc += 4;
+        continue;
+      }
+
+      if (insn->id == ARM64_INS_B && gum_arm64_branch_is_unconditional (insn))
+      {
+        path.pc = GUM_ADDRESS (target);
+        continue;
+      }
+
+      if (num_paths == GUM_MAX_LIVENESS_PATH_COUNT)
+        break;
+
+      paths[num_paths].pc = GUM_ADDRESS (target);
+      paths[num_paths].undecided = path.undecided;
+      num_paths++;
+
+      path.pc += 4;
+    }
+
+    unknown |= path.undecided;
+  }
+
+  cs_free (insn, 1);
+
+  *dead = GUM_ALL_GPRS & ~*live & ~unknown;
+}
+
+static void
+gum_arm64_relocator_describe_gpr_access (GumArm64Relocator * self,
+                                         const cs_insn * insn,
+                                         guint64 * read,
+                                         guint64 * written)
+{
+  cs_regs regs_read, regs_written;
+  uint8_t num_regs_read, num_regs_written, i;
+  gboolean may_be_compare_alias;
+
+  *read = 0;
+  *written = 0;
+
+  switch (insn->id)
+  {
+    case ARM64_INS_SVC:
+      *read = GUM_GPR_RANGE (0, 8) | GUM_GPR_BIT (16);
+      return;
+    case ARM64_INS_HVC:
+    case ARM64_INS_SMC:
+      *read = GUM_GPR_RANGE (0, 17);
+      return;
+    default:
+      break;
+  }
+
+  if (cs_regs_access (self->capstone, insn, regs_read, &num_regs_read,
+        regs_written, &num_regs_written) != CS_ERR_OK)
+  {
+    *read = GUM_ALL_GPRS;
+    return;
+  }
+
+  for (i = 0; i != num_regs_read; i++)
+    *read |= gum_arm64_gpr_mask (regs_read[i]);
+
+  may_be_compare_alias = FALSE;
+  for (i = 0; i != num_regs_written; i++)
+  {
+    if (regs_written[i] == ARM64_REG_NZCV)
+      may_be_compare_alias = TRUE;
+  }
+
+  for (i = 0; i != num_regs_written; i++)
+  {
+    guint64 mask = gum_arm64_gpr_mask (regs_written[i]);
+
+    if (may_be_compare_alias)
+      *read |= mask;
+    else
+      *written |= mask;
+  }
+}
+
+static gboolean
+gum_arm64_relocator_insn_is_trap (const cs_insn * insn)
+{
+  switch (insn->id)
+  {
+    case ARM64_INS_BRK:
+    case ARM64_INS_HLT:
+    case ARM64_INS_UDF:
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
+static gboolean
+gum_arm64_relocator_insn_is_control_flow (GumArm64Relocator * self,
+                                          const cs_insn * insn)
+{
+  return cs_insn_group (self->capstone, insn, CS_GRP_JUMP) ||
+      cs_insn_group (self->capstone, insn, CS_GRP_CALL) ||
+      cs_insn_group (self->capstone, insn, CS_GRP_RET) ||
+      cs_insn_group (self->capstone, insn, CS_GRP_BRANCH_RELATIVE);
+}
+
+static gboolean
+gum_arm64_relocator_code_range_contains (GumArm64Relocator * self,
+                                         GumAddress pc)
+{
+  const GumMemoryRange * range = &self->code_range;
+
+  if (range->size == 0)
+    return TRUE;
+
+  return pc >= range->base_address && pc < range->base_address + range->size;
+}
+
+static guint64
+gum_arm64_gpr_mask (arm64_reg reg)
+{
+  if (reg >= ARM64_REG_X0 && reg <= ARM64_REG_X28)
+    return GUM_GPR_BIT (reg - ARM64_REG_X0);
+
+  if (reg >= ARM64_REG_W0 && reg <= ARM64_REG_W28)
+    return GUM_GPR_BIT (reg - ARM64_REG_W0);
+
+  if (reg == ARM64_REG_X29 || reg == ARM64_REG_W29)
+    return GUM_GPR_BIT (29);
+
+  if (reg == ARM64_REG_X30 || reg == ARM64_REG_W30)
+    return GUM_GPR_BIT (30);
+
+  return 0;
 }
 
 static gpointer
@@ -757,9 +1214,7 @@ gum_arm64_relocator_rewrite_b (GumArm64Relocator * self,
 {
   const cs_arm64_op * target = &ctx->detail->operands[0];
 
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      gum_arm64_writer_sign (ctx->output, target->imm));
-  gum_arm64_writer_put_jmp_reg (ctx->output, ARM64_REG_X16);
+  gum_arm64_relocator_put_exit (self, ctx, target->imm);
 
   return TRUE;
 }
@@ -777,9 +1232,7 @@ gum_arm64_relocator_rewrite_b_cond (GumArm64Relocator * self,
   gum_arm64_writer_put_b_label (ctx->output, is_false);
 
   gum_arm64_writer_put_label (ctx->output, is_true);
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      gum_arm64_writer_sign (ctx->output, target->imm));
-  gum_arm64_writer_put_jmp_reg (ctx->output, ARM64_REG_X16);
+  gum_arm64_relocator_put_exit (self, ctx, target->imm);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
 
@@ -816,9 +1269,7 @@ gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
   gum_arm64_writer_put_b_label (ctx->output, is_false);
 
   gum_arm64_writer_put_label (ctx->output, is_true);
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      gum_arm64_writer_sign (ctx->output, target->imm));
-  gum_arm64_writer_put_jmp_reg (ctx->output, ARM64_REG_X16);
+  gum_arm64_relocator_put_exit (self, ctx, target->imm);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
 
@@ -849,11 +1300,25 @@ gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
   gum_arm64_writer_put_b_label (ctx->output, is_false);
 
   gum_arm64_writer_put_label (ctx->output, is_true);
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      gum_arm64_writer_sign (ctx->output, target->imm));
-  gum_arm64_writer_put_jmp_reg (ctx->output, ARM64_REG_X16);
+  gum_arm64_relocator_put_exit (self, ctx, target->imm);
 
   gum_arm64_writer_put_label (ctx->output, is_false);
 
   return TRUE;
+}
+
+static void
+gum_arm64_relocator_put_exit (GumArm64Relocator * self,
+                              GumCodeGenCtx * ctx,
+                              GumAddress target)
+{
+  arm64_reg reg;
+
+  reg = gum_arm64_relocator_pick_exit_reg_at (self, target, self->outpos - 1);
+  if (reg == ARM64_REG_INVALID)
+    reg = self->scratch_reg;
+
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, reg,
+      gum_arm64_writer_sign (ctx->output, target));
+  gum_arm64_writer_put_jmp_reg (ctx->output, reg);
 }

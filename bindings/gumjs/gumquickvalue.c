@@ -291,6 +291,14 @@ _gum_quick_args_parse (GumQuickArgs * self,
 
         break;
       }
+      case 'r':
+      {
+        if (!_gum_quick_memory_range_get (ctx, arg, core,
+            va_arg (ap, GumMemoryRange *)))
+          goto propagate_exception;
+
+        break;
+      }
       case 'R':
       {
         GArray * ranges;
