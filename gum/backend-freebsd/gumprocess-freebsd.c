@@ -58,7 +58,7 @@ static void gum_store_cpu_context (GumThreadId thread_id,
 static gchar * gum_query_program_path_for_target (int target, GError ** error);
 
 static struct kinfo_proc * gum_query_threads (guint * count);
-static void gum_thread_details_from_proc (GumThreadDetails * thread,
+static gboolean gum_thread_details_from_proc (GumThreadDetails * thread,
     const struct kinfo_proc * p, GumThreadFlags flags);
 static GumThreadState gum_thread_state_from_proc (const struct kinfo_proc * p);
 static GumPageProtection gum_page_protection_from_vmentry (int native_prot);
