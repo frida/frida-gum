@@ -82,6 +82,9 @@ struct _GumProcmapQuery
   guint64 build_id_addr;
 };
 
+static gboolean gum_memory_query_region_using_procmap_query (
+    gconstpointer address, gboolean * success, GumMemoryRange * range,
+    GumPageProtection * prot);
 static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
 static gboolean gum_memory_get_protection_using_procmap_query (
@@ -94,6 +97,8 @@ static gboolean gum_query_vma_using_procmap_query (gint fd, gsize address,
     GumProcmapQuery * query);
 static GumPageProtection gum_page_protection_from_procmap_query_flags (
     guint64 vma_flags);
+static GumPageProtection gum_page_protection_from_proc_maps (
+    const gchar * perms);
 
 static gssize gum_libc_process_vm_readv (pid_t pid, const struct iovec * local,
     gulong num_local, const struct iovec * remote, gulong num_remote,
@@ -133,15 +138,81 @@ gum_memory_is_writable (gconstpointer address,
 }
 
 gboolean
-gum_memory_query_protection (gconstpointer address,
-                             GumPageProtection * prot)
+gum_memory_query_region (gconstpointer address,
+                         GumMemoryRange * range,
+                         GumPageProtection * prot)
 {
-  gsize size;
+  gboolean success;
+  GumProcMapsIter iter;
+  const gchar * line;
 
-  if (!gum_memory_get_protection (address, 1, &size, prot))
+  if (gum_memory_query_region_using_procmap_query (address, &success, range,
+        prot))
+  {
+    return success;
+  }
+
+  success = FALSE;
+
+  gum_proc_maps_iter_init_for_self (&iter);
+
+  while (gum_proc_maps_iter_next (&iter, &line))
+  {
+    gpointer start, end;
+    gchar perms[4 + 1];
+
+    sscanf (line, "%p-%p %s ", &start, &end, perms);
+
+    if (start > address)
+      break;
+
+    if (address < end)
+    {
+      range->base_address = GUM_ADDRESS (start);
+      range->size = (guint8 *) end - (guint8 *) start;
+      *prot = gum_page_protection_from_proc_maps (perms);
+      success = TRUE;
+      break;
+    }
+  }
+
+  gum_proc_maps_iter_destroy (&iter);
+
+  return success;
+}
+
+static gboolean
+gum_memory_query_region_using_procmap_query (gconstpointer address,
+                                             gboolean * success,
+                                             GumMemoryRange * range,
+                                             GumPageProtection * prot)
+{
+  gint fd;
+  GumProcmapQuery query = { 0, };
+  gboolean queried;
+
+  fd = gum_procmap_query_open ();
+  if (fd == -1)
     return FALSE;
 
-  return size >= 1;
+  queried = gum_query_vma_using_procmap_query (fd, GPOINTER_TO_SIZE (address),
+      &query);
+
+  close (fd);
+
+  if (!queried)
+    return FALSE;
+
+  *success = query.vma_start <= GPOINTER_TO_SIZE (address) &&
+      GPOINTER_TO_SIZE (address) < query.vma_end;
+  if (*success)
+  {
+    range->base_address = query.vma_start;
+    range->size = query.vma_end - query.vma_start;
+    *prot = gum_page_protection_from_procmap_query_flags (query.vma_flags);
+  }
+
+  return TRUE;
 }
 
 void
@@ -178,13 +249,7 @@ _gum_memory_query_protections (GPtrArray * sorted_pages,
       i++;
     }
 
-    prot = GUM_PAGE_NO_ACCESS;
-    if (protection[0] == 'r')
-      prot |= GUM_PAGE_READ;
-    if (protection[1] == 'w')
-      prot |= GUM_PAGE_WRITE;
-    if (protection[2] == 'x')
-      prot |= GUM_PAGE_EXECUTE;
+    prot = gum_page_protection_from_proc_maps (protection);
 
     while (i != sorted_pages->len &&
         g_ptr_array_index (sorted_pages, i) < end)
@@ -298,6 +363,21 @@ gum_page_protection_from_procmap_query_flags (guint64 vma_flags)
   if ((vma_flags & GUM_PROCMAP_QUERY_VMA_WRITABLE) != 0)
     prot |= GUM_PAGE_WRITE;
   if ((vma_flags & GUM_PROCMAP_QUERY_VMA_EXECUTABLE) != 0)
+    prot |= GUM_PAGE_EXECUTE;
+
+  return prot;
+}
+
+static GumPageProtection
+gum_page_protection_from_proc_maps (const gchar * perms)
+{
+  GumPageProtection prot = GUM_PAGE_NO_ACCESS;
+
+  if (perms[0] == 'r')
+    prot |= GUM_PAGE_READ;
+  if (perms[1] == 'w')
+    prot |= GUM_PAGE_WRITE;
+  if (perms[2] == 'x')
     prot |= GUM_PAGE_EXECUTE;
 
   return prot;
@@ -563,12 +643,7 @@ gum_memory_get_protection (gconstpointer address,
     {
       success = TRUE;
       *size = 1;
-      if (protection[0] == 'r')
-        *prot |= GUM_PAGE_READ;
-      if (protection[1] == 'w')
-        *prot |= GUM_PAGE_WRITE;
-      if (protection[2] == 'x')
-        *prot |= GUM_PAGE_EXECUTE;
+      *prot = gum_page_protection_from_proc_maps (protection);
       break;
     }
   }

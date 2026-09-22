@@ -242,6 +242,8 @@ GUM_API gboolean gum_darwin_query_all_image_infos (mach_port_t task,
     GumDarwinAllImageInfos * infos, GError ** error);
 GUM_API gboolean gum_darwin_query_mapped_address (mach_port_t task,
     GumAddress address, GumDarwinMappingDetails * details);
+GUM_API gboolean gum_darwin_query_region (mach_port_t task,
+    GumAddress address, GumMemoryRange * range, GumPageProtection * prot);
 GUM_API gboolean gum_darwin_query_protection (mach_port_t task,
     GumAddress address, GumPageProtection * prot);
 GUM_API gboolean gum_darwin_query_shared_cache_range (mach_port_t task,

@@ -120,6 +120,8 @@ GUM_API GumRwxSupport gum_query_rwx_support (void);
 GUM_API gboolean gum_memory_is_readable (gconstpointer address, gsize len);
 GUM_API gboolean gum_memory_query_protection (gconstpointer address,
     GumPageProtection * prot);
+GUM_API gboolean gum_memory_query_region (gconstpointer address,
+    GumMemoryRange * range, GumPageProtection * prot);
 GUM_API guint8 * gum_memory_read (gconstpointer address, gsize len,
     gsize * n_bytes_read);
 GUM_API gboolean gum_memory_write (gpointer address, const guint8 * bytes,
