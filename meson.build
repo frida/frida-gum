@@ -545,6 +545,10 @@ if host_os == 'android'
   extra_libs_private += ['-llog']
 endif
 
+if host_is_prospero
+  extra_deps += cc.find_library('unwind')
+endif
+
 if host_os_family in ['linux', 'freebsd', 'qnx']
   libunwind_dep = dependency('libunwind', default_options: [
     'default_library=static',
