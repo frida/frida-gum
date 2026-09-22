@@ -8,6 +8,13 @@
 
 #include "interceptor-fixture.c"
 
+#include <setjmp.h>
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+# define GUM_TEST_HAVE_FIBERS
+# include <sys/mman.h>
+# include <ucontext.h>
+#endif
+
 #if defined (HAVE_I386)
 # include "gumx86writer.h"
 #elif defined (HAVE_ARM64)
@@ -34,6 +41,12 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (attach_two)
   TESTENTRY (attach_to_recursive_function)
   TESTENTRY (attach_to_special_function)
+  TESTENTRY (longjmp_reaps_skipped_leave)
+#ifdef GUM_TEST_HAVE_FIBERS
+  TESTENTRY (stackful_coroutine_does_not_reap_live_frames)
+  TESTENTRY (stackful_coroutine_same_function)
+  TESTENTRY (stackful_coroutine_longjmp_reaps_on_fiber)
+#endif
 #ifdef G_OS_UNIX
   TESTENTRY (attach_to_pthread_key_create)
 #endif
@@ -91,6 +104,32 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
 
+static GString * gum_test_unwind_log = NULL;
+static jmp_buf gum_test_longjmp_buf;
+static void gum_test_longjmp_outer (void);
+static void gum_test_longjmp_inner (void);
+#ifdef GUM_TEST_HAVE_FIBERS
+static ucontext_t gum_test_uctx_main;
+static ucontext_t gum_test_uctx_a;
+static ucontext_t gum_test_uctx_b;
+static gchar gum_test_fiber_tag;
+static jmp_buf gum_test_fiber_jmp;
+static gpointer gum_test_alloc_fiber_stack (gsize size);
+static void gum_test_setup_fiber (ucontext_t * ctx, gpointer stack,
+    gsize stack_size, void (* func) (void), ucontext_t * link);
+static void gum_test_free_fiber_stack (gpointer stack, gsize size);
+static void gum_test_fiber_a_start (void);
+static void gum_test_fiber_b_start (void);
+static void gum_test_fiber_a_shared_start (void);
+static void gum_test_fiber_b_shared_start (void);
+static void gum_test_fiber_b_longjmp_start (void);
+static void gum_test_fiber_a_work (void);
+static void gum_test_fiber_b_work (void);
+static void gum_test_fiber_shared_work (void);
+static void gum_test_fiber_b_with_longjmp (void);
+static void gum_test_fiber_inner (void);
+#endif
+
 static gpointer replacement_target_function (GString * str);
 #ifdef HAVE_WINDOWS
 static gpointer hit_target_function_repeatedly (gpointer data);
@@ -140,6 +179,240 @@ TESTCASE (attach_to_special_function)
   special_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
+
+TESTCASE (longjmp_reaps_skipped_leave)
+{
+  gum_test_unwind_log = fixture->result;
+
+  interceptor_fixture_attach (fixture, 0, gum_test_longjmp_outer, '>', '<');
+  interceptor_fixture_attach (fixture, 1, gum_test_longjmp_inner, '[', ']');
+
+  gum_test_longjmp_outer ();
+
+  g_assert_cmpstr (fixture->result->str, ==, ">o[iO<");
+}
+
+GUM_HOOK_TARGET static void
+gum_test_longjmp_outer (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'o');
+  if (setjmp (gum_test_longjmp_buf) == 0)
+    gum_test_longjmp_inner ();
+  g_string_append_c (gum_test_unwind_log, 'O');
+}
+
+GUM_HOOK_TARGET static void
+gum_test_longjmp_inner (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'i');
+  longjmp (gum_test_longjmp_buf, 1);
+}
+
+#ifdef GUM_TEST_HAVE_FIBERS
+
+TESTCASE (stackful_coroutine_does_not_reap_live_frames)
+{
+  const gsize stack_size = 64 * 1024;
+  gpointer stack_a, stack_b;
+
+  gum_test_unwind_log = fixture->result;
+
+  interceptor_fixture_attach (fixture, 0, gum_test_fiber_a_work, '>', '<');
+  interceptor_fixture_attach (fixture, 1, gum_test_fiber_b_work, '[', ']');
+
+  stack_a = gum_test_alloc_fiber_stack (stack_size);
+  stack_b = gum_test_alloc_fiber_stack (stack_size);
+
+  gum_test_setup_fiber (&gum_test_uctx_a, stack_a, stack_size,
+      gum_test_fiber_a_start, NULL);
+  gum_test_setup_fiber (&gum_test_uctx_b, stack_b, stack_size,
+      gum_test_fiber_b_start, &gum_test_uctx_main);
+
+  g_assert_cmpint (swapcontext (&gum_test_uctx_main, &gum_test_uctx_a), ==, 0);
+  g_assert_cmpstr (fixture->result->str, ==, ">A[Ba<b]");
+
+  gum_test_free_fiber_stack (stack_a, stack_size);
+  gum_test_free_fiber_stack (stack_b, stack_size);
+}
+
+TESTCASE (stackful_coroutine_same_function)
+{
+  const gsize stack_size = 64 * 1024;
+  gpointer stack_a, stack_b;
+
+  gum_test_unwind_log = fixture->result;
+
+  interceptor_fixture_attach (fixture, 0, gum_test_fiber_shared_work, '>', '<');
+
+  stack_a = gum_test_alloc_fiber_stack (stack_size);
+  stack_b = gum_test_alloc_fiber_stack (stack_size);
+
+  gum_test_setup_fiber (&gum_test_uctx_a, stack_a, stack_size,
+      gum_test_fiber_a_shared_start, NULL);
+  gum_test_setup_fiber (&gum_test_uctx_b, stack_b, stack_size,
+      gum_test_fiber_b_shared_start, &gum_test_uctx_main);
+
+  g_assert_cmpint (swapcontext (&gum_test_uctx_main, &gum_test_uctx_a), ==, 0);
+  g_assert_cmpstr (fixture->result->str, ==, ">A>Ba<b<");
+
+  gum_test_free_fiber_stack (stack_a, stack_size);
+  gum_test_free_fiber_stack (stack_b, stack_size);
+}
+
+TESTCASE (stackful_coroutine_longjmp_reaps_on_fiber)
+{
+  const gsize stack_size = 64 * 1024;
+  gpointer stack_a, stack_b;
+
+  gum_test_unwind_log = fixture->result;
+
+  interceptor_fixture_attach (fixture, 0, gum_test_fiber_a_work, '>', '<');
+  interceptor_fixture_attach (fixture, 1, gum_test_fiber_b_with_longjmp,
+      '[', ']');
+  interceptor_fixture_attach (fixture, 2, gum_test_fiber_inner, '{', '}');
+
+  stack_a = gum_test_alloc_fiber_stack (stack_size);
+  stack_b = gum_test_alloc_fiber_stack (stack_size);
+
+  gum_test_setup_fiber (&gum_test_uctx_a, stack_a, stack_size,
+      gum_test_fiber_a_start, NULL);
+  gum_test_setup_fiber (&gum_test_uctx_b, stack_b, stack_size,
+      gum_test_fiber_b_longjmp_start, &gum_test_uctx_main);
+
+  g_assert_cmpint (swapcontext (&gum_test_uctx_main, &gum_test_uctx_a), ==, 0);
+  g_assert_cmpstr (fixture->result->str, ==, ">A[B{ia<b]");
+
+  gum_test_free_fiber_stack (stack_a, stack_size);
+  gum_test_free_fiber_stack (stack_b, stack_size);
+}
+
+/*
+ * Linux merges adjacent anonymous mappings with the same flags, so two
+ * plainly mmap()ed stacks end up in one range and become indistinguishable.
+ * Fence each one off the way a real fiber allocator would.
+ */
+static gpointer
+gum_test_alloc_fiber_stack (gsize size)
+{
+  guint8 * base;
+  gsize page_size;
+
+  page_size = gum_query_page_size ();
+
+  base = mmap (NULL, size + (2 * page_size), PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  g_assert_true (base != MAP_FAILED);
+
+  mprotect (base, page_size, PROT_NONE);
+  mprotect (base + page_size + size, page_size, PROT_NONE);
+
+  return base + page_size;
+}
+
+static void
+gum_test_setup_fiber (ucontext_t * ctx,
+                      gpointer stack,
+                      gsize stack_size,
+                      void (* func) (void),
+                      ucontext_t * link)
+{
+  g_assert_cmpint (getcontext (ctx), ==, 0);
+  ctx->uc_stack.ss_sp = stack;
+  ctx->uc_stack.ss_size = stack_size;
+  ctx->uc_link = link;
+  makecontext (ctx, func, 0);
+}
+
+static void
+gum_test_free_fiber_stack (gpointer stack,
+                           gsize size)
+{
+  gsize page_size = gum_query_page_size ();
+
+  munmap ((guint8 *) stack - page_size, size + (2 * page_size));
+}
+
+static void
+gum_test_fiber_a_start (void)
+{
+  gum_test_fiber_a_work ();
+  swapcontext (&gum_test_uctx_a, &gum_test_uctx_b);
+}
+
+static void
+gum_test_fiber_b_start (void)
+{
+  gum_test_fiber_b_work ();
+}
+
+static void
+gum_test_fiber_a_shared_start (void)
+{
+  gum_test_fiber_tag = 'A';
+  gum_test_fiber_shared_work ();
+  swapcontext (&gum_test_uctx_a, &gum_test_uctx_b);
+}
+
+static void
+gum_test_fiber_b_shared_start (void)
+{
+  gum_test_fiber_tag = 'B';
+  gum_test_fiber_shared_work ();
+}
+
+static void
+gum_test_fiber_b_longjmp_start (void)
+{
+  gum_test_fiber_b_with_longjmp ();
+}
+
+GUM_HOOK_TARGET static void
+gum_test_fiber_a_work (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'A');
+  swapcontext (&gum_test_uctx_a, &gum_test_uctx_b);
+  g_string_append_c (gum_test_unwind_log, 'a');
+}
+
+GUM_HOOK_TARGET static void
+gum_test_fiber_b_work (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'B');
+  swapcontext (&gum_test_uctx_b, &gum_test_uctx_a);
+  g_string_append_c (gum_test_unwind_log, 'b');
+}
+
+GUM_HOOK_TARGET static void
+gum_test_fiber_shared_work (void)
+{
+  gchar tag = gum_test_fiber_tag;
+
+  g_string_append_c (gum_test_unwind_log, tag);
+  if (tag == 'A')
+    swapcontext (&gum_test_uctx_a, &gum_test_uctx_b);
+  else
+    swapcontext (&gum_test_uctx_b, &gum_test_uctx_a);
+  g_string_append_c (gum_test_unwind_log, tag + ('a' - 'A'));
+}
+
+GUM_HOOK_TARGET static void
+gum_test_fiber_b_with_longjmp (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'B');
+  if (setjmp (gum_test_fiber_jmp) == 0)
+    gum_test_fiber_inner ();
+  swapcontext (&gum_test_uctx_b, &gum_test_uctx_a);
+  g_string_append_c (gum_test_unwind_log, 'b');
+}
+
+GUM_HOOK_TARGET static void
+gum_test_fiber_inner (void)
+{
+  g_string_append_c (gum_test_unwind_log, 'i');
+  longjmp (gum_test_fiber_jmp, 1);
+}
+
+#endif
 
 #ifdef G_OS_UNIX
 
