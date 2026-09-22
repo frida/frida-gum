@@ -13,12 +13,21 @@
 #include <unistd.h>
 
 #define GUM_MAX_MODULES 256
+#define GUM_FIRST_JAILED_MODULE 0x2000
+#define GUM_MAX_JAILED_MODULES 32
 #define GUM_MAX_MODULE_PATH 1024
 #define GUM_MAX_REDIRECT_SIZE 16
 #define GUM_MAX_MODULE_SEGMENTS 4
 
+typedef struct _GumModuleHandleRange GumModuleHandleRange;
 typedef struct _GumSceKernelModuleSegmentInfo GumSceKernelModuleSegmentInfo;
 typedef struct _GumSceKernelModuleInfo GumSceKernelModuleInfo;
+
+struct _GumModuleHandleRange
+{
+  int first;
+  int end;
+};
 
 struct _GumSceKernelModuleSegmentInfo
 {
@@ -52,36 +61,51 @@ static gpointer gum_create_module_handle (GumNativeModule * module,
 static void gum_compute_module_range (const GumSceKernelModuleInfo * info,
     GumMemoryRange * range);
 
+static const GumModuleHandleRange gum_module_handle_ranges[] =
+{
+  { 0, GUM_MAX_MODULES },
+  { GUM_FIRST_JAILED_MODULE, GUM_FIRST_JAILED_MODULE + GUM_MAX_JAILED_MODULES },
+};
+
 void
 _gum_module_registry_enumerate_loaded_modules (GumFoundModuleFunc func,
                                                gpointer user_data)
 {
-  int handle;
+  guint range_index;
 
-  for (handle = 0; handle != GUM_MAX_MODULES; handle++)
+  for (range_index = 0;
+      range_index != G_N_ELEMENTS (gum_module_handle_ranges);
+      range_index++)
   {
-    GumSceKernelModuleInfo info;
-    gchar path[GUM_MAX_MODULE_PATH];
-    GumMemoryRange range;
-    GumNativeModule * module;
-    gboolean carry_on;
+    const GumModuleHandleRange * handles =
+        &gum_module_handle_ranges[range_index];
+    int handle;
 
-    info.size = sizeof (info);
-    if (sceKernelGetModuleInfo (handle, &info) != 0)
-      continue;
+    for (handle = handles->first; handle != handles->end; handle++)
+    {
+      GumSceKernelModuleInfo info;
+      gchar path[GUM_MAX_MODULE_PATH];
+      GumMemoryRange range;
+      GumNativeModule * module;
+      gboolean carry_on;
 
-    gum_compute_module_range (&info, &range);
+      info.size = sizeof (info);
+      if (sceKernelGetModuleInfo (handle, &info) != 0)
+        continue;
 
-    module = _gum_native_module_make (
-        gum_query_module_path (handle, &info, path), &range,
-        gum_create_module_handle, NULL, NULL, (GDestroyNotify) dlclose);
+      gum_compute_module_range (&info, &range);
 
-    carry_on = func (GUM_MODULE (module), user_data);
+      module = _gum_native_module_make (
+          gum_query_module_path (handle, &info, path), &range,
+          gum_create_module_handle, NULL, NULL, (GDestroyNotify) dlclose);
 
-    g_object_unref (module);
+      carry_on = func (GUM_MODULE (module), user_data);
 
-    if (!carry_on)
-      return;
+      g_object_unref (module);
+
+      if (!carry_on)
+        return;
+    }
   }
 }
 
