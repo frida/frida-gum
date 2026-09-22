@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2009 Haakon Sporsheim <haakon.sporsheim@gmail.com>
  *
@@ -79,6 +79,8 @@
 # define SYSTEM_MODULE_EXPORT "NtClose"
 #elif defined (HAVE_QNX)
 # define SYSTEM_MODULE_EXPORT "bt_get_backtrace"
+#elif defined (HAVE_PROSPERO)
+# define SYSTEM_MODULE_EXPORT "fopen"
 #else
 # define SYSTEM_MODULE_EXPORT "sendto"
 #endif

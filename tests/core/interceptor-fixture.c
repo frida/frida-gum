@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_WINDOWS
+#if defined (HAVE_WINDOWS) || defined (HAVE_PROSPERO)
 # include "targetfunctions/targetfunctions.c"
 #else
 # include <dlfcn.h>
@@ -150,7 +150,7 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
 
   if (target_function == NULL)
   {
-#ifdef HAVE_WINDOWS
+#if defined (HAVE_WINDOWS) || defined (HAVE_PROSPERO)
     target_function = gum_test_target_function;
     special_function = gum_test_target_function;
     target_nop_function_a = gum_test_target_nop_function_a;

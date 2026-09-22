@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -373,6 +373,8 @@ test_util_get_system_module_name (void)
   return "libc.so";
 #elif defined (HAVE_QNX)
   return "libbacktrace.so.1";
+#elif defined (HAVE_PROSPERO)
+  return "libSceLibcInternal.sprx";
 #else
   if (_test_util_system_module_name == NULL)
   {
