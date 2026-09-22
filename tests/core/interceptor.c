@@ -91,11 +91,11 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
 
+static gpointer replacement_target_function (GString * str);
 #ifdef HAVE_WINDOWS
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
 static gpointer replacement_malloc (gsize size);
-static gpointer replacement_target_function (GString * str);
 static gpointer (* target_function_fast) (GString * str) = NULL;
 static gpointer replacement_target_function_fast (GString * str);
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
