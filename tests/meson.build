@@ -82,7 +82,7 @@ if host_os_family == 'darwin'
 elif host_os_family != 'windows'
   if host_os == 'android'
     symscript = 'gum-tests-android.version'
-  elif host_os == 'freebsd'
+  elif host_os == 'freebsd' and not host_is_prospero
     symscript = 'gum-tests-freebsd.version'
   else
     symscript = 'gum-tests.version'

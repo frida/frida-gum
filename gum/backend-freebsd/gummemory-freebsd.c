@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -12,6 +12,10 @@
 #include "valgrind.h"
 
 #include <sys/mman.h>
+#ifdef HAVE_PROSPERO
+# include <unistd.h>
+# include <ps5/kernel.h>
+#endif
 
 typedef struct _GumFindRangeProtContext GumFindRangeProtContext;
 
@@ -27,6 +31,7 @@ static gboolean gum_memory_get_protection (gconstpointer address, gsize n,
     gsize * size, GumPageProtection * prot);
 static gboolean gum_store_protection_if_containing_address (
     const GumRangeDetails * details, GumFindRangeProtContext * ctx);
+static gint gum_mprotect_pages (gpointer address, gsize size, gint prot);
 
 gboolean
 gum_memory_is_readable (gconstpointer address,
@@ -144,7 +149,7 @@ gum_try_mprotect (gpointer address,
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
   posix_prot = _gum_page_protection_to_posix (prot);
 
-  result = mprotect (aligned_address, aligned_size, posix_prot);
+  result = gum_mprotect_pages (aligned_address, aligned_size, posix_prot);
 
   return result == 0;
 }
@@ -246,4 +251,16 @@ gum_store_protection_if_containing_address (const GumRangeDetails * details,
   }
 
   return proceed;
+}
+
+static gint
+gum_mprotect_pages (gpointer address,
+                    gsize size,
+                    gint prot)
+{
+#ifdef HAVE_PROSPERO
+  return kernel_mprotect (getpid (), GPOINTER_TO_SIZE (address), size, prot);
+#else
+  return mprotect (address, size, prot);
+#endif
 }

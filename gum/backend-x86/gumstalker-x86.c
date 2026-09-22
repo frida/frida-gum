@@ -6701,6 +6701,16 @@ gum_find_thread_exit_implementation (void)
   return GSIZE_TO_POINTER (gum_module_find_export_by_name (
         gum_process_get_libc_module (),
         "pthread_exit"));
+#elif defined (HAVE_PROSPERO)
+  GumAddress result;
+  GumModule * libkernel;
+
+  libkernel = gum_process_find_module_by_name ("libkernel_sys.sprx");
+  g_assert (libkernel != NULL);
+  result = gum_module_find_export_by_name (libkernel, "pthread_exit");
+  g_object_unref (libkernel);
+
+  return GSIZE_TO_POINTER (result);
 #elif defined (HAVE_FREEBSD)
   GumAddress result;
   GumModule * libthr;

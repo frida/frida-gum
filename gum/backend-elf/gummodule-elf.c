@@ -10,6 +10,9 @@
 #ifdef HAVE_ANDROID
 # include "gum/gumandroid.h"
 #endif
+#ifdef HAVE_PROSPERO
+# include "gummodule-prospero.h"
+#endif
 
 #include <dlfcn.h>
 
@@ -349,6 +352,11 @@ gum_native_module_enumerate_exports (GumModule * module,
   }
 #endif
 
+#ifdef HAVE_PROSPERO
+  _gum_prospero_module_enumerate_exports (self->path, func, user_data);
+  return;
+#endif
+
   elf_module = _gum_native_module_get_elf_module (self);
   if (elf_module == NULL)
     return;
@@ -363,6 +371,12 @@ gum_native_module_enumerate_symbols (GumModule * module,
 {
   GumElfModule * elf_module;
   GumEnumerateSymbolsContext ctx;
+
+#ifdef HAVE_PROSPERO
+  _gum_prospero_module_enumerate_symbols (GUM_NATIVE_MODULE (module)->path, func,
+      user_data);
+  return;
+#endif
 
   elf_module = _gum_native_module_get_elf_module (GUM_NATIVE_MODULE (module));
   if (elf_module == NULL)
@@ -479,6 +493,12 @@ gum_native_module_enumerate_sections (GumModule * module,
 {
   GumElfModule * elf_module;
   GumEnumerateSectionsContext ctx;
+
+#ifdef HAVE_PROSPERO
+  _gum_prospero_module_enumerate_sections (GUM_NATIVE_MODULE (module)->path,
+      func, user_data);
+  return;
+#endif
 
   elf_module = _gum_native_module_get_elf_module (GUM_NATIVE_MODULE (module));
   if (elf_module == NULL)

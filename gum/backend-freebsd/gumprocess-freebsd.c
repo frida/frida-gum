@@ -10,6 +10,14 @@
 #include "gum-init.h"
 #include "gummodule-elf.h"
 #include "gum/gumfreebsd.h"
+#ifdef HAVE_PROSPERO
+# include "gumprocess-prospero.h"
+# define gum_ptrace _gum_prospero_ptrace
+# define gum_interrupt_thread(pid, tid) kill (pid, SIGSTOP)
+#else
+# define gum_ptrace ptrace
+# define gum_interrupt_thread(pid, tid) thr_kill2 (pid, tid, SIGSTOP)
+#endif
 
 #include <dlfcn.h>
 #include <errno.h>
@@ -52,15 +60,16 @@ static gboolean gum_read_chunk (gint fd, gpointer buffer, gsize length);
 static gboolean gum_write_chunk (gint fd, gconstpointer buffer, gsize length);
 static gboolean gum_wait_for_child_signal (pid_t pid, gint expected_signal);
 
-static void gum_store_cpu_context (GumThreadId thread_id,
-    GumCpuContext * cpu_context, gpointer user_data);
-
 static gchar * gum_query_program_path_for_target (int target, GError ** error);
 
+#ifndef HAVE_PROSPERO
 static struct kinfo_proc * gum_query_threads (guint * count);
 static gboolean gum_thread_details_from_proc (GumThreadDetails * thread,
     const struct kinfo_proc * p, GumThreadFlags flags);
+static void gum_store_cpu_context (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
 static GumThreadState gum_thread_state_from_proc (const struct kinfo_proc * p);
+#endif
 static GumPageProtection gum_page_protection_from_vmentry (int native_prot);
 
 static GumModule * gum_libc_module;
@@ -142,6 +151,9 @@ GumThreadDetails *
 gum_process_find_thread_by_id (GumThreadId thread_id,
                                GumThreadFlags flags)
 {
+#ifdef HAVE_PROSPERO
+  return _gum_prospero_find_thread_by_id (thread_id, flags);
+#else
   GumThreadDetails * result = NULL;
   struct kinfo_proc * threads;
   guint n, i;
@@ -166,6 +178,7 @@ gum_process_find_thread_by_id (GumThreadId thread_id,
   g_free (threads);
 
   return result;
+#endif
 }
 
 gboolean
@@ -178,6 +191,9 @@ gum_process_modify_thread (GumThreadId thread_id,
 
   if (thread_id == gum_process_get_current_thread_id ())
   {
+#ifdef HAVE_PROSPERO
+    success = _gum_prospero_modify_current_thread (thread_id, func, user_data);
+#else
     ucontext_t uc;
     volatile gboolean modified = FALSE;
 
@@ -195,6 +211,7 @@ gum_process_modify_thread (GumThreadId thread_id,
     }
 
     success = TRUE;
+#endif
   }
   else
   {
@@ -266,17 +283,17 @@ gum_do_modify_thread (GumModifyThreadContext * ctx)
   close (ctx->fd[0]);
   ctx->fd[0] = -1;
 
-  if (ptrace (PT_ATTACH, ctx->pid, NULL, 0) != 0)
+  if (gum_ptrace (PT_ATTACH, ctx->pid, NULL, 0) != 0)
     goto beach;
   attached = TRUE;
   if (!gum_wait_for_child_signal (ctx->pid, SIGSTOP))
     goto beach;
 
-  if (ptrace (PT_GETREGS, ctx->target_thread, (caddr_t) &regs, 0) != 0)
+  if (gum_ptrace (PT_GETREGS, ctx->target_thread, (caddr_t) &regs, 0) != 0)
     goto beach;
-  if (ptrace (PT_SUSPEND, ctx->target_thread, NULL, 0) != 0)
+  if (gum_ptrace (PT_SUSPEND, ctx->target_thread, NULL, 0) != 0)
     goto beach;
-  if (ptrace (PT_CONTINUE, ctx->pid, GSIZE_TO_POINTER (1), 0) != 0)
+  if (gum_ptrace (PT_CONTINUE, ctx->pid, GSIZE_TO_POINTER (1), 0) != 0)
     goto beach;
 
   gum_freebsd_parse_regs (&regs, &cpu_context);
@@ -287,11 +304,11 @@ gum_do_modify_thread (GumModifyThreadContext * ctx)
     goto beach;
   gum_freebsd_unparse_regs (&cpu_context, &regs);
 
-  if (thr_kill2 (ctx->pid, ctx->interruptible_thread, SIGSTOP) != 0)
+  if (gum_interrupt_thread (ctx->pid, ctx->interruptible_thread) != 0)
     goto beach;
   if (!gum_wait_for_child_signal (ctx->pid, SIGSTOP))
     goto beach;
-  if (ptrace (PT_SETREGS, ctx->target_thread, (caddr_t) &regs, 0) != 0)
+  if (gum_ptrace (PT_SETREGS, ctx->target_thread, (caddr_t) &regs, 0) != 0)
     goto beach;
 
   goto beach;
@@ -299,7 +316,7 @@ gum_do_modify_thread (GumModifyThreadContext * ctx)
 beach:
   {
     if (attached)
-      ptrace (PT_DETACH, ctx->pid, NULL, 0);
+      gum_ptrace (PT_DETACH, ctx->pid, NULL, 0);
 
     close (fd);
 
@@ -373,6 +390,9 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
                                 gpointer user_data,
                                 GumThreadFlags flags)
 {
+#ifdef HAVE_PROSPERO
+  _gum_prospero_enumerate_threads (func, user_data, flags);
+#else
   struct kinfo_proc * threads;
   guint n, i;
 
@@ -392,7 +412,10 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   }
 
   g_free (threads);
+#endif
 }
+
+#ifndef HAVE_PROSPERO
 
 static struct kinfo_proc *
 gum_query_threads (guint * count)
@@ -476,6 +499,8 @@ gum_store_cpu_context (GumThreadId thread_id,
 {
   memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
+
+#endif
 
 gchar *
 gum_freebsd_query_program_path_for_self (GError ** error)
@@ -754,6 +779,8 @@ gum_thread_unset_hardware_watchpoint (GumThreadId thread_id,
   return FALSE;
 }
 
+#ifndef HAVE_PROSPERO
+
 static GumThreadState
 gum_thread_state_from_proc (const struct kinfo_proc * p)
 {
@@ -774,6 +801,8 @@ gum_thread_state_from_proc (const struct kinfo_proc * p)
       g_assert_not_reached ();
   }
 }
+
+#endif
 
 static GumPageProtection
 gum_page_protection_from_vmentry (int native_prot)

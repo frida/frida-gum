@@ -166,6 +166,17 @@ gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
     gum_original_signal = gum_resolve_symbol ("bsd_signal", module_candidates);
 #elif defined (HAVE_QNX)
   gum_original_signal = gum_resolve_symbol ("signal", module_candidates);
+#elif defined (HAVE_PROSPERO)
+  {
+    GumModule * libkernel;
+
+    libkernel = gum_process_find_module_by_address (
+        gum_module_find_global_export_by_name ("signal"));
+    if (libkernel != NULL)
+      g_ptr_array_insert (module_candidates, 0, libkernel);
+  }
+
+  gum_original_signal = gum_resolve_symbol ("signal", module_candidates);
 #else
   {
     gchar * libdir, * pthread_name;

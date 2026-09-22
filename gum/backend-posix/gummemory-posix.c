@@ -12,6 +12,9 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#ifdef HAVE_PROSPERO
+# include <ps5/kernel.h>
+#endif
 
 typedef struct _GumAllocNearContext GumAllocNearContext;
 typedef struct _GumEnumerateFreeRangesContext GumEnumerateFreeRangesContext;
@@ -228,6 +231,16 @@ gum_allocate_page_aligned (gpointer address,
 #endif
 
   result = mmap (address, size, prot, base_flags | region_flags, -1, 0);
+
+#ifdef HAVE_PROSPERO
+  if (result == MAP_FAILED && (prot & PROT_EXEC) != 0)
+  {
+    result = mmap (address, size, prot & ~PROT_EXEC, base_flags | region_flags,
+        -1, 0);
+    if (result != MAP_FAILED)
+      kernel_mprotect (getpid (), GPOINTER_TO_SIZE (result), size, prot);
+  }
+#endif
 
 #if defined (HAVE_FREEBSD) && GLIB_SIZEOF_VOID_P == 8
   if (result == MAP_FAILED && (region_flags & MAP_32BIT) != 0)

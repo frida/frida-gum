@@ -11,6 +11,10 @@
 
 #include "gummemory.h"
 
+#ifdef HAVE_PROSPERO
+# include "gummemory-prospero.h"
+#endif
+
 #include "gumcloak-priv.h"
 #include "gumcodesegment.h"
 #include "gumexceptor.h"
@@ -1870,10 +1874,7 @@ void
 gum_ensure_code_readable (gconstpointer address,
                           gsize size)
 {
-  /*
-   * We will make this more generic once it's needed on other OSes.
-   */
-#ifdef HAVE_ANDROID
+#if defined (HAVE_ANDROID)
   gsize page_size;
   gconstpointer start_page, end_page, cur_page;
 
@@ -1913,6 +1914,8 @@ gum_ensure_code_readable (gconstpointer address,
   }
 
   G_UNLOCK (gum_softened_code_pages);
+#elif defined (HAVE_PROSPERO)
+  _gum_prospero_make_code_readable (address, size);
 #endif
 }
 

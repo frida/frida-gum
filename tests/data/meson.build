@@ -42,8 +42,14 @@ if host_os_family != 'windows'
     command: ['touch', '@OUTPUT@'],
   )
 
+  prebuiltcmodule_link_args = []
+  if host_is_prospero
+    prebuiltcmodule_link_args += '-Wl,--unresolved-symbols=ignore-all'
+  endif
+
   shared_module('prebuiltcmodule', 'prebuiltcmodule.c',
     name_prefix: '',
+    link_args: prebuiltcmodule_link_args,
   )
 
   shared_module('module-registry-target', 'module-registry-target.c',

@@ -199,11 +199,20 @@ if host_os_family == 'freebsd'
     'backend-posix' / 'gummemory-posix.c',
     'backend-freebsd' / 'gumprocess-freebsd.c',
     'backend-freebsd' / 'gumthreadregistry-freebsd.c',
-    'backend-freebsd' / 'gummoduleregistry-freebsd.c',
     'backend-freebsd' / 'gummodule-freebsd.c',
     'backend-posix' / 'gumtls-posix.c',
     'backend-posix' / 'gumexceptor-posix.c',
   ]
+  if host_is_prospero
+    gum_sources += [
+      'backend-prospero' / 'gummemory-prospero.c',
+      'backend-prospero' / 'gumprocess-prospero.c',
+      'backend-prospero' / 'gummoduleregistry-prospero.c',
+      'backend-prospero' / 'gummodule-prospero.c',
+    ]
+  else
+    gum_sources += 'backend-freebsd' / 'gummoduleregistry-freebsd.c'
+  endif
 endif
 
 if host_os_family == 'qnx'
