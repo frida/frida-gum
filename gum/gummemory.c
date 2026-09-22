@@ -356,6 +356,25 @@ gum_query_rwx_support (void)
 }
 
 /**
+ * gum_memory_query_protection:
+ * @address: address to query
+ * @prot: (out): return location for the page protection
+ *
+ * Queries the page protection in effect at @address. Use
+ * [func@Gum.memory_query_region] to also learn how far it extends.
+ *
+ * Returns: whether the query was successful
+ */
+gboolean
+gum_memory_query_protection (gconstpointer address,
+                             GumPageProtection * prot)
+{
+  GumMemoryRange range;
+
+  return gum_memory_query_region (address, &range, prot);
+}
+
+/**
  * gum_memory_patch_code:
  * @address: address to modify from
  * @size: number of bytes to modify

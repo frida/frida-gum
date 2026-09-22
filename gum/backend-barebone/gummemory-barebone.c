@@ -49,8 +49,9 @@ gum_memory_is_readable (gconstpointer address,
 }
 
 G_GNUC_WEAK gboolean
-gum_memory_query_protection (gconstpointer address,
-                             GumPageProtection * prot)
+gum_memory_query_region (gconstpointer address,
+                         GumMemoryRange * range,
+                         GumPageProtection * prot)
 {
   return FALSE;
 }

@@ -1153,6 +1153,17 @@ gum_darwin_query_protection (mach_port_t task,
                              GumAddress address,
                              GumPageProtection * prot)
 {
+  GumMemoryRange range;
+
+  return gum_darwin_query_region (task, address, &range, prot);
+}
+
+gboolean
+gum_darwin_query_region (mach_port_t task,
+                         GumAddress address,
+                         GumMemoryRange * range,
+                         GumPageProtection * prot)
+{
   gint pid, retval;
   struct proc_regioninfo region;
 
@@ -1171,6 +1182,8 @@ gum_darwin_query_protection (mach_port_t task,
   if (retval == -1)
     return FALSE;
 
+  range->base_address = region.pri_address;
+  range->size = region.pri_size;
   *prot = gum_page_protection_from_mach (region.pri_protection);
 
   return TRUE;

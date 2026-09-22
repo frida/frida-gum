@@ -51,10 +51,20 @@ gum_memory_is_readable (gconstpointer address,
 }
 
 gboolean
-gum_memory_query_protection (gconstpointer address,
-                             GumPageProtection * prot)
+gum_memory_query_region (gconstpointer address,
+                         GumMemoryRange * range,
+                         GumPageProtection * prot)
 {
-  return gum_memory_get_protection (address, 1, prot);
+  MEMORY_BASIC_INFORMATION mbi;
+
+  if (VirtualQuery (address, &mbi, sizeof (mbi)) == 0)
+    return FALSE;
+
+  range->base_address = GUM_ADDRESS (mbi.BaseAddress);
+  range->size = mbi.RegionSize;
+  *prot = gum_page_protection_from_windows (mbi.Protect);
+
+  return TRUE;
 }
 
 guint8 *

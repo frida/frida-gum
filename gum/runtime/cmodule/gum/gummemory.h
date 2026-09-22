@@ -33,6 +33,8 @@ GumAddress gum_strip_code_address (GumAddress value);
 GumPtrauthSupport gum_query_ptrauth_support (void);
 gboolean gum_memory_query_protection (gconstpointer address,
     GumPageProtection * prot);
+gboolean gum_memory_query_region (gconstpointer address, GumMemoryRange * range,
+    GumPageProtection * prot);
 guint8 * gum_memory_read (gconstpointer address, gsize len,
     gsize * n_bytes_read);
 gboolean gum_memory_write (gpointer address, const guint8 * bytes, gsize len);
