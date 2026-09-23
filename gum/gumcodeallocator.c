@@ -294,7 +294,17 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
     pc = data;
     if (remap_supported)
+    {
+#ifdef HAVE_DARWIN
+      if (!_gum_darwin_bless_code_pages (pc, size_in_pages))
+      {
+        gum_cloak_remove_range (&range);
+        gum_memory_free (data, size_in_bytes);
+        return NULL;
+      }
+#endif
       data = gum_memory_try_remap_writable_pages (data, size_in_pages);
+    }
   }
   else
   {
