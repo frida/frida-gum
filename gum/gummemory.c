@@ -471,6 +471,9 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
   gsize page_size;
   gboolean rwx_supported;
 
+  if (sorted_addresses->len == 0)
+    return TRUE;
+
 #ifdef HAVE_DARWIN
   if (_gum_darwin_has_jailbreak_memory_hooks ())
   {
