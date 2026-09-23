@@ -937,6 +937,24 @@ gum_page_is_freshly_allocated (gpointer page,
           MINCORE_MODIFIED | MINCORE_PAGED_OUT)) == 0);
 }
 
+gboolean
+_gum_darwin_bless_code_pages (gpointer base,
+                              gsize n_pages)
+{
+  GumPagePlanBuilder plan;
+  gboolean success;
+
+  if (!gum_darwin_is_debugger_mapping_enforced ())
+    return TRUE;
+
+  _gum_page_plan_builder_init (&plan);
+  _gum_page_plan_builder_add_pages (&plan, base, n_pages);
+  success = _gum_page_plan_builder_post (&plan);
+  _gum_page_plan_builder_free (&plan);
+
+  return success;
+}
+
 void
 _gum_page_plan_builder_init (GumPagePlanBuilder * self)
 {

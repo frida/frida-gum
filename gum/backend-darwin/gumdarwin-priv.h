@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021-2025 Francesco Tamagni <mrmacete@protonmail.ch>
- * Copyright (C) 2010-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Paul de Terrasson de Montleau <devnoname120@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -267,6 +267,8 @@ G_GNUC_INTERNAL gboolean _gum_darwin_fill_file_mapping (gint pid,
 G_GNUC_INTERNAL void _gum_darwin_clamp_range_size (GumMemoryRange * range,
     const GumFileMapping * file);
 
+G_GNUC_INTERNAL gboolean _gum_darwin_bless_code_pages (gpointer base,
+    gsize n_pages);
 G_GNUC_INTERNAL void _gum_page_plan_builder_init (GumPagePlanBuilder * self);
 G_GNUC_INTERNAL void _gum_page_plan_builder_free (GumPagePlanBuilder * self);
 G_GNUC_INTERNAL void _gum_page_plan_builder_add_page (GumPagePlanBuilder * self,
