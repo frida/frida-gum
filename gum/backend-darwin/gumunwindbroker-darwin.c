@@ -7,6 +7,7 @@
 
 #include "gumunwindbroker-priv.h"
 
+#include "gumcodesegment.h"
 #include "guminterceptor.h"
 #include "gumprocess.h"
 
@@ -66,6 +67,7 @@ static GumDyldFindUnwindSectionsFunc gum_unwind_dyld_find_sections_original;
 static GumInterceptor * gum_unwind_libdyld_interceptor = NULL;
 static GumLibunwindHook * gum_unwind_libunwind_hook = NULL;
 
+static gboolean gum_unwind_broker_can_generate_code (void);
 static int gum_unwind_broker_replacement_dyld_find_unwind_sections (
     void * addr, void * info);
 static void gum_unwind_broker_install_libunwind_hook (void);
@@ -90,6 +92,9 @@ _gum_unwind_broker_backend_activate (void)
 {
   GumModule * libdyld;
   GumAddress export;
+
+  if (!gum_unwind_broker_can_generate_code ())
+    return;
 
   libdyld = gum_process_find_module_by_name (GUM_LIBDYLD_PATH);
   g_assert (libdyld != NULL);
@@ -124,6 +129,21 @@ _gum_unwind_broker_backend_deactivate (void)
     gum_unwind_libdyld_interceptor = NULL;
     gum_unwind_dyld_find_sections_original = NULL;
   }
+}
+
+static gboolean
+gum_unwind_broker_can_generate_code (void)
+{
+  if (gum_query_is_rwx_supported ())
+    return TRUE;
+
+  if (gum_code_segment_is_supported ())
+    return TRUE;
+
+  if (!gum_memory_can_remap_writable ())
+    return TRUE;
+
+  return gum_process_is_debugger_attached ();
 }
 
 static int
