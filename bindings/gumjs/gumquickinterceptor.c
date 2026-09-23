@@ -565,6 +565,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   gpointer listener_function_data;
   GumAttachOptions options = { 0, };
   GumAttachReturn attach_ret;
+  const gchar * subject = "instruction";
 
   self = gumjs_get_parent_module (core);
 
@@ -597,6 +598,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
     if (!JS_IsObject (cb_val))
       goto expected_callback;
+
+    subject = "function";
 
     if (!gum_quick_listener_callback_get (ctx, cb_val, "onEnter", core,
         &on_enter_js, &on_enter_c))
@@ -671,9 +674,13 @@ unable_to_attach:
   {
     switch (attach_ret)
     {
+      case GUM_ATTACH_INVALID_INSTRUCTION:
+        _gum_quick_throw (ctx, "unable to intercept %s at %p; "
+            "no instruction could be decoded there", subject, target);
+        break;
       case GUM_ATTACH_WRONG_SIGNATURE:
-        _gum_quick_throw (ctx, "unable to intercept function at %p; "
-            "please file a bug", target);
+        _gum_quick_throw (ctx, "unable to intercept %s at %p; "
+            "please file a bug", subject, target);
         break;
       case GUM_ATTACH_ALREADY_ATTACHED:
         _gum_quick_throw_literal (ctx, "already attached to this function");
@@ -1098,6 +1105,10 @@ gum_quick_handle_replace_ret (JSContext * ctx,
 {
   switch (replace_ret)
   {
+    case GUM_REPLACE_INVALID_INSTRUCTION:
+      _gum_quick_throw (ctx, "unable to intercept function at %p; "
+          "no instruction could be decoded there", target);
+      break;
     case GUM_REPLACE_WRONG_SIGNATURE:
       _gum_quick_throw (ctx, "unable to intercept function at %p; "
           "please file a bug", target);
