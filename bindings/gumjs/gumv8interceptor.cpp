@@ -637,6 +637,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   GumAttachOptions options = {};
   auto target_val = info[0];
   auto callback_val = info[1];
+  const gchar * subject = "instruction";
 
   auto native_pointer = Local<FunctionTemplate>::New (isolate,
       *core->native_pointer);
@@ -667,6 +668,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
       _gum_v8_throw_ascii_literal (isolate, "expected at least one callback");
       return;
     }
+
+    subject = "function";
 
     auto callbacks = callback_val.As<Object> ();
     if (!gum_v8_interceptor_get_callback (callbacks, "onEnter", &on_enter_js,
@@ -754,10 +757,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   {
     case GUM_ATTACH_OK:
       break;
+    case GUM_ATTACH_INVALID_INSTRUCTION:
+    {
+      _gum_v8_throw_ascii (isolate, "unable to intercept %s at %p; "
+          "no instruction could be decoded there", subject, target);
+      break;
+    }
     case GUM_ATTACH_WRONG_SIGNATURE:
     {
-      _gum_v8_throw_ascii (isolate, "unable to intercept function at %p; "
-          "please file a bug", target);
+      _gum_v8_throw_ascii (isolate, "unable to intercept %s at %p; "
+          "please file a bug", subject, target);
       break;
     }
     case GUM_ATTACH_ALREADY_ATTACHED:
@@ -1116,6 +1125,12 @@ gum_v8_handle_replace_ret (GumV8Interceptor * self,
 
       g_hash_table_insert (self->replacement_by_address, target, entry);
 
+      break;
+    }
+    case GUM_REPLACE_INVALID_INSTRUCTION:
+    {
+      _gum_v8_throw_ascii (isolate, "unable to intercept function at %p; "
+          "no instruction could be decoded there", target);
       break;
     }
     case GUM_REPLACE_WRONG_SIGNATURE:
