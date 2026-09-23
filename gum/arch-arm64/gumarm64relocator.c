@@ -1158,6 +1158,14 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
       (dst->reg >= ARM64_REG_S0 && dst->reg <= ARM64_REG_S31) ||
       (dst->reg >= ARM64_REG_D0 && dst->reg <= ARM64_REG_D31) ||
       (dst->reg >= ARM64_REG_Q0 && dst->reg <= ARM64_REG_Q31);
+
+  if (insn_id == ARM64_INS_LDR && !dst_reg_is_fp_or_simd &&
+      (gum_arm64_writer_put_ldr_reg_u64_ptr (ctx->output, dst->reg, src->imm) ||
+       gum_arm64_writer_put_ldr_reg_u32_ptr (ctx->output, dst->reg, src->imm)))
+  {
+    return TRUE;
+  }
+
   if (dst_reg_is_fp_or_simd)
   {
     tmp_reg = ARM64_REG_X0;
@@ -1204,6 +1212,22 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
 
   g_assert (label->type == ARM64_OP_IMM);
 
+  if (ctx->insn->id == ARM64_INS_ADRP)
+  {
+    if (gum_arm64_writer_put_adrp_reg_address (ctx->output, dst->reg,
+        label->imm))
+    {
+      return TRUE;
+    }
+  }
+  else if (gum_arm64_writer_put_adrp_reg_address (ctx->output, dst->reg,
+      label->imm & ~G_GUINT64_CONSTANT (0xfff)))
+  {
+    gum_arm64_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        label->imm & 0xfff);
+    return TRUE;
+  }
+
   gum_arm64_writer_put_ldr_reg_address (ctx->output, dst->reg, label->imm);
   return TRUE;
 }
@@ -1244,6 +1268,9 @@ gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
                                 GumCodeGenCtx * ctx)
 {
   const cs_arm64_op * target = &ctx->detail->operands[0];
+
+  if (gum_arm64_writer_put_bl_imm (ctx->output, target->imm))
+    return TRUE;
 
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_LR,
       gum_arm64_writer_sign (ctx->output, target->imm));
