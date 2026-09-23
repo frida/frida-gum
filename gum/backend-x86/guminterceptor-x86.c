@@ -110,9 +110,11 @@ _gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
 static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
-                                            gboolean force)
+                                            gboolean force,
+                                            GumInstrumentationError * error)
 {
   GumX86FunctionContextData * data = GUM_FCDATA (ctx);
+  guint relocatable = 0;
   GumRelocationScenario scenario =
       (ctx->scenario == GUM_INTERCEPTOR_SCENARIO_OFFLINE)
       ? GUM_SCENARIO_OFFLINE
@@ -180,7 +182,10 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
         data->available_space > ctx->redirect_space_hint)
       data->available_space = ctx->redirect_space_hint;
     if (data->available_space == 0)
+    {
+      *error = GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION;
       goto not_enough_space;
+    }
 
     ctx->redirect_code = g_malloc (data->available_space);
 
@@ -189,8 +194,13 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
   if (!force && !gum_x86_relocator_can_relocate (
         _gum_interceptor_backend_get_function_address (ctx),
-        data->redirect_code_size, scenario, NULL))
+        data->redirect_code_size, scenario, &relocatable))
+  {
+    *error = (relocatable == 0)
+        ? GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION
+        : GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     goto not_enough_space;
+  }
 
   return TRUE;
 
@@ -219,7 +229,8 @@ gum_skip_ibt_landing_pad (gpointer address)
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
-                                            gboolean force)
+                                            gboolean force,
+                                            GumInstrumentationError * error)
 {
   GumX86Writer * cw = &self->writer;
   GumX86Relocator * rl = &self->relocator;
@@ -228,7 +239,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumAddress after_push_to_shadow_stack;
   guint reloc_bytes;
 
-  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force))
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force, error))
     return FALSE;
 
   gum_x86_writer_reset (cw, ctx->trampoline_slice->data);
@@ -327,6 +338,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
 redirect_declined:
   {
+    *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     gum_code_slice_unref (ctx->trampoline_slice);
     ctx->trampoline_slice = NULL;
     return FALSE;

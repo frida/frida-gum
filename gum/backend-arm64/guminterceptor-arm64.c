@@ -653,7 +653,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
                                             const GumMemoryRange * code_range,
                                             gboolean force,
-                                            gboolean * need_deflector)
+                                            gboolean * need_deflector,
+                                            GumInstrumentationError * error)
 {
   GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address = ctx->function_address;
@@ -681,7 +682,10 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
         data->available_space > ctx->redirect_space_hint)
       data->available_space = ctx->redirect_space_hint;
     if (data->available_space == 0)
+    {
+      *error = GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION;
       return FALSE;
+    }
 
     if (data->scratch_reg == ARM64_REG_INVALID)
     {
@@ -733,6 +737,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
      * replacement function (since the distance may be too far for short-range
      * instructions). Therefore, we cannot proceed in this case.
      */
+    *error = (redirect_limit == 0)
+        ? GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION
+        : GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     return FALSE;
   }
   else
@@ -760,6 +767,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     }
     else
     {
+      *error = GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION;
       return FALSE;
     }
 
@@ -786,6 +794,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
 no_scratch_reg:
   {
+    *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     gum_code_slice_unref (ctx->trampoline_slice);
     ctx->trampoline_slice = NULL;
     return FALSE;
@@ -795,7 +804,8 @@ no_scratch_reg:
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
-                                            gboolean force)
+                                            gboolean force,
+                                            GumInstrumentationError * error)
 {
   GumArm64Writer * aw = &self->writer;
   GumArm64Relocator * ar = &self->relocator;
@@ -820,7 +830,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       : NULL;
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx, code_range, force,
-        &need_deflector))
+        &need_deflector, error))
     return FALSE;
 
   leave_scratch_reg = (ctx->scratch_register != ARM64_REG_INVALID)
@@ -866,6 +876,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
         self->allocator, &caller, return_address, deflector_target, dedicated);
     if (ctx->trampoline_deflector == NULL)
     {
+      *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
       gum_code_slice_unref (ctx->trampoline_slice);
       ctx->trampoline_slice = NULL;
       return FALSE;
@@ -907,6 +918,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       !gum_interceptor_backend_write_custom_redirect (self, ctx,
         deflector_target))
   {
+    *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     gum_code_slice_unref (ctx->trampoline_slice);
     ctx->trampoline_slice = NULL;
     return FALSE;
@@ -1050,6 +1062,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
 relocation_failed:
   {
+    *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     gum_code_slice_unref (ctx->trampoline_slice);
     gum_code_deflector_unref (ctx->trampoline_deflector);
     ctx->trampoline_slice = NULL;

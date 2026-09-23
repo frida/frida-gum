@@ -140,7 +140,8 @@ _gum_interceptor_backend_claim_grafted_trampoline (GumInterceptorBackend * self,
 static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
-                                            gboolean force)
+                                            gboolean force,
+                                            GumInstrumentationError * error)
 {
   GumArmFunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address;
@@ -177,7 +178,10 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
         data->available_space > ctx->redirect_space_hint)
       data->available_space = ctx->redirect_space_hint;
     if (data->available_space == 0)
+    {
+      *error = GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION;
       return FALSE;
+    }
 
     data->redirect_code_size = data->full_redirect_size;
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
@@ -208,7 +212,12 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
       else if (redirect_limit >= GUM_INTERCEPTOR_THUMB_TINY_REDIRECT_SIZE)
         data->redirect_code_size = GUM_INTERCEPTOR_THUMB_TINY_REDIRECT_SIZE;
       else
+      {
+        *error = (redirect_limit == 0)
+            ? GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION
+            : GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
         return FALSE;
+      }
     }
   }
   else
@@ -229,7 +238,12 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
       if (redirect_limit >= GUM_INTERCEPTOR_ARM_TINY_REDIRECT_SIZE)
         data->redirect_code_size = GUM_INTERCEPTOR_ARM_TINY_REDIRECT_SIZE;
       else
+      {
+        *error = (redirect_limit == 0)
+            ? GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION
+            : GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
         return FALSE;
+      }
     }
   }
 
@@ -240,14 +254,15 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
-                                            gboolean force)
+                                            gboolean force,
+                                            GumInstrumentationError * error)
 {
   gpointer func;
   gboolean success;
 
   func = _gum_interceptor_backend_get_function_address (ctx);
 
-  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force))
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force, error))
     return FALSE;
 
   if (FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx))
@@ -255,7 +270,10 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   else
     success = gum_interceptor_backend_emit_arm_trampolines (self, ctx, func);
   if (!success)
+  {
+    *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     return FALSE;
+  }
 
   ctx->overwritten_prologue = g_malloc (ctx->overwritten_prologue_len);
   gum_memcpy (ctx->overwritten_prologue, func, ctx->overwritten_prologue_len);
