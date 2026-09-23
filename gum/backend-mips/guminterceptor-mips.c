@@ -116,7 +116,8 @@ static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
                                             gboolean force,
-                                            gboolean * need_deflector)
+                                            gboolean * need_deflector,
+                                            GumInstrumentationError * error)
 {
   GumMipsFunctionContextData * data = GUM_FCDATA (ctx);
   gpointer function_address = ctx->function_address;
@@ -143,7 +144,10 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
         data->available_space > ctx->redirect_space_hint)
       data->available_space = ctx->redirect_space_hint;
     if (data->available_space == 0)
+    {
+      *error = GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION;
       return FALSE;
+    }
 
     if (data->scratch_reg == MIPS_REG_INVALID)
     {
@@ -196,6 +200,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     }
     else
     {
+      *error = (redirect_limit == 0)
+          ? GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION
+          : GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
       return FALSE;
     }
 
@@ -211,7 +218,10 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   if (data->scratch_reg == MIPS_REG_INVALID)
   {
     if (!force)
+    {
+      *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
       return FALSE;
+    }
 
     data->scratch_reg = (ctx->scratch_register != MIPS_REG_INVALID)
         ? ctx->scratch_register
@@ -224,7 +234,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx,
-                                            gboolean force)
+                                            gboolean force,
+                                            GumInstrumentationError * error)
 {
   GumMipsWriter * cw = &self->writer;
   GumMipsRelocator * rl = &self->relocator;
@@ -234,7 +245,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   guint reloc_bytes;
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx, force,
-        &need_deflector))
+        &need_deflector, error))
     return FALSE;
 
   gum_mips_writer_reset (cw, ctx->trampoline_slice->data);
@@ -294,6 +305,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       !gum_interceptor_backend_write_custom_redirect (self, ctx,
         ctx->on_enter_trampoline))
   {
+    *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     gum_code_slice_unref (ctx->trampoline_slice);
     ctx->trampoline_slice = NULL;
     return FALSE;

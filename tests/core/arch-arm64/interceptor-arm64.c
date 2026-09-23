@@ -11,6 +11,7 @@ TESTLIST_BEGIN (interceptor_arm64)
   TESTENTRY (attach_to_function_reading_lr)
   TESTENTRY (attach_with_custom_scratch_register)
   TESTENTRY (attach_rejects_scratch_register_used_by_prologue)
+  TESTENTRY (attach_to_undecodable_address_fails)
 TESTLIST_END ()
 
 typedef struct _GumEmitLrThunkContext GumEmitLrThunkContext;
@@ -244,4 +245,28 @@ gum_emit_const_func (gpointer mem,
   gum_arm64_writer_put_ret (&aw);
 
   gum_arm64_writer_clear (&aw);
+}
+
+TESTCASE (attach_to_undecodable_address_fails)
+{
+  gsize page_size, code_size;
+  guint8 * code;
+  TestCallbackListener * listener;
+
+  page_size = gum_query_page_size ();
+  code_size = page_size;
+  code = gum_memory_allocate (NULL, code_size, page_size, GUM_PAGE_RW);
+  /* 0xfffffdf8 is not a valid A64 instruction. */
+  *((guint32 *) code) = GUINT32_TO_LE (0xfffffdf8);
+  *((guint32 *) (code + 4)) = GUINT32_TO_LE (0xd65f03c0); /* ret */
+  gum_mprotect (code, code_size, GUM_PAGE_RX);
+
+  listener = test_callback_listener_new ();
+
+  g_assert_cmpint (gum_interceptor_attach (fixture->interceptor, code,
+      GUM_INVOCATION_LISTENER (listener), NULL), ==,
+      GUM_ATTACH_INVALID_INSTRUCTION);
+
+  g_object_unref (listener);
+  gum_memory_free (code, code_size);
 }

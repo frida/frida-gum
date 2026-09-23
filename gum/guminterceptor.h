@@ -81,20 +81,22 @@ struct _GumRedirectWriteDetails
 
 typedef enum
 {
-  GUM_ATTACH_OK               =  0,
-  GUM_ATTACH_WRONG_SIGNATURE  = -1,
-  GUM_ATTACH_ALREADY_ATTACHED = -2,
-  GUM_ATTACH_POLICY_VIOLATION = -3,
-  GUM_ATTACH_WRONG_TYPE       = -4,
+  GUM_ATTACH_OK                  =  0,
+  GUM_ATTACH_INVALID_INSTRUCTION = -1,
+  GUM_ATTACH_WRONG_SIGNATURE     = -2,
+  GUM_ATTACH_ALREADY_ATTACHED    = -3,
+  GUM_ATTACH_POLICY_VIOLATION    = -4,
+  GUM_ATTACH_WRONG_TYPE          = -5,
 } GumAttachReturn;
 
 typedef enum
 {
-  GUM_REPLACE_OK               =  0,
-  GUM_REPLACE_WRONG_SIGNATURE  = -1,
-  GUM_REPLACE_ALREADY_REPLACED = -2,
-  GUM_REPLACE_POLICY_VIOLATION = -3,
-  GUM_REPLACE_WRONG_TYPE       = -4,
+  GUM_REPLACE_OK                  =  0,
+  GUM_REPLACE_INVALID_INSTRUCTION = -1,
+  GUM_REPLACE_WRONG_SIGNATURE     = -2,
+  GUM_REPLACE_ALREADY_REPLACED    = -3,
+  GUM_REPLACE_POLICY_VIOLATION    = -4,
+  GUM_REPLACE_WRONG_TYPE          = -5,
 } GumReplaceReturn;
 
 GUM_API GumInterceptor * gum_interceptor_obtain (void);

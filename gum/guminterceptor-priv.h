@@ -19,6 +19,7 @@
 
 typedef struct _GumInterceptorBackend GumInterceptorBackend;
 typedef guint8 GumInterceptorType;
+typedef guint GumInstrumentationError;
 typedef struct _GumFunctionContext GumFunctionContext;
 typedef union _GumFunctionContextBackendData GumFunctionContextBackendData;
 
@@ -26,6 +27,15 @@ enum _GumInterceptorType
 {
   GUM_INTERCEPTOR_TYPE_DEFAULT = 0,
   GUM_INTERCEPTOR_TYPE_FAST    = 1
+};
+
+enum _GumInstrumentationError
+{
+  GUM_INSTRUMENTATION_ERROR_NONE,
+  GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION,
+  GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE,
+  GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION,
+  GUM_INSTRUMENTATION_ERROR_WRONG_TYPE,
 };
 
 union _GumFunctionContextBackendData
@@ -99,7 +109,8 @@ G_GNUC_INTERNAL void _gum_interceptor_backend_destroy (
 G_GNUC_INTERNAL gboolean _gum_interceptor_backend_claim_grafted_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
 G_GNUC_INTERNAL gboolean _gum_interceptor_backend_create_trampoline (
-    GumInterceptorBackend * self, GumFunctionContext * ctx, gboolean overwrite);
+    GumInterceptorBackend * self, GumFunctionContext * ctx, gboolean overwrite,
+    GumInstrumentationError * error);
 G_GNUC_INTERNAL void _gum_interceptor_backend_destroy_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
 G_GNUC_INTERNAL void _gum_interceptor_backend_activate_trampoline (

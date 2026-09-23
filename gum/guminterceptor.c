@@ -45,7 +45,6 @@
 #endif
 
 typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
-typedef guint GumInstrumentationError;
 typedef struct _GumDestroyTask GumDestroyTask;
 typedef struct _GumUpdateTask GumUpdateTask;
 typedef struct _ListenerEntry ListenerEntry;
@@ -85,14 +84,6 @@ struct _GumInterceptor
   GumInterceptorTransaction current_transaction;
 
   GumUnwindBroker * unwind_broker;
-};
-
-enum _GumInstrumentationError
-{
-  GUM_INSTRUMENTATION_ERROR_NONE,
-  GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE,
-  GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION,
-  GUM_INSTRUMENTATION_ERROR_WRONG_TYPE,
 };
 
 struct _GumDestroyTask
@@ -616,6 +607,9 @@ instrumentation_error:
   {
     switch (error)
     {
+      case GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION:
+        result = GUM_ATTACH_INVALID_INSTRUCTION;
+        break;
       case GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE:
         result = GUM_ATTACH_WRONG_SIGNATURE;
         break;
@@ -820,6 +814,9 @@ instrumentation_error:
   {
     switch (error)
     {
+      case GUM_INSTRUMENTATION_ERROR_INVALID_INSTRUCTION:
+        result = GUM_REPLACE_INVALID_INSTRUCTION;
+        break;
       case GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE:
         result = GUM_REPLACE_WRONG_SIGNATURE;
         break;
@@ -1500,8 +1497,14 @@ gum_interceptor_instrument (GumInterceptor * self,
   }
   else
   {
-    if (!_gum_interceptor_backend_create_trampoline (self->backend, ctx, force))
-      goto wrong_signature;
+    GumInstrumentationError trampoline_error;
+
+    if (!_gum_interceptor_backend_create_trampoline (self->backend, ctx, force,
+        &trampoline_error))
+    {
+      *error = trampoline_error;
+      goto propagate_error;
+    }
   }
 
   g_hash_table_insert (self->function_by_address, function_address, ctx);
@@ -1514,11 +1517,6 @@ gum_interceptor_instrument (GumInterceptor * self,
 policy_violation:
   {
     *error = GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION;
-    goto propagate_error;
-  }
-wrong_signature:
-  {
-    *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
     goto propagate_error;
   }
 propagate_error:

@@ -177,9 +177,12 @@ namespace Gum {
 
 	[CCode (cprefix = "GUM_ATTACH_")]
 	public enum AttachReturn {
-		OK		  =  0,
-		WRONG_SIGNATURE	  = -1,
-		ALREADY_ATTACHED  = -2
+		OK,
+		INVALID_INSTRUCTION,
+		WRONG_SIGNATURE,
+		ALREADY_ATTACHED,
+		POLICY_VIOLATION,
+		WRONG_TYPE,
 	}
 
 	[CCode (has_type_id = false)]
@@ -197,9 +200,12 @@ namespace Gum {
 
 	[CCode (cprefix = "GUM_REPLACE_")]
 	public enum ReplaceReturn {
-		OK		  =  0,
-		WRONG_SIGNATURE	  = -1,
-		ALREADY_REPLACED  = -2
+		OK,
+		INVALID_INSTRUCTION,
+		WRONG_SIGNATURE,
+		ALREADY_REPLACED,
+		POLICY_VIOLATION,
+		WRONG_TYPE,
 	}
 
 	[CCode (has_type_id = false)]
