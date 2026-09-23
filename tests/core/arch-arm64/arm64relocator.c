@@ -21,6 +21,7 @@ TESTLIST_BEGIN (arm64relocator)
   TESTENTRY (tbnz_should_be_rewritten)
   TESTENTRY (b_cond_should_be_rewritten)
   TESTENTRY (b_should_be_rewritten)
+  TESTENTRY (b_to_far_target_is_rewritten_via_register)
   TESTENTRY (bl_should_be_rewritten)
   TESTENTRY (cannot_relocate_with_early_br)
   TESTENTRY (cannot_relocate_with_internal_cbz_target)
@@ -253,9 +254,8 @@ TESTCASE (cbz_should_be_rewritten)
   };
   const guint32 expected_output[] = {
     GUINT32_TO_LE (0xb4000040), /* cbz x0, #+2       */
-    GUINT32_TO_LE (0x14000003), /* b +3              */
-    GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
-    GUINT32_TO_LE (0xd65f0200)  /* ret x16           */
+    GUINT32_TO_LE (0x14000002), /* b +2              */
+    GUINT32_TO_LE (0x14000104)  /* b <target>        */
   };
   const cs_insn * insn;
 
@@ -276,9 +276,8 @@ TESTCASE (tbnz_should_be_rewritten)
   };
   const guint32 expected_output[] = {
     GUINT32_TO_LE (0x37480041), /* tbnz w1, #9, #+2  */
-    GUINT32_TO_LE (0x14000003), /* b +3              */
-    GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
-    GUINT32_TO_LE (0xd65f0200)  /* ret x16           */
+    GUINT32_TO_LE (0x14000002), /* b +2              */
+    GUINT32_TO_LE (0x14000101)  /* b <target>        */
   };
   const cs_insn * insn;
 
@@ -299,9 +298,8 @@ TESTCASE (b_cond_should_be_rewritten)
   };
   const guint32 expected_output[] = {
     GUINT32_TO_LE (0x54000043), /* b.lo #+2          */
-    GUINT32_TO_LE (0x14000003), /* b +3              */
-    GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
-    GUINT32_TO_LE (0xd65f0200)  /* ret x16           */
+    GUINT32_TO_LE (0x14000002), /* b +2              */
+    GUINT32_TO_LE (0x14000104)  /* b <target>        */
   };
   const cs_insn * insn;
 
@@ -333,18 +331,58 @@ static void branch_scenario_execute (BranchScenario * bs,
 
 TESTCASE (b_should_be_rewritten)
 {
-  BranchScenario bs = {
-    ARM64_INS_B,
-    { 0x17ffff5a }, 1,  /* b #-664            */
-    {
-      0x58000050,       /* ldr x16, [pc, #8]  */
-      0xd65f0200,       /* ret x16            */
-      0xffffffff,       /* <calculated PC     */
-      0xffffffff        /*  goes here>        */
-    }, 4,
-    2, -664
+  const guint32 input[] = {
+    GUINT32_TO_LE (0x17ffff5a)  /* b #-664           */
   };
-  branch_scenario_execute (&bs, fixture);
+  const guint32 expected_output[] = {
+    GUINT32_TO_LE (0x1400005a)  /* b <target>        */
+  };
+  const cs_insn * insn;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
+  g_assert_cmpint (insn->id, ==, ARM64_INS_B);
+  g_assert_true (gum_arm64_relocator_write_one (&fixture->rl));
+  gum_arm64_writer_flush (&fixture->aw);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+TESTCASE (b_to_far_target_is_rewritten_via_register)
+{
+  const guint32 input[] = {
+    GUINT32_TO_LE (0x14000001)  /* b #+1             */
+  };
+  guint32 expected_output[] = {
+    GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
+    GUINT32_TO_LE (0xd65f0200), /* ret x16           */
+    0xffffffff,                 /* <target lo>       */
+    0xffffffff                  /* <target hi>       */
+  };
+  guint32 output[4];
+  GumArm64Writer aw;
+  GumArm64Relocator rl;
+  const cs_insn * insn;
+  guint64 target;
+
+  gum_arm64_writer_init (&aw, output);
+  aw.pc = 0x100000000;
+  gum_arm64_relocator_init (&rl, input, &aw);
+  rl.input_pc = 0x1000;
+
+  target = rl.input_pc + 4;
+  expected_output[2] = GUINT32_TO_LE (target & 0xffffffff);
+  expected_output[3] = GUINT32_TO_LE (target >> 32);
+
+  g_assert_cmpuint (gum_arm64_relocator_read_one (&rl, &insn), ==, 4);
+  g_assert_cmpint (insn->id, ==, ARM64_INS_B);
+  g_assert_true (gum_arm64_relocator_write_one (&rl));
+  gum_arm64_writer_flush (&aw);
+  g_assert_cmpint (memcmp (output, expected_output, sizeof (output)), ==, 0);
+
+  gum_arm64_relocator_clear (&rl);
+  gum_arm64_writer_clear (&aw);
 }
 
 TESTCASE (bl_should_be_rewritten)

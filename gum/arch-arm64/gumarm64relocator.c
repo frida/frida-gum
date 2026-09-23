@@ -1312,13 +1312,20 @@ gum_arm64_relocator_put_exit (GumArm64Relocator * self,
                               GumCodeGenCtx * ctx,
                               GumAddress target)
 {
+  GumArm64Writer * cw = ctx->output;
   arm64_reg reg;
+
+  if (gum_arm64_writer_can_branch_directly_between (cw, cw->pc, target))
+  {
+    gum_arm64_writer_put_b_imm (cw, target);
+    return;
+  }
 
   reg = gum_arm64_relocator_pick_exit_reg_at (self, target, self->outpos - 1);
   if (reg == ARM64_REG_INVALID)
     reg = self->scratch_reg;
 
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, reg,
-      gum_arm64_writer_sign (ctx->output, target));
-  gum_arm64_writer_put_jmp_reg (ctx->output, reg);
+  gum_arm64_writer_put_ldr_reg_address (cw, reg,
+      gum_arm64_writer_sign (cw, target));
+  gum_arm64_writer_put_jmp_reg (cw, reg);
 }
