@@ -10,6 +10,7 @@
 #include "gumdarwingrafter-priv.h"
 #include "gumdarwinmodule-priv.h"
 #include "gumleb.h"
+#include "arch-arm64/gumarm64relocator.h"
 
 #include <glib/gprintf.h>
 #include <errno.h>
@@ -18,6 +19,8 @@
 
 #define GUM_BIND_STATE_RESET_SIZE 2
 #define GUM_MAX_LDR_OFFSET (262143 * 4)
+#define GUM_GRAFTED_HOOK_TRAMPOLINE_PREFIX_SIZE \
+    G_STRUCT_OFFSET (GumGraftedHookTrampoline, on_invoke)
 
 typedef struct _GumGraftedLayout GumGraftedLayout;
 typedef struct _GumSegmentPairDescriptor GumSegmentPairDescriptor;
@@ -51,6 +54,7 @@ struct _GumGraftedLayout
 
   GumAddress text_address;
   GArray * segment_pair_descriptors;
+  GArray * hook_trampoline_sizes;
   gsize segments_size;
 
   GumAddress linkedit_address;
@@ -152,6 +156,11 @@ static gboolean gum_collect_functions (
     const GumDarwinFunctionStartsDetails * details, gpointer user_data);
 static gboolean gum_collect_import (const GumDarwinBindDetails * details,
     gpointer user_data);
+static gboolean gum_darwin_grafter_measure_hook (gconstpointer instruction,
+    GumAddress code_address, GumAddress on_invoke_address, guint * size,
+    GError ** error);
+static gboolean gum_darwin_grafter_write_on_invoke (GumArm64Writer * cw,
+    gconstpointer instruction, GumAddress code_address, GError ** error);
 static void gum_normalize_code_offsets (GArray * code_offsets);
 static int gum_compare_code_offsets (const void * element_a,
     const void * element_b);
@@ -362,6 +371,7 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   FILE * file = NULL;
 
   layout.segment_pair_descriptors = NULL;
+  layout.hook_trampoline_sizes = NULL;
 
   module = gum_darwin_module_new_from_file (self->path, GUM_CPU_ARM64,
       GUM_PTRAUTH_INVALID, GUM_DARWIN_MODULE_FLAGS_NONE, error);
@@ -488,6 +498,7 @@ beach:
     g_clear_pointer (&imports, g_array_unref);
     g_clear_pointer (&code_offsets, g_array_unref);
     g_clear_pointer (&layout.segment_pair_descriptors, g_array_unref);
+    g_clear_pointer (&layout.hook_trampoline_sizes, g_array_unref);
     g_clear_object (&module);
 
     return success;
@@ -503,6 +514,7 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
                                    GError ** error)
 {
   gboolean success = FALSE;
+  const guint8 * image_data = module->image->data;
   guint i;
   GumAddress address_cursor;
   goffset offset_cursor;
@@ -619,6 +631,7 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
 
   layout->segment_pair_descriptors = g_array_new (FALSE, FALSE,
       sizeof (GumSegmentPairDescriptor));
+  layout->hook_trampoline_sizes = g_array_new (FALSE, FALSE, sizeof (guint));
 
   pending_imports = (*imports)->len;
   pending_code_offsets = (*code_offsets)->len;
@@ -629,67 +642,60 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
   while (pending_imports > 0 || pending_code_offsets > 0)
   {
     GumSegmentPairDescriptor descriptor;
-    gsize code_size = 0;
-    guint used_imports, used_code_offsets;
+    gsize code_size, hooks_size = 0;
+    guint used_imports = 0, used_code_offsets = 0;
     const gsize max_code_size = GUM_MAX_LDR_OFFSET -
         sizeof (GumGraftedHeader) -
         sizeof (GumGraftedImport);
-
-    if (pending_code_offsets > 0)
-    {
-      used_code_offsets =
-          MIN (pending_code_offsets * sizeof (GumGraftedHookTrampoline),
-              max_code_size - sizeof (GumGraftedRuntime)) /
-          sizeof (GumGraftedHookTrampoline);
-
-      if (used_code_offsets == pending_code_offsets)
-      {
-        used_imports =
-            MIN (pending_imports * sizeof (GumGraftedImportTrampoline),
-                max_code_size - sizeof (GumGraftedRuntime) -
-                used_code_offsets * sizeof (GumGraftedHookTrampoline)) /
-            sizeof (GumGraftedImportTrampoline);
-      }
-      else
-      {
-        used_imports = 0;
-      }
-    }
-    else if (pending_imports > 0)
-    {
-      used_imports = MIN (pending_imports * sizeof (GumGraftedImportTrampoline),
-          max_code_size - sizeof (GumGraftedRuntime)) /
-          sizeof (GumGraftedImportTrampoline);
-      used_code_offsets = 0;
-    }
-    else
-    {
-      g_assert_not_reached ();
-    }
 
     descriptor.code_address = address_cursor;
     descriptor.code_offset = offset_cursor;
     descriptor.imports_start = (*imports)->len - pending_imports;
     descriptor.code_offsets_start = (*code_offsets)->len - pending_code_offsets;
 
-    while ((code_size = GUM_ALIGN_SIZE (
-            used_code_offsets * sizeof (GumGraftedHookTrampoline) +
-            used_imports * sizeof (GumGraftedImportTrampoline) +
-            sizeof (GumGraftedRuntime),
-            layout->page_size)) >= max_code_size)
+    while (used_code_offsets != pending_code_offsets)
     {
-      if (used_code_offsets > 0)
+      guint32 code_offset = g_array_index (*code_offsets, guint32,
+          descriptor.code_offsets_start + used_code_offsets);
+      GumAddress on_invoke_address = address_cursor + hooks_size +
+          GUM_GRAFTED_HOOK_TRAMPOLINE_PREFIX_SIZE;
+      guint tramp_size;
+
+      if (!gum_darwin_grafter_measure_hook (image_data + code_offset,
+          layout->text_address + code_offset, on_invoke_address, &tramp_size,
+          error))
       {
-        if (used_imports > 0)
-          used_imports--;
-        else
-          used_code_offsets--;
+        goto beach;
       }
-      else if (used_imports > 0)
+
+      if (GUM_ALIGN_SIZE (hooks_size + tramp_size + sizeof (GumGraftedRuntime),
+          layout->page_size) >= max_code_size)
       {
-        used_imports--;
+        break;
+      }
+
+      g_array_append_val (layout->hook_trampoline_sizes, tramp_size);
+      hooks_size += tramp_size;
+      used_code_offsets++;
+    }
+
+    if (used_code_offsets == pending_code_offsets)
+    {
+      while (used_imports != pending_imports && GUM_ALIGN_SIZE (
+          hooks_size +
+          (used_imports + 1) * sizeof (GumGraftedImportTrampoline) +
+          sizeof (GumGraftedRuntime),
+          layout->page_size) < max_code_size)
+      {
+        used_imports++;
       }
     }
+
+    code_size = GUM_ALIGN_SIZE (
+        hooks_size +
+        used_imports * sizeof (GumGraftedImportTrampoline) +
+        sizeof (GumGraftedRuntime),
+        layout->page_size);
 
     descriptor.code_size = code_size;
     descriptor.num_code_offsets = used_code_offsets;
@@ -740,6 +746,80 @@ beach:
 
     return success;
   }
+}
+
+static gboolean
+gum_darwin_grafter_measure_hook (gconstpointer instruction,
+                                 GumAddress code_address,
+                                 GumAddress on_invoke_address,
+                                 guint * size,
+                                 GError ** error)
+{
+  gboolean success;
+  guint8 buffer[128];
+  GumArm64Writer cw;
+
+  gum_arm64_writer_init (&cw, buffer);
+  cw.pc = on_invoke_address;
+
+  success = gum_darwin_grafter_write_on_invoke (&cw, instruction, code_address,
+      error);
+  if (success)
+  {
+    gum_arm64_writer_flush (&cw);
+    *size = GUM_GRAFTED_HOOK_TRAMPOLINE_PREFIX_SIZE +
+        gum_arm64_writer_offset (&cw);
+  }
+
+  gum_arm64_writer_clear (&cw);
+
+  return success;
+}
+
+static gboolean
+gum_darwin_grafter_write_on_invoke (GumArm64Writer * cw,
+                                    gconstpointer instruction,
+                                    GumAddress code_address,
+                                    GError ** error)
+{
+  gboolean success = FALSE;
+  GumArm64Relocator rl;
+  guint reloc_bytes;
+
+  gum_arm64_relocator_init (&rl, instruction, cw);
+  rl.input_pc = code_address;
+
+  reloc_bytes = gum_arm64_relocator_read_one (&rl, NULL);
+  if (reloc_bytes == 0)
+    goto invalid_instruction;
+
+  gum_arm64_relocator_write_all (&rl);
+
+  if (!gum_arm64_relocator_eoi (&rl) &&
+      !gum_arm64_writer_put_b_imm (cw, code_address + reloc_bytes))
+  {
+    goto target_too_far;
+  }
+
+  success = TRUE;
+  goto beach;
+
+invalid_instruction:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+        "Unable to graft undecodable instruction");
+    goto beach;
+  }
+target_too_far:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
+        "Unable to graft instruction too far away from its trampoline");
+    goto beach;
+  }
+beach:
+  gum_arm64_relocator_clear (&rl);
+
+  return success;
 }
 
 static void
@@ -1309,7 +1389,6 @@ gum_darwin_grafter_emit_segments (gpointer output,
   {
     const GumSegmentPairDescriptor * descriptor;
     gpointer code, data;
-    GumGraftedHookTrampoline * hook_trampolines;
     GumGraftedImportTrampoline * import_trampolines;
     GumGraftedHeader * header;
     GumGraftedHook * hook_entries;
@@ -1318,6 +1397,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
     GumAddress runtime_addr, do_begin_invocation_addr, do_end_invocation_addr;
     GumAddress header_addr, begin_invocation_addr, end_invocation_addr;
     GumAddress hook_entries_addr, import_entries_addr;
+    gsize hooks_size, hook_offset;
 
     descriptor = &g_array_index (layout->segment_pair_descriptors,
         GumSegmentPairDescriptor, j);
@@ -1328,10 +1408,15 @@ gum_darwin_grafter_emit_segments (gpointer output,
     memset (code, 0, descriptor->code_size);
     memset (data, 0, descriptor->data_size);
 
-    hook_trampolines = code;
+    hooks_size = 0;
+    for (i = 0; i != descriptor->num_code_offsets; i++)
+    {
+      hooks_size += g_array_index (layout->hook_trampoline_sizes, guint,
+          descriptor->code_offsets_start + i);
+    }
+
     import_trampolines =
-        (GumGraftedImportTrampoline *) (hook_trampolines +
-            descriptor->num_code_offsets);
+        (GumGraftedImportTrampoline *) ((guint8 *) code + hooks_size);
 
     header = data;
     hook_entries = (GumGraftedHook *) (header + 1);
@@ -1343,8 +1428,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
     header->num_imports = descriptor->num_imports;
 
     hook_trampolines_addr = descriptor->code_address;
-    import_trampolines_addr = hook_trampolines_addr +
-        descriptor->num_code_offsets * sizeof (GumGraftedHookTrampoline);
+    import_trampolines_addr = hook_trampolines_addr + hooks_size;
 
     runtime_addr = import_trampolines_addr +
         descriptor->num_imports * sizeof (GumGraftedImportTrampoline);
@@ -1363,11 +1447,14 @@ gum_darwin_grafter_emit_segments (gpointer output,
     import_entries_addr = hook_entries_addr +
         descriptor->num_code_offsets * sizeof (GumGraftedHook);
 
+    hook_offset = 0;
     for (i = 0; i != descriptor->num_code_offsets; i++)
     {
-      guint32 code_offset, * code_instructions, overwritten_insn;
+      guint32 code_offset, * code_instructions, original_insn;
       GumAddress code_addr;
-      GumGraftedHookTrampoline * trampoline = &hook_trampolines[i];
+      guint8 * trampoline = (guint8 *) code + hook_offset;
+      guint tramp_size = g_array_index (layout->hook_trampoline_sizes, guint,
+          descriptor->code_offsets_start + i);
       GumAddress trampoline_addr, on_enter_addr;
       GumGraftedHook * entry = &hook_entries[i];
       GumAddress entry_addr, flags_addr, user_data_addr;
@@ -1378,10 +1465,9 @@ gum_darwin_grafter_emit_segments (gpointer output,
       code_addr = layout->text_address + code_offset;
       code_instructions = (guint32 *) ((guint8 *) output + code_offset);
 
-      overwritten_insn = code_instructions[0];
+      original_insn = code_instructions[0];
 
-      trampoline_addr =
-          hook_trampolines_addr + i * sizeof (GumGraftedHookTrampoline);
+      trampoline_addr = hook_trampolines_addr + hook_offset;
       on_enter_addr = trampoline_addr +
           G_STRUCT_OFFSET (GumGraftedHookTrampoline, on_enter);
 
@@ -1394,7 +1480,7 @@ gum_darwin_grafter_emit_segments (gpointer output,
       gum_arm64_writer_put_b_imm (&cw, on_enter_addr);
       gum_arm64_writer_flush (&cw);
 
-      gum_arm64_writer_reset (&cw, trampoline->on_enter);
+      gum_arm64_writer_reset (&cw, trampoline);
       cw.pc = on_enter_addr;
       gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X16, ARM64_REG_X17);
       gum_arm64_writer_put_ldr_reg_u32_ptr (&cw, ARM64_REG_W16, flags_addr);
@@ -1424,22 +1510,25 @@ gum_darwin_grafter_emit_segments (gpointer output,
 
       g_assert (cw.pc == trampoline_addr +
           G_STRUCT_OFFSET (GumGraftedHookTrampoline, on_invoke));
-      /* TODO: use Arm64Relocator */
-      gum_arm64_writer_put_instruction (&cw, overwritten_insn);
-      gum_arm64_writer_put_b_imm (&cw, code_addr + sizeof (overwritten_insn));
+      if (!gum_darwin_grafter_write_on_invoke (&cw, &original_insn, code_addr,
+          error))
+      {
+        goto beach;
+      }
 
       gum_arm64_writer_flush (&cw);
-      g_assert (
-          gum_arm64_writer_offset (&cw) == sizeof (GumGraftedHookTrampoline));
+      g_assert (gum_arm64_writer_offset (&cw) == tramp_size);
 
       entry->code_offset = code_offset;
       entry->trampoline_offset = trampoline_addr - layout->text_address;
       entry->flags =
-          sizeof (GumGraftedHookTrampoline)                     << 24 |
+          tramp_size                                            << 24 |
           G_STRUCT_OFFSET (GumGraftedHookTrampoline, on_enter)  << 17 |
           G_STRUCT_OFFSET (GumGraftedHookTrampoline, on_leave)  << 10 |
           G_STRUCT_OFFSET (GumGraftedHookTrampoline, on_invoke) <<  3 |
           0x0;
+
+      hook_offset += tramp_size;
     }
 
     for (i = 0; i != descriptor->num_imports; i++)
