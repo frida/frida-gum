@@ -103,9 +103,11 @@ struct _GumInsertDeflectorContext
 };
 
 static GumCodeSlice * gum_code_allocator_try_alloc_batch_near (
-    GumCodeAllocator * self, const GumAddressSpec * spec);
+    GumCodeAllocator * self, const GumAddressSpec * spec,
+    gsize size_in_pages);
 
 static void gum_code_pages_unref (GumCodePages * self);
+static gsize gum_code_pages_compute_metadata_size (gsize slice_count);
 
 static gboolean gum_code_slice_is_near (const GumCodeSlice * self,
     const GumAddressSpec * spec);
@@ -142,8 +144,8 @@ gum_code_allocator_init (GumCodeAllocator * allocator,
   allocator->pages_per_batch = 7;
   allocator->slices_per_batch =
       (allocator->pages_per_batch * gum_query_page_size ()) / slice_size;
-  allocator->pages_metadata_size = sizeof (GumCodePages) +
-      ((allocator->slices_per_batch - 1) * sizeof (GumCodeSliceElement));
+  allocator->pages_metadata_size =
+      gum_code_pages_compute_metadata_size (allocator->slices_per_batch);
 
   allocator->uncommitted_pages = NULL;
   allocator->dirty_pages = g_hash_table_new (NULL, NULL);
@@ -180,6 +182,7 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
                                          gsize alignment)
 {
   GList * cur;
+  GumCodeSlice * result;
 
   for (cur = self->free_slices; cur != NULL; cur = cur->next)
   {
@@ -199,7 +202,14 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
     }
   }
 
-  return gum_code_allocator_try_alloc_batch_near (self, spec);
+  result = gum_code_allocator_try_alloc_batch_near (self, spec,
+      self->pages_per_batch);
+#ifdef HAVE_LINUX
+  if (result == NULL && spec != NULL)
+    result = gum_code_allocator_try_alloc_batch_near (self, spec, 1);
+#endif
+
+  return result;
 }
 
 void
@@ -251,11 +261,12 @@ gum_code_allocator_commit (GumCodeAllocator * self)
 
 static GumCodeSlice *
 gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
-                                         const GumAddressSpec * spec)
+                                         const GumAddressSpec * spec,
+                                         gsize size_in_pages)
 {
   GumCodeSlice * result = NULL;
   gboolean rwx_supported, code_segment_supported, remap_supported;
-  gsize page_size, size_in_pages, size_in_bytes;
+  gsize page_size, size_in_bytes, slice_count;
   GumCodeSegment * segment;
   gpointer data, pc;
   GumCodePages * pages;
@@ -266,8 +277,8 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
   remap_supported = gum_memory_can_remap_writable ();
 
   page_size = gum_query_page_size ();
-  size_in_pages = self->pages_per_batch;
   size_in_bytes = size_in_pages * page_size;
+  slice_count = size_in_bytes / self->slice_size;
 
   if (rwx_supported || !code_segment_supported)
   {
@@ -315,8 +326,8 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
     pc = data;
   }
 
-  pages = g_slice_alloc (self->pages_metadata_size);
-  pages->ref_count = self->slices_per_batch;
+  pages = g_slice_alloc (gum_code_pages_compute_metadata_size (slice_count));
+  pages->ref_count = slice_count;
 
   pages->segment = segment;
   pages->data = data;
@@ -325,7 +336,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
   pages->allocator = self;
 
-  for (i = self->slices_per_batch; i != 0; i--)
+  for (i = slice_count; i != 0; i--)
   {
     guint slice_index = i - 1;
     GumCodeSliceElement * element = &pages->elements[slice_index];
@@ -369,6 +380,8 @@ gum_code_pages_unref (GumCodePages * self)
   self->ref_count--;
   if (self->ref_count == 0)
   {
+    gsize slice_count;
+
     if (self->segment != NULL)
     {
       gum_code_segment_free (self->segment);
@@ -392,8 +405,16 @@ gum_code_pages_unref (GumCodePages * self)
       gum_cloak_remove_range (&range);
     }
 
-    g_slice_free1 (self->allocator->pages_metadata_size, self);
+    slice_count = self->size / self->allocator->slice_size;
+    g_slice_free1 (gum_code_pages_compute_metadata_size (slice_count), self);
   }
+}
+
+static gsize
+gum_code_pages_compute_metadata_size (gsize slice_count)
+{
+  return sizeof (GumCodePages) +
+      ((slice_count - 1) * sizeof (GumCodeSliceElement));
 }
 
 GumCodeSlice *
