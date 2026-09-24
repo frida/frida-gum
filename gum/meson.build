@@ -120,6 +120,9 @@ if host_os_family == 'windows'
     'backend-dbghelp' / 'gumdbghelpbacktracer.c',
     'backend-dbghelp' / 'gumsymbolutil-dbghelp.c',
   ]
+  if host_arch in ['x86_64', 'arm64']
+    gum_sources += 'backend-windows' / 'gumunwindbroker-windows.c'
+  endif
 elif host_os_family != 'none'
   gum_sources += [
     'backend-posix' / 'gummemoryaccessmonitor-posix.c',

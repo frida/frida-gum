@@ -319,7 +319,8 @@ gum_unwind_pc_translator_default_install_resume_context (
   return FALSE;
 }
 
-#if !defined (HAVE_DARWIN) && !defined (HAVE_LINUX)
+#if !defined (HAVE_DARWIN) && !defined (HAVE_LINUX) && \
+    !(defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8)
 
 void
 _gum_unwind_broker_backend_activate (void)
