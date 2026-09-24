@@ -304,8 +304,8 @@ TESTCASE (b_to_far_target_is_rewritten_via_register)
   guint32 expected_output[] = {
     GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
     GUINT32_TO_LE (0xd65f0200), /* ret x16           */
-    0xffffffff,                 /* <target lo>       */
-    0xffffffff                  /* <target hi>       */
+    0xffffffff,                 /* <target>          */
+    0xffffffff
   };
   guint32 output[4];
   GumArm64Writer aw;
@@ -319,8 +319,7 @@ TESTCASE (b_to_far_target_is_rewritten_via_register)
   rl.input_pc = 0x1000;
 
   target = rl.input_pc + 4;
-  expected_output[2] = GUINT32_TO_LE (target & 0xffffffff);
-  expected_output[3] = GUINT32_TO_LE (target >> 32);
+  memcpy (&expected_output[2], &target, sizeof (target));
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&rl, &insn), ==, 4);
   g_assert_cmpint (insn->id, ==, ARM64_INS_B);
