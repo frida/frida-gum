@@ -263,13 +263,12 @@ jobs:
             else
               echo "EXIT_FAIL (exit code \$status)"
             fi
+            poweroff -f
             EOF
 
             cat <<EOF > /workspace/launch.sh
             #!/bin/sh
-            LOGFILE=/workspace/qemu.log
-            : > "\$LOGFILE"
-            timeout 120 qemu-system-aarch64 \
+            timeout 300 qemu-system-aarch64 \
                 -M virt \
                 -machine virtualization=true \
                 -machine type=virt \
@@ -284,31 +283,8 @@ jobs:
                 -virtfs local,path=/workspace/,mount_tag=host0,security_model=passthrough,id=host0 \
                 -nographic \
                 -no-reboot \
-                >> "\$LOGFILE" 2>&1 &
-            QEMU_PID=\$!
-            echo "QEMU started with PID \$QEMU_PID"
-            tail -n 0 -f "\$LOGFILE" | while read line; do
-              echo "\$line"
-              echo "\$line" | grep "EXIT_OK" >/dev/null 2>&1
-              if [ \$? -eq 0 ]; then
-                echo "Success signal received from guest. Killing QEMU..."
-                kill -9 "\$QEMU_PID"
-                cat -n "\$LOGFILE"
-                exit 0
-              fi
-              echo "\$line" | grep "EXIT_FAIL" >/dev/null 2>&1
-              if [ \$? -eq 0 ]; then
-                echo "Failure signal received from guest. Killing QEMU..."
-                kill -9 "\$QEMU_PID"
-                cat -n "\$LOGFILE"
-                exit 1
-              fi
-              if ! kill -0 "\$QEMU_PID" 2>/dev/null; then
-                echo "QEMU process has exited."
-                cat -n "\$LOGFILE"
-                exit 1
-              fi
-            done
+                2>&1 | tee /workspace/qemu.log
+            grep -q '^EXIT_OK' /workspace/qemu.log
             EOF
 
             cat <<EOF > /workspace/Dockerfile.ci
