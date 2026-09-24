@@ -2552,7 +2552,7 @@ static GumAddress
 interceptor_thread_context_identify_stack (InterceptorThreadContext * self,
                                            gconstpointer sp)
 {
-  GumAddress address = GUM_ADDRESS (sp);
+  GumAddress byte_below_sp = GUM_ADDRESS (sp) - 1;
   guint i;
   GumMemoryRange range;
   GumPageProtection prot;
@@ -2561,11 +2561,12 @@ interceptor_thread_context_identify_stack (InterceptorThreadContext * self,
   {
     const GumMemoryRange * stack = &self->known_stacks[i];
 
-    if (GUM_MEMORY_RANGE_INCLUDES (stack, address))
+    if (GUM_MEMORY_RANGE_INCLUDES (stack, byte_below_sp))
       return gum_stack_range_get_top (stack);
   }
 
-  if (!gum_memory_query_region (sp, &range, &prot))
+  if (!gum_memory_query_region (GSIZE_TO_POINTER (byte_below_sp), &range,
+        &prot))
     return 0;
 
   interceptor_thread_context_remember_stack (self, &range);
