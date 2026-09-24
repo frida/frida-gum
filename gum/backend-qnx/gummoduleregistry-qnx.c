@@ -50,7 +50,7 @@ gum_module_registry_on_ldd_event (Ldd_Eh_Data_t * ehd,
     const gchar * path;
     GumMemoryRange range;
     const Elf32_Phdr * phdr;
-    GumAddress lowest, highest;
+    GumAddress bias, lowest, highest;
     gsize page_size_mask;
     guint i;
     GumNativeModule * module;
@@ -61,12 +61,14 @@ gum_module_registry_on_ldd_event (Ldd_Eh_Data_t * ehd,
       g_assert (resolved_path != NULL);
 
       path = resolved_path;
+      bias = 0;
     }
     else
     {
       resolved_path = gum_resolve_path (map->l_path);
 
       path = resolved_path;
+      bias = map->l_addr;
     }
 
     lowest = ~0;
@@ -82,7 +84,7 @@ gum_module_registry_on_ldd_event (Ldd_Eh_Data_t * ehd,
         highest = MAX (h->p_vaddr + h->p_memsz, highest);
       }
     }
-    range.base_address = map->l_addr + lowest;
+    range.base_address = bias + lowest;
     range.size = highest - lowest;
 
     module = _gum_native_module_make (path, &range, gum_create_module_handle,
