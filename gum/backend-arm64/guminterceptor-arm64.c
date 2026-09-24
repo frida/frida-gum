@@ -70,6 +70,7 @@ struct _GumEmitThunksContext
 struct _GumArm64FunctionContextData
 {
   guint redirect_code_size;
+  guint min_reloc_bytes;
   arm64_reg scratch_reg;
   guint available_space;
 };
@@ -662,10 +663,12 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
       (ctx->scenario == GUM_INTERCEPTOR_SCENARIO_OFFLINE)
       ? GUM_SCENARIO_OFFLINE
       : GUM_SCENARIO_ONLINE;
+  gboolean full_redirect_possible;
   guint redirect_limit;
 
   *need_deflector = FALSE;
 
+  data->min_reloc_bytes = 0;
   data->scratch_reg = ctx->scratch_register;
 
   if (ctx->write_redirect != NULL)
@@ -702,10 +705,35 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     return TRUE;
   }
 
-  if (gum_arm64_relocator_can_relocate_within (function_address,
-        GUM_ADDRESS (function_address), GUM_INTERCEPTOR_FULL_REDIRECT_SIZE,
-        scenario, ctx->relocation_policy, code_range, &redirect_limit,
-        &data->scratch_reg))
+  full_redirect_possible = gum_arm64_relocator_can_relocate_within (
+      function_address, GUM_ADDRESS (function_address),
+      GUM_INTERCEPTOR_FULL_REDIRECT_SIZE, scenario, ctx->relocation_policy,
+      code_range, &redirect_limit, &data->scratch_reg);
+
+#ifdef HAVE_LINUX
+  if (ctx->type == GUM_INTERCEPTOR_TYPE_DEFAULT && redirect_limit >= 8 &&
+      data->scratch_reg != ARM64_REG_INVALID)
+  {
+    GumAddressSpec spec;
+
+    spec.near_address = function_address;
+    spec.max_distance = GUM_ARM64_B_MAX_DISTANCE;
+    ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
+        self->allocator, &spec, 0);
+    if (ctx->trampoline_slice != NULL)
+    {
+      /* Relocate what the longer redirect would have, so create_trampoline
+       * still recognizes LR-reading thunks and rewrites their LR read. */
+      data->redirect_code_size = 4;
+      data->min_reloc_bytes = full_redirect_possible
+          ? GUM_INTERCEPTOR_FULL_REDIRECT_SIZE
+          : 8;
+      return TRUE;
+    }
+  }
+#endif
+
+  if (full_redirect_possible)
   {
     data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
 
@@ -947,7 +975,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       g_string_append_c (signature, ';');
     g_string_append (signature, insn->mnemonic);
   }
-  while (reloc_bytes < data->redirect_code_size);
+  while (reloc_bytes < MAX (data->redirect_code_size, data->min_reloc_bytes));
 
   if (!gum_arm64_relocator_read_until_resumable (ar, scenario) && !force)
   {
@@ -1227,6 +1255,8 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx,
                                                 gpointer prologue)
 {
+  GumArm64FunctionContextData * data = GUM_FCDATA (ctx);
+
 #ifdef HAVE_DARWIN
   if (ctx->grafted_hook != NULL)
   {
@@ -1241,8 +1271,15 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
   }
 #endif
 
-  gum_memcpy (prologue, ctx->overwritten_prologue,
-      ctx->overwritten_prologue_len);
+  if (data->redirect_code_size == 4)
+  {
+    *((guint32 *) prologue) = *((guint32 *) ctx->overwritten_prologue);
+  }
+  else
+  {
+    gum_memcpy (prologue, ctx->overwritten_prologue,
+        ctx->overwritten_prologue_len);
+  }
 }
 
 gpointer
