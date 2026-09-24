@@ -54,7 +54,7 @@ struct _GumReadState
 static gboolean gum_arm64_relocator_insn_is_safe_to_relocate (
     const cs_insn * insn, GumRelocationScenario scenario);
 static arm64_reg gum_arm64_relocator_choose_scratch_reg (
-    GumArm64Relocator * self, gpointer address, GumRelocationScenario scenario,
+    GumArm64Relocator * self, GumAddress pc, GumRelocationScenario scenario,
     arm64_reg requested_reg);
 static gboolean gum_arm64_relocator_try_scratch_reg (GumArm64Relocator * self,
     arm64_reg reg, GumRelocationScenario scenario);
@@ -72,6 +72,8 @@ static gboolean gum_arm64_relocator_insn_is_control_flow (
     GumArm64Relocator * self, const cs_insn * insn);
 static gboolean gum_arm64_relocator_code_range_contains (
     GumArm64Relocator * self, GumAddress pc);
+static const guint8 * gum_arm64_relocator_peek_code (GumArm64Relocator * self,
+    GumAddress pc, size_t * size);
 static guint64 gum_arm64_gpr_mask (arm64_reg reg);
 static gpointer gum_arm64_relocator_extract_branch_target (
     const cs_insn * insn);
@@ -254,6 +256,9 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
   uint64_t address;
 
   if (self->eoi)
+    return 0;
+
+  if (!gum_arm64_relocator_code_range_contains (self, self->input_pc))
     return 0;
 
   insn_ptr = &self->input_insns[gum_arm64_relocator_inpos (self)];
@@ -461,12 +466,14 @@ gum_arm64_relocator_can_relocate (gpointer address,
                                   guint * maximum,
                                   arm64_reg * available_scratch_reg)
 {
-  return gum_arm64_relocator_can_relocate_within (address, min_bytes, scenario,
-      policy, NULL, maximum, available_scratch_reg);
+  return gum_arm64_relocator_can_relocate_within (address,
+      GUM_ADDRESS (address), min_bytes, scenario, policy, NULL, maximum,
+      available_scratch_reg);
 }
 
 gboolean
 gum_arm64_relocator_can_relocate_within (gpointer address,
+                                         GumAddress pc,
                                          guint min_bytes,
                                          GumRelocationScenario scenario,
                                          GumRelocationPolicy policy,
@@ -484,6 +491,7 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
   gum_arm64_writer_init (&cw, buf);
 
   gum_arm64_relocator_init (&rl, address, &cw);
+  rl.input_pc = pc;
   gum_arm64_relocator_set_code_range (&rl, code_range);
 
   do
@@ -506,9 +514,8 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
     GHashTable * checked_targets, * targets_to_check;
     csh capstone;
     cs_insn * insn;
-    const guint8 * current_code;
-    uint64_t current_address;
-    size_t current_code_size;
+    GumAddress current_pc;
+    gboolean have_pc;
     gpointer target;
     GHashTableIter iter;
     guint insn_index;
@@ -542,7 +549,7 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
       if (target == NULL)
         continue;
 
-      offset = (gssize) target - (gssize) address;
+      offset = (gssize) (GUM_ADDRESS (target) - pc);
       if (offset > 0 && offset < (gssize) n)
         n = (guint) offset;
       else if (offset >= (gssize) n)
@@ -555,27 +562,32 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
      * read_one() stopped when trying to satisfy min_bytes.
      */
     rl.input_cur = (const guint8 *) address + n;
-    rl.input_pc = GUM_ADDRESS (address) + n;
+    rl.input_pc = pc + n;
     rl.inpos = n / 4;
 
     cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
     cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
     insn = cs_malloc (capstone);
-    current_code = rl.input_cur;
-    current_address = rl.input_pc;
-    current_code_size = 1024;
+    current_pc = rl.input_pc;
 
     do
     {
+      const uint8_t * current_code;
+      size_t current_code_size;
+      uint64_t current_address;
       gboolean carry_on = TRUE;
 
-      g_hash_table_add (checked_targets, (gpointer) current_code);
+      g_hash_table_add (checked_targets, GSIZE_TO_POINTER (current_pc));
 
-      gum_ensure_code_readable (current_code, current_code_size);
+      current_code_size = 1024;
+      current_code = gum_arm64_relocator_peek_code (&rl, current_pc,
+          &current_code_size);
+      current_address = current_pc;
 
-      while (carry_on && cs_disasm_iter (capstone, &current_code,
-          &current_code_size, &current_address, insn))
+      while (carry_on && current_code != NULL &&
+          cs_disasm_iter (capstone, &current_code, &current_code_size,
+            &current_address, insn))
       {
         cs_arm64 * d = &insn->detail->arm64;
 
@@ -627,26 +639,19 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
       }
 
       g_hash_table_iter_init (&iter, targets_to_check);
-      if (g_hash_table_iter_next (&iter, &target, NULL))
+      have_pc = g_hash_table_iter_next (&iter, &target, NULL);
+      if (have_pc)
       {
-        current_code = target;
-        if (current_code > rl.input_cur)
-          current_address = (current_code - rl.input_cur) + rl.input_pc;
-        else
-          current_address = rl.input_pc - (rl.input_cur - current_code);
+        current_pc = GUM_ADDRESS (target);
         g_hash_table_iter_remove (&iter);
       }
-      else
-      {
-        current_code = NULL;
-      }
     }
-    while (current_code != NULL);
+    while (have_pc);
 
     g_hash_table_iter_init (&iter, checked_targets);
     while (g_hash_table_iter_next (&iter, &target, NULL))
     {
-      gssize offset = (gssize) target - (gssize) address;
+      gssize offset = (gssize) (GUM_ADDRESS (target) - pc);
       if (offset > 0 && offset < (gssize) n)
       {
         n = offset;
@@ -665,8 +670,8 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
 
   if (available_scratch_reg != NULL)
   {
-    *available_scratch_reg = gum_arm64_relocator_choose_scratch_reg (&rl,
-        address, scenario, *available_scratch_reg);
+    *available_scratch_reg = gum_arm64_relocator_choose_scratch_reg (&rl, pc,
+        scenario, *available_scratch_reg);
   }
 
   gum_arm64_relocator_clear (&rl);
@@ -699,7 +704,7 @@ gum_arm64_relocator_insn_is_safe_to_relocate (const cs_insn * insn,
 
 static arm64_reg
 gum_arm64_relocator_choose_scratch_reg (GumArm64Relocator * self,
-                                        gpointer address,
+                                        GumAddress pc,
                                         GumRelocationScenario scenario,
                                         arm64_reg requested_reg)
 {
@@ -708,8 +713,7 @@ gum_arm64_relocator_choose_scratch_reg (GumArm64Relocator * self,
   arm64_reg attempts[3 * G_N_ELEMENTS (gum_scratch_reg_candidates)];
   guint num_attempts, i;
 
-  gum_arm64_relocator_analyze_liveness (self, GUM_ADDRESS (address), &dead,
-      &live);
+  gum_arm64_relocator_analyze_liveness (self, pc, &dead, &live);
 
   if (requested_reg != ARM64_REG_INVALID)
   {
@@ -863,7 +867,6 @@ gum_arm64_relocator_analyze_liveness (GumArm64Relocator * self,
                                       guint64 * dead,
                                       guint64 * live)
 {
-  gssize code_offset = GPOINTER_TO_SIZE (self->input_cur) - self->input_pc;
   GumLivenessPath paths[GUM_MAX_LIVENESS_PATH_COUNT];
   guint num_paths, budget;
   guint64 unknown;
@@ -891,16 +894,16 @@ gum_arm64_relocator_analyze_liveness (GumArm64Relocator * self,
       guint64 read, written;
       gpointer target;
 
-      code = GSIZE_TO_POINTER (path.pc + code_offset);
-      size = 4;
-      address = path.pc;
-
-      if (budget == 0 || !gum_arm64_relocator_code_range_contains (self,
-            path.pc))
+      if (budget == 0)
         break;
       budget--;
 
-      gum_ensure_code_readable (code, 4);
+      size = 4;
+      code = gum_arm64_relocator_peek_code (self, path.pc, &size);
+      if (code == NULL)
+        break;
+      address = path.pc;
+
       if (!cs_disasm_iter (self->capstone, &code, &size, &address, insn))
         break;
 
@@ -1050,6 +1053,32 @@ gum_arm64_relocator_code_range_contains (GumArm64Relocator * self,
     return TRUE;
 
   return pc >= range->base_address && pc < range->base_address + range->size;
+}
+
+static const guint8 *
+gum_arm64_relocator_peek_code (GumArm64Relocator * self,
+                               GumAddress pc,
+                               size_t * size)
+{
+  const GumMemoryRange * range = &self->code_range;
+  const guint8 * code;
+
+  if (range->size != 0)
+  {
+    GumAddress end = range->base_address + range->size;
+
+    if (pc < range->base_address || pc >= end)
+      return NULL;
+
+    *size = MIN (*size, end - pc);
+  }
+
+  code = GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (self->input_cur) - self->input_pc + pc);
+
+  gum_ensure_code_readable (code, *size);
+
+  return code;
 }
 
 static guint64

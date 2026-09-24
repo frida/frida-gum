@@ -33,6 +33,7 @@ TESTLIST_BEGIN (arm64relocator)
   TESTENTRY (exits_may_use_different_regs)
   TESTENTRY (relocation_may_extend_to_avoid_jumping_back)
   TESTENTRY (ip_registers_are_dead_after_leaving_code_range)
+  TESTENTRY (code_not_at_its_runtime_address_can_be_checked)
   TESTENTRY (eob_and_eoi_on_br)
   TESTENTRY (eob_and_eoi_on_ret)
 TESTLIST_END ()
@@ -556,11 +557,35 @@ TESTCASE (ip_registers_are_dead_after_leaving_code_range)
   code_range.base_address = GUM_ADDRESS (input);
   code_range.size = sizeof (input);
 
-  g_assert_true (gum_arm64_relocator_can_relocate_within (input, 16,
-      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, &code_range, NULL,
-      &scratch_reg));
+  g_assert_true (gum_arm64_relocator_can_relocate_within (input,
+      GUM_ADDRESS (input), 16, GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED,
+      &code_range, NULL, &scratch_reg));
 
   g_assert_cmpint (scratch_reg, ==, ARM64_REG_X16);
+}
+
+TESTCASE (code_not_at_its_runtime_address_can_be_checked)
+{
+  const guint32 input[] = {
+    GUINT32_TO_LE (0xf9400010), /* ldr x16, [x0]  */
+    GUINT32_TO_LE (0xb4000050), /* cbz x16, #0xc  */
+    GUINT32_TO_LE (0xaa0003f1), /* mov x17, x0    */
+    GUINT32_TO_LE (0xd503201f), /* nop            */
+    GUINT32_TO_LE (0x14000400), /* b #0x1010      */
+    GUINT32_TO_LE (0xd65f03c0), /* ret            */
+  };
+  const GumAddress pc = G_GUINT64_CONSTANT (0xdead00000000);
+  GumMemoryRange code_range;
+  guint maximum;
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  code_range.base_address = pc;
+  code_range.size = sizeof (input);
+
+  g_assert_false (gum_arm64_relocator_can_relocate_within ((gpointer) input,
+      pc, 16, GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, &code_range,
+      &maximum, &scratch_reg));
+  g_assert_cmpuint (maximum, ==, 12);
 }
 
 TESTCASE (eob_and_eoi_on_br)

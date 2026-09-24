@@ -78,7 +78,8 @@ GUM_API gboolean gum_arm64_relocator_can_relocate (gpointer address,
     guint min_bytes, GumRelocationScenario scenario, GumRelocationPolicy policy,
     guint * maximum, arm64_reg * available_scratch_reg);
 GUM_API gboolean gum_arm64_relocator_can_relocate_within (gpointer address,
-    guint min_bytes, GumRelocationScenario scenario, GumRelocationPolicy policy,
+    GumAddress pc, guint min_bytes, GumRelocationScenario scenario,
+    GumRelocationPolicy policy,
     const GumMemoryRange * code_range, guint * maximum,
     arm64_reg * available_scratch_reg);
 GUM_API guint gum_arm64_relocator_relocate (gpointer from, guint min_bytes,

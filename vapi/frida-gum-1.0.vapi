@@ -2538,7 +2538,8 @@ namespace Gum {
 		public bool write_one ();
 		public void write_all ();
 
-		public static bool can_relocate (void * address, uint min_bytes, Gum.RelocationScenario scenario, out uint maximum = null, out Gum.Arm64Reg available_scratch_reg = null);
+		public static bool can_relocate (void * address, uint min_bytes, Gum.RelocationScenario scenario, Gum.RelocationPolicy policy, out uint maximum = null, out Gum.Arm64Reg available_scratch_reg = null);
+		public static bool can_relocate_within (void * address, Gum.Address pc, uint min_bytes, Gum.RelocationScenario scenario, Gum.RelocationPolicy policy, Gum.MemoryRange? code_range, out uint maximum = null, out Gum.Arm64Reg available_scratch_reg = null);
 		public static uint relocate (void * from, uint min_bytes, void * to);
 	}
 

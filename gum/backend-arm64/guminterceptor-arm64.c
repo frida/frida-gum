@@ -675,8 +675,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     scan_bytes = (ctx->redirect_space_hint != 0)
         ? ctx->redirect_space_hint
         : GUM_INTERCEPTOR_MAX_REDIRECT_SIZE;
-    gum_arm64_relocator_can_relocate_within (function_address, scan_bytes,
-        scenario, ctx->relocation_policy, code_range, &data->available_space,
+    gum_arm64_relocator_can_relocate_within (function_address,
+        GUM_ADDRESS (function_address), scan_bytes, scenario,
+        ctx->relocation_policy, code_range, &data->available_space,
         &data->scratch_reg);
     if (ctx->redirect_space_hint != 0 &&
         data->available_space > ctx->redirect_space_hint)
@@ -702,8 +703,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   }
 
   if (gum_arm64_relocator_can_relocate_within (function_address,
-        GUM_INTERCEPTOR_FULL_REDIRECT_SIZE, scenario, ctx->relocation_policy,
-        code_range, &redirect_limit, &data->scratch_reg))
+        GUM_ADDRESS (function_address), GUM_INTERCEPTOR_FULL_REDIRECT_SIZE,
+        scenario, ctx->relocation_policy, code_range, &redirect_limit,
+        &data->scratch_reg))
   {
     data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
 
