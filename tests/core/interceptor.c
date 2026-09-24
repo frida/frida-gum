@@ -12,8 +12,10 @@
 #include <setjmp.h>
 #ifdef HAVE_WINDOWS
 # include <windows.h>
-
-# define GUM_TEST_SEH_EXCEPTION_CODE 0xe0006d73
+# ifdef _MSC_VER
+#  define GUM_TEST_HAVE_SEH
+#  define GUM_TEST_SEH_EXCEPTION_CODE 0xe0006d73
+# endif
 #endif
 #if defined (HAVE_LINUX) && defined (__GLIBC__)
 # define GUM_TEST_HAVE_FIBERS
@@ -48,7 +50,7 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (attach_to_recursive_function)
   TESTENTRY (attach_to_special_function)
   TESTENTRY (longjmp_reaps_skipped_leave)
-#ifdef HAVE_WINDOWS
+#ifdef GUM_TEST_HAVE_SEH
   TESTENTRY (seh_exception_reaps_skipped_leave)
 #endif
 #ifdef GUM_TEST_HAVE_FIBERS
@@ -122,7 +124,7 @@ static GString * gum_test_unwind_log = NULL;
 static jmp_buf gum_test_longjmp_buf;
 static void gum_test_longjmp_outer (void);
 static void gum_test_longjmp_inner (void);
-#ifdef HAVE_WINDOWS
+#ifdef GUM_TEST_HAVE_SEH
 static gboolean gum_test_seh_unwinder_is_emulated (void);
 static void gum_test_seh_outer (void);
 static void gum_test_seh_inner (void);
@@ -230,7 +232,7 @@ gum_test_longjmp_inner (void)
   longjmp (gum_test_longjmp_buf, 1);
 }
 
-#ifdef HAVE_WINDOWS
+#ifdef GUM_TEST_HAVE_SEH
 
 TESTCASE (seh_exception_reaps_skipped_leave)
 {
