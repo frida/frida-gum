@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
@@ -1816,6 +1816,13 @@ gum_arm64_writer_put_pacia_reg_reg (GumArm64Writer * self,
       0xdac10000 | rd.index | (rm.index << 5));
 
   return TRUE;
+}
+
+void
+gum_arm64_writer_put_svc_imm (GumArm64Writer * self,
+                              guint16 imm)
+{
+  gum_arm64_writer_put_instruction (self, 0xd4000001 | (imm << 5));
 }
 
 void

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2017 Antonio Ken Iannillo <ak.iannillo@gmail.com>
  * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
@@ -239,6 +239,8 @@ GUM_API gboolean gum_arm64_writer_put_xpaci_reg (GumArm64Writer * self,
     arm64_reg reg);
 GUM_API gboolean gum_arm64_writer_put_pacia_reg_reg (GumArm64Writer * self,
     arm64_reg dst_reg, arm64_reg mod_reg);
+
+GUM_API void gum_arm64_writer_put_svc_imm (GumArm64Writer * self, guint16 imm);
 
 GUM_API void gum_arm64_writer_put_nop (GumArm64Writer * self);
 GUM_API void gum_arm64_writer_put_bti (GumArm64Writer * self);

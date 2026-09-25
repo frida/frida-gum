@@ -2498,6 +2498,8 @@ namespace Gum {
 
 		public bool put_xpaci_reg (Gum.Arm64Reg reg);
 
+		public void put_svc_imm (uint16 imm);
+
 		public void put_nop ();
 		public void put_brk_imm (uint16 imm);
 
