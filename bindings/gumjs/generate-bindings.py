@@ -2598,6 +2598,13 @@ def generate_class_type_definitions(name, arch, flavor, api):
                 description = "Puts an int8"
             elif method.name == "put_bytes":
                 description = "Puts raw data"
+            elif arch == "arm64" and method.name == "put_jmp_reg":
+                description = """Puts code needed for jumping to the address in `reg`, emitting RET
+     * rather than BR so a BTI-guarded target needs no landing pad. Emits
+     * BR on arm64e, which doesn't guard pages this way"""
+            elif arch == "arm64" and method.name == "put_jmp_reg_no_auth":
+                description = """Like `putJmpReg()`, but expecting a raw pointer without any
+     * authentication bits"""
             elif method.name.endswith("no_auth"):
                 opcode = method.name.split("_")[1].upper()
                 description = """Puts {0} instruction expecting a raw pointer without
@@ -2880,6 +2887,13 @@ def generate_class_api_reference(name, arch, flavor, api):
                 description = "put an int8"
             elif method.name == "put_bytes":
                 description = "put raw data from the provided ArrayBuffer"
+            elif arch == "arm64" and method.name == "put_jmp_reg":
+                description = """put code needed for jumping to the address in
+    `reg`, emitting RET rather than BR so a BTI-guarded target needs no landing
+    pad. Emits BR on arm64e, which doesn't guard pages this way."""
+            elif arch == "arm64" and method.name == "put_jmp_reg_no_auth":
+                description = """like `putJmpReg()`, but expecting a raw pointer
+    without any authentication bits"""
             elif method.name.endswith("no_auth"):
                 opcode = method.name.split("_")[1].upper()
                 description = """put {0} instruction expecting a raw pointer
