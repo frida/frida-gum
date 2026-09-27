@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -18,7 +18,7 @@ TESTLIST_BEGIN (api_resolver)
 #ifdef HAVE_DARWIN
   TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
   TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
-  TESTENTRY (swift_method_can_be_resolved)
+  TESTENTRY (swift_functions_in_libswiftcore_can_be_resolved)
 #endif
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
@@ -199,8 +199,6 @@ match_found_cb (const GumApiDetails * details,
 
 static gboolean resolve_method_impl (const GumApiDetails * details,
     gpointer user_data);
-static gboolean accumulate_matches (const GumApiDetails * details,
-    gpointer user_data);
 
 TESTCASE (objc_method_can_be_resolved_from_class_method_address)
 {
@@ -256,28 +254,32 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
   g_free (method);
 }
 
-TESTCASE (swift_method_can_be_resolved)
+TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
 {
-  guint num_matches;
+  void * swift_core;
+  GumAddress expected_address, address;
   GError * error = NULL;
 
+  swift_core = dlopen ("/usr/lib/swift/libswiftCore.dylib",
+      RTLD_LAZY | RTLD_GLOBAL);
+  g_assert_nonnull (swift_core);
+
+  expected_address =
+      GUM_ADDRESS (dlsym (swift_core, "$sSS9hasPrefixySbSSF"));
+  g_assert_cmpuint (expected_address, !=, 0);
+
   fixture->resolver = gum_api_resolver_make ("swift");
+  g_assert_nonnull (fixture->resolver);
 
-  num_matches = 0;
+  address = 0;
   gum_api_resolver_enumerate_matches (fixture->resolver,
-      "functions:*!*", accumulate_matches, &num_matches, &error);
-  if (g_error_matches (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED))
-    goto not_supported;
+      "functions:*libswiftCore*!Swift.String.hasPrefix(Swift.String)*",
+      resolve_method_impl, &address, &error);
   g_assert_no_error (error);
+  g_assert_cmphex (gum_strip_code_address (address), ==,
+      gum_strip_code_address (expected_address));
 
-  return;
-
-not_supported:
-  {
-    g_print ("<skipping, not available> ");
-
-    g_error_free (error);
-  }
+  dlclose (swift_core);
 }
 
 static gboolean
@@ -289,17 +291,6 @@ resolve_method_impl (const GumApiDetails * details,
   *address = details->address;
 
   return FALSE;
-}
-
-static gboolean
-accumulate_matches (const GumApiDetails * details,
-                    gpointer user_data)
-{
-  guint * total = user_data;
-
-  (*total)++;
-
-  return TRUE;
 }
 
 #endif

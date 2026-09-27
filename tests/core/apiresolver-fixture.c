@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -15,6 +16,9 @@
 #endif
 
 #include <string.h>
+#ifdef HAVE_DARWIN
+# include <dlfcn.h>
+#endif
 
 #define TESTCASE(NAME) \
     void test_api_resolver_ ## NAME ( \
