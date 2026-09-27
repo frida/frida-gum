@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -53,8 +53,10 @@
 
 typedef struct _GumModuleMetadata GumModuleMetadata;
 typedef struct _GumFunctionMetadata GumFunctionMetadata;
-typedef gsize (* GumSwiftDemangle) (const gchar * name, gchar * output,
-    gsize length);
+typedef gchar * (* GumSwiftDemangle) (const gchar * mangled_name,
+    gsize mangled_name_length, gchar * output_buffer,
+    gsize * output_buffer_size, guint32 flags);
+typedef void (* GumLibcFreeFunc) (gpointer mem);
 
 typedef struct _GumClass GumClass;
 
@@ -357,6 +359,7 @@ static gconstpointer gum_resolve_relative_indirect_ptr (
 static gconstpointer gum_resolve_relative_indirectable_ptr (
     const GumRelativeIndirectablePtr * delta);
 
+static gboolean gum_ensure_demangler (void);
 static gchar * gum_demangle (const gchar * name);
 
 G_DEFINE_TYPE_EXTENDED (GumSwiftApiResolver,
@@ -367,6 +370,7 @@ G_DEFINE_TYPE_EXTENDED (GumSwiftApiResolver,
                             gum_swift_api_resolver_iface_init))
 
 static GumSwiftDemangle gum_demangle_impl;
+static GumLibcFreeFunc gum_libc_free;
 
 static void
 gum_swift_api_resolver_class_init (GumSwiftApiResolverClass * klass)
@@ -375,10 +379,6 @@ gum_swift_api_resolver_class_init (GumSwiftApiResolverClass * klass)
 
   object_class->dispose = gum_swift_api_resolver_dispose;
   object_class->finalize = gum_swift_api_resolver_finalize;
-
-  gum_demangle_impl = GUM_POINTER_TO_FUNCPTR (GumSwiftDemangle,
-      gum_module_find_global_export_by_name (
-        "swift_demangle_getDemangledName"));
 }
 
 static void
@@ -488,7 +488,7 @@ gum_swift_api_resolver_enumerate_matches (GumApiResolver * resolver,
   gboolean carry_on;
   GumModuleMetadata * module;
 
-  if (gum_demangle_impl == NULL)
+  if (!gum_ensure_demangler ())
     goto unsupported_runtime;
 
   g_regex_match (self->query_pattern, query, 0, &query_info);
@@ -1386,23 +1386,43 @@ gum_resolve_relative_indirectable_ptr (const GumRelativeIndirectablePtr * delta)
   return gum_strip_code_pointer ((gpointer) *target);
 }
 
+static gboolean
+gum_ensure_demangler (void)
+{
+  GumModule * swift_core, * libsystem_malloc;
+
+  if (gum_demangle_impl != NULL)
+    return TRUE;
+
+  swift_core = gum_process_find_module_by_name ("libswiftCore.dylib");
+  if (swift_core == NULL)
+    return FALSE;
+
+  libsystem_malloc = gum_process_find_module_by_name (
+      "/usr/lib/system/libsystem_malloc.dylib");
+  gum_libc_free = GUM_POINTER_TO_FUNCPTR (GumLibcFreeFunc,
+      gum_module_find_export_by_name (libsystem_malloc, "free"));
+  g_object_unref (libsystem_malloc);
+
+  gum_demangle_impl = GUM_POINTER_TO_FUNCPTR (GumSwiftDemangle,
+      gum_module_find_export_by_name (swift_core, "swift_demangle"));
+
+  g_object_unref (swift_core);
+
+  return gum_demangle_impl != NULL;
+}
+
 static gchar *
 gum_demangle (const gchar * name)
 {
-  gchar buf[512];
-  gsize n, capacity;
-  gchar * dbuf;
+  gchar * raw, * result;
 
-  n = gum_demangle_impl (name, buf, sizeof (buf));
-  if (n == 0)
+  raw = gum_demangle_impl (name, strlen (name), NULL, NULL, 0);
+  if (raw == NULL)
     return NULL;
 
-  if (n < sizeof (buf))
-    return g_strdup (buf);
+  result = g_strdup (raw);
+  gum_libc_free (raw);
 
-  capacity = n + 1;
-  dbuf = g_malloc (capacity);
-  gum_demangle_impl (name, dbuf, capacity);
-
-  return dbuf;
+  return result;
 }
