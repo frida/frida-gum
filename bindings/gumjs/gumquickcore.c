@@ -3583,28 +3583,32 @@ gumjs_native_pointer_handle_read (JSContext * ctx,
   gpointer address;
   GumExceptor * exceptor = core->exceptor;
   gssize length = -1;
+  gssize offset = 0;
   GumExceptorScope scope;
 
   if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
-  address = self->value;
 
   switch (type)
   {
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      if (!_gum_quick_args_parse (args, "Z", &length))
+      if (!_gum_quick_args_parse (args, "Z|z", &length, &offset))
         return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_C_STRING:
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      if (!_gum_quick_args_parse (args, "|z", &length))
+      if (!_gum_quick_args_parse (args, "|zz", &length, &offset))
         return JS_EXCEPTION;
       break;
     default:
+      if (!_gum_quick_args_parse (args, "|z", &offset))
+        return JS_EXCEPTION;
       break;
   }
+
+  address = (guint8 *) self->value + offset;
 
   if (gum_exceptor_try (exceptor, &scope))
   {
@@ -3816,53 +3820,53 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
 #ifdef HAVE_WINDOWS
   gchar * str_ansi = NULL;
 #endif
+  gssize offset = 0;
   GumExceptorScope scope;
 
   if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
-  address = self->value;
 
   switch (type)
   {
     case GUM_MEMORY_VALUE_POINTER:
-      if (!_gum_quick_args_parse (args, "p", &pointer))
+      if (!_gum_quick_args_parse (args, "p|z", &pointer, &offset))
         return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_S8:
     case GUM_MEMORY_VALUE_S16:
     case GUM_MEMORY_VALUE_S32:
-      if (!_gum_quick_args_parse (args, "z", &s))
+      if (!_gum_quick_args_parse (args, "z|z", &s, &offset))
         return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_U8:
     case GUM_MEMORY_VALUE_U16:
     case GUM_MEMORY_VALUE_U32:
-      if (!_gum_quick_args_parse (args, "Z", &u))
+      if (!_gum_quick_args_parse (args, "Z|z", &u, &offset))
         return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_S64:
     case GUM_MEMORY_VALUE_LONG:
-      if (!_gum_quick_args_parse (args, "q", &s64))
+      if (!_gum_quick_args_parse (args, "q|z", &s64, &offset))
         return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_U64:
     case GUM_MEMORY_VALUE_ULONG:
-      if (!_gum_quick_args_parse (args, "Q", &u64))
+      if (!_gum_quick_args_parse (args, "Q|z", &u64, &offset))
         return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_FLOAT:
     case GUM_MEMORY_VALUE_DOUBLE:
-      if (!_gum_quick_args_parse (args, "n", &number))
+      if (!_gum_quick_args_parse (args, "n|z", &number, &offset))
         return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      if (!_gum_quick_args_parse (args, "B", &bytes))
+      if (!_gum_quick_args_parse (args, "B|z", &bytes, &offset))
         return JS_EXCEPTION;
       break;
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      if (!_gum_quick_args_parse (args, "s", &str))
+      if (!_gum_quick_args_parse (args, "s|z", &str, &offset))
         return JS_EXCEPTION;
 
       str_length = g_utf8_strlen (str, -1);
@@ -3876,6 +3880,8 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
     default:
       g_assert_not_reached ();
   }
+
+  address = (guint8 *) self->value + offset;
 
   if (gum_exceptor_try (exceptor, &scope))
   {
@@ -3979,16 +3985,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_read_volatile)
 {
   GumQuickNativePointer * self;
   gsize length;
+  gssize offset = 0;
   gsize n_bytes_read;
   guint8 * data;
 
   if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  if (!_gum_quick_args_parse (args, "z", &length))
+  if (!_gum_quick_args_parse (args, "z|z", &length, &offset))
     return JS_EXCEPTION;
 
-  data = gum_memory_read (self->value, length, &n_bytes_read);
+  data = gum_memory_read ((guint8 *) self->value + offset, length,
+      &n_bytes_read);
   if (data == NULL)
     return _gum_quick_throw_literal (ctx, "memory read failed");
 
@@ -4001,18 +4009,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_write_volatile)
   JSValue result;
   GumQuickNativePointer * self;
   GBytes * bytes = NULL;
+  gssize offset = 0;
   gconstpointer data;
   gsize size;
 
   if (!_gum_quick_native_pointer_unwrap (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  if (!_gum_quick_args_parse (args, "B", &bytes))
+  if (!_gum_quick_args_parse (args, "B|z", &bytes, &offset))
     goto propagate_exception;
 
   data = g_bytes_get_data (bytes, &size);
 
-  if (!gum_memory_write (self->value, data, size))
+  if (!gum_memory_write ((guint8 *) self->value + offset, data, size))
     goto write_failed;
 
   result = JS_UNDEFINED;

@@ -2611,6 +2611,7 @@ gumjs_native_pointer_handle_read (const FunctionCallbackInfo<Value> & info,
   auto exceptor = core->exceptor;
   gpointer address = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
   gssize length = -1;
+  gssize offset = 0;
   GumExceptorScope scope;
   Local<Value> result;
   std::shared_ptr<BackingStore> store;
@@ -2618,19 +2619,23 @@ gumjs_native_pointer_handle_read (const FunctionCallbackInfo<Value> & info,
   switch (type)
   {
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      if (!_gum_v8_args_parse (args, "Z", &length))
+      if (!_gum_v8_args_parse (args, "Z|z", &length, &offset))
         return;
       break;
     case GUM_MEMORY_VALUE_C_STRING:
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      if (!_gum_v8_args_parse (args, "|z", &length))
+      if (!_gum_v8_args_parse (args, "|zz", &length, &offset))
         return;
       break;
     default:
+      if (!_gum_v8_args_parse (args, "|z", &offset))
+        return;
       break;
   }
+
+  address = (guint8 *) address + offset;
 
   if (gum_exceptor_try (exceptor, &scope))
   {
@@ -2860,6 +2865,7 @@ gumjs_native_pointer_handle_write (const FunctionCallbackInfo<Value> & info,
 #ifdef HAVE_WINDOWS
   gchar * str_ansi = NULL;
 #endif
+  gssize offset = 0;
   auto core = args->core;
   auto exceptor = core->exceptor;
   GumExceptorScope scope;
@@ -2867,44 +2873,44 @@ gumjs_native_pointer_handle_write (const FunctionCallbackInfo<Value> & info,
   switch (type)
   {
     case GUM_MEMORY_VALUE_POINTER:
-      if (!_gum_v8_args_parse (args, "p", &pointer))
+      if (!_gum_v8_args_parse (args, "p|z", &pointer, &offset))
         return;
       break;
     case GUM_MEMORY_VALUE_S8:
     case GUM_MEMORY_VALUE_S16:
     case GUM_MEMORY_VALUE_S32:
-      if (!_gum_v8_args_parse (args, "z", &s))
+      if (!_gum_v8_args_parse (args, "z|z", &s, &offset))
         return;
       break;
     case GUM_MEMORY_VALUE_U8:
     case GUM_MEMORY_VALUE_U16:
     case GUM_MEMORY_VALUE_U32:
-      if (!_gum_v8_args_parse (args, "Z", &u))
+      if (!_gum_v8_args_parse (args, "Z|z", &u, &offset))
         return;
       break;
     case GUM_MEMORY_VALUE_S64:
     case GUM_MEMORY_VALUE_LONG:
-      if (!_gum_v8_args_parse (args, "q", &s64))
+      if (!_gum_v8_args_parse (args, "q|z", &s64, &offset))
         return;
       break;
     case GUM_MEMORY_VALUE_U64:
     case GUM_MEMORY_VALUE_ULONG:
-      if (!_gum_v8_args_parse (args, "Q", &u64))
+      if (!_gum_v8_args_parse (args, "Q|z", &u64, &offset))
         return;
       break;
     case GUM_MEMORY_VALUE_FLOAT:
     case GUM_MEMORY_VALUE_DOUBLE:
-      if (!_gum_v8_args_parse (args, "n", &number))
+      if (!_gum_v8_args_parse (args, "n|z", &number, &offset))
         return;
       break;
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      if (!_gum_v8_args_parse (args, "B", &bytes))
+      if (!_gum_v8_args_parse (args, "B|z", &bytes, &offset))
         return;
       break;
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      if (!_gum_v8_args_parse (args, "s", &str))
+      if (!_gum_v8_args_parse (args, "s|z", &str, &offset))
         return;
 
       str_length = g_utf8_strlen (str, -1);
@@ -2918,6 +2924,8 @@ gumjs_native_pointer_handle_write (const FunctionCallbackInfo<Value> & info,
     default:
       g_assert_not_reached ();
   }
+
+  address = (guint8 *) address + offset;
 
   if (gum_exceptor_try (exceptor, &scope))
   {
@@ -3016,11 +3024,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_read_volatile)
   gpointer address = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
 
   gsize length;
-  if (!_gum_v8_args_parse (args, "z", &length))
+  gssize offset = 0;
+  if (!_gum_v8_args_parse (args, "z|z", &length, &offset))
     return;
 
   gsize n_bytes_read;
-  guint8 * data = gum_memory_read (address, length, &n_bytes_read);
+  guint8 * data = gum_memory_read ((guint8 *) address + offset, length,
+      &n_bytes_read);
   if (data == NULL)
   {
     _gum_v8_throw_ascii_literal (isolate, "memory read failed");
@@ -3039,13 +3049,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_write_volatile)
   gpointer address = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
 
   GBytes * bytes;
-  if (!_gum_v8_args_parse (args, "B", &bytes))
+  gssize offset = 0;
+  if (!_gum_v8_args_parse (args, "B|z", &bytes, &offset))
     return;
 
   gsize size;
   auto data = g_bytes_get_data (bytes, &size);
 
-  if (!gum_memory_write (address, (const guint8 *) data, size))
+  if (!gum_memory_write ((guint8 *) address + offset, (const guint8 *) data,
+      size))
     _gum_v8_throw_ascii_literal (isolate, "memory write failed");
 }
 
