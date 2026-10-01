@@ -17,6 +17,7 @@
 #define GUM_MAX_LIVENESS_INSN_COUNT (64)
 #define GUM_MAX_LIVENESS_PATH_COUNT (8)
 #define GUM_MAX_RESUME_EXTENSION_INSN_COUNT (16)
+#define GUM_MAX_REACHABILITY_SCAN_SIZE (1024)
 
 #define GUM_GPR_BIT(n) (G_GUINT64_CONSTANT (1) << (n))
 #define GUM_GPR_RANGE(first, last) \
@@ -511,17 +512,18 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
 
   if (policy == GUM_RELOCATION_CHECKED && !rl.eoi)
   {
-    GHashTable * checked_targets, * targets_to_check;
+    GHashTable * known_targets, * targets_to_check;
     csh capstone;
     cs_insn * insn;
     GumAddress current_pc;
+    gsize scan_budget;
     gboolean have_pc;
     gpointer target;
     GHashTableIter iter;
     guint insn_index;
     guint num_insns;
 
-    checked_targets = g_hash_table_new (NULL, NULL);
+    known_targets = g_hash_table_new (NULL, NULL);
     targets_to_check = g_hash_table_new (NULL, NULL);
 
     /*
@@ -553,7 +555,10 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
       if (offset > 0 && offset < (gssize) n)
         n = (guint) offset;
       else if (offset >= (gssize) n)
+      {
+        g_hash_table_add (known_targets, target);
         g_hash_table_add (targets_to_check, target);
+      }
     }
 
     /*
@@ -570,6 +575,8 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
 
     insn = cs_malloc (capstone);
     current_pc = rl.input_pc;
+    g_hash_table_add (known_targets, GSIZE_TO_POINTER (current_pc));
+    scan_budget = GUM_MAX_REACHABILITY_SCAN_SIZE;
 
     do
     {
@@ -578,9 +585,7 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
       uint64_t current_address;
       gboolean carry_on = TRUE;
 
-      g_hash_table_add (checked_targets, GSIZE_TO_POINTER (current_pc));
-
-      current_code_size = 1024;
+      current_code_size = scan_budget;
       current_code = gum_arm64_relocator_peek_code (&rl, current_pc,
           &current_code_size);
       current_address = current_pc;
@@ -597,7 +602,7 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
           {
             target = gum_arm64_relocator_extract_branch_target (insn);
             g_assert (target != NULL);
-            if (!g_hash_table_contains (checked_targets, target))
+            if (g_hash_table_add (known_targets, target))
               g_hash_table_add (targets_to_check, target);
 
             carry_on = d->cc != ARM64_CC_INVALID && d->cc != ARM64_CC_AL &&
@@ -612,7 +617,7 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
           {
             target = gum_arm64_relocator_extract_branch_target (insn);
             g_assert (target != NULL);
-            if (!g_hash_table_contains (checked_targets, target))
+            if (g_hash_table_add (known_targets, target))
               g_hash_table_add (targets_to_check, target);
 
             break;
@@ -638,6 +643,8 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
         }
       }
 
+      scan_budget -= current_address - current_pc;
+
       g_hash_table_iter_init (&iter, targets_to_check);
       have_pc = g_hash_table_iter_next (&iter, &target, NULL);
       if (have_pc)
@@ -646,9 +653,9 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
         g_hash_table_iter_remove (&iter);
       }
     }
-    while (have_pc);
+    while (have_pc && scan_budget != 0);
 
-    g_hash_table_iter_init (&iter, checked_targets);
+    g_hash_table_iter_init (&iter, known_targets);
     while (g_hash_table_iter_next (&iter, &target, NULL))
     {
       gssize offset = (gssize) (GUM_ADDRESS (target) - pc);
@@ -665,7 +672,7 @@ gum_arm64_relocator_can_relocate_within (gpointer address,
     cs_close (&capstone);
 
     g_hash_table_unref (targets_to_check);
-    g_hash_table_unref (checked_targets);
+    g_hash_table_unref (known_targets);
   }
 
   if (available_scratch_reg != NULL)
