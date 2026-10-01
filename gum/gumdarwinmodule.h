@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -609,6 +610,9 @@ GUM_API gboolean gum_darwin_module_get_lacks_exports_for_reexports (
 GUM_API void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
     GumFoundImportFunc func, GumResolveExportFunc resolver, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_exports (GumDarwinModule * self,
+    GumFoundDarwinExportFunc func, gpointer user_data);
+GUM_API void gum_darwin_module_enumerate_exports_with_prefix (
+    GumDarwinModule * self, const gchar * prefix,
     GumFoundDarwinExportFunc func, gpointer user_data);
 GUM_API void gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
     GumFoundDarwinSymbolFunc func, gpointer user_data);

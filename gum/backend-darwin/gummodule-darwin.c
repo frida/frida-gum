@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022-2023 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -92,6 +93,12 @@ static GumAddress gum_resolve_export (const char * module_name,
     const char * symbol_name, gpointer user_data);
 static void gum_native_module_enumerate_exports (GumModule * module,
     GumFoundExportFunc func, gpointer user_data);
+static void gum_native_module_enumerate_exports_with_prefix (
+    GumModule * module, const gchar * prefix, GumFoundExportFunc func,
+    gpointer user_data);
+static void gum_enumerate_exports_with_prefix (
+    GumEnumerateExportsContext * ctx, const gchar * darwin_prefix,
+    const gchar * prefix);
 static gboolean gum_emit_export (const GumDarwinExportDetails * details,
     gpointer user_data);
 static void gum_native_module_enumerate_symbols (GumModule * module,
@@ -141,6 +148,8 @@ gum_native_module_iface_init (gpointer g_iface,
   iface->ensure_initialized = gum_native_module_ensure_initialized;
   iface->enumerate_imports = gum_native_module_enumerate_imports;
   iface->enumerate_exports = gum_native_module_enumerate_exports;
+  iface->enumerate_exports_with_prefix =
+      gum_native_module_enumerate_exports_with_prefix;
   iface->enumerate_symbols = gum_native_module_enumerate_symbols;
   iface->enumerate_ranges = gum_native_module_enumerate_ranges;
   iface->enumerate_sections = gum_native_module_enumerate_sections;
@@ -489,6 +498,74 @@ gum_native_module_enumerate_exports (GumModule * module,
       }
     }
   }
+}
+
+static void
+gum_native_module_enumerate_exports_with_prefix (GumModule * module,
+                                                 const gchar * prefix,
+                                                 GumFoundExportFunc func,
+                                                 gpointer user_data)
+{
+  GumNativeModule * self;
+  GumEnumerateExportsContext ctx;
+  gchar * darwin_prefix;
+
+  self = GUM_NATIVE_MODULE (module);
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  ctx.resolver = self->resolver;
+  ctx.module = _gum_native_module_get_darwin_module (self);
+  ctx.carry_on = TRUE;
+  if (ctx.module == NULL)
+    return;
+
+  darwin_prefix = g_strconcat ("_", prefix, NULL);
+
+  gum_enumerate_exports_with_prefix (&ctx, darwin_prefix, prefix);
+
+  if (ctx.carry_on &&
+      gum_darwin_module_get_lacks_exports_for_reexports (ctx.module))
+  {
+    GPtrArray * reexports = ctx.module->reexports;
+    guint i;
+
+    for (i = 0; ctx.carry_on && i != reexports->len; i++)
+    {
+      GumDarwinModule * reexport;
+
+      reexport = gum_darwin_module_resolver_find_module_by_name (ctx.resolver,
+          g_ptr_array_index (reexports, i));
+      if (reexport != NULL)
+      {
+        ctx.module = reexport;
+        gum_enumerate_exports_with_prefix (&ctx, darwin_prefix, prefix);
+
+        g_object_unref (reexport);
+      }
+    }
+  }
+
+  g_free (darwin_prefix);
+}
+
+/*
+ * Names are reported without their leading underscore, which most but not all
+ * Darwin symbols carry, so both spellings of the prefix are looked up.
+ */
+static void
+gum_enumerate_exports_with_prefix (GumEnumerateExportsContext * ctx,
+                                   const gchar * darwin_prefix,
+                                   const gchar * prefix)
+{
+  gum_darwin_module_enumerate_exports_with_prefix (ctx->module, darwin_prefix,
+      gum_emit_export, ctx);
+  if (!ctx->carry_on)
+    return;
+
+  gum_darwin_module_enumerate_exports_with_prefix (ctx->module, prefix,
+      gum_emit_export, ctx);
 }
 
 static gboolean

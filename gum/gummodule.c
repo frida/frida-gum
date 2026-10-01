@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,7 +9,16 @@
 
 #include <string.h>
 
+typedef struct _GumEmitExportWithPrefixContext
+    GumEmitExportWithPrefixContext;
 typedef struct _GumSymbolEntry GumSymbolEntry;
+
+struct _GumEmitExportWithPrefixContext
+{
+  const gchar * prefix;
+  GumFoundExportFunc func;
+  gpointer user_data;
+};
 
 struct _GumSymbolEntry
 {
@@ -16,6 +26,8 @@ struct _GumSymbolEntry
   GumAddress address;
 };
 
+static gboolean gum_emit_export_with_prefix (const GumExportDetails * details,
+    gpointer user_data);
 static gboolean gum_store_symbol (const GumSymbolDetails * details,
     gpointer user_data);
 static gint gum_symbol_entry_compare (const GumSymbolEntry * lhs,
@@ -272,6 +284,54 @@ gum_module_enumerate_exports (GumModule * self,
 
   if (iface->enumerate_exports != NULL)
     iface->enumerate_exports (self, func, user_data);
+}
+
+/**
+ * gum_module_enumerate_exports_with_prefix:
+ * @self: module
+ * @prefix: name prefix that exports must start with
+ * @func: (scope call): function called with #GumExportDetails
+ * @user_data: data to pass to @func
+ *
+ * Enumerates the module's exports whose names start with @prefix, calling
+ * @func for each one. Enumeration stops if @func returns %FALSE. A backend
+ * whose export table is organized by name walks only the matching part of it,
+ * which is cheaper than enumerating everything and filtering.
+ */
+void
+gum_module_enumerate_exports_with_prefix (GumModule * self,
+                                          const gchar * prefix,
+                                          GumFoundExportFunc func,
+                                          gpointer user_data)
+{
+  GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (iface->enumerate_exports_with_prefix != NULL)
+  {
+    iface->enumerate_exports_with_prefix (self, prefix, func, user_data);
+  }
+  else
+  {
+    GumEmitExportWithPrefixContext ctx;
+
+    ctx.prefix = prefix;
+    ctx.func = func;
+    ctx.user_data = user_data;
+
+    gum_module_enumerate_exports (self, gum_emit_export_with_prefix, &ctx);
+  }
+}
+
+static gboolean
+gum_emit_export_with_prefix (const GumExportDetails * details,
+                             gpointer user_data)
+{
+  GumEmitExportWithPrefixContext * ctx = user_data;
+
+  if (!g_str_has_prefix (details->name, ctx->prefix))
+    return TRUE;
+
+  return ctx->func (details, ctx->user_data);
 }
 
 /**

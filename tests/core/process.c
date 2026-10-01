@@ -4,6 +4,7 @@
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  * Copyright (C) 2025 William Tan <1284324+Ninja3047@users.noreply.github.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -47,6 +48,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (module_imports)
   TESTENTRY (module_import_slot_should_contain_correct_value)
   TESTENTRY (module_exports)
+  TESTENTRY (module_exports_with_prefix)
   TESTENTRY (module_symbols)
   TESTENTRY (module_ranges_can_be_enumerated)
   TESTENTRY (module_sections_can_be_enumerated)
@@ -161,6 +163,8 @@ G_GNUC_UNUSED static gboolean thread_collect_if_matching_id (
     const GumThreadDetails * details, gpointer user_data);
 static gboolean module_found_cb (GumModule * module, gpointer user_data);
 static gboolean import_found_cb (const GumImportDetails * details,
+    gpointer user_data);
+static gboolean collect_export (const GumExportDetails * details,
     gpointer user_data);
 static gboolean export_found_cb (const GumExportDetails * details,
     gpointer user_data);
@@ -849,6 +853,53 @@ TESTCASE (module_exports)
   g_object_unref (module);
 }
 
+TESTCASE (module_exports_with_prefix)
+{
+  GumModule * module;
+  GHashTable * all, * with_prefix;
+  GHashTableIter iter;
+  const gchar * name;
+  GumAddress * address;
+  gchar * prefix;
+  guint expected = 0;
+
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+  g_assert_nonnull (module);
+
+  all = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  gum_module_enumerate_exports (module, collect_export, all);
+  g_assert_cmpuint (g_hash_table_size (all), >, 1);
+
+  g_hash_table_iter_init (&iter, all);
+  g_hash_table_iter_next (&iter, (gpointer *) &name, NULL);
+  prefix = g_strndup (name, 2);
+
+  with_prefix = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  gum_module_enumerate_exports_with_prefix (module, prefix, collect_export,
+      with_prefix);
+
+  g_hash_table_iter_init (&iter, all);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &name,
+      (gpointer *) &address))
+  {
+    GumAddress * found;
+
+    if (!g_str_has_prefix (name, prefix))
+      continue;
+    expected++;
+
+    found = g_hash_table_lookup (with_prefix, name);
+    g_assert_nonnull (found);
+    g_assert_cmphex (*found, ==, *address);
+  }
+  g_assert_cmpuint (g_hash_table_size (with_prefix), ==, expected);
+
+  g_hash_table_unref (with_prefix);
+  g_free (prefix);
+  g_hash_table_unref (all);
+  g_object_unref (module);
+}
+
 TESTCASE (module_symbols)
 {
   GumModule * module;
@@ -1359,6 +1410,18 @@ import_found_cb (const GumImportDetails * details,
     g_assert_cmpint (details->type, ==, GUM_IMPORT_FUNCTION);
 
   return ctx->value_to_return;
+}
+
+static gboolean
+collect_export (const GumExportDetails * details,
+                gpointer user_data)
+{
+  GHashTable * exports = user_data;
+
+  g_hash_table_insert (exports, g_strdup (details->name),
+      g_memdup2 (&details->address, sizeof (GumAddress)));
+
+  return TRUE;
 }
 
 static gboolean
