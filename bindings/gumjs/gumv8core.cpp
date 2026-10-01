@@ -3058,7 +3058,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_write_volatile)
 
   if (!gum_memory_write ((guint8 *) address + offset, (const guint8 *) data,
       size))
+  {
     _gum_v8_throw_ascii_literal (isolate, "memory write failed");
+    return;
+  }
+
+  info.GetReturnValue ().Set (info.This ());
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_array_buffer_wrap)

@@ -4024,7 +4024,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_write_volatile)
   if (!gum_memory_write ((guint8 *) self->value + offset, data, size))
     goto write_failed;
 
-  result = JS_UNDEFINED;
+  result = JS_DupValue (ctx, this_val);
   goto beach;
 
 write_failed:

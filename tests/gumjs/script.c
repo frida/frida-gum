@@ -3460,8 +3460,8 @@ TESTCASE (memory_can_be_written_at_offset)
       "record"
       "    .writeU16(2, 2)"
       "    .writeU32(120123, 4)"
-      "    .writeUtf8String('abc', 8);"
-      "record.writeVolatile([0x64], 10);",
+      "    .writeUtf8String('abc', 8)"
+      "    .writeVolatile([0x64], 10);",
       &record);
   g_assert_cmpuint (record.kind, ==, 0);
   g_assert_cmpuint (record.count, ==, 2);
