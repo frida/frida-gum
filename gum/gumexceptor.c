@@ -414,10 +414,6 @@ _gum_exceptor_prepare_try (GumExceptor * self,
   thread_id_key = GSIZE_TO_POINTER (gum_process_get_current_thread_id ());
 
   scope->exception_occurred = FALSE;
-#ifdef HAVE_ANDROID
-  /* Workaround for Bionic bug up to and including Android L */
-  sigprocmask (SIG_SETMASK, NULL, &scope->mask);
-#endif
 
   GUM_EXCEPTOR_LOCK ();
   scope->next = g_hash_table_lookup (self->scopes, thread_id_key);
@@ -661,9 +657,6 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 static void
 gum_exceptor_scope_perform_longjmp (GumExceptorScope * self)
 {
-#ifdef HAVE_ANDROID
-  sigprocmask (SIG_SETMASK, &self->mask, NULL);
-#endif
 #if defined (G_OS_WIN32) && defined (HAVE_ARM64)
   gum_exceptor_scope_restore_context (self);
 #else

@@ -25,12 +25,12 @@ typedef enum {
 
 #if defined (GUM_GIR_COMPILATION)
   typedef int GumExceptorNativeJmpBuf;
-#elif defined (G_OS_WIN32) || defined (G_OS_NONE) || defined (__APPLE__)
+#elif defined (G_OS_WIN32) || defined (G_OS_NONE)
 # define GUM_NATIVE_SETJMP(env) setjmp (env)
 # define GUM_NATIVE_LONGJMP longjmp
   typedef jmp_buf GumExceptorNativeJmpBuf;
 #else
-# define GUM_NATIVE_SETJMP(env) sigsetjmp (env, TRUE)
+# define GUM_NATIVE_SETJMP(env) sigsetjmp (env, FALSE)
 # define GUM_NATIVE_LONGJMP siglongjmp
   typedef sigjmp_buf GumExceptorNativeJmpBuf;
 #endif
@@ -80,9 +80,6 @@ struct _GumExceptorScope
   gboolean exception_occurred;
   gpointer padding[2];
   GumExceptorNativeJmpBuf env;
-#ifdef __ANDROID__
-  sigset_t mask;
-#endif
 
   GumExceptorScope * next;
 };
