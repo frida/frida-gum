@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +24,7 @@
 
 typedef struct _GumModuleMetadata GumModuleMetadata;
 typedef struct _GumFunctionMetadata GumFunctionMetadata;
+typedef struct _GumEmitPrefixedExportContext GumEmitPrefixedExportContext;
 
 struct _GumModuleApiResolver
 {
@@ -52,12 +54,26 @@ struct _GumFunctionMetadata
   gchar * module;
 };
 
+struct _GumEmitPrefixedExportContext
+{
+  const gchar * module_path;
+  GumFoundApiFunc func;
+  gpointer user_data;
+  gboolean carry_on;
+};
+
 static void gum_module_api_resolver_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_module_api_resolver_finalize (GObject * object);
 static void gum_module_api_resolver_enumerate_matches (
     GumApiResolver * resolver, const gchar * query, GumFoundApiFunc func,
     gpointer user_data, GError ** error);
+
+static gboolean gum_is_prefix_pattern (const gchar * pattern);
+static gboolean gum_emit_prefixed_export (const GumExportDetails * details,
+    gpointer user_data);
+static gboolean gum_emit_api (const gchar * module_path, const gchar * name,
+    GumAddress address, GumFoundApiFunc func, gpointer user_data);
 
 static void gum_module_metadata_unref (GumModuleMetadata * module);
 static GHashTable * gum_module_metadata_get_imports (GumModuleMetadata * self);
@@ -174,6 +190,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   gboolean ignore_case;
   gchar * collection, * module_query, * item_query;
   gboolean no_patterns_in_item_query;
+  gchar * item_prefix = NULL;
   GPatternSpec * module_spec, * item_spec;
   GHashTableIter module_iter;
   GHashTable * seen_modules;
@@ -209,6 +226,12 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       !ignore_case &&
       strchr (item_query, '*') == NULL &&
       strchr (item_query, '?') == NULL;
+
+  if (collection[0] == 'e' && !ignore_case &&
+      gum_is_prefix_pattern (item_query))
+  {
+    item_prefix = g_strndup (item_query, strlen (item_query) - 1);
+  }
 
   module_spec = g_pattern_spec_new (module_query);
   item_spec = g_pattern_spec_new (item_query);
@@ -316,6 +339,27 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
         continue;
       }
 
+      if (item_prefix != NULL &&
+          GUM_MODULE_GET_IFACE (module->module)->enumerate_exports_with_prefix
+              != NULL)
+      {
+        GumEmitPrefixedExportContext ctx;
+
+        ctx.module_path = module_path;
+        ctx.func = func;
+        ctx.user_data = user_data;
+        ctx.carry_on = TRUE;
+
+        gum_module_enumerate_exports_with_prefix (module->module, item_prefix,
+            gum_emit_prefixed_export, &ctx);
+
+        carry_on = ctx.carry_on;
+
+        g_assert (module_name_copy == NULL && module_path_copy == NULL);
+
+        continue;
+      }
+
       functions = (collection[0] == 'i')
           ? gum_module_metadata_get_imports (module)
           : gum_module_metadata_get_exports (module);
@@ -335,19 +379,9 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
         if (g_pattern_spec_match_string (item_spec, function_name))
         {
-          GumApiDetails details;
-
-          details.name = g_strconcat (
+          carry_on = gum_emit_api (
               (function->module != NULL) ? function->module : module_path,
-              "!",
-              function->name,
-              NULL);
-          details.address = function->address;
-          details.size = GUM_API_SIZE_NONE;
-
-          carry_on = func (&details, user_data);
-
-          g_free ((gpointer) details.name);
+              function->name, function->address, func, user_data);
         }
 
         g_free (function_name_copy);
@@ -363,6 +397,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   g_pattern_spec_free (item_spec);
   g_pattern_spec_free (module_spec);
 
+  g_free (item_prefix);
   g_free (item_query);
   g_free (module_query);
   g_free (collection);
@@ -376,6 +411,52 @@ invalid_query:
         "exports:*!open*, exports:libc.so!*, imports:notepad.exe!*, "
         "or sections:libc.so!*data*");
   }
+}
+
+static gboolean
+gum_is_prefix_pattern (const gchar * pattern)
+{
+  gsize length = strlen (pattern);
+
+  return length >= 2 &&
+      pattern[length - 1] == '*' &&
+      strcspn (pattern, "*?") == length - 1;
+}
+
+static gboolean
+gum_emit_prefixed_export (const GumExportDetails * details,
+                          gpointer user_data)
+{
+  GumEmitPrefixedExportContext * ctx = user_data;
+
+  if (details->type != GUM_EXPORT_FUNCTION)
+    return TRUE;
+
+  ctx->carry_on = gum_emit_api (ctx->module_path, details->name,
+      details->address, ctx->func, ctx->user_data);
+
+  return ctx->carry_on;
+}
+
+static gboolean
+gum_emit_api (const gchar * module_path,
+              const gchar * name,
+              GumAddress address,
+              GumFoundApiFunc func,
+              gpointer user_data)
+{
+  GumApiDetails details;
+  gboolean carry_on;
+
+  details.name = g_strconcat (module_path, "!", name, NULL);
+  details.address = address;
+  details.size = GUM_API_SIZE_NONE;
+
+  carry_on = func (&details, user_data);
+
+  g_free ((gpointer) details.name);
+
+  return carry_on;
 }
 
 static void

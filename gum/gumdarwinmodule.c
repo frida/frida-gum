@@ -2,6 +2,7 @@
  * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -71,6 +72,7 @@ struct _GumEmitExportFromSymbolContext
 {
   GumFoundDarwinExportFunc func;
   gpointer user_data;
+  const gchar * prefix;
 };
 
 struct _GumQueryTlvParamsContext
@@ -169,6 +171,9 @@ static gboolean gum_exports_trie_find (const guint8 * exports,
 static gboolean gum_exports_trie_foreach (const guint8 * exports,
     const guint8 * exports_end, GumFoundDarwinExportFunc func,
     gpointer user_data);
+static gboolean gum_exports_trie_foreach_with_prefix (const guint8 * exports,
+    const guint8 * exports_end, const gchar * prefix,
+    GumFoundDarwinExportFunc func, gpointer user_data);
 static gboolean gum_exports_trie_traverse (const guint8 * p,
     GumExportsTrieForeachContext * ctx);
 
@@ -789,6 +794,44 @@ gum_darwin_module_enumerate_exports (GumDarwinModule * self,
 
     ctx.func = func;
     ctx.user_data = user_data;
+    ctx.prefix = NULL;
+
+    gum_darwin_module_enumerate_symbols (self, gum_emit_export_from_symbol,
+        &ctx);
+  }
+}
+
+/**
+ * gum_darwin_module_enumerate_exports_with_prefix:
+ * @self: module
+ * @prefix: name prefix that exports must start with
+ * @func: (scope call): function called with each export
+ * @user_data: data to pass to @func
+ *
+ * Enumerates exports of the module whose names start with @prefix, by
+ * descending the export trie only along the path that @prefix spells.
+ */
+void
+gum_darwin_module_enumerate_exports_with_prefix (GumDarwinModule * self,
+                                                 const gchar * prefix,
+                                                 GumFoundDarwinExportFunc func,
+                                                 gpointer user_data)
+{
+  if (!gum_darwin_module_ensure_image_loaded (self, NULL))
+    return;
+
+  if (self->exports != NULL)
+  {
+    gum_exports_trie_foreach_with_prefix (self->exports, self->exports_end,
+        prefix, func, user_data);
+  }
+  else if (self->filetype == GUM_DARWIN_MODULE_FILETYPE_DYLINKER)
+  {
+    GumEmitExportFromSymbolContext ctx;
+
+    ctx.func = func;
+    ctx.user_data = user_data;
+    ctx.prefix = prefix;
 
     gum_darwin_module_enumerate_symbols (self, gum_emit_export_from_symbol,
         &ctx);
@@ -806,6 +849,9 @@ gum_emit_export_from_symbol (const GumDarwinSymbolDetails * details,
     return TRUE;
 
   if ((details->type & GUM_N_TYPE) != GUM_N_SECT)
+    return TRUE;
+
+  if (ctx->prefix != NULL && !g_str_has_prefix (details->name, ctx->prefix))
     return TRUE;
 
   d.name = details->name;
@@ -3185,6 +3231,87 @@ gum_exports_trie_foreach (const guint8 * exports,
   ctx.exports_end = exports_end;
 
   carry_on = gum_exports_trie_traverse (exports, &ctx);
+
+  g_string_free (ctx.prefix, TRUE);
+
+  return carry_on;
+}
+
+static gboolean
+gum_exports_trie_foreach_with_prefix (const guint8 * exports,
+                                      const guint8 * exports_end,
+                                      const gchar * prefix,
+                                      GumFoundDarwinExportFunc func,
+                                      gpointer user_data)
+{
+  GumExportsTrieForeachContext ctx;
+  gboolean carry_on;
+  const gchar * s;
+  const guint8 * p;
+
+  if (exports == exports_end)
+    return TRUE;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  ctx.prefix = g_string_sized_new (1024);
+  ctx.exports = exports;
+  ctx.exports_end = exports_end;
+
+  carry_on = TRUE;
+
+  s = prefix;
+  p = exports;
+  while (p != NULL)
+  {
+    guint64 terminal_size;
+    guint8 child_count, i;
+    const guint8 * child;
+
+    if (*s == '\0')
+    {
+      carry_on = gum_exports_trie_traverse (p, &ctx);
+      break;
+    }
+
+    terminal_size = gum_read_uleb128 (&p, exports_end);
+    p += terminal_size;
+    child_count = *p++;
+    child = NULL;
+    for (i = 0; i != child_count && child == NULL; i++)
+    {
+      const guint8 * edge = p;
+      const gchar * symbol_cur = s;
+      gboolean matching_edge = TRUE;
+
+      while (*p != '\0')
+      {
+        if (matching_edge && *symbol_cur != '\0')
+        {
+          if (*p != *symbol_cur)
+            matching_edge = FALSE;
+          symbol_cur++;
+        }
+        p++;
+      }
+      p++;
+
+      if (matching_edge)
+      {
+        g_string_append_len (ctx.prefix, (const gchar *) edge,
+            (p - 1) - edge);
+        child = exports + gum_read_uleb128 (&p, exports_end);
+        s = symbol_cur;
+      }
+      else
+      {
+        gum_skip_leb128 (&p, exports_end);
+      }
+    }
+
+    p = child;
+  }
 
   g_string_free (ctx.prefix, TRUE);
 

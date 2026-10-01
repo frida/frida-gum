@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,6 +26,9 @@ static void gum_module_facade_enumerate_imports (GumModule * module,
     GumFoundImportFunc func, gpointer user_data);
 static void gum_module_facade_enumerate_exports (GumModule * module,
     GumFoundExportFunc func, gpointer user_data);
+static void gum_module_facade_enumerate_exports_with_prefix (
+    GumModule * module, const gchar * prefix, GumFoundExportFunc func,
+    gpointer user_data);
 static void gum_module_facade_enumerate_symbols (GumModule * module,
     GumFoundSymbolFunc func, gpointer user_data);
 static void gum_module_facade_enumerate_ranges (GumModule * module,
@@ -65,6 +69,8 @@ gum_module_facade_iface_init (gpointer g_iface,
   iface->ensure_initialized = gum_module_facade_ensure_initialized;
   iface->enumerate_imports = gum_module_facade_enumerate_imports;
   iface->enumerate_exports = gum_module_facade_enumerate_exports;
+  iface->enumerate_exports_with_prefix =
+      gum_module_facade_enumerate_exports_with_prefix;
   iface->enumerate_symbols = gum_module_facade_enumerate_symbols;
   iface->enumerate_ranges = gum_module_facade_enumerate_ranges;
   iface->enumerate_sections = gum_module_facade_enumerate_sections;
@@ -148,6 +154,16 @@ gum_module_facade_enumerate_exports (GumModule * module,
 {
   gum_module_enumerate_exports (GUM_MODULE_FACADE (module)->module, func,
       user_data);
+}
+
+static void
+gum_module_facade_enumerate_exports_with_prefix (GumModule * module,
+                                                 const gchar * prefix,
+                                                 GumFoundExportFunc func,
+                                                 gpointer user_data)
+{
+  gum_module_enumerate_exports_with_prefix (GUM_MODULE_FACADE (module)->module,
+      prefix, func, user_data);
 }
 
 static void

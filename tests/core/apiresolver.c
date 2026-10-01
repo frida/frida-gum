@@ -16,6 +16,8 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (objc_methods_can_be_resolved_case_sensitively)
   TESTENTRY (objc_methods_can_be_resolved_case_insensitively)
 #ifdef HAVE_DARWIN
+  TESTENTRY (module_exports_can_be_resolved_by_prefix)
+  TESTENTRY (reexported_module_exports_can_be_resolved_by_prefix)
   TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
   TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
   TESTENTRY (swift_functions_in_libswiftcore_can_be_resolved)
@@ -136,6 +138,110 @@ check_section (const GumApiDetails * details,
 
   return TRUE;
 }
+
+#ifdef HAVE_DARWIN
+
+TESTCASE (module_exports_can_be_resolved_by_prefix)
+{
+  GHashTable * by_prefix, * by_glob;
+  GHashTableIter iter;
+  const gchar * name;
+  GumAddress * address;
+  GError * error = NULL;
+
+  fixture->resolver = gum_api_resolver_make ("module");
+  g_assert_nonnull (fixture->resolver);
+
+  by_prefix = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "exports:libsystem_pthread.dylib!pthread_*", collect_match, by_prefix,
+      &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (g_hash_table_size (by_prefix), >, 10);
+
+  by_glob = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "exports:libsystem_pthread.dylib!*pthread_*", collect_match, by_glob,
+      &error);
+  g_assert_no_error (error);
+
+  g_hash_table_iter_init (&iter, by_prefix);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &name,
+      (gpointer *) &address))
+  {
+    GumAddress * glob_address = g_hash_table_lookup (by_glob, name);
+
+    g_assert_nonnull (glob_address);
+    g_assert_cmphex (*glob_address, ==, *address);
+  }
+
+  g_hash_table_iter_init (&iter, by_glob);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &name, NULL))
+  {
+    if (g_str_has_prefix (strchr (name, '!') + 1, "pthread_"))
+      g_assert_true (g_hash_table_contains (by_prefix, name));
+  }
+
+  g_hash_table_unref (by_glob);
+  g_hash_table_unref (by_prefix);
+}
+
+TESTCASE (reexported_module_exports_can_be_resolved_by_prefix)
+{
+  GumModule * pthread, * system;
+  gchar * expected_name;
+  GumAddress expected_address, * address;
+  GHashTable * matches;
+  GError * error = NULL;
+
+  pthread = gum_process_find_module_by_name ("libsystem_pthread.dylib");
+  g_assert_nonnull (pthread);
+  system = gum_process_find_module_by_name ("libSystem.B.dylib");
+  g_assert_nonnull (system);
+
+  expected_name = g_strconcat (gum_module_get_path (system), "!",
+      "pthread_create", NULL);
+  expected_address = gum_module_find_export_by_name (pthread, "pthread_create");
+  g_assert_cmphex (expected_address, !=, 0);
+
+  fixture->resolver = gum_api_resolver_make ("module");
+  g_assert_nonnull (fixture->resolver);
+
+  matches = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "exports:libSystem.B.dylib!pthread_create*", collect_match, matches,
+      &error);
+  g_assert_no_error (error);
+
+  address = g_hash_table_lookup (matches, expected_name);
+  g_assert_nonnull (address);
+  g_assert_cmphex (*address, ==, expected_address);
+
+  g_hash_table_unref (matches);
+  g_free (expected_name);
+  g_object_unref (system);
+  g_object_unref (pthread);
+}
+
+static GHashTable *
+make_match_table (void)
+{
+  return g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+}
+
+static gboolean
+collect_match (const GumApiDetails * details,
+               gpointer user_data)
+{
+  GHashTable * matches = user_data;
+
+  g_hash_table_insert (matches, g_strdup (details->name),
+      g_memdup2 (&details->address, sizeof (GumAddress)));
+
+  return TRUE;
+}
+
+#endif
 
 TESTCASE (objc_methods_can_be_resolved_case_sensitively)
 {

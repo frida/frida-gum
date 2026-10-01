@@ -77,6 +77,8 @@ struct _GumModuleInterface
       gpointer user_data);
   void (* enumerate_exports) (GumModule * self, GumFoundExportFunc func,
       gpointer user_data);
+  void (* enumerate_exports_with_prefix) (GumModule * self,
+      const gchar * prefix, GumFoundExportFunc func, gpointer user_data);
   void (* enumerate_symbols) (GumModule * self, GumFoundSymbolFunc func,
       gpointer user_data);
   void (* enumerate_ranges) (GumModule * self, GumPageProtection prot,
@@ -158,6 +160,8 @@ GUM_API void gum_module_enumerate_imports (GumModule * self,
     GumFoundImportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_exports (GumModule * self,
     GumFoundExportFunc func, gpointer user_data);
+GUM_API void gum_module_enumerate_exports_with_prefix (GumModule * self,
+    const gchar * prefix, GumFoundExportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_symbols (GumModule * self,
     GumFoundSymbolFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_ranges (GumModule * self,
