@@ -105,15 +105,15 @@ gum_v8_api_run_prelude (GumV8Api * self,
 
   TryCatch trycatch (isolate);
 
+  bool success = false;
   Local<Script> code;
   if (Script::Compile (context,
       String::NewFromUtf8 (isolate, source).ToLocalChecked ()).ToLocal (&code))
   {
-    Local<Value> result;
-    code->Run (context).ToLocal (&result);
+    success = !code->Run (context).IsEmpty ();
   }
 
-  if (trycatch.HasCaught ())
+  if (!success)
   {
     String::Utf8Value message (isolate, trycatch.Exception ());
     g_warning ("%s prelude failed: %s", _gum_script_api_get_name (api),
