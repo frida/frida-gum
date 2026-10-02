@@ -369,13 +369,18 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
 
 #if defined (HAVE_DARWIN) || defined (HAVE_ELF)
 
-#ifdef HAVE_DARWIN
-# define SWIFT_CORE_PATH "/usr/lib/swift/libswiftCore.dylib"
-#else
-# define SWIFT_CORE_PATH "/usr/lib/swift/linux/libswiftCore.so"
+#ifdef HAVE_ELF
+# ifdef HAVE_FREEBSD
+#  define SWIFT_PLATFORM "freebsd"
+# else
+#  define SWIFT_PLATFORM "linux"
+# endif
 #endif
 
 static void * open_swift_core (void);
+#ifdef HAVE_ELF
+static void * open_swift_core_from_toolchain_in_path (void);
+#endif
 
 TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
 {
@@ -386,7 +391,7 @@ TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
   swift_core = open_swift_core ();
   if (swift_core == NULL)
   {
-    g_print ("<skipping, not available> ");
+    g_test_skip ("Swift runtime not available");
     return;
   }
 
@@ -411,8 +416,55 @@ TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
 static void *
 open_swift_core (void)
 {
-  return dlopen (SWIFT_CORE_PATH, RTLD_LAZY | RTLD_GLOBAL);
+#ifdef HAVE_DARWIN
+  return dlopen ("/usr/lib/swift/libswiftCore.dylib", RTLD_LAZY | RTLD_GLOBAL);
+#else
+  void * swift_core;
+
+  swift_core = open_swift_core_from_toolchain_in_path ();
+  if (swift_core == NULL)
+  {
+    swift_core = dlopen ("/usr/lib/swift/" SWIFT_PLATFORM "/libswiftCore.so",
+        RTLD_LAZY | RTLD_GLOBAL);
+  }
+
+  return swift_core;
+#endif
 }
+
+#ifdef HAVE_ELF
+
+static void *
+open_swift_core_from_toolchain_in_path (void)
+{
+  void * swift_core;
+  gchar * swift_link, * swift_binary, * bin_dir, * usr_dir, * lib_path;
+
+  swift_link = g_find_program_in_path ("swift");
+  if (swift_link == NULL)
+    return NULL;
+
+  swift_binary = realpath (swift_link, NULL);
+  g_free (swift_link);
+  if (swift_binary == NULL)
+    return NULL;
+
+  bin_dir = g_path_get_dirname (swift_binary);
+  usr_dir = g_path_get_dirname (bin_dir);
+  lib_path = g_build_filename (usr_dir, "lib", "swift", SWIFT_PLATFORM,
+      "libswiftCore.so", NULL);
+
+  swift_core = dlopen (lib_path, RTLD_LAZY | RTLD_GLOBAL);
+
+  g_free (lib_path);
+  g_free (usr_dir);
+  g_free (bin_dir);
+  free (swift_binary);
+
+  return swift_core;
+}
+
+#endif
 
 static gboolean
 resolve_method_impl (const GumApiDetails * details,
@@ -437,7 +489,7 @@ TESTCASE (swift_conformances_in_libswiftcore_can_be_resolved)
   swift_core = open_swift_core ();
   if (swift_core == NULL)
   {
-    g_print ("<skipping, not available> ");
+    g_test_skip ("Swift runtime not available");
     return;
   }
 
@@ -501,7 +553,7 @@ TESTCASE (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
   swift_core = open_swift_core ();
   if (swift_core == NULL)
   {
-    g_print ("<skipping, not available> ");
+    g_test_skip ("Swift runtime not available");
     return;
   }
 

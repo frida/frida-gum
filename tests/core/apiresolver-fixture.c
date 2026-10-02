@@ -19,6 +19,9 @@
 #if defined (HAVE_DARWIN) || defined (HAVE_ELF)
 # include <dlfcn.h>
 #endif
+#ifdef HAVE_ELF
+# include <stdlib.h>
+#endif
 
 #define TESTCASE(NAME) \
     void test_api_resolver_ ## NAME ( \
