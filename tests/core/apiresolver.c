@@ -12,6 +12,7 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (module_exports_can_be_resolved_case_sensitively)
   TESTENTRY (module_exports_can_be_resolved_case_insensitively)
   TESTENTRY (module_imports_can_be_resolved)
+  TESTENTRY (module_symbols_can_be_resolved)
   TESTENTRY (module_sections_can_be_resolved)
   TESTENTRY (objc_methods_can_be_resolved_case_sensitively)
   TESTENTRY (objc_methods_can_be_resolved_case_insensitively)
@@ -105,6 +106,75 @@ check_module_import (const GumApiDetails * details,
   (*number_of_imports_seen)++;
 
   return TRUE;
+}
+
+static GHashTable *
+make_match_table (void)
+{
+  return g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+}
+
+static gboolean
+collect_match (const GumApiDetails * details,
+               gpointer user_data)
+{
+  GHashTable * matches = user_data;
+
+  g_hash_table_insert (matches, g_strdup (details->name),
+      g_memdup2 (&details->address, sizeof (GumAddress)));
+
+  return TRUE;
+}
+
+TESTCASE (module_symbols_can_be_resolved)
+{
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  GumModule * module;
+  GumAddress expected_address;
+  gchar * expected_name;
+  GHashTable * matches;
+  GumAddress * address;
+  GError * error = NULL;
+
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
+  g_assert_nonnull (module);
+  expected_address =
+      gum_module_find_symbol_by_name (module, "gum_api_resolver_make");
+  g_assert_cmphex (expected_address, !=, 0);
+  expected_name = g_strconcat (gum_module_get_path (module), "!",
+      "gum_api_resolver_make", NULL);
+
+  fixture->resolver = gum_api_resolver_make ("module");
+  g_assert_nonnull (fixture->resolver);
+
+  matches = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "symbols:" GUM_TESTS_MODULE_NAME "!gum_api_resolver_make",
+      collect_match, matches, &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (g_hash_table_size (matches), ==, 1);
+  address = g_hash_table_lookup (matches, expected_name);
+  g_assert_nonnull (address);
+  g_assert_cmphex (*address, ==, expected_address);
+  g_hash_table_unref (matches);
+
+  matches = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "symbols:" GUM_TESTS_MODULE_NAME "!gum_api_resolver_*",
+      collect_match, matches, &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (g_hash_table_size (matches), >, 1);
+  address = g_hash_table_lookup (matches, expected_name);
+  g_assert_nonnull (address);
+  g_assert_cmphex (*address, ==, expected_address);
+  g_hash_table_unref (matches);
+
+  g_free (expected_name);
+  g_object_unref (module);
+#else
+  (void) make_match_table;
+  (void) collect_match;
+#endif
 }
 
 TESTCASE (module_sections_can_be_resolved)
@@ -221,24 +291,6 @@ TESTCASE (reexported_module_exports_can_be_resolved_by_prefix)
   g_free (expected_name);
   g_object_unref (system);
   g_object_unref (pthread);
-}
-
-static GHashTable *
-make_match_table (void)
-{
-  return g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-}
-
-static gboolean
-collect_match (const GumApiDetails * details,
-               gpointer user_data)
-{
-  GHashTable * matches = user_data;
-
-  g_hash_table_insert (matches, g_strdup (details->name),
-      g_memdup2 (&details->address, sizeof (GumAddress)));
-
-  return TRUE;
 }
 
 #endif

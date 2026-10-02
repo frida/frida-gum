@@ -9,8 +9,8 @@
 /**
  * GumModuleApiResolver:
  *
- * Resolves APIs by searching exports, imports, and sections of currently loaded
- * modules.
+ * Resolves APIs by searching exports, imports, symbols, and sections of
+ * currently loaded modules.
  *
  * See [iface@Gum.ApiResolver] for more information.
  */
@@ -22,9 +22,18 @@
 
 #include <string.h>
 
+typedef guint GumCollection;
 typedef struct _GumModuleMetadata GumModuleMetadata;
 typedef struct _GumFunctionMetadata GumFunctionMetadata;
 typedef struct _GumEmitPrefixedExportContext GumEmitPrefixedExportContext;
+
+enum _GumCollection
+{
+  GUM_COLLECTION_IMPORTS,
+  GUM_COLLECTION_EXPORTS,
+  GUM_COLLECTION_SYMBOLS,
+  GUM_COLLECTION_SECTIONS,
+};
 
 struct _GumModuleApiResolver
 {
@@ -44,6 +53,7 @@ struct _GumModuleMetadata
 
   GHashTable * import_by_name;
   GHashTable * export_by_name;
+  GHashTable * symbol_by_name;
   GArray * sections;
 };
 
@@ -78,11 +88,14 @@ static gboolean gum_emit_api (const gchar * module_path, const gchar * name,
 static void gum_module_metadata_unref (GumModuleMetadata * module);
 static GHashTable * gum_module_metadata_get_imports (GumModuleMetadata * self);
 static GHashTable * gum_module_metadata_get_exports (GumModuleMetadata * self);
+static GHashTable * gum_module_metadata_get_symbols (GumModuleMetadata * self);
 static GArray * gum_module_metadata_get_sections (GumModuleMetadata * self);
 static gboolean gum_module_metadata_collect_import (
     const GumImportDetails * details, gpointer user_data);
 static gboolean gum_module_metadata_collect_export (
     const GumExportDetails * details, gpointer user_data);
+static gboolean gum_module_metadata_collect_symbol (
+    const GumSymbolDetails * details, gpointer user_data);
 static gboolean gum_module_metadata_collect_section (
     const GumSectionDetails * details, gpointer user_data);
 
@@ -122,9 +135,9 @@ gum_module_api_resolver_init (GumModuleApiResolver * self)
   GPtrArray * entries;
   guint i;
 
-  self->query_pattern =
-      g_regex_new ("(imports|exports|sections):(.+)!([^\\n\\r\\/]+)(\\/i)?",
-          0, 0, NULL);
+  self->query_pattern = g_regex_new (
+      "(imports|exports|symbols|sections):(.+)!([^\\n\\r\\/]+)(\\/i)?",
+      0, 0, NULL);
 
   self->all_modules = gum_module_map_new ();
   self->module_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
@@ -142,6 +155,7 @@ gum_module_api_resolver_init (GumModuleApiResolver * self)
     meta->module = g_object_ref (module);
     meta->import_by_name = NULL;
     meta->export_by_name = NULL;
+    meta->symbol_by_name = NULL;
     meta->sections = NULL;
 
     g_hash_table_insert (self->module_by_name,
@@ -167,8 +181,8 @@ gum_module_api_resolver_finalize (GObject * object)
 /**
  * gum_module_api_resolver_new:
  *
- * Creates a new resolver that searches exports and imports of currently loaded
- * modules.
+ * Creates a new resolver that searches exports, imports, symbols and sections
+ * of currently loaded modules.
  *
  * Returns: (transfer full): the newly created resolver instance
  */
@@ -189,6 +203,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
   GMatchInfo * query_info;
   gboolean ignore_case;
   gchar * collection, * module_query, * item_query;
+  GumCollection kind;
   gboolean no_patterns_in_item_query;
   gchar * item_prefix = NULL;
   GPatternSpec * module_spec, * item_spec;
@@ -209,6 +224,15 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
   g_match_info_free (query_info);
 
+  switch (collection[0])
+  {
+    case 'i': kind = GUM_COLLECTION_IMPORTS; break;
+    case 'e': kind = GUM_COLLECTION_EXPORTS; break;
+    default:  kind = (collection[1] == 'y')
+        ? GUM_COLLECTION_SYMBOLS
+        : GUM_COLLECTION_SECTIONS;
+  }
+
   if (ignore_case)
   {
     gchar * str;
@@ -227,7 +251,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       strchr (item_query, '*') == NULL &&
       strchr (item_query, '?') == NULL;
 
-  if (collection[0] == 'e' && !ignore_case &&
+  if (kind == GUM_COLLECTION_EXPORTS && !ignore_case &&
       gum_is_prefix_pattern (item_query))
   {
     item_prefix = g_strndup (item_query, strlen (item_query) - 1);
@@ -276,7 +300,7 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
       GHashTableIter function_iter;
       GumFunctionMetadata * function;
 
-      if (collection[0] == 's')
+      if (kind == GUM_COLLECTION_SECTIONS)
       {
         GArray * sections;
         guint i;
@@ -308,16 +332,18 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
         continue;
       }
 
-      if (collection[0] == 'e' && no_patterns_in_item_query)
+      if ((kind == GUM_COLLECTION_EXPORTS || kind == GUM_COLLECTION_SYMBOLS)
+          && no_patterns_in_item_query)
       {
         GumApiDetails details;
 
-        details.address =
-            gum_module_find_export_by_name (module->module, item_query);
+        details.address = (kind == GUM_COLLECTION_EXPORTS)
+            ? gum_module_find_export_by_name (module->module, item_query)
+            : gum_module_find_symbol_by_name (module->module, item_query);
         details.size = GUM_API_SIZE_NONE;
 
 #ifndef HAVE_WINDOWS
-        if (details.address != 0)
+        if (kind == GUM_COLLECTION_EXPORTS && details.address != 0)
         {
           if (gum_module_map_find (self->all_modules, details.address) !=
               module->module)
@@ -360,9 +386,18 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
         continue;
       }
 
-      functions = (collection[0] == 'i')
-          ? gum_module_metadata_get_imports (module)
-          : gum_module_metadata_get_exports (module);
+      switch (kind)
+      {
+        case GUM_COLLECTION_IMPORTS:
+          functions = gum_module_metadata_get_imports (module);
+          break;
+        case GUM_COLLECTION_EXPORTS:
+          functions = gum_module_metadata_get_exports (module);
+          break;
+        default:
+          functions = gum_module_metadata_get_symbols (module);
+          break;
+      }
 
       g_hash_table_iter_init (&function_iter, functions);
       while (carry_on &&
@@ -409,7 +444,7 @@ invalid_query:
     g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "invalid query; format is: "
         "exports:*!open*, exports:libc.so!*, imports:notepad.exe!*, "
-        "or sections:libc.so!*data*");
+        "symbols:libc.so!*open*, or sections:libc.so!*data*");
   }
 }
 
@@ -468,6 +503,9 @@ gum_module_metadata_unref (GumModuleMetadata * meta)
     if (meta->sections != NULL)
       g_array_unref (meta->sections);
 
+    if (meta->symbol_by_name != NULL)
+      g_hash_table_unref (meta->symbol_by_name);
+
     if (meta->export_by_name != NULL)
       g_hash_table_unref (meta->export_by_name);
 
@@ -506,6 +544,20 @@ gum_module_metadata_get_exports (GumModuleMetadata * self)
   }
 
   return self->export_by_name;
+}
+
+static GHashTable *
+gum_module_metadata_get_symbols (GumModuleMetadata * self)
+{
+  if (self->symbol_by_name == NULL)
+  {
+    self->symbol_by_name = g_hash_table_new_full (g_str_hash, g_str_equal,
+        g_free, (GDestroyNotify) gum_function_metadata_free);
+    gum_module_enumerate_symbols (self->module,
+        gum_module_metadata_collect_symbol, self->symbol_by_name);
+  }
+
+  return self->symbol_by_name;
 }
 
 static GArray *
@@ -554,6 +606,46 @@ gum_module_metadata_collect_export (const GumExportDetails * details,
     function = gum_function_metadata_new (details->name, details->address,
         NULL);
     g_hash_table_insert (export_by_name, g_strdup (function->name), function);
+  }
+
+  return TRUE;
+}
+
+/*
+ * Mach-O symbols are typed by where they live, so a code symbol is one in an
+ * executable section.
+ */
+static gboolean
+gum_module_metadata_collect_symbol (const GumSymbolDetails * details,
+                                    gpointer user_data)
+{
+  GHashTable * symbol_by_name = user_data;
+  gboolean is_code;
+
+  if (details->address == 0)
+    return TRUE;
+
+  switch (details->type)
+  {
+    case GUM_SYMBOL_FUNCTION:
+      is_code = TRUE;
+      break;
+    case GUM_SYMBOL_SECTION:
+      is_code = details->section != NULL &&
+          (details->section->protection & GUM_PAGE_EXECUTE) != 0;
+      break;
+    default:
+      is_code = FALSE;
+      break;
+  }
+
+  if (is_code)
+  {
+    GumFunctionMetadata * function;
+
+    function = gum_function_metadata_new (details->name, details->address,
+        NULL);
+    g_hash_table_insert (symbol_by_name, g_strdup (function->name), function);
   }
 
   return TRUE;

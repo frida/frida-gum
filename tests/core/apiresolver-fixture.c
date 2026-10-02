@@ -60,8 +60,6 @@ static gboolean check_section (const GumApiDetails * details,
     gpointer user_data);
 static gboolean match_found_cb (const GumApiDetails * details,
     gpointer user_data);
-#ifdef HAVE_DARWIN
 static GHashTable * make_match_table (void);
 static gboolean collect_match (const GumApiDetails * details,
     gpointer user_data);
-#endif
