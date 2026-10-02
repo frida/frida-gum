@@ -20,6 +20,8 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (reexported_module_exports_can_be_resolved_by_prefix)
   TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
   TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
+#endif
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
   TESTENTRY (swift_functions_in_libswiftcore_can_be_resolved)
   TESTENTRY (swift_conformances_in_libswiftcore_can_be_resolved)
   TESTENTRY (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
@@ -225,6 +227,10 @@ TESTCASE (reexported_module_exports_can_be_resolved_by_prefix)
   g_object_unref (pthread);
 }
 
+#endif
+
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+
 static GHashTable *
 make_match_table (void)
 {
@@ -305,9 +311,6 @@ match_found_cb (const GumApiDetails * details,
 
 #ifdef HAVE_DARWIN
 
-static gboolean resolve_method_impl (const GumApiDetails * details,
-    gpointer user_data);
-
 TESTCASE (objc_method_can_be_resolved_from_class_method_address)
 {
   GumAddress address;
@@ -362,15 +365,30 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
   g_free (method);
 }
 
+#endif
+
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+
+#ifdef HAVE_DARWIN
+# define SWIFT_CORE_PATH "/usr/lib/swift/libswiftCore.dylib"
+#else
+# define SWIFT_CORE_PATH "/usr/lib/swift/linux/libswiftCore.so"
+#endif
+
+static void * open_swift_core (void);
+
 TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
 {
   void * swift_core;
   GumAddress expected_address, address;
   GError * error = NULL;
 
-  swift_core = dlopen ("/usr/lib/swift/libswiftCore.dylib",
-      RTLD_LAZY | RTLD_GLOBAL);
-  g_assert_nonnull (swift_core);
+  swift_core = open_swift_core ();
+  if (swift_core == NULL)
+  {
+    g_print ("<skipping, not available> ");
+    return;
+  }
 
   expected_address =
       GUM_ADDRESS (dlsym (swift_core, "$sSS9hasPrefixySbSSF"));
@@ -388,6 +406,12 @@ TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
       gum_strip_code_address (expected_address));
 
   dlclose (swift_core);
+}
+
+static void *
+open_swift_core (void)
+{
+  return dlopen (SWIFT_CORE_PATH, RTLD_LAZY | RTLD_GLOBAL);
 }
 
 static gboolean
@@ -410,9 +434,12 @@ TESTCASE (swift_conformances_in_libswiftcore_can_be_resolved)
   const gchar * name;
   GError * error = NULL;
 
-  swift_core = dlopen ("/usr/lib/swift/libswiftCore.dylib",
-      RTLD_LAZY | RTLD_GLOBAL);
-  g_assert_nonnull (swift_core);
+  swift_core = open_swift_core ();
+  if (swift_core == NULL)
+  {
+    g_print ("<skipping, not available> ");
+    return;
+  }
 
   expected_address = GUM_ADDRESS (dlsym (swift_core, "$sSiSHsMc"));
   g_assert_cmpuint (expected_address, !=, 0);
@@ -471,9 +498,12 @@ TESTCASE (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
   const gchar * name;
   GError * error = NULL;
 
-  swift_core = dlopen ("/usr/lib/swift/libswiftCore.dylib",
-      RTLD_LAZY | RTLD_GLOBAL);
-  g_assert_nonnull (swift_core);
+  swift_core = open_swift_core ();
+  if (swift_core == NULL)
+  {
+    g_print ("<skipping, not available> ");
+    return;
+  }
 
   expected_type = GUM_ADDRESS (dlsym (swift_core, "$sSiMn"));
   g_assert_cmpuint (expected_type, !=, 0);
