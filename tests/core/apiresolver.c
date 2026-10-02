@@ -21,6 +21,7 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
   TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
   TESTENTRY (swift_functions_in_libswiftcore_can_be_resolved)
+  TESTENTRY (swift_conformances_in_libswiftcore_can_be_resolved)
 #endif
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
@@ -397,6 +398,67 @@ resolve_method_impl (const GumApiDetails * details,
   *address = details->address;
 
   return FALSE;
+}
+
+TESTCASE (swift_conformances_in_libswiftcore_can_be_resolved)
+{
+  void * swift_core;
+  GumAddress expected_address, * address;
+  GHashTable * matches;
+  GHashTableIter iter;
+  const gchar * name;
+  GError * error = NULL;
+
+  swift_core = dlopen ("/usr/lib/swift/libswiftCore.dylib",
+      RTLD_LAZY | RTLD_GLOBAL);
+  g_assert_nonnull (swift_core);
+
+  expected_address = GUM_ADDRESS (dlsym (swift_core, "$sSiSHsMc"));
+  g_assert_cmpuint (expected_address, !=, 0);
+
+  fixture->resolver = gum_api_resolver_make ("swift");
+  g_assert_nonnull (fixture->resolver);
+
+  matches = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "conformances:Swift.Int!Swift.Hashable", collect_match, matches, &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (g_hash_table_size (matches), ==, 1);
+  address = g_hash_table_lookup (matches, "Swift.Int!Swift.Hashable");
+  g_assert_nonnull (address);
+  g_assert_cmphex (*address, ==, expected_address);
+  g_hash_table_unref (matches);
+
+  matches = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "conformances:Swift.Int!*", collect_match, matches, &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (g_hash_table_size (matches), >, 10);
+  g_hash_table_iter_init (&iter, matches);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &name, NULL))
+    g_assert_true (g_str_has_prefix (name, "Swift.Int!"));
+  g_assert_true (g_hash_table_contains (matches, "Swift.Int!Swift.Hashable"));
+  g_hash_table_unref (matches);
+
+  matches = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "conformances:*!Swift.Hashable", collect_match, matches, &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (g_hash_table_size (matches), >, 10);
+  address = g_hash_table_lookup (matches, "Swift.Int!Swift.Hashable");
+  g_assert_nonnull (address);
+  g_assert_cmphex (*address, ==, expected_address);
+  g_hash_table_unref (matches);
+
+  matches = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "conformances:swift.int!swift.hashable/i", collect_match, matches,
+      &error);
+  g_assert_no_error (error);
+  g_assert_true (g_hash_table_contains (matches, "Swift.Int!Swift.Hashable"));
+  g_hash_table_unref (matches);
+
+  dlclose (swift_core);
 }
 
 #endif
