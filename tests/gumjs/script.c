@@ -979,6 +979,7 @@ TESTCASE (instruction_can_be_parsed)
       "cw.putInstruction(0x8b230841);" /* add x1, x2, w3, uxtb #2 */
       "cw.putInstruction(0x4ee28420);" /* add.2d v0, v1, v2 */
       "cw.putInstruction(0x9eae00e5);" /* fmov.d x5, v7[1] */
+      "cw.putInstruction(0x4e012c08);" /* smov x8, v0.b[0] */
       "cw.flush();"
 
       "const ldr = Instruction.parse(code);"
@@ -1028,6 +1029,13 @@ TESTCASE (instruction_can_be_parsed)
       "send(fmov.mnemonic);"
       "operands = fmov.operands;"
       "send(typeof operands[0].vectorIndex);"
+      "send(operands[1].vectorIndex);"
+
+      "const smov = Instruction.parse(fmov.next);"
+      "send(smov.mnemonic);"
+      "operands = smov.operands;"
+      "send(typeof operands[0].vas);"
+      "send(operands[1].vas);"
       "send(operands[1].vectorIndex);");
 
   EXPECT_SEND_MESSAGE_WITH ("\"ldr\"");
@@ -1064,6 +1072,11 @@ TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("\"fmov\"");
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
   EXPECT_SEND_MESSAGE_WITH ("1");
+
+  EXPECT_SEND_MESSAGE_WITH ("\"smov\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"1b\"");
+  EXPECT_SEND_MESSAGE_WITH ("0");
 #else
   g_print ("<skipping, missing code for current architecture> ");
 #endif
