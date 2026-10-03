@@ -133,12 +133,14 @@ namespace Gum
     virtual void on_enter (InvocationContext * context) = 0;
     virtual void on_leave (InvocationContext * context) = 0;
   };
+  
   struct ProbeListener
   {
     virtual ~ProbeListener () {}
 
     virtual void on_enter (InvocationContext * context) = 0;
   };
+  
   struct Backtracer : public Object
   {
     virtual void generate (const CpuContext * cpu_context, ReturnAddressArray & return_addresses) const = 0;
