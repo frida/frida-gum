@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Sam Sun <samsun@nvidia.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,6 +26,7 @@
 TESTLIST_BEGIN (module_registry)
   TESTENTRY (module_registry_should_emit_signal_on_add)
   TESTENTRY (hooks_should_be_discarded_when_module_unloads)
+  TESTENTRY (dependency_export_can_be_found)
   TESTENTRY (relocated_program_headers_can_be_parsed)
   TESTENTRY (online_elf_should_allow_padded_inline_program_headers)
   TESTENTRY (online_elf_should_bound_inline_program_headers)
@@ -38,6 +40,9 @@ static void on_module_removed (GumModuleRegistry * registry, GumModule * module,
 #ifdef HAVE_LINUX
 
 # define GUM_TARGET_MODULE_FILENAME "module-registry-target.so"
+# define GUM_DEPENDENT_MODULE_FILENAME "module-registry-dependent.so"
+# define GUM_DEPENDENCY_MODULE_FILENAME "module-registry-dependency.so"
+# define GUM_DEPENDENCY_MODULE_EXPORT "gum_module_registry_dependency_function"
 
 typedef struct _TestModuleHooks TestModuleHooks;
 
@@ -168,6 +173,40 @@ TESTCASE (hooks_should_be_discarded_when_module_unloads)
   g_signal_handler_disconnect (registry, removed_handler);
   g_object_unref (listener);
 
+  g_free (target_path);
+  g_free (data_dir);
+#else
+  g_test_skip ("only supported on Linux");
+#endif
+}
+
+TESTCASE (dependency_export_can_be_found)
+{
+#ifdef HAVE_LINUX
+  gchar * data_dir, * target_path;
+  void * handle;
+  GumModule * module;
+  GumAddress address;
+
+  gum_module_registry_obtain ();
+
+  data_dir = test_util_get_data_dir ();
+  target_path = g_build_filename (data_dir, GUM_DEPENDENT_MODULE_FILENAME,
+      NULL);
+
+  handle = dlopen (target_path, RTLD_NOW | RTLD_LOCAL);
+  g_assert_nonnull (handle);
+
+  module = gum_process_find_module_by_name (GUM_DEPENDENCY_MODULE_FILENAME);
+  g_assert_nonnull (module);
+
+  address = gum_module_find_export_by_name (module,
+      GUM_DEPENDENCY_MODULE_EXPORT);
+  g_assert_cmphex (address, ==,
+      GUM_ADDRESS (dlsym (handle, GUM_DEPENDENCY_MODULE_EXPORT)));
+
+  g_object_unref (module);
+  dlclose (handle);
   g_free (target_path);
   g_free (data_dir);
 #else
