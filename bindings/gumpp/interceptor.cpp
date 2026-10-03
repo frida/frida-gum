@@ -29,45 +29,22 @@ namespace Gum
 
     virtual bool attach (void * function_address, InvocationListener * listener, void * listener_function_data)
     {
-      RefPtr<InvocationListenerProxy> proxy;
-
-      g_mutex_lock (&mutex);
-      ProxyMap::iterator it = proxy_by_listener.find (listener);
-      if (it == proxy_by_listener.end ())
-      {
-        proxy = RefPtr<InvocationListenerProxy> (new InvocationListenerProxy (listener));
-        proxy_by_listener[listener] = proxy;
-      }
-      else
-      {
-        proxy = it->second;
-      }
-      g_mutex_unlock (&mutex);
-
-      GumAttachOptions options = {};
-      options.listener_function_data = listener_function_data;
-      GumAttachReturn attach_ret = gum_interceptor_attach (handle, function_address, GUM_INVOCATION_LISTENER (proxy->get_handle ()),
-          &options);
-      return (attach_ret == GUM_ATTACH_OK);
+      return attach_listener (function_address, listener, listener_function_data, proxy_by_listener);
     }
 
     virtual void detach (InvocationListener * listener)
     {
-      RefPtr<InvocationListenerProxy> proxy;
+      detach_listener (listener, proxy_by_listener);
+    }
 
-      g_mutex_lock (&mutex);
-      ProxyMap::iterator it = proxy_by_listener.find (listener);
-      if (it != proxy_by_listener.end ())
-      {
-        proxy = RefPtr<InvocationListenerProxy> (it->second);
-        proxy_by_listener.erase (it);
-      }
-      g_mutex_unlock (&mutex);
+    virtual bool attach (void * instruction_address, ProbeListener * listener, void * listener_function_data)
+    {
+      return attach_listener (instruction_address, listener, listener_function_data, probe_proxy_by_listener);
+    }
 
-      if (proxy.is_null ())
-        return;
-
-      gum_interceptor_detach (handle, GUM_INVOCATION_LISTENER (proxy->get_handle ()));
+    virtual void detach (ProbeListener * listener)
+    {
+      detach_listener (listener, probe_proxy_by_listener);
     }
 
     virtual void replace (void * function_address, void * replacement_address, void * replacement_data)
@@ -121,10 +98,57 @@ namespace Gum
     }
 
   private:
+    template <typename Listener, typename Proxy>
+    bool attach_listener (void * address, Listener * listener, void * listener_function_data, std::map<Listener *, RefPtr<Proxy> > & proxies)
+    {
+      RefPtr<Proxy> proxy;
+
+      g_mutex_lock (&mutex);
+      typename std::map<Listener *, RefPtr<Proxy> >::iterator it = proxies.find (listener);
+      if (it == proxies.end ())
+      {
+        proxy = RefPtr<Proxy> (new Proxy (listener));
+        proxies[listener] = proxy;
+      }
+      else
+      {
+        proxy = it->second;
+      }
+      g_mutex_unlock (&mutex);
+
+      GumAttachOptions options = {};
+      options.listener_function_data = listener_function_data;
+      GumAttachReturn attach_ret = gum_interceptor_attach (handle, address, GUM_INVOCATION_LISTENER (proxy->get_handle ()),
+          &options);
+      return (attach_ret == GUM_ATTACH_OK);
+    }
+
+    template <typename Listener, typename Proxy>
+    void detach_listener (Listener * listener, std::map<Listener *, RefPtr<Proxy> > & proxies)
+    {
+      RefPtr<Proxy> proxy;
+
+      g_mutex_lock (&mutex);
+      typename std::map<Listener *, RefPtr<Proxy> >::iterator it = proxies.find (listener);
+      if (it != proxies.end ())
+      {
+        proxy = RefPtr<Proxy> (it->second);
+        proxies.erase (it);
+      }
+      g_mutex_unlock (&mutex);
+
+      if (proxy.is_null ())
+        return;
+
+      gum_interceptor_detach (handle, GUM_INVOCATION_LISTENER (proxy->get_handle ()));
+    }
+
     GMutex mutex;
 
     typedef std::map<InvocationListener *, RefPtr<InvocationListenerProxy> > ProxyMap;
+    typedef std::map<ProbeListener *, RefPtr<ProbeListenerProxy> > ProbeProxyMap;
     ProxyMap proxy_by_listener;
+    ProbeProxyMap probe_proxy_by_listener;
   };
 
   extern "C" Interceptor * Interceptor_obtain (void) { return new InterceptorImpl; }

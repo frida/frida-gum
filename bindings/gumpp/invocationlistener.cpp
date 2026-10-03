@@ -23,6 +23,8 @@ namespace Gum
 
   static GType gum_invocation_listener_proxy_get_type ();
   static void gum_invocation_listener_proxy_iface_init (gpointer g_iface, gpointer iface_data);
+  static void gum_probe_listener_proxy_on_hit (GumInvocationContext * context, gpointer user_data);
+  static void gum_probe_listener_proxy_destroy (gpointer data);
 
   InvocationListenerProxy::InvocationListenerProxy (InvocationListener * listener)
     : cproxy (static_cast<GumInvocationListenerProxy *> (g_object_new (gum_invocation_listener_proxy_get_type (), NULL))),
@@ -58,6 +60,50 @@ namespace Gum
   void InvocationListenerProxy::on_leave (InvocationContext * context)
   {
     listener->on_leave (context);
+  }
+
+  ProbeListenerProxy::ProbeListenerProxy (ProbeListener * listener)
+    : cproxy (gum_make_probe_listener (gum_probe_listener_proxy_on_hit, this, gum_probe_listener_proxy_destroy)),
+      listener (listener)
+  {
+  }
+
+  ProbeListenerProxy::~ProbeListenerProxy ()
+  {
+  }
+
+  void ProbeListenerProxy::ref ()
+  {
+    g_object_ref (cproxy);
+  }
+
+  void ProbeListenerProxy::unref ()
+  {
+    g_object_unref (cproxy);
+  }
+
+  void * ProbeListenerProxy::get_handle () const
+  {
+    return cproxy;
+  }
+
+  void ProbeListenerProxy::on_hit (InvocationContext * context)
+  {
+    listener->on_hit (context);
+  }
+
+  static void
+  gum_probe_listener_proxy_on_hit (GumInvocationContext * context,
+                                   gpointer user_data)
+  {
+    InvocationContextImpl ic (context);
+    static_cast<ProbeListenerProxy *> (user_data)->on_hit (&ic);
+  }
+
+  static void
+  gum_probe_listener_proxy_destroy (gpointer data)
+  {
+    delete static_cast<ProbeListenerProxy *> (data);
   }
 
   G_DEFINE_TYPE_EXTENDED (GumInvocationListenerProxy,

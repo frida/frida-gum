@@ -1,5 +1,6 @@
 gumpp_sources = [
   'backtracer.cxx',
+  'interceptor.cxx',
 ]
 
 gum_tests_gumpp = static_library('gum-tests-gumpp', gumpp_sources,

@@ -24,6 +24,7 @@ namespace Gum
 {
   struct InvocationContext;
   struct InvocationListener;
+  struct ProbeListener;
   struct CpuContext;
   struct ReturnAddressArray;
 
@@ -52,6 +53,9 @@ namespace Gum
   {
     virtual bool attach (void * function_address, InvocationListener * listener, void * listener_function_data = 0) = 0;
     virtual void detach (InvocationListener * listener) = 0;
+
+    virtual bool attach (void * instruction_address, ProbeListener * listener, void * listener_function_data = 0) = 0;
+    virtual void detach (ProbeListener * listener) = 0;
 
     virtual void replace (void * function_address, void * replacement_address, void * replacement_data = 0) = 0;
     virtual void revert (void * function_address) = 0;
@@ -127,6 +131,13 @@ namespace Gum
 
     virtual void on_enter (InvocationContext * context) = 0;
     virtual void on_leave (InvocationContext * context) = 0;
+  };
+
+  struct ProbeListener
+  {
+    virtual ~ProbeListener () {}
+
+    virtual void on_hit (InvocationContext * context) = 0;
   };
 
   struct Backtracer : public Object

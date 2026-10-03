@@ -3,6 +3,8 @@
 
 #include "gumpp.hpp"
 
+typedef struct _GumInvocationListener GumInvocationListener;
+
 namespace Gum
 {
   typedef struct _GumInvocationListenerProxy GumInvocationListenerProxy;
@@ -23,6 +25,23 @@ namespace Gum
   protected:
     GumInvocationListenerProxy * cproxy;
     InvocationListener * listener;
+  };
+
+  class ProbeListenerProxy : public Object
+  {
+  public:
+    ProbeListenerProxy (ProbeListener * listener);
+    virtual ~ProbeListenerProxy ();
+
+    virtual void ref ();
+    virtual void unref ();
+    virtual void * get_handle () const;
+
+    virtual void on_hit (InvocationContext * context);
+
+  protected:
+    GumInvocationListener * cproxy;
+    ProbeListener * listener;
   };
 }
 

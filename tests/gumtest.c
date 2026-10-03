@@ -292,9 +292,12 @@ main (gint argc, gchar * argv[])
   }
 #endif
 
-#if defined (HAVE_GUMPP) && defined (HAVE_WINDOWS)
+#ifdef HAVE_GUMPP
   /* Gum++ */
+# ifdef HAVE_WINDOWS
   TESTLIST_REGISTER (gumpp_backtracer);
+# endif
+  TESTLIST_REGISTER (gumpp_interceptor);
 #endif
 
 #ifdef _MSC_VER
