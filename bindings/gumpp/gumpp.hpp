@@ -24,6 +24,7 @@ namespace Gum
 {
   struct InvocationContext;
   struct InvocationListener;
+  struct ProbeListener;
   struct CpuContext;
   struct ReturnAddressArray;
 
@@ -66,6 +67,10 @@ namespace Gum
 
     virtual void ignore_other_threads () = 0;
     virtual void unignore_other_threads () = 0;
+
+    virtual bool attach (void * function_address, ProbeListener * listener,
+        void * listener_function_data = 0) = 0;
+    virtual void detach (ProbeListener * listener) = 0;
   };
 
   GUMPP_CAPI Interceptor * Interceptor_obtain (void);
@@ -128,7 +133,12 @@ namespace Gum
     virtual void on_enter (InvocationContext * context) = 0;
     virtual void on_leave (InvocationContext * context) = 0;
   };
+  struct ProbeListener
+  {
+    virtual ~ProbeListener () {}
 
+    virtual void on_enter (InvocationContext * context) = 0;
+  };
   struct Backtracer : public Object
   {
     virtual void generate (const CpuContext * cpu_context, ReturnAddressArray & return_addresses) const = 0;

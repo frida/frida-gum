@@ -70,6 +70,49 @@ namespace Gum
       gum_interceptor_detach (handle, GUM_INVOCATION_LISTENER (proxy->get_handle ()));
     }
 
+    virtual bool attach (void * function_address, ProbeListener * listener,
+        void * listener_function_data)
+    {
+      RefPtr<ProbeListenerProxy> proxy;
+      g_mutex_lock (&mutex);
+      ProbeProxyMap::iterator it = probe_proxy_by_listener.find (listener);
+      if (it == probe_proxy_by_listener.end ())
+      {
+        proxy = RefPtr<ProbeListenerProxy> (new ProbeListenerProxy (listener));
+        probe_proxy_by_listener[listener] = proxy;
+      }
+      else
+      {
+        proxy = it->second;
+      }
+      g_mutex_unlock (&mutex);
+      GumAttachOptions options = {};
+      options.listener_function_data = listener_function_data;
+      GumAttachReturn attach_ret = gum_interceptor_attach (handle,
+          function_address,
+          GUM_INVOCATION_LISTENER (proxy->get_handle ()), &options);
+      return (attach_ret == GUM_ATTACH_OK);
+    }
+
+    virtual void detach (ProbeListener * listener)
+    {
+      RefPtr<ProbeListenerProxy> proxy;
+      g_mutex_lock (&mutex);
+      ProbeProxyMap::iterator it = probe_proxy_by_listener.find (listener);
+      if (it != probe_proxy_by_listener.end ())
+      {
+        proxy = RefPtr<ProbeListenerProxy> (it->second);
+        probe_proxy_by_listener.erase (it);
+      }
+      g_mutex_unlock (&mutex);
+
+      if (proxy.is_null ())
+        return;
+
+      gum_interceptor_detach (handle,
+          GUM_INVOCATION_LISTENER (proxy->get_handle ()));
+    }
+
     virtual void replace (void * function_address, void * replacement_address, void * replacement_data)
     {
       GumReplaceOptions options = {};
@@ -124,7 +167,9 @@ namespace Gum
     GMutex mutex;
 
     typedef std::map<InvocationListener *, RefPtr<InvocationListenerProxy> > ProxyMap;
+    typedef std::map<ProbeListener *, RefPtr<ProbeListenerProxy> > ProbeProxyMap;
     ProxyMap proxy_by_listener;
+    ProbeProxyMap probe_proxy_by_listener;
   };
 
   extern "C" Interceptor * Interceptor_obtain (void) { return new InterceptorImpl; }

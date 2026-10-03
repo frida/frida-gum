@@ -24,6 +24,21 @@ namespace Gum
     GumInvocationListenerProxy * cproxy;
     InvocationListener * listener;
   };
-}
 
+  class ProbeListenerProxy : public Object
+  {
+  public:
+    ProbeListenerProxy (ProbeListener * listener);
+    virtual ~ProbeListenerProxy ();
+
+    virtual void ref ();
+    virtual void unref ();
+    virtual void * get_handle () const;
+
+    virtual void on_enter (InvocationContext * context);
+  protected:
+    void * cproxy;
+    ProbeListener * listener;
+  };
+}
 #endif
