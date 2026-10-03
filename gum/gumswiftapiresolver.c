@@ -59,7 +59,13 @@
 
 #define GUM_PROTOCOL_RECORD_RESERVED_BIT 2
 
-#ifdef HAVE_DARWIN
+#if defined (HAVE_WINDOWS)
+# define GUM_SWIFT_CORE_MODULE "swiftCore.dll"
+# define GUM_SWIFT_TYPES_SECTION ".sw5tymd"
+# define GUM_SWIFT_TYPES2_SECTION ".sw5tym2"
+# define GUM_SWIFT_PROTOCOLS_SECTION ".sw5prt"
+# define GUM_SWIFT_CONFORMANCES_SECTION ".sw5prtc"
+#elif defined (HAVE_DARWIN)
 # define GUM_SWIFT_CORE_MODULE "libswiftCore.dylib"
 # define GUM_SWIFT_TYPES_SECTION "__swift5_types"
 # define GUM_SWIFT_TYPES2_SECTION "__swift5_types2"
@@ -1001,6 +1007,9 @@ gum_module_metadata_collect_section (const GumSectionDetails * details,
     const GumTypeContextDescriptor * type;
     guint32 descriptor_flags;
 
+    if (types[i] == 0)
+      continue;
+
     type = gum_resolve_relative_indirectable_ptr (&types[i]);
     descriptor_flags = type->context.flags;
 
@@ -1375,6 +1384,9 @@ gum_module_metadata_collect_type_section (const GumSectionDetails * details,
 
   for (i = 0; i != n; i++)
   {
+    if (records[i] == 0)
+      continue;
+
     gum_module_metadata_add_descriptor (self, self->types,
         gum_resolve_relative_indirectable_ptr (&records[i]));
   }
@@ -1415,6 +1427,9 @@ gum_module_metadata_collect_protocol_section (
 
   for (i = 0; i != n; i++)
   {
+    if (records[i] == 0)
+      continue;
+
     gum_module_metadata_add_descriptor (self, self->protocols,
         gum_resolve_protocol_record (&records[i]));
   }
@@ -1471,6 +1486,9 @@ gum_module_metadata_collect_conformance_section (
     const GumProtocolConformanceDescriptor * cd;
     const GumContextDescriptor * protocol;
     GumConformanceMetadata c;
+
+    if (records[i] == 0)
+      continue;
 
     cd = gum_resolve_relative_indirectable_ptr (&records[i]);
 
@@ -1563,7 +1581,9 @@ gum_swift_api_resolver_ensure_demangler (GumSwiftApiResolver * self)
   if (swift_core == NULL)
     return FALSE;
 
-#ifdef HAVE_DARWIN
+#if defined (HAVE_WINDOWS)
+  allocator = gum_process_find_module_by_name ("ucrtbase.dll");
+#elif defined (HAVE_DARWIN)
   allocator = gum_process_find_module_by_name (
       "/usr/lib/system/libsystem_malloc.dylib");
 #else

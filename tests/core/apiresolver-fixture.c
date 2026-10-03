@@ -16,7 +16,9 @@
 #endif
 
 #include <string.h>
-#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+#ifdef HAVE_WINDOWS
+# include <windows.h>
+#else
 # include <dlfcn.h>
 #endif
 #ifdef HAVE_ELF
@@ -63,10 +65,8 @@ static gboolean check_section (const GumApiDetails * details,
     gpointer user_data);
 static gboolean match_found_cb (const GumApiDetails * details,
     gpointer user_data);
-#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
 static GHashTable * make_match_table (void);
 static gboolean collect_match (const GumApiDetails * details,
     gpointer user_data);
 static gboolean resolve_method_impl (const GumApiDetails * details,
     gpointer user_data);
-#endif

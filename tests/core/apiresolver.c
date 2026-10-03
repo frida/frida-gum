@@ -21,11 +21,9 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (objc_method_can_be_resolved_from_class_method_address)
   TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
 #endif
-#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
   TESTENTRY (swift_functions_in_libswiftcore_can_be_resolved)
   TESTENTRY (swift_conformances_in_libswiftcore_can_be_resolved)
   TESTENTRY (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
-#endif
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
 #endif
@@ -229,8 +227,6 @@ TESTCASE (reexported_module_exports_can_be_resolved_by_prefix)
 
 #endif
 
-#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
-
 static GHashTable *
 make_match_table (void)
 {
@@ -248,8 +244,6 @@ collect_match (const GumApiDetails * details,
 
   return TRUE;
 }
-
-#endif
 
 TESTCASE (objc_methods_can_be_resolved_case_sensitively)
 {
@@ -367,8 +361,6 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
 
 #endif
 
-#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
-
 #ifdef HAVE_ELF
 # ifdef HAVE_FREEBSD
 #  define SWIFT_PLATFORM "freebsd"
@@ -377,14 +369,17 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
 # endif
 #endif
 
-static void * open_swift_core (void);
+static gpointer open_swift_core (void);
+static GumAddress find_swift_core_export (gpointer swift_core,
+    const gchar * name);
+static void close_swift_core (gpointer swift_core);
 #ifdef HAVE_ELF
 static void * open_swift_core_from_toolchain_in_path (void);
 #endif
 
 TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
 {
-  void * swift_core;
+  gpointer swift_core;
   GumAddress expected_address, address;
   GError * error = NULL;
 
@@ -395,8 +390,8 @@ TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
     return;
   }
 
-  expected_address =
-      GUM_ADDRESS (dlsym (swift_core, "$sSS9hasPrefixySbSSF"));
+  expected_address = find_swift_core_export (swift_core,
+      "$sSS9hasPrefixySbSSF");
   g_assert_cmpuint (expected_address, !=, 0);
 
   fixture->resolver = gum_api_resolver_make ("swift");
@@ -404,19 +399,21 @@ TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
 
   address = 0;
   gum_api_resolver_enumerate_matches (fixture->resolver,
-      "functions:*libswiftCore*!Swift.String.hasPrefix(Swift.String)*",
+      "functions:*swiftCore*!Swift.String.hasPrefix(Swift.String)*",
       resolve_method_impl, &address, &error);
   g_assert_no_error (error);
   g_assert_cmphex (gum_strip_code_address (address), ==,
       gum_strip_code_address (expected_address));
 
-  dlclose (swift_core);
+  close_swift_core (swift_core);
 }
 
-static void *
+static gpointer
 open_swift_core (void)
 {
-#ifdef HAVE_DARWIN
+#if defined (HAVE_WINDOWS)
+  return LoadLibraryW (L"swiftCore.dll");
+#elif defined (HAVE_DARWIN)
   return dlopen ("/usr/lib/swift/libswiftCore.dylib", RTLD_LAZY | RTLD_GLOBAL);
 #else
   void * swift_core;
@@ -429,6 +426,27 @@ open_swift_core (void)
   }
 
   return swift_core;
+#endif
+}
+
+static GumAddress
+find_swift_core_export (gpointer swift_core,
+                        const gchar * name)
+{
+#ifdef HAVE_WINDOWS
+  return GUM_ADDRESS (GetProcAddress (swift_core, name));
+#else
+  return GUM_ADDRESS (dlsym (swift_core, name));
+#endif
+}
+
+static void
+close_swift_core (gpointer swift_core)
+{
+#ifdef HAVE_WINDOWS
+  FreeLibrary (swift_core);
+#else
+  dlclose (swift_core);
 #endif
 }
 
@@ -479,7 +497,7 @@ resolve_method_impl (const GumApiDetails * details,
 
 TESTCASE (swift_conformances_in_libswiftcore_can_be_resolved)
 {
-  void * swift_core;
+  gpointer swift_core;
   GumAddress expected_address, * address;
   GHashTable * matches;
   GHashTableIter iter;
@@ -493,7 +511,7 @@ TESTCASE (swift_conformances_in_libswiftcore_can_be_resolved)
     return;
   }
 
-  expected_address = GUM_ADDRESS (dlsym (swift_core, "$sSiSHsMc"));
+  expected_address = find_swift_core_export (swift_core, "$sSiSHsMc");
   g_assert_cmpuint (expected_address, !=, 0);
 
   fixture->resolver = gum_api_resolver_make ("swift");
@@ -538,12 +556,12 @@ TESTCASE (swift_conformances_in_libswiftcore_can_be_resolved)
   g_assert_true (g_hash_table_contains (matches, "Swift.Int!Swift.Hashable"));
   g_hash_table_unref (matches);
 
-  dlclose (swift_core);
+  close_swift_core (swift_core);
 }
 
 TESTCASE (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
 {
-  void * swift_core;
+  gpointer swift_core;
   GumAddress expected_type, expected_protocol, * address;
   GHashTable * matches;
   GHashTableIter iter;
@@ -557,9 +575,9 @@ TESTCASE (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
     return;
   }
 
-  expected_type = GUM_ADDRESS (dlsym (swift_core, "$sSiMn"));
+  expected_type = find_swift_core_export (swift_core, "$sSiMn");
   g_assert_cmpuint (expected_type, !=, 0);
-  expected_protocol = GUM_ADDRESS (dlsym (swift_core, "$sSHMp"));
+  expected_protocol = find_swift_core_export (swift_core, "$sSHMp");
   g_assert_cmpuint (expected_protocol, !=, 0);
 
   fixture->resolver = gum_api_resolver_make ("swift");
@@ -578,7 +596,7 @@ TESTCASE (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
 
   matches = make_match_table ();
   gum_api_resolver_enumerate_matches (fixture->resolver,
-      "types:*libswiftCore*!Swift.*", collect_match, matches, &error);
+      "types:*swiftCore*!Swift.*", collect_match, matches, &error);
   g_assert_no_error (error);
   g_assert_cmpuint (g_hash_table_size (matches), >, 100);
   g_hash_table_iter_init (&iter, matches);
@@ -603,10 +621,8 @@ TESTCASE (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
   g_assert_cmpuint (g_hash_table_size (matches), ==, 1);
   g_hash_table_unref (matches);
 
-  dlclose (swift_core);
+  close_swift_core (swift_core);
 }
-
-#endif
 
 #ifdef HAVE_ANDROID
 
