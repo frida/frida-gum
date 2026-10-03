@@ -44,6 +44,7 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (find_pointers_returns_empty_array_when_absent)
   TESTENTRY (find_pointers_skips_inaccessible_range)
   TESTENTRY (find_pointers_skips_inaccessible_range_in_parallel_scan)
+  TESTENTRY (find_pointers_leaves_no_trace_for_later_scans)
   TESTENTRY (is_memory_readable_handles_mixed_page_protections)
   TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
   TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
@@ -63,6 +64,8 @@ typedef struct _TestForEachContext {
 
 static gboolean match_found_cb (GumAddress address, gsize size,
     gpointer user_data);
+static gboolean collect_range_outside_own_thread (
+    const GumRangeDetails * details, gpointer user_data);
 static gpointer gum_patch_lock_holder (gpointer data);
 static void gum_patch_gated_apply (gpointer mem, gpointer user_data);
 
@@ -822,6 +825,77 @@ TESTCASE (find_pointers_skips_inaccessible_range_in_parallel_scan)
   g_array_free (matches, TRUE);
   gum_memory_free (inaccessible, page_size);
   g_free (large);
+}
+
+TESTCASE (find_pointers_leaves_no_trace_for_later_scans)
+{
+  gsize size = (4 * 1024 * 1024) + 4096;
+  gsize * large;
+  gsize value;
+  GumMemoryRange range;
+  GArray * ranges, * matches;
+  guint round;
+
+  large = g_new0 (gsize, size / sizeof (gsize));
+  value = GPOINTER_TO_SIZE (large) ^ G_GUINT64_CONSTANT (0x5a5a5a5a5a5a5a5a);
+  large[0] = value;
+
+  range.base_address = GUM_ADDRESS (large);
+  range.size = size;
+  matches = gum_memory_find_pointers (&range, 1, &value, 1, G_MAXSIZE);
+  g_assert_cmpuint (matches->len, ==, 1);
+  g_array_free (matches, TRUE);
+
+  ranges = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
+  g_array_append_val (ranges, range);
+  gum_process_enumerate_ranges (GUM_PAGE_RW, collect_range_outside_own_thread,
+      ranges);
+
+  for (round = 0; round != 5; round++)
+  {
+    guint i;
+
+    matches = gum_memory_find_pointers ((GumMemoryRange *) ranges->data,
+        ranges->len, &value, 1, G_MAXSIZE);
+
+    for (i = 0; i != matches->len; i++)
+    {
+      g_assert_cmphex (g_array_index (matches, GumPointerMatch, i).address, ==,
+          GUM_ADDRESS (large));
+    }
+    g_assert_cmpuint (matches->len, ==, 1);
+
+    g_array_free (matches, TRUE);
+  }
+
+  g_array_free (ranges, TRUE);
+  g_free (large);
+}
+
+static gboolean
+collect_range_outside_own_thread (const GumRangeDetails * details,
+                                  gpointer user_data)
+{
+  GArray * ranges = user_data;
+  GumMemoryRange own[2];
+  guint n_own, i;
+
+  n_own = gum_thread_try_get_ranges (own, G_N_ELEMENTS (own));
+  for (i = 0; i != n_own; i++)
+  {
+    GumAddress own_end = own[i].base_address + own[i].size;
+    GumAddress range_end = details->range->base_address + details->range->size;
+
+    if (details->range->base_address < own_end &&
+        own[i].base_address < range_end)
+    {
+      return TRUE;
+    }
+  }
+
+  g_array_append_val (ranges, *details->range);
+
+  return TRUE;
 }
 
 TESTCASE (is_memory_readable_handles_mixed_page_protections)
