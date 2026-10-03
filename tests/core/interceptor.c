@@ -82,6 +82,7 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (ignore_current_thread_nested)
   TESTENTRY (ignore_other_threads)
   TESTENTRY (detach)
+  TESTENTRY (attach_after_detach_in_same_transaction)
   TESTENTRY (listener_ref_count)
   TESTENTRY (function_data)
 
@@ -117,6 +118,8 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (replace_fast_then_attach)
   TESTENTRY (i_can_has_replaceability_fast)
   TESTENTRY (replace_one_fast)
+  TESTENTRY (replace_fast_after_revert_in_same_transaction)
+  TESTENTRY (replace_fast_after_detach_in_same_transaction)
   TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
 
@@ -161,6 +164,7 @@ static gpointer hit_target_function_repeatedly (gpointer data);
 static gpointer replacement_malloc (gsize size);
 static gpointer (* target_function_fast) (GString * str) = NULL;
 static gpointer replacement_target_function_fast (GString * str);
+static gpointer replacement_target_function_fast_alt (GString * str);
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
 static gdouble gum_test_xmm_clobber (gdouble x);
 #endif
@@ -765,6 +769,31 @@ TESTCASE (detach)
 
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "c|d");
+}
+
+TESTCASE (attach_after_detach_in_same_transaction)
+{
+  guint8 * code;
+  guint8 original[16];
+
+  code = gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (target_function));
+  memcpy (original, code, sizeof (original));
+
+  interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "a|b");
+
+  gum_interceptor_begin_transaction (fixture->interceptor);
+  interceptor_fixture_detach (fixture, 0);
+  interceptor_fixture_attach (fixture, 1, target_function, 'c', 'd');
+  gum_interceptor_end_transaction (fixture->interceptor);
+
+  g_string_truncate (fixture->result, 0);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "c|d");
+
+  interceptor_fixture_detach (fixture, 1);
+  g_assert_cmpmem (original, sizeof (original), code, sizeof (original));
 }
 
 TESTCASE (listener_ref_count)
@@ -1663,6 +1692,51 @@ TESTCASE (replace_one_fast)
   g_assert_cmpstr (fixture->result->str, ==, "|");
 }
 
+TESTCASE (replace_fast_after_revert_in_same_transaction)
+{
+  guint8 * code;
+  guint8 original[16];
+
+  code = gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (target_function));
+  memcpy (original, code, sizeof (original));
+
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function_fast,
+        (gpointer *) &target_function_fast, NULL),
+      ==, GUM_REPLACE_OK);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "/|\\");
+
+  gum_interceptor_begin_transaction (fixture->interceptor);
+  gum_interceptor_revert (fixture->interceptor, target_function);
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function_fast_alt,
+        (gpointer *) &target_function_fast, NULL),
+      ==, GUM_REPLACE_OK);
+  gum_interceptor_end_transaction (fixture->interceptor);
+
+  g_string_truncate (fixture->result, 0);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "(|)");
+
+  gum_interceptor_revert (fixture->interceptor, target_function);
+  g_assert_cmpmem (original, sizeof (original), code, sizeof (original));
+}
+
+TESTCASE (replace_fast_after_detach_in_same_transaction)
+{
+  interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
+  target_function (fixture->result);
+
+  gum_interceptor_begin_transaction (fixture->interceptor);
+  interceptor_fixture_detach (fixture, 0);
+  g_assert_cmpint (gum_interceptor_replace_fast (fixture->interceptor,
+        target_function, replacement_target_function_fast,
+        (gpointer *) &target_function_fast, NULL),
+      ==, GUM_REPLACE_WRONG_TYPE);
+  gum_interceptor_end_transaction (fixture->interceptor);
+}
+
 static gpointer
 replacement_target_function_fast (GString * str)
 {
@@ -1671,6 +1745,18 @@ replacement_target_function_fast (GString * str)
   g_string_append_c (str, '/');
   result = target_function_fast (str);
   g_string_append_c (str, '\\');
+
+  return result;
+}
+
+static gpointer
+replacement_target_function_fast_alt (GString * str)
+{
+  gpointer result;
+
+  g_string_append_c (str, '(');
+  result = target_function_fast (str);
+  g_string_append_c (str, ')');
 
   return result;
 }
