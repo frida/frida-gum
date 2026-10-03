@@ -457,13 +457,19 @@ gum_native_module_enumerate_sections (GumModule * module,
   for (i = 0; i != nt_hdrs->FileHeader.NumberOfSections; i++)
   {
     const IMAGE_SECTION_HEADER * section = &sec_hdrs[i];
+    gchar name[IMAGE_SIZEOF_SHORT_NAME + 1];
     GumSectionDetails details;
     gboolean carry_on;
 
-    details.id = g_strdup_printf ("%d.%s", i, section->Name);
-    details.name = section->Name;
+    memcpy (name, section->Name, IMAGE_SIZEOF_SHORT_NAME);
+    name[IMAGE_SIZEOF_SHORT_NAME] = '\0';
+
+    details.id = g_strdup_printf ("%d.%s", i, name);
+    details.name = name;
     details.address = GUM_ADDRESS (mod_base + section->VirtualAddress);
-    details.size = section->SizeOfRawData;
+    details.size = (section->Misc.VirtualSize != 0)
+        ? section->Misc.VirtualSize
+        : section->SizeOfRawData;
 
     carry_on = func (&details, user_data);
 
