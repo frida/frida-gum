@@ -55,6 +55,15 @@ if host_os_family != 'windows'
   shared_module('module-registry-target', 'module-registry-target.c',
     name_prefix: '',
   )
+
+  module_registry_dependency = shared_library('module-registry-dependency',
+    'module-registry-dependency.c',
+    name_prefix: '',
+  )
+  shared_module('module-registry-dependent', 'module-registry-dependent.c',
+    name_prefix: '',
+    link_with: module_registry_dependency,
+  )
 else
   test_data_stamp = []
 endif

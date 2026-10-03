@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 JC Liang <jcl@nvidia.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -78,8 +79,6 @@ static gint gum_emit_module_from_phdr (struct dl_phdr_info * info, gsize size,
     gpointer user_data);
 static void gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
     GumFoundModuleFunc func, gpointer user_data);
-static gpointer gum_link_map_as_module_handle (GumNativeModule * module,
-    gpointer user_data);
 static void gum_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     gpointer user_data);
 static gpointer gum_create_module_handle (GumNativeModule * module,
@@ -263,7 +262,7 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
     }
 
     module = _gum_native_module_make (lm->l_name, &range,
-        gum_link_map_as_module_handle, (gpointer) lm, NULL, NULL);
+        gum_create_module_handle, NULL, NULL, (GDestroyNotify) dlclose);
 
     carry_on = func (GUM_MODULE (module), user_data);
 
@@ -275,13 +274,6 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
 
   if (named_ranges != NULL)
     g_hash_table_unref (named_ranges);
-}
-
-static gpointer
-gum_link_map_as_module_handle (GumNativeModule * module,
-                               gpointer user_data)
-{
-  return user_data;
 }
 
 static void
