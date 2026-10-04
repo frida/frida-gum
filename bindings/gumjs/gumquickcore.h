@@ -200,7 +200,6 @@ struct _GumQuickCore
 struct _GumQuickScope
 {
   GumQuickCore * core;
-  gboolean skipped;
   GumQuickScope * previous_scope;
   GumThreadId previous_owner;
   guint previous_mutex_depth;
@@ -212,6 +211,8 @@ struct _GumQuickScope
   gint pending_stalker_level;
   GumStalkerTransformer * pending_stalker_transformer;
   GumEventSink * pending_stalker_sink;
+
+  gboolean skipped;
 };
 
 struct _GumQuickInt64
