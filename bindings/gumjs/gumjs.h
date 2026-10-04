@@ -15,6 +15,9 @@ GUM_API void gumjs_prepare_to_fork (void);
 GUM_API void gumjs_recover_from_fork_in_parent (void);
 GUM_API void gumjs_recover_from_fork_in_child (void);
 
+G_GNUC_INTERNAL void gumjs_runtime_on_created (void);
+G_GNUC_INTERNAL gboolean gumjs_runtime_belongs_to_this_process (void);
+
 G_END_DECLS
 
 #endif

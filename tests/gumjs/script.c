@@ -15,6 +15,10 @@
 
 #include "script-fixture.c"
 
+#ifndef HAVE_WINDOWS
+# include <sys/wait.h>
+#endif
+
 TESTLIST_BEGIN (script)
   TESTENTRY (invalid_script_should_return_null)
   TESTENTRY (strict_mode_should_be_enforced)
@@ -118,6 +122,9 @@ TESTLIST_BEGIN (script)
     TESTENTRY (interceptor_should_support_default_options)
     TESTENTRY (interceptor_should_handle_bad_pointers)
     TESTENTRY (interceptor_should_refuse_to_attach_without_any_callbacks)
+#ifndef HAVE_WINDOWS
+    TESTENTRY (interceptor_js_listener_should_not_deadlock_in_fork_child)
+#endif
 #ifdef HAVE_DARWIN
     TESTENTRY (interceptor_and_js_should_not_deadlock)
 #endif
@@ -8699,6 +8706,60 @@ TESTCASE (interceptor_should_refuse_to_attach_without_any_callbacks)
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
       "Error: expected at least one callback");
 }
+
+#ifndef HAVE_WINDOWS
+
+TESTCASE (interceptor_js_listener_should_not_deadlock_in_fork_child)
+{
+  pid_t child;
+  int status;
+  gint64 deadline;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter() { send('enter'); },"
+      "  onLeave() { send('leave'); }"
+      "});",
+      target_function_int);
+
+  child = fork ();
+  g_assert_cmpint (child, >=, 0);
+  if (child == 0)
+  {
+    target_function_int (42);
+    _exit (0);
+  }
+
+  deadline = g_get_monotonic_time () + 5 * G_USEC_PER_SEC;
+  status = -1;
+  for (;;)
+  {
+    pid_t waited;
+
+    waited = waitpid (child, &status, WNOHANG);
+    g_assert_cmpint (waited, >=, 0);
+    if (waited == child)
+      break;
+
+    if (g_get_monotonic_time () > deadline)
+    {
+      g_error ("timed out waiting for fork child; JS interceptor likely "
+          "deadlocked on the runtime mutex");
+    }
+
+    g_usleep (G_USEC_PER_SEC / 100);
+  }
+
+  g_assert_true (WIFEXITED (status));
+  g_assert_cmpint (WEXITSTATUS (status), ==, 0);
+
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("\"enter\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"leave\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+#endif
 
 #ifdef HAVE_DARWIN
 

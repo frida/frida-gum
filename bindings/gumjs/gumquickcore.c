@@ -12,6 +12,7 @@
 
 #include "gumquickcore.h"
 
+#include "gumjs.h"
 #include "gumansi.h"
 #include "gumffi.h"
 #include "gumquickinterceptor.h"
@@ -1599,6 +1600,8 @@ _gum_quick_core_init (GumQuickCore * self,
   self->flush_data = NULL;
   self->flush_data_destroy = NULL;
 
+  gumjs_runtime_on_created ();
+
   self->event_loop = g_main_loop_new (
       gum_script_scheduler_get_js_context (scheduler), FALSE);
   g_mutex_init (&self->event_mutex);
@@ -2037,6 +2040,9 @@ _gum_quick_scope_enter (GumQuickScope * self,
                         GumQuickCore * core)
 {
   self->core = core;
+  self->skipped = !gumjs_runtime_belongs_to_this_process ();
+  if (self->skipped)
+    return;
 
   if (core->interceptor != NULL)
     gum_interceptor_begin_transaction (core->interceptor->interceptor);
@@ -2078,6 +2084,9 @@ _gum_quick_scope_suspend (GumQuickScope * self)
   GumQuickCore * core = self->core;
   guint i;
 
+  if (self->skipped)
+    return;
+
   JS_Suspend (core->rt, &self->thread_state);
 
   g_assert (core->current_scope != NULL);
@@ -2100,6 +2109,9 @@ _gum_quick_scope_resume (GumQuickScope * self)
 {
   GumQuickCore * core = self->core;
   guint i;
+
+  if (self->skipped)
+    return;
 
   if (core->interceptor != NULL)
     gum_interceptor_begin_transaction (core->interceptor->interceptor);
@@ -2128,6 +2140,9 @@ _gum_quick_scope_call (GumQuickScope * self,
   GumQuickCore * core = self->core;
   JSContext * ctx = core->ctx;
 
+  if (self->skipped)
+    return JS_UNDEFINED;
+
   result = JS_Call (ctx, func_obj, this_obj, argc, argv);
 
   if (JS_IsException (result))
@@ -2145,6 +2160,9 @@ _gum_quick_scope_call_void (GumQuickScope * self,
 {
   JSValue result;
 
+  if (self->skipped)
+    return TRUE;
+
   result = _gum_quick_scope_call (self, func_obj, this_obj, argc, argv);
   if (JS_IsException (result))
     return FALSE;
@@ -2160,6 +2178,9 @@ _gum_quick_scope_catch_and_emit (GumQuickScope * self)
   GumQuickCore * core = self->core;
   JSContext * ctx = core->ctx;
   JSValue exception;
+
+  if (self->skipped)
+    return;
 
   exception = JS_GetException (ctx);
   if (JS_IsNull (exception))
@@ -2198,6 +2219,9 @@ _gum_quick_scope_perform_pending_io (GumQuickScope * self)
   GumQuickCore * core = self->core;
   JSContext * ctx = core->ctx;
   gboolean io_performed;
+
+  if (self->skipped)
+    return;
 
   do
   {
@@ -2248,6 +2272,9 @@ _gum_quick_scope_leave (GumQuickScope * self)
   GumQuickFlushNotify flush_notify = NULL;
   gpointer flush_data = NULL;
   GDestroyNotify flush_data_destroy = NULL;
+
+  if (self->skipped)
+    return;
 
   _gum_quick_scope_perform_pending_io (self);
 
@@ -5147,6 +5174,13 @@ gum_quick_native_callback_invoke (ffi_cif * cif,
   asm ("move %0, $sp" : "=r" (stack_pointer));
   asm ("move %0, $fp" : "=r" (frame_pointer));
 #endif
+
+  if (!gumjs_runtime_belongs_to_this_process ())
+  {
+    if (rtype != &ffi_type_void)
+      memset (retval, 0, rtype->size);
+    return;
+  }
 
   _gum_quick_scope_enter (&scope, core);
 

@@ -6,6 +6,7 @@
 
 #include "gumquickinterceptor.h"
 
+#include "gumjs.h"
 #include "gumquickcodewriter.h"
 #include "gumquickmacros.h"
 
@@ -1288,6 +1289,12 @@ gum_quick_js_call_listener_on_enter (GumInvocationListener * listener,
   self = GUM_QUICK_JS_CALL_LISTENER_CAST (listener);
   state = GUM_IC_GET_INVOCATION_DATA (ic, GumQuickInvocationState);
 
+  if (!gumjs_runtime_belongs_to_this_process ())
+  {
+    state->jic = NULL;
+    return;
+  }
+
   if (!JS_IsNull (self->on_enter))
   {
     GumQuickInterceptor * parent;
@@ -1343,6 +1350,9 @@ gum_quick_js_call_listener_on_leave (GumInvocationListener * listener,
   self = GUM_QUICK_JS_CALL_LISTENER_CAST (listener);
   parent = GUM_QUICK_INVOCATION_LISTENER_CAST (listener)->parent;
   state = GUM_IC_GET_INVOCATION_DATA (ic, GumQuickInvocationState);
+
+  if (!gumjs_runtime_belongs_to_this_process ())
+    return;
 
   if (!JS_IsNull (self->on_leave))
   {
@@ -1454,6 +1464,9 @@ gum_quick_js_probe_listener_on_enter (GumInvocationListener * listener,
 
   self = GUM_QUICK_JS_PROBE_LISTENER_CAST (listener);
   parent = GUM_QUICK_INVOCATION_LISTENER_CAST (listener)->parent;
+
+  if (!gumjs_runtime_belongs_to_this_process ())
+    return;
 
   _gum_quick_scope_enter (&scope, parent->core);
 

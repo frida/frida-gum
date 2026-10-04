@@ -15,6 +15,7 @@
 
 #include "gumansi.h"
 #include "gumffi.h"
+#include "gumjs.h"
 #include "gumsourcemap.h"
 #include "gumv8macros.h"
 #include "gumv8scope.h"
@@ -645,6 +646,8 @@ _gum_v8_core_init (GumV8Core * self,
 
   self->scheduled_callbacks = g_hash_table_new (NULL, NULL);
   self->next_callback_id = 1;
+
+  gumjs_runtime_on_created ();
 
   auto module = External::New (isolate, self);
 
@@ -4009,6 +4012,14 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
 #endif
 
   auto self = (GumV8NativeCallback *) user_data;
+  if (!gumjs_runtime_belongs_to_this_process ())
+  {
+    auto rtype = cif->rtype;
+    if (rtype != &ffi_type_void)
+      memset (return_value, 0, rtype->size);
+    return;
+  }
+
   ScriptScope scope (self->core->script);
   auto isolate = self->core->isolate;
   auto context = isolate->GetCurrentContext ();

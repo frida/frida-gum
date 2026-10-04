@@ -6,6 +6,7 @@
 
 #include "gumv8interceptor.h"
 
+#include "gumjs.h"
 #include "gumv8codewriter.h"
 #include "gumv8macros.h"
 #include "gumv8scope.h"
@@ -1271,6 +1272,12 @@ gum_v8_js_call_listener_on_enter (GumInvocationListener * listener,
   auto self = GUM_V8_JS_CALL_LISTENER_CAST (listener);
   auto state = GUM_IC_GET_INVOCATION_DATA (ic, GumV8InvocationState);
 
+  if (!gumjs_runtime_belongs_to_this_process ())
+  {
+    state->jic = NULL;
+    return;
+  }
+
   if (self->on_enter != nullptr)
   {
     auto module = GUM_V8_INVOCATION_LISTENER_CAST (listener)->module;
@@ -1322,6 +1329,9 @@ gum_v8_js_call_listener_on_leave (GumInvocationListener * listener,
   auto module = GUM_V8_INVOCATION_LISTENER_CAST (listener)->module;
   auto core = module->core;
   auto state = GUM_IC_GET_INVOCATION_DATA (ic, GumV8InvocationState);
+
+  if (!gumjs_runtime_belongs_to_this_process ())
+    return;
 
   if (self->on_leave != nullptr)
   {
@@ -1416,6 +1426,9 @@ gum_v8_js_probe_listener_on_enter (GumInvocationListener * listener,
   auto self = GUM_V8_JS_PROBE_LISTENER_CAST (listener);
   auto module = GUM_V8_INVOCATION_LISTENER_CAST (listener)->module;
   auto core = module->core;
+
+  if (!gumjs_runtime_belongs_to_this_process ())
+    return;
 
   ScriptScope scope (core->script);
   auto isolate = core->isolate;

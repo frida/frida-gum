@@ -200,6 +200,7 @@ struct _GumQuickCore
 struct _GumQuickScope
 {
   GumQuickCore * core;
+  gboolean skipped;
   GumQuickScope * previous_scope;
   GumThreadId previous_owner;
   guint previous_mutex_depth;
