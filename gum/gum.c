@@ -2,6 +2,7 @@
  * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Stefano Moioli <smxdev4@gmail.com>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -423,12 +424,17 @@ gum_on_thread_dispose (void)
 static void
 gum_on_thread_finalize (void)
 {
+#ifdef HAVE_GLIBC
+  GumInternalThreadDetails * details;
+#endif
+
   if (gum_cached_interceptor != NULL)
     gum_interceptor_unignore_current_thread (gum_cached_interceptor);
 
 #ifdef HAVE_GLIBC
-  gum_internal_thread_discard_dead_stack (
-      g_private_get (&gum_internal_thread_details_key));
+  details = g_private_get (&gum_internal_thread_details_key);
+  if (details != NULL)
+    gum_internal_thread_discard_dead_stack (details);
 #endif
 }
 

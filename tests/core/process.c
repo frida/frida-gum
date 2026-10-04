@@ -15,6 +15,7 @@
 
 #ifndef HAVE_WINDOWS
 #include <dlfcn.h>
+#include <pthread.h>
 #else
 #include <windows.h>
 #endif
@@ -46,6 +47,9 @@ TESTLIST_BEGIN (process)
   TESTENTRY (thread_ranges_can_be_enumerated)
 #ifdef HAVE_FRIDA_GLIB
   TESTENTRY (internal_thread_leaves_no_stack_contents_behind)
+#ifndef HAVE_WINDOWS
+  TESTENTRY (adopted_thread_can_be_finalized)
+#endif
 #endif
   TESTENTRY (module_can_be_loaded)
   TESTENTRY (module_imports)
@@ -148,6 +152,10 @@ static gboolean check_thread_enumeration_testable (void);
 static gpointer probe_thread (gpointer data);
 static void inspect_thread_ranges (void);
 static gpointer leave_marker_on_stack (gpointer data);
+#ifndef HAVE_WINDOWS
+static gpointer check_thread_is_cloaked (gpointer data);
+static void * adopt_into_glib (void * data);
+#endif
 
 static gboolean store_import_slot_of_malloc_if_available (
     const GumImportDetails * details, gpointer user_data);
@@ -748,6 +756,51 @@ leave_marker_on_stack (gpointer data)
 
   return NULL;
 }
+
+#if defined (HAVE_FRIDA_GLIB) && !defined (HAVE_WINDOWS)
+
+TESTCASE (adopted_thread_can_be_finalized)
+{
+  gboolean callbacks_installed = FALSE;
+  pthread_t thread;
+  gboolean adopted = FALSE;
+
+  g_thread_join (g_thread_new ("probe", check_thread_is_cloaked,
+      &callbacks_installed));
+  if (!callbacks_installed)
+  {
+    g_print ("<skipping, thread callbacks not installed> ");
+    return;
+  }
+
+  g_assert_cmpint (pthread_create (&thread, NULL, adopt_into_glib, &adopted),
+      ==, 0);
+  g_assert_cmpint (pthread_join (thread, NULL), ==, 0);
+
+  g_assert_true (adopted);
+}
+
+static gpointer
+check_thread_is_cloaked (gpointer data)
+{
+  gboolean * cloaked = data;
+
+  *cloaked = gum_cloak_has_thread (gum_process_get_current_thread_id ());
+
+  return NULL;
+}
+
+static void *
+adopt_into_glib (void * data)
+{
+  gboolean * adopted = data;
+
+  *adopted = g_thread_self () != NULL;
+
+  return NULL;
+}
+
+#endif
 
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
 
