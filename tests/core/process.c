@@ -44,6 +44,9 @@ TESTLIST_BEGIN (process)
   TESTENTRY (process_ranges)
   TESTENTRY (process_ranges_exclude_cloaked)
   TESTENTRY (thread_ranges_can_be_enumerated)
+#ifdef HAVE_FRIDA_GLIB
+  TESTENTRY (internal_thread_leaves_no_stack_contents_behind)
+#endif
   TESTENTRY (module_can_be_loaded)
   TESTENTRY (module_imports)
   TESTENTRY (module_import_slot_should_contain_correct_value)
@@ -89,6 +92,7 @@ typedef struct _TestForEachContext TestForEachContext;
 typedef struct _TestThreadContext TestThreadContext;
 typedef struct _TestRangeContext TestRangeContext;
 typedef struct _TestThreadSyncData TestThreadSyncData;
+typedef struct _TestStackLeakProbe TestStackLeakProbe;
 
 struct _TestForEachContext
 {
@@ -119,6 +123,13 @@ struct _TestThreadSyncData
   volatile gboolean * volatile done;
 };
 
+struct _TestStackLeakProbe
+{
+  guint8 marker[64];
+  guint8 * marker_address;
+  gboolean thread_was_cloaked;
+};
+
 #ifdef HAVE_DARWIN
 
 typedef struct _ExportSearch ExportSearch;
@@ -136,6 +147,7 @@ static gboolean check_thread_enumeration_testable (void);
 
 static gpointer probe_thread (gpointer data);
 static void inspect_thread_ranges (void);
+static gpointer leave_marker_on_stack (gpointer data);
 
 static gboolean store_import_slot_of_malloc_if_available (
     const GumImportDetails * details, gpointer user_data);
@@ -683,6 +695,58 @@ inspect_thread_ranges (void)
           r->size);
     }
   }
+}
+
+#ifdef HAVE_FRIDA_GLIB
+
+TESTCASE (internal_thread_leaves_no_stack_contents_behind)
+{
+  TestStackLeakProbe probe;
+  guint i;
+  guint8 * contents;
+  gsize n_bytes_read;
+
+  for (i = 0; i != sizeof (probe.marker); i++)
+    probe.marker[i] = 0xa5 ^ i;
+  probe.marker_address = NULL;
+
+  g_thread_join (g_thread_new ("leaky-thread", leave_marker_on_stack, &probe));
+
+  if (!probe.thread_was_cloaked)
+  {
+    g_print ("<skipping, thread callbacks not installed> ");
+    return;
+  }
+
+  contents = gum_memory_read (probe.marker_address, sizeof (probe.marker),
+      &n_bytes_read);
+  if (contents == NULL)
+  {
+    g_print ("<skipping, stack unmapped on exit> ");
+    return;
+  }
+
+  g_assert_cmpint (memcmp (contents, probe.marker, sizeof (probe.marker)),
+      !=, 0);
+
+  g_free (contents);
+}
+
+#endif
+
+static gpointer
+leave_marker_on_stack (gpointer data)
+{
+  TestStackLeakProbe * probe = data;
+  guint8 scratch[64 * 1024];
+
+  probe->thread_was_cloaked =
+      gum_cloak_has_thread (gum_process_get_current_thread_id ());
+
+  memcpy (scratch, probe->marker, sizeof (probe->marker));
+  g_atomic_pointer_set (&probe->marker_address, scratch);
+
+  return NULL;
 }
 
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)

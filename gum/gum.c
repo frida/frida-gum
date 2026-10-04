@@ -57,6 +57,12 @@ static void gum_on_thread_init (void);
 static void gum_on_thread_realize (void);
 static void gum_on_thread_dispose (void);
 static void gum_on_thread_finalize (void);
+# ifdef HAVE_GLIBC
+static void gum_internal_thread_discard_dead_stack (
+    GumInternalThreadDetails * details);
+static const GumMemoryRange * gum_internal_thread_details_find_stack (
+    GumInternalThreadDetails * details, GumAddress address);
+# endif
 static void gum_internal_thread_details_free (
     GumInternalThreadDetails * details);
 static void gum_on_fd_opened (gint fd, const gchar * description);
@@ -419,7 +425,57 @@ gum_on_thread_finalize (void)
 {
   if (gum_cached_interceptor != NULL)
     gum_interceptor_unignore_current_thread (gum_cached_interceptor);
+
+#ifdef HAVE_GLIBC
+  gum_internal_thread_discard_dead_stack (
+      g_private_get (&gum_internal_thread_details_key));
+#endif
 }
+
+#ifdef HAVE_GLIBC
+
+static void
+gum_internal_thread_discard_dead_stack (GumInternalThreadDetails * details)
+{
+  GumAddress sp;
+  const GumMemoryRange * stack;
+  gsize page_size;
+  GumAddress end;
+
+  sp = GUM_ADDRESS (__builtin_frame_address (0));
+  stack = gum_internal_thread_details_find_stack (details, sp);
+  if (stack == NULL)
+    return;
+
+  page_size = gum_query_page_size ();
+  end = (sp & ~GUM_ADDRESS (page_size - 1)) - page_size;
+
+  gum_memory_discard (GSIZE_TO_POINTER (stack->base_address),
+      end - stack->base_address);
+}
+
+static const GumMemoryRange *
+gum_internal_thread_details_find_stack (
+    GumInternalThreadDetails * details,
+    GumAddress address)
+{
+  guint i;
+
+  for (i = 0; i != details->n_cloaked_ranges; i++)
+  {
+    const GumMemoryRange * range = &details->cloaked_ranges[i];
+
+    if (address >= range->base_address &&
+        address < range->base_address + range->size)
+    {
+      return range;
+    }
+  }
+
+  return NULL;
+}
+
+#endif
 
 static void
 gum_internal_thread_details_free (GumInternalThreadDetails * details)
