@@ -552,10 +552,11 @@ endif
 if host_os_family in ['linux', 'freebsd', 'qnx']
   libunwind_dep = dependency('libunwind', default_options: [
     'default_library=static',
-    'generic_library=disabled',
-    'coredump_library=disabled',
-    'ptrace_library=disabled',
-    'setjmp_library=disabled',
+    'coredump=disabled',
+    'ptrace=disabled',
+    'nto=disabled',
+    'setjmp=disabled',
+    'documentation=disabled',
     'msabi_support=false',
     'minidebuginfo=enabled',
     'zlibdebuginfo=enabled',
@@ -660,7 +661,6 @@ if have_gumjs
   quickjs_options = [
     'default_library=static',
     'libc=false',
-    'bignum=true',
     'atomics=disabled',
     'stack_check=' + ((host_os_family == 'none') ? 'enabled' : 'disabled'),
     'stack_mode=' + ((host_os_family == 'none') ? 'optimize' : 'default'),
