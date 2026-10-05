@@ -2,6 +2,7 @@
  * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2025 William Tan <1284324+Ninja3047@users.noreply.github.com>
+ * Copyright (C) 2026 T Shivanesh Kumar <tshivaneshk@users.noreply.github.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -213,27 +214,26 @@ gum_native_module_enumerate_imports (GumModule * module,
   for (; desc->Characteristics != 0; desc++)
   {
     GumImportDetails details;
-    const IMAGE_THUNK_DATA * thunk_data;
+    const IMAGE_THUNK_DATA * lookup_thunk, * address_thunk;
 
     if (desc->OriginalFirstThunk == 0)
       continue;
 
     details.type = GUM_IMPORT_FUNCTION; /* FIXME: how can we tell? */
-    details.name = NULL;
     details.module = (const gchar *) (mod_base + desc->Name);
-    details.address = 0;
-    details.slot = GUM_ADDRESS (mod_base + desc->FirstThunk);
 
-    thunk_data = (const IMAGE_THUNK_DATA *)
+    lookup_thunk = (const IMAGE_THUNK_DATA *)
         (mod_base + desc->OriginalFirstThunk);
-    for (; thunk_data->u1.AddressOfData != 0; thunk_data++)
+    address_thunk = (const IMAGE_THUNK_DATA *) (mod_base + desc->FirstThunk);
+    for (; lookup_thunk->u1.AddressOfData != 0; lookup_thunk++, address_thunk++)
     {
-      if ((thunk_data->u1.AddressOfData & IMAGE_ORDINAL_FLAG) != 0)
+      if ((lookup_thunk->u1.AddressOfData & IMAGE_ORDINAL_FLAG) != 0)
         continue; /* FIXME: we ignore imports by ordinal */
 
       details.name = (const gchar *)
-          (mod_base + thunk_data->u1.AddressOfData + 2);
-      details.address = gum_module_find_export_by_name (module, details.name);
+          (mod_base + lookup_thunk->u1.AddressOfData + 2);
+      details.address = GUM_ADDRESS (address_thunk->u1.Function);
+      details.slot = GUM_ADDRESS (address_thunk);
 
       if (!func (&details, user_data))
         return;
