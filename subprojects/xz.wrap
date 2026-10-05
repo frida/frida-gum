@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/xz.git
-revision = e70f5800ab5001c9509d374dbf3e7e6b866c43fe
+revision = 68289232393af1ff1756bcf05164cedfd792df59
 depth = 1
 
 [provide]

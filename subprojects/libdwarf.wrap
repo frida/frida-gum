@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/libdwarf.git
-revision = 61ff154ae803d2b0202dbc1bf385cda1ac3ece54
+revision = ca5e7fb87c208428a4ca0766b08cf2fb408c1c75
 depth = 1
 
 [provide]
