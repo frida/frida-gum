@@ -70,6 +70,7 @@ struct _GumQuickCore
   GumQuickScope * current_scope;
   GumThreadId current_owner;
   GumThreadId transaction_released_owner;
+  guint scope_mutex_epoch;
 
   GRecMutex * mutex;
   guint usage_count;
@@ -303,6 +304,8 @@ G_GNUC_INTERNAL gpointer _gum_quick_core_load_module_data (GumQuickCore * self,
     const gchar * key);
 
 G_GNUC_INTERNAL void _gum_quick_scope_enter (GumQuickScope * self,
+    GumQuickCore * core);
+G_GNUC_INTERNAL void gum_quick_script_backend_sync_core_after_fork (
     GumQuickCore * core);
 G_GNUC_INTERNAL void _gum_quick_scope_suspend (GumQuickScope * self);
 G_GNUC_INTERNAL void _gum_quick_scope_resume (GumQuickScope * self);

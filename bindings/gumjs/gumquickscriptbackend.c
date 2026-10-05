@@ -7,6 +7,7 @@
 
 #include "gumquickscriptbackend.h"
 
+#include "gumquickcore.h"
 #include "gumquickscript.h"
 #include "gumquickscript-runtime.h"
 #include "gumquickscriptbackend-priv.h"
@@ -15,6 +16,11 @@
 
 #include <stdlib.h>
 #include <string.h>
+#ifdef G_OS_WIN32
+# include <windows.h>
+#else
+# include <unistd.h>
+#endif
 
 #if G_BYTE_ORDER == G_BIG_ENDIAN
 # define GUM_QUICKJS_BYTECODE_MAGIC 0x42
@@ -36,6 +42,8 @@ struct _GumQuickScriptBackend
   GMutex mutex;
   GRecMutex scope_mutex;
   volatile gint scope_mutex_trap_depth;
+  GPid scope_mutex_pid;
+  guint scope_mutex_epoch;
 
   GumScriptScheduler * scheduler;
 };
@@ -241,6 +249,12 @@ gum_quick_script_backend_init (GumQuickScriptBackend * self)
   g_mutex_init (&self->mutex);
   g_rec_mutex_init (&self->scope_mutex);
   self->scope_mutex_trap_depth = 0;
+#ifdef G_OS_WIN32
+  self->scope_mutex_pid = (GPid) GetCurrentProcessId ();
+#else
+  self->scope_mutex_pid = (GPid) getpid ();
+#endif
+  self->scope_mutex_epoch = 1;
 
   self->scheduler = g_object_ref (gum_script_backend_get_scheduler ());
 
@@ -713,6 +727,44 @@ gum_quick_script_backend_recover_from_fork_in_child (void)
    */
   self = GUM_QUICK_SCRIPT_BACKEND (gum_script_backend_obtain_qjs ());
   g_rec_mutex_init (&self->scope_mutex);
+#ifdef G_OS_WIN32
+  self->scope_mutex_pid = (GPid) GetCurrentProcessId ();
+#else
+  self->scope_mutex_pid = (GPid) getpid ();
+#endif
+  self->scope_mutex_epoch++;
+}
+
+void
+gum_quick_script_backend_sync_core_after_fork (GumQuickCore * core)
+{
+  GumQuickScriptBackend * self;
+  GPid pid;
+
+  if (core == NULL || core->backend == NULL)
+    return;
+
+  self = core->backend;
+#ifdef G_OS_WIN32
+  pid = (GPid) GetCurrentProcessId ();
+#else
+  pid = (GPid) getpid ();
+#endif
+
+  if (self->scope_mutex_pid != pid)
+  {
+    g_rec_mutex_init (&self->scope_mutex);
+    self->scope_mutex_pid = pid;
+    self->scope_mutex_epoch++;
+  }
+
+  if (core->scope_mutex_epoch != self->scope_mutex_epoch)
+  {
+    core->scope_mutex_epoch = self->scope_mutex_epoch;
+    core->mutex_depth = 0;
+    core->current_scope = NULL;
+    core->current_owner = GUM_THREAD_ID_INVALID;
+  }
 }
 
 GumScriptScheduler *
