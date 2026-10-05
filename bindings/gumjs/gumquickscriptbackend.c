@@ -14,6 +14,8 @@
 #include "gumscripttask.h"
 #include "gumsourcemap.h"
 
+#include <gum/gum.h>
+
 #include <stdlib.h>
 #include <string.h>
 #ifdef G_OS_WIN32
@@ -753,6 +755,7 @@ gum_quick_script_backend_sync_core_after_fork (GumQuickCore * core)
 
   if (self->scope_mutex_pid != pid)
   {
+    gum_recover_from_fork_in_child ();
     g_rec_mutex_init (&self->scope_mutex);
     self->scope_mutex_pid = pid;
     self->scope_mutex_epoch++;

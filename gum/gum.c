@@ -358,6 +358,7 @@ void
 gum_recover_from_fork_in_child (void)
 {
   _gum_exceptor_backend_recover_from_fork_in_child ();
+  _gum_interceptor_recover_from_fork_in_child ();
 }
 
 #if !defined (GUM_USE_SYSTEM_ALLOC) && defined (HAVE_FRIDA_LIBFFI)

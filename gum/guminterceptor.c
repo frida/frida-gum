@@ -4,7 +4,6 @@
  * Copyright (C) 2024-2025 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Yannis Juglaret <yjuglaret@mozilla.com>
  * Copyright (C) 2026 Sam Sun <samsun@nvidia.com>
- * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -169,15 +168,6 @@ static GumFunctionContext * gum_interceptor_instrument (GumInterceptor * self,
     GumInterceptorType type, gpointer function_address,
     const GumInterceptorOptions * instrumentation,
     GumInstrumentationError * error);
-static GumFunctionContext * gum_interceptor_transaction_reclaim (
-    GumInterceptorTransaction * self, gpointer function_address,
-    GumInterceptorType type);
-static GList * gum_interceptor_transaction_find_pending_deactivation (
-    GumInterceptorTransaction * self, gpointer function_address);
-static void gum_interceptor_transaction_deactivate_now (
-    GumInterceptorTransaction * self, GumFunctionContext * ctx);
-static void gum_interceptor_transaction_cancel_deactivation (
-    GumInterceptorTransaction * self, GumFunctionContext * ctx);
 static void gum_interceptor_activate (GumInterceptor * self,
     GumFunctionContext * ctx, gpointer prologue);
 static void gum_interceptor_deactivate (GumInterceptor * self,
@@ -190,8 +180,6 @@ static void gum_interceptor_transaction_destroy (
 static void gum_interceptor_transaction_begin (
     GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
-static void gum_interceptor_transaction_perform_updates (
-    GumInterceptorTransaction * self);
 static void gum_apply_updates (gpointer source_page, gpointer target_page,
     guint n_pages, gpointer user_data);
 static void gum_interceptor_transaction_schedule_destroy (
@@ -423,6 +411,26 @@ _gum_interceptor_deinit (void)
 
   g_hash_table_unref (gum_interceptor_thread_contexts);
   gum_interceptor_thread_contexts = NULL;
+}
+
+void
+_gum_interceptor_recover_from_fork_in_child (void)
+{
+  /*
+   * Only the forking thread survives. Mutexes / spinlocks still owned by a
+   * vanished parent thread are undefined; reinitialize them.
+   */
+  g_mutex_init (&_gum_interceptor_lock);
+  gum_spinlock_init (&gum_interceptor_thread_context_lock);
+
+  if (_the_interceptor != NULL)
+  {
+    GumInterceptor * self = _the_interceptor;
+
+    g_rec_mutex_init (&self->mutex);
+    self->current_transaction.level = 0;
+    self->current_transaction.is_dirty = FALSE;
+  }
 }
 
 static void
@@ -1459,11 +1467,6 @@ gum_interceptor_instrument (GumInterceptor * self,
 
   ctx = (GumFunctionContext *) g_hash_table_lookup (self->function_by_address,
       function_address);
-  if (ctx == NULL)
-  {
-    ctx = gum_interceptor_transaction_reclaim (&self->current_transaction,
-        function_address, type);
-  }
 
   if (ctx != NULL)
   {
@@ -1544,107 +1547,6 @@ propagate_error:
   }
 }
 
-static GumFunctionContext *
-gum_interceptor_transaction_reclaim (GumInterceptorTransaction * self,
-                                     gpointer function_address,
-                                     GumInterceptorType type)
-{
-  GumFunctionContext * ctx;
-  GList * link;
-  GumDestroyTask * task;
-  gboolean redirect_is_reusable;
-
-  link = gum_interceptor_transaction_find_pending_deactivation (self,
-      function_address);
-  if (link == NULL)
-    return NULL;
-  task = link->data;
-  ctx = task->ctx;
-
-  redirect_is_reusable = ctx->type == GUM_INTERCEPTOR_TYPE_DEFAULT &&
-      type == GUM_INTERCEPTOR_TYPE_DEFAULT;
-  if (!redirect_is_reusable)
-  {
-    gum_interceptor_transaction_deactivate_now (self, ctx);
-    return NULL;
-  }
-
-  gum_interceptor_transaction_cancel_deactivation (self, ctx);
-  g_queue_delete_link (self->pending_destroy_tasks, link);
-  g_slice_free (GumDestroyTask, task);
-
-  ctx->destroyed = FALSE;
-  g_hash_table_insert (self->interceptor->function_by_address,
-      ctx->function_address, ctx);
-
-  return ctx;
-}
-
-static GList *
-gum_interceptor_transaction_find_pending_deactivation (
-    GumInterceptorTransaction * self,
-    gpointer function_address)
-{
-  GList * cur;
-
-  for (cur = self->pending_destroy_tasks->head; cur != NULL; cur = cur->next)
-  {
-    GumDestroyTask * task = cur->data;
-    GumFunctionContext * ctx = task->ctx;
-
-    if (task->notify != (GDestroyNotify) gum_function_context_perform_destroy)
-      continue;
-    if (ctx->function_address == function_address && ctx->activated)
-      return cur;
-  }
-
-  return NULL;
-}
-
-static void
-gum_interceptor_transaction_deactivate_now (GumInterceptorTransaction * self,
-                                            GumFunctionContext * ctx)
-{
-  GumInterceptor * interceptor = self->interceptor;
-  GumInterceptorTransaction deactivation;
-
-  gum_interceptor_transaction_cancel_deactivation (self, ctx);
-
-  gum_interceptor_ignore_current_thread (interceptor);
-
-  gum_interceptor_transaction_init (&deactivation, interceptor);
-  gum_interceptor_transaction_schedule_update (&deactivation, ctx,
-      gum_interceptor_deactivate);
-  gum_interceptor_transaction_perform_updates (&deactivation);
-  gum_interceptor_transaction_destroy (&deactivation);
-
-  gum_interceptor_unignore_current_thread (interceptor);
-}
-
-static void
-gum_interceptor_transaction_cancel_deactivation (
-    GumInterceptorTransaction * self,
-    GumFunctionContext * ctx)
-{
-  GArray * pending;
-  guint i;
-
-  pending = g_hash_table_lookup (self->pending_update_tasks,
-      gum_page_address_from_pointer (
-        _gum_interceptor_backend_get_function_address (ctx)));
-
-  for (i = 0; i != pending->len; i++)
-  {
-    GumUpdateTask * update = &g_array_index (pending, GumUpdateTask, i);
-
-    if (update->ctx == ctx && update->func == gum_interceptor_deactivate)
-    {
-      g_array_remove_index (pending, i);
-      return;
-    }
-  }
-}
-
 static void
 gum_interceptor_activate (GumInterceptor * self,
                           GumFunctionContext * ctx,
@@ -1713,6 +1615,9 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 {
   GumInterceptor * interceptor = self->interceptor;
   GumInterceptorTransaction transaction_copy;
+  GPtrArray * addresses;
+  GHashTableIter iter;
+  gpointer address;
 
   self->level--;
   if (self->level > 0)
@@ -1736,44 +1641,6 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   self = &transaction_copy;
   gum_interceptor_transaction_init (&interceptor->current_transaction,
       interceptor);
-
-  gum_interceptor_transaction_perform_updates (self);
-
-  {
-    GumDestroyTask * task;
-
-    while ((task = g_queue_pop_head (self->pending_destroy_tasks)) != NULL)
-    {
-      if (task->ctx->trampoline_usage_counter == 0)
-      {
-        GUM_INTERCEPTOR_UNLOCK (interceptor);
-        task->notify (task->data);
-        GUM_INTERCEPTOR_LOCK (interceptor);
-
-        g_slice_free (GumDestroyTask, task);
-      }
-      else
-      {
-        interceptor->current_transaction.is_dirty = TRUE;
-        g_queue_push_tail (
-            interceptor->current_transaction.pending_destroy_tasks, task);
-      }
-    }
-  }
-
-  gum_interceptor_transaction_destroy (self);
-
-no_changes:
-  gum_interceptor_unignore_current_thread (interceptor);
-}
-
-static void
-gum_interceptor_transaction_perform_updates (GumInterceptorTransaction * self)
-{
-  GumInterceptor * interceptor = self->interceptor;
-  GPtrArray * addresses;
-  GHashTableIter iter;
-  gpointer address;
 
   addresses =
       g_ptr_array_sized_new (g_hash_table_size (self->pending_update_tasks));
@@ -1815,6 +1682,33 @@ gum_interceptor_transaction_perform_updates (GumInterceptorTransaction * self)
   }
 
   g_ptr_array_unref (addresses);
+
+  {
+    GumDestroyTask * task;
+
+    while ((task = g_queue_pop_head (self->pending_destroy_tasks)) != NULL)
+    {
+      if (task->ctx->trampoline_usage_counter == 0)
+      {
+        GUM_INTERCEPTOR_UNLOCK (interceptor);
+        task->notify (task->data);
+        GUM_INTERCEPTOR_LOCK (interceptor);
+
+        g_slice_free (GumDestroyTask, task);
+      }
+      else
+      {
+        interceptor->current_transaction.is_dirty = TRUE;
+        g_queue_push_tail (
+            interceptor->current_transaction.pending_destroy_tasks, task);
+      }
+    }
+  }
+
+  gum_interceptor_transaction_destroy (self);
+
+no_changes:
+  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 static void
@@ -2951,11 +2845,8 @@ static gboolean
 gum_interceptor_has (GumInterceptor * self,
                      gpointer function_address)
 {
-  if (g_hash_table_lookup (self->function_by_address, function_address) != NULL)
-    return TRUE;
-
-  return gum_interceptor_transaction_find_pending_deactivation (
-      &self->current_transaction, function_address) != NULL;
+  return g_hash_table_lookup (self->function_by_address,
+      function_address) != NULL;
 }
 
 static gpointer
