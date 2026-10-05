@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/libffi.git
-revision = 3fe3257235cc9ffd192e1cd567f1bdfff751fa3e
+revision = 3779ad36850879768c9aac5e424e7ecf55972859
 depth = 1
 
 [provide]
