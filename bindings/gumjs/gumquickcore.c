@@ -2253,6 +2253,8 @@ _gum_quick_scope_leave (GumQuickScope * self)
 
   if (core->mutex_depth == 1)
   {
+    JS_SweepDeadWeakRefs (core->rt);
+
     _gum_quick_script_on_scope_left (core);
 
     JS_Leave (core->rt);
