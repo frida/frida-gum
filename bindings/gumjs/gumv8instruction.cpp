@@ -113,7 +113,7 @@ _gum_v8_instruction_init (GumV8Instruction * self,
   cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &self->capstone);
   cs_option (self->capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto klass = _gum_v8_create_class ("Instruction", nullptr, scope, module,
       isolate);
@@ -205,7 +205,8 @@ _gum_v8_instruction_new_persistent (GumV8Instruction * module)
   auto template_object = Local<Object>::New (isolate, *module->template_object);
   auto object = template_object->Clone ();
   value->object = new Global<Object> (isolate, object);
-  object->SetAlignedPointerInInternalField (0, value);
+  object->SetAlignedPointerInInternalField (0, value,
+      kEmbedderDataTypeTagDefault);
 
   return value;
 }
@@ -231,7 +232,7 @@ gum_v8_instruction_alloc (GumV8Instruction * module)
   value->target = NULL;
   value->module = module;
 
-  module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
+  module->core->external_memory->Increase (module->core->isolate,
       GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
 
   return value;
@@ -252,8 +253,8 @@ gum_v8_instruction_free (GumV8InstructionValue * self)
 {
   gum_v8_instruction_dispose (self);
 
-  self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-      -GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
+  self->module->core->external_memory->Decrease (self->module->core->isolate,
+      GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
 
   delete self->object;
 

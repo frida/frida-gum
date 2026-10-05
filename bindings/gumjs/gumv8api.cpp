@@ -73,7 +73,7 @@ gum_v8_api_expose (GumV8Api * self,
 
     ns->Set (_gum_v8_string_new_ascii (isolate, function->name),
         FunctionTemplate::New (isolate, gum_v8_api_on_call,
-            External::New (isolate, entry)));
+            External::New (isolate, entry, kExternalPointerTypeTagDefault)));
   }
 }
 
@@ -124,7 +124,8 @@ gum_v8_api_run_prelude (GumV8Api * self,
 static void
 gum_v8_api_on_call (const FunctionCallbackInfo<Value> & info)
 {
-  auto entry = (GumV8ApiEntry *) info.Data ().As<External> ()->Value ();
+  auto entry = (GumV8ApiEntry *) info.DataV2 ().As<External> ()->Value (
+      kExternalPointerTypeTagDefault);
   auto function = entry->function;
   auto core = entry->core;
   auto isolate = core->isolate;

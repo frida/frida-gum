@@ -1591,7 +1591,8 @@ _gum_v8_{flavor}_writer_get (
   }}
 
   auto wrapper = ({wrapper_struct_name} *)
-      value.As<Object> ()->GetAlignedPointerFromInternalField (0);
+      value.As<Object> ()->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
   if (!{wrapper_function_prefix}_check (wrapper, isolate))
     return FALSE;
 
@@ -1610,7 +1611,8 @@ _{wrapper_function_prefix}_new_persistent (GumV8CodeWriter * module)
   auto writer_class = Local<FunctionTemplate>::New (isolate,
       *module->{flavor}_writer);
 
-  auto writer_value = External::New (isolate, writer);
+  auto writer_value = External::New (isolate, writer,
+      kExternalPointerTypeTagDefault);
   Local<Value> argv[] = {{ writer_value }};
 
   auto object = writer_class->GetFunction (context).ToLocalChecked ()
@@ -1736,7 +1738,8 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 
   if (info.Length () == 1 && info[0]->IsExternal ())
   {{
-    writer = ({wrapper_struct_name} *) info[0].As<External> ()->Value ();
+    writer = ({wrapper_struct_name} *) info[0].As<External> ()->Value (
+        kExternalPointerTypeTagDefault);
   }}
   else
   {{
@@ -1758,7 +1761,8 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
       writer->impl->pc = pc;
   }}
 
-  wrapper->SetAlignedPointerInInternalField (0, writer);
+  wrapper->SetAlignedPointerInInternalField (0, writer,
+      kEmbedderDataTypeTagDefault);
 }}
 
 GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_reset, {wrapper_struct_name})
@@ -1935,7 +1939,8 @@ _gum_v8_{flavor}_relocator_get (
   }}
 
   auto relocator_wrapper = ({wrapper_struct_name} *)
-      value.As<Object> ()->GetAlignedPointerFromInternalField (0);
+      value.As<Object> ()->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
   if (!{wrapper_function_prefix}_check (relocator_wrapper, isolate))
     return FALSE;
 
@@ -1954,7 +1959,8 @@ _{wrapper_function_prefix}_new_persistent (GumV8CodeRelocator * module)
   auto relocator_class = Local<FunctionTemplate>::New (isolate,
       *module->{flavor}_relocator);
 
-  auto relocator_value = External::New (isolate, relocator);
+  auto relocator_value = External::New (isolate, relocator,
+      kExternalPointerTypeTagDefault);
   Local<Value> argv[] = {{ relocator_value }};
 
   auto object = relocator_class->GetFunction (context).ToLocalChecked ()
@@ -2079,7 +2085,8 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
 
   if (info.Length () == 1 && info[0]->IsExternal ())
   {{
-    relocator = ({wrapper_struct_name} *) info[0].As<External> ()->Value ();
+    relocator = ({wrapper_struct_name} *) info[0].As<External> ()->Value (
+        kExternalPointerTypeTagDefault);
   }}
   else
   {{
@@ -2096,7 +2103,8 @@ GUMJS_DEFINE_CONSTRUCTOR ({gumjs_function_prefix}_construct)
     relocator->impl = {impl_function_prefix}_new (input_code, writer);
   }}
 
-  wrapper->SetAlignedPointerInInternalField (0, relocator);
+  wrapper->SetAlignedPointerInInternalField (0, relocator,
+      kEmbedderDataTypeTagDefault);
 }}
 
 GUMJS_DEFINE_CLASS_METHOD ({gumjs_function_prefix}_reset, {wrapper_struct_name})

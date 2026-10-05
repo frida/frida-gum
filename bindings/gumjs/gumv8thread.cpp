@@ -52,7 +52,7 @@ _gum_v8_thread_init (GumV8Thread * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto klass = _gum_v8_create_class ("Thread", nullptr, scope, module, isolate);
   _gum_v8_class_add_static (klass, gumjs_thread_module_functions, module,
@@ -251,7 +251,7 @@ _gum_v8_thread_new (const GumThreadDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_set_hardware_breakpoint)
 {
-  GumThreadId thread_id = GUMJS_THREAD_ID (info.Holder ());
+  GumThreadId thread_id = GUMJS_THREAD_ID (info.This ());
 
   guint breakpoint_id;
   gpointer address;
@@ -266,7 +266,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_set_hardware_breakpoint)
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_unset_hardware_breakpoint)
 {
-  GumThreadId thread_id = GUMJS_THREAD_ID (info.Holder ());
+  GumThreadId thread_id = GUMJS_THREAD_ID (info.This ());
 
   guint breakpoint_id;
   if (!_gum_v8_args_parse (args, "u", &breakpoint_id))
@@ -279,7 +279,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_unset_hardware_breakpoint)
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_set_hardware_watchpoint)
 {
-  GumThreadId thread_id = GUMJS_THREAD_ID (info.Holder ());
+  GumThreadId thread_id = GUMJS_THREAD_ID (info.This ());
 
   guint watchpoint_id;
   gpointer address;
@@ -326,7 +326,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_set_hardware_watchpoint)
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_unset_hardware_watchpoint)
 {
-  GumThreadId thread_id = GUMJS_THREAD_ID (info.Holder ());
+  GumThreadId thread_id = GUMJS_THREAD_ID (info.This ());
 
   guint watchpoint_id;
   if (!_gum_v8_args_parse (args, "u", &watchpoint_id))

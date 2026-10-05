@@ -153,7 +153,7 @@ _gum_v8_stream_init (GumV8Stream * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto io_stream = _gum_v8_create_class ("IOStream",
       gumjs_io_stream_construct, scope, module, isolate);
@@ -224,7 +224,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
     auto ctor (Local<FunctionTemplate>::New (isolate, *module->input_stream));
     Local<Value> argv[] = {
       External::New (isolate, g_object_ref (
-          g_io_stream_get_input_stream (stream)))
+          g_io_stream_get_input_stream (stream)),
+              kExternalPointerTypeTagDefault)
     };
     auto input = ctor->GetFunction (context).ToLocalChecked ()
         ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
@@ -235,7 +236,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
     auto ctor (Local<FunctionTemplate>::New (isolate, *module->output_stream));
     Local<Value> argv[] = {
       External::New (isolate, g_object_ref (
-          g_io_stream_get_output_stream (stream)))
+          g_io_stream_get_output_stream (stream)),
+              kExternalPointerTypeTagDefault)
     };
     auto output = ctor->GetFunction (context).ToLocalChecked ()
         ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
@@ -710,7 +712,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
   auto context = isolate->GetCurrentContext ();
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
       *module->input_stream));
-  Local<Value> argv[] = { External::New (isolate, stream) };
+  Local<Value> argv[] = { External::New (isolate, stream,
+      kExternalPointerTypeTagDefault) };
   base_ctor->GetFunction (context).ToLocalChecked ()
       ->Call (context, wrapper, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
@@ -738,7 +741,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
   auto context = isolate->GetCurrentContext ();
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
       *module->output_stream));
-  Local<Value> argv[] = { External::New (isolate, stream) };
+  Local<Value> argv[] = { External::New (isolate, stream,
+      kExternalPointerTypeTagDefault) };
   base_ctor->GetFunction (context).ToLocalChecked ()
       ->Call (context, wrapper, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }

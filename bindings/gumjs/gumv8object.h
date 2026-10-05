@@ -84,7 +84,8 @@ template<typename T>
 T *
 gum_v8_object_get (const v8::FunctionCallbackInfo<v8::Value> & info)
 {
-  return (T *) info.Holder ()->GetAlignedPointerFromInternalField (0);
+  return (T *) info.This ()->GetAlignedPointerFromInternalField (0,
+      v8::kEmbedderDataTypeTagDefault);
 }
 
 template<typename O, typename M>

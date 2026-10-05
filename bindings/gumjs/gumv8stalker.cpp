@@ -143,10 +143,10 @@ static void gum_v8_call_probe_free (GumV8CallProbe * probe);
 static void gum_v8_call_probe_on_fire (GumCallDetails * details,
     GumV8CallProbe * self);
 
-static void gumjs_probe_args_get_nth (uint32_t index,
+static Intercepted gumjs_probe_args_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
-static void gumjs_probe_args_set_nth (uint32_t index, Local<Value> value,
-    const PropertyCallbackInfo<Value> & info);
+static Intercepted gumjs_probe_args_set_nth (uint32_t index,
+    Local<Value> value, const PropertyCallbackInfo<Boolean> & info);
 
 static GumV8StalkerDefaultIterator * gum_v8_stalker_obtain_default_iterator (
     GumV8Stalker * self);
@@ -258,7 +258,7 @@ _gum_v8_stalker_init (GumV8Stalker * self,
   self->special_iterators = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_stalker_special_iterator_free);
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto stalker = _gum_v8_create_module ("Stalker", scope, isolate);
   _gum_v8_module_add (module, stalker, gumjs_stalker_values, isolate);
@@ -315,8 +315,8 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
 
   auto args = ObjectTemplate::New (isolate);
   args->SetInternalFieldCount (2);
-  args->SetIndexedPropertyHandler (gumjs_probe_args_get_nth,
-      gumjs_probe_args_set_nth);
+  args->SetHandler (IndexedPropertyHandlerConfiguration (
+      gumjs_probe_args_get_nth, gumjs_probe_args_set_nth));
   self->probe_args = new Global<ObjectTemplate> (isolate, args);
 
   self->cached_default_iterator =
@@ -1095,8 +1095,10 @@ gum_v8_stalker_default_iterator_new_persistent (GumV8Stalker * parent)
   auto iter_value =
       Local<Object>::New (isolate, *parent->default_iterator_value);
   auto object = iter_value->Clone ();
-  object->SetAlignedPointerInInternalField (0, writer);
-  object->SetAlignedPointerInInternalField (1, iter);
+  object->SetAlignedPointerInInternalField (0, writer,
+      kEmbedderDataTypeTagDefault);
+  object->SetAlignedPointerInInternalField (1, iter,
+      kEmbedderDataTypeTagDefault);
   writer->object = new Global<Object> (isolate, object);
 
   return iter;
@@ -1189,8 +1191,10 @@ gum_v8_stalker_special_iterator_new_persistent (GumV8Stalker * parent)
   auto iter_value =
       Local<Object>::New (isolate, *parent->special_iterator_value);
   auto object = iter_value->Clone ();
-  object->SetAlignedPointerInInternalField (0, writer);
-  object->SetAlignedPointerInInternalField (1, iter);
+  object->SetAlignedPointerInInternalField (0, writer,
+      kEmbedderDataTypeTagDefault);
+  object->SetAlignedPointerInInternalField (1, iter,
+      kEmbedderDataTypeTagDefault);
   writer->object = new Global<Object> (isolate, object);
 
   return iter;
@@ -1326,8 +1330,9 @@ gum_v8_call_probe_on_fire (GumCallDetails * details,
   auto probe_args =
       Local<ObjectTemplate>::New (isolate, *self->module->probe_args);
   auto args = probe_args->NewInstance (context).ToLocalChecked ();
-  args->SetAlignedPointerInInternalField (0, self);
-  args->SetAlignedPointerInInternalField (1, details);
+  args->SetAlignedPointerInInternalField (0, self, kEmbedderDataTypeTagDefault);
+  args->SetAlignedPointerInInternalField (1, details,
+      kEmbedderDataTypeTagDefault);
 
   auto callback (Local<Function>::New (isolate, *self->callback));
   auto recv = Undefined (isolate);
@@ -1336,57 +1341,65 @@ gum_v8_call_probe_on_fire (GumCallDetails * details,
   if (result.IsEmpty ())
     scope.ProcessAnyPendingException ();
 
-  args->SetAlignedPointerInInternalField (0, nullptr);
-  args->SetAlignedPointerInInternalField (1, nullptr);
+  args->SetAlignedPointerInInternalField (0, nullptr,
+      kEmbedderDataTypeTagDefault);
+  args->SetAlignedPointerInInternalField (1, nullptr,
+      kEmbedderDataTypeTagDefault);
 }
 
-static void
+static Intercepted
 gumjs_probe_args_get_nth (uint32_t index,
                           const PropertyCallbackInfo<Value> & info)
 {
-  auto wrapper = info.This ();
+  auto wrapper = info.Holder ();
   auto self =
-      (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0);
+      (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
   auto call =
-      (GumCallDetails *) wrapper->GetAlignedPointerFromInternalField (1);
+      (GumCallDetails *) wrapper->GetAlignedPointerFromInternalField (1,
+          kEmbedderDataTypeTagDefault);
   auto core = self->module->core;
 
   if (call == nullptr)
   {
     _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
-    return;
+    return Intercepted::kYes;
   }
 
   info.GetReturnValue ().Set (
       _gum_v8_native_pointer_new (
           gum_cpu_context_get_nth_argument (call->cpu_context, index), core));
+
+  return Intercepted::kYes;
 }
 
-static void
+static Intercepted
 gumjs_probe_args_set_nth (uint32_t index,
                           Local<Value> value,
-                          const PropertyCallbackInfo<Value> & info)
+                          const PropertyCallbackInfo<Boolean> & info)
 {
-  auto wrapper = info.This ();
+  auto wrapper = info.Holder ();
   auto self =
-      (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0);
+      (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
   auto call =
-      (GumCallDetails *) wrapper->GetAlignedPointerFromInternalField (1);
+      (GumCallDetails *) wrapper->GetAlignedPointerFromInternalField (1,
+          kEmbedderDataTypeTagDefault);
   auto core = self->module->core;
 
   if (call == nullptr)
   {
     _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
-    return;
+    return Intercepted::kYes;
   }
-
-  info.GetReturnValue ().Set (value);
 
   gpointer raw_value;
   if (!_gum_v8_native_pointer_get (value, &raw_value, core))
-    return;
+    return Intercepted::kYes;
 
   gum_cpu_context_replace_nth_argument (call->cpu_context, index, raw_value);
+
+  return Intercepted::kYes;
 }
 
 static GumV8StalkerDefaultIterator *

@@ -124,13 +124,16 @@ public:
   GumV8ForegroundTaskRunner (GumV8Platform * platform, Isolate * isolate);
   ~GumV8ForegroundTaskRunner () override;
 
-  void PostTask (std::unique_ptr<Task> task) override;
-  void PostNonNestableTask (std::unique_ptr<Task> task) override;
-  void PostDelayedTask (std::unique_ptr<Task> task,
-      double delay_in_seconds) override;
-  void PostNonNestableDelayedTask (std::unique_ptr<Task> task,
-      double delay_in_seconds) override;
-  void PostIdleTask (std::unique_ptr<IdleTask> task) override;
+  void PostTaskImpl (std::unique_ptr<Task> task,
+      const SourceLocation & location) override;
+  void PostNonNestableTaskImpl (std::unique_ptr<Task> task,
+      const SourceLocation & location) override;
+  void PostDelayedTaskImpl (std::unique_ptr<Task> task,
+      double delay_in_seconds, const SourceLocation & location) override;
+  void PostNonNestableDelayedTaskImpl (std::unique_ptr<Task> task,
+      double delay_in_seconds, const SourceLocation & location) override;
+  void PostIdleTaskImpl (std::unique_ptr<IdleTask> task,
+      const SourceLocation & location) override;
   bool IdleTasksEnabled () override;
   bool NonNestableTasksEnabled () const override;
   bool NonNestableDelayedTasksEnabled () const override;
@@ -220,7 +223,6 @@ public:
   void CancelAndDetach () override;
   bool IsActive () override;
   bool IsValid () override { return state != nullptr; }
-  bool UpdatePriorityEnabled () const override { return true; }
   void UpdatePriority (TaskPriority new_priority) override;
 
 private:
@@ -271,8 +273,6 @@ public:
   void * Allocate (size_t length) override;
   void * AllocateUninitialized (size_t length) override;
   void Free (void * data, size_t length) override;
-  void * Reallocate (void * data, size_t old_length, size_t new_length)
-      override;
 };
 
 class GumV8ThreadingBackend : public ThreadingBackend
@@ -282,7 +282,6 @@ public:
 
   MutexImpl * CreatePlainMutex () override;
   MutexImpl * CreateRecursiveMutex () override;
-  SharedMutexImpl * CreateSharedMutex () override;
   ConditionVariableImpl * CreateConditionVariable () override;
 };
 
@@ -314,23 +313,6 @@ public:
 
 private:
   GRecMutex mutex;
-};
-
-class GumSharedMutex : public SharedMutexImpl
-{
-public:
-  GumSharedMutex ();
-  ~GumSharedMutex () override;
-
-  void LockShared () override;
-  void LockExclusive () override;
-  void UnlockShared () override;
-  void UnlockExclusive () override;
-  bool TryLockShared () override;
-  bool TryLockExclusive () override;
-
-private:
-  GRWLock lock;
 };
 
 class GumConditionVariable : public ConditionVariableImpl
@@ -434,7 +416,7 @@ GumV8Platform::GumV8Platform ()
 
 GumV8Platform::~GumV8Platform ()
 {
-  PerformOnJSThread (G_PRIORITY_HIGH, [=]() { Dispose (); });
+  PerformOnJSThread (G_PRIORITY_HIGH, [=, this]() { Dispose (); });
 
   g_object_unref (scheduler);
 
@@ -589,7 +571,7 @@ GumV8Platform::OnOperationRemoved (GumV8Operation * op)
       return;
   }
 
-  ScheduleOnJSThread (G_PRIORITY_HIGH, [=]()
+  ScheduleOnJSThread (G_PRIORITY_HIGH, [=, this]()
       {
         MaybeDisposeIsolate (isolate);
       });
@@ -833,7 +815,8 @@ GumV8Platform::NumberOfWorkerThreads ()
 }
 
 std::shared_ptr<TaskRunner>
-GumV8Platform::GetForegroundTaskRunner (Isolate * isolate)
+GumV8Platform::GetForegroundTaskRunner (Isolate * isolate,
+                                        TaskPriority priority)
 {
   GumV8PlatformLocker locker (this);
 
@@ -848,15 +831,20 @@ GumV8Platform::GetForegroundTaskRunner (Isolate * isolate)
 }
 
 void
-GumV8Platform::CallOnWorkerThread (std::unique_ptr<Task> task)
+GumV8Platform::PostTaskOnWorkerThreadImpl (TaskPriority priority,
+                                           std::unique_ptr<Task> task,
+                                           const SourceLocation & location)
 {
   std::shared_ptr<Task> t (std::move (task));
   ScheduleOnThreadPool ([=]() { t->Run (); });
 }
 
 void
-GumV8Platform::CallDelayedOnWorkerThread (std::unique_ptr<Task> task,
-                                          double delay_in_seconds)
+GumV8Platform::PostDelayedTaskOnWorkerThreadImpl (
+    TaskPriority priority,
+    std::unique_ptr<Task> task,
+    double delay_in_seconds,
+    const SourceLocation & location)
 {
   std::shared_ptr<Task> t (std::move (task));
   ScheduleOnThreadPoolDelayed (delay_in_seconds * 1000.0, [=]()
@@ -872,8 +860,9 @@ GumV8Platform::IdleTasksEnabled (Isolate * isolate)
 }
 
 std::unique_ptr<JobHandle>
-GumV8Platform::CreateJob (TaskPriority priority,
-                          std::unique_ptr<JobTask> job_task)
+GumV8Platform::CreateJobImpl (TaskPriority priority,
+                              std::unique_ptr<JobTask> job_task,
+                              const SourceLocation & location)
 {
   size_t num_worker_threads = NumberOfWorkerThreads ();
   if (priority == TaskPriority::kBestEffort)
@@ -1148,45 +1137,51 @@ GumV8ForegroundTaskRunner::~GumV8ForegroundTaskRunner ()
 }
 
 void
-GumV8ForegroundTaskRunner::PostTask (std::unique_ptr<Task> task)
+GumV8ForegroundTaskRunner::PostTaskImpl (std::unique_ptr<Task> task,
+                                         const SourceLocation & location)
 {
   std::shared_ptr<Task> t (std::move (task));
-  platform->ScheduleOnJSThread ([=]()
+  platform->ScheduleOnJSThread ([=, this]()
       {
         Run (t.get ());
       });
 }
 
 void
-GumV8ForegroundTaskRunner::PostNonNestableTask (std::unique_ptr<Task> task)
-{
-  PostTask (std::move (task));
-}
-
-void
-GumV8ForegroundTaskRunner::PostDelayedTask (std::unique_ptr<Task> task,
-                                            double delay_in_seconds)
-{
-  std::shared_ptr<Task> t (std::move (task));
-  platform->ScheduleOnJSThreadDelayed (delay_in_seconds * 1000.0, [=]()
-      {
-        Run (t.get ());
-      });
-}
-
-void
-GumV8ForegroundTaskRunner::PostNonNestableDelayedTask (
+GumV8ForegroundTaskRunner::PostNonNestableTaskImpl (
     std::unique_ptr<Task> task,
-    double delay_in_seconds)
+    const SourceLocation & location)
 {
-  PostDelayedTask (std::move (task), delay_in_seconds);
+  PostTaskImpl (std::move (task), location);
 }
 
 void
-GumV8ForegroundTaskRunner::PostIdleTask (std::unique_ptr<IdleTask> task)
+GumV8ForegroundTaskRunner::PostDelayedTaskImpl (std::unique_ptr<Task> task,
+                                                double delay_in_seconds,
+                                                const SourceLocation & location)
+{
+  std::shared_ptr<Task> t (std::move (task));
+  platform->ScheduleOnJSThreadDelayed (delay_in_seconds * 1000.0, [=, this]()
+      {
+        Run (t.get ());
+      });
+}
+
+void
+GumV8ForegroundTaskRunner::PostNonNestableDelayedTaskImpl (
+    std::unique_ptr<Task> task,
+    double delay_in_seconds,
+    const SourceLocation & location)
+{
+  PostDelayedTaskImpl (std::move (task), delay_in_seconds, location);
+}
+
+void
+GumV8ForegroundTaskRunner::PostIdleTaskImpl (std::unique_ptr<IdleTask> task,
+                                             const SourceLocation & location)
 {
   std::shared_ptr<IdleTask> t (std::move (task));
-  platform->ScheduleOnJSThread (G_PRIORITY_LOW, [=]()
+  platform->ScheduleOnJSThread (G_PRIORITY_LOW, [=, this]()
       {
         Run (t.get ());
       });
@@ -1802,14 +1797,6 @@ GumV8ArrayBufferAllocator::Free (void * data,
   g_free (data);
 }
 
-void *
-GumV8ArrayBufferAllocator::Reallocate (void * data,
-                                       size_t old_length,
-                                       size_t new_length)
-{
-  return gum_realloc (data, new_length);
-}
-
 MutexImpl *
 GumV8ThreadingBackend::CreatePlainMutex ()
 {
@@ -1820,12 +1807,6 @@ MutexImpl *
 GumV8ThreadingBackend::CreateRecursiveMutex ()
 {
   return new GumRecursiveMutex ();
-}
-
-SharedMutexImpl *
-GumV8ThreadingBackend::CreateSharedMutex ()
-{
-  return new GumSharedMutex ();
 }
 
 ConditionVariableImpl *
@@ -1888,52 +1869,6 @@ bool
 GumRecursiveMutex::TryLock ()
 {
   return !!g_rec_mutex_trylock (&mutex);
-}
-
-GumSharedMutex::GumSharedMutex ()
-{
-  g_rw_lock_init (&lock);
-}
-
-GumSharedMutex::~GumSharedMutex ()
-{
-  g_rw_lock_clear (&lock);
-}
-
-void
-GumSharedMutex::LockShared ()
-{
-  g_rw_lock_reader_lock (&lock);
-}
-
-void
-GumSharedMutex::LockExclusive ()
-{
-  g_rw_lock_writer_lock (&lock);
-}
-
-void
-GumSharedMutex::UnlockShared ()
-{
-  g_rw_lock_reader_unlock (&lock);
-}
-
-void
-GumSharedMutex::UnlockExclusive ()
-{
-  g_rw_lock_writer_unlock (&lock);
-}
-
-bool
-GumSharedMutex::TryLockShared ()
-{
-  return !!g_rw_lock_reader_trylock (&lock);
-}
-
-bool
-GumSharedMutex::TryLockExclusive ()
-{
-  return !!g_rw_lock_writer_trylock (&lock);
 }
 
 GumConditionVariable::GumConditionVariable ()

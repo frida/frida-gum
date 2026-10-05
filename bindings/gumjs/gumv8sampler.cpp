@@ -38,7 +38,7 @@ _gum_v8_sampler_init (GumV8Sampler * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto sampler = _gum_v8_create_class ("Sampler", gumjs_sampler_construct,
       scope, module, isolate);
@@ -103,7 +103,8 @@ _gum_v8_sampler_get (Local<Value> value,
   }
 
   *sampler = (GumSampler *)
-      value.As<Object> ()->GetAlignedPointerFromInternalField (0);
+      value.As<Object> ()->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
   return TRUE;
 }
 
@@ -138,7 +139,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cycle_sampler_construct)
   }
 
   gum_v8_object_manager_add (&module->objects, wrapper, sampler, module);
-  wrapper->SetAlignedPointerInInternalField (0, sampler);
+  wrapper->SetAlignedPointerInInternalField (0, sampler,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_busy_cycle_sampler_construct)
@@ -160,7 +162,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_busy_cycle_sampler_construct)
   }
 
   gum_v8_object_manager_add (&module->objects, wrapper, sampler, module);
-  wrapper->SetAlignedPointerInInternalField (0, sampler);
+  wrapper->SetAlignedPointerInInternalField (0, sampler,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_wall_clock_sampler_construct)
@@ -174,7 +177,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_wall_clock_sampler_construct)
 
   auto sampler = gum_wall_clock_sampler_new ();
   gum_v8_object_manager_add (&module->objects, wrapper, sampler, module);
-  wrapper->SetAlignedPointerInInternalField (0, sampler);
+  wrapper->SetAlignedPointerInInternalField (0, sampler,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_user_time_sampler_construct)
@@ -200,7 +204,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_user_time_sampler_construct)
   }
 
   gum_v8_object_manager_add (&module->objects, wrapper, sampler, module);
-  wrapper->SetAlignedPointerInInternalField (0, sampler);
+  wrapper->SetAlignedPointerInInternalField (0, sampler,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_malloc_count_sampler_construct)
@@ -214,7 +219,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_malloc_count_sampler_construct)
 
   auto sampler = gum_malloc_count_sampler_new ();
   gum_v8_object_manager_add (&module->objects, wrapper, sampler, module);
-  wrapper->SetAlignedPointerInInternalField (0, sampler);
+  wrapper->SetAlignedPointerInInternalField (0, sampler,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_call_count_sampler_construct)
@@ -249,7 +255,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_call_count_sampler_construct)
   auto sampler = gum_call_count_sampler_newv (functions, n);
 
   gum_v8_object_manager_add (&module->objects, wrapper, sampler, module);
-  wrapper->SetAlignedPointerInInternalField (0, sampler);
+  wrapper->SetAlignedPointerInInternalField (0, sampler,
+      kEmbedderDataTypeTagDefault);
 
   g_free (functions);
 }

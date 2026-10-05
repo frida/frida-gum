@@ -91,7 +91,8 @@ _gum_v8_object_manager_add (GumV8ObjectManager * self,
   object->num_active_operations = 0;
   object->pending_operations = g_queue_new ();
 
-  wrapper->SetAlignedPointerInInternalField (0, object);
+  wrapper->SetAlignedPointerInInternalField (0, object,
+      kEmbedderDataTypeTagDefault);
 
   g_hash_table_insert (self->object_by_handle, handle, object);
 

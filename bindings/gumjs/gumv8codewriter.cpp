@@ -23,7 +23,7 @@ _gum_v8_code_writer_init (GumV8CodeWriter * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
 #include "gumv8codewriter-init.inc"
 }

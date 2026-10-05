@@ -51,7 +51,7 @@ _gum_v8_profiler_init (GumV8Profiler * self,
   self->interceptor = interceptor;
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto profiler = _gum_v8_create_class ("Profiler", gumjs_profiler_construct,
       scope, module, isolate);
@@ -92,7 +92,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_profiler_construct)
 
   auto profiler = gum_profiler_new ();
   gum_v8_object_manager_add (&module->objects, wrapper, profiler, module);
-  wrapper->SetAlignedPointerInInternalField (0, profiler);
+  wrapper->SetAlignedPointerInInternalField (0, profiler,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_profiler_instrument, GumProfiler)

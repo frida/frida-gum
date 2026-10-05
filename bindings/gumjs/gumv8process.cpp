@@ -243,7 +243,8 @@ _gum_v8_process_init (GumV8Process * self,
   self->module_observers = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_module_observer_destroy);
 
-  auto process_module = External::New (isolate, self);
+  auto process_module = External::New (isolate, self,
+      kExternalPointerTypeTagDefault);
 
   auto process = _gum_v8_create_module ("Process", scope, isolate);
   process->Set (_gum_v8_string_new_ascii (isolate, "id"),
@@ -540,7 +541,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_thread_observer)
   auto observer_template_value (Local<Object>::New (isolate,
       *module->thread_observer_value));
   auto observer_value (observer_template_value->Clone ());
-  observer_value->SetAlignedPointerInInternalField (0, observer);
+  observer_value->SetAlignedPointerInInternalField (0, observer,
+      kEmbedderDataTypeTagDefault);
 
   g_hash_table_add (module->thread_observers, observer);
 
@@ -917,7 +919,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
   auto observer_template_value (Local<Object>::New (isolate,
       *module->module_observer_value));
   auto observer_value (observer_template_value->Clone ());
-  observer_value->SetAlignedPointerInInternalField (0, observer);
+  observer_value->SetAlignedPointerInInternalField (0, observer,
+      kEmbedderDataTypeTagDefault);
 
   g_hash_table_add (module->module_observers, observer);
 
@@ -1236,7 +1239,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_thread_observer_detach,
 {
   if (self != NULL)
   {
-    wrapper->SetAlignedPointerInInternalField (0, NULL);
+    wrapper->SetAlignedPointerInInternalField (0, NULL,
+        kEmbedderDataTypeTagDefault);
 
     gum_v8_process_detach_thread_observer (module, self);
   }
@@ -1247,7 +1251,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_module_observer_detach,
 {
   if (self != NULL)
   {
-    wrapper->SetAlignedPointerInInternalField (0, NULL);
+    wrapper->SetAlignedPointerInInternalField (0, NULL,
+        kEmbedderDataTypeTagDefault);
 
     gum_v8_process_detach_module_observer (module, self);
   }

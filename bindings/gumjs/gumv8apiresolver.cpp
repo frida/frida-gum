@@ -36,7 +36,7 @@ _gum_v8_api_resolver_init (GumV8ApiResolver * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto resolver = _gum_v8_create_class ("ApiResolver",
       gumjs_api_resolver_construct, scope, module, isolate);

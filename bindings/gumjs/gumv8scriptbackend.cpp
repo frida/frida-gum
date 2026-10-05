@@ -15,24 +15,12 @@
 #include <gum/guminterceptor.h>
 #include <string.h>
 
-#if defined (HAVE_DARWIN) && (defined (HAVE_ARM) || defined (HAVE_ARM64))
-# define GUM_V8_PLATFORM_FLAGS \
-    "--write-protect-code-memory " \
-    "--wasm-write-protect-code-memory "
-#else
-# define GUM_V8_PLATFORM_FLAGS
-#endif
-
 #define GUM_V8_FLAGS \
-    GUM_V8_PLATFORM_FLAGS \
     "--no-freeze-flags-after-init " \
     "--turbo-instruction-scheduling " \
     "--use-strict " \
     "--expose-gc " \
-    "--wasm-staging " \
-    "--experimental-wasm-eh " \
-    "--experimental-wasm-simd " \
-    "--experimental-wasm-return-call"
+    "--wasm-staging"
 
 #define GUM_V8_SCRIPT_BACKEND_LOCK(o) g_mutex_lock (&(o)->mutex)
 #define GUM_V8_SCRIPT_BACKEND_UNLOCK(o) g_mutex_unlock (&(o)->mutex)
@@ -649,7 +637,9 @@ gum_create_snapshot (const gchar * embed_script,
                      GumV8Platform * platform,
                      GError ** error)
 {
-  SnapshotCreator creator;
+  Isolate::CreateParams params;
+  params.array_buffer_allocator = platform->GetArrayBufferAllocator ();
+  SnapshotCreator creator (params);
 
   StartupData blob = {};
   auto isolate = creator.GetIsolate ();
@@ -684,7 +674,10 @@ gum_warm_up_snapshot (StartupData cold,
                       GumV8Platform * platform,
                       GError ** error)
 {
-  SnapshotCreator creator (nullptr, &cold);
+  Isolate::CreateParams params;
+  params.snapshot_blob = &cold;
+  params.array_buffer_allocator = platform->GetArrayBufferAllocator ();
+  SnapshotCreator creator (params);
 
   StartupData blob = {};
   auto isolate = creator.GetIsolate ();
@@ -704,7 +697,8 @@ gum_warm_up_snapshot (StartupData cold,
     {
       {
         HandleScope handle_scope (isolate);
-        isolate->ContextDisposedNotification (false);
+        isolate->ContextDisposedNotification (
+            ContextDependants::kNoDependants);
         auto context = Context::New (isolate);
         creator.SetDefaultContext (context);
       }

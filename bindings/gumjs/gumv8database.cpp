@@ -118,7 +118,7 @@ _gum_v8_database_init (GumV8Database * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto database = _gum_v8_create_class ("SqliteDatabase", nullptr, scope,
       module, isolate);
@@ -385,7 +385,8 @@ gum_database_new (sqlite3 * handle,
   database->is_virtual = is_virtual;
   database->module = module;
 
-  object->SetAlignedPointerInInternalField (0, database);
+  object->SetAlignedPointerInInternalField (0, database,
+      kEmbedderDataTypeTagDefault);
 
   g_hash_table_add (module->databases, database);
 
@@ -624,7 +625,8 @@ gum_statement_new (sqlite3_stmt * handle,
   statement->handle = handle;
   statement->module = module;
 
-  object->SetAlignedPointerInInternalField (0, statement);
+  object->SetAlignedPointerInInternalField (0, statement,
+      kEmbedderDataTypeTagDefault);
 
   g_hash_table_add (module->statements, statement);
 

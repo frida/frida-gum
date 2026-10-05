@@ -291,7 +291,8 @@ _gum_v8_args_parse (const GumV8Args * args,
           return FALSE;
         }
 
-        *va_arg (ap, gpointer *) = arg.As<External> ()->Value ();
+        *va_arg (ap, gpointer *) = arg.As<External> ()->Value (
+            kExternalPointerTypeTagDefault);
 
         break;
       }
@@ -621,7 +622,8 @@ _gum_v8_args_parse (const GumV8Args * args,
           }
 
           pattern = (GumMatchPattern *) arg.As<Object> ()
-              ->GetInternalField (0).As<External> ()->Value ();
+              ->GetInternalField (0).As<External> ()->Value (
+                  kExternalPointerTypeTagDefault);
 
           gum_match_pattern_ref (pattern);
         }
@@ -781,7 +783,7 @@ _gum_v8_native_resource_new (gpointer data,
   resource->notify = notify;
   resource->core = core;
 
-  core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
+  core->external_memory->Increase (core->isolate, size);
 
   g_hash_table_add (core->native_resources, resource);
 
@@ -801,8 +803,8 @@ _gum_v8_native_resource_new_from_pages (gpointer data,
 void
 _gum_v8_native_resource_free (GumV8NativeResource * resource)
 {
-  resource->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-      -((gssize) resource->size));
+  resource->core->external_memory->Decrease (resource->core->isolate,
+      resource->size);
 
   delete resource->instance;
   if (resource->owns_pages)
@@ -837,7 +839,7 @@ _gum_v8_kernel_resource_new (GumAddress data,
   resource->notify = notify;
   resource->core = core;
 
-  core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
+  core->external_memory->Increase (core->isolate, size);
 
   g_hash_table_add (core->kernel_resources, resource);
 
@@ -847,8 +849,8 @@ _gum_v8_kernel_resource_new (GumAddress data,
 void
 _gum_v8_kernel_resource_free (GumV8KernelResource * resource)
 {
-  resource->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-      -((gssize) resource->size));
+  resource->core->external_memory->Decrease (resource->core->isolate,
+      resource->size);
 
   delete resource->instance;
   if (resource->notify != NULL)
@@ -1514,7 +1516,7 @@ _gum_v8_cpu_context_new_immutable (const GumCpuContext * cpu_context,
       *core->cpu_context_value));
   auto cpu_context_object (cpu_context_value->Clone ());
   cpu_context_object->SetAlignedPointerInInternalField (0,
-      (void *) cpu_context);
+      (void *) cpu_context, kEmbedderDataTypeTagDefault);
   const bool is_mutable = false;
   cpu_context_object->SetInternalField (1, Boolean::New (isolate, is_mutable));
   return cpu_context_object;
@@ -1528,7 +1530,8 @@ _gum_v8_cpu_context_new_mutable (GumCpuContext * cpu_context,
   auto cpu_context_value (Local<Object>::New (isolate,
       *core->cpu_context_value));
   auto cpu_context_object (cpu_context_value->Clone ());
-  cpu_context_object->SetAlignedPointerInInternalField (0, cpu_context);
+  cpu_context_object->SetAlignedPointerInInternalField (0, cpu_context,
+      kEmbedderDataTypeTagDefault);
   const bool is_mutable = true;
   cpu_context_object->SetInternalField (1, Boolean::New (isolate, is_mutable));
   return cpu_context_object;
@@ -1542,9 +1545,11 @@ _gum_v8_cpu_context_free_later (Global<Object> * cpu_context,
 
   auto instance (Local<Object>::New (isolate, *cpu_context));
   auto original =
-      (GumCpuContext *) instance->GetAlignedPointerFromInternalField (0);
+      (GumCpuContext *) instance->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
   auto copy = g_slice_dup (GumCpuContext, original);
-  instance->SetAlignedPointerInInternalField (0, copy);
+  instance->SetAlignedPointerInInternalField (0, copy,
+      kEmbedderDataTypeTagDefault);
   const bool is_mutable = false;
   instance->SetInternalField (1, Boolean::New (isolate, is_mutable));
 
@@ -2021,8 +2026,9 @@ _gum_v8_module_add (Local<External> module,
   auto prop = properties;
   while (prop->name != NULL)
   {
-    object->SetAccessor (_gum_v8_string_new_ascii (isolate, prop->name),
-        prop->getter, prop->setter, module);
+    object->SetNativeDataProperty (
+        _gum_v8_string_new_ascii (isolate, prop->name), prop->getter,
+        prop->setter, module);
     prop++;
   }
 }
@@ -2099,8 +2105,9 @@ _gum_v8_class_add (Local<FunctionTemplate> klass,
   auto prop = properties;
   while (prop->name != NULL)
   {
-    object->SetAccessor (_gum_v8_string_new_ascii (isolate, prop->name),
-        prop->getter, prop->setter, module);
+    object->SetNativeDataProperty (
+        _gum_v8_string_new_ascii (isolate, prop->name), prop->getter,
+        prop->setter, module);
     prop++;
   }
 }

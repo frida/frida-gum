@@ -77,7 +77,7 @@ _gum_v8_cmodule_init (GumV8CModule * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto cmodule = _gum_v8_create_class ("CModule", gumjs_cmodule_construct,
       scope, module, isolate);
@@ -282,7 +282,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cmodule_construct)
   gum_cmodule_drop_metadata (handle);
 
   auto entry = gum_cmodule_entry_new (wrapper, symbols, handle, module);
-  wrapper->SetAlignedPointerInInternalField (0, entry);
+  wrapper->SetAlignedPointerInInternalField (0, entry,
+      kEmbedderDataTypeTagDefault);
 }
 
 static gboolean
@@ -358,7 +359,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_cmodule_dispose, GumCModuleEntry)
 {
   if (self != NULL)
   {
-    wrapper->SetAlignedPointerInInternalField (0, NULL);
+    wrapper->SetAlignedPointerInInternalField (0, NULL,
+        kEmbedderDataTypeTagDefault);
 
     g_hash_table_remove (module->cmodules, self);
   }
@@ -382,7 +384,8 @@ gum_cmodule_entry_new (Local<Object> wrapper,
   entry->module = module;
 
   range = gum_cmodule_get_range (handle);
-  module->core->isolate->AdjustAmountOfExternalAllocatedMemory (range->size);
+  module->core->external_memory->Increase (module->core->isolate,
+      range->size);
 
   g_hash_table_add (module->cmodules, entry);
 
@@ -395,8 +398,8 @@ gum_cmodule_entry_free (GumCModuleEntry * self)
   const GumMemoryRange * range;
 
   range = gum_cmodule_get_range (self->handle);
-  self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-      -((gssize) range->size));
+  self->module->core->external_memory->Decrease (self->module->core->isolate,
+      range->size);
 
   g_object_unref (self->handle);
 

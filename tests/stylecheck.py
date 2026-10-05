@@ -92,7 +92,7 @@ COMMON_MISTAKES = [
         ("unless-found-inside", STRING_LITERAL_PATTERN),
         ("unless-line-matches", re.compile(r".+ = { 0, };$")),
         ("unless-line-matches", re.compile(r".+\) (const|override|const override) { .+; }$")),
-        ("unless-line-matches", re.compile(r".+\[=\]\(\) { .+ }")),
+        ("unless-line-matches", re.compile(r".+\[[^\]]*\]\(\) { .+ }")),
         ("unless-line-matches", re.compile(r"^template ")),
     ),
     (

@@ -70,7 +70,7 @@ _gum_v8_checksum_init (GumV8Checksum * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto checksum = _gum_v8_create_class ("Checksum", gumjs_checksum_construct,
       scope, module, isolate);
@@ -163,7 +163,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_checksum_construct)
   }
 
   auto checksum = gum_checksum_new (wrapper, type, module);
-  wrapper->SetAlignedPointerInInternalField (0, checksum);
+  wrapper->SetAlignedPointerInInternalField (0, checksum,
+      kEmbedderDataTypeTagDefault);
 
   g_free (type_str);
 }
@@ -301,7 +302,7 @@ gum_checksum_copy (GumChecksum * self)
 
   cs->wrapper->SetWeak (cs, gum_checksum_on_weak_notify,
       WeakCallbackType::kParameter);
-  clone->SetAlignedPointerInInternalField (0, cs);
+  clone->SetAlignedPointerInInternalField (0, cs, kEmbedderDataTypeTagDefault);
 
   g_hash_table_add (self->module->checksums, cs);
 

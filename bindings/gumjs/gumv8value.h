@@ -19,7 +19,7 @@ struct GumV8Property
 {
   const gchar * name;
   v8::AccessorNameGetterCallback getter;
-  v8::AccessorNameSetterCallback setter;
+  v8::AccessorNameSetterCallbackV2 setter;
 };
 
 struct GumV8Function
