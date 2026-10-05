@@ -20,7 +20,6 @@ static char * gum_normalize_module_name (JSContext * ctx,
 static JSModuleDef * gum_load_module (JSContext * ctx, const char * module_name,
     void * opaque);
 
-static int extra_write_flags = 0;
 static const char * output_dir;
 static const char * input_dir;
 static GHashTable * es_assets;
@@ -41,15 +40,6 @@ main (int argc,
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
 #endif
-
-  if (argc >= 2 && strcmp (argv[1], "--bswap") == 0)
-  {
-    extra_write_flags = JS_WRITE_OBJ_BSWAP;
-
-    argc--;
-    argv[1] = argv[0];
-    argv++;
-  }
 
   if (argc < 4)
     goto bad_usage;
@@ -89,7 +79,7 @@ main (int argc,
 
 bad_usage:
   {
-    g_printerr ("Usage: %s [--bswap] <output_dir> <input_dir> <entrypoint.js> "
+    g_printerr ("Usage: %s <output_dir> <input_dir> <entrypoint.js> "
         "[<script1.js> <script2.js> ...]\n", argv[0]);
     goto beach;
   }
@@ -199,8 +189,7 @@ gum_compile_module (JSContext * ctx,
   if (JS_IsException (val))
     goto beach;
 
-  code = JS_WriteObject (ctx, &size, val,
-      JS_WRITE_OBJ_BYTECODE | extra_write_flags);
+  code = JS_WriteObject (ctx, &size, val, JS_WRITE_OBJ_BYTECODE);
 
   parent_dir = g_file_get_parent (asset->output_file);
   g_file_make_directory_with_parents (parent_dir, NULL, NULL);
