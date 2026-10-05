@@ -16,11 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if G_BYTE_ORDER == G_BIG_ENDIAN
-# define GUM_QUICKJS_BYTECODE_MAGIC 0x42
-#else
-# define GUM_QUICKJS_BYTECODE_MAGIC 0x02
-#endif
+#define GUM_QUICKJS_BYTECODE_MAGIC 0x05
 
 typedef struct _GumCompileProgramOperation GumCompileProgramOperation;
 typedef struct _GumCreateScriptData GumCreateScriptData;

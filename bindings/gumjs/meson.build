@@ -226,7 +226,6 @@ gumjs_runtime = custom_target('gumjs-runtime',
     meson.current_source_dir(),
     quickcompile,
     ','.join(backends),
-    host_machine.endian(),
     '@INPUT@',
   ],
 )

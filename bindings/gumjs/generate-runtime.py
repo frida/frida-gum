@@ -21,8 +21,7 @@ def main(argv):
         quickcompile,
     ) = [Path(d).resolve() if d else None for d in argv[1:5]]
     backends = set(argv[5].split(","))
-    endian = argv[6]
-    sources = [Path(d).resolve() for d in argv[7:]]
+    sources = [Path(d).resolve() for d in argv[6:]]
 
     try:
         generate_runtime(
@@ -32,7 +31,6 @@ def main(argv):
             input_dir,
             quickcompile,
             backends,
-            endian,
         )
     except Exception as e:
         print(e, file=sys.stderr)
@@ -46,7 +44,6 @@ def generate_runtime(
     input_dir: Path,
     quickcompile: Path,
     backends: List[str],
-    endian: str,
 ):
     js_sources = []
     for source in sources:
@@ -61,17 +58,12 @@ def generate_runtime(
         js_sources.append(JSSource(name, source, component))
 
     if "qjs" in backends:
-        qcflags = []
-        if endian != sys.byteorder:
-            qcflags.append("--bswap")
-
         generate_runtime_quick(
             output_dir,
             priv_dir,
             input_dir,
             [s for s in js_sources if s.component is None or s.component == "quickjs"],
             quickcompile,
-            qcflags,
         )
 
     if "v8" in backends:
@@ -90,7 +82,6 @@ def generate_runtime_quick(
     input_dir: Path,
     sources: List[JSSource],
     quickcompile: Path,
-    flags: List[str],
 ):
     with OutputFile(output_dir / "gumquickscript-runtime.h") as output_file:
         output_file.write(
@@ -108,7 +99,6 @@ struct _GumQuickRuntimeModule
 
         subprocess.run(
             [quickcompile]
-            + flags
             + [priv_dir, input_dir]
             + [s.path.relative_to(input_dir) for s in sources],
             check=True,
