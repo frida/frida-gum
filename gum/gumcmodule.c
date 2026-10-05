@@ -550,7 +550,7 @@ gum_tcc_cmodule_link_pre (GumCModule * cm,
 
   tcc_set_error_func (state, error_messages, gum_append_tcc_error);
 
-  res = tcc_relocate (state, NULL);
+  res = tcc_relocate_ex (state, NULL, 0);
   if (res == -1)
     return FALSE;
 
@@ -582,7 +582,7 @@ gum_tcc_cmodule_link_at (GumCModule * cm,
   }
   else
   {
-    if (tcc_relocate (self->state, base) == -1)
+    if (tcc_relocate_ex (self->state, base, 0) == -1)
       return FALSE;
 
     gum_memory_mark_code (base, self->size);
