@@ -24,10 +24,10 @@ TESTCASE (total_count_increase)
       ==, 0);
   g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "MyObject"),
       ==, 0);
-  fixture->ht1 = g_hash_table_new (NULL, NULL);
+  fixture->ht1 = g_hash_table_new_full (NULL, NULL, NULL, NULL);
   g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "GHashTable"),
       ==, 1);
-  fixture->ht2 = g_hash_table_new (NULL, NULL);
+  fixture->ht2 = g_hash_table_new_full (NULL, NULL, NULL, NULL);
   g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "GHashTable"),
       ==, 2);
 
@@ -44,8 +44,8 @@ TESTCASE (total_count_decrease)
 {
   GumCObjectTracker * t = fixture->tracker;
 
-  fixture->ht1 = g_hash_table_new (NULL, NULL);
-  fixture->ht2 = g_hash_table_new (NULL, NULL);
+  fixture->ht1 = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+  fixture->ht2 = g_hash_table_new_full (NULL, NULL, NULL, NULL);
   fixture->mo = my_object_new ();
 
   g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 3);
