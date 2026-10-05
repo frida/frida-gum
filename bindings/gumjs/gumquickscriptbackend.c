@@ -40,6 +40,8 @@ struct _GumQuickScriptBackend
   GumScriptScheduler * scheduler;
 };
 
+static gboolean gum_quick_script_backend_exists = FALSE;
+
 struct _GumCompileProgramOperation
 {
   GumESProgram * program;
@@ -241,6 +243,8 @@ gum_quick_script_backend_init (GumQuickScriptBackend * self)
   self->scope_mutex_trap_depth = 0;
 
   self->scheduler = g_object_ref (gum_script_backend_get_scheduler ());
+
+  gum_quick_script_backend_exists = TRUE;
 }
 
 static void
@@ -693,6 +697,22 @@ GRecMutex *
 gum_quick_script_backend_get_scope_mutex (GumQuickScriptBackend * self)
 {
   return &self->scope_mutex;
+}
+
+void
+gum_quick_script_backend_recover_from_fork_in_child (void)
+{
+  GumQuickScriptBackend * self;
+
+  if (!gum_quick_script_backend_exists)
+    return;
+
+  /*
+   * After fork() only the calling thread exists. A recursive mutex still
+   * owned by a vanished parent thread is undefined; reinitialize it.
+   */
+  self = GUM_QUICK_SCRIPT_BACKEND (gum_script_backend_obtain_qjs ());
+  g_rec_mutex_init (&self->scope_mutex);
 }
 
 GumScriptScheduler *
