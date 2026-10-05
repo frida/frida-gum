@@ -11539,12 +11539,12 @@ TESTCASE (dynamic_script_evaluated_should_support_inline_source_map)
   {
     g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
-        "    at add (agent/math.ts:2)\\n"
-        "    at <anonymous> (agent/index.ts:4)\\n"
+        "    at add (agent/math.ts:2:20)\\n"
+        "    at <anonymous> (agent/index.ts:4:13)\\n"
         "    at call (native)\\n"
-        "    at o (node_modules/browser-pack/_prelude.js:1)\\n"
-        "    at r (node_modules/browser-pack/_prelude.js:1)\\n"
-        "    at <eval> (/user.js:21)"));
+        "    at o (node_modules/browser-pack/_prelude.js:1:1)\\n"
+        "    at r (node_modules/browser-pack/_prelude.js:1:1)\\n"
+        "    at <eval> (node_modules/browser-pack/_prelude.js:1:1)"));
   }
   else
   {
@@ -11618,8 +11618,8 @@ TESTCASE (dynamic_script_loaded_should_support_inline_source_map)
   {
     g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
-        "    at add (agent/math.ts:2)\\n"
-        "    at <anonymous> (agent/index.ts:4)"));
+        "    at add (agent/math.ts:2:20)\\n"
+        "    at <anonymous> (agent/index.ts:4:13)"));
   }
   else
   {
@@ -11686,8 +11686,8 @@ TESTCASE (dynamic_script_loaded_should_support_separate_source_map)
   {
     g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
-        "    at add (agent/math.ts:2)\\n"
-        "    at <anonymous> (agent/index.ts:4)"));
+        "    at add (agent/math.ts:2:20)\\n"
+        "    at <anonymous> (agent/index.ts:4:13)"));
   }
   else
   {
@@ -11909,14 +11909,15 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   {
     g_assert_nonnull (strstr (item->message,
         "\"payload\":\"Error: not yet implemented\\n"
-        "    at add (math.js:5)\\n"
-        "    at <anonymous> (index.js:6)\\n"
+        "    at add (math.js:5:1)\\n"
+        "    at <anonymous> (index.js:6:1)\\n"
         "    at call (native)\\n"
         "    at s (node_modules/frida/node_modules/browserify/node_modules/"
-            "browser-pack/_prelude.js:1)\\n"
+            "browser-pack/_prelude.js:1:1)\\n"
         "    at e (node_modules/frida/node_modules/browserify/node_modules/"
-            "browser-pack/_prelude.js:1)\\n"
-        "    at <eval> (/testcase.js:25)"));
+            "browser-pack/_prelude.js:1:1)\\n"
+        "    at <eval> (node_modules/frida/node_modules/browserify/"
+            "node_modules/browser-pack/_prelude.js:1:1)"));
   }
   else
   {
@@ -11940,7 +11941,7 @@ TESTCASE (source_maps_should_be_supported_for_user_scripts)
   if (GUM_QUICK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert_nonnull (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-        "    at <anonymous> (index.js:12)\\n"));
+        "    at <anonymous> (index.js:12:1)\\n"));
   }
   else
   {
