@@ -18,7 +18,7 @@ _setUnhandledExceptionCallback(error => {
     const lineNumber = error.lineNumber;
     if (lineNumber !== undefined) {
       message.lineNumber = lineNumber;
-      message.columnNumber = 1;
+      message.columnNumber = error.columnNumber;
     }
   }
 
@@ -29,23 +29,25 @@ if (Process.platform !== 'barebone') {
   Error.prepareStackTrace = (error, stack) => {
     let firstSourcePosition = null;
 
-    stack = error.toString() + '\n' + stack.replace(/    at (.+) \((.+):(.+)\)/g,
-        (match, scope, fileName, lineNumber) => {
+    stack = error.toString() + '\n' + stack.replace(/    at (.+) \((.+):(\d+):(\d+)\)/g,
+        (match, scope, fileName, lineNumber, columnNumber) => {
           const position = mapSourcePosition({
             source: fileName,
-            line: parseInt(lineNumber, 10)
+            line: parseInt(lineNumber, 10),
+            column: parseInt(columnNumber, 10) - 1
           });
 
           if (firstSourcePosition === null)
             firstSourcePosition = position;
 
-          return `    at ${scope} (${position.source}:${position.line})`;
+          return `    at ${scope} (${position.source}:${position.line}:${position.column + 1})`;
         })
         .trimEnd();
 
     if (firstSourcePosition !== null) {
       error.fileName = firstSourcePosition.source;
       error.lineNumber = firstSourcePosition.line;
+      error.columnNumber = firstSourcePosition.column + 1;
     }
 
     return stack;
