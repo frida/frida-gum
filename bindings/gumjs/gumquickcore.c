@@ -2161,9 +2161,9 @@ _gum_quick_scope_catch_and_emit (GumQuickScope * self)
   JSContext * ctx = core->ctx;
   JSValue exception;
 
-  exception = JS_GetException (ctx);
-  if (JS_IsNull (exception))
+  if (!JS_HasException (ctx))
     return;
+  exception = JS_GetException (ctx);
 
   if (gum_quick_exception_is_interrupt (ctx, exception))
   {
