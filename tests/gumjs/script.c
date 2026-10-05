@@ -10007,7 +10007,8 @@ TESTCASE (cmodule_should_report_parsing_errors)
 TESTCASE (cmodule_should_report_linking_errors)
 {
   const gchar * expected_message =
-      "(Error: linking failed: tcc: error: undefined symbol '"
+      "(Error: linking failed: tcc: error: "
+      "(undefined symbol|unresolved reference to) '_?"
 #ifdef HAVE_DARWIN
       "_"
 #endif
