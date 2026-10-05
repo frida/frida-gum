@@ -243,8 +243,9 @@ GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_system_error)
 GUMJS_DECLARE_SETTER (gumjs_invocation_context_set_system_error)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_thread_id)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
-static void gumjs_invocation_context_set_property (Local<Name> property,
-    Local<Value> value, const PropertyCallbackInfo<Value> & info);
+static Intercepted gumjs_invocation_context_set_property (
+    Local<Name> property, Local<Value> value,
+    const PropertyCallbackInfo<Boolean> & info);
 
 static GumV8InvocationArgs * gum_v8_invocation_args_new_persistent (
     GumV8Interceptor * parent);
@@ -253,10 +254,10 @@ static void gum_v8_invocation_args_release_persistent (
 static void gum_v8_invocation_args_on_weak_notify (
     const WeakCallbackInfo<GumV8InvocationArgs> & info);
 static void gum_v8_invocation_args_free (GumV8InvocationArgs * self);
-static void gumjs_invocation_args_get_nth (uint32_t index,
+static Intercepted gumjs_invocation_args_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
-static void gumjs_invocation_args_set_nth (uint32_t index,
-    Local<Value> value, const PropertyCallbackInfo<Value> & info);
+static Intercepted gumjs_invocation_args_set_nth (uint32_t index,
+    Local<Value> value, const PropertyCallbackInfo<Boolean> & info);
 
 static GumV8InvocationReturnValue *
     gum_v8_invocation_return_value_new_persistent (GumV8Interceptor * parent);
@@ -373,7 +374,7 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
       (GDestroyNotify) gum_v8_replace_entry_free);
   self->flush_timer = NULL;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto interceptor = _gum_v8_create_module ("Interceptor", scope, isolate);
   _gum_v8_module_add (module, interceptor, gumjs_interceptor_functions,
@@ -390,18 +391,16 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
   auto ic = _gum_v8_create_class ("InvocationContext", nullptr, scope,
       module, isolate);
   _gum_v8_class_add (ic, gumjs_invocation_context_values, module, isolate);
-  NamedPropertyHandlerConfiguration ic_access;
-  ic_access.setter = gumjs_invocation_context_set_property;
-  ic_access.data = module;
-  ic_access.flags = PropertyHandlerFlags::kNonMasking;
-  ic->InstanceTemplate ()->SetHandler (ic_access);
+  ic->InstanceTemplate ()->SetHandler (NamedPropertyHandlerConfiguration (
+      nullptr, gumjs_invocation_context_set_property, nullptr, nullptr,
+      nullptr, module, PropertyHandlerFlags::kNonMasking));
   self->invocation_context = new Global<FunctionTemplate> (isolate, ic);
 
   auto ia = _gum_v8_create_class ("InvocationArgs", nullptr, scope, module,
       isolate);
-  ia->InstanceTemplate ()->SetIndexedPropertyHandler (
+  ia->InstanceTemplate ()->SetHandler (IndexedPropertyHandlerConfiguration (
       gumjs_invocation_args_get_nth, gumjs_invocation_args_set_nth, nullptr,
-      nullptr, nullptr, module);
+      nullptr, nullptr, module));
   self->invocation_args = new Global<FunctionTemplate> (isolate, ia);
 
   auto ir = _gum_v8_create_class ("InvocationReturnValue", nullptr, scope,
@@ -742,7 +741,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
     auto listener_template_value (Local<Object>::New (isolate,
         *module->invocation_listener_value));
     auto listener_value (listener_template_value->Clone ());
-    listener_value->SetAlignedPointerInInternalField (0, listener);
+    listener_value->SetAlignedPointerInInternalField (0, listener,
+        kEmbedderDataTypeTagDefault);
 
     g_hash_table_add (module->invocation_listeners, listener);
 
@@ -1186,7 +1186,8 @@ GUMJS_DEFINE_CLASS_METHOD (gumjs_invocation_listener_detach,
 {
   if (self != NULL)
   {
-    wrapper->SetAlignedPointerInInternalField (0, NULL);
+    wrapper->SetAlignedPointerInInternalField (0, NULL,
+        kEmbedderDataTypeTagDefault);
 
     gum_v8_interceptor_detach (module, self);
   }
@@ -1554,7 +1555,8 @@ gum_v8_invocation_context_new_persistent (GumV8Interceptor * parent)
   auto invocation_context_value = Local<Object>::New (isolate,
       *parent->invocation_context_value);
   auto object = invocation_context_value->Clone ();
-  object->SetAlignedPointerInInternalField (0, jic);
+  object->SetAlignedPointerInInternalField (0, jic,
+      kEmbedderDataTypeTagDefault);
   jic->object = new Global<Object> (isolate, object);
   jic->handle = NULL;
   jic->cpu_context = nullptr;
@@ -1689,16 +1691,19 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_depth,
       (int32_t) gum_invocation_context_get_depth (self->handle));
 }
 
-static void
-gumjs_invocation_context_set_property (Local<Name> property,
-                                       Local<Value> value,
-                                       const PropertyCallbackInfo<Value> & info)
+static Intercepted
+gumjs_invocation_context_set_property (
+    Local<Name> property,
+    Local<Value> value,
+    const PropertyCallbackInfo<Boolean> & info)
 {
   auto holder = info.Holder ();
   auto self =
-      (GumV8InvocationContext *) holder->GetAlignedPointerFromInternalField (0);
+      (GumV8InvocationContext *) holder->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
   auto module =
-      (GumV8Interceptor *) info.Data ().As<External> ()->Value ();
+      (GumV8Interceptor *) info.DataV2 ().As<External> ()->Value (
+          kExternalPointerTypeTagDefault);
 
   if (holder == *module->cached_invocation_context->object)
   {
@@ -1708,6 +1713,8 @@ gumjs_invocation_context_set_property (Local<Name> property,
   }
 
   self->dirty = TRUE;
+
+  return Intercepted::kNo;
 }
 
 static GumV8InvocationArgs *
@@ -1720,7 +1727,8 @@ gum_v8_invocation_args_new_persistent (GumV8Interceptor * parent)
   auto invocation_args_value = Local<Object>::New (isolate,
       *parent->invocation_args_value);
   auto object = invocation_args_value->Clone ();
-  object->SetAlignedPointerInInternalField (0, args);
+  object->SetAlignedPointerInInternalField (0, args,
+      kEmbedderDataTypeTagDefault);
   args->object = new Global<Object> (isolate, object);
   args->ic = NULL;
 
@@ -1768,10 +1776,11 @@ static GumV8InvocationArgs *
 gum_v8_invocation_args_get (const PropertyCallbackInfo<T> & info)
 {
   return (GumV8InvocationArgs *)
-      info.Holder ()->GetAlignedPointerFromInternalField (0);
+      info.Holder ()->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
 }
 
-static void
+static Intercepted
 gumjs_invocation_args_get_nth (uint32_t index,
                                const PropertyCallbackInfo<Value> & info)
 {
@@ -1781,17 +1790,19 @@ gumjs_invocation_args_get_nth (uint32_t index,
   if (self->ic == NULL)
   {
     _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
-    return;
+    return Intercepted::kYes;
   }
 
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (
       gum_invocation_context_get_nth_argument (self->ic, index), core));
+
+  return Intercepted::kYes;
 }
 
-static void
+static Intercepted
 gumjs_invocation_args_set_nth (uint32_t index,
                                Local<Value> value,
-                               const PropertyCallbackInfo<Value> & info)
+                               const PropertyCallbackInfo<Boolean> & info)
 {
   auto self = gum_v8_invocation_args_get (info);
   auto core = self->module->core;
@@ -1799,16 +1810,16 @@ gumjs_invocation_args_set_nth (uint32_t index,
   if (self->ic == NULL)
   {
     _gum_v8_throw_ascii_literal (core->isolate, "invalid operation");
-    return;
+    return Intercepted::kYes;
   }
-
-  info.GetReturnValue ().Set (value);
 
   gpointer raw_value;
   if (!_gum_v8_native_pointer_get (value, &raw_value, core))
-    return;
+    return Intercepted::kYes;
 
   gum_invocation_context_replace_nth_argument (self->ic, index, raw_value);
+
+  return Intercepted::kYes;
 }
 
 static GumV8InvocationReturnValue *
@@ -1821,7 +1832,8 @@ gum_v8_invocation_return_value_new_persistent (GumV8Interceptor * parent)
   auto template_object = Local<Object>::New (isolate,
       *parent->invocation_return_value);
   auto object = template_object->Clone ();
-  object->SetAlignedPointerInInternalField (1, retval);
+  object->SetAlignedPointerInInternalField (1, retval,
+      kEmbedderDataTypeTagDefault);
   retval->object = new Global<Object> (isolate, object);
   retval->ic = NULL;
 
@@ -1867,9 +1879,10 @@ gum_v8_invocation_return_value_reset (GumV8InvocationReturnValue * self,
 
 GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
 {
-  auto wrapper = info.Holder ();
+  auto wrapper = info.This ();
   auto self = (GumV8InvocationReturnValue *)
-      wrapper->GetAlignedPointerFromInternalField (1);
+      wrapper->GetAlignedPointerFromInternalField (1,
+          kEmbedderDataTypeTagDefault);
 
   if (self->ic == NULL)
   {

@@ -681,8 +681,8 @@ if have_gumjs
     quickjs_dep_native = dependency('quickjs', native: true, default_options: quickjs_options)
   endif
 
-  v8_dep = dependency('v8-10.0',
-    version: '>=10.6.122',
+  v8_dep = dependency('v8-15.7',
+    version: '>=15.7.0',
     required: get_option('v8'),
     default_options: [
       'default_library=static',
@@ -690,13 +690,12 @@ if have_gumjs
       'embedder_string=-frida',
       'snapshot_compression=disabled',
       'pointer_compression=disabled',
-      'shared_ro_heap=disabled',
       'cppgc_caged_heap=disabled',
     ],
   )
   cdata.set('HAVE_V8', v8_dep.found())
   if v8_dep.found()
-    gumjs_extra_requires += 'v8-10.0'
+    gumjs_extra_requires += 'v8-15.7'
   endif
 
   if not (quickjs_dep.found() or v8_dep.found())

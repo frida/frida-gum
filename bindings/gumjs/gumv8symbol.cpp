@@ -81,7 +81,7 @@ _gum_v8_symbol_init (GumV8Symbol * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto klass = _gum_v8_create_class ("DebugSymbol", nullptr, scope, module,
       isolate);
@@ -298,9 +298,9 @@ gum_symbol_new (GumV8Symbol * module,
       WeakCallbackType::kParameter);
   s->module = module;
 
-  object->SetAlignedPointerInInternalField (0, s);
+  object->SetAlignedPointerInInternalField (0, s, kEmbedderDataTypeTagDefault);
 
-  isolate->AdjustAmountOfExternalAllocatedMemory (sizeof (GumSymbol));
+  module->core->external_memory->Increase (isolate, sizeof (GumSymbol));
 
   g_hash_table_add (module->symbols, s);
 
@@ -312,8 +312,8 @@ gum_symbol_new (GumV8Symbol * module,
 static void
 gum_symbol_free (GumSymbol * self)
 {
-  self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-      -((gssize) sizeof (GumSymbol)));
+  self->module->core->external_memory->Decrease (self->module->core->isolate,
+      sizeof (GumSymbol));
 
   delete self->wrapper;
 

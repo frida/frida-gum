@@ -17,11 +17,13 @@
 #include <gum/gumexceptor.h>
 #include <gum/gumprocess.h>
 #include <v8.h>
+#include <v8-external-memory-accounter.h>
 
 #define GUMJS_NATIVE_POINTER_VALUE(o) \
     GSIZE_TO_POINTER ((o)->GetInternalField (0).As<BigInt> ()->Uint64Value ())
 #define GUMJS_CPU_CONTEXT_VALUE(o) \
-    ((GumCpuContext *) (o)->GetAlignedPointerFromInternalField (0))
+    ((GumCpuContext *) (o)->GetAlignedPointerFromInternalField (0, \
+        v8::kEmbedderDataTypeTagDefault))
 
 #ifdef HAVE_WINDOWS
 # define GUMJS_SYSTEM_ERROR_FIELD "lastError"
@@ -46,17 +48,18 @@ struct GumV8Core
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   v8::Isolate * isolate;
+  v8::ExternalMemoryAccounter * external_memory;
 
   ScriptScope * current_scope;
   GumThreadId current_owner;
   GumThreadId transaction_released_owner;
-  volatile guint usage_count;
+  guint usage_count;
   volatile GumV8FlushNotify flush_notify;
 
   GMainLoop * event_loop;
   GMutex event_mutex;
   GCond event_cond;
-  volatile guint event_count;
+  guint event_count;
   volatile gboolean event_source_available;
 
   GumV8ExceptionSink * unhandled_exception_sink;

@@ -185,7 +185,7 @@ _gum_v8_module_init (GumV8Module * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto klass = _gum_v8_create_class ("Module", nullptr, scope, module, isolate);
   _gum_v8_class_add_static (klass, gumjs_module_static_functions, module,
@@ -709,7 +709,8 @@ _gum_v8_module_new_take_handle (GumModule * handle,
   value->handle = handle;
   value->module = parent;
 
-  object->SetAlignedPointerInInternalField (0, value);
+  object->SetAlignedPointerInInternalField (0, value,
+      kEmbedderDataTypeTagDefault);
 
   g_hash_table_add (parent->values, value);
 
@@ -767,7 +768,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_map_construct)
   }
 
   auto map = gum_v8_module_map_new (wrapper, handle, module);
-  wrapper->SetAlignedPointerInInternalField (0, map);
+  wrapper->SetAlignedPointerInInternalField (0, map,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CLASS_GETTER (gumjs_module_map_get_handle, GumV8ModuleMap)

@@ -127,7 +127,7 @@ _gum_v8_control_flow_graph_init (GumV8ControlFlowGraph * self,
   self->core = core;
   self->instruction = instruction;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto cfg = _gum_v8_create_class ("ControlFlowGraph",
       gumjs_control_flow_graph_construct, scope, module, isolate);
@@ -203,7 +203,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_control_flow_graph_construct)
 
   auto cfg = gum_v8_control_flow_graph_value_new (wrapper, handle, entrypoint,
       module);
-  wrapper->SetAlignedPointerInInternalField (0, cfg);
+  wrapper->SetAlignedPointerInInternalField (0, cfg,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CLASS_GETTER (gumjs_control_flow_graph_get_entrypoint,
@@ -458,7 +459,8 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_basic_block_get_instructions,
 GUMJS_DEFINE_FUNCTION (gumjs_basic_block_to_json)
 {
   auto self = (GumV8BasicBlockValue *)
-      info.This ()->GetAlignedPointerFromInternalField (0);
+      info.This ()->GetAlignedPointerFromInternalField (0,
+          kEmbedderDataTypeTagDefault);
   auto context = isolate->GetCurrentContext ();
 
   GumAddress start, end;
@@ -546,7 +548,8 @@ gum_v8_basic_block_new (Local<Object> cfg,
   value->object = new Global<Object> (isolate, object);
   value->object->SetWeak (value, gum_v8_basic_block_value_on_weak_notify,
       WeakCallbackType::kParameter);
-  object->SetAlignedPointerInInternalField (0, value);
+  object->SetAlignedPointerInInternalField (0, value,
+      kEmbedderDataTypeTagDefault);
 
   value->cfg = new Global<Object> (isolate, cfg);
   value->handle = handle;

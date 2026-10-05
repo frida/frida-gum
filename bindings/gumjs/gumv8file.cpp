@@ -81,7 +81,7 @@ _gum_v8_file_init (GumV8File * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto file = _gum_v8_create_class ("File", gumjs_file_construct, scope,
       module, isolate);
@@ -248,7 +248,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   }
 
   auto file = gum_file_new (wrapper, handle, module);
-  wrapper->SetAlignedPointerInInternalField (0, file);
+  wrapper->SetAlignedPointerInInternalField (0, file,
+      kEmbedderDataTypeTagDefault);
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_file_tell, GumFile)

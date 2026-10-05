@@ -54,7 +54,7 @@ _gum_v8_cloak_init (GumV8Cloak * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto cloak = _gum_v8_create_module ("Cloak", scope, isolate);
   _gum_v8_module_add (module, cloak, gumjs_cloak_functions, isolate);

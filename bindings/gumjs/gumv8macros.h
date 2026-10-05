@@ -19,16 +19,17 @@
         const PropertyCallbackInfo<Value> & info);
 #define GUMJS_DECLARE_SETTER(N) \
     static void N (Local<Name> property, Local<Value> value, \
-        const PropertyCallbackInfo<void> & info);
+        const PropertyCallbackInfo<Boolean> & info);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
     struct GumV8Closure_##N \
     { \
     public: \
       GumV8Closure_##N (const FunctionCallbackInfo<Value> & info) \
-        : wrapper (info.Holder ()), \
+        : wrapper (info.This ()), \
           module ((GUMJS_MODULE_TYPE *) \
-              info.Data ().As<External> ()->Value ()), \
+              info.DataV2 ().As<External> ()->Value ( \
+                  v8::kExternalPointerTypeTagDefault)), \
           core (module->core), \
           args (&_args), \
           info (info), \
@@ -66,7 +67,8 @@
     public: \
       GumV8Closure_##N (const FunctionCallbackInfo<Value> & info) \
         : module ((GUMJS_MODULE_TYPE *) \
-              info.Data ().As<External> ()->Value ()), \
+              info.DataV2 ().As<External> ()->Value ( \
+                  v8::kExternalPointerTypeTagDefault)), \
           core (module->core), \
           args (&_args), \
           info (info), \
@@ -102,8 +104,9 @@
     { \
     public: \
       GumV8Closure_##N (const PropertyCallbackInfo<Value> & info) \
-        : module ( \
-              (GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+        : module ((GUMJS_MODULE_TYPE *) \
+              info.DataV2 ().As<External> ()->Value ( \
+                  v8::kExternalPointerTypeTagDefault)), \
           core (module->core), \
           info (info), \
           isolate (core->isolate) \
@@ -134,9 +137,10 @@
     { \
     public: \
       GumV8Closure_##N (Local<Value> value, \
-          const PropertyCallbackInfo<void> & info) \
-        : module ( \
-              (GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+          const PropertyCallbackInfo<Boolean> & info) \
+        : module ((GUMJS_MODULE_TYPE *) \
+              info.DataV2 ().As<External> ()->Value ( \
+                  v8::kExternalPointerTypeTagDefault)), \
           core (module->core), \
           value (value), \
           info (info), \
@@ -150,14 +154,14 @@
       GUMJS_MODULE_TYPE * module; \
       GumV8Core * core; \
       Local<Value> value; \
-      const PropertyCallbackInfo<void> & info; \
+      const PropertyCallbackInfo<Boolean> & info; \
       Isolate * isolate; \
     }; \
     \
     static void \
     N (Local<Name> property, \
        Local<Value> value, \
-       const PropertyCallbackInfo<void> & info) \
+       const PropertyCallbackInfo<Boolean> & info) \
     { \
       GumV8Closure_##N closure (value, info); \
       closure.invoke (); \
@@ -171,9 +175,11 @@
     public: \
       GumV8Closure_##N (const PropertyCallbackInfo<Value> & info) \
         : wrapper (info.Holder ()), \
-          self ((C *) wrapper->GetAlignedPointerFromInternalField (L)), \
-          module ( \
-              (GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+          self ((C *) wrapper->GetAlignedPointerFromInternalField (L, \
+              v8::kEmbedderDataTypeTagDefault)), \
+          module ((GUMJS_MODULE_TYPE *) \
+              info.DataV2 ().As<External> ()->Value ( \
+                  v8::kExternalPointerTypeTagDefault)), \
           core (module->core), \
           info (info), \
           isolate (core->isolate) \
@@ -206,11 +212,13 @@
     { \
     public: \
       GumV8Closure_##N (Local<Value> value, \
-          const PropertyCallbackInfo<void> & info) \
+          const PropertyCallbackInfo<Boolean> & info) \
         : wrapper (info.Holder ()), \
-          self ((C *) wrapper->GetAlignedPointerFromInternalField (L)), \
-          module ( \
-              (GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+          self ((C *) wrapper->GetAlignedPointerFromInternalField (L, \
+              v8::kEmbedderDataTypeTagDefault)), \
+          module ((GUMJS_MODULE_TYPE *) \
+              info.DataV2 ().As<External> ()->Value ( \
+                  v8::kExternalPointerTypeTagDefault)), \
           core (module->core), \
           value (value), \
           info (info), \
@@ -226,14 +234,14 @@
       GUMJS_MODULE_TYPE * module; \
       GumV8Core * core; \
       Local<Value> value; \
-      const PropertyCallbackInfo<void> & info; \
+      const PropertyCallbackInfo<Boolean> & info; \
       Isolate * isolate; \
     }; \
     \
     static void \
     N (Local<Name> property, \
        Local<Value> value, \
-       const PropertyCallbackInfo<void> & info) \
+       const PropertyCallbackInfo<Boolean> & info) \
     { \
       GumV8Closure_##N closure (value, info); \
       closure.invoke (); \
@@ -246,10 +254,12 @@
     { \
     public: \
       GumV8Closure_##N (const FunctionCallbackInfo<Value> & info) \
-        : wrapper (info.Holder ()), \
-          self ((C *) wrapper->GetAlignedPointerFromInternalField (L)), \
-          module ( \
-              (GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+        : wrapper (info.This ()), \
+          self ((C *) wrapper->GetAlignedPointerFromInternalField (L, \
+              v8::kEmbedderDataTypeTagDefault)), \
+          module ((GUMJS_MODULE_TYPE *) \
+              info.DataV2 ().As<External> ()->Value ( \
+                  v8::kExternalPointerTypeTagDefault)), \
           core (module->core), \
           args (&_args), \
           info (info), \

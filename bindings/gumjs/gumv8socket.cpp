@@ -139,7 +139,7 @@ _gum_v8_socket_init (GumV8Socket * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto socket = _gum_v8_create_module ("Socket", scope, isolate);
   _gum_v8_module_add (module, socket, gumjs_socket_functions, isolate);
@@ -574,7 +574,8 @@ gum_v8_socket_listener_new (GSocketListener * listener,
   auto context = isolate->GetCurrentContext ();
 
   auto ctor (Local<FunctionTemplate>::New (isolate, *module->listener));
-  Local<Value> argv[] = { External::New (isolate, listener) };
+  Local<Value> argv[] = { External::New (isolate, listener,
+      kExternalPointerTypeTagDefault) };
   return ctor->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
@@ -690,7 +691,8 @@ gum_v8_socket_connection_new (GSocketConnection * connection,
 
   Local<FunctionTemplate> ctor (
       Local<FunctionTemplate>::New (isolate, *module->connection));
-  Local<Value> argv[] = { External::New (isolate, connection) };
+  Local<Value> argv[] = { External::New (isolate, connection,
+      kExternalPointerTypeTagDefault) };
   return ctor->GetFunction (context).ToLocalChecked ()
       ->NewInstance (context, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
@@ -705,7 +707,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_connection_construct)
 
   auto base_ctor (Local<FunctionTemplate>::New (isolate,
       *core->script->stream.io_stream));
-  Local<Value> argv[] = { External::New (isolate, connection) };
+  Local<Value> argv[] = { External::New (isolate, connection,
+      kExternalPointerTypeTagDefault) };
   base_ctor->GetFunction (context).ToLocalChecked ()
       ->Call (context, wrapper, G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }

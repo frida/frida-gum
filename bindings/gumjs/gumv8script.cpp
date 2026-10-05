@@ -648,7 +648,8 @@ gum_v8_script_compile (GumV8Script * self,
                        GError ** error)
 {
   GumESProgram * program = gum_es_program_new ();
-  context->SetAlignedPointerInEmbedderData (0, program);
+  context->SetAlignedPointerInEmbedderData (0, program,
+      kEmbedderDataTypeTagDefault);
 
   const gchar * source = self->source;
   const gchar * package_marker = "📦\n";
@@ -768,7 +769,7 @@ gum_v8_script_compile (GumV8Script * self,
 
     auto resource_name = String::NewFromUtf8 (isolate, program->global_filename)
         .ToLocalChecked ();
-    ScriptOrigin origin (isolate, resource_name);
+    ScriptOrigin origin (resource_name);
 
     auto source_str = String::NewFromUtf8 (isolate, source).ToLocalChecked ();
 
@@ -803,7 +804,8 @@ malformed_package:
   }
 propagate_error:
   {
-    context->SetAlignedPointerInEmbedderData (0, nullptr);
+    context->SetAlignedPointerInEmbedderData (0, nullptr,
+        kEmbedderDataTypeTagDefault);
     gum_es_program_free (program);
     program = NULL;
 
@@ -887,10 +889,11 @@ gum_import_module (Local<Context> context,
   Local<Promise::Resolver> resolver =
       Promise::Resolver::New (context).ToLocalChecked ();
 
-  auto isolate = context->GetIsolate ();
+  auto isolate = Isolate::GetCurrent ();
   auto self = (GumV8Script *) isolate->GetData (0);
   auto program =
-      (GumESProgram *) context->GetAlignedPointerFromEmbedderData (0);
+      (GumESProgram *) context->GetAlignedPointerFromEmbedderData (0,
+          kEmbedderDataTypeTagDefault);
 
   String::Utf8Value specifier_str (isolate, specifier);
   String::Utf8Value resource_name_str (isolate, resource_name);
@@ -930,7 +933,8 @@ gum_import_module (Local<Context> context,
 
   auto evaluate_request = module->Evaluate (context)
       .ToLocalChecked ().As<Promise> ();
-  auto data = External::New (isolate, operation);
+  auto data = External::New (isolate, operation,
+      kExternalPointerTypeTagDefault);
   evaluate_request->Then (context,
       Function::New (context, gum_on_import_success,
         data, 1, ConstructorBehavior::kThrow).ToLocalChecked (),
@@ -944,7 +948,8 @@ gum_import_module (Local<Context> context,
 static void
 gum_on_import_success (const FunctionCallbackInfo<Value> & info)
 {
-  auto op = (GumImportOperation *) info.Data ().As<External> ()->Value ();
+  auto op = (GumImportOperation *) info.DataV2 ().As<External> ()->Value (
+      kExternalPointerTypeTagDefault);
   auto isolate = info.GetIsolate ();
   auto context = isolate->GetCurrentContext ();
 
@@ -958,7 +963,8 @@ gum_on_import_success (const FunctionCallbackInfo<Value> & info)
 static void
 gum_on_import_failure (const FunctionCallbackInfo<Value> & info)
 {
-  auto op = (GumImportOperation *) info.Data ().As<External> ()->Value ();
+  auto op = (GumImportOperation *) info.DataV2 ().As<External> ()->Value (
+      kExternalPointerTypeTagDefault);
   auto isolate = info.GetIsolate ();
   auto context = isolate->GetCurrentContext ();
 
@@ -983,9 +989,10 @@ gum_resolve_module (Local<Context> context,
                     Local<FixedArray> import_assertions,
                     Local<Module> referrer)
 {
-  auto isolate = context->GetIsolate ();
+  auto isolate = Isolate::GetCurrent ();
   auto program =
-      (GumESProgram *) context->GetAlignedPointerFromEmbedderData (0);
+      (GumESProgram *) context->GetAlignedPointerFromEmbedderData (0,
+          kEmbedderDataTypeTagDefault);
 
   auto referrer_module = (GumESAsset *) g_hash_table_lookup (
       program->es_modules, GINT_TO_POINTER (referrer->ScriptId ()));
@@ -1102,7 +1109,6 @@ gum_ensure_module_defined (Isolate * isolate,
   bool is_wasm = false;
   bool is_module = true;
   ScriptOrigin origin (
-      isolate,
       resource_name,
       resource_line_offset,
       resource_column_offset,
@@ -1362,7 +1368,8 @@ gum_v8_script_execute_entrypoints (GumV8Script * self,
 
       load_request->Then (context,
           Function::New (context, gum_v8_script_on_entrypoints_executed,
-            External::New (isolate, g_object_ref (task)), 1,
+            External::New (isolate, g_object_ref (task),
+                kExternalPointerTypeTagDefault), 1,
             ConstructorBehavior::kThrow)
           .ToLocalChecked ())
           .ToLocalChecked ();
@@ -1399,7 +1406,8 @@ gum_v8_script_execute_entrypoints (GumV8Script * self,
 static void
 gum_v8_script_on_entrypoints_executed (const FunctionCallbackInfo<Value> & info)
 {
-  auto task = (GumScriptTask *) info.Data ().As<External> ()->Value ();
+  auto task = (GumScriptTask *) info.DataV2 ().As<External> ()->Value (
+      kExternalPointerTypeTagDefault);
   auto self = (GumV8Script *)
       g_async_result_get_source_object (G_ASYNC_RESULT (task));
   auto core = &self->core;
@@ -2212,7 +2220,7 @@ gum_es_program_load_runtime (GumESProgram * self,
   d->data = data;
   d->data_destroy = data_destroy;
 
-  auto data_val = External::New (isolate, d);
+  auto data_val = External::New (isolate, d, kExternalPointerTypeTagDefault);
 
   auto on_success = Function::New (context,
       gum_es_program_on_runtime_load_success, data_val, 1,
@@ -2242,7 +2250,8 @@ static void
 gum_es_program_on_runtime_loaded (const FunctionCallbackInfo<Value> & info,
                                   Local<Value> error)
 {
-  auto d = (GumLoadRuntimeData *) info.Data ().As<External> ()->Value ();
+  auto d = (GumLoadRuntimeData *) info.DataV2 ().As<External> ()->Value (
+      kExternalPointerTypeTagDefault);
 
   d->func (error, d->data);
 

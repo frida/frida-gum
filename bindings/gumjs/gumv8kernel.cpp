@@ -180,7 +180,7 @@ _gum_v8_kernel_init (GumV8Kernel * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto kernel = _gum_v8_create_module ("Kernel", scope, isolate);
   kernel->Set (_gum_v8_string_new_ascii (isolate, "pageSize"),

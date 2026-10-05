@@ -27,7 +27,7 @@ _gum_v8_code_relocator_init (GumV8CodeRelocator * self,
   self->instruction = instruction;
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
 #include "gumv8coderelocator-init.inc"
 }

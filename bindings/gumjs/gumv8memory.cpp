@@ -105,7 +105,7 @@ _gum_v8_memory_init (GumV8Memory * self,
 
   self->core = core;
 
-  auto module = External::New (isolate, self);
+  auto module = External::New (isolate, self, kExternalPointerTypeTagDefault);
 
   auto memory = _gum_v8_create_module ("Memory", scope, isolate);
   _gum_v8_module_add (module, memory, gumjs_memory_functions, isolate);
