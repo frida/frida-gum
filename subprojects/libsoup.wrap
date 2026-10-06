@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/libsoup.git
-revision = b468fb8b23472afc1854a3aa6bc59e88e40f136c
+revision = 2537f36926436ef7ac7e2430c25755216ed54ca5
 depth = 1
 
 [provide]
