@@ -284,6 +284,23 @@ gum_internal_heap_unref (void)
   _gum_memory_backend_deinit ();
 }
 
+void
+_gum_memory_recover_from_fork_in_child (void)
+{
+#ifndef GUM_USE_SYSTEM_ALLOC
+  /*
+   * pthread_atfork only resets dlmalloc's global gm mutex. Gum allocates
+   * from locked mspaces whose mutexes are copied into the child still
+   * looking held. Reinitialize before any malloc (g_rec_mutex_init).
+   */
+  INITIAL_LOCK (&malloc_global_mutex);
+  if (gum_mspace_main != NULL)
+    INITIAL_LOCK (&((mstate) gum_mspace_main)->mutex);
+  if (gum_mspace_internal != NULL)
+    INITIAL_LOCK (&((mstate) gum_mspace_internal)->mutex);
+#endif
+}
+
 gpointer
 gum_sign_code_pointer (gpointer value)
 {

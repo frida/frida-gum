@@ -160,13 +160,13 @@ gum_script_scheduler_recover_from_fork_in_child (GumScriptScheduler * self)
    * a thread that does not exist in this process.
    *
    * If we forked *on* the JS thread, this stack is still inside
-   * g_main_loop_run(); keep that loop and just forget the stale GThread.
+   * g_main_loop_run(); keep that loop. Do not call
+   * g_main_context_is_owner(): it locks a GMutex copied from the parent
+   * that can still look held, so helpers block in g_mutex_lock and never
+   * reach _exit.
    */
-  if (self->js_context != NULL && g_main_context_is_owner (self->js_context))
-  {
-    self->js_thread = g_thread_self ();
+  if (self->js_thread == g_thread_self ())
     return;
-  }
 
   self->js_thread = NULL;
   if (self->js_loop != NULL)

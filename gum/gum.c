@@ -357,6 +357,7 @@ gum_recover_from_fork_in_parent (void)
 void
 gum_recover_from_fork_in_child (void)
 {
+  _gum_memory_recover_from_fork_in_child ();
   _gum_exceptor_backend_recover_from_fork_in_child ();
   _gum_interceptor_recover_from_fork_in_child ();
 }
