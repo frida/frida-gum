@@ -12,16 +12,22 @@
 
 #include "gummemory.h"
 
-#ifdef HAVE_PROSPERO
-# include "gummemory-prospero.h"
-#endif
-
 #include "gumcloak-priv.h"
 #include "gumcodesegment.h"
 #include "gumexceptor.h"
 #include "gumlibc.h"
 #include "gummemory-priv.h"
 #include "gumprocess-priv.h"
+#ifdef HAVE_DARWIN
+# include "backend-darwin/gumdarwin-priv.h"
+# include "gum/gumdarwin.h"
+#endif
+#ifdef HAVE_ANDROID
+# include "gum/gumandroid.h"
+#endif
+#ifdef HAVE_PROSPERO
+# include "gummemory-prospero.h"
+#endif
 
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
@@ -29,9 +35,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_ANDROID
-# include "gum/gumandroid.h"
-#endif
 #ifndef GUM_USE_SYSTEM_ALLOC
 # ifdef HAVE_DARWIN
 #  define DARWIN                   1
@@ -58,10 +61,6 @@
 # ifdef _MSC_VER
 #  pragma warning (pop)
 # endif
-#endif
-#ifdef HAVE_DARWIN
-# include "backend-darwin/gumdarwin-priv.h"
-# include "gum/gumdarwin.h"
 #endif
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8 && defined (__SSE2__)
