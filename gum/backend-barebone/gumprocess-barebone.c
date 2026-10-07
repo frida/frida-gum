@@ -156,13 +156,13 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
   return 0;
 }
 
-gint
+G_GNUC_WEAK gint
 gum_thread_get_system_error (void)
 {
   return 0;
 }
 
-void
+G_GNUC_WEAK void
 gum_thread_set_system_error (gint value)
 {
 }
