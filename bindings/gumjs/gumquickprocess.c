@@ -278,7 +278,7 @@ _gum_quick_process_init (GumQuickProcess * self,
   JS_DefinePropertyValueStr (ctx, obj, "platform",
       JS_NewString (ctx, GUM_SCRIPT_PLATFORM), JS_PROP_C_W_E);
   JS_DefinePropertyValueStr (ctx, obj, "id",
-      JS_NewInt32 (ctx, gum_process_get_id ()), JS_PROP_C_W_E);
+      JS_NewUint32 (ctx, gum_process_get_id ()), JS_PROP_C_W_E);
   JS_DefinePropertyValueStr (ctx, obj, "pageSize",
       JS_NewInt32 (ctx, gum_query_page_size ()), JS_PROP_C_W_E);
   JS_DefinePropertyValueStr (ctx, obj, "codeSigningPolicy",
