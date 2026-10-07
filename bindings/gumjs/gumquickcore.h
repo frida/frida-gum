@@ -20,12 +20,6 @@
 
 #define GUM_QUICK_SCOPE_INIT(core) { core, NULL, }
 
-#ifdef HAVE_WINDOWS
-# define GUMJS_SYSTEM_ERROR_FIELD "lastError"
-#else
-# define GUMJS_SYSTEM_ERROR_FIELD "errno"
-#endif
-
 G_BEGIN_DECLS
 
 typedef struct _GumQuickCore GumQuickCore;
@@ -279,6 +273,10 @@ G_GNUC_INTERNAL void _gum_quick_core_init (GumQuickCore * self,
     GumESProgram * program, GumQuickInterceptor * interceptor,
     GumQuickStalker * stalker, GumQuickMessageEmitter message_emitter,
     gpointer message_emitter_data, GumScriptScheduler * scheduler);
+G_GNUC_INTERNAL void _gum_quick_core_define_system_error_accessors (
+    GumQuickCore * self, JSValue proto, JSCFunction * getter,
+    JSCFunction * setter);
+
 G_GNUC_INTERNAL gboolean _gum_quick_core_flush (GumQuickCore * self,
     GumQuickFlushNotify flush_notify, gpointer flush_data,
     GDestroyNotify flush_data_destroy);

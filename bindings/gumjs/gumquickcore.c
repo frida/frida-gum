@@ -28,7 +28,7 @@
 #ifdef HAVE_PTRAUTH
 # include <ptrauth.h>
 #endif
-#ifdef HAVE_TINY_STACK
+#if defined (G_OS_NONE) || defined (HAVE_TINY_STACK)
 # include <gum/gumbarebone.h>
 #endif
 
@@ -455,6 +455,7 @@ static JSValue gum_quick_value_from_ffi (JSContext * ctx,
     const GumFFIRet * val, const ffi_type * type, GumQuickCore * core);
 
 static void gum_quick_core_setup_atoms (GumQuickCore * self);
+static const gchar * gum_quick_core_system_error_field_name (void);
 static void gum_quick_core_teardown_atoms (GumQuickCore * self);
 
 static const JSCFunctionListEntry gumjs_root_entries[] =
@@ -665,9 +666,6 @@ static const JSCFunctionListEntry gumjs_callback_context_entries[] =
   JS_CGETSET_DEF ("returnAddress", gumjs_callback_context_get_return_address,
       NULL),
   JS_CGETSET_DEF ("context", gumjs_callback_context_get_cpu_context, NULL),
-  JS_CGETSET_DEF (GUMJS_SYSTEM_ERROR_FIELD,
-      gumjs_callback_context_get_system_error,
-      gumjs_callback_context_set_system_error),
 };
 
 static const JSClassDef gumjs_cpu_context_def =
@@ -1728,6 +1726,9 @@ _gum_quick_core_init (GumQuickCore * self,
       &self->callback_context_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_callback_context_entries,
       G_N_ELEMENTS (gumjs_callback_context_entries));
+  _gum_quick_core_define_system_error_accessors (self, proto,
+      (JSCFunction *) gumjs_callback_context_get_system_error,
+      (JSCFunction *) gumjs_callback_context_set_system_error);
 
   _gum_quick_create_class (ctx, &gumjs_cpu_context_def, self,
       &self->cpu_context_class, &proto);
@@ -1787,6 +1788,20 @@ gum_quick_core_handle_crashed_js (GumExceptionDetails * details,
   }
 
   return FALSE;
+}
+
+void
+_gum_quick_core_define_system_error_accessors (GumQuickCore * self,
+                                               JSValue proto,
+                                               JSCFunction * getter,
+                                               JSCFunction * setter)
+{
+  JSContext * ctx = self->ctx;
+
+  JS_DefinePropertyGetSet (ctx, proto, GUM_QUICK_CORE_ATOM (self, system_error),
+      JS_NewCFunction2 (ctx, getter, "get", 0, JS_CFUNC_getter, 0),
+      JS_NewCFunction2 (ctx, setter, "set", 1, JS_CFUNC_setter, 0),
+      JS_PROP_CONFIGURABLE);
 }
 
 gboolean
@@ -6390,7 +6405,8 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
   GUM_SETUP_ATOM (size);
   GUM_SETUP_ATOM (slot);
   GUM_SETUP_ATOM (state);
-  GUM_SETUP_ATOM_NAMED (system_error, GUMJS_SYSTEM_ERROR_FIELD);
+  GUM_SETUP_ATOM_NAMED (system_error,
+      gum_quick_core_system_error_field_name ());
   GUM_SETUP_ATOM (toolchain);
   GUM_SETUP_ATOM (traps);
   GUM_SETUP_ATOM (type);
@@ -6421,6 +6437,20 @@ gum_quick_core_setup_atoms (GumQuickCore * self)
 #endif
 
 #undef GUM_SETUP_ATOM
+}
+
+static const gchar *
+gum_quick_core_system_error_field_name (void)
+{
+#if defined (HAVE_WINDOWS)
+  return "lastError";
+#elif defined (G_OS_NONE)
+  return (strcmp (gum_barebone_query_platform (), "windows") == 0)
+      ? "lastError"
+      : "errno";
+#else
+  return "errno";
+#endif
 }
 
 static void

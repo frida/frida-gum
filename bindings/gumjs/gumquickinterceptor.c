@@ -327,9 +327,6 @@ static const JSCFunctionListEntry gumjs_invocation_context_entries[] =
   JS_CGETSET_DEF ("returnAddress", gumjs_invocation_context_get_return_address,
       NULL),
   JS_CGETSET_DEF ("context", gumjs_invocation_context_get_cpu_context, NULL),
-  JS_CGETSET_DEF (GUMJS_SYSTEM_ERROR_FIELD,
-      gumjs_invocation_context_get_system_error,
-      gumjs_invocation_context_set_system_error),
   JS_CGETSET_DEF ("threadId", gumjs_invocation_context_get_thread_id, NULL),
   JS_CGETSET_DEF ("depth", gumjs_invocation_context_get_depth, NULL),
 };
@@ -399,6 +396,9 @@ _gum_quick_interceptor_init (GumQuickInterceptor * self,
       &self->invocation_context_class, &proto);
   JS_SetPropertyFunctionList (ctx, proto, gumjs_invocation_context_entries,
       G_N_ELEMENTS (gumjs_invocation_context_entries));
+  _gum_quick_core_define_system_error_accessors (core, proto,
+      (JSCFunction *) gumjs_invocation_context_get_system_error,
+      (JSCFunction *) gumjs_invocation_context_set_system_error);
 
   _gum_quick_create_class (ctx, &gumjs_invocation_args_def, core,
       &self->invocation_args_class, &proto);
