@@ -7,6 +7,7 @@
 #ifndef __GUM_BAREBONE_H__
 #define __GUM_BAREBONE_H__
 
+#include <gio/gio.h>
 #include <gum/gumexceptor.h>
 #include <gum/gummemory.h>
 #include <gum/gummoduleregistry.h>
@@ -14,6 +15,18 @@
 #include <gum/gumthreadregistry.h>
 
 G_BEGIN_DECLS
+
+typedef struct _GumBareboneStreamOps GumBareboneStreamOps;
+
+struct _GumBareboneStreamOps
+{
+  gint (* poll) (GPollFD * fds, guint nfds, gint timeout);
+  gssize (* read) (gpointer handle, gpointer buffer, gsize count,
+      GError ** error);
+  gssize (* write) (gpointer handle, gconstpointer buffer, gsize count,
+      GError ** error);
+  gboolean (* close) (gpointer handle, GError ** error);
+};
 
 GUM_API const gchar * gum_barebone_query_platform (void);
 GUM_API guint gum_barebone_query_page_size (void);
@@ -49,6 +62,16 @@ GUM_API void gum_barebone_unregister_thread (GumThreadRegistry * registry,
     GumThreadId id);
 GUM_API void gum_barebone_rename_thread (GumThreadRegistry * registry,
     GumThreadId id, const gchar * name);
+
+GUM_API gchar * gum_barebone_ansi_string_to_utf8 (const gchar * str_ansi,
+    gint length);
+GUM_API gchar * gum_barebone_ansi_string_from_utf8 (const gchar * str_utf8);
+
+GUM_API GInputStream * gum_barebone_input_stream_new (gpointer handle,
+    gboolean close_handle);
+GUM_API GOutputStream * gum_barebone_output_stream_new (gpointer handle,
+    gboolean close_handle);
+GUM_API const GumBareboneStreamOps * gum_barebone_query_stream_ops (void);
 
 G_END_DECLS
 

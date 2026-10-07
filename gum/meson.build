@@ -248,6 +248,7 @@ if host_os_family == 'none'
     'backend-barebone' / 'gummodule-barebone.c',
     'backend-barebone' / 'gumtls-barebone.c',
     'backend-barebone' / 'gumsymbolutil-barebone.c',
+    'backend-barebone' / 'gumbarebonestream.c',
   ]
 endif
 

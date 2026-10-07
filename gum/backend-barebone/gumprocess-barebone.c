@@ -243,3 +243,16 @@ gum_throw_not_supported (GError ** error)
   g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_SUPPORTED,
       "Not supported by the Barebone backend");
 }
+
+G_GNUC_WEAK gchar *
+gum_barebone_ansi_string_to_utf8 (const gchar * str_ansi,
+                                  gint length)
+{
+  return NULL;
+}
+
+G_GNUC_WEAK gchar *
+gum_barebone_ansi_string_from_utf8 (const gchar * str_utf8)
+{
+  return NULL;
+}
