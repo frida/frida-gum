@@ -11,6 +11,9 @@
 #include "gumcloak.h"
 #include "gumleb.h"
 #include "gummoduleregistry.h"
+#ifdef G_OS_NONE
+# include "gum/gumbarebone.h"
+#endif
 
 #ifdef HAVE_WINDOWS
 # include <windows.h>
@@ -173,6 +176,7 @@ static gboolean gum_try_resolve_module_by_name (GumModule * module,
     gpointer user_data);
 static gboolean gum_try_resolve_module_by_path (GumModule * module,
     gpointer user_data);
+static gboolean gum_module_names_match (const gchar * a, const gchar * b);
 static gboolean gum_try_resolve_module_by_address (GumModule * module,
     gpointer user_data);
 #endif
@@ -399,7 +403,7 @@ gum_try_resolve_module_by_name (GumModule * module,
 {
   GumFindModuleByNameContext * ctx = user_data;
 
-  if (strcmp (gum_module_get_name (module), ctx->name) == 0)
+  if (gum_module_names_match (gum_module_get_name (module), ctx->name))
   {
     ctx->module = g_object_ref (module);
     return FALSE;
@@ -414,13 +418,24 @@ gum_try_resolve_module_by_path (GumModule * module,
 {
   GumFindModuleByNameContext * ctx = user_data;
 
-  if (strcmp (gum_module_get_path (module), ctx->name) == 0)
+  if (gum_module_names_match (gum_module_get_path (module), ctx->name))
   {
     ctx->module = g_object_ref (module);
     return FALSE;
   }
 
   return TRUE;
+}
+
+static gboolean
+gum_module_names_match (const gchar * a,
+                        const gchar * b)
+{
+#ifdef G_OS_NONE
+  if (strcmp (gum_barebone_query_platform (), "windows") == 0)
+    return g_ascii_strcasecmp (a, b) == 0;
+#endif
+  return strcmp (a, b) == 0;
 }
 #endif
 
