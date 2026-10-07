@@ -8,21 +8,18 @@
 
 #include "gumquickmacros.h"
 
-#ifdef HAVE_WINDOWS
+#if defined (HAVE_WINDOWS)
 # include <gio/gwin32inputstream.h>
 # include <gio/gwin32outputstream.h>
-
-# define GUM_NATIVE_INPUT_STREAM "Win32InputStream"
-# define GUM_NATIVE_OUTPUT_STREAM "Win32OutputStream"
-typedef gpointer GumStreamHandle;
-#else
+#elif defined (G_OS_UNIX)
 # include <gio/gunixinputstream.h>
 # include <gio/gunixoutputstream.h>
-
-# define GUM_NATIVE_INPUT_STREAM "UnixInputStream"
-# define GUM_NATIVE_OUTPUT_STREAM "UnixOutputStream"
-typedef gint GumStreamHandle;
+#else
+# include <string.h>
+# include <gum/gumbarebone.h>
 #endif
+
+typedef struct _GumQuickNativeStreamFlavor GumQuickNativeStreamFlavor;
 
 typedef struct _GumQuickCloseIOStreamOperation GumQuickCloseIOStreamOperation;
 
@@ -33,6 +30,13 @@ typedef guint GumQuickReadStrategy;
 typedef struct _GumQuickCloseOutputOperation GumQuickCloseOutputOperation;
 typedef struct _GumQuickWriteOperation GumQuickWriteOperation;
 typedef guint GumQuickWriteStrategy;
+
+struct _GumQuickNativeStreamFlavor
+{
+  const JSClassDef * input_def;
+  const JSClassDef * output_def;
+  gboolean handle_is_pointer;
+};
 
 struct _GumQuickCloseIOStreamOperation
 {
@@ -75,6 +79,10 @@ enum _GumQuickWriteStrategy
   GUM_QUICK_WRITE_SOME,
   GUM_QUICK_WRITE_ALL
 };
+
+static gboolean gum_quick_native_streams_are_supported (void);
+static const GumQuickNativeStreamFlavor * gum_quick_native_stream_flavor (
+    void);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_io_stream_construct)
 GUMJS_DECLARE_GETTER (gumjs_io_stream_get_input)
@@ -123,7 +131,7 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_input_stream_construct)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 
 static gboolean gum_quick_native_stream_ctor_args_parse (GumQuickArgs * args,
-    GumStreamHandle * handle, gboolean * auto_close);
+    gpointer * handle, gboolean * auto_close);
 
 static const JSClassDef gumjs_io_stream_def =
 {
@@ -163,15 +171,47 @@ static const JSCFunctionListEntry gumjs_output_stream_entries[] =
       gumjs_output_stream_write_memory_region),
 };
 
-static const JSClassDef gumjs_native_input_stream_def =
+#if defined (HAVE_WINDOWS) || defined (G_OS_NONE)
+
+static const JSClassDef gumjs_win32_input_stream_def =
 {
-  .class_name = GUM_NATIVE_INPUT_STREAM,
+  .class_name = "Win32InputStream",
 };
 
-static const JSClassDef gumjs_native_output_stream_def =
+static const JSClassDef gumjs_win32_output_stream_def =
 {
-  .class_name = GUM_NATIVE_OUTPUT_STREAM,
+  .class_name = "Win32OutputStream",
 };
+
+static const GumQuickNativeStreamFlavor gum_quick_win32_stream_flavor =
+{
+  &gumjs_win32_input_stream_def,
+  &gumjs_win32_output_stream_def,
+  TRUE
+};
+
+#endif
+
+#ifndef HAVE_WINDOWS
+
+static const JSClassDef gumjs_unix_input_stream_def =
+{
+  .class_name = "UnixInputStream",
+};
+
+static const JSClassDef gumjs_unix_output_stream_def =
+{
+  .class_name = "UnixOutputStream",
+};
+
+static const GumQuickNativeStreamFlavor gum_quick_unix_stream_flavor =
+{
+  &gumjs_unix_input_stream_def,
+  &gumjs_unix_output_stream_def,
+  FALSE
+};
+
+#endif
 
 void
 _gum_quick_stream_init (GumQuickStream * self,
@@ -218,25 +258,55 @@ _gum_quick_stream_init (GumQuickStream * self,
   JS_DefinePropertyValueStr (ctx, ns, gumjs_output_stream_def.class_name, ctor,
       JS_PROP_C_W_E);
 
-  _gum_quick_create_subclass (ctx, &gumjs_native_input_stream_def,
-      self->input_stream_class, input_stream_proto, core,
-      &self->native_input_stream_class, &proto);
-  ctor = JS_NewCFunction2 (ctx, gumjs_native_input_stream_construct,
-      gumjs_native_input_stream_def.class_name, 0, JS_CFUNC_constructor, 0);
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_DefinePropertyValueStr (ctx, ns, gumjs_native_input_stream_def.class_name,
-      ctor, JS_PROP_C_W_E);
+  if (gum_quick_native_streams_are_supported ())
+  {
+    const GumQuickNativeStreamFlavor * flavor =
+        gum_quick_native_stream_flavor ();
 
-  _gum_quick_create_subclass (ctx, &gumjs_native_output_stream_def,
-      self->output_stream_class, output_stream_proto, core,
-      &self->native_output_stream_class, &proto);
-  ctor = JS_NewCFunction2 (ctx, gumjs_native_output_stream_construct,
-      gumjs_native_output_stream_def.class_name, 0, JS_CFUNC_constructor, 0);
-  JS_SetConstructor (ctx, ctor, proto);
-  JS_DefinePropertyValueStr (ctx, ns, gumjs_native_output_stream_def.class_name,
-      ctor, JS_PROP_C_W_E);
+    _gum_quick_create_subclass (ctx, flavor->input_def,
+        self->input_stream_class, input_stream_proto, core,
+        &self->native_input_stream_class, &proto);
+    ctor = JS_NewCFunction2 (ctx, gumjs_native_input_stream_construct,
+        flavor->input_def->class_name, 0, JS_CFUNC_constructor, 0);
+    JS_SetConstructor (ctx, ctor, proto);
+    JS_DefinePropertyValueStr (ctx, ns, flavor->input_def->class_name, ctor,
+        JS_PROP_C_W_E);
+
+    _gum_quick_create_subclass (ctx, flavor->output_def,
+        self->output_stream_class, output_stream_proto, core,
+        &self->native_output_stream_class, &proto);
+    ctor = JS_NewCFunction2 (ctx, gumjs_native_output_stream_construct,
+        flavor->output_def->class_name, 0, JS_CFUNC_constructor, 0);
+    JS_SetConstructor (ctx, ctor, proto);
+    JS_DefinePropertyValueStr (ctx, ns, flavor->output_def->class_name, ctor,
+        JS_PROP_C_W_E);
+  }
 
   _gum_quick_object_manager_init (&self->objects, self, core);
+}
+
+static gboolean
+gum_quick_native_streams_are_supported (void)
+{
+#ifndef G_OS_NONE
+  return TRUE;
+#else
+  return gum_barebone_query_stream_ops () != NULL;
+#endif
+}
+
+static const GumQuickNativeStreamFlavor *
+gum_quick_native_stream_flavor (void)
+{
+#if defined (HAVE_WINDOWS)
+  return &gum_quick_win32_stream_flavor;
+#elif defined (G_OS_UNIX)
+  return &gum_quick_unix_stream_flavor;
+#else
+  return (strcmp (gum_barebone_query_platform (), "windows") == 0)
+      ? &gum_quick_win32_stream_flavor
+      : &gum_quick_unix_stream_flavor;
+#endif
 }
 
 void
@@ -886,7 +956,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
 {
   GumQuickStream * parent;
   JSValue wrapper;
-  GumStreamHandle handle;
+  gpointer handle;
   gboolean auto_close;
   JSValue proto;
   GInputStream * stream;
@@ -904,10 +974,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
   if (JS_IsException (wrapper))
     return JS_EXCEPTION;
 
-#ifdef HAVE_WINDOWS
+#if defined (HAVE_WINDOWS)
   stream = g_win32_input_stream_new (handle, auto_close);
+#elif defined (G_OS_UNIX)
+  stream = g_unix_input_stream_new (GPOINTER_TO_INT (handle), auto_close);
 #else
-  stream = g_unix_input_stream_new (handle, auto_close);
+  stream = gum_barebone_input_stream_new (handle, auto_close);
 #endif
 
   _gum_quick_object_manager_add (&parent->objects, ctx, wrapper, stream);
@@ -919,7 +991,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 {
   GumQuickStream * parent;
   JSValue wrapper;
-  GumStreamHandle handle;
+  gpointer handle;
   gboolean auto_close;
   JSValue proto;
   GOutputStream * stream;
@@ -937,10 +1009,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
   if (JS_IsException (wrapper))
     return JS_EXCEPTION;
 
-#ifdef HAVE_WINDOWS
+#if defined (HAVE_WINDOWS)
   stream = g_win32_output_stream_new (handle, auto_close);
+#elif defined (G_OS_UNIX)
+  stream = g_unix_output_stream_new (GPOINTER_TO_INT (handle), auto_close);
 #else
-  stream = g_unix_output_stream_new (handle, auto_close);
+  stream = gum_barebone_output_stream_new (handle, auto_close);
 #endif
 
   _gum_quick_object_manager_add (&parent->objects, ctx, wrapper, stream);
@@ -950,17 +1024,25 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 
 static gboolean
 gum_quick_native_stream_ctor_args_parse (GumQuickArgs * args,
-                                         GumStreamHandle * handle,
+                                         gpointer * handle,
                                          gboolean * auto_close)
 {
   JSValue options = JS_NULL;
 
-#ifdef HAVE_WINDOWS
-  if (!_gum_quick_args_parse (args, "p|O", handle, &options))
-#else
-  if (!_gum_quick_args_parse (args, "i|O", handle, &options))
-#endif
-    return FALSE;
+  if (gum_quick_native_stream_flavor ()->handle_is_pointer)
+  {
+    if (!_gum_quick_args_parse (args, "p|O", handle, &options))
+      return FALSE;
+  }
+  else
+  {
+    gint fd;
+
+    if (!_gum_quick_args_parse (args, "i|O", &fd, &options))
+      return FALSE;
+
+    *handle = GINT_TO_POINTER (fd);
+  }
 
   *auto_close = FALSE;
   if (!JS_IsNull (options))

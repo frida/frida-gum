@@ -74,8 +74,8 @@ struct _GumQuickScript
   GumQuickProcess process;
   GumQuickFile file;
   GumQuickChecksum checksum;
-#ifndef G_OS_NONE
   GumQuickStream stream;
+#ifndef G_OS_NONE
   GumQuickSocket socket;
 #endif
 #ifdef HAVE_SQLITE
@@ -178,8 +178,8 @@ struct _GumQuickWorker
   GumQuickThread thread;
   GumQuickFile file;
   GumQuickChecksum checksum;
-#ifndef G_OS_NONE
   GumQuickStream stream;
+#ifndef G_OS_NONE
   GumQuickSocket socket;
 #endif
 #ifdef HAVE_SQLITE
@@ -526,8 +526,8 @@ gum_quick_script_create_context (GumQuickScript * self,
       &self->thread, core);
   _gum_quick_file_init (&self->file, global_obj, core);
   _gum_quick_checksum_init (&self->checksum, global_obj, core);
-#ifndef G_OS_NONE
   _gum_quick_stream_init (&self->stream, global_obj, core);
+#ifndef G_OS_NONE
   _gum_quick_socket_init (&self->socket, global_obj, &self->stream, core);
 #endif
 #ifdef HAVE_SQLITE
@@ -607,8 +607,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 #endif
 #ifndef G_OS_NONE
     _gum_quick_socket_dispose (&self->socket);
-    _gum_quick_stream_dispose (&self->stream);
 #endif
+    _gum_quick_stream_dispose (&self->stream);
     _gum_quick_checksum_dispose (&self->checksum);
     _gum_quick_file_dispose (&self->file);
     _gum_quick_process_dispose (&self->process);
@@ -664,8 +664,8 @@ gum_quick_script_destroy_context (GumQuickScript * self)
 #endif
 #ifndef G_OS_NONE
   _gum_quick_socket_finalize (&self->socket);
-  _gum_quick_stream_finalize (&self->stream);
 #endif
+  _gum_quick_stream_finalize (&self->stream);
   _gum_quick_checksum_finalize (&self->checksum);
   _gum_quick_file_finalize (&self->file);
   _gum_quick_process_finalize (&self->process);
@@ -1043,8 +1043,8 @@ gum_quick_script_try_unload (GumQuickScript * self)
   _gum_quick_interceptor_flush (&self->interceptor);
 #ifndef G_OS_NONE
   _gum_quick_socket_flush (&self->socket);
-  _gum_quick_stream_flush (&self->stream);
 #endif
+  _gum_quick_stream_flush (&self->stream);
   _gum_quick_process_flush (&self->process);
   success = _gum_quick_core_flush (&self->core,
       (GumQuickFlushNotify) gum_quick_script_try_unload,
@@ -1347,8 +1347,8 @@ _gum_quick_script_make_worker (GumQuickScript * self,
         &worker->thread, core);
     _gum_quick_file_init (&worker->file, global_obj, core);
     _gum_quick_checksum_init (&worker->checksum, global_obj, core);
-#ifndef G_OS_NONE
     _gum_quick_stream_init (&worker->stream, global_obj, core);
+#ifndef G_OS_NONE
     _gum_quick_socket_init (&worker->socket, global_obj, &worker->stream, core);
 #endif
 #ifdef HAVE_SQLITE
@@ -1476,8 +1476,8 @@ _gum_quick_worker_unref (GumQuickWorker * worker)
 #endif
 #ifndef G_OS_NONE
     _gum_quick_socket_dispose (&worker->socket);
-    _gum_quick_stream_dispose (&worker->stream);
 #endif
+    _gum_quick_stream_dispose (&worker->stream);
     _gum_quick_checksum_dispose (&worker->checksum);
     _gum_quick_file_dispose (&worker->file);
     _gum_quick_thread_dispose (&worker->thread);
@@ -1516,8 +1516,8 @@ _gum_quick_worker_unref (GumQuickWorker * worker)
 #endif
 #ifndef G_OS_NONE
     _gum_quick_socket_finalize (&worker->socket);
-    _gum_quick_stream_finalize (&worker->stream);
 #endif
+    _gum_quick_stream_finalize (&worker->stream);
     _gum_quick_checksum_finalize (&worker->checksum);
     _gum_quick_file_finalize (&worker->file);
     _gum_quick_thread_finalize (&worker->thread);
@@ -1635,8 +1635,8 @@ gum_quick_worker_flush (GumQuickWorker * self)
 
 #ifndef G_OS_NONE
   _gum_quick_socket_flush (&self->socket);
-  _gum_quick_stream_flush (&self->stream);
 #endif
+  _gum_quick_stream_flush (&self->stream);
   _gum_quick_process_flush (&self->process);
   success = _gum_quick_core_flush (&self->core,
       (GumQuickFlushNotify) gum_quick_worker_flush,

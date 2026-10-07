@@ -17,11 +17,8 @@ gumjs_sources = [
   'gumscripttask.c',
   'gumsourcemap.c',
   'gumffi.c',
+  'gumansi.c',
 ]
-
-if host_os_family == 'windows'
-  gumjs_sources += 'gumansi.c'
-endif
 
 if sqlite_dep.found()
   gumjs_sources += 'gummemoryvfs.c'
@@ -55,12 +52,10 @@ if quickjs_dep.found()
     'gumquickprofiler.c',
     'gumquicksampler.c',
     'gumquickapi.c',
+    'gumquickstream.c',
   ]
   if host_os_family != 'none'
-    gumjs_sources += [
-      'gumquickstream.c',
-      'gumquicksocket.c',
-    ]
+    gumjs_sources += 'gumquicksocket.c'
   endif
   if sqlite_dep.found()
     gumjs_sources += 'gumquickdatabase.c'

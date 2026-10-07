@@ -377,9 +377,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_check_code_pointer)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
 {
-#ifdef HAVE_WINDOWS
   const gchar * str;
   gchar * str_ansi;
+
+  if (!_gum_ansi_is_supported ())
+  {
+    return _gum_quick_throw_literal (ctx,
+        "ANSI API is only applicable on Windows");
+  }
 
   if (!_gum_quick_args_parse (args, "s", &str))
     return JS_EXCEPTION;
@@ -387,10 +392,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
   str_ansi = _gum_ansi_string_from_utf8 (str);
 
   return _gum_quick_native_resource_new (ctx, str_ansi, g_free, core);
-#else
-  return _gum_quick_throw_literal (ctx,
-      "ANSI API is only applicable on Windows");
-#endif
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)

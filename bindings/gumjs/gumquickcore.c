@@ -3766,8 +3766,14 @@ gumjs_native_pointer_handle_read (JSContext * ctx,
       }
       case GUM_MEMORY_VALUE_ANSI_STRING:
       {
-#ifdef HAVE_WINDOWS
         const gchar * str_ansi = address;
+
+        if (!_gum_ansi_is_supported ())
+        {
+          result = _gum_quick_throw_literal (ctx,
+              "ANSI API is only applicable on Windows");
+          break;
+        }
 
         if (str_ansi == NULL)
         {
@@ -3790,10 +3796,6 @@ gumjs_native_pointer_handle_read (JSContext * ctx,
         {
           result = JS_NewString (ctx, "");
         }
-#else
-        result = _gum_quick_throw_literal (ctx,
-            "ANSI API is only applicable on Windows");
-#endif
 
         break;
       }
@@ -3832,9 +3834,7 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
   const gchar * str = NULL;
   gsize str_length = 0;
   gunichar2 * str_utf16 = NULL;
-#ifdef HAVE_WINDOWS
   gchar * str_ansi = NULL;
-#endif
   gssize offset = 0;
   GumExceptorScope scope;
 
@@ -3886,11 +3886,18 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
 
       str_length = g_utf8_strlen (str, -1);
       if (type == GUM_MEMORY_VALUE_UTF16_STRING)
+      {
         str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
-#ifdef HAVE_WINDOWS
+      }
       else if (type == GUM_MEMORY_VALUE_ANSI_STRING)
+      {
+        if (!_gum_ansi_is_supported ())
+        {
+          return _gum_quick_throw_literal (ctx,
+              "ANSI API is only applicable on Windows");
+        }
         str_ansi = _gum_ansi_string_from_utf8 (str);
-#endif
+      }
       break;
     default:
       g_assert_not_reached ();
@@ -3969,12 +3976,7 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
       }
       case GUM_MEMORY_VALUE_ANSI_STRING:
       {
-#ifdef HAVE_WINDOWS
         strcpy (address, str_ansi);
-#else
-        result = _gum_quick_throw_literal (ctx,
-            "ANSI API is only applicable on Windows");
-#endif
 
         break;
       }
@@ -3989,9 +3991,7 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
     result = JS_DupValue (ctx, this_val);
 
   g_free (str_utf16);
-#ifdef HAVE_WINDOWS
   g_free (str_ansi);
-#endif
 
   return result;
 }
@@ -6444,12 +6444,12 @@ gum_quick_core_system_error_field_name (void)
 {
 #if defined (HAVE_WINDOWS)
   return "lastError";
-#elif defined (G_OS_NONE)
+#elif defined (G_OS_UNIX)
+  return "errno";
+#else
   return (strcmp (gum_barebone_query_platform (), "windows") == 0)
       ? "lastError"
       : "errno";
-#else
-  return "errno";
 #endif
 }
 

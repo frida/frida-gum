@@ -588,7 +588,9 @@ if ('IOStream' in globalThis) {
       });
     });
   };
+}
 
+if ('SocketListener' in globalThis) {
   const _closeListener = SocketListener.prototype._close;
   SocketListener.prototype.close = function () {
     const listener = this;
