@@ -31,14 +31,14 @@ static GumInterceptor * gum_unwind_ntdll_interceptor = NULL;
 static GumInvocationListener * gum_virtual_unwind_listener = NULL;
 
 void
-_gum_unwind_broker_backend_activate (void)
+_gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
 {
   GumAttachReturn res G_GNUC_UNUSED;
 
   if (gum_process_is_emulated ())
     return;
 
-  gum_unwind_ntdll_interceptor = gum_interceptor_obtain ();
+  gum_unwind_ntdll_interceptor = interceptor;
   gum_virtual_unwind_listener = gum_make_call_listener (
       gum_unwind_broker_on_virtual_unwind_enter,
       gum_unwind_broker_on_virtual_unwind_leave, NULL, NULL);
@@ -58,7 +58,7 @@ _gum_unwind_broker_backend_deactivate (void)
       gum_virtual_unwind_listener);
 
   g_clear_object (&gum_virtual_unwind_listener);
-  g_clear_object (&gum_unwind_ntdll_interceptor);
+  gum_unwind_ntdll_interceptor = NULL;
 }
 
 static gboolean

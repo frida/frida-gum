@@ -70,7 +70,8 @@ static GumLibunwindHook * gum_unwind_libunwind_hook = NULL;
 static gboolean gum_unwind_broker_can_generate_code (void);
 static int gum_unwind_broker_replacement_dyld_find_unwind_sections (
     void * addr, void * info);
-static void gum_unwind_broker_install_libunwind_hook (void);
+static void gum_unwind_broker_install_libunwind_hook (
+    GumInterceptor * interceptor);
 static void gum_unwind_broker_uninstall_libunwind_hook (void);
 static void gum_unwind_broker_replacement_set_info (gpointer cursor,
     gint is_return_address);
@@ -88,7 +89,7 @@ static gboolean gum_unwind_broker_has_first_match (GumAddress address,
 #endif
 
 void
-_gum_unwind_broker_backend_activate (void)
+_gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
 {
   GumModule * libdyld;
   GumAddress export;
@@ -108,12 +109,12 @@ _gum_unwind_broker_backend_activate (void)
   gum_unwind_dyld_find_sections_original =
       (GumDyldFindUnwindSectionsFunc) GSIZE_TO_POINTER (export);
 
-  gum_unwind_libdyld_interceptor = gum_interceptor_obtain ();
+  gum_unwind_libdyld_interceptor = interceptor;
   gum_interceptor_replace (gum_unwind_libdyld_interceptor,
       gum_unwind_dyld_find_sections_original,
       gum_unwind_broker_replacement_dyld_find_unwind_sections, NULL, NULL);
 
-  gum_unwind_broker_install_libunwind_hook ();
+  gum_unwind_broker_install_libunwind_hook (interceptor);
 }
 
 void
@@ -125,7 +126,6 @@ _gum_unwind_broker_backend_deactivate (void)
   {
     gum_interceptor_revert (gum_unwind_libdyld_interceptor,
         gum_unwind_dyld_find_sections_original);
-    g_object_unref (gum_unwind_libdyld_interceptor);
     gum_unwind_libdyld_interceptor = NULL;
     gum_unwind_dyld_find_sections_original = NULL;
   }
@@ -164,7 +164,7 @@ gum_unwind_broker_replacement_dyld_find_unwind_sections (void * addr,
 }
 
 static void
-gum_unwind_broker_install_libunwind_hook (void)
+gum_unwind_broker_install_libunwind_hook (GumInterceptor * interceptor)
 {
 #if GLIB_SIZEOF_VOID_P == 8
   GumLibunwindHook * hook;
@@ -193,7 +193,7 @@ gum_unwind_broker_install_libunwind_hook (void)
   hook->set_info = GUM_RESIGN_PTR (hook->set_info_original);
   hook->get_reg = GUM_RESIGN_PTR (get_reg_impl);
 
-  hook->interceptor = gum_interceptor_obtain ();
+  hook->interceptor = interceptor;
 
   if (gum_interceptor_replace (hook->interceptor, hook->set_info_original,
         gum_unwind_broker_replacement_set_info, NULL, NULL) != GUM_REPLACE_OK)
@@ -203,7 +203,6 @@ gum_unwind_broker_install_libunwind_hook (void)
   return;
 
 unsupported_version:
-  g_clear_object (&hook->interceptor);
   g_slice_free (GumLibunwindHook, hook);
 #endif
 }
@@ -218,7 +217,6 @@ gum_unwind_broker_uninstall_libunwind_hook (void)
   gum_unwind_libunwind_hook = NULL;
 
   gum_interceptor_revert (hook->interceptor, hook->set_info_original);
-  g_object_unref (hook->interceptor);
   g_slice_free (GumLibunwindHook, hook);
 }
 

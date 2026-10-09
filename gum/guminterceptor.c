@@ -13,12 +13,12 @@
 
 #include "gumcodesegment.h"
 #include "guminterceptor-priv.h"
-#include "gumunwindbroker.h"
 #include "gumlibc.h"
 #include "gummemory.h"
 #include "gummetalarray.h"
 #include "gumprocess-priv.h"
 #include "gumtls.h"
+#include "gumunwindbroker-priv.h"
 
 #include <string.h>
 #ifdef HAVE_DARWIN
@@ -83,8 +83,6 @@ struct _GumInterceptor
   volatile guint selected_thread_id;
 
   GumInterceptorTransaction current_transaction;
-
-  GumUnwindBroker * unwind_broker;
 };
 
 struct _GumDestroyTask
@@ -446,6 +444,10 @@ gum_interceptor_dispose (GObject * object)
 {
   GumInterceptor * self = GUM_INTERCEPTOR (object);
 
+#ifndef G_OS_NONE
+  _gum_unwind_broker_backend_deactivate ();
+#endif
+
   GUM_INTERCEPTOR_LOCK (self);
   gum_interceptor_transaction_begin (&self->current_transaction);
   self->current_transaction.is_dirty = TRUE;
@@ -454,8 +456,6 @@ gum_interceptor_dispose (GObject * object)
 
   gum_interceptor_transaction_end (&self->current_transaction);
   GUM_INTERCEPTOR_UNLOCK (self);
-
-  g_clear_object (&self->unwind_broker);
 
   G_OBJECT_CLASS (gum_interceptor_parent_class)->dispose (object);
 }
@@ -510,15 +510,9 @@ gum_interceptor_obtain (void)
 
   g_mutex_unlock (&_gum_interceptor_lock);
 
-  /*
-   * Activate the unwind broker so C++/Objective-C exceptions can propagate
-   * through our trampolines. Done outside the lock because the broker's
-   * backend re-enters gum_interceptor_obtain () to install its own hooks.
-   * A freestanding target has no such exceptions, and nothing to unwind with.
-   */
 #ifndef G_OS_NONE
   if (newly_created)
-    interceptor->unwind_broker = gum_unwind_broker_obtain ();
+    _gum_unwind_broker_backend_activate (interceptor);
 #endif
 
   return interceptor;

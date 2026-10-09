@@ -17,6 +17,8 @@ struct _GumUnwindBroker
 
   GPtrArray * sections_providers;
   GPtrArray * pc_translators;
+
+  GumInterceptor * interceptor;
 };
 
 G_DEFINE_TYPE (GumUnwindBroker, gum_unwind_broker, G_TYPE_OBJECT)
@@ -80,7 +82,7 @@ gum_unwind_broker_dispose (GObject * object)
   g_ptr_array_set_size (self->pc_translators, 0);
   g_mutex_unlock (&self->mutex);
 
-  _gum_unwind_broker_backend_deactivate ();
+  g_clear_object (&self->interceptor);
 
   G_OBJECT_CLASS (gum_unwind_broker_parent_class)->dispose (object);
 }
@@ -123,7 +125,7 @@ gum_unwind_broker_obtain (void)
   G_UNLOCK (the_unwind_broker);
 
   if (newly_created)
-    _gum_unwind_broker_backend_activate ();
+    broker->interceptor = gum_interceptor_obtain ();
 
   return broker;
 }
@@ -323,7 +325,7 @@ gum_unwind_pc_translator_default_install_resume_context (
     !(defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8)
 
 void
-_gum_unwind_broker_backend_activate (void)
+_gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
 {
 }
 

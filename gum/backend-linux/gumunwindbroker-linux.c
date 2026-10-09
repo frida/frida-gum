@@ -52,14 +52,14 @@ static _Unwind_Ptr gum_unwind_broker_replacement_find_exidx (_Unwind_Ptr pc,
 static GumAddress gum_unwind_broker_get_ip (struct _Unwind_Context * context);
 
 void
-_gum_unwind_broker_backend_activate (void)
+_gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
 {
   GumReplaceReturn res G_GNUC_UNUSED;
 
   if (__gxx_personality_v0 == NULL)
     return;
 
-  gum_unwind_libunwind_interceptor = gum_interceptor_obtain ();
+  gum_unwind_libunwind_interceptor = interceptor;
 
   res = gum_interceptor_replace (gum_unwind_libunwind_interceptor,
       __gxx_personality_v0, gum_unwind_broker_replacement_personality, NULL,
@@ -83,7 +83,6 @@ _gum_unwind_broker_backend_deactivate (void)
   gum_interceptor_revert (gum_unwind_libunwind_interceptor,
       __gnu_Unwind_Find_exidx);
 
-  g_object_unref (gum_unwind_libunwind_interceptor);
   gum_unwind_libunwind_interceptor = NULL;
 }
 
@@ -186,14 +185,14 @@ static unsigned long gum_unwind_broker_replacement_get_ip (
 static gpointer gum_unwind_real_get_ip;
 
 void
-_gum_unwind_broker_backend_activate (void)
+_gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
 {
   GumReplaceReturn res G_GNUC_UNUSED;
 
   if (__gxx_personality_v0 == NULL)
     return;
 
-  gum_unwind_libunwind_interceptor = gum_interceptor_obtain ();
+  gum_unwind_libunwind_interceptor = interceptor;
 
   res = gum_interceptor_replace (gum_unwind_libunwind_interceptor,
       __gxx_personality_v0, gum_unwind_broker_replacement_personality, NULL,
@@ -221,7 +220,6 @@ _gum_unwind_broker_backend_deactivate (void)
   gum_interceptor_revert (gum_unwind_libunwind_interceptor, _Unwind_Find_FDE);
   gum_interceptor_revert (gum_unwind_libunwind_interceptor, _Unwind_GetIP);
 
-  g_object_unref (gum_unwind_libunwind_interceptor);
   gum_unwind_libunwind_interceptor = NULL;
 }
 
