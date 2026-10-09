@@ -508,8 +508,9 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_statement_get_params_count, GumStatement)
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_statement_bind_integer, GumStatement)
 {
-  gint index, value;
-  if (!_gum_v8_args_parse (args, "ii", &index, &value))
+  gint index;
+  gint64 value;
+  if (!_gum_v8_args_parse (args, "iq", &index, &value))
     return;
 
   GumV8InterceptorIgnoreScope interceptor_ignore_scope;
