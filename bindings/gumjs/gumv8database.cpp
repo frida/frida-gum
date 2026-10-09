@@ -680,7 +680,7 @@ gum_parse_column (Isolate * isolate,
     case SQLITE_INTEGER:
       return Number::New (isolate, sqlite3_column_int64 (statement, index));
     case SQLITE_FLOAT:
-      return Number::New (isolate, sqlite3_column_int64 (statement, index));
+      return Number::New (isolate, sqlite3_column_double (statement, index));
     case SQLITE_TEXT:
       return String::NewFromUtf8 (isolate,
           (const char *) sqlite3_column_text (statement, index),

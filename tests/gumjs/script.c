@@ -475,6 +475,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (inline_sqlite_database_can_be_queried)
     TESTENTRY (sqlite_statement_has_column_and_params_metadata)
     TESTENTRY (sqlite_statement_can_bind_64bit_integers)
+    TESTENTRY (sqlite_statement_can_read_float_columns)
     TESTENTRY (external_sqlite_database_can_be_queried)
     TESTENTRY (external_sqlite_database_can_be_opened_with_flags)
 # if !defined (HAVE_WINDOWS) && !defined (HAVE_QNX)
@@ -4599,6 +4600,19 @@ TESTCASE (sqlite_statement_can_bind_64bit_integers)
       "db.close();\n");
 
   EXPECT_SEND_MESSAGE_WITH ("[4294967301,-4294967301,1]");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (sqlite_statement_can_read_float_columns)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const db = SqliteDatabase.open(':memory:');\n"
+      "const s = db.prepare('SELECT 1.5, ?');\n"
+      "s.bindFloat(1, -0.25);\n"
+      "send(s.step());\n"
+      "db.close();\n");
+
+  EXPECT_SEND_MESSAGE_WITH ("[1.5,-0.25]");
   EXPECT_NO_MESSAGES ();
 }
 
