@@ -64,6 +64,15 @@ if host_os_family != 'windows'
     name_prefix: '',
     link_with: module_registry_dependency,
   )
+
+  nonzero_vaddr_link_arg = '-Wl,-Ttext-segment=0x400000'
+  if host_os == 'linux' and cc.has_link_argument(nonzero_vaddr_link_arg)
+    shared_module('module-registry-target-nonzero-vaddr',
+      'module-registry-target.c',
+      name_prefix: '',
+      link_args: nonzero_vaddr_link_arg,
+    )
+  endif
 else
   test_data_stamp = []
 endif
