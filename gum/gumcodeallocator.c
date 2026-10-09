@@ -198,6 +198,8 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
 
       g_hash_table_add (self->dirty_pages, pages);
 
+      slice->ref_count = 1;
+
       return slice;
     }
   }
