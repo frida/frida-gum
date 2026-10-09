@@ -50,6 +50,7 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (allocate_handles_alignment)
   TESTENTRY (allocate_near_handles_alignment)
   TESTENTRY (mprotect_handles_page_boundaries)
+  TESTENTRY (code_allocator_keeps_reusing_freed_slice)
   TESTENTRY (patch_code_does_not_apply_while_threads_suspended)
 TESTLIST_END ()
 
@@ -970,6 +971,33 @@ TESTCASE (mprotect_handles_page_boundaries)
   pages[page_size] = 0x37;
 
   gum_memory_free (pages, 2 * page_size);
+}
+
+TESTCASE (code_allocator_keeps_reusing_freed_slice)
+{
+  GumCodeAllocator allocator;
+  GumCodeSlice * first, * slice;
+
+  if (!gum_query_is_rwx_supported ())
+  {
+    g_print ("<skipping, not supported on this system> ");
+    return;
+  }
+
+  gum_code_allocator_init (&allocator, 1024);
+
+  first = gum_code_allocator_alloc_slice (&allocator);
+  gum_code_slice_unref (first);
+
+  slice = gum_code_allocator_alloc_slice (&allocator);
+  g_assert_true (slice == first);
+  gum_code_slice_unref (slice);
+
+  slice = gum_code_allocator_alloc_slice (&allocator);
+  g_assert_true (slice == first);
+  gum_code_slice_unref (slice);
+
+  gum_code_allocator_free (&allocator);
 }
 
 static gboolean
