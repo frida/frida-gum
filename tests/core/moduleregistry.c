@@ -16,6 +16,7 @@
 # include "interceptor-callbacklistener.h"
 # include <dlfcn.h>
 # include <link.h>
+# include <sys/mman.h>
 #endif
 
 #define TESTCASE(NAME) \
@@ -27,6 +28,8 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (module_registry_should_emit_signal_on_add)
   TESTENTRY (hooks_should_be_discarded_when_module_unloads)
   TESTENTRY (dependency_export_can_be_found)
+  TESTENTRY (nonzero_vaddr_module_should_be_found_at_its_header)
+  TESTENTRY (displaced_nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (relocated_program_headers_can_be_parsed)
   TESTENTRY (online_elf_should_allow_padded_inline_program_headers)
   TESTENTRY (online_elf_should_bound_inline_program_headers)
@@ -43,8 +46,12 @@ static void on_module_removed (GumModuleRegistry * registry, GumModule * module,
 # define GUM_DEPENDENT_MODULE_FILENAME "module-registry-dependent.so"
 # define GUM_DEPENDENCY_MODULE_FILENAME "module-registry-dependency.so"
 # define GUM_DEPENDENCY_MODULE_EXPORT "gum_module_registry_dependency_function"
+# define GUM_NONZERO_VADDR_MODULE_FILENAME \
+    "module-registry-target-nonzero-vaddr.so"
+# define GUM_NONZERO_VADDR_MODULE_LINK_ADDRESS 0x400000
 
 typedef struct _TestModuleHooks TestModuleHooks;
+typedef struct _TestNonzeroVaddrContext TestNonzeroVaddrContext;
 
 struct _TestModuleHooks
 {
@@ -52,11 +59,21 @@ struct _TestModuleHooks
   gboolean seen_remove;
 };
 
+struct _TestNonzeroVaddrContext
+{
+  gboolean seen;
+  GumMemoryRange range;
+};
+
 static void on_target_module_added (GumModuleRegistry * registry,
     GumModule * module, gpointer user_data);
 static void on_target_module_removed (GumModuleRegistry * registry,
     GumModule * module, gpointer user_data);
 static gboolean is_target_module (GumModule * module);
+static void assert_nonzero_vaddr_module_found_at_its_header (
+    gboolean occupy_link_address);
+static void on_nonzero_vaddr_module_added (GumModuleRegistry * registry,
+    GumModule * module, gpointer user_data);
 
 #endif
 
@@ -209,6 +226,32 @@ TESTCASE (dependency_export_can_be_found)
   dlclose (handle);
   g_free (target_path);
   g_free (data_dir);
+#else
+  g_test_skip ("only supported on Linux");
+#endif
+}
+
+TESTCASE (nonzero_vaddr_module_should_be_found_at_its_header)
+{
+#ifdef HAVE_LINUX
+  assert_nonzero_vaddr_module_found_at_its_header (FALSE);
+#else
+  g_test_skip ("only supported on Linux");
+#endif
+}
+
+TESTCASE (displaced_nonzero_vaddr_module_should_be_found_at_its_header)
+{
+#ifdef HAVE_LINUX
+  if (g_test_subprocess ())
+  {
+    assert_nonzero_vaddr_module_found_at_its_header (TRUE);
+  }
+  else
+  {
+    g_test_trap_subprocess (NULL, 0, (GTestSubprocessFlags) 0);
+    g_test_trap_assert_passed ();
+  }
 #else
   g_test_skip ("only supported on Linux");
 #endif
@@ -395,6 +438,84 @@ is_target_module (GumModule * module)
 {
   return g_str_has_suffix (gum_module_get_path (module),
       G_DIR_SEPARATOR_S GUM_TARGET_MODULE_FILENAME);
+}
+
+static void
+assert_nonzero_vaddr_module_found_at_its_header (gboolean occupy_link_address)
+{
+  gchar * data_dir, * target_path;
+  gpointer reservation = NULL;
+  GumModuleRegistry * registry;
+  TestNonzeroVaddrContext ctx = { 0, };
+  gulong handler;
+  void * handle, * function;
+  Dl_info info;
+
+  data_dir = test_util_get_data_dir ();
+  target_path = g_build_filename (data_dir,
+      GUM_NONZERO_VADDR_MODULE_FILENAME, NULL);
+
+  if (!g_file_test (target_path, G_FILE_TEST_EXISTS))
+  {
+    g_test_skip ("linker does not support -Ttext-segment");
+    goto beach;
+  }
+
+  if (occupy_link_address)
+  {
+    reservation = mmap (GSIZE_TO_POINTER (
+        GUM_NONZERO_VADDR_MODULE_LINK_ADDRESS), gum_query_page_size (),
+        PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    g_assert_true (reservation != MAP_FAILED);
+  }
+
+  registry = gum_module_registry_obtain ();
+  handler = g_signal_connect (registry, "module-added",
+      G_CALLBACK (on_nonzero_vaddr_module_added), &ctx);
+
+  handle = dlopen (target_path, RTLD_NOW | RTLD_LOCAL);
+  g_assert_nonnull (handle);
+
+  g_signal_handler_disconnect (registry, handler);
+
+  function = dlsym (handle, "gum_module_registry_target_function");
+  g_assert_nonnull (function);
+  g_assert_true (dladdr (function, &info) != 0);
+
+  if (occupy_link_address)
+  {
+    g_assert_cmphex (GUM_ADDRESS (info.dli_fbase), !=,
+        GUM_NONZERO_VADDR_MODULE_LINK_ADDRESS);
+  }
+
+  g_assert_true (ctx.seen);
+  g_assert_cmphex (ctx.range.base_address, ==, GUM_ADDRESS (info.dli_fbase));
+  g_assert_true (GUM_MEMORY_RANGE_INCLUDES (&ctx.range,
+      GUM_ADDRESS (function)));
+
+  dlclose (handle);
+
+  if (reservation != NULL)
+    munmap (reservation, gum_query_page_size ());
+
+beach:
+  g_free (target_path);
+  g_free (data_dir);
+}
+
+static void
+on_nonzero_vaddr_module_added (GumModuleRegistry * registry,
+                               GumModule * module,
+                               gpointer user_data)
+{
+  TestNonzeroVaddrContext * ctx = user_data;
+
+  if (!g_str_has_suffix (gum_module_get_path (module),
+      G_DIR_SEPARATOR_S GUM_NONZERO_VADDR_MODULE_FILENAME))
+    return;
+
+  ctx->seen = TRUE;
+  ctx->range = *gum_module_get_range (module);
 }
 
 #endif

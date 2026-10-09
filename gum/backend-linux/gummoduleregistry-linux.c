@@ -93,6 +93,12 @@ static gboolean gum_query_program_ranges (GumReadAuxvFunc read_auxv,
 static ElfW(auxv_t) * gum_read_auxv_from_proc (void);
 static ElfW(auxv_t) * gum_read_auxv_from_stack (void);
 static gboolean gum_query_main_thread_stack_range (GumMemoryRange * range);
+static gboolean gum_compute_elf_range_from_link_map (
+    const struct link_map * lm, const ElfW(Ehdr) * ehdr,
+    GumMemoryRange * range);
+static GumLinuxNamedRange * gum_find_named_range_containing (
+    GHashTable * named_ranges, gconstpointer address);
+static gboolean gum_is_readable_elf_header (const ElfW(Ehdr) * ehdr);
 static gboolean gum_compute_elf_range_from_ehdr (const ElfW(Ehdr) * ehdr,
     GumMemoryRange * range);
 static gboolean gum_phdrs_mapped_at_offset (const ElfW(Phdr) * phdrs,
@@ -247,18 +253,21 @@ gum_enumerate_modules_using_r_debug (const GumProgramModules * pm,
       continue;
     }
 
-    if (!gum_compute_elf_range_from_ehdr ((const ElfW(Ehdr) *) lm->l_addr,
-        &range))
+    if (!gum_compute_elf_range_from_link_map (lm,
+        GSIZE_TO_POINTER (lm->l_addr), &range))
     {
       GumLinuxNamedRange * named_range;
 
       if (named_ranges == NULL)
         named_ranges = gum_linux_collect_named_ranges ();
 
-      named_range = g_hash_table_lookup (named_ranges,
-          GSIZE_TO_POINTER (lm->l_addr));
-      range.base_address = GUM_ADDRESS (named_range->base);
-      range.size = named_range->size;
+      named_range = gum_find_named_range_containing (named_ranges, lm->l_ld);
+      if (!gum_compute_elf_range_from_link_map (lm, named_range->base,
+          &range))
+      {
+        range.base_address = GUM_ADDRESS (named_range->base);
+        range.size = named_range->size;
+      }
     }
 
     module = _gum_native_module_make (lm->l_name, &range,
@@ -913,6 +922,53 @@ gum_query_main_thread_stack_range (GumMemoryRange * range)
   gum_proc_maps_iter_destroy (&iter);
 
   return range->size != 0;
+}
+
+static gboolean
+gum_compute_elf_range_from_link_map (const struct link_map * lm,
+                                     const ElfW(Ehdr) * ehdr,
+                                     GumMemoryRange * range)
+{
+  if (!gum_is_readable_elf_header (ehdr))
+    return FALSE;
+
+  if (!gum_compute_elf_range_from_ehdr (ehdr, range))
+    return FALSE;
+
+  return GUM_MEMORY_RANGE_INCLUDES (range, GUM_ADDRESS (lm->l_ld));
+}
+
+static GumLinuxNamedRange *
+gum_find_named_range_containing (GHashTable * named_ranges,
+                                 gconstpointer address)
+{
+  GumLinuxNamedRange * range;
+  GHashTableIter iter;
+
+  g_hash_table_iter_init (&iter, named_ranges);
+  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &range))
+  {
+    if (GUM_ADDRESS (address) >= GUM_ADDRESS (range->base) &&
+        GUM_ADDRESS (address) < GUM_ADDRESS (range->base) + range->size)
+      return range;
+  }
+
+  return NULL;
+}
+
+static gboolean
+gum_is_readable_elf_header (const ElfW(Ehdr) * ehdr)
+{
+  gboolean is_elf;
+  guint8 * data;
+  gsize n_bytes_read;
+
+  data = gum_memory_read (ehdr, sizeof (ElfW(Ehdr)), &n_bytes_read);
+  is_elf = n_bytes_read == sizeof (ElfW(Ehdr)) &&
+      memcmp (data, ELFMAG, SELFMAG) == 0;
+  g_free (data);
+
+  return is_elf;
 }
 
 static gboolean
