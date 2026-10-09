@@ -585,12 +585,14 @@ GUMJS_DEFINE_GETTER (gumjs_statement_get_params_count)
 GUMJS_DEFINE_FUNCTION (gumjs_statement_bind_integer)
 {
   sqlite3_stmt * self;
-  gint index, value, status;
+  gint index;
+  gint64 value;
+  gint status;
 
   if (!gum_statement_get (ctx, this_val, core, &self))
     return JS_EXCEPTION;
 
-  if (!_gum_quick_args_parse (args, "ii", &index, &value))
+  if (!_gum_quick_args_parse (args, "iq", &index, &value))
     return JS_EXCEPTION;
 
   GUMJS_INTERCEPTOR_IGNORE ();
