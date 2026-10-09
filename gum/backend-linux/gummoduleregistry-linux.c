@@ -83,6 +83,13 @@ static void gum_enumerate_modules_using_proc_maps (GumFoundModuleFunc func,
     gpointer user_data);
 static gpointer gum_create_module_handle (GumNativeModule * module,
     gpointer user_data);
+static GumAddress gum_query_rtld_base (void);
+#ifdef HAVE_MUSL
+static gboolean gum_emit_rtld_notifier_call_sites (gpointer stub,
+    GumModule * linker, GumFoundRtldNotifierFunc func, gpointer user_data);
+static gboolean gum_emit_rtld_notifier_call_sites_in_segment (
+    const GumElfSegmentDetails * segment, gpointer user_data);
+#endif
 static gboolean gum_find_r_debug (GumModule * module, gpointer user_data);
 static gboolean gum_find_debug_entry (const GumElfDynamicEntryDetails * details,
     gpointer user_data);
@@ -116,14 +123,6 @@ static gboolean gum_get_file_id (const gchar * path, GumFileId * id);
 static gchar * gum_find_mapped_path_by_start (GumAddress wanted_start);
 static gboolean gum_find_range_for_file_id_offset0 (GumFileId * wanted,
     GumMemoryRange * range);
-
-static GumAddress gum_query_rtld_base (void);
-#ifdef HAVE_MUSL
-static gboolean gum_emit_rtld_notifier_call_sites (gpointer stub,
-    GumModule * linker, GumFoundRtldNotifierFunc func, gpointer user_data);
-static gboolean gum_emit_rtld_notifier_call_sites_in_segment (
-    const GumElfSegmentDetails * segment, gpointer user_data);
-#endif
 
 static struct r_debug * gum_r_debug;
 static GumProgramModules gum_program_modules;
