@@ -260,10 +260,10 @@ TESTCASE (displaced_nonzero_vaddr_module_should_be_found_at_its_header)
 TESTCASE (relocated_program_headers_can_be_parsed)
 {
 #ifdef GUM_HAVE_RELOCATED_PHDR_TARGET
+  gchar * data_dir, * target_path;
   GumModuleRegistry * registry;
   TestRelocatedPhdrContext ctx = { 0, };
   gulong handler;
-  gchar * data_dir, * target_path;
   void * handle, * expected_export;
 
   data_dir = test_util_get_data_dir ();
