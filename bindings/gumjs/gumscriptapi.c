@@ -148,7 +148,10 @@ _gum_script_api_registry_snapshot (GumScriptApiRegistry * self)
   GUM_SCRIPT_API_REGISTRY_LOCK (self);
 
   for (i = 0; i != self->apis->len; i++)
-    g_ptr_array_add (apis, gum_script_api_ref (g_ptr_array_index (self->apis, i)));
+  {
+    g_ptr_array_add (apis,
+        gum_script_api_ref (g_ptr_array_index (self->apis, i)));
+  }
 
   GUM_SCRIPT_API_REGISTRY_UNLOCK (self);
 
