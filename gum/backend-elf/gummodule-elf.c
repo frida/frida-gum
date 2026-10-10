@@ -373,8 +373,8 @@ gum_native_module_enumerate_symbols (GumModule * module,
   GumEnumerateSymbolsContext ctx;
 
 #ifdef HAVE_PROSPERO
-  _gum_prospero_module_enumerate_symbols (GUM_NATIVE_MODULE (module)->path, func,
-      user_data);
+  _gum_prospero_module_enumerate_symbols (GUM_NATIVE_MODULE (module)->path,
+      func, user_data);
   return;
 #endif
 
