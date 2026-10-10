@@ -122,18 +122,61 @@ gum_script_scheduler_start (GumScriptScheduler * self)
 void
 gum_script_scheduler_stop (GumScriptScheduler * self)
 {
-  if (self->js_thread != NULL)
-  {
-    gum_script_scheduler_push_job_on_js_thread (self, G_PRIORITY_LOW,
-        (GumScriptJobFunc) g_main_loop_quit, self->js_loop, NULL);
-    g_thread_join (self->js_thread);
-    self->js_thread = NULL;
+  if (self->js_thread == NULL)
+    return;
 
+  /* Joining the JS thread from itself deadlocks (fork() from JS). */
+  if (self->js_thread == g_thread_self ())
+    return;
+
+  gum_script_scheduler_push_job_on_js_thread (self, G_PRIORITY_LOW,
+      (GumScriptJobFunc) g_main_loop_quit, self->js_loop, NULL);
+  g_thread_join (self->js_thread);
+  self->js_thread = NULL;
+
+  g_main_loop_unref (self->js_loop);
+  self->js_loop = NULL;
+
+  g_atomic_int_set (&self->start_request_seqno, 0);
+}
+
+void
+gum_script_scheduler_prepare_to_fork (GumScriptScheduler * self)
+{
+  gum_script_scheduler_stop (self);
+}
+
+void
+gum_script_scheduler_recover_from_fork_in_parent (GumScriptScheduler * self)
+{
+  gum_script_scheduler_start (self);
+}
+
+void
+gum_script_scheduler_recover_from_fork_in_child (GumScriptScheduler * self)
+{
+  /*
+   * Only the forking thread survives. js_thread / js_loop may still point at
+   * a thread that does not exist in this process.
+   *
+   * If we forked *on* the JS thread, this stack is still inside
+   * g_main_loop_run(); keep that loop. Do not call
+   * g_main_context_is_owner(): it locks a GMutex copied from the parent
+   * that can still look held, so helpers block in g_mutex_lock and never
+   * reach _exit.
+   */
+  if (self->js_thread == g_thread_self ())
+    return;
+
+  self->js_thread = NULL;
+  if (self->js_loop != NULL)
+  {
     g_main_loop_unref (self->js_loop);
     self->js_loop = NULL;
-
-    g_atomic_int_set (&self->start_request_seqno, 0);
   }
+  g_atomic_int_set (&self->start_request_seqno, 0);
+
+  gum_script_scheduler_start (self);
 }
 
 GMainContext *

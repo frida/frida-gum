@@ -7,14 +7,22 @@
 
 #include "gumquickscriptbackend.h"
 
+#include "gumquickcore.h"
 #include "gumquickscript.h"
 #include "gumquickscript-runtime.h"
 #include "gumquickscriptbackend-priv.h"
 #include "gumscripttask.h"
 #include "gumsourcemap.h"
 
+#include <gum/gum.h>
+
 #include <stdlib.h>
 #include <string.h>
+#ifdef G_OS_WIN32
+# include <windows.h>
+#else
+# include <unistd.h>
+#endif
 
 #if G_BYTE_ORDER == G_BIG_ENDIAN
 # define GUM_QUICKJS_BYTECODE_MAGIC 0x42
@@ -36,9 +44,13 @@ struct _GumQuickScriptBackend
   GMutex mutex;
   GRecMutex scope_mutex;
   volatile gint scope_mutex_trap_depth;
+  GPid scope_mutex_pid;
+  guint scope_mutex_epoch;
 
   GumScriptScheduler * scheduler;
 };
+
+static gboolean gum_quick_script_backend_exists = FALSE;
 
 struct _GumCompileProgramOperation
 {
@@ -239,8 +251,16 @@ gum_quick_script_backend_init (GumQuickScriptBackend * self)
   g_mutex_init (&self->mutex);
   g_rec_mutex_init (&self->scope_mutex);
   self->scope_mutex_trap_depth = 0;
+#ifdef G_OS_WIN32
+  self->scope_mutex_pid = (GPid) GetCurrentProcessId ();
+#else
+  self->scope_mutex_pid = (GPid) getpid ();
+#endif
+  self->scope_mutex_epoch = 1;
 
   self->scheduler = g_object_ref (gum_script_backend_get_scheduler ());
+
+  gum_quick_script_backend_exists = TRUE;
 }
 
 static void
@@ -693,6 +713,61 @@ GRecMutex *
 gum_quick_script_backend_get_scope_mutex (GumQuickScriptBackend * self)
 {
   return &self->scope_mutex;
+}
+
+void
+gum_quick_script_backend_recover_from_fork_in_child (void)
+{
+  GumQuickScriptBackend * self;
+
+  if (!gum_quick_script_backend_exists)
+    return;
+
+  /*
+   * After fork() only the calling thread exists. A recursive mutex still
+   * owned by a vanished parent thread is undefined; reinitialize it.
+   */
+  self = GUM_QUICK_SCRIPT_BACKEND (gum_script_backend_obtain_qjs ());
+  g_rec_mutex_init (&self->scope_mutex);
+#ifdef G_OS_WIN32
+  self->scope_mutex_pid = (GPid) GetCurrentProcessId ();
+#else
+  self->scope_mutex_pid = (GPid) getpid ();
+#endif
+  self->scope_mutex_epoch++;
+}
+
+void
+gum_quick_script_backend_sync_core_after_fork (GumQuickCore * core)
+{
+  GumQuickScriptBackend * self;
+  GPid pid;
+
+  if (core == NULL || core->backend == NULL)
+    return;
+
+  self = core->backend;
+#ifdef G_OS_WIN32
+  pid = (GPid) GetCurrentProcessId ();
+#else
+  pid = (GPid) getpid ();
+#endif
+
+  if (self->scope_mutex_pid != pid)
+  {
+    gum_recover_from_fork_in_child ();
+    g_rec_mutex_init (&self->scope_mutex);
+    self->scope_mutex_pid = pid;
+    self->scope_mutex_epoch++;
+  }
+
+  if (core->scope_mutex_epoch != self->scope_mutex_epoch)
+  {
+    core->scope_mutex_epoch = self->scope_mutex_epoch;
+    core->mutex_depth = 0;
+    core->current_scope = NULL;
+    core->current_owner = GUM_THREAD_ID_INVALID;
+  }
 }
 
 GumScriptScheduler *

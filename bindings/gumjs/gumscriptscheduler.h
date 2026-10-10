@@ -27,6 +27,11 @@ GUM_API void gum_script_scheduler_disable_background_thread (
     GumScriptScheduler * self);
 GUM_API void gum_script_scheduler_start (GumScriptScheduler * self);
 GUM_API void gum_script_scheduler_stop (GumScriptScheduler * self);
+GUM_API void gum_script_scheduler_prepare_to_fork (GumScriptScheduler * self);
+GUM_API void gum_script_scheduler_recover_from_fork_in_parent (
+    GumScriptScheduler * self);
+GUM_API void gum_script_scheduler_recover_from_fork_in_child (
+    GumScriptScheduler * self);
 
 GUM_API GMainContext * gum_script_scheduler_get_js_context (
     GumScriptScheduler * self);
