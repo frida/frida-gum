@@ -2238,6 +2238,7 @@ gum_darwin_enumerate_ranges (mach_port_t task,
   mach_vm_address_t address = MACH_VM_MIN_ADDRESS;
   mach_vm_size_t size = 0;
   natural_t depth = 0;
+  mach_vm_address_t next_file_address = 0;
 
   if (task == mach_task_self ())
   {
@@ -2293,11 +2294,18 @@ gum_darwin_enumerate_ranges (mach_port_t task,
       details.protection = cur_prot;
       details.file = NULL;
 
-      if (pid != 0 && _gum_darwin_fill_file_mapping (pid, address, &file,
-          &region))
+      if (pid != 0 && info.share_mode != SM_EMPTY &&
+          address >= next_file_address)
       {
-        details.file = &file;
-        _gum_darwin_clamp_range_size (&range, &file);
+        region.prp_prinfo.pri_address = G_MAXUINT64;
+
+        if (_gum_darwin_fill_file_mapping (pid, address, &file, &region))
+        {
+          details.file = &file;
+          _gum_darwin_clamp_range_size (&range, &file);
+        }
+
+        next_file_address = region.prp_prinfo.pri_address;
       }
 
       if (!func (&details, user_data))
