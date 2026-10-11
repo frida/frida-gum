@@ -2734,11 +2734,11 @@ gum_maybe_extract_from_apk (const gchar * path,
   file_path = tokens[1];
   bare_file_path = file_path + 1;
 
-  mz_stream_os_create (&zip_stream);
+  zip_stream = mz_stream_os_create ();
   if (mz_stream_os_open (zip_stream, apk_path, MZ_OPEN_MODE_READ) != MZ_OK)
     goto beach;
 
-  mz_zip_reader_create (&zip_reader);
+  zip_reader = mz_zip_reader_create ();
   if (mz_zip_reader_open (zip_reader, zip_stream) != MZ_OK)
     goto beach;
 
