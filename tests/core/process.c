@@ -80,6 +80,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (darwin_enumerate_modules)
   TESTENTRY (darwin_enumerate_modules_should_include_core_foundation)
   TESTENTRY (darwin_enumerate_ranges)
+  TESTENTRY (darwin_enumerate_ranges_with_many_anonymous_regions)
   TESTENTRY (darwin_module_exports)
   TESTENTRY (darwin_module_exports_should_support_dyld)
   TESTENTRY (darwin_libsystem_exports_should_contain_chkstk)
@@ -143,7 +144,21 @@ struct _TestStackLeakProbe
 
 #ifdef HAVE_DARWIN
 
+typedef struct _TestDarwinRangesContext TestDarwinRangesContext;
 typedef struct _ExportSearch ExportSearch;
+
+struct _TestDarwinRangesContext
+{
+  GumMemoryRange range;
+  GumAddress first_file;
+  GumAddress second_file;
+  GumAddress empty_start;
+  gchar * paths[2];
+  guint ranges;
+  guint files;
+  guint lookups;
+  guint empty_lookups;
+};
 
 struct _ExportSearch
 {
@@ -175,6 +190,15 @@ static gboolean store_export_address_if_tricky_module_export (
 #ifdef HAVE_DARWIN
 static gboolean assign_true_if_core_foundation (GumModule * module,
     gpointer user_data);
+static gint open_temp_file_of_size (gsize size, gchar ** path);
+static void map_file_at (guint8 * address, gsize size, gint prot, gint fd,
+    gsize offset);
+static void count_darwin_path_lookup (GumInvocationContext * context,
+    gpointer user_data);
+static gboolean check_darwin_range (const GumRangeDetails * details,
+    gpointer user_data);
+static void check_darwin_file_range (const GumRangeDetails * details,
+    const gchar * path, gsize size);
 static gboolean process_potential_export_search_result (
     const GumExportDetails * details, gpointer user_data);
 #endif
@@ -1225,8 +1249,12 @@ TESTCASE (get_set_system_error)
 
 #ifdef HAVE_DARWIN
 
+#include "gum/backend-darwin/gumdarwin-priv.h"
 #include "gum/gumdarwin.h"
+
+#include <unistd.h>
 #include <mach/mach.h>
+#include <sys/mman.h>
 
 static mach_port_t
 gum_test_get_target_task (void)
@@ -1290,6 +1318,78 @@ TESTCASE (darwin_enumerate_ranges)
   ctx.value_to_return = FALSE;
   gum_darwin_enumerate_ranges (task, GUM_PAGE_RX, range_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
+TESTCASE (darwin_enumerate_ranges_with_many_anonymous_regions)
+{
+  const gsize page_size = vm_kernel_page_size;
+  const guint page_count = 1024;
+  const gsize size = page_count * page_size;
+  guint8 * allocation, * first_file, * second_file;
+  TestDarwinRangesContext ctx = { 0, };
+  guint i;
+  gint fd;
+  GumInterceptor * interceptor;
+  GumInvocationListener * listener;
+
+  allocation = mmap (NULL, size, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
+  g_assert_true (allocation != MAP_FAILED);
+  first_file = allocation + size / 2 - 2 * page_size;
+  second_file = allocation + size - 3 * page_size;
+
+  ctx.range.base_address = GUM_ADDRESS (allocation);
+  ctx.range.size = size;
+  ctx.first_file = GUM_ADDRESS (first_file);
+  ctx.second_file = GUM_ADDRESS (second_file);
+  ctx.empty_start = GUM_ADDRESS (allocation + size / 2);
+
+  for (i = page_count / 2; i != page_count; i += 2)
+  {
+    g_assert_cmpint (mprotect (allocation + i * page_size, page_size,
+        PROT_READ), ==, 0);
+  }
+
+  for (i = 0; i != page_count / 2 - 2; i += 2)
+  {
+    allocation[i * page_size] = 0x42;
+    g_assert_cmpint (mprotect (allocation + i * page_size, page_size,
+        PROT_READ), ==, 0);
+  }
+
+  fd = open_temp_file_of_size (3 * page_size, &ctx.paths[0]);
+  map_file_at (first_file, page_size, PROT_READ | PROT_WRITE, fd, page_size);
+  map_file_at (first_file + page_size, page_size, PROT_READ, fd, page_size);
+  close (fd);
+
+  fd = open_temp_file_of_size (3 * page_size, &ctx.paths[1]);
+  map_file_at (second_file, 3 * page_size, PROT_READ, fd, page_size);
+  close (fd);
+
+  interceptor = gum_interceptor_obtain ();
+  listener = gum_make_call_listener (count_darwin_path_lookup, NULL, &ctx,
+      NULL);
+  g_assert_cmpint (gum_interceptor_attach (interceptor,
+      dlsym (RTLD_DEFAULT, "__proc_info"), listener, NULL), ==, GUM_ATTACH_OK);
+
+  gum_darwin_enumerate_ranges (mach_task_self (), GUM_PAGE_NO_ACCESS,
+      check_darwin_range, &ctx);
+
+  gum_interceptor_detach (interceptor, listener);
+  g_object_unref (listener);
+  g_object_unref (interceptor);
+
+  g_assert_cmpint (munmap (allocation, size), ==, 0);
+  for (i = 0; i != G_N_ELEMENTS (ctx.paths); i++)
+  {
+    unlink (ctx.paths[i]);
+    g_free (ctx.paths[i]);
+  }
+
+  g_assert_cmpuint (ctx.ranges, >, 256);
+  g_assert_cmpuint (ctx.files, ==, 3);
+  g_assert_cmpuint (ctx.empty_lookups, ==, 0);
+  g_assert_cmpuint (ctx.lookups, <=, 6);
 }
 
 TESTCASE (darwin_module_exports)
@@ -1413,6 +1513,101 @@ assign_true_if_core_foundation (GumModule * module,
   }
 
   return TRUE;
+}
+
+static gint
+open_temp_file_of_size (gsize size,
+                        gchar ** path)
+{
+  gint fd;
+
+  fd = g_file_open_tmp ("gum-ranges-XXXXXX", path, NULL);
+  g_assert_cmpint (fd, !=, -1);
+  g_assert_cmpint (ftruncate (fd, size), ==, 0);
+
+  return fd;
+}
+
+static void
+map_file_at (guint8 * address,
+             gsize size,
+             gint prot,
+             gint fd,
+             gsize offset)
+{
+  g_assert_true (mmap (address, size, prot, MAP_PRIVATE | MAP_FIXED, fd,
+      offset) == address);
+}
+
+static void
+count_darwin_path_lookup (GumInvocationContext * context,
+                          gpointer user_data)
+{
+  TestDarwinRangesContext * ctx = user_data;
+  gint flavor;
+  GumAddress address;
+
+  flavor = GPOINTER_TO_INT (gum_invocation_context_get_nth_argument (context,
+      2));
+  if (flavor != PROC_PIDREGIONPATHINFO && flavor != PROC_PIDREGIONPATHINFO2)
+    return;
+
+  address = GUM_ADDRESS (gum_invocation_context_get_nth_argument (context, 3));
+
+  if (GUM_MEMORY_RANGE_INCLUDES (&ctx->range, address))
+    ctx->lookups++;
+
+  if (address >= ctx->empty_start && address < ctx->second_file)
+    ctx->empty_lookups++;
+}
+
+static gboolean
+check_darwin_range (const GumRangeDetails * details,
+                    gpointer user_data)
+{
+  TestDarwinRangesContext * ctx = user_data;
+  const gsize page_size = vm_kernel_page_size;
+  GumAddress address = details->range->base_address;
+
+  if (!GUM_MEMORY_RANGE_INCLUDES (&ctx->range, address))
+    return TRUE;
+
+  ctx->ranges++;
+
+  if (address == ctx->first_file || address == ctx->first_file + page_size)
+  {
+    check_darwin_file_range (details, ctx->paths[0], page_size);
+    ctx->files++;
+  }
+  else if (address == ctx->second_file)
+  {
+    check_darwin_file_range (details, ctx->paths[1], 2 * page_size);
+    ctx->files++;
+  }
+  else
+  {
+    g_assert_null (details->file);
+    g_assert_cmpuint (details->range->size, ==, page_size);
+  }
+
+  return TRUE;
+}
+
+static void
+check_darwin_file_range (const GumRangeDetails * details,
+                         const gchar * path,
+                         gsize size)
+{
+  const gsize page_size = vm_kernel_page_size;
+  gchar * name;
+
+  g_assert_nonnull (details->file);
+  name = g_path_get_basename (path);
+  g_assert_true (g_str_has_suffix (details->file->path, name));
+  g_free (name);
+  g_assert_cmpuint (details->file->offset, ==, page_size);
+  g_assert_cmpuint (details->file->size, ==, 3 * page_size);
+  g_assert_cmpuint (details->range->size, ==, size);
 }
 
 static gboolean
