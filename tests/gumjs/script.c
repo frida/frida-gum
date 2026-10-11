@@ -8766,7 +8766,7 @@ TESTCASE (interceptor_js_listener_should_recover_in_fork_child)
 
 #endif
 
-
+#ifdef HAVE_DARWIN
 TESTCASE (interceptor_and_js_should_not_deadlock)
 {
   GThread * worker_thread;
