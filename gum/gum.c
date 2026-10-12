@@ -63,6 +63,7 @@ static void gum_internal_thread_discard_dead_stack (
     GumInternalThreadDetails * details);
 static const GumMemoryRange * gum_internal_thread_details_find_stack (
     GumInternalThreadDetails * details, GumAddress address);
+static void gum_internal_thread_scrub_stack_down_to (GumAddress end);
 # endif
 static void gum_internal_thread_details_free (
     GumInternalThreadDetails * details);
@@ -456,6 +457,7 @@ gum_internal_thread_discard_dead_stack (GumInternalThreadDetails * details)
   page_size = gum_query_page_size ();
   end = (sp & ~GUM_ADDRESS (page_size - 1)) - page_size;
 
+  gum_internal_thread_scrub_stack_down_to (end);
   gum_memory_discard (GSIZE_TO_POINTER (stack->base_address),
       end - stack->base_address);
 }
@@ -479,6 +481,18 @@ gum_internal_thread_details_find_stack (
   }
 
   return NULL;
+}
+
+GUM_NOINLINE static void
+gum_internal_thread_scrub_stack_down_to (GumAddress end)
+{
+  volatile guint8 * scratch;
+  gsize size, i;
+
+  size = GUM_ADDRESS (__builtin_frame_address (0)) - end;
+  scratch = g_alloca (size);
+  for (i = 0; i != size; i++)
+    scratch[i] = 0;
 }
 
 #endif
