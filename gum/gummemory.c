@@ -135,6 +135,11 @@ struct _GumPointerScan
   gsize mask;
   GArray * tiles;
   GumExceptor * exceptor;
+
+  GArray * worker_ranges;
+  GMutex mutex;
+  GCond cond;
+  guint n_workers_registering;
 };
 
 struct _GumPointerScanTile
@@ -203,10 +208,13 @@ static gsize gum_pointer_scan_count_words (GArray * tiles);
 static void gum_pointer_scan_run_parallel (GumPointerScan * self,
     GArray * matches);
 static void gum_pointer_scan_process_task (gpointer data, gpointer user_data);
-static void gum_pointer_scan_run_inline (GumPointerScan * self,
-    GArray * matches);
+static void gum_pointer_scan_register_worker (GumPointerScan * self);
 static void gum_pointer_scan_process_tile (GumPointerScan * self,
     const GumPointerScanTile * tile, GArray * matches);
+static void gum_pointer_scan_run_inline (GumPointerScan * self,
+    GArray * matches);
+static void gum_pointer_scan_process_words (GumPointerScan * self,
+    const gsize * words, gsize n_words, GArray * matches);
 #ifdef GUM_HAVE_POINTER_SCAN_SIMD
 static gsize gum_pointer_scan_process_vectors (GumPointerScan * self,
     const gsize * words, gsize n_words, GArray * matches);
@@ -1634,7 +1642,8 @@ gum_match_token_append_with_mask (GumMatchToken * self,
  * Scans @ranges for pointer-aligned words matching any of @values, comparing
  * under @mask. Use %G_MAXSIZE for an exact match, or e.g.
  * 0x00007ffffffffff8 to strip arm64e PAC and non-pointer-isa bits. Memory that
- * is or becomes inaccessible while scanning is skipped.
+ * is or becomes inaccessible while scanning is skipped, as are the stacks of
+ * the worker threads the scan spawns.
  *
  * Returns: (element-type GumPointerMatch) (transfer full): the matches, sorted
  *          by address
@@ -1731,13 +1740,28 @@ static void
 gum_pointer_scan_run_parallel (GumPointerScan * self,
                                GArray * matches)
 {
-  guint max_threads, i;
+  guint max_threads, n_workers, i;
   GThreadPool * pool;
+  GumPointerScanTask registration;
   GArray * tasks;
 
   max_threads = MIN (g_get_num_processors (), GUM_POINTER_SCAN_MAX_WORKERS);
+  self->worker_ranges = g_array_sized_new (FALSE, FALSE,
+      sizeof (GumMemoryRange), GUM_MAX_THREAD_RANGES * max_threads);
+  g_mutex_init (&self->mutex);
+  g_cond_init (&self->cond);
+
   pool = g_thread_pool_new (gum_pointer_scan_process_task, NULL, max_threads,
-      FALSE, NULL);
+      TRUE, NULL);
+  n_workers = g_thread_pool_get_num_threads (pool);
+
+  registration.scan = self;
+  registration.tile = NULL;
+  registration.matches = NULL;
+
+  self->n_workers_registering = n_workers;
+  for (i = 0; i != n_workers; i++)
+    g_thread_pool_push (pool, &registration, NULL);
 
   tasks = g_array_sized_new (FALSE, FALSE, sizeof (GumPointerScanTask),
       self->tiles->len);
@@ -1767,6 +1791,10 @@ gum_pointer_scan_run_parallel (GumPointerScan * self,
   }
 
   g_array_free (tasks, TRUE);
+
+  g_cond_clear (&self->cond);
+  g_mutex_clear (&self->mutex);
+  g_array_free (self->worker_ranges, TRUE);
 }
 
 static void
@@ -1775,7 +1803,74 @@ gum_pointer_scan_process_task (gpointer data,
 {
   GumPointerScanTask * task = data;
 
-  gum_pointer_scan_process_tile (task->scan, task->tile, task->matches);
+  if (task->tile == NULL)
+    gum_pointer_scan_register_worker (task->scan);
+  else
+    gum_pointer_scan_process_tile (task->scan, task->tile, task->matches);
+}
+
+static void
+gum_pointer_scan_register_worker (GumPointerScan * self)
+{
+  GumMemoryRange ranges[GUM_MAX_THREAD_RANGES];
+  guint n;
+
+  n = gum_thread_try_get_ranges (ranges, G_N_ELEMENTS (ranges));
+
+  g_mutex_lock (&self->mutex);
+
+  g_array_append_vals (self->worker_ranges, ranges, n);
+
+  if (--self->n_workers_registering == 0)
+    g_cond_broadcast (&self->cond);
+  while (self->n_workers_registering != 0)
+    g_cond_wait (&self->cond, &self->mutex);
+
+  g_mutex_unlock (&self->mutex);
+}
+
+static void
+gum_pointer_scan_process_tile (GumPointerScan * self,
+                               const GumPointerScanTile * tile,
+                               GArray * matches)
+{
+  GArray * worker_ranges = self->worker_ranges;
+  gsize cursor, end;
+
+  cursor = GPOINTER_TO_SIZE (tile->words);
+  end = cursor + (tile->n_words * sizeof (gsize));
+
+  while (cursor < end)
+  {
+    gsize stop = end;
+    gboolean inside_worker_range = FALSE;
+    guint i;
+
+    for (i = 0; i != worker_ranges->len; i++)
+    {
+      const GumMemoryRange * range =
+          &g_array_index (worker_ranges, GumMemoryRange, i);
+      gsize range_start = range->base_address;
+      gsize range_end = range_start + range->size;
+
+      if (range_start <= cursor && cursor < range_end)
+      {
+        cursor = range_end;
+        inside_worker_range = TRUE;
+        break;
+      }
+
+      if (range_start > cursor && range_start < stop)
+        stop = range_start;
+    }
+
+    if (inside_worker_range)
+      continue;
+
+    gum_pointer_scan_process_words (self, GSIZE_TO_POINTER (cursor),
+        (stop - cursor) / sizeof (gsize), matches);
+    cursor = stop;
+  }
 }
 
 static void
@@ -1786,22 +1881,23 @@ gum_pointer_scan_run_inline (GumPointerScan * self,
 
   for (i = 0; i != self->tiles->len; i++)
   {
-    gum_pointer_scan_process_tile (self,
-        &g_array_index (self->tiles, GumPointerScanTile, i), matches);
+    const GumPointerScanTile * tile =
+        &g_array_index (self->tiles, GumPointerScanTile, i);
+
+    gum_pointer_scan_process_words (self, tile->words, tile->n_words, matches);
   }
 }
 
 static void
-gum_pointer_scan_process_tile (GumPointerScan * self,
-                               const GumPointerScanTile * tile,
-                               GArray * matches)
+gum_pointer_scan_process_words (GumPointerScan * self,
+                                const gsize * words,
+                                gsize n_words,
+                                GArray * matches)
 {
   GumExceptorScope scope;
 
   if (gum_exceptor_try (self->exceptor, &scope))
   {
-    const gsize * words = tile->words;
-    gsize n_words = tile->n_words;
     gsize i = 0;
 
 #ifdef GUM_HAVE_POINTER_SCAN_SIMD
