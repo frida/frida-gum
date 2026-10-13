@@ -46,6 +46,8 @@ typedef struct _TestArm64StalkerFixture
   gsize code_size;
   guint8 * last_invoke_calladdr;
   guint8 * last_invoke_retaddr;
+  guint invoker_insn_count;
+  guint invoker_impl_offset;
 } TestArm64StalkerFixture;
 
 typedef gint (* StalkerTestFunc) (gint arg);
@@ -132,8 +134,8 @@ test_arm64_stalker_fixture_dup_code (TestArm64StalkerFixture * fixture,
       gum_sign_code_pointer (fixture->code));
 }
 
-#define INVOKER_INSN_COUNT 6
-#define INVOKER_IMPL_OFFSET 2
+#define INVOKER_INSN_COUNT (fixture->invoker_insn_count)
+#define INVOKER_IMPL_OFFSET (fixture->invoker_impl_offset)
 
 /* custom invoke code as we want to stalk a deterministic code sequence */
 static gint
@@ -145,6 +147,7 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
   gsize page_size;
   guint8 * code;
   GumArm64Writer cw;
+  guint followed_start;
   gint ret;
   GCallback invoke_func;
 
@@ -163,18 +166,23 @@ test_arm64_stalker_fixture_follow_and_invoke (TestArm64StalkerFixture * fixture,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+  followed_start = gum_arm64_writer_offset (&cw);
 
   /* call function -int func(int x)- and save address before and after call */
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X0, GUM_ADDRESS (arg));
   fixture->last_invoke_calladdr = gum_arm64_writer_cur (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw, GUM_ADDRESS (func), 0);
   fixture->last_invoke_retaddr = gum_arm64_writer_cur (&cw);
+  fixture->invoker_impl_offset =
+      (gum_arm64_writer_offset (&cw) - followed_start) / 4;
   gum_arm64_writer_put_ldr_reg_address (&cw, ARM64_REG_X1, GUM_ADDRESS (&ret));
   gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_W0, ARM64_REG_X1, 0);
 
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+  fixture->invoker_insn_count =
+      (gum_arm64_writer_offset (&cw) - followed_start) / 4;
 
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
   gum_arm64_writer_put_ret (&cw);

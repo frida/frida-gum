@@ -1181,7 +1181,8 @@ TESTCASE (exclude_bl)
 
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
 
-  g_assert_cmpuint (fixture->sink->events->length, ==, 24);
+  g_assert_cmpuint (fixture->sink->events->length, ==,
+      INVOKER_INSN_COUNT + 18);
 }
 
 TESTCASE (exclude_blr)
@@ -1193,6 +1194,7 @@ TESTCASE (exclude_blr)
   gpointer func_a;
   GumMemoryRange memory_range;
   const gchar * start_lbl = "start";
+  guint unfollow_start, unfollow_insn_count;
 
   fixture->sink->mask = GUM_EXEC;
 
@@ -1222,9 +1224,11 @@ TESTCASE (exclude_blr)
   gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_LR);
 
   gum_arm64_writer_put_push_all_x_registers (&cw);
+  unfollow_start = gum_arm64_writer_offset (&cw);
   gum_arm64_writer_put_call_address_with_arguments (&cw,
       GUM_ADDRESS (gum_stalker_unfollow_me), 1,
       GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+  unfollow_insn_count = (gum_arm64_writer_offset (&cw) - unfollow_start) / 4;
   gum_arm64_writer_put_pop_all_x_registers (&cw);
 
   gum_arm64_writer_put_ret (&cw);
@@ -1243,11 +1247,8 @@ TESTCASE (exclude_blr)
 
   g_assert_cmpint (func (2), ==, 12);
 
-#ifdef HAVE_DARWIN
-  g_assert_cmpuint (fixture->sink->events->length, ==, 41);
-#else
-  g_assert_cmpuint (fixture->sink->events->length, ==, 42);
-#endif
+  g_assert_cmpuint (fixture->sink->events->length, ==,
+      39 + unfollow_insn_count);
 
   gum_memory_free (code, page_size);
 }
@@ -1827,7 +1828,8 @@ TESTCASE (follow_misaligned_stack)
 
   test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 42);
 
-  g_assert_cmpuint (fixture->sink->events->length, ==, 21);
+  g_assert_cmpuint (fixture->sink->events->length, ==,
+      INVOKER_INSN_COUNT + 15);
 }
 
 TESTCASE (follow_syscall)
@@ -2091,7 +2093,8 @@ TESTCASE (exclusive_load_store_should_not_be_disturbed)
   g_assert_cmpuint (val, ==, 6);
   g_assert_cmpint (num_cmp_callouts, ==, 4);
 
-  g_assert_cmpuint (fixture->sink->events->length, ==, 17);
+  g_assert_cmpuint (fixture->sink->events->length, ==,
+      INVOKER_INSN_COUNT + 11);
 }
 
 static void
