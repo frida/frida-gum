@@ -248,7 +248,7 @@ jobs:
             ip addr add 192.168.76.20/24 dev eth0
             ip link set eth0 up
             ip route add default via 192.168.76.2 dev eth0
-            export LD_LIBRARY_PATH=/lib:/lib64:/libilp32
+            export LD_LIBRARY_PATH=/lib:/lib64:/libilp32:/root
             /sbin/entropy
             cat /etc/motd
             export PS1='\u@frida:\w\$ '
@@ -305,6 +305,7 @@ jobs:
             RUN chmod +x /tmp/initramfs/init
 
             COPY build/tests /tmp/initramfs/root/
+            COPY build/bindings/gumpp/libfrida-gumpp-1.0.so /tmp/initramfs/root/
             RUN find . | cpio -o --format=newc -R root:root > /root/initramfs.img
 
             COPY launch.sh /root/launch.sh
@@ -355,7 +356,10 @@ jobs:
           name: gumjs-devkit-${{ matrix.id }}
           path: build/bindings/gumjs/devkit/
       - name: Package tests
-        run: tar -C build/tests -czf /tmp/runner.tar.gz gum-tests data/
+        run: |
+          tar -C build/tests -cf /tmp/runner.tar gum-tests data/
+          tar -C build/bindings/gumpp -rf /tmp/runner.tar libfrida-gumpp-1.0.${{ startsWith(matrix.id, 'ios-') && 'dylib' || 'so' }}
+          gzip /tmp/runner.tar
       - name: Test on Corellium iOS device
         if: matrix.id == 'ios-arm64'
         continue-on-error: true
@@ -371,7 +375,7 @@ jobs:
             mkdir -p opt/frida
             cd opt/frida
             tar xf $ASSET_PATH
-            ./gum-tests
+            DYLD_LIBRARY_PATH=$PWD ./gum-tests
       - name: Test on Corellium Android device
         if: matrix.id == 'android-arm64'
         continue-on-error: true
@@ -384,7 +388,7 @@ jobs:
           run: |
             cd /data/local/tmp
             tar xf $ASSET_PATH
-            ./gum-tests
+            LD_LIBRARY_PATH=$PWD ./gum-tests
 
   qnx-armeabi:
     runs-on: ubuntu-latest
@@ -412,7 +416,9 @@ jobs:
       - name: Test
         run: |
           tar -C build/tests -cf /tmp/runner.tar gum-tests data/
-          /opt/sabrelite/run.sh /tmp/runner.tar /opt/frida/gum-tests
+          tar -C build/bindings/gumpp -rf /tmp/runner.tar libfrida-gumpp-1.0.so
+          /opt/sabrelite/run.sh /tmp/runner.tar \
+              "LD_LIBRARY_PATH=/opt/frida /opt/frida/gum-tests"
 
   # This job is used to check that the targetfunctions are built correctly for
   # all supported architectures. We do this because the binary artifacts are
