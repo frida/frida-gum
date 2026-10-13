@@ -684,6 +684,21 @@ gum_allocate_page_aligned (gpointer address,
   }
 #endif
 
+#if HAVE_DARWIN
+  {
+    gboolean need_blessing;
+
+    need_blessing = prot == (PROT_READ | PROT_EXEC) &&
+        gum_memory_can_remap_writable ();
+    if (need_blessing &&
+        !_gum_darwin_bless_code_pages (result, size / gum_query_page_size ()))
+    {
+      gum_memory_free (address, size);
+      return NULL;
+    }
+  }
+#endif
+
   return result;
 }
 
