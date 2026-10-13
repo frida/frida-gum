@@ -367,6 +367,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (native_callback_should_be_kept_alive_during_calls)
     TESTENTRY (native_callback_can_return_struct)
     TESTENTRY (native_callback_can_return_large_nested_struct)
+    TESTENTRY (native_callback_can_receive_struct)
     TESTENTRY (native_callback_should_zero_retval_on_mismatching_return_value)
 #ifdef HAVE_WINDOWS
 # if GLIB_SIZEOF_VOID_P == 4
@@ -573,6 +574,7 @@ typedef struct _GumRecoverExceptorContext GumRecoverExceptorContext;
 typedef struct _TestTrigger TestTrigger;
 typedef struct _TestNativeReturnStruct TestNativeReturnStruct;
 typedef struct _TestNativeReturnNestedStruct TestNativeReturnNestedStruct;
+typedef struct _TestNativeSmallStruct TestNativeSmallStruct;
 typedef struct _GumHotNamedSleeperContext GumHotNamedSleeperContext;
 
 struct _GumInvokeTargetContext
@@ -640,6 +642,13 @@ struct _TestNativeReturnNestedStruct
     } e;
   } a;
   int64_t b;
+};
+
+struct _TestNativeSmallStruct
+{
+  uint8_t a;
+  uint16_t b;
+  uint32_t c;
 };
 
 struct _GumHotNamedSleeperContext
@@ -2466,6 +2475,22 @@ TESTCASE (native_callback_can_return_large_nested_struct)
   g_assert_cmpint (retval.a.e.b, ==, 6);
   g_assert_cmpint (retval.a.e.c, ==, 7);
   g_assert_cmpint (retval.b, ==, 8);
+}
+
+TESTCASE (native_callback_can_receive_struct)
+{
+  void (* cb) (uint8_t a, TestNativeSmallStruct s);
+  TestNativeSmallStruct s = { 2, 3, 4 };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "let cb = new NativeCallback((a, s) => {"
+        "send([a, s]);"
+      "}, 'void', ['uint8', ['uint8', 'uint16', 'uint32']]);"
+      GUM_PTR_CONST ".writePointer(cb);",
+      &cb);
+
+  cb (1, s);
+  EXPECT_SEND_MESSAGE_WITH ("[1,[2,3,4]]");
 }
 
 TESTCASE (native_callback_should_zero_retval_on_mismatching_return_value)

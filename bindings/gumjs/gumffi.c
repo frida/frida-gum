@@ -68,9 +68,6 @@ GUM_DEFINE_FFI_TYPE (ssize_t, gint16, FFI_TYPE_SINT16)
 # error "size_t detection missing"
 #endif
 
-static void gum_ffi_copy_struct_fields (const ffi_type * type,
-    gconstpointer src, gpointer dst);
-
 static const GumFFITypeMapping gum_ffi_type_mappings[] =
 {
   { "void", &ffi_type_void },
@@ -120,129 +117,16 @@ static const GumFFIABIMapping gum_ffi_abi_mappings[] =
 #endif
 };
 
-void
-gum_ffi_arg_to_ret (const ffi_type * type,
-                    GumFFIArg * arg,
-                    GumFFIRet * ret)
+GumFFIArg *
+gum_ffi_ret_value (const ffi_type * type,
+                   gpointer ret)
 {
-  if (type == &ffi_type_void)
-  {
-    ret->v_pointer = arg->v_pointer;
-  }
-  else if (type == &ffi_type_pointer)
-  {
-    ret->v_pointer = arg->v_pointer;
-  }
-  else if (type == &ffi_type_sint8)
-  {
-    ret->v_sint8 = arg->v_sint8;
-  }
-  else if (type == &ffi_type_uint8)
-  {
-    ret->v_uint8 = arg->v_uint8;
-  }
-  else if (type == &ffi_type_sint16)
-  {
-    ret->v_sint16 = arg->v_sint16;
-  }
-  else if (type == &ffi_type_uint16)
-  {
-    ret->v_uint16 = arg->v_uint16;
-  }
-  else if (type == &ffi_type_sint32)
-  {
-    ret->v_sint32 = arg->v_sint32;
-  }
-  else if (type == &ffi_type_uint32)
-  {
-    ret->v_uint32 = arg->v_uint32;
-  }
-  else if (type == &ffi_type_sint64)
-  {
-    ret->v_sint64 = arg->v_sint64;
-  }
-  else if (type == &ffi_type_uint64)
-  {
-    ret->v_uint64 = arg->v_uint64;
-  }
-  else if (type == &gum_ffi_type_size_t)
-  {
-    switch (type->size)
-    {
-      case 8:
-        ret->v_uint64 = arg->v_uint64;
-        break;
-      case 4:
-        ret->v_uint32 = arg->v_uint32;
-        break;
-      case 2:
-        ret->v_uint16 = arg->v_uint16;
-        break;
-      default:
-        g_assert_not_reached ();
-    }
-  }
-  else if (type == &gum_ffi_type_ssize_t)
-  {
-    switch (type->size)
-    {
-      case 8:
-        ret->v_sint64 = arg->v_sint64;
-        break;
-      case 4:
-        ret->v_sint32 = arg->v_sint32;
-        break;
-      case 2:
-        ret->v_sint16 = arg->v_sint16;
-        break;
-      default:
-        g_assert_not_reached ();
-    }
-  }
-  else if (type == &ffi_type_float)
-  {
-    ret->v_float = arg->v_float;
-  }
-  else if (type == &ffi_type_double)
-  {
-    ret->v_double = arg->v_double;
-  }
-  else if (type->type == FFI_TYPE_STRUCT)
-  {
-    gum_ffi_copy_struct_fields (type, arg, ret);
-  }
-  else
-  {
-    g_assert_not_reached ();
-  }
-}
+#if G_BYTE_ORDER == G_BIG_ENDIAN
+  if (type->type != FFI_TYPE_STRUCT && type->size < sizeof (ffi_arg))
+    return (GumFFIArg *) ((guint8 *) ret + sizeof (ffi_arg) - type->size);
+#endif
 
-static void
-gum_ffi_copy_struct_fields (const ffi_type * type,
-                            gconstpointer src,
-                            gpointer dst)
-{
-  ffi_type ** field_type;
-  gsize offset = 0;
-
-  for (field_type = type->elements; *field_type != NULL; field_type++)
-  {
-    const ffi_type * t = *field_type;
-
-    offset = GUM_ALIGN_SIZE (offset, t->alignment);
-
-    if (t->type == FFI_TYPE_STRUCT)
-    {
-      gum_ffi_copy_struct_fields (t, (const guint8 *) src + offset,
-          (guint8 *) dst + offset);
-    }
-    else
-    {
-      memcpy ((guint8 *) dst + offset, (const guint8 *) src + offset, t->size);
-    }
-
-    offset += t->size;
-  }
+  return ret;
 }
 
 gboolean

@@ -450,7 +450,7 @@ static gboolean gum_v8_ffi_abi_get (GumV8Core * core, Local<Value> name,
 static gboolean gum_v8_value_to_ffi_type (GumV8Core * core,
     const Local<Value> svalue, GumFFIArg * value, const ffi_type * type);
 static gboolean gum_v8_value_from_ffi_type (GumV8Core * core,
-    Local<Value> * svalue, const GumFFIRet * value, const ffi_type * type);
+    Local<Value> * svalue, const GumFFIArg * value, const ffi_type * type);
 
 static const GumV8Function gumjs_global_functions[] =
 {
@@ -3469,8 +3469,8 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   auto atypes = cif->arg_types;
   gsize rsize = MAX (rtype->size, sizeof (gsize));
   gsize ralign = MAX (rtype->alignment, sizeof (gsize));
-  auto rvalue = (GumFFIRet *) g_alloca (rsize + ralign - 1);
-  rvalue = GUM_ALIGN_POINTER (GumFFIRet *, rvalue, ralign);
+  auto rvalue = g_alloca (rsize + ralign - 1);
+  rvalue = GUM_ALIGN_POINTER (gpointer, rvalue, ralign);
 
   void ** avalue;
   guint8 * avalues;
@@ -3620,7 +3620,8 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
   }
 
   Local<Value> result;
-  if (!gum_v8_value_from_ffi_type (core, &result, rvalue, rtype))
+  if (!gum_v8_value_from_ffi_type (core, &result,
+      gum_ffi_ret_value (rtype, rvalue), rtype))
     return;
 
   if (return_shape == GUM_V8_RETURN_DETAILED)
@@ -4023,16 +4024,18 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
 
   auto rtype = cif->rtype;
   auto tmp_value = (GumFFIArg *) g_alloca (rtype->size);
-  auto retval = (GumFFIRet *) return_value;
+  auto retval = gum_ffi_ret_value (rtype, return_value);
   if (rtype != &ffi_type_void)
     memset (retval, 0, rtype->size);
 
   auto argv = g_newa (Local<Value>, cif->nargs);
   for (guint i = 0; i != cif->nargs; i++)
   {
+    auto type = cif->arg_types[i];
+    auto value = (GumFFIArg *) args[i];
+
     new (&argv[i]) Local<Value> ();
-    if (!gum_v8_value_from_ffi_type (self->core, &argv[i],
-        (GumFFIRet *) args[i], cif->arg_types[i]))
+    if (!gum_v8_value_from_ffi_type (self->core, &argv[i], value, type))
     {
       for (guint j = 0; j <= i; j++)
         argv[j].~Local<Value> ();
@@ -4094,7 +4097,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   if (cif->rtype != &ffi_type_void && have_result)
   {
     if (gum_v8_value_to_ffi_type (self->core, result, tmp_value, cif->rtype))
-      gum_ffi_arg_to_ret (cif->rtype, tmp_value, retval);
+      memcpy (retval, tmp_value, rtype->size);
   }
 
   for (guint i = 0; i != cif->nargs; i++)
@@ -5052,7 +5055,7 @@ error_unsupported_type:
 static gboolean
 gum_v8_value_from_ffi_type (GumV8Core * core,
                             Local<Value> * svalue,
-                            const GumFFIRet * value,
+                            const GumFFIArg * value,
                             const ffi_type * type)
 {
   auto isolate = core->isolate;
@@ -5167,7 +5170,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
-      auto field_value = (const GumFFIRet *) (field_values + offset);
+      auto field_value = (const GumFFIArg *) (field_values + offset);
       Local<Value> field_svalue;
       if (gum_v8_value_from_ffi_type (core, &field_svalue, field_value,
           field_type))
