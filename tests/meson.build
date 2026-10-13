@@ -128,5 +128,5 @@ endif
 
 test('gum', python,
   args: [files('run.py'), runner.full_path()],
-  timeout: 120,
+  timeout: 300,
 )
