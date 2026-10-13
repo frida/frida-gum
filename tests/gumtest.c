@@ -113,6 +113,7 @@ main (gint argc, gchar * argv[])
   g_setenv ("G_SLICE", "always-malloc", TRUE);
 #endif
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
+  g_setenv ("SWIFT_BACKTRACE", "enable=no", TRUE);
 #ifdef HAVE_FRIDA_GLIB
   glib_init ();
 # ifdef HAVE_GUMJS
