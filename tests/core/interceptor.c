@@ -19,6 +19,7 @@
 #endif
 #if defined (HAVE_LINUX) && defined (__GLIBC__)
 # define GUM_TEST_HAVE_FIBERS
+# include <signal.h>
 # include <sys/mman.h>
 # include <ucontext.h>
 #endif
@@ -146,6 +147,7 @@ static gpointer gum_test_alloc_fiber_stack (gsize size);
 static void gum_test_setup_fiber (ucontext_t * ctx, gpointer stack,
     gsize stack_size, void (* func) (void), ucontext_t * link);
 static void gum_test_free_fiber_stack (gpointer stack, gsize size);
+static void gum_test_disarm_signal_stack_in (gpointer stack);
 static void gum_test_fiber_a_start (void);
 static void gum_test_fiber_b_start (void);
 static void gum_test_fiber_a_shared_start (void);
@@ -420,9 +422,25 @@ static void
 gum_test_free_fiber_stack (gpointer stack,
                            gsize size)
 {
-  gsize page_size = gum_query_page_size ();
+  gsize page_size;
+
+  gum_test_disarm_signal_stack_in (stack);
+
+  page_size = gum_query_page_size ();
 
   munmap ((guint8 *) stack - page_size, size + (2 * page_size));
+}
+
+static void
+gum_test_disarm_signal_stack_in (gpointer stack)
+{
+  stack_t ss;
+
+  if (sigaltstack (NULL, &ss) != 0 || ss.ss_sp != stack)
+    return;
+
+  ss.ss_flags = SS_DISABLE;
+  sigaltstack (&ss, NULL);
 }
 
 static void
