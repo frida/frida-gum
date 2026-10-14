@@ -2026,14 +2026,18 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
                                       GumInvocationListener * listener)
 {
   ListenerEntry ** slot;
+  ListenerEntry * entry;
   gboolean has_on_leave_listener, has_unignorable_listener;
   GPtrArray * listener_entries;
   guint i;
 
   slot = gum_function_context_find_listener (function_ctx, listener);
   g_assert (slot != NULL);
-  listener_entry_free (*slot);
+  entry = *slot;
   *slot = NULL;
+  gum_interceptor_transaction_schedule_destroy (
+      &function_ctx->interceptor->current_transaction, function_ctx,
+      (GDestroyNotify) listener_entry_free, entry);
 
   has_on_leave_listener = FALSE;
   has_unignorable_listener = FALSE;
@@ -2041,7 +2045,7 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
       (GPtrArray *) g_atomic_pointer_get (&function_ctx->listener_entries);
   for (i = 0; i != listener_entries->len; i++)
   {
-    ListenerEntry * entry = g_ptr_array_index (listener_entries, i);
+    entry = g_ptr_array_index (listener_entries, i);
 
     if (entry == NULL)
       continue;
