@@ -1409,6 +1409,9 @@ gum_extract_class_name (const gchar * full_name)
 {
   const gchar * ch;
 
+  if (g_str_has_prefix (full_name, "static "))
+    full_name += strlen ("static ");
+
   ch = strstr (full_name, " : ");
   if (ch != NULL)
   {
