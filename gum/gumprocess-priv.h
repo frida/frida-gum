@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2017-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
- * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2024-2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -24,6 +24,11 @@ G_GNUC_INTERNAL void _gum_process_enumerate_ranges (GumPageProtection prot,
 G_GNUC_INTERNAL gboolean _gum_windows_is_win7_wow64 (void);
 #else
 # define _gum_windows_is_win7_wow64() FALSE
+#endif
+
+#ifdef HAVE_DARWIN
+G_GNUC_INTERNAL gboolean _gum_darwin_find_function_range_from_function_starts (
+    gconstpointer address, GumMemoryRange * range);
 #endif
 
 #if defined (HAVE_I386)

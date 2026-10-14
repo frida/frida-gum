@@ -85,6 +85,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (darwin_module_exports_should_support_dyld)
   TESTENTRY (darwin_libsystem_exports_should_contain_chkstk)
   TESTENTRY (darwin_module_resolver_should_resolve_chkstk)
+  TESTENTRY (darwin_function_range_starts_at_each_text_symbol)
 #endif
 #if defined (HAVE_WINDOWS) || defined (HAVE_DARWIN)
   TESTENTRY (process_malloc_ranges)
@@ -146,6 +147,7 @@ struct _TestStackLeakProbe
 
 typedef struct _TestDarwinRangesContext TestDarwinRangesContext;
 typedef struct _ExportSearch ExportSearch;
+typedef struct _TestFunctionRangeCheck TestFunctionRangeCheck;
 
 struct _TestDarwinRangesContext
 {
@@ -165,6 +167,12 @@ struct _ExportSearch
   GumExportType type;
   const gchar * name;
   GumAddress result;
+};
+
+struct _TestFunctionRangeCheck
+{
+  GumAddress image_base;
+  guint num_functions;
 };
 
 #endif
@@ -201,6 +209,8 @@ static void check_darwin_file_range (const GumRangeDetails * details,
     const gchar * path, gsize size);
 static gboolean process_potential_export_search_result (
     const GumExportDetails * details, gpointer user_data);
+static gboolean check_function_range_starts_at_symbol (
+    const GumSymbolDetails * details, gpointer user_data);
 #endif
 
 static GThread * create_sleeping_dummy_thread_sync (const gchar * name,
@@ -1500,6 +1510,23 @@ TESTCASE (darwin_module_resolver_should_resolve_chkstk)
   g_object_unref (resolver);
 }
 
+TESTCASE (darwin_function_range_starts_at_each_text_symbol)
+{
+  GumModule * module;
+  TestFunctionRangeCheck check;
+
+  module = gum_process_find_module_by_name (GUM_TESTS_MODULE_NAME);
+  g_assert_nonnull (module);
+
+  check.image_base = gum_module_get_range (module)->base_address;
+  check.num_functions = 0;
+  gum_module_enumerate_symbols (module, check_function_range_starts_at_symbol,
+      &check);
+  g_assert_cmpuint (check.num_functions, >, 1);
+
+  g_object_unref (module);
+}
+
 static gboolean
 assign_true_if_core_foundation (GumModule * module,
                                 gpointer user_data)
@@ -1622,6 +1649,29 @@ process_potential_export_search_result (const GumExportDetails * details,
     search->result = details->address;
     return FALSE;
   }
+
+  return TRUE;
+}
+
+static gboolean
+check_function_range_starts_at_symbol (const GumSymbolDetails * details,
+                                       gpointer user_data)
+{
+  TestFunctionRangeCheck * check = user_data;
+  gboolean is_text_symbol;
+  GumMemoryRange range;
+
+  is_text_symbol = details->type == GUM_SYMBOL_SECTION &&
+      g_str_has_suffix (details->section->id, ".__TEXT.__text") &&
+      details->address != check->image_base;
+  if (!is_text_symbol)
+    return TRUE;
+
+  g_assert_true (gum_process_find_function_range (
+      GSIZE_TO_POINTER (details->address), &range));
+  g_assert_cmphex (range.base_address, ==, details->address);
+
+  check->num_functions++;
 
   return TRUE;
 }

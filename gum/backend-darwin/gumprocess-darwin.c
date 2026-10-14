@@ -2,7 +2,7 @@
  * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2022-2025 Francesco Tamagni <mrmacete@protonmail.ch>
- * Copyright (C) 2022-2025 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2022-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2023 Alex Soler <asoler@nowsecure.com>
  * Copyright (C) 2023 Grant Douglas <me@hexplo.it>
  *
@@ -59,6 +59,7 @@
     ((ts).__fp = (uintptr_t) (ptr))
 #endif
 
+typedef struct _GumFunctionStartsLookup GumFunctionStartsLookup;
 typedef struct _GumSetHardwareBreakpointContext GumSetHardwareBreakpointContext;
 typedef struct _GumSetHardwareWatchpointContext GumSetHardwareWatchpointContext;
 typedef void (* GumModifyDebugRegistersFunc) (GumDarwinNativeDebugState * ds,
@@ -66,6 +67,14 @@ typedef void (* GumModifyDebugRegistersFunc) (GumDarwinNativeDebugState * ds,
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
 typedef struct _GumFindModuleByNameContext GumFindModuleByNameContext;
+
+struct _GumFunctionStartsLookup
+{
+  GumAddress address;
+  GumAddress image_base;
+  GumMemoryRange * range;
+  gboolean found;
+};
 
 struct _GumSetHardwareBreakpointContext
 {
@@ -119,6 +128,10 @@ extern void os_unfair_lock_lock_with_options (os_unfair_lock_t lock,
     GumUnfairLockOptions options);
 
 static void gum_deinit_libc_module (void);
+static gboolean gum_store_function_range_from_starts (
+    const GumDarwinFunctionStartsDetails * details, gpointer user_data);
+static gboolean gum_store_section_end_as_function_end (
+    const GumDarwinSectionDetails * details, gpointer user_data);
 static void gum_do_set_hardware_breakpoint (GumDarwinNativeDebugState * ds,
     gpointer user_data);
 static void gum_do_unset_hardware_breakpoint (GumDarwinNativeDebugState * ds,
@@ -386,6 +399,107 @@ _gum_process_collect_main_module (GumModule * module,
   }
 
   return TRUE;
+}
+
+gboolean
+_gum_darwin_find_function_range_from_function_starts (gconstpointer address,
+                                                      GumMemoryRange * range)
+{
+  GumModule * module;
+  GumDarwinModule * darwin_module;
+  GumFunctionStartsLookup lookup;
+  gboolean contains_address;
+
+  module = gum_process_find_module_by_address (GUM_ADDRESS (address));
+  if (module == NULL)
+    return FALSE;
+
+  darwin_module =
+      _gum_native_module_get_darwin_module (GUM_NATIVE_MODULE (module));
+
+  lookup.address = GUM_ADDRESS (address);
+  lookup.image_base = gum_module_get_range (module)->base_address;
+  lookup.range = range;
+  lookup.found = FALSE;
+  gum_darwin_module_enumerate_function_starts (darwin_module,
+      gum_store_function_range_from_starts, &lookup);
+
+  if (lookup.found && range->size == 0)
+  {
+    gum_darwin_module_enumerate_sections (darwin_module,
+        gum_store_section_end_as_function_end, range);
+  }
+
+  contains_address = lookup.found &&
+      lookup.address < range->base_address + range->size;
+
+  g_object_unref (module);
+
+  return contains_address;
+}
+
+static gboolean
+gum_store_function_range_from_starts (
+    const GumDarwinFunctionStartsDetails * details,
+    gpointer user_data)
+{
+  GumFunctionStartsLookup * lookup = user_data;
+  GumMemoryRange * range = lookup->range;
+  const guint8 * p, * end;
+  GumAddress function;
+
+  p = GSIZE_TO_POINTER (details->vm_address);
+  end = p + details->size;
+
+  function = lookup->image_base + gum_read_uleb128 (&p, end);
+  if (lookup->address < function)
+    return FALSE;
+
+  while (p != end)
+  {
+    guint64 delta;
+    GumAddress next;
+
+    delta = gum_read_uleb128 (&p, end);
+    if (delta == 0)
+      break;
+
+    next = function + delta;
+    if (lookup->address < next)
+    {
+      range->base_address = function;
+      range->size = next - function;
+      lookup->found = TRUE;
+      return FALSE;
+    }
+
+    function = next;
+  }
+
+  range->base_address = function;
+  range->size = 0;
+  lookup->found = TRUE;
+
+  return FALSE;
+}
+
+static gboolean
+gum_store_section_end_as_function_end (
+    const GumDarwinSectionDetails * details,
+    gpointer user_data)
+{
+  GumMemoryRange * range = user_data;
+  GumAddress section_end = details->vm_address + details->size;
+
+  if (range->base_address < details->vm_address ||
+      range->base_address >= section_end)
+  {
+    return TRUE;
+  }
+
+  range->size = section_end - range->base_address;
+
+  return FALSE;
 }
 
 void
