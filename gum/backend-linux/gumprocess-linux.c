@@ -400,6 +400,9 @@ static gboolean gum_linux_get_threads_from_list (
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
+#ifdef HAVE_PTHREAD_ATTR_GETSTACK
+static size_t gum_linux_query_guard_size (const pthread_attr_t * attr);
+#endif
 static void gum_do_set_hardware_breakpoint (GumThreadId thread_id,
     GumRegs * regs, gpointer user_data);
 static void gum_do_unset_hardware_breakpoint (GumThreadId thread_id,
@@ -438,6 +441,7 @@ static void gum_test_by_address_context_free (GumTestByAddressContext * ctx);
 static gboolean gum_test_pthread_globals_if_containing_address (
     const GumRangeDetails * details, GumTestByAddressContext * fc);
 static gboolean gum_linux_find_lock (GumLinuxPThreadSpec * spec);
+static gboolean gum_linux_stack_includes_guard (void);
 static gboolean gum_linux_get_libc_version (guint * major, guint * minor);
 static gboolean gum_linux_find_start_impl (GumLinuxPThreadSpec * spec);
 #if defined (HAVE_I386)
@@ -1809,8 +1813,7 @@ gum_thread_try_get_ranges (GumMemoryRange * ranges,
   if (pthread_attr_getstack (&attr, &stack_addr, &stack_size) != 0)
     goto beach;
 
-  guard_size = 0;
-  pthread_attr_getguardsize (&attr, &guard_size);
+  guard_size = gum_linux_query_guard_size (&attr);
 
   range = &ranges[n++];
   range->base_address = GUM_ADDRESS (stack_addr) - guard_size;
@@ -1835,6 +1838,24 @@ beach:
   return 0;
 #endif
 }
+
+#ifdef HAVE_PTHREAD_ATTR_GETSTACK
+static size_t
+gum_linux_query_guard_size (const pthread_attr_t * attr)
+{
+  size_t guard_size;
+
+#ifdef HAVE_GLIBC
+  if (gum_linux_stack_includes_guard ())
+    return 0;
+#endif
+
+  guard_size = 0;
+  pthread_attr_getguardsize (attr, &guard_size);
+
+  return guard_size;
+}
+#endif
 
 gint
 gum_thread_get_system_error (void)
@@ -3710,6 +3731,17 @@ gum_linux_find_lock (GumLinuxPThreadSpec * spec)
       G_STRUCT_OFFSET (GumLinuxGlobalsFragment, _dl_stack_cache_lock));
 
   return TRUE;
+}
+
+static gboolean
+gum_linux_stack_includes_guard (void)
+{
+  guint major, minor;
+
+  if (!gum_linux_get_libc_version (&major, &minor))
+    return FALSE;
+
+  return major < 2 || (major == 2 && minor < 27);
 }
 
 static gboolean
