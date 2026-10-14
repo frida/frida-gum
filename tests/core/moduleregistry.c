@@ -12,6 +12,9 @@
 #include "guminterceptor.h"
 #include "testutil.h"
 
+#ifdef HAVE_WINDOWS
+# include <windows.h>
+#endif
 #ifdef HAVE_LINUX
 # include "interceptor-callbacklistener.h"
 # include <dlfcn.h>
@@ -40,12 +43,21 @@ static void on_module_added (GumModuleRegistry * registry, GumModule * module,
 static void on_module_removed (GumModuleRegistry * registry, GumModule * module,
     gpointer user_data);
 
+#ifdef HAVE_WINDOWS
+
+# define GUM_DEPENDENT_MODULE_FILENAME "module-registry-dependent.dll"
+# define GUM_DEPENDENCY_MODULE_FILENAME "module-registry-dependency.dll"
+
+static gboolean store_dependency_module (GumModule * module,
+    gpointer user_data);
+
+#endif
+
 #ifdef HAVE_LINUX
 
 # define GUM_TARGET_MODULE_FILENAME "module-registry-target.so"
 # define GUM_DEPENDENT_MODULE_FILENAME "module-registry-dependent.so"
 # define GUM_DEPENDENCY_MODULE_FILENAME "module-registry-dependency.so"
-# define GUM_DEPENDENCY_MODULE_EXPORT "gum_module_registry_dependency_function"
 # define GUM_NONZERO_VADDR_MODULE_FILENAME \
     "module-registry-target-nonzero-vaddr.so"
 # define GUM_NONZERO_VADDR_MODULE_LINK_ADDRESS 0x400000
@@ -75,6 +87,10 @@ static void assert_nonzero_vaddr_module_found_at_its_header (
 static void on_nonzero_vaddr_module_added (GumModuleRegistry * registry,
     GumModule * module, gpointer user_data);
 
+#endif
+
+#if defined (HAVE_WINDOWS) || defined (HAVE_LINUX)
+# define GUM_DEPENDENCY_MODULE_EXPORT "gum_module_registry_dependency_function"
 #endif
 
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID) && \
@@ -199,7 +215,45 @@ TESTCASE (hooks_should_be_discarded_when_module_unloads)
 
 TESTCASE (dependency_export_can_be_found)
 {
-#ifdef HAVE_LINUX
+#if defined (HAVE_WINDOWS)
+  gchar * data_dir, * target_path;
+  gunichar2 * target_path_utf16;
+  HMODULE handle;
+  GumModule * module = NULL;
+  GumAddress address;
+
+  gum_module_registry_obtain ();
+
+  data_dir = test_util_get_data_dir ();
+  target_path = g_build_filename (data_dir, GUM_DEPENDENT_MODULE_FILENAME,
+      NULL);
+  target_path_utf16 = g_utf8_to_utf16 (target_path, -1, NULL, NULL, NULL);
+
+  handle = LoadLibraryExW ((LPCWSTR) target_path_utf16, NULL,
+      LOAD_WITH_ALTERED_SEARCH_PATH);
+  g_assert_nonnull (handle);
+
+  gum_process_enumerate_modules (store_dependency_module, &module);
+  g_assert_nonnull (module);
+
+  address = gum_module_find_export_by_name (module,
+      GUM_DEPENDENCY_MODULE_EXPORT);
+  g_assert_cmphex (address, ==, GUM_ADDRESS (GetProcAddress (
+      GetModuleHandleA (GUM_DEPENDENCY_MODULE_FILENAME),
+      GUM_DEPENDENCY_MODULE_EXPORT)));
+
+  g_object_unref (module);
+  module = NULL;
+
+  FreeLibrary (handle);
+
+  gum_process_enumerate_modules (store_dependency_module, &module);
+  g_assert_null (module);
+
+  g_free (target_path_utf16);
+  g_free (target_path);
+  g_free (data_dir);
+#elif defined (HAVE_LINUX)
   gchar * data_dir, * target_path;
   void * handle;
   GumModule * module;
@@ -227,7 +281,7 @@ TESTCASE (dependency_export_can_be_found)
   g_free (target_path);
   g_free (data_dir);
 #else
-  g_test_skip ("only supported on Linux");
+  g_test_skip ("only supported on Windows and Linux");
 #endif
 }
 
@@ -408,6 +462,25 @@ on_module_removed (GumModuleRegistry * registry,
 {
   g_printerr ("%s: path=\"%s\"\n", G_STRFUNC, gum_module_get_path (module));
 }
+
+#ifdef HAVE_WINDOWS
+
+static gboolean
+store_dependency_module (GumModule * module,
+                         gpointer user_data)
+{
+  GumModule ** result = user_data;
+
+  if (!g_str_has_suffix (gum_module_get_path (module),
+      G_DIR_SEPARATOR_S GUM_DEPENDENCY_MODULE_FILENAME))
+    return TRUE;
+
+  *result = g_object_ref (module);
+
+  return FALSE;
+}
+
+#endif
 
 #ifdef HAVE_LINUX
 

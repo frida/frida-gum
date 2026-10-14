@@ -4,6 +4,9 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#ifdef _WIN32
+__declspec (dllexport)
+#endif
 int
 gum_module_registry_dependency_function (void)
 {

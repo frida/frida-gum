@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -56,9 +57,7 @@ TESTLIST_BEGIN (testutil)
   TESTENTRY (xml_multiline_diff_same_size)
 TESTLIST_END ()
 
-#ifndef HAVE_WINDOWS
 static gchar * find_data_dir_from_executable_path (const gchar * path);
-#endif
 
 static gchar * byte_array_to_hex_string (const guint8 * bytes, guint length);
 static gchar * byte_array_to_bin_string (const guint8 * bytes, guint length);
@@ -302,8 +301,16 @@ gchar *
 test_util_get_data_dir (void)
 {
 #if defined (HAVE_WINDOWS)
-  g_assert_not_reached (); /* FIXME: once this is needed on Windows */
-  return NULL;
+  WCHAR path_utf16[MAX_PATH];
+  gchar * path, * result;
+
+  GetModuleFileNameW (NULL, path_utf16, G_N_ELEMENTS (path_utf16));
+  path = g_utf16_to_utf8 ((const gunichar2 *) path_utf16, -1, NULL, NULL,
+      NULL);
+  result = find_data_dir_from_executable_path (path);
+  g_free (path);
+
+  return result;
 #elif defined (HAVE_DARWIN)
   guint image_count, image_idx;
 
@@ -346,8 +353,6 @@ test_util_get_data_dir (void)
 #endif
 }
 
-#ifndef HAVE_WINDOWS
-
 static gchar *
 find_data_dir_from_executable_path (const gchar * path)
 {
@@ -359,8 +364,6 @@ find_data_dir_from_executable_path (const gchar * path)
 
   return result;
 }
-
-#endif
 
 const gchar *
 test_util_get_system_module_name (void)
