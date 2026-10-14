@@ -52,6 +52,8 @@
 #endif
 
 #ifdef GUM_FUNCTION_RANGE_USES_EXIDX
+# define GUM_EXIDX_CANTUNWIND 1
+
 typedef gsize _Unwind_Ptr;
 #endif
 
@@ -687,6 +689,9 @@ gum_find_function_range_from_unwind_info (gconstpointer address,
       break;
   }
   if (match == -1 || match == count - 1)
+    return FALSE;
+
+  if (entries[2 * match + 1] == GUM_EXIDX_CANTUNWIND)
     return FALSE;
 
   range->base_address = gum_decode_prel31 (&entries[2 * match]);
