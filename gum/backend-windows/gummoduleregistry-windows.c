@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,36 +12,18 @@
 
 #include <psapi.h>
 
-typedef struct _GumLdrLoadDllInvocation GumLdrLoadDllInvocation;
-typedef struct _GumLdrUnloadDllInvocation GumLdrUnloadDllInvocation;
-
-struct _GumLdrLoadDllInvocation
-{
-  HMODULE * module_handle;
-};
-
-struct _GumLdrUnloadDllInvocation
-{
-  HMODULE module_handle;
-};
-
-static void gum_register_existing_modules (GumModuleRegistry * registry);
 static void gum_hook_loader (GumModuleRegistry * registry);
 static void gum_unhook_loader (void);
-static void gum_module_registry_load_dll_on_enter (GumInvocationContext * ic,
+static void gum_module_registry_on_loader_leave (GumInvocationContext * ic,
     gpointer user_data);
-static void gum_module_registry_load_dll_on_leave (GumInvocationContext * ic,
-    gpointer user_data);
-static void gum_module_registry_unload_dll_on_enter (GumInvocationContext * ic,
-    gpointer user_data);
-static void gum_module_registry_unload_dll_on_leave (GumInvocationContext * ic,
-    gpointer user_data);
+static void gum_module_registry_synchronize_modules (
+    GumModuleRegistry * registry);
+static GHashTable * gum_snapshot_loaded_modules (void);
 
 static GHashTable * gum_current_modules;
 
 static GumInterceptor * gum_ldr_interceptor;
-static GumInvocationListener * gum_load_handler;
-static GumInvocationListener * gum_unload_handler;
+static GumInvocationListener * gum_loader_handler;
 
 void
 _gum_module_registry_activate (GumModuleRegistry * self)
@@ -48,7 +31,7 @@ _gum_module_registry_activate (GumModuleRegistry * self)
   gum_current_modules = g_hash_table_new (NULL, NULL);
 
   gum_hook_loader (self);
-  gum_register_existing_modules (self);
+  gum_module_registry_synchronize_modules (self);
 }
 
 void
@@ -57,47 +40,6 @@ _gum_module_registry_deactivate (GumModuleRegistry * self)
   gum_unhook_loader ();
 
   g_clear_pointer (&gum_current_modules, g_hash_table_unref);
-}
-
-static void
-gum_register_existing_modules (GumModuleRegistry * registry)
-{
-  HANDLE this_process;
-  HMODULE first_module;
-  DWORD modules_size = 0;
-  HMODULE * modules = NULL;
-  guint mod_idx;
-
-  this_process = GetCurrentProcess ();
-
-  if (!EnumProcessModules (this_process, &first_module, sizeof (first_module),
-      &modules_size))
-    goto beach;
-
-  modules = g_malloc (modules_size);
-
-  if (!EnumProcessModules (this_process, modules, modules_size, &modules_size))
-    goto beach;
-
-  gum_module_registry_lock (registry);
-
-  for (mod_idx = 0; mod_idx != modules_size / sizeof (HMODULE); mod_idx++)
-  {
-    GumNativeModule * module;
-
-    g_hash_table_add (gum_current_modules, modules[mod_idx]);
-
-    module = _gum_native_module_make (modules[mod_idx]);
-
-    _gum_module_registry_register (registry, GUM_MODULE (module));
-
-    g_object_unref (module);
-  }
-
-  gum_module_registry_unlock (registry);
-
-beach:
-  g_free (modules);
 }
 
 static void
@@ -114,19 +56,13 @@ gum_hook_loader (GumModuleRegistry * registry)
     g_error ("Unsupported Windows version; please file a bug");
 
   gum_ldr_interceptor = gum_interceptor_obtain ();
-  gum_load_handler = gum_make_call_listener (
-      gum_module_registry_load_dll_on_enter,
-      gum_module_registry_load_dll_on_leave,
-      registry, NULL);
-  gum_unload_handler = gum_make_call_listener (
-      gum_module_registry_unload_dll_on_enter,
-      gum_module_registry_unload_dll_on_leave,
-      registry, NULL);
+  gum_loader_handler = gum_make_call_listener (NULL,
+      gum_module_registry_on_loader_leave, registry, NULL);
 
   gum_interceptor_begin_transaction (gum_ldr_interceptor);
-  gum_interceptor_attach (gum_ldr_interceptor, load_impl, gum_load_handler,
+  gum_interceptor_attach (gum_ldr_interceptor, load_impl, gum_loader_handler,
       &options);
-  gum_interceptor_attach (gum_ldr_interceptor, unload_impl, gum_unload_handler,
+  gum_interceptor_attach (gum_ldr_interceptor, unload_impl, gum_loader_handler,
       &options);
   gum_interceptor_end_transaction (gum_ldr_interceptor);
 }
@@ -134,99 +70,109 @@ gum_hook_loader (GumModuleRegistry * registry)
 static void
 gum_unhook_loader (void)
 {
-  if (gum_load_handler == NULL)
+  if (gum_loader_handler == NULL)
     return;
 
-  gum_interceptor_begin_transaction (gum_ldr_interceptor);
-  gum_interceptor_detach (gum_ldr_interceptor, gum_unload_handler);
-  gum_interceptor_detach (gum_ldr_interceptor, gum_load_handler);
-  gum_interceptor_end_transaction (gum_ldr_interceptor);
+  gum_interceptor_detach (gum_ldr_interceptor, gum_loader_handler);
 
-  g_object_unref (gum_unload_handler);
-  g_object_unref (gum_load_handler);
+  g_object_unref (gum_loader_handler);
   g_object_unref (gum_ldr_interceptor);
-  gum_unload_handler = NULL;
-  gum_load_handler = NULL;
+  gum_loader_handler = NULL;
   gum_ldr_interceptor = NULL;
 }
 
 static void
-gum_module_registry_load_dll_on_enter (GumInvocationContext * ic,
-                                       gpointer user_data)
+gum_module_registry_on_loader_leave (GumInvocationContext * ic,
+                                     gpointer user_data)
 {
-  GumLdrLoadDllInvocation * invocation =
-      GUM_IC_GET_INVOCATION_DATA (ic, GumLdrLoadDllInvocation);
-  invocation->module_handle = gum_invocation_context_get_nth_argument (ic, 3);
+  gum_module_registry_synchronize_modules (user_data);
 }
 
 static void
-gum_module_registry_load_dll_on_leave (GumInvocationContext * ic,
-                                       gpointer user_data)
+gum_module_registry_synchronize_modules (GumModuleRegistry * registry)
 {
-  GumModuleRegistry * self = user_data;
-  NTSTATUS status;
-  GumLdrLoadDllInvocation * invocation;
-  HMODULE handle;
+  GHashTable * modules;
+  GHashTableIter iter;
+  gpointer handle;
+  GQueue added = G_QUEUE_INIT;
+  GQueue removed = G_QUEUE_INIT;
 
-  status = GPOINTER_TO_SIZE (gum_invocation_context_get_return_value (ic));
-  if (status != 0)
-    return;
+  gum_module_registry_lock (registry);
 
-  invocation = GUM_IC_GET_INVOCATION_DATA (ic, GumLdrLoadDllInvocation);
+  modules = gum_snapshot_loaded_modules ();
+  if (modules == NULL)
+    goto beach;
 
-  handle = *invocation->module_handle;
-
-  gum_module_registry_lock (self);
-
-  if (!g_hash_table_contains (gum_current_modules, handle))
+  g_hash_table_iter_init (&iter, modules);
+  while (g_hash_table_iter_next (&iter, &handle, NULL))
   {
-    GumNativeModule * module;
+    if (!g_hash_table_contains (gum_current_modules, handle))
+      g_queue_push_tail (&added, handle);
+  }
 
-    g_hash_table_add (gum_current_modules, handle);
+  g_hash_table_iter_init (&iter, gum_current_modules);
+  while (g_hash_table_iter_next (&iter, &handle, NULL))
+  {
+    if (!g_hash_table_contains (modules, handle))
+      g_queue_push_tail (&removed, handle);
+  }
 
-    module = _gum_native_module_make (handle);
+  g_hash_table_unref (gum_current_modules);
+  gum_current_modules = modules;
 
-    _gum_module_registry_register (self, GUM_MODULE (module));
+  while ((handle = g_queue_pop_head (&removed)) != NULL)
+    _gum_module_registry_unregister (registry, GUM_ADDRESS (handle));
+
+  while ((handle = g_queue_pop_head (&added)) != NULL)
+  {
+    GumNativeModule * module = _gum_native_module_make (handle);
+
+    _gum_module_registry_register (registry, GUM_MODULE (module));
 
     g_object_unref (module);
   }
 
-  gum_module_registry_unlock (self);
+beach:
+  gum_module_registry_unlock (registry);
 }
 
-static void
-gum_module_registry_unload_dll_on_enter (GumInvocationContext * ic,
-                                         gpointer user_data)
+static GHashTable *
+gum_snapshot_loaded_modules (void)
 {
-  GumLdrUnloadDllInvocation * invocation =
-      GUM_IC_GET_INVOCATION_DATA (ic, GumLdrUnloadDllInvocation);
-  invocation->module_handle = gum_invocation_context_get_nth_argument (ic, 0);
-}
+  GHashTable * modules;
+  HANDLE this_process;
+  HMODULE * handles;
+  DWORD size, needed;
+  guint n, i;
 
-static void
-gum_module_registry_unload_dll_on_leave (GumInvocationContext * ic,
-                                         gpointer user_data)
-{
-  GumModuleRegistry * self = user_data;
-  GumLdrUnloadDllInvocation * invocation;
-  HMODULE handle;
+  this_process = GetCurrentProcess ();
 
-  invocation = GUM_IC_GET_INVOCATION_DATA (ic, GumLdrUnloadDllInvocation);
+  size = sizeof (HMODULE);
+  handles = g_malloc (size);
 
-  if (!GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-        (LPCWSTR) invocation->module_handle,
-        &handle))
+  while (TRUE)
   {
-    gum_module_registry_lock (self);
+    if (!EnumProcessModules (this_process, handles, size, &needed))
+      goto failure;
+    if (needed <= size)
+      break;
+    size = needed;
+    handles = g_realloc (handles, size);
+  }
 
-    if (g_hash_table_contains (gum_current_modules, invocation->module_handle))
-    {
-      g_hash_table_remove (gum_current_modules, invocation->module_handle);
-      _gum_module_registry_unregister (self,
-          GUM_ADDRESS (invocation->module_handle));
-    }
+  modules = g_hash_table_new (NULL, NULL);
 
-    gum_module_registry_unlock (self);
+  n = needed / sizeof (HMODULE);
+  for (i = 0; i != n; i++)
+    g_hash_table_add (modules, handles[i]);
+
+  g_free (handles);
+
+  return modules;
+
+failure:
+  {
+    g_free (handles);
+    return NULL;
   }
 }

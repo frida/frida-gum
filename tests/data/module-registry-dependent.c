@@ -6,6 +6,9 @@
 
 int gum_module_registry_dependency_function (void);
 
+#ifdef _WIN32
+__declspec (dllexport)
+#endif
 int
 gum_module_registry_dependent_function (void)
 {

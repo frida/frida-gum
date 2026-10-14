@@ -56,15 +56,6 @@ if host_os_family != 'windows'
     name_prefix: '',
   )
 
-  module_registry_dependency = shared_library('module-registry-dependency',
-    'module-registry-dependency.c',
-    name_prefix: '',
-  )
-  shared_module('module-registry-dependent', 'module-registry-dependent.c',
-    name_prefix: '',
-    link_with: module_registry_dependency,
-  )
-
   nonzero_vaddr_link_arg = '-Wl,-Ttext-segment=0x400000'
   if host_os == 'linux' and cc.has_link_argument(nonzero_vaddr_link_arg)
     shared_module('module-registry-target-nonzero-vaddr',
@@ -76,3 +67,12 @@ if host_os_family != 'windows'
 else
   test_data_stamp = []
 endif
+
+module_registry_dependency = shared_library('module-registry-dependency',
+  'module-registry-dependency.c',
+  name_prefix: '',
+)
+shared_module('module-registry-dependent', 'module-registry-dependent.c',
+  name_prefix: '',
+  link_with: module_registry_dependency,
+)
