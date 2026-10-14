@@ -167,7 +167,12 @@ _gum_quick_instruction_new (JSContext * ctx,
     memcpy (insn_copy, insn, sizeof (cs_insn));
     insn_copy->detail = detail_copy;
     if (detail_copy != NULL)
-      memcpy (detail_copy, insn->detail, sizeof (cs_detail));
+    {
+      if (insn->detail != NULL)
+        memcpy (detail_copy, insn->detail, sizeof (cs_detail));
+      else
+        memset (detail_copy, 0, sizeof (cs_detail));
+    }
 
     v->insn = insn_copy;
   }
@@ -356,7 +361,12 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_regs_accessed)
 
   capstone = parent->capstone;
 
-  if (cs_regs_access (capstone, self->insn,
+  if (self->insn->id == 0)
+  {
+    regs_read_count = 0;
+    regs_write_count = 0;
+  }
+  else if (cs_regs_access (capstone, self->insn,
         regs_read, &regs_read_count,
         regs_write, &regs_write_count) != 0)
   {
