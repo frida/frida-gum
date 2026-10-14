@@ -180,6 +180,7 @@ struct _GumClass
 
   const GumMethodDescriptor * methods;
   guint num_methods;
+  guint vtable_offset;
 
   const GumMethodOverrideDescriptor * overrides;
   guint num_overrides;
@@ -422,7 +423,11 @@ static void gum_module_metadata_collect_class (GumModuleMetadata * self,
     const GumTypeContextDescriptor * type);
 static void gum_module_metadata_maybe_ingest_thunk (GumModuleMetadata * self,
     const gchar * name, GumAddress address);
-#ifdef HAVE_ARM64
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+static gboolean gum_x86_operand_may_be_vtable_slot (const cs_x86_op * op);
+#endif
+#if defined (HAVE_ARM64) || (defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8)
+static gint gum_find_vtable_index_in_thunk (gconstpointer thunk);
 static gchar * gum_extract_class_name (const gchar * full_name);
 static const gchar * gum_find_character_backwards (const gchar * starting_point,
     char needle, const gchar * start);
@@ -1044,6 +1049,7 @@ gum_module_metadata_collect_class (GumModuleMetadata * self,
     for (i = 0; i != klass.num_methods; i++)
     {
       const GumMethodDescriptor * method = &klass.methods[i];
+      guint vtable_index = klass.vtable_offset + i;
       gconstpointer impl;
       GumFunctionMetadata func;
 
@@ -1052,8 +1058,8 @@ gum_module_metadata_collect_class (GumModuleMetadata * self,
         continue;
 
       func.name = NULL;
-      if (vtable != NULL && i < vtable->len)
-        func.name = g_strdup (g_ptr_array_index (vtable, i));
+      if (vtable != NULL && vtable_index < vtable->len)
+        func.name = g_strdup (g_ptr_array_index (vtable, vtable_index));
       if (func.name == NULL)
         func.name = g_strdup_printf ("%s.vtable[%u]", klass.name, i);
 
@@ -1076,7 +1082,8 @@ gum_module_metadata_collect_class (GumModuleMetadata * self,
     gum_class_parse (self->resolver, &parent_class,
         gum_resolve_relative_indirectable_ptr (&od->class));
     parent_method = gum_resolve_relative_indirectable_ptr (&od->method);
-    vtable_index = parent_method - parent_class.methods;
+    vtable_index =
+        parent_class.vtable_offset + (parent_method - parent_class.methods);
 
     impl = gum_resolve_method_implementation (&od->impl, parent_method);
     if (impl == NULL)
@@ -1109,30 +1116,67 @@ gum_module_metadata_collect_class (GumModuleMetadata * self,
   gum_class_clear (&klass);
 }
 
-#ifdef HAVE_ARM64
+#if defined (HAVE_ARM64) || (defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8)
 
 static void
 gum_module_metadata_maybe_ingest_thunk (GumModuleMetadata * self,
                                         const gchar * name,
                                         GumAddress address)
 {
+  gint vtable_index;
+  const gchar * full_name;
+  gchar * class_name;
+  GPtrArray * vtable;
+
+  if (!g_str_has_prefix (name, "dispatch thunk of "))
+    return;
+
+  vtable_index = gum_find_vtable_index_in_thunk (GSIZE_TO_POINTER (address));
+  if (vtable_index == -1)
+    return;
+
+  full_name = name + strlen ("dispatch thunk of ");
+  class_name = gum_extract_class_name (full_name);
+  if (class_name == NULL)
+    return;
+
+  vtable = g_hash_table_lookup (self->vtables, class_name);
+  if (vtable == NULL)
+  {
+    vtable = g_ptr_array_new_full (64, g_free);
+    g_hash_table_insert (self->vtables, g_steal_pointer (&class_name),
+        vtable);
+  }
+
+  if (vtable_index >= vtable->len)
+    g_ptr_array_set_size (vtable, vtable_index + 1);
+  g_free (g_ptr_array_index (vtable, vtable_index));
+  g_ptr_array_index (vtable, vtable_index) = g_strdup (full_name);
+
+  g_free (class_name);
+}
+
+#ifdef HAVE_ARM64
+
+static gint
+gum_find_vtable_index_in_thunk (gconstpointer thunk)
+{
   csh capstone;
   const uint8_t * code;
   size_t size;
+  uint64_t address;
   cs_insn * insn;
   gint vtable_index, vtable_offsets[18];
   gboolean end_of_thunk;
   guint i;
 
-  if (!g_str_has_prefix (name, "dispatch thunk of "))
-    return;
-
   gum_cs_arch_register_native ();
   cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
   cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
 
-  code = GSIZE_TO_POINTER (address);
+  code = thunk;
   size = 1024;
+  address = GPOINTER_TO_SIZE (thunk);
 
   insn = cs_malloc (capstone);
 
@@ -1262,33 +1306,103 @@ gum_module_metadata_maybe_ingest_thunk (GumModuleMetadata * self,
 
   cs_close (&capstone);
 
-  if (vtable_index != -1)
-  {
-    const gchar * full_name;
-    gchar * class_name;
-    GPtrArray * vtable;
-
-    full_name = name + strlen ("dispatch thunk of ");
-    class_name = gum_extract_class_name (full_name);
-    if (class_name == NULL)
-      return;
-
-    vtable = g_hash_table_lookup (self->vtables, class_name);
-    if (vtable == NULL)
-    {
-      vtable = g_ptr_array_new_full (64, g_free);
-      g_hash_table_insert (self->vtables, g_steal_pointer (&class_name),
-          vtable);
-    }
-
-    if (vtable_index >= vtable->len)
-      g_ptr_array_set_size (vtable, vtable_index + 1);
-    g_free (g_ptr_array_index (vtable, vtable_index));
-    g_ptr_array_index (vtable, vtable_index) = g_strdup (full_name);
-
-    g_free (class_name);
-  }
+  return vtable_index;
 }
+
+#else
+
+static gint
+gum_find_vtable_index_in_thunk (gconstpointer thunk)
+{
+  csh capstone;
+  const uint8_t * code;
+  size_t size;
+  uint64_t address;
+  cs_insn * insn;
+  gint vtable_index, vtable_offsets[X86_REG_ENDING];
+  gboolean end_of_thunk;
+  guint i;
+
+  gum_cs_arch_register_native ();
+  cs_open (GUM_DEFAULT_CS_ARCH, GUM_DEFAULT_CS_MODE, &capstone);
+  cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+
+  code = thunk;
+  size = 1024;
+  address = GPOINTER_TO_SIZE (thunk);
+
+  insn = cs_malloc (capstone);
+
+  vtable_index = -1;
+  for (i = 0; i != G_N_ELEMENTS (vtable_offsets); i++)
+    vtable_offsets[i] = -1;
+  end_of_thunk = FALSE;
+
+  while (vtable_index == -1 && !end_of_thunk &&
+      cs_disasm_iter (capstone, &code, &size, &address, insn))
+  {
+    const cs_x86_op * ops = insn->detail->x86.operands;
+
+    switch (insn->id)
+    {
+      case X86_INS_MOV:
+      {
+        const cs_x86_op * dst = &ops[0];
+        const cs_x86_op * src = &ops[1];
+
+        if (dst->type != X86_OP_REG)
+          break;
+
+        vtable_offsets[dst->reg] = gum_x86_operand_may_be_vtable_slot (src)
+            ? src->mem.disp
+            : -1;
+
+        break;
+      }
+      case X86_INS_JMP:
+      case X86_INS_CALL:
+      {
+        const cs_x86_op * target = &ops[0];
+        gint offset;
+
+        if (insn->id == X86_INS_JMP)
+          end_of_thunk = TRUE;
+
+        if (gum_x86_operand_may_be_vtable_slot (target))
+        {
+          vtable_index = target->mem.disp / sizeof (gpointer);
+        }
+        else if (target->type == X86_OP_REG &&
+            (offset = vtable_offsets[target->reg]) != -1)
+        {
+          vtable_index = offset / sizeof (gpointer);
+        }
+
+        break;
+      }
+      case X86_INS_RET:
+        end_of_thunk = TRUE;
+        break;
+    }
+  }
+
+  cs_free (insn, 1);
+
+  cs_close (&capstone);
+
+  return vtable_index;
+}
+
+static gboolean
+gum_x86_operand_may_be_vtable_slot (const cs_x86_op * op)
+{
+  return op->type == X86_OP_MEM &&
+      op->mem.base != X86_REG_RIP &&
+      op->mem.base != X86_REG_RBP &&
+      op->mem.base != X86_REG_RSP;
+}
+
+#endif
 
 static gchar *
 gum_extract_class_name (const gchar * full_name)
@@ -1659,6 +1773,7 @@ gum_class_parse (GumSwiftApiResolver * resolver,
 
     klass->methods = methods;
     klass->num_methods = vth->vtable_size;
+    klass->vtable_offset = vth->vtable_offset;
 
     trailer = methods + vth->vtable_size;
   }

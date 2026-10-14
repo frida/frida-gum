@@ -24,6 +24,7 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (swift_functions_in_libswiftcore_can_be_resolved)
   TESTENTRY (swift_conformances_in_libswiftcore_can_be_resolved)
   TESTENTRY (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
+  TESTENTRY (swift_vtable_slots_in_libswiftcore_are_named_from_dispatch_thunks)
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
 #endif
@@ -619,6 +620,59 @@ TESTCASE (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
       "types:*!swift.int/i", collect_match, matches, &error);
   g_assert_no_error (error);
   g_assert_cmpuint (g_hash_table_size (matches), ==, 1);
+  g_hash_table_unref (matches);
+
+  close_swift_core (swift_core);
+}
+
+TESTCASE (swift_vtable_slots_in_libswiftcore_are_named_from_dispatch_thunks)
+{
+  gpointer swift_core;
+  GumAddress expected_address, address;
+  GHashTable * matches;
+  GError * error = NULL;
+
+  swift_core = open_swift_core ();
+  if (swift_core == NULL)
+  {
+    g_test_skip ("Swift runtime not available");
+    return;
+  }
+
+  expected_address = find_swift_core_export (swift_core,
+      "$ss13ManagedBufferC12_doNotCallMeAByxq_Gyt_tcfC");
+  g_assert_cmpuint (expected_address, !=, 0);
+
+  fixture->resolver = gum_api_resolver_make ("swift");
+  g_assert_nonnull (fixture->resolver);
+
+  address = 0;
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "functions:*swiftCore*!dispatch thunk of *", resolve_method_impl,
+      &address, &error);
+  g_assert_no_error (error);
+  if (address == 0)
+  {
+    g_test_skip ("Swift runtime exports no dispatch thunks");
+    close_swift_core (swift_core);
+    return;
+  }
+
+  address = 0;
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "functions:*swiftCore*!Swift.ManagedBuffer.__allocating_init"
+      "(_doNotCallMe: ())*",
+      resolve_method_impl, &address, &error);
+  g_assert_no_error (error);
+  g_assert_cmphex (gum_strip_code_address (address), ==,
+      gum_strip_code_address (expected_address));
+
+  matches = make_match_table ();
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "functions:*swiftCore*!Swift.ManagedBuffer.vtable[*", collect_match,
+      matches, &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (g_hash_table_size (matches), ==, 0);
   g_hash_table_unref (matches);
 
   close_swift_core (swift_core);
