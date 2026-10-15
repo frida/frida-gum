@@ -1733,7 +1733,7 @@ gum_thumb_writer_maybe_commit_literals (GumThumbWriter * self)
 
   space_used = (self->code - self->earliest_literal_insn) * sizeof (guint16);
   space_used += self->literal_refs.length * sizeof (guint32);
-  if (space_used <= 1024)
+  if (space_used <= 1018)
     return;
 
   self->earliest_literal_insn = NULL;
