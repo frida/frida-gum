@@ -23,6 +23,7 @@
 
 #include "gummodulemap.h"
 #include "gumprocess.h"
+#include "gumswiftapiresolver-priv.h"
 
 #include <capstone.h>
 #include <string.h>
@@ -427,7 +428,6 @@ static void gum_module_metadata_maybe_ingest_thunk (GumModuleMetadata * self,
 static gboolean gum_x86_operand_may_be_vtable_slot (const cs_x86_op * op);
 #endif
 #if defined (HAVE_ARM64) || (defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8)
-static gint gum_find_vtable_index_in_thunk (gconstpointer thunk);
 static gchar * gum_extract_class_name (const gchar * full_name);
 static const gchar * gum_find_character_backwards (const gchar * starting_point,
     char needle, const gchar * start);
@@ -1131,7 +1131,8 @@ gum_module_metadata_maybe_ingest_thunk (GumModuleMetadata * self,
   if (!g_str_has_prefix (name, "dispatch thunk of "))
     return;
 
-  vtable_index = gum_find_vtable_index_in_thunk (GSIZE_TO_POINTER (address));
+  vtable_index = _gum_swift_api_resolver_find_vtable_index_in_thunk (
+      GSIZE_TO_POINTER (address));
   if (vtable_index == -1)
     return;
 
@@ -1158,8 +1159,8 @@ gum_module_metadata_maybe_ingest_thunk (GumModuleMetadata * self,
 
 #ifdef HAVE_ARM64
 
-static gint
-gum_find_vtable_index_in_thunk (gconstpointer thunk)
+gint
+_gum_swift_api_resolver_find_vtable_index_in_thunk (gconstpointer thunk)
 {
   csh capstone;
   const uint8_t * code;
@@ -1192,25 +1193,36 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
 
 #define GUM_REG_IS_TRACKED(reg) (reg >= ARM64_REG_X0 && reg <= ARM64_REG_X17)
 #define GUM_REG_INDEX(reg) (reg - ARM64_REG_X0)
+#define GUM_REG_IS_32BIT(reg) (reg >= ARM64_REG_W0 && reg <= ARM64_REG_W30)
 
     switch (insn->id)
     {
       case ARM64_INS_LDR:
+      case ARM64_INS_LDRSW:
+      case ARM64_INS_LDP:
       {
         arm64_reg dst = ops[0].reg;
-        const arm64_op_mem * src = &ops[1].mem;
+        const arm64_op_mem * src =
+            &ops[(insn->id == ARM64_INS_LDP) ? 2 : 1].mem;
+        gint slot_offset_of_base = GUM_REG_IS_TRACKED (src->base)
+            ? vtable_offsets[GUM_REG_INDEX (src->base)]
+            : -1;
+        gboolean reads_async_function_pointer = slot_offset_of_base != -1 &&
+            (insn->id == ARM64_INS_LDRSW || GUM_REG_IS_32BIT (dst));
 
-        if (GUM_REG_IS_TRACKED (dst))
+        if (reads_async_function_pointer)
         {
-          if (!(src->base == ARM64_REG_X20 && src->disp == 0))
-          {
-            /*
-             * ldr x3, [x16, #0xd0]!
-             * ...
-             * braa x3, x16
-             */
-            vtable_offsets[GUM_REG_INDEX (dst)] = src->disp;
-          }
+          vtable_index = slot_offset_of_base / sizeof (gpointer);
+        }
+        else if (insn->id == ARM64_INS_LDR && GUM_REG_IS_TRACKED (dst) &&
+            !(src->base == ARM64_REG_X20 && src->disp == 0))
+        {
+          /*
+           * ldr x3, [x16, #0xd0]!
+           * ...
+           * braa x3, x16
+           */
+          vtable_offsets[GUM_REG_INDEX (dst)] = src->disp;
         }
 
         break;
@@ -1220,6 +1232,9 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
         arm64_reg dst = ops[0].reg;
         const cs_arm64_op * src = &ops[1];
 
+        if (!GUM_REG_IS_TRACKED (dst))
+          break;
+
         /*
          * mov x17, #0x3b0
          * add x16, x16, x17
@@ -1227,8 +1242,13 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
          * ...
          * braa x7, x16
          */
-        if (src->type == ARM64_OP_IMM && GUM_REG_IS_TRACKED (dst))
+        if (src->type == ARM64_OP_IMM)
           vtable_offsets[GUM_REG_INDEX (dst)] = src->imm;
+        else if (GUM_REG_IS_TRACKED (src->reg))
+          vtable_offsets[GUM_REG_INDEX (dst)] =
+              vtable_offsets[GUM_REG_INDEX (src->reg)];
+        else
+          vtable_offsets[GUM_REG_INDEX (dst)] = -1;
 
         break;
       }
@@ -1270,18 +1290,7 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
         arm64_reg target = ops[0].reg;
         gint offset;
 
-        switch (insn->id)
-        {
-          case ARM64_INS_BR:
-          case ARM64_INS_BRAA:
-          case ARM64_INS_BRAAZ:
-          case ARM64_INS_BRAB:
-          case ARM64_INS_BRABZ:
-            end_of_thunk = TRUE;
-            break;
-          default:
-            break;
-        }
+        end_of_thunk = TRUE;
 
         if (GUM_REG_IS_TRACKED (target) &&
             (offset = vtable_offsets[GUM_REG_INDEX (target)]) != -1)
@@ -1291,6 +1300,7 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
 
         break;
       }
+      case ARM64_INS_BL:
       case ARM64_INS_RET:
       case ARM64_INS_RETAA:
       case ARM64_INS_RETAB:
@@ -1300,6 +1310,7 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
 
 #undef GUM_REG_IS_TRACKED
 #undef GUM_REG_INDEX
+#undef GUM_REG_IS_32BIT
   }
 
   cs_free (insn, 1);
@@ -1311,8 +1322,8 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
 
 #else
 
-static gint
-gum_find_vtable_index_in_thunk (gconstpointer thunk)
+gint
+_gum_swift_api_resolver_find_vtable_index_in_thunk (gconstpointer thunk)
 {
   csh capstone;
   const uint8_t * code;
@@ -1353,9 +1364,37 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
         if (dst->type != X86_OP_REG)
           break;
 
-        vtable_offsets[dst->reg] = gum_x86_operand_may_be_vtable_slot (src)
-            ? src->mem.disp
-            : -1;
+        if (src->type == X86_OP_REG)
+        {
+          vtable_offsets[dst->reg] = vtable_offsets[src->reg];
+        }
+        else if (gum_x86_operand_may_be_vtable_slot (src))
+        {
+          gboolean dereferences_slot_value = src->mem.disp == 0 &&
+              src->mem.index == X86_REG_INVALID &&
+              vtable_offsets[src->mem.base] != -1;
+
+          vtable_offsets[dst->reg] = dereferences_slot_value
+              ? vtable_offsets[src->mem.base]
+              : src->mem.disp;
+        }
+        else
+        {
+          vtable_offsets[dst->reg] = -1;
+        }
+
+        break;
+      }
+      case X86_INS_MOVSXD:
+      {
+        const cs_x86_op * src = &ops[1];
+        gint offset;
+
+        if (src->type == X86_OP_MEM &&
+            (offset = vtable_offsets[src->mem.base]) != -1)
+        {
+          vtable_index = offset / sizeof (gpointer);
+        }
 
         break;
       }
@@ -1365,8 +1404,7 @@ gum_find_vtable_index_in_thunk (gconstpointer thunk)
         const cs_x86_op * target = &ops[0];
         gint offset;
 
-        if (insn->id == X86_INS_JMP)
-          end_of_thunk = TRUE;
+        end_of_thunk = TRUE;
 
         if (gum_x86_operand_may_be_vtable_slot (target))
         {
