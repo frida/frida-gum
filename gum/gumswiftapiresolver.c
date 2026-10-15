@@ -1194,6 +1194,7 @@ _gum_swift_api_resolver_find_vtable_index_in_thunk (gconstpointer thunk)
 #define GUM_REG_IS_TRACKED(reg) (reg >= ARM64_REG_X0 && reg <= ARM64_REG_X17)
 #define GUM_REG_INDEX(reg) (reg - ARM64_REG_X0)
 #define GUM_REG_IS_32BIT(reg) (reg >= ARM64_REG_W0 && reg <= ARM64_REG_W30)
+#define GUM_PAGE_ADDRESS -2
 
     switch (insn->id)
     {
@@ -1204,25 +1205,27 @@ _gum_swift_api_resolver_find_vtable_index_in_thunk (gconstpointer thunk)
         arm64_reg dst = ops[0].reg;
         const arm64_op_mem * src =
             &ops[(insn->id == ARM64_INS_LDP) ? 2 : 1].mem;
-        gint slot_offset_of_base = GUM_REG_IS_TRACKED (src->base)
+        gint base_offset = GUM_REG_IS_TRACKED (src->base)
             ? vtable_offsets[GUM_REG_INDEX (src->base)]
             : -1;
-        gboolean reads_async_function_pointer = slot_offset_of_base != -1 &&
+        gboolean reads_async_function_pointer = base_offset >= 0 &&
             (insn->id == ARM64_INS_LDRSW || GUM_REG_IS_32BIT (dst));
 
         if (reads_async_function_pointer)
         {
-          vtable_index = slot_offset_of_base / sizeof (gpointer);
+          vtable_index = base_offset / sizeof (gpointer);
         }
-        else if (insn->id == ARM64_INS_LDR && GUM_REG_IS_TRACKED (dst) &&
-            !(src->base == ARM64_REG_X20 && src->disp == 0))
+        else if (insn->id == ARM64_INS_LDR && GUM_REG_IS_TRACKED (dst))
         {
           /*
            * ldr x3, [x16, #0xd0]!
            * ...
            * braa x3, x16
            */
-          vtable_offsets[GUM_REG_INDEX (dst)] = src->disp;
+          gboolean loads_slot = base_offset != GUM_PAGE_ADDRESS &&
+              !(src->base == ARM64_REG_X20 && src->disp == 0);
+
+          vtable_offsets[GUM_REG_INDEX (dst)] = loads_slot ? src->disp : -1;
         }
 
         break;
@@ -1252,6 +1255,15 @@ _gum_swift_api_resolver_find_vtable_index_in_thunk (gconstpointer thunk)
 
         break;
       }
+      case ARM64_INS_ADRP:
+      {
+        arm64_reg dst = ops[0].reg;
+
+        if (GUM_REG_IS_TRACKED (dst))
+          vtable_offsets[GUM_REG_INDEX (dst)] = GUM_PAGE_ADDRESS;
+
+        break;
+      }
       case ARM64_INS_ADD:
       {
         arm64_reg dst = ops[0].reg;
@@ -1263,7 +1275,7 @@ _gum_swift_api_resolver_find_vtable_index_in_thunk (gconstpointer thunk)
         {
           if (right->type == ARM64_OP_REG &&
               GUM_REG_IS_TRACKED (right->reg) &&
-              (offset = vtable_offsets[GUM_REG_INDEX (right->reg)]) != -1)
+              (offset = vtable_offsets[GUM_REG_INDEX (right->reg)]) >= 0)
           {
             vtable_index = offset / sizeof (gpointer);
           }
@@ -1293,13 +1305,17 @@ _gum_swift_api_resolver_find_vtable_index_in_thunk (gconstpointer thunk)
         end_of_thunk = TRUE;
 
         if (GUM_REG_IS_TRACKED (target) &&
-            (offset = vtable_offsets[GUM_REG_INDEX (target)]) != -1)
+            (offset = vtable_offsets[GUM_REG_INDEX (target)]) >= 0)
         {
           vtable_index = offset / sizeof (gpointer);
         }
 
         break;
       }
+      case ARM64_INS_B:
+        if (insn->detail->arm64.cc == ARM64_CC_INVALID)
+          end_of_thunk = TRUE;
+        break;
       case ARM64_INS_BL:
       case ARM64_INS_RET:
       case ARM64_INS_RETAA:
@@ -1311,6 +1327,7 @@ _gum_swift_api_resolver_find_vtable_index_in_thunk (gconstpointer thunk)
 #undef GUM_REG_IS_TRACKED
 #undef GUM_REG_INDEX
 #undef GUM_REG_IS_32BIT
+#undef GUM_PAGE_ADDRESS
   }
 
   cs_free (insn, 1);
