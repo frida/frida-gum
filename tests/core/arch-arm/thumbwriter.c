@@ -29,6 +29,7 @@ TESTLIST_BEGIN (thumbwriter)
   TESTENTRY (vpop_range)
   TESTENTRY (ldr_u32)
   TESTENTRY (ldr_u32_at_unaligned_pc_in_large_block)
+  TESTENTRY (literals_do_not_split_wide_instruction)
 #ifdef HAVE_ARM
   TESTENTRY (ldr_in_large_block)
 #endif
@@ -379,6 +380,20 @@ TESTCASE (ldr_u32_at_unaligned_pc_in_large_block)
 
   literal = (const guint8 *) fixture->output + 4 + ((ldr & 0xff) * 4);
   g_assert_cmphex (*((guint32 *) literal), ==, 0x1337);
+}
+
+TESTCASE (literals_do_not_split_wide_instruction)
+{
+  guint i;
+
+  gum_thumb_writer_put_ldr_reg_u32 (&fixture->tw, ARM_REG_R0, 0x1337);
+  for (i = 0; i != 506; i++)
+    gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_push_regs (&fixture->tw, 1, ARM_REG_R8);
+  gum_thumb_writer_flush (&fixture->tw);
+
+  assert_output_n_equals (507, 0xe92d);
+  assert_output_n_equals (508, 0x0100);
 }
 
 #ifdef HAVE_ARM

@@ -764,8 +764,6 @@ gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
   {
     guint16 mask = 0;
 
-    gum_thumb_writer_put_instruction (self, wide_template);
-
     for (reg_index = 0; reg_index != n_regs; reg_index++)
     {
       const GumArmRegInfo * ri = &items[reg_index];
@@ -773,7 +771,7 @@ gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
       mask |= (1 << ri->index);
     }
 
-    gum_thumb_writer_put_instruction (self, mask);
+    gum_thumb_writer_put_instruction_wide (self, wide_template, mask);
   }
   else
   {
@@ -1155,8 +1153,7 @@ gum_thumb_writer_put_mov_reg_cpsr (GumThumbWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
 
-  gum_thumb_writer_put_instruction (self, 0xf3ef);
-  gum_thumb_writer_put_instruction (self, 0x8000 | ri.index << 8);
+  gum_thumb_writer_put_instruction_wide (self, 0xf3ef, 0x8000 | ri.index << 8);
 }
 
 void
@@ -1167,8 +1164,7 @@ gum_thumb_writer_put_mov_cpsr_reg (GumThumbWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
 
-  gum_thumb_writer_put_instruction (self, 0xf380 | ri.index);
-  gum_thumb_writer_put_instruction (self, 0x8900);
+  gum_thumb_writer_put_instruction_wide (self, 0xf380 | ri.index, 0x8900);
 }
 
 gboolean
@@ -1313,7 +1309,8 @@ gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self,
 static void
 gum_thumb_writer_put_it_al (GumThumbWriter * self)
 {
-  gum_thumb_writer_put_instruction (self, 0xbfe8);
+  *self->code++ = GUINT16_TO_LE (0xbfe8);
+  self->pc += 2;
 }
 
 gboolean
