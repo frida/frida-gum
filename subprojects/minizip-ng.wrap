@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida/minizip-ng.git
-revision = 985d5c1505a472904a86c41d0ed74d7c83e77687
+revision = 6475b3c6f810f00d62bb5ed7ef90d4a985447909
 depth = 1
 
 [provide]
