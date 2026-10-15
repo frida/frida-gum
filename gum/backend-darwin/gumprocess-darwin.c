@@ -60,12 +60,12 @@
 #endif
 
 typedef struct _GumFunctionStartsLookup GumFunctionStartsLookup;
+typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
 typedef struct _GumSetHardwareBreakpointContext GumSetHardwareBreakpointContext;
 typedef struct _GumSetHardwareWatchpointContext GumSetHardwareWatchpointContext;
 typedef void (* GumModifyDebugRegistersFunc) (GumDarwinNativeDebugState * ds,
     gpointer user_data);
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
-typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
 typedef struct _GumFindModuleByNameContext GumFindModuleByNameContext;
 
 struct _GumFunctionStartsLookup
@@ -74,6 +74,13 @@ struct _GumFunctionStartsLookup
   GumAddress image_base;
   GumMemoryRange * range;
   gboolean found;
+};
+
+struct _GumEnumerateMallocRangesContext
+{
+  GumFoundMallocRangeFunc func;
+  gpointer user_data;
+  gboolean carry_on;
 };
 
 struct _GumSetHardwareBreakpointContext
@@ -95,13 +102,6 @@ struct _GumFindEntrypointContext
   GumAddress result;
   mach_port_t task;
   guint alignment;
-};
-
-struct _GumEnumerateMallocRangesContext
-{
-  GumFoundMallocRangeFunc func;
-  gpointer user_data;
-  gboolean carry_on;
 };
 
 struct _GumFindModuleByNameContext
@@ -132,6 +132,10 @@ static gboolean gum_store_function_range_from_starts (
     const GumDarwinFunctionStartsDetails * details, gpointer user_data);
 static gboolean gum_store_section_end_as_function_end (
     const GumDarwinSectionDetails * details, gpointer user_data);
+static void gum_emit_malloc_ranges (task_t task,
+    void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
+static kern_return_t gum_read_malloc_memory (task_t remote_task,
+    vm_address_t remote_address, vm_size_t size, void ** local_memory);
 static void gum_do_set_hardware_breakpoint (GumDarwinNativeDebugState * ds,
     gpointer user_data);
 static void gum_do_unset_hardware_breakpoint (GumDarwinNativeDebugState * ds,
@@ -142,10 +146,6 @@ static void gum_do_unset_hardware_watchpoint (GumDarwinNativeDebugState * ds,
     gpointer user_data);
 static gboolean gum_modify_debug_registers (GumThreadId thread_id,
     GumModifyDebugRegistersFunc func, gpointer user_data, GError ** error);
-static void gum_emit_malloc_ranges (task_t task,
-    void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
-static kern_return_t gum_read_malloc_memory (task_t remote_task,
-    vm_address_t remote_address, vm_size_t size, void ** local_memory);
 static gboolean gum_try_infer_sysroot (const gchar * name, gchar ** sysroot);
 static void gum_deinit_sysroot (void);
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
