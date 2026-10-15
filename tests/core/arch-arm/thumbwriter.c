@@ -30,6 +30,8 @@ TESTLIST_BEGIN (thumbwriter)
   TESTENTRY (ldr_u32)
   TESTENTRY (ldr_u32_at_unaligned_pc_in_large_block)
   TESTENTRY (literals_do_not_split_wide_instruction)
+  TESTENTRY (literals_do_not_separate_short_branch_from_label)
+  TESTENTRY (literals_do_not_hijack_label)
 #ifdef HAVE_ARM
   TESTENTRY (ldr_in_large_block)
 #endif
@@ -387,13 +389,57 @@ TESTCASE (literals_do_not_split_wide_instruction)
   guint i;
 
   gum_thumb_writer_put_ldr_reg_u32 (&fixture->tw, ARM_REG_R0, 0x1337);
-  for (i = 0; i != 506; i++)
+  for (i = 0; i != 370; i++)
     gum_thumb_writer_put_nop (&fixture->tw);
   gum_thumb_writer_put_push_regs (&fixture->tw, 1, ARM_REG_R8);
   gum_thumb_writer_flush (&fixture->tw);
 
-  assert_output_n_equals (507, 0xe92d);
-  assert_output_n_equals (508, 0x0100);
+  assert_output_n_equals (371, 0xe92d);
+  assert_output_n_equals (372, 0x0100);
+}
+
+TESTCASE (literals_do_not_separate_short_branch_from_label)
+{
+  const gchar * label = "label";
+  guint i;
+
+  gum_thumb_writer_put_ldr_reg_u32 (&fixture->tw, ARM_REG_R0, 0x1337);
+  for (i = 0; i != 370; i++)
+    gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_cbz_reg_label (&fixture->tw, ARM_REG_R1, label);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_label (&fixture->tw, label);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  g_assert_true (gum_thumb_writer_flush (&fixture->tw));
+
+  assert_output_n_equals (371, 0xb101);
+  assert_output_n_equals (372, 0xbf00);
+}
+
+TESTCASE (literals_do_not_hijack_label)
+{
+  const guint16 * branch;
+  gconstpointer label;
+  guint i, label_index;
+  guint16 insn;
+
+  gum_thumb_writer_put_ldr_reg_u32 (&fixture->tw, ARM_REG_R0, 0x1337);
+  for (i = 0; i != 370; i++)
+    gum_thumb_writer_put_nop (&fixture->tw);
+  branch = fixture->tw.code;
+  label = fixture->tw.code + 1;
+  gum_thumb_writer_put_b_label (&fixture->tw, label);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  label_index = fixture->tw.code - (guint16 *) fixture->output;
+  g_assert_true (gum_thumb_writer_put_label (&fixture->tw, label));
+  gum_thumb_writer_put_nop (&fixture->tw);
+  g_assert_true (gum_thumb_writer_flush (&fixture->tw));
+
+  insn = GUINT16_FROM_LE (*branch);
+  g_assert_cmphex (insn & 0xf800, ==, 0xe000);
+  g_assert_cmpuint (
+      (branch - (guint16 *) fixture->output) + 2 + (insn & 0x7ff), ==,
+      label_index);
 }
 
 #ifdef HAVE_ARM
