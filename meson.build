@@ -644,6 +644,7 @@ if have_inspector
       'gssapi=disabled',
       'ntlm=disabled',
       'brotli=disabled',
+      'zstd=disabled',
       'tls_check=false',
       'introspection=disabled',
       'vapi=disabled',
