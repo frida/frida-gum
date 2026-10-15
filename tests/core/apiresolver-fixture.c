@@ -7,6 +7,7 @@
 
 #include "gumapiresolver.h"
 
+#include "gumswiftapiresolver-priv.h"
 #include "testutil.h"
 #ifdef HAVE_DARWIN
 # include "backend-darwin/gumobjcapiresolver-priv.h"
