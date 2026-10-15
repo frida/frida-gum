@@ -31,6 +31,9 @@ TESTLIST_BEGIN (api_resolver)
 #endif
 #ifdef HAVE_ARM64
   TESTENTRY (swift_async_dispatch_thunk_with_ptrauth_names_its_slot)
+  TESTENTRY (swift_dispatch_thunk_with_resilient_superclass_names_its_slot)
+  TESTENTRY (swift_class_method_thunk_with_resilient_superclass_names_its_slot)
+  TESTENTRY (swift_devirtualized_dispatch_thunk_names_no_slot)
 #endif
 #ifdef HAVE_ANDROID
   TESTENTRY (linker_exports_can_be_resolved_on_android)
@@ -741,6 +744,43 @@ TESTCASE (swift_async_dispatch_thunk_with_ptrauth_names_its_slot)
 
   g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (thunk),
       ==, 28);
+}
+
+TESTCASE (swift_dispatch_thunk_with_resilient_superclass_names_its_slot)
+{
+  const guint32 thunk[] = {
+    0xf9400288, 0x90000049, 0xf9406929, 0x8b090108,
+    0xf9400d00, 0xd61f0000,
+  };
+
+  g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (thunk),
+      ==, 3);
+}
+
+TESTCASE (swift_class_method_thunk_with_resilient_superclass_names_its_slot)
+{
+  const guint32 thunk[] = {
+    0xb24403bd, 0xd10083ff, 0xa9017bfd, 0xf90007f6,
+    0x910043fd, 0x90000048, 0xf9406908, 0x8b080288,
+    0xf9400908, 0x29400109, 0x93407d29, 0x8b080121,
+    0xf90003e1, 0x940000ae, 0xf9000ac0, 0x90000008,
+    0x91398108, 0xa9002016, 0xaa0003f6, 0xf94003e0,
+    0xa9417bfd, 0x9243fbbd, 0x910083ff, 0xd61f0000,
+  };
+
+  g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (thunk),
+      ==, 2);
+}
+
+TESTCASE (swift_devirtualized_dispatch_thunk_names_no_slot)
+{
+  const guint32 thunk_and_next_function[] = {
+    0x1400048d,
+    0xf9400288, 0xf9406d00, 0xd61f0000,
+  };
+
+  g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (
+      thunk_and_next_function), ==, -1);
 }
 
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
