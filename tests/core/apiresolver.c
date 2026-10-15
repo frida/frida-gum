@@ -693,12 +693,17 @@ TESTCASE (swift_vtable_slots_in_libswiftcore_are_named_from_dispatch_thunks)
 TESTCASE (swift_async_dispatch_thunk_names_its_slot)
 {
   const guint32 thunk[] = {
-    0xb24403bd, 0xd10083ff, 0xa9017bfd, 0xf90007f6,
-    0x910043fd, 0xf9400288, 0xf9407108, 0x29400109,
-    0x93407d29, 0x8b080121, 0xf90003e1, 0x94000065,
-    0xf9000ac0, 0x90000008, 0x91307108, 0xa9002016,
-    0xaa0003f6, 0xf94003e0, 0xa9417bfd, 0x9243fbbd,
-    0x910083ff, 0xd61f0000,
+    GUINT32_TO_LE (0xb24403bd), GUINT32_TO_LE (0xd10083ff),
+    GUINT32_TO_LE (0xa9017bfd), GUINT32_TO_LE (0xf90007f6),
+    GUINT32_TO_LE (0x910043fd), GUINT32_TO_LE (0xf9400288),
+    GUINT32_TO_LE (0xf9407108), GUINT32_TO_LE (0x29400109),
+    GUINT32_TO_LE (0x93407d29), GUINT32_TO_LE (0x8b080121),
+    GUINT32_TO_LE (0xf90003e1), GUINT32_TO_LE (0x94000065),
+    GUINT32_TO_LE (0xf9000ac0), GUINT32_TO_LE (0x90000008),
+    GUINT32_TO_LE (0x91307108), GUINT32_TO_LE (0xa9002016),
+    GUINT32_TO_LE (0xaa0003f6), GUINT32_TO_LE (0xf94003e0),
+    GUINT32_TO_LE (0xa9417bfd), GUINT32_TO_LE (0x9243fbbd),
+    GUINT32_TO_LE (0x910083ff), GUINT32_TO_LE (0xd61f0000),
   };
 
   g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (thunk),
@@ -708,12 +713,17 @@ TESTCASE (swift_async_dispatch_thunk_names_its_slot)
 TESTCASE (swift_async_dispatch_thunk_via_indirect_pointer_names_its_slot)
 {
   const guint32 thunk[] = {
-    0xf81f0ffe, 0xf9400288, 0xf9406508, 0x927ff909,
-    0xf240011f, 0xf9400129, 0x9a890108, 0x29400109,
-    0x93407d29, 0x8b090101, 0x90000008, 0xf90007e1,
-    0xf9400108, 0xd63f0100, 0x90000008, 0x91000108,
-    0xf9000ac0, 0xa9002016, 0xaa0003f6, 0xf94007e0,
-    0xf84107fe, 0xd61f0000,
+    GUINT32_TO_LE (0xf81f0ffe), GUINT32_TO_LE (0xf9400288),
+    GUINT32_TO_LE (0xf9406508), GUINT32_TO_LE (0x927ff909),
+    GUINT32_TO_LE (0xf240011f), GUINT32_TO_LE (0xf9400129),
+    GUINT32_TO_LE (0x9a890108), GUINT32_TO_LE (0x29400109),
+    GUINT32_TO_LE (0x93407d29), GUINT32_TO_LE (0x8b090101),
+    GUINT32_TO_LE (0x90000008), GUINT32_TO_LE (0xf90007e1),
+    GUINT32_TO_LE (0xf9400108), GUINT32_TO_LE (0xd63f0100),
+    GUINT32_TO_LE (0x90000008), GUINT32_TO_LE (0x91000108),
+    GUINT32_TO_LE (0xf9000ac0), GUINT32_TO_LE (0xa9002016),
+    GUINT32_TO_LE (0xaa0003f6), GUINT32_TO_LE (0xf94007e0),
+    GUINT32_TO_LE (0xf84107fe), GUINT32_TO_LE (0xd61f0000),
   };
 
   g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (thunk),
@@ -723,23 +733,40 @@ TESTCASE (swift_async_dispatch_thunk_via_indirect_pointer_names_its_slot)
 TESTCASE (swift_async_dispatch_thunk_with_ptrauth_names_its_slot)
 {
   const guint32 thunk[] = {
-    0xd503237f, 0xb24403bd, 0xd100c3ff, 0xa9027bfd,
-    0x910063f0, 0xf2f86350, 0xaa1603f1, 0xdac10e11,
-    0xf9000ff1, 0x910083fd, 0xf9400290, 0xaa1403f1,
-    0xf2ed5c31, 0xdac11a30, 0xf84e0e08, 0xaa1003e0,
-    0xf90007f0, 0xaa0803f0, 0xaa0003f1, 0xf2f14331,
-    0xdac11a30, 0xaa1003f1, 0xdac147f1, 0xeb11021f,
-    0x54000040, 0xd4388e40, 0xb8800e11, 0x8b110210,
-    0xaa0003f1, 0xf2f14331, 0xdac10230, 0xf9000bf0,
-    0xaa0803f0, 0xaa0003f1, 0xf2f14331, 0xdac11a30,
-    0xaa1003f1, 0xdac147f1, 0xeb11021f, 0x54000040,
-    0xd4388e40, 0xb9400600, 0x94000121, 0xaa1603f1,
-    0xf9000ac0, 0xaa0003f0, 0xf2f7b450, 0xdac10a11,
-    0xf9000011, 0x91002008, 0xb0000010, 0x91032210,
-    0xaa0803f1, 0xf2fae0f1, 0xdac10230, 0xf9000410,
-    0xaa0003f6, 0xa94083e1, 0xa9427bfd, 0x9243fbbd,
-    0x9100c3ff, 0xd50323ff, 0xca1e07d0, 0xb6f00050,
-    0xd4388e20, 0xaa0103f0, 0xf2f14330, 0xd71f0810,
+    GUINT32_TO_LE (0xd503237f), GUINT32_TO_LE (0xb24403bd),
+    GUINT32_TO_LE (0xd100c3ff), GUINT32_TO_LE (0xa9027bfd),
+    GUINT32_TO_LE (0x910063f0), GUINT32_TO_LE (0xf2f86350),
+    GUINT32_TO_LE (0xaa1603f1), GUINT32_TO_LE (0xdac10e11),
+    GUINT32_TO_LE (0xf9000ff1), GUINT32_TO_LE (0x910083fd),
+    GUINT32_TO_LE (0xf9400290), GUINT32_TO_LE (0xaa1403f1),
+    GUINT32_TO_LE (0xf2ed5c31), GUINT32_TO_LE (0xdac11a30),
+    GUINT32_TO_LE (0xf84e0e08), GUINT32_TO_LE (0xaa1003e0),
+    GUINT32_TO_LE (0xf90007f0), GUINT32_TO_LE (0xaa0803f0),
+    GUINT32_TO_LE (0xaa0003f1), GUINT32_TO_LE (0xf2f14331),
+    GUINT32_TO_LE (0xdac11a30), GUINT32_TO_LE (0xaa1003f1),
+    GUINT32_TO_LE (0xdac147f1), GUINT32_TO_LE (0xeb11021f),
+    GUINT32_TO_LE (0x54000040), GUINT32_TO_LE (0xd4388e40),
+    GUINT32_TO_LE (0xb8800e11), GUINT32_TO_LE (0x8b110210),
+    GUINT32_TO_LE (0xaa0003f1), GUINT32_TO_LE (0xf2f14331),
+    GUINT32_TO_LE (0xdac10230), GUINT32_TO_LE (0xf9000bf0),
+    GUINT32_TO_LE (0xaa0803f0), GUINT32_TO_LE (0xaa0003f1),
+    GUINT32_TO_LE (0xf2f14331), GUINT32_TO_LE (0xdac11a30),
+    GUINT32_TO_LE (0xaa1003f1), GUINT32_TO_LE (0xdac147f1),
+    GUINT32_TO_LE (0xeb11021f), GUINT32_TO_LE (0x54000040),
+    GUINT32_TO_LE (0xd4388e40), GUINT32_TO_LE (0xb9400600),
+    GUINT32_TO_LE (0x94000121), GUINT32_TO_LE (0xaa1603f1),
+    GUINT32_TO_LE (0xf9000ac0), GUINT32_TO_LE (0xaa0003f0),
+    GUINT32_TO_LE (0xf2f7b450), GUINT32_TO_LE (0xdac10a11),
+    GUINT32_TO_LE (0xf9000011), GUINT32_TO_LE (0x91002008),
+    GUINT32_TO_LE (0xb0000010), GUINT32_TO_LE (0x91032210),
+    GUINT32_TO_LE (0xaa0803f1), GUINT32_TO_LE (0xf2fae0f1),
+    GUINT32_TO_LE (0xdac10230), GUINT32_TO_LE (0xf9000410),
+    GUINT32_TO_LE (0xaa0003f6), GUINT32_TO_LE (0xa94083e1),
+    GUINT32_TO_LE (0xa9427bfd), GUINT32_TO_LE (0x9243fbbd),
+    GUINT32_TO_LE (0x9100c3ff), GUINT32_TO_LE (0xd50323ff),
+    GUINT32_TO_LE (0xca1e07d0), GUINT32_TO_LE (0xb6f00050),
+    GUINT32_TO_LE (0xd4388e20), GUINT32_TO_LE (0xaa0103f0),
+    GUINT32_TO_LE (0xf2f14330), GUINT32_TO_LE (0xd71f0810),
   };
 
   g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (thunk),
@@ -749,8 +776,9 @@ TESTCASE (swift_async_dispatch_thunk_with_ptrauth_names_its_slot)
 TESTCASE (swift_dispatch_thunk_with_resilient_superclass_names_its_slot)
 {
   const guint32 thunk[] = {
-    0xf9400288, 0x90000049, 0xf9406929, 0x8b090108,
-    0xf9400d00, 0xd61f0000,
+    GUINT32_TO_LE (0xf9400288), GUINT32_TO_LE (0x90000049),
+    GUINT32_TO_LE (0xf9406929), GUINT32_TO_LE (0x8b090108),
+    GUINT32_TO_LE (0xf9400d00), GUINT32_TO_LE (0xd61f0000),
   };
 
   g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (thunk),
@@ -760,12 +788,18 @@ TESTCASE (swift_dispatch_thunk_with_resilient_superclass_names_its_slot)
 TESTCASE (swift_class_method_thunk_with_resilient_superclass_names_its_slot)
 {
   const guint32 thunk[] = {
-    0xb24403bd, 0xd10083ff, 0xa9017bfd, 0xf90007f6,
-    0x910043fd, 0x90000048, 0xf9406908, 0x8b080288,
-    0xf9400908, 0x29400109, 0x93407d29, 0x8b080121,
-    0xf90003e1, 0x940000ae, 0xf9000ac0, 0x90000008,
-    0x91398108, 0xa9002016, 0xaa0003f6, 0xf94003e0,
-    0xa9417bfd, 0x9243fbbd, 0x910083ff, 0xd61f0000,
+    GUINT32_TO_LE (0xb24403bd), GUINT32_TO_LE (0xd10083ff),
+    GUINT32_TO_LE (0xa9017bfd), GUINT32_TO_LE (0xf90007f6),
+    GUINT32_TO_LE (0x910043fd), GUINT32_TO_LE (0x90000048),
+    GUINT32_TO_LE (0xf9406908), GUINT32_TO_LE (0x8b080288),
+    GUINT32_TO_LE (0xf9400908), GUINT32_TO_LE (0x29400109),
+    GUINT32_TO_LE (0x93407d29), GUINT32_TO_LE (0x8b080121),
+    GUINT32_TO_LE (0xf90003e1), GUINT32_TO_LE (0x940000ae),
+    GUINT32_TO_LE (0xf9000ac0), GUINT32_TO_LE (0x90000008),
+    GUINT32_TO_LE (0x91398108), GUINT32_TO_LE (0xa9002016),
+    GUINT32_TO_LE (0xaa0003f6), GUINT32_TO_LE (0xf94003e0),
+    GUINT32_TO_LE (0xa9417bfd), GUINT32_TO_LE (0x9243fbbd),
+    GUINT32_TO_LE (0x910083ff), GUINT32_TO_LE (0xd61f0000),
   };
 
   g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (thunk),
@@ -775,8 +809,8 @@ TESTCASE (swift_class_method_thunk_with_resilient_superclass_names_its_slot)
 TESTCASE (swift_devirtualized_dispatch_thunk_names_no_slot)
 {
   const guint32 thunk_and_next_function[] = {
-    0x1400048d,
-    0xf9400288, 0xf9406d00, 0xd61f0000,
+    GUINT32_TO_LE (0x1400048d), GUINT32_TO_LE (0xf9400288),
+    GUINT32_TO_LE (0xf9406d00), GUINT32_TO_LE (0xd61f0000),
   };
 
   g_assert_cmpint (_gum_swift_api_resolver_find_vtable_index_in_thunk (
