@@ -22,6 +22,10 @@ TESTLIST_BEGIN (api_resolver)
   TESTENTRY (objc_method_can_be_resolved_from_instance_method_address)
 #endif
   TESTENTRY (swift_functions_in_libswiftcore_can_be_resolved)
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  TESTENTRY (swift_functions_in_symbol_table_can_be_resolved)
+  TESTENTRY (swift_exported_functions_in_libswiftcore_are_listed_once)
+#endif
   TESTENTRY (swift_conformances_in_libswiftcore_can_be_resolved)
   TESTENTRY (swift_types_and_protocols_in_libswiftcore_can_be_resolved)
   TESTENTRY (swift_vtable_slots_in_libswiftcore_are_named_from_dispatch_thunks)
@@ -387,6 +391,10 @@ static void close_swift_core (gpointer swift_core);
 #ifdef HAVE_ELF
 static void * open_swift_core_from_toolchain_in_path (void);
 #endif
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+static void gum_tests_ping (void)
+    __asm__ (G_STRINGIFY (__USER_LABEL_PREFIX__) "$s8GumTests4pingyyF");
+#endif
 
 TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
 {
@@ -505,6 +513,86 @@ resolve_method_impl (const GumApiDetails * details,
 
   return FALSE;
 }
+
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+
+TESTCASE (swift_functions_in_symbol_table_can_be_resolved)
+{
+  gpointer swift_core;
+  TestForEachContext ctx;
+  GumAddress address;
+  GError * error = NULL;
+
+  if (gum_module_find_symbol_by_name (gum_process_get_main_module (),
+      "$s8GumTests4pingyyF") == 0)
+  {
+    g_test_skip ("Test binary is stripped");
+    return;
+  }
+
+  swift_core = open_swift_core ();
+  if (swift_core == NULL)
+  {
+    g_test_skip ("Swift runtime not available");
+    return;
+  }
+
+  fixture->resolver = gum_api_resolver_make ("swift");
+  g_assert_nonnull (fixture->resolver);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "functions:*gum-tests*!GumTests.ping() -> ()", match_found_cb, &ctx,
+      &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  address = 0;
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "functions:*gum-tests*!GumTests.ping() -> ()", resolve_method_impl,
+      &address, &error);
+  g_assert_no_error (error);
+  g_assert_cmphex (gum_strip_code_address (address), ==,
+      gum_strip_code_address (GUM_ADDRESS (gum_tests_ping)));
+
+  close_swift_core (swift_core);
+}
+
+TESTCASE (swift_exported_functions_in_libswiftcore_are_listed_once)
+{
+  gpointer swift_core;
+  TestForEachContext ctx;
+  GError * error = NULL;
+
+  swift_core = open_swift_core ();
+  if (swift_core == NULL)
+  {
+    g_test_skip ("Swift runtime not available");
+    return;
+  }
+
+  fixture->resolver = gum_api_resolver_make ("swift");
+  g_assert_nonnull (fixture->resolver);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_api_resolver_enumerate_matches (fixture->resolver,
+      "functions:*swiftCore*!Swift.String.hasPrefix(Swift.String) -> "
+      "Swift.Bool",
+      match_found_cb, &ctx, &error);
+  g_assert_no_error (error);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  close_swift_core (swift_core);
+}
+
+static void
+gum_tests_ping (void)
+{
+}
+
+#endif
 
 TESTCASE (swift_conformances_in_libswiftcore_can_be_resolved)
 {

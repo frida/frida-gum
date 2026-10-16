@@ -87,6 +87,7 @@ typedef struct _GumModuleMetadata GumModuleMetadata;
 typedef struct _GumFunctionMetadata GumFunctionMetadata;
 typedef struct _GumDescriptorMetadata GumDescriptorMetadata;
 typedef struct _GumConformanceMetadata GumConformanceMetadata;
+typedef struct _GumCollectFunctionsContext GumCollectFunctionsContext;
 typedef const gchar * (* GumClassGetName) (gpointer klass);
 typedef gchar * (* GumSwiftDemangle) (const gchar * mangled_name,
     gsize mangled_name_length, gchar * output_buffer,
@@ -173,6 +174,12 @@ struct _GumConformanceMetadata
   const gchar * type_name;
   const gchar * protocol_name;
   GumAddress descriptor;
+};
+
+struct _GumCollectFunctionsContext
+{
+  GumModuleMetadata * module;
+  GHashTable * collected_addresses;
 };
 
 struct _GumClass
@@ -418,6 +425,12 @@ static gboolean gum_module_metadata_matches (GumModuleMetadata * self,
 static GArray * gum_module_metadata_get_functions (GumModuleMetadata * self);
 static gboolean gum_module_metadata_collect_export (
     const GumExportDetails * details, gpointer user_data);
+static gboolean gum_module_metadata_collect_symbol (
+    const GumSymbolDetails * details, gpointer user_data);
+static gboolean gum_symbol_is_code (const GumSymbolDetails * details);
+static void gum_module_metadata_collect_function (
+    GumCollectFunctionsContext * ctx, const gchar * symbol_name,
+    GumAddress address);
 static gboolean gum_module_metadata_collect_section (
     const GumSectionDetails * details, gpointer user_data);
 static void gum_module_metadata_collect_class (GumModuleMetadata * self,
@@ -953,12 +966,20 @@ gum_module_metadata_get_functions (GumModuleMetadata * self)
 {
   if (self->functions == NULL)
   {
+    GumCollectFunctionsContext ctx;
+
     self->functions = g_array_new (FALSE, FALSE, sizeof (GumFunctionMetadata));
     g_array_set_clear_func (self->functions,
         (GDestroyNotify) gum_function_metadata_free);
 
+    ctx.module = self;
+    ctx.collected_addresses = g_hash_table_new (NULL, NULL);
     gum_module_enumerate_exports (self->module,
-        gum_module_metadata_collect_export, self);
+        gum_module_metadata_collect_export, &ctx);
+    gum_module_enumerate_symbols (self->module,
+        gum_module_metadata_collect_symbol, &ctx);
+    g_hash_table_unref (ctx.collected_addresses);
+
     gum_module_enumerate_sections (self->module,
         gum_module_metadata_collect_section, self);
   }
@@ -970,26 +991,77 @@ static gboolean
 gum_module_metadata_collect_export (const GumExportDetails * details,
                                     gpointer user_data)
 {
-  GumModuleMetadata * self = user_data;
+  if (details->type == GUM_EXPORT_FUNCTION)
+  {
+    gum_module_metadata_collect_function (user_data, details->name,
+        details->address);
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_module_metadata_collect_symbol (const GumSymbolDetails * details,
+                                    gpointer user_data)
+{
+  gboolean has_unmangled_suffix;
+
+  has_unmangled_suffix = strchr (details->name, '.') != NULL;
+
+  if (gum_symbol_is_code (details) && !has_unmangled_suffix)
+  {
+    gum_module_metadata_collect_function (user_data, details->name,
+        details->address);
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_symbol_is_code (const GumSymbolDetails * details)
+{
+  const GumSymbolSection * section = details->section;
+
+  if (section == NULL)
+    return FALSE;
+
+  switch (details->type)
+  {
+    case GUM_SYMBOL_FUNCTION:
+      return TRUE;
+    case GUM_SYMBOL_SECTION:
+      return g_str_has_suffix (section->id, ".__TEXT.__text");
+    default:
+      return FALSE;
+  }
+}
+
+static void
+gum_module_metadata_collect_function (GumCollectFunctionsContext * ctx,
+                                      const gchar * symbol_name,
+                                      GumAddress address)
+{
+  GumModuleMetadata * self = ctx->module;
+  gpointer code_address;
   gchar * name;
   GumFunctionMetadata func;
 
-  if (details->type != GUM_EXPORT_FUNCTION)
-    goto skip;
+  code_address = GSIZE_TO_POINTER (gum_strip_code_address (address));
+  if (g_hash_table_contains (ctx->collected_addresses, code_address))
+    return;
 
-  name = gum_swift_api_resolver_demangle (self->resolver, details->name);
+  name = gum_swift_api_resolver_demangle (self->resolver, symbol_name);
   if (name == NULL)
-    goto skip;
+    return;
+
+  g_hash_table_add (ctx->collected_addresses, code_address);
 
   func.name = name;
-  func.address = details->address;
+  func.address = address;
   g_array_append_val (self->functions, func);
 
   gum_module_metadata_maybe_ingest_thunk (self, name,
-      gum_strip_code_address (func.address));
-
-skip:
-  return TRUE;
+      GPOINTER_TO_SIZE (code_address));
 }
 
 static gboolean
