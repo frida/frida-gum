@@ -1786,6 +1786,8 @@ gum_thumb_writer_commit_literals (GumThumbWriter * self)
   if (num_refs == 0)
     return;
 
+  self->earliest_literal_insn = NULL;
+
   need_alignment_padding = (self->pc & 3) != 0;
   if (need_alignment_padding)
   {

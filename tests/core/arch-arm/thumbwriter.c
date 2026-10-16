@@ -32,6 +32,7 @@ TESTLIST_BEGIN (thumbwriter)
   TESTENTRY (literals_do_not_split_wide_instruction)
   TESTENTRY (literals_do_not_separate_short_branch_from_label)
   TESTENTRY (literals_do_not_hijack_label)
+  TESTENTRY (flush_does_not_commit_literals_twice)
 #ifdef HAVE_ARM
   TESTENTRY (ldr_in_large_block)
 #endif
@@ -440,6 +441,26 @@ TESTCASE (literals_do_not_hijack_label)
   g_assert_cmpuint (
       (branch - (guint16 *) fixture->output) + 2 + (insn & 0x7ff), ==,
       label_index);
+}
+
+TESTCASE (flush_does_not_commit_literals_twice)
+{
+  guint i;
+  guint16 ldr;
+  const guint8 * literal;
+
+  gum_thumb_writer_put_ldr_reg_u32 (&fixture->tw, ARM_REG_R0, 0x1337);
+  for (i = 0; i != 370; i++)
+    gum_thumb_writer_put_nop (&fixture->tw);
+  g_assert_true (gum_thumb_writer_flush (&fixture->tw));
+
+  g_assert_cmpuint (gum_thumb_writer_offset (&fixture->tw), ==, 748);
+
+  ldr = GUINT16_FROM_LE (((guint16 *) fixture->output)[0]);
+  g_assert_cmphex (ldr & 0xff00, ==, 0x4800);
+
+  literal = (const guint8 *) fixture->output + 4 + ((ldr & 0xff) * 4);
+  g_assert_cmphex (*((guint32 *) literal), ==, 0x1337);
 }
 
 #ifdef HAVE_ARM
