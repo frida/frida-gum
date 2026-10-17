@@ -1800,6 +1800,22 @@ gum_arm64_writer_put_xpaci_reg (GumArm64Writer * self,
 }
 
 gboolean
+gum_arm64_writer_put_paciza_reg (GumArm64Writer * self,
+                                 arm64_reg reg)
+{
+  GumArm64RegInfo ri;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  if (ri.width != 64)
+    return FALSE;
+
+  gum_arm64_writer_put_instruction (self, 0xdac123e0 | ri.index);
+
+  return TRUE;
+}
+
+gboolean
 gum_arm64_writer_put_pacia_reg_reg (GumArm64Writer * self,
                                     arm64_reg dst_reg,
                                     arm64_reg mod_reg)
