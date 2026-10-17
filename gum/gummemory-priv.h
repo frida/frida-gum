@@ -42,6 +42,7 @@ G_GNUC_INTERNAL gpointer gum_internal_malloc (size_t size);
 G_GNUC_INTERNAL gpointer gum_internal_calloc (size_t count, size_t size);
 G_GNUC_INTERNAL gpointer gum_internal_realloc (gpointer mem, size_t size);
 G_GNUC_INTERNAL void gum_internal_free (gpointer mem);
+G_GNUC_INTERNAL void _gum_memory_recover_from_fork_in_child (void);
 
 G_END_DECLS
 

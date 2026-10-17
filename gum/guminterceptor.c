@@ -423,6 +423,26 @@ _gum_interceptor_deinit (void)
   gum_interceptor_thread_contexts = NULL;
 }
 
+void
+_gum_interceptor_recover_from_fork_in_child (void)
+{
+  /*
+   * Only the forking thread survives. Mutexes / spinlocks still owned by a
+   * vanished parent thread are undefined; reinitialize them.
+   */
+  g_mutex_init (&_gum_interceptor_lock);
+  gum_spinlock_init (&gum_interceptor_thread_context_lock);
+
+  if (_the_interceptor != NULL)
+  {
+    GumInterceptor * self = _the_interceptor;
+
+    g_rec_mutex_init (&self->mutex);
+    self->current_transaction.level = 0;
+    self->current_transaction.is_dirty = FALSE;
+  }
+}
+
 static void
 gum_interceptor_init (GumInterceptor * self)
 {
