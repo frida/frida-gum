@@ -358,12 +358,12 @@ gum_darwin_mapper_constructed (GObject * object)
         self->resolver, "/usr/lib/system/libsystem_pthread.dylib");
     if (pthread != NULL)
     {
-      self->pthread_key_create =
+      self->pthread_key_create = gum_strip_code_address (
           gum_darwin_module_resolver_find_export_address (self->resolver,
-              pthread, "pthread_key_create");
-      self->pthread_key_delete =
+              pthread, "pthread_key_create"));
+      self->pthread_key_delete = gum_strip_code_address (
           gum_darwin_module_resolver_find_export_address (self->resolver,
-              pthread, "pthread_key_delete");
+              pthread, "pthread_key_delete"));
       g_object_unref (pthread);
     }
   }
@@ -1758,13 +1758,12 @@ gum_emit_arm64_runtime (GumDarwinMapper * self,
 
   if (tlv->num_descriptors != 0)
   {
-    gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X21,
+    gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
         self->pthread_key);
-    gum_arm64_writer_put_ldr_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X21);
-
-    gum_arm64_writer_put_call_address_with_arguments (&aw,
-        self->pthread_key_delete, 1,
-        GUM_ARG_REGISTER, ARM64_REG_X21);
+    gum_arm64_writer_put_ldr_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_X0);
+    gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X1,
+        self->pthread_key_delete);
+    gum_arm64_writer_put_blr_reg_no_auth (&aw, ARM64_REG_X1);
   }
 
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
@@ -1961,10 +1960,11 @@ gum_emit_arm64_tlv_init_code (GumEmitArm64Context * ctx)
   gconstpointer next_label = GSIZE_TO_POINTER (aw->code + 1);
   gconstpointer has_key_label = GSIZE_TO_POINTER (aw->code + 2);
 
-  gum_arm64_writer_put_call_address_with_arguments (aw,
-      self->pthread_key_create, 2,
-      GUM_ARG_ADDRESS, self->pthread_key,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (0) /* destructor */);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X0, self->pthread_key);
+  gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X1, 0);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X2,
+      self->pthread_key_create);
+  gum_arm64_writer_put_blr_reg_no_auth (aw, ARM64_REG_X2);
 
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X19, self->pthread_key);
   gum_arm64_writer_put_ldr_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X19);
@@ -1986,6 +1986,8 @@ gum_emit_arm64_tlv_init_code (GumEmitArm64Context * ctx)
 
   gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X19,
       gum_strip_code_address (self->tlv_get_addr_addr));
+  if (self->resolver->ptrauth_support == GUM_PTRAUTH_SUPPORTED)
+    gum_arm64_writer_put_paciza_reg (aw, ARM64_REG_X19);
   gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
   gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X20, ARM64_REG_X20,
       pointer_size);
