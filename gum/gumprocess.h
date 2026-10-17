@@ -47,11 +47,7 @@ typedef enum {
   GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER = (1 << 4),
 
   GUM_THREAD_FLAGS_NONE                 = 0,
-  GUM_THREAD_FLAGS_ALL                  = GUM_THREAD_FLAGS_NAME |
-                                          GUM_THREAD_FLAGS_STATE |
-                                          GUM_THREAD_FLAGS_CPU_CONTEXT |
-                                          GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
-                                          GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER,
+  GUM_THREAD_FLAGS_ALL                  = ((1 << 5) - 1),
 } GumThreadFlags;
 
 typedef enum {
