@@ -255,6 +255,8 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("Hexdump")
     TESTENTRY (basic_hexdump_functionality_is_available)
+    TESTENTRY (hexdump_supports_offset)
+    TESTENTRY (hexdump_rejects_offset_beyond_array_buffer)
     TESTENTRY (hexdump_supports_native_pointer_conforming_object)
   TESTGROUP_END ()
 
@@ -2820,6 +2822,41 @@ TESTCASE (basic_hexdump_functionality_is_available)
           "Hello hex world!\\n"
       "100000010  20 77 30 30 74 00                                "
           " w00t.\"");
+}
+
+TESTCASE (hexdump_supports_offset)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const str = Memory.allocUtf8String("
+      "    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ');"
+      "const buf = str.readByteArray(36);"
+      "send(hexdump(buf, { offset: 4, length: 20 }));"
+      "send(hexdump(buf, { offset: 30, length: 32 }));"
+      "send(hexdump(str, { address: NULL, offset: 20, length: 4 }));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n"
+      "00000004  34 35 36 37 38 39 41 42 43 44 45 46 47 48 49 4a  "
+          "456789ABCDEFGHIJ\\n"
+      "00000014  4b 4c 4d 4e                                      "
+          "KLMN\"");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n"
+      "0000001e  55 56 57 58 59 5a                                "
+          "UVWXYZ\"");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n"
+      "00000014  4b 4c 4d 4e                                      "
+          "KLMN\"");
+}
+
+TESTCASE (hexdump_rejects_offset_beyond_array_buffer)
+{
+  COMPILE_AND_LOAD_SCRIPT ("hexdump(new ArrayBuffer(64), { offset: 65 });");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "RangeError: offset is beyond the end of the buffer");
 }
 
 TESTCASE (hexdump_supports_native_pointer_conforming_object)
