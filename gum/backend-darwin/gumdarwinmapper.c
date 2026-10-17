@@ -30,7 +30,7 @@
 #define GUM_MAPPER_INIT_SIZE               128
 #define GUM_MAPPER_TERM_SIZE                64
 #define GUM_MAPPER_TLV_THUNK_SIZE          448
-#define GUM_MAPPER_INIT_TLV_SIZE           160
+#define GUM_MAPPER_INIT_TLV_SIZE           256
 #define GUM_MAPPER_FXSAVE_AREA_SIZE        512
 
 #define GUM_CHECK_MACH_RESULT(n1, cmp, n2, op) \
@@ -1190,11 +1190,21 @@ gum_emit_runtime (GumDarwinMapper * self,
 
   if (tlv->num_descriptors != 0)
   {
-    gum_x86_writer_put_mov_reg_address (&cw, GUM_X86_XCX, self->pthread_key);
-    gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_X86_XAX, GUM_X86_XCX);
+    gum_x86_writer_put_mov_reg_address (&cw, GUM_X86_XBX, self->pthread_key);
+    gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_X86_XBX, GUM_X86_XBX);
+    gum_x86_writer_put_shl_reg_u8 (&cw, GUM_X86_XBX, 3);
+
+    gum_x86_writer_put_mov_reg_gs_reg_ptr (&cw, GUM_X86_XAX, GUM_X86_XBX);
+    gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
+        self->free, 1,
+        GUM_ARG_REGISTER, GUM_X86_XAX);
+    gum_x86_writer_put_xor_reg_reg (&cw, GUM_X86_XAX, GUM_X86_XAX);
+    gum_x86_writer_put_mov_gs_reg_ptr_reg (&cw, GUM_X86_XBX, GUM_X86_XAX);
+
+    gum_x86_writer_put_shr_reg_u8 (&cw, GUM_X86_XBX, 3);
     gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_CAPI,
         self->pthread_key_delete, 1,
-        GUM_ARG_REGISTER, GUM_X86_XAX);
+        GUM_ARG_REGISTER, GUM_X86_XBX);
   }
 
   gum_x86_writer_put_add_reg_imm (&cw, GUM_X86_XSP, self->module->pointer_size);
@@ -1794,9 +1804,24 @@ gum_emit_arm64_runtime (GumDarwinMapper * self,
 
   if (tlv->num_descriptors != 0)
   {
-    gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
+    gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X19,
         self->pthread_key);
-    gum_arm64_writer_put_ldr_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_X0);
+    gum_arm64_writer_put_ldr_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X19);
+
+    gum_arm64_writer_put_lsl_reg_imm (&aw, ARM64_REG_X20, ARM64_REG_X19, 3);
+    gum_arm64_writer_put_mrs (&aw, ARM64_REG_X21,
+        GUM_ARM64_SYSREG_TPIDRRO_EL0);
+    gum_arm64_writer_put_and_reg_reg_imm (&aw, ARM64_REG_X21, ARM64_REG_X21,
+        (guint64) -8);
+    gum_arm64_writer_put_add_reg_reg_reg (&aw, ARM64_REG_X20, ARM64_REG_X21,
+        ARM64_REG_X20);
+
+    gum_arm64_writer_put_ldr_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_X20);
+    gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X1, self->free);
+    gum_arm64_writer_put_blr_reg_no_auth (&aw, ARM64_REG_X1);
+    gum_arm64_writer_put_str_reg_reg (&aw, ARM64_REG_XZR, ARM64_REG_X20);
+
+    gum_arm64_writer_put_mov_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_X19);
     gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X1,
         self->pthread_key_delete);
     gum_arm64_writer_put_blr_reg_no_auth (&aw, ARM64_REG_X1);
