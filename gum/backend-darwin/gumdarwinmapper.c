@@ -45,8 +45,7 @@ typedef struct _GumAccumulateFootprintContext GumAccumulateFootprintContext;
 
 typedef struct _GumMapContext GumMapContext;
 
-typedef struct _GumLibdyldDyld4Section32 GumLibdyldDyld4Section32;
-typedef struct _GumLibdyldDyld4Section64 GumLibdyldDyld4Section64;
+typedef struct _GumFindTlvGetAddrContext GumFindTlvGetAddrContext;
 
 struct _GumDarwinMapper
 {
@@ -130,22 +129,11 @@ struct _GumMapContext
   GError ** error;
 };
 
-struct _GumLibdyldDyld4Section32
+struct _GumFindTlvGetAddrContext
 {
-  guint32 apis;
-  guint32 all_image_infos;
-  guint32 default_vars[5];
-  guint32 dyld_lookup_func_addr;
-  guint32 tlv_get_addr_addr;
-};
-
-struct _GumLibdyldDyld4Section64
-{
-  guint64 apis;
-  guint64 all_image_infos;
-  guint64 default_vars[5];
-  guint64 dyld_lookup_func_addr;
-  guint64 tlv_get_addr_addr;
+  GumDarwinMapper * mapper;
+  GumAddress tlv_bootstrap;
+  gboolean found;
 };
 
 static void gum_darwin_mapper_constructed (GObject * object);
@@ -222,8 +210,9 @@ static gboolean gum_darwin_mapper_bind_items (GumDarwinMapper * self,
 
 static void gum_darwin_mapping_free (GumDarwinMapping * self);
 
-static gboolean gum_find_tlv_get_addr (const GumDarwinSectionDetails * details,
-    gpointer user_data);
+static gboolean gum_darwin_mapper_find_tlv_get_addr (GumDarwinMapper * self);
+static gboolean gum_find_initialized_tlv_thunk (
+    const GumSectionDetails * details, gpointer user_data);
 
 G_DEFINE_TYPE (GumDarwinMapper, gum_darwin_mapper, G_TYPE_OBJECT)
 
@@ -792,14 +781,7 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
   self->tlv_area = 0;
   if (tlv->num_descriptors != 0)
   {
-    GumDarwinModule * libdyld;
-
-    libdyld = gum_darwin_module_resolver_find_module_by_name (self->resolver,
-        "libdyld.dylib");
-    ctx.success = FALSE;
-    gum_darwin_module_enumerate_sections (libdyld, gum_find_tlv_get_addr, &ctx);
-    g_object_unref (libdyld);
-    if (!ctx.success)
+    if (!gum_darwin_mapper_find_tlv_get_addr (self))
       goto unsupported_dyld_version;
 
     kr = mach_vm_allocate (task, &self->tlv_area,
@@ -1985,7 +1967,7 @@ gum_emit_arm64_tlv_init_code (GumEmitArm64Context * ctx)
   gum_arm64_writer_put_label (aw, next_label);
 
   gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X19,
-      gum_strip_code_address (self->tlv_get_addr_addr));
+      self->tlv_get_addr_addr);
   if (self->resolver->ptrauth_support == GUM_PTRAUTH_SUPPORTED)
     gum_arm64_writer_put_paciza_reg (aw, ARM64_REG_X19);
   gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X20);
@@ -2824,31 +2806,60 @@ gum_darwin_mapping_free (GumDarwinMapping * self)
 }
 
 static gboolean
-gum_find_tlv_get_addr (const GumDarwinSectionDetails * details,
-                       gpointer user_data)
+gum_darwin_mapper_find_tlv_get_addr (GumDarwinMapper * self)
 {
-  GumMapContext * ctx = user_data;
-  GumDarwinMapper * self = ctx->mapper;
+  GumDarwinModuleResolver * resolver = self->resolver;
+  GumFindTlvGetAddrContext ctx;
+  GumDarwinModule * libdyld;
+  GPtrArray * modules;
+  guint i;
 
-  /* macOS 26+ uses __dyld_apis instead of __dyld4. */
-  if (strcmp (details->section_name, "__dyld_apis") != 0 &&
-      strcmp (details->section_name, "__dyld4") != 0)
+  ctx.mapper = self;
+  ctx.tlv_bootstrap = 0;
+  ctx.found = FALSE;
+
+  libdyld = gum_darwin_module_resolver_find_module_by_name (resolver,
+      "libdyld.dylib");
+  ctx.tlv_bootstrap = gum_strip_code_address (
+      gum_darwin_module_resolver_find_export_address (resolver, libdyld,
+          "_tlv_bootstrap"));
+  g_object_unref (libdyld);
+
+  gum_darwin_module_resolver_fetch_modules (resolver, &modules, NULL);
+  for (i = 0; i != modules->len && !ctx.found; i++)
+  {
+    gum_module_enumerate_sections (g_ptr_array_index (modules, i),
+        gum_find_initialized_tlv_thunk, &ctx);
+  }
+  g_ptr_array_unref (modules);
+
+  return ctx.found;
+}
+
+static gboolean
+gum_find_initialized_tlv_thunk (const GumSectionDetails * details,
+                                gpointer user_data)
+{
+  GumFindTlvGetAddrContext * ctx = user_data;
+  GumDarwinMapper * self = ctx->mapper;
+  gsize pointer_size = self->module->pointer_size;
+  guint8 * data;
+  GumAddress thunk;
+
+  if (strcmp (details->name, "__thread_vars") != 0)
     return TRUE;
 
-  if (self->module->pointer_size == 4)
-  {
-    self->tlv_get_addr_addr =
-        ((GumLibdyldDyld4Section32 *) GSIZE_TO_POINTER (details->vm_address))
-        ->tlv_get_addr_addr;
-  }
-  else
-  {
-    self->tlv_get_addr_addr =
-        ((GumLibdyldDyld4Section64 *) GSIZE_TO_POINTER (details->vm_address))
-        ->tlv_get_addr_addr;
-  }
+  data = gum_darwin_read (self->resolver->task, details->address,
+      pointer_size, NULL);
+  thunk = (pointer_size == 8) ? *((guint64 *) data) : *((guint32 *) data);
+  g_free (data);
 
-  ctx->success = TRUE;
+  thunk = gum_strip_code_address (thunk);
+  if (thunk == ctx->tlv_bootstrap)
+    return TRUE;
+
+  self->tlv_get_addr_addr = thunk;
+  ctx->found = TRUE;
 
   return FALSE;
 }
