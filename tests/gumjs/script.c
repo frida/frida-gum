@@ -255,6 +255,8 @@ TESTLIST_BEGIN (script)
 
   TESTGROUP_BEGIN ("Hexdump")
     TESTENTRY (basic_hexdump_functionality_is_available)
+    TESTENTRY (hexdump_supports_array_buffer_offset)
+    TESTENTRY (hexdump_handles_array_buffer_offset_beyond_length)
     TESTENTRY (hexdump_supports_native_pointer_conforming_object)
   TESTGROUP_END ()
 
@@ -2820,6 +2822,43 @@ TESTCASE (basic_hexdump_functionality_is_available)
           "Hello hex world!\\n"
       "100000010  20 77 30 30 74 00                                "
           " w00t.\"");
+}
+
+TESTCASE (hexdump_supports_array_buffer_offset)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const str = Memory.allocUtf8String("
+      "    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ');"
+      "send(hexdump(str.readByteArray(36), { offset: 20, length: 32 }));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n"
+      "00000014  4b 4c 4d 4e 4f 50 51 52 53 54 55 56              "
+          "KLMNOPQRSTUV\"");
+}
+
+TESTCASE (hexdump_handles_array_buffer_offset_beyond_length)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "const buf = new ArrayBuffer(64);"
+      "for (const offset of [40, 32]) {"
+      "  send(hexdump(buf, { offset, length: 32 }));"
+      "  send(hexdump(buf, { offset, length: 32, header: false }));"
+      "}"
+      "send(hexdump(Memory.alloc(64), {"
+      "  address: NULL, offset: 40, length: 32"
+      "}));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n\"");
 }
 
 TESTCASE (hexdump_supports_native_pointer_conforming_object)
