@@ -29,7 +29,7 @@
 #define GUM_MAPPER_RESOLVER_SIZE            40
 #define GUM_MAPPER_INIT_SIZE               128
 #define GUM_MAPPER_TERM_SIZE                64
-#define GUM_MAPPER_TLV_THUNK_SIZE          416
+#define GUM_MAPPER_TLV_THUNK_SIZE          448
 #define GUM_MAPPER_INIT_TLV_SIZE           160
 
 #define GUM_CHECK_MACH_RESULT(n1, cmp, n2, op) \
@@ -71,6 +71,7 @@ struct _GumDarwinMapper
   GumAddress pthread_key;
   GumAddress pthread_key_create;
   GumAddress pthread_key_delete;
+  GumAddress pthread_setspecific;
   GumAddress calloc;
   GumAddress memcpy;
   GumAddress free;
@@ -338,6 +339,8 @@ gum_darwin_mapper_constructed (GObject * object)
         "/usr/lib/system/libsystem_pthread.dylib", "pthread_key_create");
     self->pthread_key_delete = gum_darwin_mapper_find_export (self,
         "/usr/lib/system/libsystem_pthread.dylib", "pthread_key_delete");
+    self->pthread_setspecific = gum_darwin_mapper_find_export (self,
+        "/usr/lib/system/libsystem_pthread.dylib", "pthread_setspecific");
     self->calloc = gum_darwin_mapper_find_export (self,
         "/usr/lib/system/libsystem_malloc.dylib", "calloc");
     self->memcpy = gum_darwin_mapper_find_export (self,
@@ -1346,7 +1349,7 @@ gum_emit_tlv_thunk (GumEmitX86Context * ctx)
   gum_x86_writer_put_shl_reg_u8 (cw, GUM_X86_XAX, 3);
   gum_x86_writer_put_mov_reg_gs_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XAX);
   gum_x86_writer_put_test_reg_reg (cw, GUM_X86_XAX, GUM_X86_XAX);
-  gum_x86_writer_put_jcc_short_label (cw, X86_INS_JNE, found_label,
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, found_label,
       GUM_NO_HINT);
 
   gum_x86_writer_put_push_reg (cw, GUM_X86_XCX);
@@ -1371,10 +1374,12 @@ gum_emit_tlv_thunk (GumEmitX86Context * ctx)
   gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX, self->memcpy);
   gum_x86_writer_put_call_reg (cw, GUM_X86_XAX);
 
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XCX, GUM_X86_XSP, 8);
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XCX, GUM_X86_XCX, 8);
-  gum_x86_writer_put_shl_reg_u8 (cw, GUM_X86_XCX, 3);
-  gum_x86_writer_put_mov_gs_reg_ptr_reg (cw, GUM_X86_XCX, GUM_X86_XAX);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XDI, GUM_X86_XSP, 8);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XDI, GUM_X86_XDI, 8);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XSI, GUM_X86_XAX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX,
+      self->pthread_setspecific);
+  gum_x86_writer_put_call_reg (cw, GUM_X86_XAX);
 
   gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XSP, 8);
   gum_x86_writer_put_pop_reg (cw, GUM_X86_XDI);
@@ -1997,17 +2002,23 @@ gum_emit_arm64_tlv_thunk (GumEmitArm64Context * ctx)
 
   gum_arm64_writer_put_push_all_x_registers (aw);
   gum_arm64_writer_put_push_all_q_registers (aw);
-  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X17);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X19, ARM64_REG_X0);
   gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X0, 1);
   gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X1,
       tlv->data_size + tlv->bss_size);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X2, self->calloc);
   gum_arm64_writer_put_blr_reg_no_auth (aw, ARM64_REG_X2);
-  gum_arm64_writer_put_str_reg_reg (aw, ARM64_REG_X0, ARM64_REG_X19);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X20, ARM64_REG_X0);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X1, thread_data);
   gum_arm64_writer_put_ldr_reg_u64 (aw, ARM64_REG_X2, tlv->data_size);
   gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X3, self->memcpy);
   gum_arm64_writer_put_blr_reg_no_auth (aw, ARM64_REG_X3);
+  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X0, ARM64_REG_X19,
+      pointer_size);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_X1, ARM64_REG_X20);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X2,
+      self->pthread_setspecific);
+  gum_arm64_writer_put_blr_reg_no_auth (aw, ARM64_REG_X2);
   gum_arm64_writer_put_pop_all_q_registers (aw);
   gum_arm64_writer_put_pop_all_x_registers (aw);
   gum_arm64_writer_put_b_label (aw, lookup_label);
