@@ -4,27 +4,25 @@ export function hexdump(target, options = {}) {
   const showHeader = options.hasOwnProperty('header') ? options.header : true;
   const useAnsi = options.hasOwnProperty('ansi') ? options.ansi : false;
 
-  let buffer;
+  let bytes;
   let defaultStartAddress = NULL;
   if (target instanceof ArrayBuffer) {
-    if (length === undefined)
-      length = target.byteLength;
-    else
-      length = Math.min(length, target.byteLength);
-    buffer = target;
+    const availableLength = target.byteLength - startOffset;
+    if (availableLength < 0)
+      throw new RangeError('offset is beyond the end of the buffer');
+    length = (length === undefined) ? availableLength : Math.min(length, availableLength);
+    bytes = new Uint8Array(target, startOffset, length);
   } else {
     if (!(target instanceof NativePointer))
       target = target.handle;
     if (length === undefined)
       length = 256;
-    buffer = target.readByteArray(length);
+    bytes = new Uint8Array(target.add(startOffset).readByteArray(length));
     defaultStartAddress = target;
   }
 
   const startAddress = options.hasOwnProperty('address') ? options.address : defaultStartAddress;
-  const endAddress = startAddress.add(length);
-
-  const bytes = new Uint8Array(buffer);
+  const endAddress = startAddress.add(startOffset + length);
 
   const columnPadding = '  ';
   const leftColumnWidth = Math.max(endAddress.toString(16).length, 8);
@@ -57,21 +55,20 @@ export function hexdump(target, options = {}) {
     );
   }
 
-  let offset = startOffset;
   for (let bufferOffset = 0; bufferOffset < length; bufferOffset += 16) {
     if (bufferOffset !== 0)
       result.push('\n');
 
     result.push(
-      offsetColor, pad(startAddress.add(offset).toString(16), leftColumnWidth, '0'), resetColor,
+      offsetColor, pad(startAddress.add(startOffset + bufferOffset).toString(16), leftColumnWidth, '0'), resetColor,
       columnPadding
     );
 
     const asciiChars = [];
-    const lineSize = Math.min(length - offset, 16);
+    const lineSize = Math.min(length - bufferOffset, 16);
 
     for (let lineOffset = 0; lineOffset !== lineSize; lineOffset++) {
-      const value = bytes[offset++];
+      const value = bytes[bufferOffset + lineOffset];
 
       const isNewline = value === 10;
 
