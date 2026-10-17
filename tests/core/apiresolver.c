@@ -384,6 +384,14 @@ TESTCASE (objc_method_can_be_resolved_from_instance_method_address)
 # endif
 #endif
 
+#ifdef HAVE_QNX
+# define GUM_TESTS_PING_LABEL \
+    G_STRINGIFY (__USER_LABEL_PREFIX__) "$s8GumTests4pingyyF"
+#else
+# define GUM_TESTS_PING_LABEL \
+    "\"" G_STRINGIFY (__USER_LABEL_PREFIX__) "$s8GumTests4pingyyF\""
+#endif
+
 static gpointer open_swift_core (void);
 static GumAddress find_swift_core_export (gpointer swift_core,
     const gchar * name);
@@ -393,7 +401,7 @@ static void * open_swift_core_from_toolchain_in_path (void);
 #endif
 #if defined (HAVE_DARWIN) || defined (HAVE_ELF)
 static void gum_tests_ping (void)
-    __asm__ ("\"" G_STRINGIFY (__USER_LABEL_PREFIX__) "$s8GumTests4pingyyF\"");
+    __asm__ (GUM_TESTS_PING_LABEL);
 #endif
 
 TESTCASE (swift_functions_in_libswiftcore_can_be_resolved)
