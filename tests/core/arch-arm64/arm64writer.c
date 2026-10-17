@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
- * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2023-2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2026 inforcqb <fanjiawei080615@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -23,6 +23,7 @@ TESTLIST_BEGIN (arm64writer)
   TESTENTRY (jmp_reg_no_auth_with_ptrauth)
   TESTENTRY (bti)
   TESTENTRY (blr_reg)
+  TESTENTRY (paciza_reg)
   TESTENTRY (ret)
 
   TESTENTRY (push_reg_reg)
@@ -217,6 +218,12 @@ TESTCASE (blr_reg)
 {
   gum_arm64_writer_put_blr_reg (&fixture->aw, ARM64_REG_X5);
   assert_output_n_equals (0, 0xd63f00a0);
+}
+
+TESTCASE (paciza_reg)
+{
+  gum_arm64_writer_put_paciza_reg (&fixture->aw, ARM64_REG_X19);
+  assert_output_n_equals (0, 0xdac123f3);
 }
 
 TESTCASE (ret)
