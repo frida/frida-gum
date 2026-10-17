@@ -498,6 +498,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (execution_can_be_traced_during_immediate_native_function_call)
     TESTENTRY (execution_can_be_traced_during_scheduled_native_function_call)
     TESTENTRY (execution_can_be_traced_after_native_function_call_from_hook)
+    TESTENTRY (events_can_be_flushed_from_hook_during_drain)
     TESTENTRY (basic_block_can_be_invalidated_for_current_thread)
     TESTENTRY (basic_block_can_be_invalidated_for_specific_thread)
 #endif
@@ -5579,6 +5580,60 @@ run_stalked_through_hooked_function (gpointer data)
   sdc_await_finish_confirmation (channel);
 
   return NULL;
+}
+
+TESTCASE (events_can_be_flushed_from_hook_during_drain)
+{
+  GThread * stalked_thread, * worker_thread;
+  GumThreadId stalked_thread_id;
+  gboolean done = FALSE;
+  GumInvokeTargetContext ctx;
+
+  stalked_thread = create_sleeping_dummy_thread_sync (&done,
+      &stalked_thread_id);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Stalker.queueDrainInterval = 1;"
+
+      "const targetThreadId = %" G_GSIZE_FORMAT ";"
+
+      "Stalker.follow(targetThreadId, {"
+      "  events: {"
+      "    call: true,"
+      "    ret: true,"
+      "    exec: true"
+      "  }"
+      "});"
+
+      "Interceptor.attach(" GUM_PTR_CONST ", () => {"
+      "  Stalker.flush();"
+      "});"
+
+      "recv('stop', message => {"
+      "  Stalker.unfollow(targetThreadId);"
+      "  Stalker.flush();"
+      "  send('stopped');"
+      "});",
+
+      stalked_thread_id,
+      target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  ctx.script = fixture->script;
+  ctx.repeat_duration = 200;
+  ctx.started = 0;
+  ctx.finished = 0;
+  worker_thread = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
+  g_thread_join (worker_thread);
+  g_assert_cmpint (ctx.finished, ==, 1);
+
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"stopped\"");
+  EXPECT_NO_MESSAGES ();
+
+  done = TRUE;
+  g_thread_join (stalked_thread);
 }
 
 TESTCASE (basic_block_can_be_invalidated_for_current_thread)

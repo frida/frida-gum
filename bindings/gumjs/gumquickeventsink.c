@@ -289,16 +289,18 @@ gum_quick_js_event_sink_drain (GumQuickJSEventSink * self)
   if (core == NULL)
     return FALSE;
 
+  gum_spinlock_acquire (&self->lock);
   len = self->queue->len;
+  size = len * sizeof (GumEvent);
+  if (len != 0)
+  {
+    buffer_data = g_memdup2 (self->queue->data, size);
+    g_array_remove_range (self->queue, 0, len);
+  }
+  gum_spinlock_release (&self->lock);
+
   if (len == 0)
     return TRUE;
-  size = len * sizeof (GumEvent);
-
-  buffer_data = g_memdup2 (self->queue->data, size);
-
-  gum_spinlock_acquire (&self->lock);
-  g_array_remove_range (self->queue, 0, len);
-  gum_spinlock_release (&self->lock);
 
   _gum_quick_scope_enter (&scope, core);
 
