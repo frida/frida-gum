@@ -33,12 +33,18 @@ if host_os_family == 'darwin'
   core_sources += [
     'interceptor-darwin.c',
     'unwindbroker-darwin.c',
+    'darwinmapper.c',
   ]
 
   mapper_unwind_target = shared_library('gum-tests-mapper-unwind-target',
     'mapper-unwind-target.c',
   )
   core_c_args += '-DGUM_TESTS_MAPPER_UNWIND_TARGET="' + mapper_unwind_target.full_path() + '"'
+
+  mapper_tlv_target = shared_library('gum-tests-mapper-tlv-target',
+    'mapper-tlv-target.c',
+  )
+  core_c_args += '-DGUM_TESTS_MAPPER_TLV_TARGET="' + mapper_tlv_target.full_path() + '"'
 endif
 
 if host_os == 'android'
