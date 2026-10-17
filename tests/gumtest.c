@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -204,6 +205,7 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_DARWIN
   TESTLIST_REGISTER (interceptor_darwin);
   TESTLIST_REGISTER (unwind_broker);
+  TESTLIST_REGISTER (darwin_mapper);
 #endif
 #ifdef HAVE_ANDROID
   TESTLIST_REGISTER (interceptor_android);
