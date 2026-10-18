@@ -1510,13 +1510,23 @@ static void *
 gum_quick_malloc (JSMallocState * state,
                   size_t size)
 {
-  return gum_malloc (size);
+  void * ptr;
+
+  ptr = gum_malloc (size);
+
+  state->malloc_count++;
+  state->malloc_size += gum_malloc_usable_size (ptr);
+
+  return ptr;
 }
 
 static void
 gum_quick_free (JSMallocState * state,
                 void * ptr)
 {
+  state->malloc_count--;
+  state->malloc_size -= gum_malloc_usable_size (ptr);
+
   gum_free (ptr);
 }
 
@@ -1525,7 +1535,16 @@ gum_quick_realloc (JSMallocState * state,
                    void * ptr,
                    size_t size)
 {
-  return gum_realloc (ptr, size);
+  void * new_ptr;
+  size_t old_size;
+
+  old_size = gum_malloc_usable_size (ptr);
+
+  new_ptr = gum_realloc (ptr, size);
+
+  state->malloc_size += gum_malloc_usable_size (new_ptr) - old_size;
+
+  return new_ptr;
 }
 
 static size_t

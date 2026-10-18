@@ -74,6 +74,7 @@ TESTLIST_BEGIN (script)
   TESTGROUP_BEGIN ("WeakRef")
     TESTENTRY (weak_ref_api_should_be_supported)
     TESTENTRY (weak_callback_is_triggered_on_gc)
+    TESTENTRY (weak_callback_is_triggered_on_automatic_gc)
     TESTENTRY (weak_callback_is_triggered_on_unload)
     TESTENTRY (weak_callback_is_triggered_on_unbind)
     TESTENTRY (weak_callback_should_not_be_exclusive)
@@ -12083,6 +12084,25 @@ TESTCASE (weak_callback_is_triggered_on_gc)
       "  send(\"weak notify\");"
       "}"
       "gc();");
+  EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (weak_callback_is_triggered_on_automatic_gc)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "(() => {"
+      "  const val = {};"
+      "  val.self = val;"
+      "  Script.bindWeak(val, onWeakNotify);"
+      "})();"
+      "function onWeakNotify() {"
+      "  send(\"weak notify\");"
+      "}"
+      "for (let i = 0; i !== 100000; i++) {"
+      "  const garbage = {};"
+      "  garbage.self = garbage;"
+      "}");
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
   EXPECT_NO_MESSAGES ();
 }
