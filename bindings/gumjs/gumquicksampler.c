@@ -37,31 +37,37 @@ static const JSCFunctionListEntry gumjs_sampler_functions[] =
 static const JSClassDef gumjs_cycle_sampler_def =
 {
   .class_name = "CycleSampler",
+  .finalizer = gumjs_sampler_finalize,
 };
 
 static const JSClassDef gumjs_busy_cycle_sampler_def =
 {
   .class_name = "BusyCycleSampler",
+  .finalizer = gumjs_sampler_finalize,
 };
 
 static const JSClassDef gumjs_wall_clock_sampler_def =
 {
   .class_name = "WallClockSampler",
+  .finalizer = gumjs_sampler_finalize,
 };
 
 static const JSClassDef gumjs_user_time_sampler_def =
 {
   .class_name = "UserTimeSampler",
+  .finalizer = gumjs_sampler_finalize,
 };
 
 static const JSClassDef gumjs_malloc_count_sampler_def =
 {
   .class_name = "MallocCountSampler",
+  .finalizer = gumjs_sampler_finalize,
 };
 
 static const JSClassDef gumjs_call_count_sampler_def =
 {
   .class_name = "CallCountSampler",
+  .finalizer = gumjs_sampler_finalize,
 };
 
 void
