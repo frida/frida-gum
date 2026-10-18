@@ -66,6 +66,7 @@ main (int argc,
   }
 
   rt = JS_NewRuntime ();
+  JS_SetStripInfo (rt, JS_STRIP_SOURCE);
   JS_SetModuleLoaderFunc (rt, gum_normalize_module_name, gum_load_module, NULL);
 
   ctx = JS_NewContext (rt);
