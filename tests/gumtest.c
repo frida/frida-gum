@@ -37,10 +37,19 @@
 # include <dlfcn.h>
 #endif
 
+#ifdef HAVE_QNX
+# include <stdlib.h>
+# include <sys/neutrino.h>
+# include <sys/syspage.h>
+#endif
+
 #ifdef HAVE_IOS
 # include <unistd.h>
 #endif
 
+#ifdef HAVE_QNX
+static void gum_test_pin_to_first_cpu (void);
+#endif
 static guint get_number_of_tests_in_suite (GTestSuite * suite);
 
 gint
@@ -61,6 +70,10 @@ main (gint argc, gchar * argv[])
   GTimer * timer;
   guint num_tests;
   gdouble t;
+
+#ifdef HAVE_QNX
+  gum_test_pin_to_first_cpu ();
+#endif
 
 #if defined (HAVE_WINDOWS) && DEBUG_HEAP_LEAKS
   {
@@ -359,6 +372,31 @@ main (gint argc, gchar * argv[])
 
   return result;
 }
+
+#ifdef HAVE_QNX
+
+static void
+gum_test_pin_to_first_cpu (void)
+{
+  guint num_elements;
+  gint * data;
+  guint * runmask, * inherit_mask;
+
+  num_elements = RMSK_SIZE (_syspage_ptr->num_cpu);
+
+  data = calloc (1 + (2 * num_elements), sizeof (gint));
+  data[0] = num_elements;
+  runmask = (guint *) (data + 1);
+  inherit_mask = runmask + num_elements;
+  RMSK_SET (0, runmask);
+  RMSK_SET (0, inherit_mask);
+
+  ThreadCtl (_NTO_TCTL_RUNMASK_GET_AND_SET_INHERIT, data);
+
+  free (data);
+}
+
+#endif
 
 /* HACK */
 struct GTestSuite
