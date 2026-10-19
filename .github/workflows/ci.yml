@@ -79,6 +79,7 @@ jobs:
           - { id: windows-arm64,  runner: '"windows-11-arm"'                    }
           - { id: macos-x86_64,   runner: '"macos-latest"'                      }
           - { id: macos-arm64,    runner: '"macos-latest"'                      }
+          - { id: macos-arm64e,   runner: '"xcode-27"'                          }
           - { id: linux-x86_64,   runner: '"ubuntu-latest"'                     }
           - { id: linux-x86,      runner: '"ubuntu-latest"'                     }
       fail-fast: false
@@ -106,14 +107,14 @@ jobs:
           .\configure ${{ env.GUM_OPTIONS }}
           .\make
       - name: Build
-        if: ${{ !startsWith(matrix.id, 'windows-') && matrix.id != 'linux-x86' && matrix.id != 'macos-x86_64' }}
+        if: ${{ !startsWith(matrix.id, 'windows-') && matrix.id != 'linux-x86' && matrix.id != 'macos-x86_64' && matrix.id != 'macos-arm64e' }}
         run: |
           ./configure ${{ env.GUM_OPTIONS }}
           make
       - name: Build
-        if: matrix.id == 'macos-x86_64'
+        if: matrix.id == 'macos-x86_64' || matrix.id == 'macos-arm64e'
         run: |
-          ./configure --host=macos-x86_64 ${{ env.GUM_OPTIONS }}
+          ./configure --host=${{ matrix.id }} ${{ env.GUM_OPTIONS }}
           make
       - name: Build
         if: matrix.id == 'linux-x86'
