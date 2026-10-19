@@ -563,7 +563,7 @@ TESTCASE (transformer_should_be_able_to_skip_call)
       code_template, sizeof (code_template));
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (skip_call,
-      func, NULL);
+      fixture->code, NULL);
 
   ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 1300);
@@ -606,7 +606,7 @@ TESTCASE (transformer_should_be_able_to_replace_call_with_callout)
       code_template, sizeof (code_template));
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
-      replace_call_with_callout, func, NULL);
+      replace_call_with_callout, fixture->code, NULL);
 
   ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 0xc001);
@@ -649,7 +649,7 @@ TESTCASE (transformer_should_be_able_to_replace_tailjump_with_callout)
       code_template, sizeof (code_template));
 
   fixture->transformer = gum_stalker_transformer_make_from_callback (
-      replace_jmp_with_callout, func, NULL);
+      replace_jmp_with_callout, fixture->code, NULL);
 
   ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (ret, ==, 0xc001);
@@ -909,7 +909,8 @@ modify_to_return_true_after_three_calls (GumStalkerIterator * iterator,
     if (i == 0)
     {
       in_target_function =
-          insn->address == GPOINTER_TO_SIZE (ctx->target_function);
+          insn->address == gum_strip_code_address (
+              GUM_ADDRESS (ctx->target_function));
 
       if (in_target_function && ctx->n == 0)
       {
@@ -1053,7 +1054,8 @@ modify_to_return_true_on_subsequent_transform (GumStalkerIterator * iterator,
     if (i == 0)
     {
       in_target_function =
-          insn->address == GPOINTER_TO_SIZE (ctx->target_function);
+          insn->address == gum_strip_code_address (
+              GUM_ADDRESS (ctx->target_function));
       if (in_target_function)
         ctx->n++;
     }
@@ -1116,7 +1118,8 @@ add_n_return_value_increments (GumStalkerIterator * iterator,
     if (i == 0)
     {
       in_target_function =
-          insn->address == GPOINTER_TO_SIZE (ctx->target_function);
+          insn->address == gum_strip_code_address (
+              GUM_ADDRESS (ctx->target_function));
     }
 
     if (insn->id == ARM64_INS_RET && in_target_function)

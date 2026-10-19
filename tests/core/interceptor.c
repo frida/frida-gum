@@ -996,7 +996,7 @@ TESTCASE (attach_to_busy_ip_registers)
   gum_arm64_writer_put_ret (&cw);
   gum_arm64_writer_clear (&cw);
   gum_mprotect (code, page_size, GUM_PAGE_RX);
-  target = (gint (*) (gint)) code;
+  target = (gint (*) (gint)) gum_sign_code_pointer (code);
 
   g_assert_cmpint (target (1), ==, 7);
 
@@ -1039,7 +1039,8 @@ TESTCASE (attach_with_exits_needing_different_regs)
   gum_arm64_writer_put_ret (&cw);
   gum_arm64_writer_clear (&cw);
   gum_mprotect (code, page_size, GUM_PAGE_RX);
-  target = (gsize (*) (gsize, const gsize *, gsize)) code;
+  target = (gsize (*) (gsize, const gsize *, gsize))
+      gum_sign_code_pointer (code);
 
   interceptor_fixture_attach (fixture, 0, target, '>', '<');
 
@@ -1071,7 +1072,7 @@ TESTCASE (attach_with_ip_registers_live_across_resume)
   gum_arm64_writer_put_br_reg_no_auth (&cw, ARM64_REG_X16);
   gum_arm64_writer_clear (&cw);
   gum_mprotect (code, page_size, GUM_PAGE_RX);
-  target = (gsize (*) (gpointer *)) code;
+  target = (gsize (*) (gpointer *)) gum_sign_code_pointer (code);
   slot = gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (gum_return_1337));
 
   interceptor_fixture_attach (fixture, 0, target, '>', '<');
