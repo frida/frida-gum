@@ -1580,6 +1580,7 @@ gum_stalker_do_invalidate (GumExecCtx * ctx,
 {
   GumInvalidateContext ic;
 
+  address = gum_strip_code_pointer ((gpointer) address);
   ic.is_executing_target_block = FALSE;
 
   gum_spinlock_acquire (&ctx->code_lock);
