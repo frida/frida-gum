@@ -457,7 +457,7 @@ GumModule *
 gum_process_find_module_by_address (GumAddress address)
 {
   GumFindModuleByAddressContext ctx = {
-    .address = address,
+    .address = gum_strip_code_address (address),
     .module = NULL
   };
 
