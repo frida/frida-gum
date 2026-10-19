@@ -29,7 +29,7 @@ _gum_arm64_set_breakpoint (GumArm64CtrlReg * bcr,
       (GUM_BAS_ANY << 5) |
       GUM_S_USER |
       GUM_BCR_ENABLE;
-  bvr[breakpoint_id] = address;
+  bvr[breakpoint_id] = gum_strip_code_address (address);
 }
 
 void
