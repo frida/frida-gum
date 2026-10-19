@@ -290,12 +290,15 @@ if host_os == 'linux'
 #endif
 '''
   if cc.compiles(glibc_src, name: 'compiling for glibc')
-    cdata.set('HAVE_GLIBC', 1)
+    libc = 'glibc'
   elif cc.compiles(uclibc_src, name: 'compiling for uClibc')
-    cdata.set('HAVE_UCLIBC', 1)
+    libc = 'uclibc'
   else
-    cdata.set('HAVE_MUSL', 1)
+    libc = 'musl'
   endif
+  cdata.set('HAVE_' + libc.to_upper(), 1)
+else
+  libc = 'other'
 endif
 
 if cc.has_member('struct mallinfo', 'arena', prefix: '#include <malloc.h>')
@@ -389,6 +392,12 @@ glib_options = [
   'tests=false',
   'nls=disabled',
 ]
+if host_os_family in ['darwin', 'qnx', 'none'] or host_os == 'android' or libc == 'uclibc'
+  glib_options += 'iconv=external'
+endif
+if host_os_family == 'qnx'
+  glib_options += 'sysprof=disabled'
+endif
 if optimize_for_prod
   glib_options += [
     'glib_debug=disabled',
@@ -435,7 +444,10 @@ if capstone_dep.type_name() != 'internal' \
   )
 endif
 
-lzma_dep = dependency('liblzma', required: build_tests, default_options: ['default_library=static'])
+lzma_dep = dependency('liblzma', required: build_tests, default_options: [
+  'default_library=static',
+  'cli=disabled',
+])
 if lzma_dep.found()
   cdata.set('HAVE_LZMA', 1)
   extra_requires_private += 'liblzma'
@@ -453,6 +465,7 @@ json_glib_dep = dependency('json-glib-1.0', default_options: [
   'introspection=disabled',
   'gtk_doc=disabled',
   'tests=false',
+  'nls=disabled',
 ])
 
 if glib_dep.type_name() == 'internal'
@@ -564,7 +577,11 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
   cdata.set('HAVE_LIBUNWIND', 1)
   extra_requires_private += ['libunwind']
 
-  libdwarf_dep = dependency('libdwarf', required: false, default_options: ['default_library=static'])
+  libdwarf_options = [
+    'default_library=static',
+    'decompression=false',
+  ]
+  libdwarf_dep = dependency('libdwarf', required: false, default_options: libdwarf_options)
   if libdwarf_dep.found() and libdwarf_dep.type_name() != 'internal' \
       and not cc.has_header('dwarf.h', dependencies: libdwarf_dep)
     libdwarf_dep = disabler()
@@ -583,7 +600,7 @@ if host_os_family in ['linux', 'freebsd', 'qnx']
       endforeach
     endif
     if not found
-      libdwarf_dep = dependency('libdwarf', required: true, default_options: ['default_library=static'])
+      libdwarf_dep = dependency('libdwarf', required: true, default_options: libdwarf_options)
     endif
   endif
 
