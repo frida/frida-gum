@@ -55,7 +55,8 @@ TESTCASE (notify_on_read_access)
   g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->rip);
   g_assert_true (d->context->rsp != 0);
 #else
-  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->pc);
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==,
+      gum_strip_code_address (d->context->pc));
   g_assert_true (d->context->sp != 0);
 #endif
 }
@@ -88,7 +89,8 @@ TESTCASE (notify_on_write_access)
   g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->rip);
   g_assert_true (d->context->rsp != 0);
 #else
-  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->pc);
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==,
+      gum_strip_code_address (d->context->pc));
   g_assert_true (d->context->sp != 0);
 #endif
 }
@@ -115,7 +117,8 @@ TESTCASE (notify_on_execute_access)
   g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->rip);
   g_assert_true (d->context->rsp != 0);
 #else
-  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==, d->context->pc);
+  g_assert_cmphex (GPOINTER_TO_SIZE (d->from), ==,
+      gum_strip_code_address (d->context->pc));
   g_assert_true (d->context->sp != 0);
 #endif
 }

@@ -5606,7 +5606,7 @@ TESTCASE (basic_block_can_be_invalidated_for_current_thread)
   target_function_int_addr =
       GSIZE_TO_POINTER (GPOINTER_TO_SIZE (target_function_int) & ~1);
 #else
-  target_function_int_addr = target_function_int;
+  target_function_int_addr = gum_strip_code_pointer (target_function_int);
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -5715,7 +5715,7 @@ TESTCASE (basic_block_can_be_invalidated_for_specific_thread)
   target_function_int_addr =
       GSIZE_TO_POINTER (GPOINTER_TO_SIZE (target_function_int) & ~1);
 #else
-  target_function_int_addr = target_function_int;
+  target_function_int_addr = gum_strip_code_pointer (target_function_int);
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -9558,7 +9558,7 @@ TESTCASE (memory_access_monitor_provides_cpu_context)
   COMPILE_AND_LOAD_SCRIPT (
       "MemoryAccessMonitor.enable({ base: " GUM_PTR_CONST ", size: %u }, {"
         "onAccess(details) {"
-          "send([details.context.pc.equals(details.from),"
+          "send([details.context.pc.strip().equals(details.from),"
             "details.context.sp.isNull()]);"
         "}"
       "});",

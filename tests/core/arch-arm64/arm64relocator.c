@@ -314,6 +314,7 @@ TESTCASE (b_to_far_target_is_rewritten_via_register)
   guint64 target;
 
   gum_arm64_writer_init (&aw, output);
+  aw.ptrauth_support = GUM_PTRAUTH_UNSUPPORTED;
   aw.pc = 0x100000000;
   gum_arm64_relocator_init (&rl, input, &aw);
   rl.input_pc = 0x1000;
