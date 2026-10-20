@@ -1,4 +1,4 @@
-PYTHON ?= $(shell which python3 >/dev/null && echo python3 || echo python)
+PYTHON ?= $(shell command -v python3 >/dev/null && echo python3 || echo python)
 
 all $(MAKECMDGOALS):
 	@$(PYTHON) \
@@ -8,7 +8,7 @@ all $(MAKECMDGOALS):
 		$(MAKECMDGOALS)
 
 git-submodules:
-	@if [ ! -f releng/meson/meson.py ]; then \
+	@if [ ! -f releng/meson/meson.py ] || git submodule status 2>/dev/null | grep -q '^-'; then \
 		git submodule update --init --recursive --depth 1; \
 	fi
 -include git-submodules

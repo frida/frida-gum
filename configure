@@ -1,12 +1,12 @@
 #!/bin/sh
 
-[ -z "$PYTHON" ] && PYTHON=$(which python3 >/dev/null && echo python3 || echo python)
+[ -z "$PYTHON" ] && PYTHON=$(command -v python3 >/dev/null && echo python3 || echo python)
 
 cd $(dirname $0)
 
 srcroot=$(pwd)
 
-if [ ! -f releng/meson/meson.py ]; then
+if [ ! -f releng/meson/meson.py ] || git submodule status 2>/dev/null | grep -q '^-'; then
   git submodule update --init --recursive --depth 1 || exit $?
 fi
 
