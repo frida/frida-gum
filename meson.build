@@ -389,14 +389,12 @@ glib_options = [
   'selinux=disabled',
   'xattr=false',
   'libmount=disabled',
+  'sysprof=disabled',
   'tests=false',
   'nls=disabled',
 ]
 if host_os_family in ['darwin', 'qnx', 'none'] or host_os == 'android' or libc == 'uclibc'
   glib_options += 'iconv=external'
-endif
-if host_os_family == 'qnx'
-  glib_options += 'sysprof=disabled'
 endif
 if optimize_for_prod
   glib_options += [
