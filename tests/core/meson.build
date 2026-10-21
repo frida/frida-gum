@@ -91,8 +91,17 @@ endif
 core_link_with = []
 
 if host_os_family == 'linux' and host_arch in ['x86', 'x86_64', 'arm64']
+  core_exceptions_sources = ['arch-x86/stalker-x86-exceptions.cpp']
+
+  if host_arch == 'arm64'
+    core_sources += [
+      'unwindbroker-linux.c',
+    ]
+    core_exceptions_sources += ['unwindbroker-linux-exceptions.cpp']
+  endif
+
   gum_tests_core_exceptions = static_library('gum-tests-core-exceptions',
-    ['arch-x86/stalker-x86-exceptions.cpp'],
+    core_exceptions_sources,
     include_directories: test_incdirs,
     dependencies: [gum_dep],
     override_options: ['cpp_eh=default'],
