@@ -195,8 +195,8 @@ _gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
   gum_unwind_libunwind_interceptor = interceptor;
 
   res = gum_interceptor_replace (gum_unwind_libunwind_interceptor,
-      __gxx_personality_v0, gum_unwind_broker_replacement_personality, NULL,
-      NULL);
+      _Unwind_GetIP, gum_unwind_broker_replacement_get_ip,
+      &gum_unwind_real_get_ip, NULL);
   g_assert (res == GUM_REPLACE_OK);
 
   res = gum_interceptor_replace (gum_unwind_libunwind_interceptor,
@@ -204,8 +204,8 @@ _gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
   g_assert (res == GUM_REPLACE_OK);
 
   res = gum_interceptor_replace (gum_unwind_libunwind_interceptor,
-      _Unwind_GetIP, gum_unwind_broker_replacement_get_ip,
-      &gum_unwind_real_get_ip, NULL);
+      __gxx_personality_v0, gum_unwind_broker_replacement_personality, NULL,
+      NULL);
   g_assert (res == GUM_REPLACE_OK);
 }
 

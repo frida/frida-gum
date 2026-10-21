@@ -220,6 +220,9 @@ main (gint argc, gchar * argv[])
   TESTLIST_REGISTER (unwind_broker);
   TESTLIST_REGISTER (darwin_mapper);
 #endif
+#if defined (HAVE_LINUX) && defined (HAVE_ARM64)
+  TESTLIST_REGISTER (unwind_broker);
+#endif
 #ifdef HAVE_ANDROID
   TESTLIST_REGISTER (interceptor_android);
 #endif
