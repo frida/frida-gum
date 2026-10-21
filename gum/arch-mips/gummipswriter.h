@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2014-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -90,6 +90,8 @@ GUM_API void gum_mips_writer_put_ori_reg_reg_imm (GumMipsWriter * self,
 GUM_API void gum_mips_writer_put_ld_reg_reg_offset (GumMipsWriter * self,
     mips_reg dst_reg, mips_reg src_reg, gsize src_offset);
 GUM_API void gum_mips_writer_put_lw_reg_reg_offset (GumMipsWriter * self,
+    mips_reg dst_reg, mips_reg src_reg, gsize src_offset);
+GUM_API void gum_mips_writer_put_lw32_reg_reg_offset (GumMipsWriter * self,
     mips_reg dst_reg, mips_reg src_reg, gsize src_offset);
 GUM_API void gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
     mips_reg src_reg, mips_reg dst_reg, gsize dst_offset);
