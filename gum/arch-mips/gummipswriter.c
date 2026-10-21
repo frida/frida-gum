@@ -738,7 +738,7 @@ gum_mips_writer_put_addu_reg_reg_reg (GumMipsWriter * self,
   gum_mips_writer_put_instruction (self,
       /* See MIPS64 comment in put_lw_reg_reg_offset(). */
 #if GLIB_SIZEOF_VOID_P == 8
-      0x000000a5
+      0x0000002d
 #else
       0x00000021
 #endif
