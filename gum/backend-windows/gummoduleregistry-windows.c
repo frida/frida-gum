@@ -11,7 +11,31 @@
 #include "gum/guminterceptor.h"
 
 #include <psapi.h>
+#include <winternl.h>
 
+#define GUM_DLL_NOTIFICATION_REASON_LOADED 1
+#define GUM_DLL_NOTIFICATION_REASON_UNLOADED 2
+
+typedef struct _GumDllNotificationData GumDllNotificationData;
+typedef void (CALLBACK * GumDllNotificationFunc) (ULONG reason,
+    const GumDllNotificationData * data, PVOID context);
+typedef NTSTATUS (NTAPI * GumLdrRegisterDllNotificationFunc) (ULONG flags,
+    GumDllNotificationFunc func, PVOID context, PVOID * cookie);
+typedef NTSTATUS (NTAPI * GumLdrUnregisterDllNotificationFunc) (PVOID cookie);
+
+struct _GumDllNotificationData
+{
+  ULONG flags;
+  PCUNICODE_STRING full_dll_name;
+  PCUNICODE_STRING base_dll_name;
+  PVOID dll_base;
+  ULONG size_of_image;
+};
+
+static gboolean gum_try_subscribe_to_loader (GumModuleRegistry * registry);
+static void gum_unsubscribe_from_loader (void);
+static void CALLBACK gum_module_registry_on_dll_notification (ULONG reason,
+    const GumDllNotificationData * data, PVOID context);
 static void gum_hook_loader (GumModuleRegistry * registry);
 static void gum_unhook_loader (void);
 static void gum_module_registry_on_loader_leave (GumInvocationContext * ic,
@@ -19,8 +43,14 @@ static void gum_module_registry_on_loader_leave (GumInvocationContext * ic,
 static void gum_module_registry_synchronize_modules (
     GumModuleRegistry * registry);
 static GHashTable * gum_snapshot_loaded_modules (void);
+static void gum_module_registry_add_module (GumModuleRegistry * registry,
+    HMODULE handle);
+static void gum_module_registry_remove_module (GumModuleRegistry * registry,
+    HMODULE handle);
 
 static GHashTable * gum_current_modules;
+
+static gpointer gum_loader_subscription;
 
 static GumInterceptor * gum_ldr_interceptor;
 static GumInvocationListener * gum_loader_handler;
@@ -30,16 +60,62 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 {
   gum_current_modules = g_hash_table_new (NULL, NULL);
 
-  gum_hook_loader (self);
+  if (!gum_try_subscribe_to_loader (self))
+    gum_hook_loader (self);
   gum_module_registry_synchronize_modules (self);
 }
 
 void
 _gum_module_registry_deactivate (GumModuleRegistry * self)
 {
-  gum_unhook_loader ();
+  if (gum_loader_subscription != NULL)
+    gum_unsubscribe_from_loader ();
+  else
+    gum_unhook_loader ();
 
   g_clear_pointer (&gum_current_modules, g_hash_table_unref);
+}
+
+static gboolean
+gum_try_subscribe_to_loader (GumModuleRegistry * registry)
+{
+  GumLdrRegisterDllNotificationFunc register_impl;
+
+  register_impl = (GumLdrRegisterDllNotificationFunc) GetProcAddress (
+      GetModuleHandleW (L"ntdll.dll"), "LdrRegisterDllNotification");
+  if (register_impl == NULL)
+    return FALSE;
+
+  register_impl (0, gum_module_registry_on_dll_notification, registry,
+      &gum_loader_subscription);
+
+  return TRUE;
+}
+
+static void
+gum_unsubscribe_from_loader (void)
+{
+  GumLdrUnregisterDllNotificationFunc unregister_impl;
+
+  unregister_impl = (GumLdrUnregisterDllNotificationFunc) GetProcAddress (
+      GetModuleHandleW (L"ntdll.dll"), "LdrUnregisterDllNotification");
+
+  unregister_impl (gum_loader_subscription);
+  gum_loader_subscription = NULL;
+}
+
+static void CALLBACK
+gum_module_registry_on_dll_notification (ULONG reason,
+                                         const GumDllNotificationData * data,
+                                         PVOID context)
+{
+  GumModuleRegistry * registry = context;
+  HMODULE handle = data->dll_base;
+
+  if (reason == GUM_DLL_NOTIFICATION_REASON_LOADED)
+    gum_module_registry_add_module (registry, handle);
+  else
+    gum_module_registry_remove_module (registry, handle);
 }
 
 static void
@@ -94,7 +170,6 @@ gum_module_registry_synchronize_modules (GumModuleRegistry * registry)
   GHashTable * modules;
   GHashTableIter iter;
   gpointer handle;
-  GQueue added = G_QUEUE_INIT;
   GQueue removed = G_QUEUE_INIT;
 
   gum_module_registry_lock (registry);
@@ -103,13 +178,6 @@ gum_module_registry_synchronize_modules (GumModuleRegistry * registry)
   if (modules == NULL)
     goto beach;
 
-  g_hash_table_iter_init (&iter, modules);
-  while (g_hash_table_iter_next (&iter, &handle, NULL))
-  {
-    if (!g_hash_table_contains (gum_current_modules, handle))
-      g_queue_push_tail (&added, handle);
-  }
-
   g_hash_table_iter_init (&iter, gum_current_modules);
   while (g_hash_table_iter_next (&iter, &handle, NULL))
   {
@@ -117,20 +185,14 @@ gum_module_registry_synchronize_modules (GumModuleRegistry * registry)
       g_queue_push_tail (&removed, handle);
   }
 
-  g_hash_table_unref (gum_current_modules);
-  gum_current_modules = modules;
-
   while ((handle = g_queue_pop_head (&removed)) != NULL)
-    _gum_module_registry_unregister (registry, GUM_ADDRESS (handle));
+    gum_module_registry_remove_module (registry, handle);
 
-  while ((handle = g_queue_pop_head (&added)) != NULL)
-  {
-    GumNativeModule * module = _gum_native_module_make (handle);
+  g_hash_table_iter_init (&iter, modules);
+  while (g_hash_table_iter_next (&iter, &handle, NULL))
+    gum_module_registry_add_module (registry, handle);
 
-    _gum_module_registry_register (registry, GUM_MODULE (module));
-
-    g_object_unref (module);
-  }
+  g_hash_table_unref (modules);
 
 beach:
   gum_module_registry_unlock (registry);
@@ -175,4 +237,37 @@ failure:
     g_free (handles);
     return NULL;
   }
+}
+
+static void
+gum_module_registry_add_module (GumModuleRegistry * registry,
+                                HMODULE handle)
+{
+  GumNativeModule * module;
+
+  gum_module_registry_lock (registry);
+
+  if (g_hash_table_contains (gum_current_modules, handle))
+    goto beach;
+
+  g_hash_table_add (gum_current_modules, handle);
+
+  module = _gum_native_module_make (handle);
+  _gum_module_registry_register (registry, GUM_MODULE (module));
+  g_object_unref (module);
+
+beach:
+  gum_module_registry_unlock (registry);
+}
+
+static void
+gum_module_registry_remove_module (GumModuleRegistry * registry,
+                                   HMODULE handle)
+{
+  gum_module_registry_lock (registry);
+
+  if (g_hash_table_remove (gum_current_modules, handle))
+    _gum_module_registry_unregister (registry, GUM_ADDRESS (handle));
+
+  gum_module_registry_unlock (registry);
 }

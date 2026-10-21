@@ -14,6 +14,7 @@
 
 #ifdef HAVE_WINDOWS
 # include <windows.h>
+# include <shlobj.h>
 #endif
 #ifdef HAVE_LINUX
 # include "interceptor-callbacklistener.h"
@@ -31,6 +32,7 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (module_registry_should_emit_signal_on_add)
   TESTENTRY (hooks_should_be_discarded_when_module_unloads)
   TESTENTRY (dependency_export_can_be_found)
+  TESTENTRY (delay_loaded_modules_should_be_registered)
   TESTENTRY (nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (displaced_nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (relocated_program_headers_can_be_parsed)
@@ -47,8 +49,20 @@ static void on_module_removed (GumModuleRegistry * registry, GumModule * module,
 
 # define GUM_DEPENDENT_MODULE_FILENAME "module-registry-dependent.dll"
 # define GUM_DEPENDENCY_MODULE_FILENAME "module-registry-dependency.dll"
+# define GUM_DELAY_LOADED_MODULE_FILENAME "windows.storage.dll"
 
-static gboolean store_dependency_module (GumModule * module,
+typedef struct _TestFindModuleContext TestFindModuleContext;
+
+struct _TestFindModuleContext
+{
+  const gchar * name;
+  GumModule * module;
+};
+
+static void on_delay_loaded_module_added (GumModuleRegistry * registry,
+    GumModule * module, gpointer user_data);
+static GumModule * find_registered_module (const gchar * name);
+static gboolean store_module_if_named (GumModule * module,
     gpointer user_data);
 
 #endif
@@ -219,7 +233,7 @@ TESTCASE (dependency_export_can_be_found)
   gchar * data_dir, * target_path;
   gunichar2 * target_path_utf16;
   HMODULE handle;
-  GumModule * module = NULL;
+  GumModule * module;
   GumAddress address;
 
   gum_module_registry_obtain ();
@@ -233,7 +247,7 @@ TESTCASE (dependency_export_can_be_found)
       LOAD_WITH_ALTERED_SEARCH_PATH);
   g_assert_nonnull (handle);
 
-  gum_process_enumerate_modules (store_dependency_module, &module);
+  module = find_registered_module (GUM_DEPENDENCY_MODULE_FILENAME);
   g_assert_nonnull (module);
 
   address = gum_module_find_export_by_name (module,
@@ -243,11 +257,10 @@ TESTCASE (dependency_export_can_be_found)
       GUM_DEPENDENCY_MODULE_EXPORT)));
 
   g_object_unref (module);
-  module = NULL;
 
   FreeLibrary (handle);
 
-  gum_process_enumerate_modules (store_dependency_module, &module);
+  module = find_registered_module (GUM_DEPENDENCY_MODULE_FILENAME);
   g_assert_null (module);
 
   g_free (target_path_utf16);
@@ -282,6 +295,52 @@ TESTCASE (dependency_export_can_be_found)
   g_free (data_dir);
 #else
   g_test_skip ("only supported on Windows and Linux");
+#endif
+}
+
+TESTCASE (delay_loaded_modules_should_be_registered)
+{
+#ifdef HAVE_WINDOWS
+  GumModuleRegistry * registry;
+  gboolean seen_add = FALSE;
+  gulong handler;
+  WCHAR path[MAX_PATH];
+  HMODULE handle;
+  GumModule * module;
+  const GumMemoryRange * range;
+
+  if (GetModuleHandleA (GUM_DELAY_LOADED_MODULE_FILENAME) != NULL)
+  {
+    g_test_skip ("delay-loaded module already present");
+    return;
+  }
+
+  registry = gum_module_registry_obtain ();
+  handler = g_signal_connect (registry, "module-added",
+      G_CALLBACK (on_delay_loaded_module_added), &seen_add);
+
+  g_assert_cmphex (SHGetFolderPathW (NULL, CSIDL_LOCAL_APPDATA, NULL, 0,
+      path), ==, S_OK);
+
+  g_signal_handler_disconnect (registry, handler);
+
+  handle = GetModuleHandleA (GUM_DELAY_LOADED_MODULE_FILENAME);
+  if (handle == NULL)
+  {
+    g_test_skip ("delay-loaded module not used by this Windows version");
+    return;
+  }
+
+  g_assert_true (seen_add);
+
+  module = find_registered_module (GUM_DELAY_LOADED_MODULE_FILENAME);
+  g_assert_nonnull (module);
+  range = gum_module_get_range (module);
+  g_assert_cmphex (range->base_address, ==, GUM_ADDRESS (handle));
+  g_assert_cmpuint (range->size, !=, 0);
+  g_object_unref (module);
+#else
+  g_test_skip ("only supported on Windows");
 #endif
 }
 
@@ -465,17 +524,40 @@ on_module_removed (GumModuleRegistry * registry,
 
 #ifdef HAVE_WINDOWS
 
-static gboolean
-store_dependency_module (GumModule * module,
-                         gpointer user_data)
+static void
+on_delay_loaded_module_added (GumModuleRegistry * registry,
+                              GumModule * module,
+                              gpointer user_data)
 {
-  GumModule ** result = user_data;
+  gboolean * seen_add = user_data;
 
-  if (!g_str_has_suffix (gum_module_get_path (module),
-      G_DIR_SEPARATOR_S GUM_DEPENDENCY_MODULE_FILENAME))
+  if (g_ascii_strcasecmp (gum_module_get_name (module),
+      GUM_DELAY_LOADED_MODULE_FILENAME) == 0)
+  {
+    *seen_add = TRUE;
+  }
+}
+
+static GumModule *
+find_registered_module (const gchar * name)
+{
+  TestFindModuleContext ctx = { name, NULL };
+
+  gum_process_enumerate_modules (store_module_if_named, &ctx);
+
+  return ctx.module;
+}
+
+static gboolean
+store_module_if_named (GumModule * module,
+                       gpointer user_data)
+{
+  TestFindModuleContext * ctx = user_data;
+
+  if (g_ascii_strcasecmp (gum_module_get_name (module), ctx->name) != 0)
     return TRUE;
 
-  *result = g_object_ref (module);
+  ctx->module = g_object_ref (module);
 
   return FALSE;
 }
