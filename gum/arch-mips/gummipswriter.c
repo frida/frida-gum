@@ -260,9 +260,11 @@ gum_mips_writer_flush (GumMipsWriter * self)
     /* beq <int16> */
     else if ((insn & 0xfc000000) == 0x10000000)
     {
-      if (!GUM_IS_WITHIN_INT18_RANGE (distance << 2))
+      gssize delay_slot_distance = distance - 1;
+
+      if (!GUM_IS_WITHIN_INT18_RANGE (delay_slot_distance << 2))
         goto error;
-      insn |= distance & GUM_INT16_MASK;
+      insn |= delay_slot_distance & GUM_INT16_MASK;
     }
     /* TODO: conditional branches */
     else if ((insn & 0x7e000000) == 0x36000000)
@@ -572,7 +574,7 @@ gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, left_reg, &rt);
 
   gum_mips_writer_add_label_reference_here (self, label_id);
-  gum_mips_writer_put_instruction (self, 0x01000000 | (rs.index << 21) |
+  gum_mips_writer_put_instruction (self, 0x10000000 | (rs.index << 21) |
       (rt.index << 16));
   gum_mips_writer_put_nop (self);
 }
