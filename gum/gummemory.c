@@ -1192,6 +1192,8 @@ gum_memory_scan_raw (const GumMemoryRange * range,
   cur = (guint8 *) GSIZE_TO_POINTER (range->base_address) + needle->offset;
   end_address = cur + range->size - pattern_size + 1;
 
+  gum_suspend_tag_checks ();
+
   for (; cur < end_address; cur++)
   {
     guint8 * start;
@@ -1219,11 +1221,16 @@ gum_memory_scan_raw (const GumMemoryRange * range,
     if (gum_match_pattern_try_match_on (pattern, start))
     {
       if (!func (GUM_ADDRESS (start), pattern_size, user_data))
+      {
+        gum_resume_tag_checks ();
         return;
+      }
 
       cur = start + pattern_size + needle->offset - 1;
     }
   }
+
+  gum_resume_tag_checks ();
 }
 
 static void
@@ -1896,6 +1903,8 @@ gum_pointer_scan_process_words (GumPointerScan * self,
 {
   GumExceptorScope scope;
 
+  gum_suspend_tag_checks ();
+
   if (gum_exceptor_try (self->exceptor, &scope))
   {
     gsize i = 0;
@@ -1907,6 +1916,8 @@ gum_pointer_scan_process_words (GumPointerScan * self,
     for (; i != n_words; i++)
       gum_pointer_scan_check_word (self, words + i, matches);
   }
+
+  gum_resume_tag_checks ();
 
   gum_exceptor_catch (self->exceptor, &scope);
 }
