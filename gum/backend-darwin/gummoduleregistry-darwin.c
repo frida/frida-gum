@@ -63,6 +63,8 @@ static void gum_lldb_image_notifier (enum dyld_image_mode mode,
 
 static GumNativeModule * gum_make_image_module (const struct mach_header * mh,
     const gchar * name);
+static const gchar * gum_query_image_name_from_all_image_infos (
+    const struct mach_header * mh);
 static void gum_add_image (const struct mach_header * mh, const gchar * name);
 static void gum_remove_image (const struct mach_header * mh);
 static void gum_module_registry_synchronize_modules (void);
@@ -259,28 +261,22 @@ static GumNativeModule *
 gum_make_image_module (const struct mach_header * mh,
                        const gchar * name)
 {
-  Dl_info info;
   GumFileMapping file;
   struct proc_regionwithpathinfo region;
   GumMemoryRange range;
   const gchar * sysroot;
 
   if (name == NULL)
+    name = gum_query_image_name_from_all_image_infos (mh);
+  if (name == NULL)
   {
-    if (dladdr (mh, &info) != 0)
-    {
-      name = info.dli_fname;
-    }
-    else
-    {
-      G_GNUC_UNUSED gboolean resolved;
+    G_GNUC_UNUSED gboolean resolved;
 
-      resolved = _gum_darwin_fill_file_mapping (getpid (),
-          GPOINTER_TO_SIZE (mh), &file, &region);
-      g_assert (resolved);
+    resolved = _gum_darwin_fill_file_mapping (getpid (),
+        GPOINTER_TO_SIZE (mh), &file, &region);
+    g_assert (resolved);
 
-      name = file.path;
-    }
+    name = file.path;
   }
 
   sysroot = gum_darwin_query_sysroot ();
@@ -291,6 +287,28 @@ gum_make_image_module (const struct mach_header * mh,
   range.size = gum_detect_macho_size (mh);
 
   return _gum_native_module_make (name, &range, gum_resolver);
+}
+
+static const gchar *
+gum_query_image_name_from_all_image_infos (const struct mach_header * mh)
+{
+  GumDarwinAllImageInfos infos;
+  const struct dyld_image_info * entries;
+  gsize i;
+
+  if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos, NULL))
+    return NULL;
+  if (infos.info_array_address == 0)
+    return NULL;
+
+  entries = GSIZE_TO_POINTER (infos.info_array_address);
+  for (i = 0; i != infos.info_array_count; i++)
+  {
+    if (entries[i].imageLoadAddress == mh)
+      return entries[i].imageFilePath;
+  }
+
+  return NULL;
 }
 
 static void
