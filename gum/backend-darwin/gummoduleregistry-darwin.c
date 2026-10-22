@@ -78,6 +78,8 @@ static gboolean gum_collect_dyld_dec_dl_ref_count (
     const GumDarwinSymbolDetails * details, gpointer user_data);
 static void gum_arm_resident_add_notifier (void);
 static GumResidentNotifier * gum_find_resident_notifier (void);
+static gboolean gum_resident_notifier_matches (GumResidentNotifier * candidate,
+    gpointer handler);
 static GumResidentNotifier * gum_create_resident_notifier (void);
 static void gum_write_resident_stub (gpointer mem, gpointer user_data);
 static void gum_resident_add_notifier_on_image_event (
@@ -498,16 +500,31 @@ gum_find_resident_notifier (void)
     if (info.protection == (VM_PROT_READ | VM_PROT_WRITE) &&
         info.share_mode == SM_PRIVATE &&
         size >= sizeof (GumResidentNotifier) &&
-        g_atomic_pointer_get (&candidate->magic) ==
-            GSIZE_TO_POINTER (GUM_RESIDENT_NOTIFIER_MAGIC) &&
-        g_atomic_pointer_compare_and_exchange (&candidate->handler,
-            candidate->noop, handler))
+        gum_resident_notifier_matches (candidate, handler))
     {
       return candidate;
     }
 
     address += size;
   }
+}
+
+static gboolean
+gum_resident_notifier_matches (GumResidentNotifier * candidate,
+                               gpointer handler)
+{
+  gboolean matches;
+
+  gum_suspend_tag_checks ();
+
+  matches = g_atomic_pointer_get (&candidate->magic) ==
+      GSIZE_TO_POINTER (GUM_RESIDENT_NOTIFIER_MAGIC) &&
+      g_atomic_pointer_compare_and_exchange (&candidate->handler,
+          candidate->noop, handler);
+
+  gum_resume_tag_checks ();
+
+  return matches;
 }
 
 static GumResidentNotifier *
