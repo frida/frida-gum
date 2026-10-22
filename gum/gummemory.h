@@ -155,6 +155,9 @@ GUM_API GPtrArray * gum_match_pattern_get_tokens (
 
 GUM_API void gum_ensure_code_readable (gconstpointer address, gsize size);
 
+GUM_API void gum_suspend_tag_checks (void);
+GUM_API void gum_resume_tag_checks (void);
+
 GUM_API void gum_mprotect (gpointer address, gsize size,
     GumPageProtection prot);
 GUM_API gboolean gum_try_mprotect (gpointer address, gsize size,

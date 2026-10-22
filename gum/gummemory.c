@@ -2157,6 +2157,24 @@ gum_ensure_code_readable (gconstpointer address,
 }
 
 void
+gum_suspend_tag_checks (void)
+{
+#if defined (HAVE_ARM64) && !defined (_MSC_VER)
+  if ((gum_query_cpu_features () & GUM_CPU_MTE) != 0)
+    asm volatile (".arch_extension memtag\n\tmsr tco, #1" ::: "memory");
+#endif
+}
+
+void
+gum_resume_tag_checks (void)
+{
+#if defined (HAVE_ARM64) && !defined (_MSC_VER)
+  if ((gum_query_cpu_features () & GUM_CPU_MTE) != 0)
+    asm volatile (".arch_extension memtag\n\tmsr tco, #0" ::: "memory");
+#endif
+}
+
+void
 gum_mprotect (gpointer address,
               gsize size,
               GumPageProtection prot)
