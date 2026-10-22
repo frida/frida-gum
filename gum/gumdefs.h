@@ -209,6 +209,7 @@ enum _GumCpuFeatures
   GUM_CPU_VFP3            = 1 << 6,
   GUM_CPU_VFPD32          = 1 << 7,
   GUM_CPU_PTRAUTH         = 1 << 8,
+  GUM_CPU_MTE             = 1 << 9,
 };
 
 typedef enum {
