@@ -3627,6 +3627,8 @@ gumjs_native_pointer_handle_read (JSContext * ctx,
 
   address = (guint8 *) self->value + offset;
 
+  gum_suspend_tag_checks ();
+
   if (gum_exceptor_try (exceptor, &scope))
   {
     switch (type)
@@ -3806,6 +3808,8 @@ gumjs_native_pointer_handle_read (JSContext * ctx,
     }
   }
 
+  gum_resume_tag_checks ();
+
   if (gum_exceptor_catch (exceptor, &scope))
   {
     JS_FreeValue (ctx, result);
@@ -3907,6 +3911,8 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
 
   address = (guint8 *) self->value + offset;
 
+  gum_suspend_tag_checks ();
+
   if (gum_exceptor_try (exceptor, &scope))
   {
     switch (type)
@@ -3986,6 +3992,8 @@ gumjs_native_pointer_handle_write (JSContext * ctx,
         g_assert_not_reached ();
     }
   }
+
+  gum_resume_tag_checks ();
 
   if (gum_exceptor_catch (exceptor, &scope))
     result = _gum_quick_throw_native (ctx, &scope.exception, core);

@@ -223,10 +223,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
   auto exceptor = args->core->exceptor;
   GumExceptorScope scope;
 
+  gum_suspend_tag_checks ();
+
   if (gum_exceptor_try (exceptor, &scope))
   {
     memmove (destination, source, size);
   }
+
+  gum_resume_tag_checks ();
 
   if (gum_exceptor_catch (exceptor, &scope))
   {

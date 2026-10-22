@@ -2637,6 +2637,8 @@ gumjs_native_pointer_handle_read (const FunctionCallbackInfo<Value> & info,
 
   address = (guint8 *) address + offset;
 
+  gum_suspend_tag_checks ();
+
   if (gum_exceptor_try (exceptor, &scope))
   {
     switch (type)
@@ -2835,6 +2837,8 @@ gumjs_native_pointer_handle_read (const FunctionCallbackInfo<Value> & info,
     }
   }
 
+  gum_resume_tag_checks ();
+
   if (gum_exceptor_catch (exceptor, &scope))
   {
     _gum_v8_throw_native (&scope.exception, core);
@@ -2927,6 +2931,8 @@ gumjs_native_pointer_handle_write (const FunctionCallbackInfo<Value> & info,
 
   address = (guint8 *) address + offset;
 
+  gum_suspend_tag_checks ();
+
   if (gum_exceptor_try (exceptor, &scope))
   {
     switch (type)
@@ -3003,6 +3009,8 @@ gumjs_native_pointer_handle_write (const FunctionCallbackInfo<Value> & info,
         g_assert_not_reached ();
     }
   }
+
+  gum_resume_tag_checks ();
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
