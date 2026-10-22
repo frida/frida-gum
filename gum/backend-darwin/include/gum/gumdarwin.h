@@ -170,6 +170,7 @@ struct _GumDarwinAllImageInfos
   gboolean libsystem_initialized;
 
   GumAddress dyld_image_load_address;
+  GumAddress dyld_path;
 
   GumAddress dyld_all_image_infos_address;
 

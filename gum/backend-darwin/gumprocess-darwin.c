@@ -1143,6 +1143,9 @@ gum_darwin_query_all_image_infos (mach_port_t task,
 
     infos->dyld_image_load_address = all_info->dyld_image_load_address;
 
+    if (all_info->version >= 16)
+      infos->dyld_path = all_info->dyld_path;
+
     if (all_info->version >= 9)
     {
       infos->dyld_all_image_infos_address =
@@ -1193,6 +1196,9 @@ gum_darwin_query_all_image_infos (mach_port_t task,
     infos->libsystem_initialized = all_info->libsystem_initialized;
 
     infos->dyld_image_load_address = all_info->dyld_image_load_address;
+
+    if (all_info->version >= 16)
+      infos->dyld_path = all_info->dyld_path;
 
     if (all_info->version >= 13)
     {

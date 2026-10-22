@@ -298,6 +298,11 @@ gum_query_image_name_from_all_image_infos (const struct mach_header * mh)
 
   if (!gum_darwin_query_all_image_infos (mach_task_self (), &infos, NULL))
     return NULL;
+
+  if ((const struct mach_header *)
+      GSIZE_TO_POINTER (infos.dyld_image_load_address) == mh)
+    return GSIZE_TO_POINTER (infos.dyld_path);
+
   if (infos.info_array_address == 0)
     return NULL;
 
