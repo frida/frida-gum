@@ -28,6 +28,7 @@
       (crm << 3) | \
       op2 \
     )
+#define GUM_ARM64_SYSREG_TPIDR_EL0 GUM_ARM64_SYSREG (3, 3, 13, 0, 2)
 #define GUM_ARM64_SYSREG_TPIDRRO_EL0 GUM_ARM64_SYSREG (3, 3, 13, 0, 3)
 
 G_BEGIN_DECLS

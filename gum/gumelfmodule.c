@@ -1885,6 +1885,11 @@ gum_elf_module_parse_symbol (GumElfModule * self,
     d->name = (section != NULL) ? section->name : NULL;
     d->address = self->base_address + sym->value;
   }
+  else if (type == GUM_ELF_SYMBOL_TLS)
+  {
+    d->name = strings + sym->name;
+    d->address = sym->value;
+  }
   else
   {
     d->name = strings + sym->name;

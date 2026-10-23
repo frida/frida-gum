@@ -14,7 +14,7 @@
 #include <gum/gum.h>
 #include <json-glib/json-glib.h>
 #ifdef HAVE_DARWIN
-# include <gum/gumdarwinmapper.h>
+# include <gum/gummachomapper.h>
 #endif
 
 #ifdef HAVE_TINYCC
@@ -1385,8 +1385,8 @@ struct _GumDarwinCModule
   GHashTable * symbols;
 
   GumDarwinModuleResolver * resolver;
-  GumDarwinMapper * mapper;
-  GumDarwinModule * module;
+  GumMachoMapper * mapper;
+  GumMachoModule * module;
 };
 
 struct _GumEnumerateExportsContext
@@ -1408,7 +1408,7 @@ static gboolean gum_darwin_cmodule_link_at (GumCModule * cm, gpointer base,
 static void gum_darwin_cmodule_link_post (GumCModule * cm);
 static void gum_darwin_cmodule_enumerate_symbols (GumCModule * cm,
     GumFoundCSymbolFunc func, gpointer user_data);
-static gboolean gum_emit_export (const GumDarwinExportDetails * details,
+static gboolean gum_emit_export (const GumMachoExportDetails * details,
     gpointer user_data);
 static gpointer gum_darwin_cmodule_find_symbol_by_name (GumCModule * cm,
     const gchar * name);
@@ -1588,14 +1588,14 @@ gum_darwin_cmodule_link_pre (GumCModule * cm,
   gum_darwin_module_resolver_set_dynamic_lookup_handler (self->resolver,
       gum_darwin_cmodule_resolve_symbol, self, NULL);
 
-  self->mapper = gum_darwin_mapper_new_take_blob (self->name,
+  self->mapper = gum_macho_mapper_new_take_blob (self->name,
       g_steal_pointer (&self->binary), self->resolver, &error);
   if (error != NULL)
     goto propagate_error;
 
   g_object_get (self->mapper, "module", &self->module, NULL);
 
-  *size = gum_darwin_mapper_size (self->mapper);
+  *size = gum_macho_mapper_size (self->mapper);
 
   success = TRUE;
   goto beach;
@@ -1620,20 +1620,20 @@ gum_darwin_cmodule_link_at (GumCModule * cm,
   GumDarwinCModule * self;
   GumCModulePrivate * priv;
   GError * error = NULL;
-  GumDarwinMapperConstructor ctor;
+  GumMachoMapperConstructor ctor;
 
   self = GUM_DARWIN_CMODULE (cm);
   priv = gum_cmodule_get_instance_private (cm);
 
-  gum_darwin_mapper_map (self->mapper, GUM_ADDRESS (base), &error);
+  gum_macho_mapper_map (self->mapper, GUM_ADDRESS (base), &error);
   if (error != NULL)
     goto propagate_error;
 
-  ctor = GSIZE_TO_POINTER (gum_darwin_mapper_constructor (self->mapper));
+  ctor = GSIZE_TO_POINTER (gum_macho_mapper_constructor (self->mapper));
   ctor ();
 
   priv->destruct =
-      GSIZE_TO_POINTER (gum_darwin_mapper_destructor (self->mapper));
+      GSIZE_TO_POINTER (gum_macho_mapper_destructor (self->mapper));
 
   return TRUE;
 
@@ -1685,11 +1685,11 @@ gum_darwin_cmodule_enumerate_symbols (GumCModule * cm,
 
   ctx.self = self;
 
-  gum_darwin_module_enumerate_exports (self->module, gum_emit_export, &ctx);
+  gum_macho_module_enumerate_exports (self->module, gum_emit_export, &ctx);
 }
 
 static gboolean
-gum_emit_export (const GumDarwinExportDetails * details,
+gum_emit_export (const GumMachoExportDetails * details,
                  gpointer user_data)
 {
   GumEnumerateExportsContext * ctx = user_data;

@@ -7,8 +7,8 @@
 #ifndef __GUM_DARWIN_MODULE_RESOLVER_H__
 #define __GUM_DARWIN_MODULE_RESOLVER_H__
 
-#include "gumdarwinmodule.h"
 #include "gumdefs.h"
+#include "gummachomodule.h"
 
 G_BEGIN_DECLS
 
@@ -65,24 +65,23 @@ GUM_API void gum_darwin_module_resolver_set_dynamic_lookup_handler (
 GUM_API void gum_darwin_module_resolver_fetch_modules (
     GumDarwinModuleResolver * self, GPtrArray ** sorted_modules,
     GHashTable ** module_by_name);
-GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module_by_name (
+GUM_API GumMachoModule * gum_darwin_module_resolver_find_macho_module_by_name (
     GumDarwinModuleResolver * self, const gchar * name);
-GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module_by_address (
+GUM_API GumMachoModule *
+    gum_darwin_module_resolver_find_macho_module_by_address (
     GumDarwinModuleResolver * self, GumAddress address);
 GUM_API gboolean gum_darwin_module_resolver_find_export (
-    GumDarwinModuleResolver * self, GumDarwinModule * module,
+    GumDarwinModuleResolver * self, GumMachoModule * module,
     const gchar * symbol, GumExportDetails * details);
 GUM_API GumAddress gum_darwin_module_resolver_find_export_address (
-    GumDarwinModuleResolver * self, GumDarwinModule * module,
+    GumDarwinModuleResolver * self, GumMachoModule * module,
     const gchar * symbol);
 GUM_API gboolean gum_darwin_module_resolver_find_export_by_mangled_name (
-    GumDarwinModuleResolver * self, GumDarwinModule * module,
+    GumDarwinModuleResolver * self, GumMachoModule * module,
     const gchar * symbol, GumExportDetails * details);
 GUM_API gboolean gum_darwin_module_resolver_resolve_export (
-    GumDarwinModuleResolver * self, GumDarwinModule * module,
-    const GumDarwinExportDetails * exp, GumExportDetails * result);
-GUM_API GumAddress gum_darwin_module_resolver_find_dynamic_address (
-    GumDarwinModuleResolver * self, const gchar * symbol);
+    GumDarwinModuleResolver * self, GumMachoModule * module,
+    const GumMachoExportDetails * exp, GumExportDetails * result);
 
 G_END_DECLS
 

@@ -75,10 +75,10 @@ struct _GumKernelKextByNameContext
 {
   const gchar * module_name;
   gboolean found;
-  GumDarwinModule * module;
+  GumMachoModule * module;
 };
 
-typedef gboolean (* GumFoundKextFunc) (GumDarwinModule * module,
+typedef gboolean (* GumFoundKextFunc) (GumMachoModule * module,
     gpointer user_data);
 
 static gboolean gum_kernel_emit_match (GumAddress address, gsize size,
@@ -89,11 +89,11 @@ static gboolean gum_kernel_scan_section (const gchar * section_name,
     const gchar * pattern_string, GumMemoryScanMatchFunc func,
     gpointer user_data);
 static gboolean gum_kernel_emit_module_range (
-    const GumDarwinSectionDetails * section, gpointer user_data);
-static gboolean gum_kernel_emit_module (GumDarwinModule * module,
+    const GumMachoSectionDetails * section, gpointer user_data);
+static gboolean gum_kernel_emit_module (GumMachoModule * module,
     gpointer user_data);
-static gsize gum_darwin_module_estimate_size (
-    GumDarwinModule * module);
+static gsize gum_macho_module_estimate_size (
+    GumMachoModule * module);
 static gboolean gum_kernel_range_by_name (GumMemoryRange * out_range,
     const gchar * name);
 static gboolean gum_kernel_find_range_by_name (
@@ -103,11 +103,11 @@ static gboolean gum_kernel_store_kext_addr (GumAddress address,
     gsize size, GumKernelSearchKextContext * ctx);
 static gboolean gum_kernel_store_kext_name (GumAddress address,
     gsize size, GumKernelSearchKextContext * ctx);
-static GumDarwinModule * gum_kernel_find_module_by_name (
+static GumMachoModule * gum_kernel_find_module_by_name (
     const gchar * module_name);
-static gboolean gum_kernel_kext_by_name (GumDarwinModule * module,
+static gboolean gum_kernel_kext_by_name (GumMachoModule * module,
     GumKernelKextByNameContext * ctx);
-static GumDarwinModule * gum_kernel_get_module (void);
+static GumMachoModule * gum_kernel_get_module (void);
 static GumAddress * gum_kernel_do_find_base_address (void);
 
 #ifdef HAVE_ARM64
@@ -126,7 +126,7 @@ mach_port_t gum_kernel_get_task (void);
 static mach_port_t gum_kernel_do_init (void);
 static void gum_kernel_do_deinit (void);
 
-static GumDarwinModule * gum_kernel_cached_module = NULL;
+static GumMachoModule * gum_kernel_cached_module = NULL;
 static GumAddress gum_kernel_external_base = 0;
 
 gboolean
@@ -399,7 +399,7 @@ gum_kernel_enumerate_modules (GumFoundKernelModuleFunc func,
 }
 
 static gboolean
-gum_kernel_emit_module (GumDarwinModule * module,
+gum_kernel_emit_module (GumMachoModule * module,
                         gpointer user_data)
 {
   GumEmitModuleContext * ctx = user_data;
@@ -407,7 +407,7 @@ gum_kernel_emit_module (GumDarwinModule * module,
   GumMemoryRange range;
 
   range.base_address = module->base_address;
-  range.size = gum_darwin_module_estimate_size (module);
+  range.size = gum_macho_module_estimate_size (module);
 
   details.name = module->name;
   details.range = &range;
@@ -456,13 +456,13 @@ gum_kernel_enumerate_kexts (GumFoundKextFunc func,
   while (g_hash_table_iter_next (&iter, &header_addr, &item))
   {
     GumKernelKextInfo * kext = item;
-    GumDarwinModule * module;
+    GumMachoModule * module;
 
     if (*kext->name == '\0')
       continue;
 
-    module = gum_darwin_module_new_from_memory (kext->name, task, kext->address,
-        GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
+    module = gum_macho_module_new_from_memory (kext->name, task, kext->address,
+        GUM_MACHO_MODULE_FLAGS_NONE, NULL);
 
     if (module == NULL)
       continue;
@@ -498,15 +498,15 @@ gum_kernel_scan_section (const gchar * section_name,
 }
 
 static gsize
-gum_darwin_module_estimate_size (GumDarwinModule * module)
+gum_macho_module_estimate_size (GumMachoModule * module)
 {
   gsize index = 0, size = 0;
 
   do
   {
-    const GumDarwinSegment * segment;
+    const GumMachoSegment * segment;
 
-    segment = gum_darwin_module_get_nth_segment (module, index++);
+    segment = gum_macho_module_get_nth_segment (module, index++);
     size += segment->vm_size;
   }
   while (index < module->segments->len);
@@ -596,7 +596,7 @@ gum_kernel_enumerate_module_ranges (const gchar * module_name,
                                     GumFoundKernelModuleRangeFunc func,
                                     gpointer user_data)
 {
-  GumDarwinModule * module;
+  GumMachoModule * module;
   GumKernelEnumerateModuleRangesContext ctx;
 
   module = gum_kernel_find_module_by_name (module_name);
@@ -607,11 +607,11 @@ gum_kernel_enumerate_module_ranges (const gchar * module_name,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  gum_darwin_module_enumerate_sections (module, gum_kernel_emit_module_range,
+  gum_macho_module_enumerate_sections (module, gum_kernel_emit_module_range,
       &ctx);
 }
 
-static GumDarwinModule *
+static GumMachoModule *
 gum_kernel_find_module_by_name (const gchar * module_name)
 {
   GumKernelKextByNameContext ctx;
@@ -631,7 +631,7 @@ gum_kernel_find_module_by_name (const gchar * module_name)
 }
 
 static gboolean
-gum_kernel_kext_by_name (GumDarwinModule * module,
+gum_kernel_kext_by_name (GumMachoModule * module,
                          GumKernelKextByNameContext * ctx)
 {
   ctx->found = strcmp (module->name, ctx->module_name) == 0;
@@ -643,7 +643,7 @@ gum_kernel_kext_by_name (GumDarwinModule * module,
 }
 
 static gboolean
-gum_kernel_emit_module_range (const GumDarwinSectionDetails * section,
+gum_kernel_emit_module_range (const GumMachoSectionDetails * section,
                               gpointer user_data)
 {
   GumKernelEnumerateModuleRangesContext * ctx = user_data;
@@ -663,7 +663,7 @@ gum_kernel_emit_module_range (const GumDarwinSectionDetails * section,
   return ctx->func (&details, ctx->user_data);
 }
 
-static GumDarwinModule *
+static GumMachoModule *
 gum_kernel_get_module (void)
 {
   mach_port_t task;
@@ -678,8 +678,8 @@ gum_kernel_get_module (void)
 
   base = gum_kernel_find_base_address ();
 
-  gum_kernel_cached_module = gum_darwin_module_new_from_memory ("Kernel", task,
-      base, GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
+  gum_kernel_cached_module = gum_macho_module_new_from_memory ("Kernel", task,
+      base, GUM_MACHO_MODULE_FLAGS_NONE, NULL);
 
   return gum_kernel_cached_module;
 }

@@ -33,7 +33,7 @@ if host_os_family == 'darwin'
   core_sources += [
     'interceptor-darwin.c',
     'unwindbroker-darwin.c',
-    'darwinmapper.c',
+    'machomapper.c',
   ]
 
   mapper_unwind_target = shared_library('gum-tests-mapper-unwind-target',
