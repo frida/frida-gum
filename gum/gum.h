@@ -36,6 +36,7 @@
 #include <gum/gummoduleapiresolver.h>
 #include <gum/gummodulemap.h>
 #include <gum/gummoduleregistry.h>
+#include <gum/gumpemodule.h>
 #include <gum/gumprintf.h>
 #include <gum/gumprocess.h>
 #include <gum/gumreturnaddress.h>
