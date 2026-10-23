@@ -11,8 +11,10 @@
 
 #include <psapi.h>
 
-typedef struct _GumCollectCodePagesContext GumCollectCodePagesContext;
+typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
+typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
+typedef struct _GumEnumerateSectionsContext GumEnumerateSectionsContext;
 typedef struct _GumFindExportContext GumFindExportContext;
 
 struct _GumNativeModule
@@ -23,10 +25,20 @@ struct _GumNativeModule
   gchar * name;
   gchar * path;
   GumMemoryRange range;
+  GumPeModule * pe;
 };
 
-struct _GumCollectCodePagesContext
+struct _GumEnumerateImportsContext
 {
+  GumFoundImportFunc func;
+  gpointer user_data;
+  GumAddress base;
+};
+
+struct _GumEnumerateExportsContext
+{
+  GumFoundExportFunc func;
+  gpointer user_data;
   GumAddress base;
   gsize page_size;
   gsize num_pages;
@@ -39,6 +51,14 @@ struct _GumEnumerateSymbolsContext
   gpointer user_data;
 };
 
+struct _GumEnumerateSectionsContext
+{
+  GumFoundSectionFunc func;
+  gpointer user_data;
+  GumAddress base;
+  guint index;
+};
+
 struct _GumFindExportContext
 {
   const gchar * symbol_name;
@@ -47,6 +67,7 @@ struct _GumFindExportContext
 
 static void gum_native_module_iface_init (gpointer g_iface,
     gpointer iface_data);
+static void gum_native_module_dispose (GObject * object);
 static void gum_native_module_finalize (GObject * object);
 static const gchar * gum_native_module_get_name (GumModule * module);
 static const gchar * gum_native_module_get_path (GumModule * module);
@@ -54,9 +75,13 @@ static const GumMemoryRange * gum_native_module_get_range (GumModule * module);
 static void gum_native_module_ensure_initialized (GumModule * module);
 static void gum_native_module_enumerate_imports (GumModule * module,
     GumFoundImportFunc func, gpointer user_data);
+static gboolean gum_emit_import (const GumPeImportDetails * details,
+    gpointer user_data);
 static void gum_native_module_enumerate_exports (GumModule * module,
     GumFoundExportFunc func, gpointer user_data);
 static gboolean gum_collect_code_pages (const GumRangeDetails * details,
+    gpointer user_data);
+static gboolean gum_emit_export (const GumPeExportDetails * details,
     gpointer user_data);
 static void gum_native_module_enumerate_symbols (GumModule * module,
     GumFoundSymbolFunc func, gpointer user_data);
@@ -66,6 +91,8 @@ static void gum_native_module_enumerate_ranges (GumModule * module,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 static void gum_native_module_enumerate_sections (GumModule * module,
     GumFoundSectionFunc func, gpointer user_data);
+static gboolean gum_emit_section (const GumPeSectionDetails * details,
+    gpointer user_data);
 static void gum_native_module_enumerate_dependencies (GumModule * module,
     GumFoundDependencyFunc func, gpointer user_data);
 static GumAddress gum_native_module_find_export_by_name (GumModule * module,
@@ -85,6 +112,7 @@ gum_native_module_class_init (GumNativeModuleClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
+  object_class->dispose = gum_native_module_dispose;
   object_class->finalize = gum_native_module_finalize;
 }
 
@@ -110,6 +138,16 @@ gum_native_module_iface_init (gpointer g_iface,
 static void
 gum_native_module_init (GumNativeModule * self)
 {
+}
+
+static void
+gum_native_module_dispose (GObject * object)
+{
+  GumNativeModule * self = GUM_NATIVE_MODULE (object);
+
+  g_clear_object (&self->pe);
+
+  G_OBJECT_CLASS (gum_native_module_parent_class)->dispose (object);
 }
 
 static void
@@ -165,7 +203,15 @@ _gum_native_module_make (HMODULE handle)
   module->range.base_address = GUM_ADDRESS (mi.lpBaseOfDll);
   module->range.size = mi.SizeOfImage;
 
+  module->pe = gum_pe_module_new_from_memory (module->range.base_address, NULL);
+
   return module;
+}
+
+GumPeModule *
+_gum_native_module_get_pe_module (GumNativeModule * self)
+{
+  return self->pe;
 }
 
 static const gchar *
@@ -196,49 +242,36 @@ gum_native_module_enumerate_imports (GumModule * module,
                                      GumFoundImportFunc func,
                                      gpointer user_data)
 {
-  GumNativeModule * self;
-  const guint8 * mod_base;
-  const IMAGE_DOS_HEADER * dos_hdr;
-  const IMAGE_NT_HEADERS * nt_hdrs;
-  const IMAGE_DATA_DIRECTORY * entry;
-  const IMAGE_IMPORT_DESCRIPTOR * desc;
+  GumNativeModule * self = GUM_NATIVE_MODULE (module);
+  GumEnumerateImportsContext ctx;
 
-  self = GUM_NATIVE_MODULE (module);
+  ctx.func = func;
+  ctx.user_data = user_data;
+  ctx.base = self->range.base_address;
 
-  mod_base = (const guint8 *) self->handle;
-  dos_hdr = (const IMAGE_DOS_HEADER *) self->handle;
-  nt_hdrs = (const IMAGE_NT_HEADERS *) &mod_base[dos_hdr->e_lfanew];
-  entry = &nt_hdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-  desc = (const IMAGE_IMPORT_DESCRIPTOR *) (mod_base + entry->VirtualAddress);
+  gum_pe_module_enumerate_imports (self->pe, gum_emit_import, &ctx);
+}
 
-  for (; desc->Characteristics != 0; desc++)
-  {
-    GumImportDetails details;
-    const IMAGE_THUNK_DATA * lookup_thunk, * address_thunk;
+static gboolean
+gum_emit_import (const GumPeImportDetails * details,
+                 gpointer user_data)
+{
+  GumEnumerateImportsContext * ctx = user_data;
+  GumAddress slot;
+  GumImportDetails d;
 
-    if (desc->OriginalFirstThunk == 0)
-      continue;
+  if (details->type != GUM_PE_IMPORT_BY_NAME)
+    return TRUE;
 
-    details.type = GUM_IMPORT_FUNCTION; /* FIXME: how can we tell? */
-    details.module = (const gchar *) (mod_base + desc->Name);
+  slot = ctx->base + details->slot_rva;
 
-    lookup_thunk = (const IMAGE_THUNK_DATA *)
-        (mod_base + desc->OriginalFirstThunk);
-    address_thunk = (const IMAGE_THUNK_DATA *) (mod_base + desc->FirstThunk);
-    for (; lookup_thunk->u1.AddressOfData != 0; lookup_thunk++, address_thunk++)
-    {
-      if ((lookup_thunk->u1.AddressOfData & IMAGE_ORDINAL_FLAG) != 0)
-        continue; /* FIXME: we ignore imports by ordinal */
+  d.type = GUM_IMPORT_FUNCTION;
+  d.name = details->name;
+  d.module = details->module_name;
+  d.address = GUM_ADDRESS (*((gpointer *) GSIZE_TO_POINTER (slot)));
+  d.slot = slot;
 
-      details.name = (const gchar *)
-          (mod_base + lookup_thunk->u1.AddressOfData + 2);
-      details.address = GUM_ADDRESS (address_thunk->u1.Function);
-      details.slot = GUM_ADDRESS (address_thunk);
-
-      if (!func (&details, user_data))
-        return;
-    }
-  }
+  return ctx->func (&d, ctx->user_data);
 }
 
 static void
@@ -246,71 +279,22 @@ gum_native_module_enumerate_exports (GumModule * module,
                                      GumFoundExportFunc func,
                                      gpointer user_data)
 {
-  GumNativeModule * self;
-  const guint8 * mod_base;
-  const IMAGE_DOS_HEADER * dos_hdr;
-  const IMAGE_NT_HEADERS * nt_hdrs;
-  const IMAGE_DATA_DIRECTORY * entry;
-  const IMAGE_EXPORT_DIRECTORY * exp;
-  const guint8 * exp_start, * exp_end;
-  GumCollectCodePagesContext ctx;
-  const DWORD * name_rvas, * func_rvas;
-  const WORD * ord_rvas;
-  DWORD i;
+  GumNativeModule * self = GUM_NATIVE_MODULE (module);
+  GumEnumerateExportsContext ctx;
 
-  self = GUM_NATIVE_MODULE (module);
-
-  mod_base = (const guint8 *) self->handle;
-  dos_hdr = (const IMAGE_DOS_HEADER *) self->handle;
-  nt_hdrs = (const IMAGE_NT_HEADERS *) &mod_base[dos_hdr->e_lfanew];
-  entry = &nt_hdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-  exp = (const IMAGE_EXPORT_DIRECTORY *)(mod_base + entry->VirtualAddress);
-  exp_start = mod_base + entry->VirtualAddress;
-  exp_end = exp_start + entry->Size - 1;
-
-  if (exp->AddressOfNames == 0)
-    return;
-
-  ctx.base = GUM_ADDRESS (mod_base);
+  ctx.func = func;
+  ctx.user_data = user_data;
+  ctx.base = self->range.base_address;
   ctx.page_size = gum_query_page_size ();
-  ctx.num_pages = GUM_ALIGN_SIZE (
-      nt_hdrs->OptionalHeader.SizeOfImage, ctx.page_size) / ctx.page_size;
+  ctx.num_pages =
+      GUM_ALIGN_SIZE (self->range.size, ctx.page_size) / ctx.page_size;
   ctx.bitmap = g_malloc0 (GUM_ALIGN_SIZE (ctx.num_pages, 8) / 8);
 
   gum_module_enumerate_ranges (module, GUM_PAGE_EXECUTE, gum_collect_code_pages,
       &ctx);
 
-  name_rvas = (const DWORD *) &mod_base[exp->AddressOfNames];
-  ord_rvas = (const WORD *) &mod_base[exp->AddressOfNameOrdinals];
-  func_rvas = (const DWORD *) &mod_base[exp->AddressOfFunctions];
+  gum_pe_module_enumerate_exports (self->pe, gum_emit_export, &ctx);
 
-  for (i = 0; i != exp->NumberOfNames; i++)
-  {
-    DWORD func_rva;
-    const guint8 * func_address;
-    GumExportDetails details;
-    gsize page_index;
-
-    func_rva = func_rvas[ord_rvas[i]];
-    func_address = &mod_base[func_rva];
-    if (func_address >= exp_start && func_address <= exp_end)
-      continue;
-
-    page_index = func_rva / ctx.page_size;
-
-    details.type = (page_index < ctx.num_pages &&
-        (ctx.bitmap[page_index / 8] & (1 << (page_index % 8))) != 0)
-        ? GUM_EXPORT_FUNCTION
-        : GUM_EXPORT_VARIABLE;
-    details.name = (const gchar *) &mod_base[name_rvas[i]];
-    details.address = GUM_ADDRESS (func_address);
-    details.size = -1;
-
-    if (!func (&details, user_data))
-      goto beach;
-  }
-
-beach:
   g_free (ctx.bitmap);
 }
 
@@ -318,7 +302,7 @@ static gboolean
 gum_collect_code_pages (const GumRangeDetails * details,
                         gpointer user_data)
 {
-  GumCollectCodePagesContext * ctx = user_data;
+  GumEnumerateExportsContext * ctx = user_data;
   gsize start_page, end_page, page;
 
   start_page = (details->range->base_address - ctx->base) / ctx->page_size;
@@ -328,6 +312,30 @@ gum_collect_code_pages (const GumRangeDetails * details,
     ctx->bitmap[page / 8] |= 1 << (page % 8);
 
   return TRUE;
+}
+
+static gboolean
+gum_emit_export (const GumPeExportDetails * details,
+                 gpointer user_data)
+{
+  GumEnumerateExportsContext * ctx = user_data;
+  gsize page_index;
+  GumExportDetails d;
+
+  if (details->type != GUM_PE_EXPORT_REGULAR || details->name == NULL)
+    return TRUE;
+
+  page_index = details->rva / ctx->page_size;
+
+  d.type = (page_index < ctx->num_pages &&
+      (ctx->bitmap[page_index / 8] & (1 << (page_index % 8))) != 0)
+      ? GUM_EXPORT_FUNCTION
+      : GUM_EXPORT_VARIABLE;
+  d.name = details->name;
+  d.address = ctx->base + details->rva;
+  d.size = -1;
+
+  return ctx->func (&d, ctx->user_data);
 }
 
 static void
@@ -440,44 +448,37 @@ gum_native_module_enumerate_sections (GumModule * module,
                                       GumFoundSectionFunc func,
                                       gpointer user_data)
 {
-  GumNativeModule * self;
-  const guint8 * mod_base;
-  const IMAGE_DOS_HEADER * dos_hdr;
-  const IMAGE_NT_HEADERS * nt_hdrs;
-  const IMAGE_SECTION_HEADER * sec_hdrs;
-  WORD i;
+  GumNativeModule * self = GUM_NATIVE_MODULE (module);
+  GumEnumerateSectionsContext ctx;
 
-  self = GUM_NATIVE_MODULE (module);
+  ctx.func = func;
+  ctx.user_data = user_data;
+  ctx.base = self->range.base_address;
+  ctx.index = 0;
 
-  mod_base = (const guint8 *) self->handle;
-  dos_hdr = (const IMAGE_DOS_HEADER *) self->handle;
-  nt_hdrs = (const IMAGE_NT_HEADERS *) &mod_base[dos_hdr->e_lfanew];
-  sec_hdrs = IMAGE_FIRST_SECTION (nt_hdrs);
+  gum_pe_module_enumerate_sections (self->pe, gum_emit_section, &ctx);
+}
 
-  for (i = 0; i != nt_hdrs->FileHeader.NumberOfSections; i++)
-  {
-    const IMAGE_SECTION_HEADER * section = &sec_hdrs[i];
-    gchar name[IMAGE_SIZEOF_SHORT_NAME + 1];
-    GumSectionDetails details;
-    gboolean carry_on;
+static gboolean
+gum_emit_section (const GumPeSectionDetails * details,
+                  gpointer user_data)
+{
+  GumEnumerateSectionsContext * ctx = user_data;
+  gboolean carry_on;
+  GumSectionDetails d;
 
-    memcpy (name, section->Name, IMAGE_SIZEOF_SHORT_NAME);
-    name[IMAGE_SIZEOF_SHORT_NAME] = '\0';
+  d.id = g_strdup_printf ("%u.%s", ctx->index++, details->name);
+  d.name = details->name;
+  d.address = ctx->base + details->virtual_address;
+  d.size = (details->virtual_size != 0)
+      ? details->virtual_size
+      : details->raw_data_size;
 
-    details.id = g_strdup_printf ("%d.%s", i, name);
-    details.name = name;
-    details.address = GUM_ADDRESS (mod_base + section->VirtualAddress);
-    details.size = (section->Misc.VirtualSize != 0)
-        ? section->Misc.VirtualSize
-        : section->SizeOfRawData;
+  carry_on = ctx->func (&d, ctx->user_data);
 
-    carry_on = func (&details, user_data);
+  g_free ((gpointer) d.id);
 
-    g_free ((gpointer) details.id);
-
-    if (!carry_on)
-      break;
-  }
+  return carry_on;
 }
 
 static void
@@ -485,6 +486,8 @@ gum_native_module_enumerate_dependencies (GumModule * module,
                                           GumFoundDependencyFunc func,
                                           gpointer user_data)
 {
+  gum_pe_module_enumerate_dependencies (GUM_NATIVE_MODULE (module)->pe, func,
+      user_data);
 }
 
 static GumAddress

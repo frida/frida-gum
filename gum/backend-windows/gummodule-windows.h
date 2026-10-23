@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2024-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,6 +9,7 @@
 
 #include <gum/gumdbghelp.h>
 #include <gum/gummodule.h>
+#include <gum/gumpemodule.h>
 #include <gum/gumwindows.h>
 
 G_BEGIN_DECLS
@@ -18,6 +19,9 @@ G_DECLARE_FINAL_TYPE (GumNativeModule, gum_native_module, GUM, NATIVE_MODULE,
                       GObject)
 
 G_GNUC_INTERNAL GumNativeModule * _gum_native_module_make (HMODULE handle);
+
+G_GNUC_INTERNAL GumPeModule * _gum_native_module_get_pe_module (
+    GumNativeModule * self);
 
 G_END_DECLS
 
