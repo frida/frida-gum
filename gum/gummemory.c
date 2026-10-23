@@ -2172,7 +2172,7 @@ gum_suspend_tag_checks (void)
 {
 #if defined (HAVE_ARM64) && !defined (_MSC_VER)
   if ((gum_query_cpu_features () & GUM_CPU_MTE) != 0)
-    asm volatile (".arch_extension memtag\n\tmsr tco, #1" ::: "memory");
+    asm volatile (".inst 0xd503419f" ::: "memory");
 #endif
 }
 
@@ -2181,7 +2181,7 @@ gum_resume_tag_checks (void)
 {
 #if defined (HAVE_ARM64) && !defined (_MSC_VER)
   if ((gum_query_cpu_features () & GUM_CPU_MTE) != 0)
-    asm volatile (".arch_extension memtag\n\tmsr tco, #0" ::: "memory");
+    asm volatile (".inst 0xd503409f" ::: "memory");
 #endif
 }
 
