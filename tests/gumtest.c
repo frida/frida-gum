@@ -196,6 +196,7 @@ main (gint argc, gchar * argv[])
   TESTLIST_REGISTER (cfg);
   TESTLIST_REGISTER (cloak);
   TESTLIST_REGISTER (memory);
+  TESTLIST_REGISTER (process_memory);
   TESTLIST_REGISTER (process);
   TESTLIST_REGISTER (thread_registry);
   TESTLIST_REGISTER (module_registry);
@@ -215,6 +216,10 @@ main (gint argc, gchar * argv[])
   if (cs_support (CS_ARCH_ARM64))
     TESTLIST_REGISTER (arm64relocator);
   TESTLIST_REGISTER (interceptor);
+#ifdef HAVE_WINDOWS
+  TESTLIST_REGISTER (pe_mapper);
+  TESTLIST_REGISTER (pe_cmodule);
+#endif
 #ifdef HAVE_DARWIN
   TESTLIST_REGISTER (interceptor_darwin);
   TESTLIST_REGISTER (unwind_broker);
@@ -222,6 +227,10 @@ main (gint argc, gchar * argv[])
 #endif
 #if defined (HAVE_LINUX) && defined (HAVE_ARM64)
   TESTLIST_REGISTER (unwind_broker);
+#endif
+#ifdef HAVE_LINUX
+  TESTLIST_REGISTER (elf_mapper);
+  TESTLIST_REGISTER (elf_cmodule);
 #endif
 #ifdef HAVE_ANDROID
   TESTLIST_REGISTER (interceptor_android);
