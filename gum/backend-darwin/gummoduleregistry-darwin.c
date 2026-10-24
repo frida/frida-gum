@@ -75,7 +75,7 @@ static gboolean gum_try_drive_registry_via_dyld_internals (
     const GumDarwinAllImageInfos * infos);
 static GumAddress gum_resolve_dyld_dec_dl_ref_count (GumAddress dyld_base);
 static gboolean gum_collect_dyld_dec_dl_ref_count (
-    const GumDarwinSymbolDetails * details, gpointer user_data);
+    const GumMachoSymbolDetails * details, gpointer user_data);
 static void gum_arm_resident_add_notifier (void);
 static GumResidentNotifier * gum_find_resident_notifier (void);
 static gboolean gum_resident_notifier_matches (GumResidentNotifier * candidate,
@@ -423,14 +423,14 @@ static GumAddress
 gum_resolve_dyld_dec_dl_ref_count (GumAddress dyld_base)
 {
   GumAddress result = 0;
-  GumDarwinModule * dyld;
+  GumMachoModule * dyld;
 
-  dyld = gum_darwin_module_new_from_memory (NULL, mach_task_self (), dyld_base,
-      GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
+  dyld = gum_macho_module_new_from_memory (NULL, mach_task_self (), dyld_base,
+      GUM_MACHO_MODULE_FLAGS_NONE, NULL);
   if (dyld == NULL)
     return 0;
 
-  gum_darwin_module_enumerate_symbols (dyld, gum_collect_dyld_dec_dl_ref_count,
+  gum_macho_module_enumerate_symbols (dyld, gum_collect_dyld_dec_dl_ref_count,
       &result);
 
   g_object_unref (dyld);
@@ -439,7 +439,7 @@ gum_resolve_dyld_dec_dl_ref_count (GumAddress dyld_base)
 }
 
 static gboolean
-gum_collect_dyld_dec_dl_ref_count (const GumDarwinSymbolDetails * details,
+gum_collect_dyld_dec_dl_ref_count (const GumMachoSymbolDetails * details,
                                    gpointer user_data)
 {
   GumAddress * result = user_data;

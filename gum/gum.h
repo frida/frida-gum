@@ -11,12 +11,12 @@
 
 #include <gum/gumapiresolver.h>
 #include <gum/gumbacktracer.h>
-#include <gum/gumcontrolflowgraph.h>
 #include <gum/gumcloak.h>
 #include <gum/gumcodeallocator.h>
 #include <gum/gumcodesegment.h>
+#include <gum/gumcontrolflowgraph.h>
 #include <gum/gumdarwingrafter.h>
-#include <gum/gumdarwinmodule.h>
+#include <gum/gumelfmapper.h>
 #include <gum/gumelfmodule.h>
 #include <gum/gumevent.h>
 #include <gum/gumeventsink.h>
@@ -27,6 +27,8 @@
 #include <gum/guminvocationlistener.h>
 #include <gum/gumkernel.h>
 #include <gum/gumlibc.h>
+#include <gum/gummachomodule.h>
+#include <gum/gummapper.h>
 #include <gum/gummemory.h>
 #include <gum/gummemoryaccessmonitor.h>
 #include <gum/gummemorymap.h>
@@ -36,8 +38,13 @@
 #include <gum/gummoduleapiresolver.h>
 #include <gum/gummodulemap.h>
 #include <gum/gummoduleregistry.h>
+#include <gum/gummoduleresolver.h>
+#include <gum/gumnativemoduleresolver.h>
+#include <gum/gumnativeprocessmemory.h>
+#include <gum/gumpemodule.h>
 #include <gum/gumprintf.h>
 #include <gum/gumprocess.h>
+#include <gum/gumprocessmemory.h>
 #include <gum/gumreturnaddress.h>
 #include <gum/gumspinlock.h>
 #include <gum/gumstalker.h>

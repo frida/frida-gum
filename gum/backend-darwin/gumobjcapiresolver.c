@@ -9,8 +9,8 @@
 
 #include "gumobjcapiresolver.h"
 
-#include "gumdarwinmodule.h"
 #include "guminterceptor.h"
+#include "gummachomodule.h"
 #include "gummetalarray.h"
 #include "gummodule-darwin.h"
 #include "gummoduleregistry.h"
@@ -556,7 +556,7 @@ gum_objc_api_resolver_collect_class_list (GumObjcApiResolver * self,
   GumObjcSectionContext ctx;
   Class * class_list;
   guint class_count, i;
-  GumDarwinModule * darwin_module;
+  GumMachoModule * darwin_module;
 
   ctx.name = "__objc_classlist";
   ctx.address = 0;
@@ -588,7 +588,7 @@ gum_objc_api_resolver_collect_category_list (GumObjcApiResolver * self,
 {
   GumObjcSectionContext ctx;
   GumCategoryHeader ** cat_list;
-  GumDarwinModule * darwin_module;
+  GumMachoModule * darwin_module;
   gsize pointer_size;
   guint cat_count, i;
 

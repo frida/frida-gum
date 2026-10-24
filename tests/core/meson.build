@@ -7,6 +7,7 @@ core_sources = [
   'controlflowgraph.c',
   'cloak.c',
   'memory.c',
+  'processmemory.c',
   'process.c',
   'threadregistry.c',
   'moduleregistry.c',
@@ -33,7 +34,7 @@ if host_os_family == 'darwin'
   core_sources += [
     'interceptor-darwin.c',
     'unwindbroker-darwin.c',
-    'darwinmapper.c',
+    'machomapper.c',
   ]
 
   mapper_unwind_target = shared_library('gum-tests-mapper-unwind-target',
@@ -45,6 +46,35 @@ if host_os_family == 'darwin'
     'mapper-tlv-target.c',
   )
   core_c_args += '-DGUM_TESTS_MAPPER_TLV_TARGET="' + mapper_tlv_target.full_path() + '"'
+endif
+
+if host_os_family == 'windows'
+  core_sources += [
+    'pemapper.c',
+    'pecmodule.c',
+  ]
+
+  pemapper_target = shared_library('gum-tests-pemapper-target',
+    'pemapper-target.c',
+  )
+  core_c_args += '-DGUM_TESTS_PEMAPPER_TARGET="' + pemapper_target.full_path() + '"'
+
+  pemapper_tls_target = shared_library('gum-tests-pemapper-tls-target',
+    'pemapper-tls-target.c',
+  )
+  core_c_args += '-DGUM_TESTS_PEMAPPER_TLS_TARGET="' + pemapper_tls_target.full_path() + '"'
+
+  pemapper_victim = executable('gum-tests-pemapper-victim',
+    'pemapper-victim.c',
+  )
+  core_c_args += '-DGUM_TESTS_PEMAPPER_VICTIM="' + pemapper_victim.full_path() + '"'
+endif
+
+if host_os_family == 'linux'
+  core_sources += [
+    'elfcmodule.c',
+    'elfmapper.c',
+  ]
 endif
 
 if host_os == 'android'

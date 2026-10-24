@@ -34,8 +34,14 @@ G_GNUC_INTERNAL void _gum_memory_backend_deinit (void);
 G_GNUC_INTERNAL guint _gum_memory_backend_query_page_size (void);
 G_GNUC_INTERNAL gint _gum_page_protection_to_posix (GumPageProtection prot);
 #ifdef HAVE_LINUX
+# include <sys/types.h>
+
 G_GNUC_INTERNAL void _gum_memory_query_protections (GPtrArray * sorted_pages,
     GumPageProtection * protections);
+G_GNUC_INTERNAL gboolean _gum_try_read_process_memory (pid_t pid,
+    GumAddress address, gpointer buffer, gsize size);
+G_GNUC_INTERNAL gboolean _gum_try_write_process_memory (pid_t pid,
+    GumAddress address, gconstpointer data, gsize size);
 #endif
 
 G_GNUC_INTERNAL gpointer gum_internal_malloc (size_t size);

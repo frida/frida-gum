@@ -1182,7 +1182,7 @@ TESTCASE (module_export_can_be_found)
   g_assert_true (gum_module_find_export_by_name (module,
       SYSTEM_MODULE_EXPORT) != 0);
 
-#ifdef HAVE_WINDOWS
+#if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8
   g_assert_true (gum_module_find_export_by_name (module,
       "KiUserInvertedFunctionTable") != 0);
 #endif
@@ -1491,7 +1491,7 @@ TESTCASE (darwin_module_resolver_should_resolve_chkstk)
 {
   mach_port_t task;
   GumDarwinModuleResolver * resolver;
-  GumDarwinModule * libsystem;
+  GumMachoModule * libsystem;
   GumExportDetails chkstk;
 
   task = gum_test_get_target_task ();
@@ -1499,7 +1499,7 @@ TESTCASE (darwin_module_resolver_should_resolve_chkstk)
   resolver = gum_darwin_module_resolver_new (task, NULL);
   g_assert_nonnull (resolver);
 
-  libsystem = gum_darwin_module_resolver_find_module_by_name (resolver,
+  libsystem = gum_darwin_module_resolver_find_macho_module_by_name (resolver,
       "/usr/lib/libSystem.B.dylib");
   g_assert_nonnull (libsystem);
 

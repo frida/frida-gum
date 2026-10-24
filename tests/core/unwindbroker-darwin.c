@@ -5,7 +5,7 @@
  */
 
 #include "gum/gumdarwin.h"
-#include "gum/gumdarwinmapper.h"
+#include "gum/gummachomapper.h"
 #include "gum/gummemory.h"
 #include "gum/gumunwindbroker.h"
 #include "testutil.h"
@@ -75,7 +75,7 @@ static const GumMemoryRange * gum_test_sections_provider_get_range (
 static gboolean gum_test_sections_provider_fill (
     GumUnwindSectionsProvider * provider, GumAddress address, gpointer info);
 static gboolean gum_test_collect_section (
-    const GumDarwinSectionDetails * details, GumTestFillContext * ctx);
+    const GumMachoSectionDetails * details, GumTestFillContext * ctx);
 
 static void gum_test_backtrace_from_mapped_frame (gpointer user_data);
 static _Unwind_Reason_Code gum_test_examine_frame (
@@ -90,7 +90,7 @@ TESTCASE (can_unwind_through_manually_mapped_dylib)
 {
   GError * error = NULL;
   GumDarwinModuleResolver * resolver;
-  GumDarwinMapper * mapper;
+  GumMachoMapper * mapper;
   gsize size;
   mach_vm_address_t base = 0;
   kern_return_t kr;
@@ -104,15 +104,15 @@ TESTCASE (can_unwind_through_manually_mapped_dylib)
   resolver = gum_darwin_module_resolver_new (mach_task_self (), &error);
   g_assert_no_error (error);
 
-  mapper = gum_darwin_mapper_new_from_file (GUM_TESTS_MAPPER_UNWIND_TARGET,
+  mapper = gum_macho_mapper_new_from_file (GUM_TESTS_MAPPER_UNWIND_TARGET,
       resolver, &error);
   g_assert_no_error (error);
 
-  size = gum_darwin_mapper_size (mapper);
+  size = gum_macho_mapper_size (mapper);
   kr = mach_vm_allocate (mach_task_self (), &base, size, VM_FLAGS_ANYWHERE);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  gum_darwin_mapper_map (mapper, base, &error);
+  gum_macho_mapper_map (mapper, base, &error);
   g_assert_no_error (error);
 
   range.base_address = base;
@@ -124,11 +124,11 @@ TESTCASE (can_unwind_through_manually_mapped_dylib)
       GUM_UNWIND_SECTIONS_PROVIDER (provider));
 
   constructor =
-      GSIZE_TO_POINTER (gum_darwin_mapper_constructor (mapper));
+      GSIZE_TO_POINTER (gum_macho_mapper_constructor (mapper));
   constructor ();
 
   invoke = GSIZE_TO_POINTER (
-      gum_darwin_mapper_resolve (mapper, "gum_test_mapped_invoke"));
+      gum_macho_mapper_resolve (mapper, "gum_test_mapped_invoke"));
   g_assert_nonnull (invoke);
 
   probe.mapped_range = range;
@@ -185,7 +185,7 @@ gum_test_sections_provider_new (const GumMemoryRange * range)
   GumTestSectionsProvider * provider;
   gsize page_size;
   guint8 * header, * end;
-  GumDarwinModule * module;
+  GumMachoModule * module;
   GumTestFillContext ctx;
 
   provider = g_object_new (GUM_TEST_TYPE_SECTIONS_PROVIDER, NULL);
@@ -203,14 +203,14 @@ gum_test_sections_provider_new (const GumMemoryRange * range)
 
   provider->sections.mh = header;
 
-  module = gum_darwin_module_new_from_memory ("mapped", mach_task_self (),
-      GPOINTER_TO_SIZE (header), GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
+  module = gum_macho_module_new_from_memory ("mapped", mach_task_self (),
+      GPOINTER_TO_SIZE (header), GUM_MACHO_MODULE_FLAGS_NONE, NULL);
   g_assert_nonnull (module);
 
   ctx.sections = &provider->sections;
   ctx.remaining = 2;
-  gum_darwin_module_enumerate_sections (module,
-      (GumFoundDarwinSectionFunc) gum_test_collect_section, &ctx);
+  gum_macho_module_enumerate_sections (module,
+      (GumFoundMachoSectionFunc) gum_test_collect_section, &ctx);
 
   g_object_unref (module);
 
@@ -218,7 +218,7 @@ gum_test_sections_provider_new (const GumMemoryRange * range)
 }
 
 static gboolean
-gum_test_collect_section (const GumDarwinSectionDetails * details,
+gum_test_collect_section (const GumMachoSectionDetails * details,
                           GumTestFillContext * ctx)
 {
   if (strcmp (details->segment_name, "__TEXT") != 0)

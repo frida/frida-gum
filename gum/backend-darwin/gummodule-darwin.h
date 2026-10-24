@@ -23,7 +23,7 @@ G_GNUC_INTERNAL void _gum_native_module_detach_resolver (
     GumNativeModule * self);
 
 G_GNUC_INTERNAL gpointer _gum_native_module_get_handle (GumNativeModule * self);
-G_GNUC_INTERNAL GumDarwinModule * _gum_native_module_get_darwin_module (
+G_GNUC_INTERNAL GumMachoModule * _gum_native_module_get_darwin_module (
     GumNativeModule * self);
 
 G_END_DECLS

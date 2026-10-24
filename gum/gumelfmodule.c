@@ -1527,10 +1527,21 @@ gum_elf_module_emit_relocations (GumElfModule * self,
 
         d.address = gum_elf_module_read_uint64 (self, cursor);
 
-        info = gum_elf_module_read_uint64 (self,
-            (const guint64 *) ((const guint8 *) cursor + 8));
-        d.type = info & GUM_INT32_MASK;
-        sym_index = info >> 32;
+        if (self->ehdr.machine == GUM_ELF_MACHINE_MIPS)
+        {
+          const guint8 * info_bytes = (const guint8 *) cursor + 8;
+
+          sym_index = gum_elf_module_read_uint32 (self,
+              (const guint32 *) info_bytes);
+          d.type = info_bytes[7] | (info_bytes[6] << 8) | (info_bytes[5] << 16);
+        }
+        else
+        {
+          info = gum_elf_module_read_uint64 (self,
+              (const guint64 *) ((const guint8 *) cursor + 8));
+          d.type = info & GUM_INT32_MASK;
+          sym_index = info >> 32;
+        }
 
         if (g->relocs_have_addend)
         {
@@ -1873,6 +1884,11 @@ gum_elf_module_parse_symbol (GumElfModule * self,
   {
     d->name = (section != NULL) ? section->name : NULL;
     d->address = self->base_address + sym->value;
+  }
+  else if (type == GUM_ELF_SYMBOL_TLS)
+  {
+    d->name = strings + sym->name;
+    d->address = sym->value;
   }
   else
   {

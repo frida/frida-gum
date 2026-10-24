@@ -10,7 +10,7 @@
 #include <mach-o/loader.h>
 #include <stddef.h>
 
-# ifndef __GUM_DARWIN_MODULE_H__
+# ifndef __GUM_MACHO_MODULE_H__
 
 typedef struct _GumChainedFixupsHeader GumChainedFixupsHeader;
 

@@ -36,8 +36,25 @@ if host_os_family != 'windows'
     output: test_function_filenames,
     command: ['cp', '@INPUT@', '@OUTDIR@'],
   )
+  test_data_deps = [test_data]
+  if host_os_family == 'linux'
+    elfmapper_target_c_args = []
+    elfmapper_target_link_args = []
+    if host_os == 'android'
+      elfmapper_target_c_args += '-fno-emulated-tls'
+      elfmapper_target_link_args += [
+        '-Wl,--unresolved-symbols=ignore-all',
+        '-Wl,--pack-dyn-relocs=relr',
+      ]
+    endif
+    test_data_deps += shared_library('elfmapper-target', 'elfmapper-target.c',
+      name_prefix: '',
+      c_args: elfmapper_target_c_args,
+      link_args: elfmapper_target_link_args,
+    )
+  endif
   test_data_stamp = custom_target('gum-tests-data-stamp',
-    input: [test_data],
+    input: test_data_deps,
     output: '.stamp',
     command: ['touch', '@OUTPUT@'],
   )
