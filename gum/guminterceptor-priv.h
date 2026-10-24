@@ -91,6 +91,7 @@ struct _GumFunctionContext
 
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
+G_GNUC_INTERNAL void _gum_interceptor_recover_from_fork_in_child (void);
 
 G_GNUC_INTERNAL void _gum_interceptor_forget_all_hooks_in_range (
     const GumMemoryRange * range);
