@@ -30,6 +30,9 @@
 # include "gumarm64writer.h"
 #endif
 
+#define GUM_TEST_OBTAIN_THREAD_COUNT 8
+#define GUM_TEST_OBTAIN_ROUNDS 5000
+
 TESTLIST_BEGIN (interceptor)
   TESTENTRY (cpu_register_clobber)
   TESTENTRY (cpu_flag_clobber)
@@ -69,6 +72,8 @@ TESTLIST_BEGIN (interceptor)
 #ifdef HAVE_WINDOWS
   TESTENTRY (attach_detach_torture)
 #endif
+  TESTENTRY_SIMPLE ("Core/Interceptor", test_interceptor,
+      obtain_is_safe_during_teardown)
   TESTENTRY (thread_id)
 #if defined (HAVE_FRIDA_GLIB) && \
     !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && \
@@ -164,6 +169,7 @@ static gpointer replacement_target_function (GString * str);
 #ifdef HAVE_WINDOWS
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
+static gpointer obtain_and_release_repeatedly (gpointer data);
 static gpointer replacement_malloc (gsize size);
 static gpointer (* target_function_fast) (GString * str) = NULL;
 static gpointer replacement_target_function_fast (GString * str);
@@ -627,6 +633,40 @@ TESTCASE (attach_detach_torture)
 }
 
 #endif
+
+void
+test_interceptor_obtain_is_safe_during_teardown (void)
+{
+  GThread * threads[GUM_TEST_OBTAIN_THREAD_COUNT];
+  guint i;
+
+  for (i = 0; i != G_N_ELEMENTS (threads); i++)
+  {
+    threads[i] = g_thread_new ("interceptor-test-obtainer",
+        obtain_and_release_repeatedly, NULL);
+  }
+
+  for (i = 0; i != G_N_ELEMENTS (threads); i++)
+    g_thread_join (threads[i]);
+}
+
+static gpointer
+obtain_and_release_repeatedly (gpointer data)
+{
+  guint i;
+
+  for (i = 0; i != GUM_TEST_OBTAIN_ROUNDS; i++)
+  {
+    GumInterceptor * interceptor;
+
+    interceptor = gum_interceptor_obtain ();
+    gum_interceptor_ignore_current_thread (interceptor);
+    gum_interceptor_unignore_current_thread (interceptor);
+    g_object_unref (interceptor);
+  }
+
+  return NULL;
+}
 
 TESTCASE (thread_id)
 {

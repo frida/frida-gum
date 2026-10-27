@@ -157,8 +157,6 @@ struct _ListenerInvocationState
 static void gum_interceptor_dispose (GObject * object);
 static void gum_interceptor_finalize (GObject * object);
 
-static void the_interceptor_weak_notify (gpointer data,
-    GObject * where_the_object_was);
 static GumReplaceReturn gum_interceptor_replace_with_type (
     GumInterceptor * self, GumInterceptorType type, gpointer function_address,
     gpointer replacement_function, gpointer replacement_data,
@@ -386,7 +384,9 @@ static gint gum_page_address_compare (gconstpointer * a, gconstpointer * b);
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT)
 
 static GMutex _gum_interceptor_lock;
-static GumInterceptor * _the_interceptor = NULL;
+static GCond _gum_interceptor_cond;
+static GWeakRef _the_interceptor;
+static GumInterceptor * _the_undisposed_interceptor = NULL;
 
 static GumSpinlock gum_interceptor_thread_context_lock = GUM_SPINLOCK_INIT;
 static GHashTable * gum_interceptor_thread_contexts;
@@ -443,9 +443,15 @@ static void
 gum_interceptor_dispose (GObject * object)
 {
   GumInterceptor * self = GUM_INTERCEPTOR (object);
+  gboolean was_singleton;
+
+  g_mutex_lock (&_gum_interceptor_lock);
+  was_singleton = _the_undisposed_interceptor == self;
+  g_mutex_unlock (&_gum_interceptor_lock);
 
 #ifndef G_OS_NONE
-  _gum_unwind_broker_backend_deactivate ();
+  if (was_singleton)
+    _gum_unwind_broker_backend_deactivate ();
 #endif
 
   GUM_INTERCEPTOR_LOCK (self);
@@ -456,6 +462,14 @@ gum_interceptor_dispose (GObject * object)
 
   gum_interceptor_transaction_end (&self->current_transaction);
   GUM_INTERCEPTOR_UNLOCK (self);
+
+  if (was_singleton)
+  {
+    g_mutex_lock (&_gum_interceptor_lock);
+    _the_undisposed_interceptor = NULL;
+    g_cond_broadcast (&_gum_interceptor_cond);
+    g_mutex_unlock (&_gum_interceptor_lock);
+  }
 
   G_OBJECT_CLASS (gum_interceptor_parent_class)->dispose (object);
 }
@@ -494,17 +508,20 @@ gum_interceptor_obtain (void)
 
   g_mutex_lock (&_gum_interceptor_lock);
 
-  if (_the_interceptor != NULL)
+  interceptor = g_weak_ref_get (&_the_interceptor);
+  if (interceptor == NULL)
   {
-    interceptor = GUM_INTERCEPTOR (g_object_ref (_the_interceptor));
-  }
-  else
-  {
-    _the_interceptor = g_object_new (GUM_TYPE_INTERCEPTOR, NULL);
-    g_object_weak_ref (G_OBJECT (_the_interceptor),
-        the_interceptor_weak_notify, NULL);
+    while (_the_undisposed_interceptor != NULL)
+      g_cond_wait (&_gum_interceptor_cond, &_gum_interceptor_lock);
 
-    interceptor = _the_interceptor;
+    interceptor = g_weak_ref_get (&_the_interceptor);
+  }
+
+  if (interceptor == NULL)
+  {
+    interceptor = g_object_new (GUM_TYPE_INTERCEPTOR, NULL);
+    g_weak_ref_set (&_the_interceptor, interceptor);
+    _the_undisposed_interceptor = interceptor;
     newly_created = TRUE;
   }
 
@@ -516,18 +533,6 @@ gum_interceptor_obtain (void)
 #endif
 
   return interceptor;
-}
-
-static void
-the_interceptor_weak_notify (gpointer data,
-                             GObject * where_the_object_was)
-{
-  g_mutex_lock (&_gum_interceptor_lock);
-
-  g_assert (_the_interceptor == (GumInterceptor *) where_the_object_was);
-  _the_interceptor = NULL;
-
-  g_mutex_unlock (&_gum_interceptor_lock);
 }
 
 /**
@@ -1359,12 +1364,7 @@ _gum_interceptor_forget_all_hooks_in_range (const GumMemoryRange * range)
 {
   GumInterceptor * interceptor;
 
-  g_mutex_lock (&_gum_interceptor_lock);
-  interceptor = (_the_interceptor != NULL)
-      ? g_object_ref (_the_interceptor)
-      : NULL;
-  g_mutex_unlock (&_gum_interceptor_lock);
-
+  interceptor = g_weak_ref_get (&_the_interceptor);
   if (interceptor == NULL)
     return;
 
