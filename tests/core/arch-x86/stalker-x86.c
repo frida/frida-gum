@@ -83,6 +83,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (heap_api)
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
+  TESTENTRY (follow_thread_at_start_of_mapping)
 #ifdef HAVE_LINUX
   TESTENTRY (create_thread)
 #endif
@@ -159,8 +160,16 @@ struct _PrefetchBackpatchContext
 
 #endif
 
+typedef struct _StalkedLoop StalkedLoop;
 typedef struct _RunOnThreadCtx RunOnThreadCtx;
 typedef struct _TestThreadSyncData TestThreadSyncData;
+
+struct _StalkedLoop
+{
+  GCallback func;
+  volatile GumThreadId thread_id;
+  volatile gint stop;
+};
 
 struct _RunOnThreadCtx
 {
@@ -178,6 +187,7 @@ struct _TestThreadSyncData
 };
 
 static gpointer run_stalked_briefly (gpointer data);
+static gpointer run_stalked_loop (gpointer data);
 #ifdef HAVE_LINUX
 static gpointer run_spawned_thread (gpointer data);
 #endif
@@ -351,6 +361,75 @@ run_stalked_briefly (gpointer data)
   sdc_put_flush_confirmation (channel);
 
   sdc_await_finish_confirmation (channel);
+
+  return NULL;
+}
+
+TESTCASE (follow_thread_at_start_of_mapping)
+{
+  gsize page_size;
+  guint8 * pages, * start;
+  StalkedLoop loop;
+  GumX86Writer cw;
+  const gchar * loop_start = "loop_start";
+  GThread * thread;
+  guint i;
+
+  page_size = gum_query_page_size ();
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
+  start = pages + page_size;
+
+  gum_x86_writer_init (&cw, start);
+  gum_x86_writer_put_label (&cw, loop_start);
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_X86_XAX,
+      GUM_ADDRESS (&loop.stop));
+  gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_X86_EAX, GUM_X86_XAX);
+  gum_x86_writer_put_test_reg_reg (&cw, GUM_X86_EAX, GUM_X86_EAX);
+  gum_x86_writer_put_jcc_short_label (&cw, X86_INS_JE, loop_start,
+      GUM_NO_HINT);
+  gum_x86_writer_put_ret (&cw);
+  gum_x86_writer_flush (&cw);
+  gum_memory_mark_code (start, gum_x86_writer_offset (&cw));
+  gum_x86_writer_clear (&cw);
+
+  gum_mprotect (pages, page_size, GUM_PAGE_NO_ACCESS);
+
+  loop.func = GUM_POINTER_TO_FUNCPTR (GCallback, start);
+  loop.thread_id = 0;
+  loop.stop = FALSE;
+
+  thread = g_thread_new ("stalker-test-loop", run_stalked_loop, &loop);
+  while (loop.thread_id == 0)
+    g_thread_yield ();
+
+  for (i = 0; i != 10; i++)
+  {
+    fixture->sink->mask = GUM_EXEC;
+    gum_stalker_follow (fixture->stalker, loop.thread_id, NULL,
+        GUM_EVENT_SINK (fixture->sink));
+    g_usleep (10000);
+    gum_stalker_unfollow (fixture->stalker, loop.thread_id);
+    g_usleep (10000);
+
+    while (gum_stalker_garbage_collect (fixture->stalker))
+      g_usleep (10000);
+    gum_fake_event_sink_reset (fixture->sink);
+  }
+
+  loop.stop = TRUE;
+  g_thread_join (thread);
+
+  gum_memory_free (pages, 2 * page_size);
+}
+
+static gpointer
+run_stalked_loop (gpointer data)
+{
+  StalkedLoop * loop = data;
+
+  loop->thread_id = gum_process_get_current_thread_id ();
+
+  loop->func ();
 
   return NULL;
 }

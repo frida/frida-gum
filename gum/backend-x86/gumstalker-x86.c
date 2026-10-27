@@ -1404,6 +1404,7 @@ gum_stalker_infect (GumThreadId thread_id,
   GumExecCtx * ctx;
   guint8 * pc;
   const guint max_syscall_size = 2;
+  GumPageProtection prot;
   gpointer code_address;
   GumX86Writer * cw;
 
@@ -1430,7 +1431,12 @@ gum_stalker_infect (GumThreadId thread_id,
    * In case the thread is in a Linux system call we should allow it to be
    * restarted by bringing along the syscall instruction.
    */
-  gum_x86_writer_put_bytes (cw, pc - max_syscall_size, max_syscall_size);
+  if (GPOINTER_TO_SIZE (pc) % self->page_size >= max_syscall_size ||
+      (gum_memory_query_protection (pc - max_syscall_size, &prot) &&
+       (prot & GUM_PAGE_READ) != 0))
+  {
+    gum_x86_writer_put_bytes (cw, pc - max_syscall_size, max_syscall_size);
+  }
 
   ctx->infect_body = GUM_ADDRESS (gum_x86_writer_cur (cw));
   gum_exec_ctx_write_prolog (ctx, GUM_PROLOG_MINIMAL, cw);
