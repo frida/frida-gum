@@ -6,16 +6,15 @@
 
 #include "gummoduleregistry-priv.h"
 
-#include "gum/gumdarwin.h"
 #include "gumdarwin-priv.h"
 #include "guminterceptor.h"
 #include "guminvocationlistener.h"
 #include "gummodule-darwin.h"
-
+#include "gum/gumdarwin.h"
 #ifdef HAVE_I386
-# include <gum/arch-x86/gumx86writer.h>
+# include "gumx86writer.h"
 #else
-# include <gum/arch-arm64/gumarm64writer.h>
+# include "gumarm64writer.h"
 #endif
 
 #include <dlfcn.h>

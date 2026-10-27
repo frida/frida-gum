@@ -1815,18 +1815,18 @@ export_found_cb (const GumExportDetails * details,
 
   ctx->number_of_calls++;
 
-#if defined (HAVE_DARWIN)
+#if defined (HAVE_WINDOWS)
+  if (strcmp (details->name, "NtClose") == 0)
+    g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
+  else if (strcmp (details->name, "KiUserInvertedFunctionTable") == 0)
+    g_assert_cmpint (details->type, ==, GUM_EXPORT_VARIABLE);
+#elif defined (HAVE_DARWIN)
   if (strcmp (details->name, "malloc") == 0)
     g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
   else if (g_str_has_prefix (details->name, "OBJC_CLASS_"))
     g_assert_cmpint (details->type, ==, GUM_EXPORT_VARIABLE);
   else if (strcmp (details->name, "dispatch_async_f") == 0)
     g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
-#elif defined (HAVE_WINDOWS)
-  if (strcmp (details->name, "NtClose") == 0)
-    g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
-  else if (strcmp (details->name, "KiUserInvertedFunctionTable") == 0)
-    g_assert_cmpint (details->type, ==, GUM_EXPORT_VARIABLE);
 #endif
 
   return ctx->value_to_return;

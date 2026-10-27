@@ -5972,12 +5972,12 @@ TESTCASE (process_arch_is_available)
 TESTCASE (process_platform_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.platform);");
-#if defined (HAVE_LINUX)
-  EXPECT_SEND_MESSAGE_WITH ("\"linux\"");
+#if defined (HAVE_WINDOWS)
+  EXPECT_SEND_MESSAGE_WITH ("\"windows\"");
 #elif defined (HAVE_DARWIN)
   EXPECT_SEND_MESSAGE_WITH ("\"darwin\"");
-#elif defined (HAVE_WINDOWS)
-  EXPECT_SEND_MESSAGE_WITH ("\"windows\"");
+#elif defined (HAVE_LINUX)
+  EXPECT_SEND_MESSAGE_WITH ("\"linux\"");
 #endif
 }
 
