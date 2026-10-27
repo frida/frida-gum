@@ -28,6 +28,7 @@ TESTLIST_BEGIN (arm64relocator)
   TESTENTRY (scratch_reg_may_be_written_before_read)
   TESTENTRY (scratch_reg_may_be_outside_the_ip_registers)
   TESTENTRY (scratch_reg_outside_the_ip_registers_must_be_dead)
+  TESTENTRY (scratch_reg_must_not_be_an_argument_register)
   TESTENTRY (scratch_reg_is_not_freed_by_compare)
   TESTENTRY (exit_reg_is_not_freed_across_syscall)
   TESTENTRY (exits_may_use_different_regs)
@@ -448,6 +449,24 @@ TESTCASE (scratch_reg_outside_the_ip_registers_must_be_dead)
       GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, &scratch_reg));
 
   g_assert_cmpint (scratch_reg, ==, ARM64_REG_INVALID);
+}
+
+TESTCASE (scratch_reg_must_not_be_an_argument_register)
+{
+  guint32 input[] = {
+    GUINT32_TO_LE (0x8b100210), /* add x16, x16, x16 */
+    GUINT32_TO_LE (0x8b110231), /* add x17, x17, x17 */
+    GUINT32_TO_LE (0xd2800000), /* mov x0, #0        */
+    GUINT32_TO_LE (0xd2800013), /* mov x19, #0       */
+    GUINT32_TO_LE (0xd503201f), /* nop               */
+    GUINT32_TO_LE (0xd65f03c0)  /* ret               */
+  };
+  arm64_reg scratch_reg = ARM64_REG_INVALID;
+
+  g_assert_true (gum_arm64_relocator_can_relocate (input, 16,
+      GUM_SCENARIO_OFFLINE, GUM_RELOCATION_CHECKED, NULL, &scratch_reg));
+
+  g_assert_cmpint (scratch_reg, ==, ARM64_REG_X19);
 }
 
 TESTCASE (scratch_reg_is_not_freed_by_compare)
