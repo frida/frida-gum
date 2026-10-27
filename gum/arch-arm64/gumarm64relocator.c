@@ -76,6 +76,7 @@ static gboolean gum_arm64_relocator_code_range_contains (
 static const guint8 * gum_arm64_relocator_peek_code (GumArm64Relocator * self,
     GumAddress pc, size_t * size);
 static guint64 gum_arm64_gpr_mask (arm64_reg reg);
+static gboolean gum_arm64_relocator_reg_is_argument (arm64_reg reg);
 static gpointer gum_arm64_relocator_extract_branch_target (
     const cs_insn * insn);
 
@@ -748,7 +749,8 @@ gum_arm64_relocator_choose_scratch_reg (GumArm64Relocator * self,
   {
     arm64_reg reg = gum_scratch_reg_candidates[i];
 
-    if ((dead & gum_arm64_gpr_mask (reg)) != 0 &&
+    if (!gum_arm64_relocator_reg_is_argument (reg) &&
+        (dead & gum_arm64_gpr_mask (reg)) != 0 &&
         !gum_arm64_relocator_touches_reg_before (self, reg, num_block_insns))
       attempts[num_attempts++] = reg;
   }
@@ -762,7 +764,8 @@ gum_arm64_relocator_choose_scratch_reg (GumArm64Relocator * self,
   {
     arm64_reg reg = gum_scratch_reg_candidates[i];
 
-    if ((dead & gum_arm64_gpr_mask (reg)) != 0)
+    if (!gum_arm64_relocator_reg_is_argument (reg) &&
+        (dead & gum_arm64_gpr_mask (reg)) != 0)
       attempts[num_attempts++] = reg;
   }
 
@@ -1117,6 +1120,12 @@ gum_arm64_gpr_mask (arm64_reg reg)
     return GUM_GPR_BIT (30);
 
   return 0;
+}
+
+static gboolean
+gum_arm64_relocator_reg_is_argument (arm64_reg reg)
+{
+  return reg >= ARM64_REG_X0 && reg <= ARM64_REG_X8;
 }
 
 static gpointer
