@@ -77,6 +77,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (follow_thread)
   TESTENTRY (follow_thread_at_start_of_mapping)
   TESTENTRY (unfollow_should_handle_terminated_thread)
+  TESTENTRY (unfollow_should_preserve_scratch_registers)
   TESTENTRY (self_modifying_code_should_be_detected_with_threshold_minus_one)
   TESTENTRY (self_modifying_code_should_not_be_detected_with_threshold_zero)
   TESTENTRY (self_modifying_code_should_be_detected_with_threshold_one)
@@ -2039,6 +2040,30 @@ run_stalked_into_termination (gpointer data)
   sdc_await_follow_confirmation (channel);
 
   return NULL;
+}
+
+TESTCASE (unfollow_should_preserve_scratch_registers)
+{
+  const guint32 code[] = {
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0x10000150), /* loop: adr x16, next */
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0xd503201f), /* nop                 */
+    GUINT32_TO_LE (0xd61f0200), /* br x16              */
+    GUINT32_TO_LE (0xb9400008), /* next: ldr w8, [x0]  */
+    GUINT32_TO_LE (0x34fffea8), /* cbz w8, loop        */
+    GUINT32_TO_LE (0xd65f03c0), /* ret                 */
+  };
+
+  follow_and_unfollow_stalked_loop (fixture,
+      GUM_POINTER_TO_FUNCPTR (StalkedLoopFunc,
+          test_arm64_stalker_fixture_dup_code (fixture, code, sizeof (code))));
 }
 
 TESTCASE (self_modifying_code_should_be_detected_with_threshold_minus_one)

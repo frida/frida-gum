@@ -5476,6 +5476,12 @@ gum_exec_block_write_unfollow_check_code (GumExecBlock * block,
   if (cc != GUM_CODE_INTERRUPTIBLE)
     return;
 
+  if (gum_arm64_relocator_is_ip_reg_live_at (gc->relocator,
+        GUM_ADDRESS (gc->instruction->start)))
+  {
+    return;
+  }
+
   gum_arm64_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_maybe_unfollow), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),

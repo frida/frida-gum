@@ -65,7 +65,7 @@ static arm64_reg gum_arm64_relocator_pick_exit_reg_at (
 static gboolean gum_arm64_relocator_touches_reg_before (
     GumArm64Relocator * self, arm64_reg reg, guint position);
 static void gum_arm64_relocator_analyze_liveness (GumArm64Relocator * self,
-    GumAddress pc, guint64 * dead, guint64 * live);
+    GumAddress pc, guint64 regs, guint64 * dead, guint64 * live);
 static void gum_arm64_relocator_describe_gpr_access (GumArm64Relocator * self,
     const cs_insn * insn, guint64 * read, guint64 * written);
 static gboolean gum_arm64_relocator_insn_is_trap (const cs_insn * insn);
@@ -355,6 +355,17 @@ gum_arm64_relocator_pick_exit_reg (GumArm64Relocator * self,
                                    GumAddress target)
 {
   return gum_arm64_relocator_pick_exit_reg_at (self, target, self->inpos);
+}
+
+gboolean
+gum_arm64_relocator_is_ip_reg_live_at (GumArm64Relocator * self,
+                                       GumAddress pc)
+{
+  guint64 dead, live;
+
+  gum_arm64_relocator_analyze_liveness (self, pc, GUM_IP_GPRS, &dead, &live);
+
+  return live != 0;
 }
 
 cs_insn *
@@ -720,7 +731,7 @@ gum_arm64_relocator_choose_scratch_reg (GumArm64Relocator * self,
   arm64_reg attempts[3 * G_N_ELEMENTS (gum_scratch_reg_candidates)];
   guint num_attempts, i;
 
-  gum_arm64_relocator_analyze_liveness (self, pc, &dead, &live);
+  gum_arm64_relocator_analyze_liveness (self, pc, GUM_ALL_GPRS, &dead, &live);
 
   if (requested_reg != ARM64_REG_INVALID)
   {
@@ -829,7 +840,8 @@ gum_arm64_relocator_pick_exit_reg_at (GumArm64Relocator * self,
     return self->scratch_reg;
   }
 
-  gum_arm64_relocator_analyze_liveness (self, target, &dead, &live);
+  gum_arm64_relocator_analyze_liveness (self, target, GUM_ALL_GPRS, &dead,
+      &live);
 
   for (i = 0; i != G_N_ELEMENTS (gum_scratch_reg_candidates); i++)
   {
@@ -871,6 +883,7 @@ gum_arm64_relocator_touches_reg_before (GumArm64Relocator * self,
 static void
 gum_arm64_relocator_analyze_liveness (GumArm64Relocator * self,
                                       GumAddress pc,
+                                      guint64 regs,
                                       guint64 * dead,
                                       guint64 * live)
 {
@@ -883,7 +896,7 @@ gum_arm64_relocator_analyze_liveness (GumArm64Relocator * self,
   unknown = 0;
 
   paths[0].pc = pc;
-  paths[0].undecided = GUM_ALL_GPRS;
+  paths[0].undecided = regs;
   num_paths = 1;
   budget = GUM_MAX_LIVENESS_INSN_COUNT;
 
@@ -969,7 +982,7 @@ gum_arm64_relocator_analyze_liveness (GumArm64Relocator * self,
 
   cs_free (insn, 1);
 
-  *dead = GUM_ALL_GPRS & ~*live & ~unknown;
+  *dead = regs & ~*live & ~unknown;
 }
 
 static void

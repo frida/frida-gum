@@ -62,6 +62,8 @@ GUM_API gboolean gum_arm64_relocator_read_until_resumable (
     GumArm64Relocator * self, GumRelocationScenario scenario);
 GUM_API arm64_reg gum_arm64_relocator_pick_exit_reg (GumArm64Relocator * self,
     GumAddress target);
+GUM_API gboolean gum_arm64_relocator_is_ip_reg_live_at (
+    GumArm64Relocator * self, GumAddress pc);
 
 GUM_API cs_insn * gum_arm64_relocator_peek_next_write_insn (
     GumArm64Relocator * self);
