@@ -1221,6 +1221,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gpointer code_address;
   GumArm64Writer * cw;
   const guint potential_svc_size = 4;
+  GumPageProtection prot;
 
   ctx = gum_stalker_create_exec_ctx (self, thread_id,
       infect_context->transformer, infect_context->sink);
@@ -1245,7 +1246,13 @@ gum_stalker_infect (GumThreadId thread_id,
    * In case the thread is in a Linux system call we should allow it to be
    * restarted by bringing along the SVC instruction.
    */
-  gum_arm64_writer_put_bytes (cw, pc - potential_svc_size, potential_svc_size);
+  if (GPOINTER_TO_SIZE (pc) % self->page_size != 0 ||
+      (gum_memory_query_protection (pc - potential_svc_size, &prot) &&
+       (prot & GUM_PAGE_READ) != 0))
+  {
+    gum_arm64_writer_put_bytes (cw, pc - potential_svc_size,
+        potential_svc_size);
+  }
 
   ctx->infect_body = GUM_ADDRESS (gum_arm64_writer_cur (cw));
 #ifdef HAVE_PTRAUTH

@@ -75,6 +75,7 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (follow_misaligned_stack)
   TESTENTRY (follow_syscall)
   TESTENTRY (follow_thread)
+  TESTENTRY (follow_thread_at_start_of_mapping)
   TESTENTRY (unfollow_should_handle_terminated_thread)
   TESTENTRY (self_modifying_code_should_be_detected_with_threshold_minus_one)
   TESTENTRY (self_modifying_code_should_not_be_detected_with_threshold_zero)
@@ -115,9 +116,18 @@ struct _GumTestStalkerObserver
 
 #endif
 
+typedef struct _StalkedLoop StalkedLoop;
+typedef void (* StalkedLoopFunc) (volatile gint * stop);
 typedef struct _CodePatcher CodePatcher;
 typedef struct _RunOnThreadCtx RunOnThreadCtx;
 typedef struct _TestThreadSyncData TestThreadSyncData;
+
+struct _StalkedLoop
+{
+  StalkedLoopFunc func;
+  volatile GumThreadId thread_id;
+  volatile gint stop;
+};
 
 struct _CodePatcher
 {
@@ -177,6 +187,9 @@ static int get_magic_number (void);
 static void add_n_return_value_increments (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static gpointer run_stalked_briefly (gpointer data);
+static void follow_and_unfollow_stalked_loop (
+    TestArm64StalkerFixture * fixture, StalkedLoopFunc func);
+static gpointer run_stalked_loop (gpointer data);
 static gpointer run_stalked_into_termination (gpointer data);
 static void insert_callout_after_cmp (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
@@ -1908,6 +1921,75 @@ run_stalked_briefly (gpointer data)
   sdc_put_flush_confirmation (channel);
 
   sdc_await_finish_confirmation (channel);
+
+  return NULL;
+}
+
+TESTCASE (follow_thread_at_start_of_mapping)
+{
+  const guint32 code[] = {
+    GUINT32_TO_LE (0xb9400008), /* ldr w8, [x0]  */
+    GUINT32_TO_LE (0x34ffffe8), /* cbz w8, #-4   */
+    GUINT32_TO_LE (0xd65f03c0), /* ret           */
+  };
+  gsize page_size;
+  guint8 * pages, * start;
+
+  page_size = gum_query_page_size ();
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
+  start = pages + page_size;
+  memcpy (start, code, sizeof (code));
+  gum_memory_mark_code (start, sizeof (code));
+  gum_mprotect (pages, page_size, GUM_PAGE_NO_ACCESS);
+
+  follow_and_unfollow_stalked_loop (fixture,
+      GUM_POINTER_TO_FUNCPTR (StalkedLoopFunc, gum_sign_code_pointer (start)));
+
+  gum_memory_free (pages, 2 * page_size);
+}
+
+static void
+follow_and_unfollow_stalked_loop (TestArm64StalkerFixture * fixture,
+                                  StalkedLoopFunc func)
+{
+  StalkedLoop loop;
+  GThread * thread;
+  guint i;
+
+  loop.func = func;
+  loop.thread_id = 0;
+  loop.stop = FALSE;
+
+  thread = g_thread_new ("stalker-test-loop", run_stalked_loop, &loop);
+  while (loop.thread_id == 0)
+    g_thread_yield ();
+
+  for (i = 0; i != 10; i++)
+  {
+    fixture->sink->mask = GUM_EXEC;
+    gum_stalker_follow (fixture->stalker, loop.thread_id, NULL,
+        GUM_EVENT_SINK (fixture->sink));
+    g_usleep (10000);
+    gum_stalker_unfollow (fixture->stalker, loop.thread_id);
+    g_usleep (10000);
+
+    while (gum_stalker_garbage_collect (fixture->stalker))
+      g_usleep (10000);
+    gum_fake_event_sink_reset (fixture->sink);
+  }
+
+  loop.stop = TRUE;
+  g_thread_join (thread);
+}
+
+static gpointer
+run_stalked_loop (gpointer data)
+{
+  StalkedLoop * loop = data;
+
+  loop->thread_id = gum_process_get_current_thread_id ();
+
+  loop->func (&loop->stop);
 
   return NULL;
 }
