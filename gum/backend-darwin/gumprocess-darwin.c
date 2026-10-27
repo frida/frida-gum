@@ -1302,6 +1302,12 @@ gum_darwin_query_region (mach_port_t task,
   if (retval == -1)
     return FALSE;
 
+  if (address < region.pri_address ||
+      address >= region.pri_address + region.pri_size)
+  {
+    return FALSE;
+  }
+
   range->base_address = region.pri_address;
   range->size = region.pri_size;
   *prot = gum_page_protection_from_mach (region.pri_protection);

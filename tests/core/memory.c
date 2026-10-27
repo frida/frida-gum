@@ -45,6 +45,7 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (find_pointers_skips_inaccessible_range)
   TESTENTRY (find_pointers_skips_inaccessible_range_in_parallel_scan)
   TESTENTRY (is_memory_readable_handles_mixed_page_protections)
+  TESTENTRY (query_protection_of_unmapped_address_is_not_readable)
   TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
   TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   TESTENTRY (allocate_handles_alignment)
@@ -858,6 +859,21 @@ TESTCASE (is_memory_readable_handles_mixed_page_protections)
   g_assert_false (gum_memory_is_readable (second_page + page_size - 1, 2));
 
   gum_memory_free (pages, 4 * page_size);
+}
+
+TESTCASE (query_protection_of_unmapped_address_is_not_readable)
+{
+  guint8 * pages;
+  guint page_size;
+  GumPageProtection prot;
+
+  page_size = gum_query_page_size ();
+
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
+  gum_memory_free (pages, 2 * page_size);
+
+  if (gum_memory_query_protection (pages, &prot))
+    g_assert_cmpuint (prot & GUM_PAGE_READ, ==, 0);
 }
 
 TESTCASE (alloc_n_pages_returns_aligned_rw_address)
