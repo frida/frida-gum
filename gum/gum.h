@@ -12,6 +12,7 @@
 #include <gum/gumapiresolver.h>
 #include <gum/gumbacktracer.h>
 #include <gum/gumcloak.h>
+#include <gum/gumcmodule.h>
 #include <gum/gumcodeallocator.h>
 #include <gum/gumcodesegment.h>
 #include <gum/gumcontrolflowgraph.h>
