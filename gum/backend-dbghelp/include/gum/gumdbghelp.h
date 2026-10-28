@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2018 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -66,6 +66,7 @@ struct _GumDbghelpImpl
 
 G_BEGIN_DECLS
 
+GUM_API void gum_dbghelp_impl_use_modules (HMODULE dbghelp, HMODULE symsrv);
 G_GNUC_INTERNAL GumDbghelpImpl * gum_dbghelp_impl_try_obtain (void);
 
 G_END_DECLS
