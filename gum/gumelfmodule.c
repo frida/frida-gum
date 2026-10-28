@@ -485,7 +485,7 @@ gum_elf_module_new_from_file (const gchar * path,
 {
   GumElfModule * module;
 
-  module = g_object_new (GUM_ELF_TYPE_MODULE,
+  module = g_object_new (GUM_TYPE_ELF_MODULE,
       "source-path", path,
       "source-mode", GUM_ELF_SOURCE_MODE_OFFLINE,
       NULL);
@@ -504,7 +504,7 @@ gum_elf_module_new_from_blob (GBytes * blob,
 {
   GumElfModule * module;
 
-  module = g_object_new (GUM_ELF_TYPE_MODULE,
+  module = g_object_new (GUM_TYPE_ELF_MODULE,
       "source-blob", blob,
       "source-mode", GUM_ELF_SOURCE_MODE_OFFLINE,
       NULL);
@@ -524,7 +524,7 @@ gum_elf_module_new_from_memory (const gchar * path,
 {
   GumElfModule * module;
 
-  module = g_object_new (GUM_ELF_TYPE_MODULE,
+  module = g_object_new (GUM_TYPE_ELF_MODULE,
       "base-address", base_address,
       "source-path", path,
       "source-mode", GUM_ELF_SOURCE_MODE_ONLINE,
