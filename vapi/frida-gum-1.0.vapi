@@ -454,6 +454,70 @@ namespace Gum {
 		public void update ();
 	}
 
+	[CCode (type_cname = "GumModuleResolverInterface")]
+	public interface ModuleResolver : GLib.Object {
+		public abstract Gum.Module? find_module_by_name (string name);
+		public abstract Gum.Address find_dynamic_address (string symbol);
+		public virtual bool find_dynamic_symbol (string symbol, out Gum.DynamicSymbolDetails details);
+	}
+
+	public struct DynamicSymbolDetails {
+		public Gum.Address address;
+		public bool indirect;
+	}
+
+	public class NativeModuleResolver : GLib.Object, Gum.ModuleResolver {
+		public NativeModuleResolver ();
+
+		public void set_dynamic_lookup_handler (owned Gum.NativeModuleResolverLookupFunc? func);
+	}
+
+	public delegate Gum.Address NativeModuleResolverLookupFunc (string symbol);
+
+	[CCode (type_cname = "GumProcessMemoryInterface")]
+	public interface ProcessMemory : GLib.Object {
+		public abstract Gum.ProcessId get_pid ();
+		public abstract Gum.Address alloc (size_t size, size_t alignment);
+		public abstract Gum.Address alloc_near (Gum.Address near_address, size_t max_distance, size_t size, size_t alignment);
+		public abstract void free (Gum.Address address, size_t size);
+		public abstract bool read (Gum.Address address, [CCode (array_length_type = "gsize")] uint8[] buffer);
+		public abstract bool write (Gum.Address address, [CCode (array_length_type = "gsize")] uint8[] data);
+		public abstract bool map (Gum.Address address, size_t size, [CCode (array_length_type = "gsize")] uint8[] data, Gum.PageProtection prot);
+		public abstract bool protect (Gum.Address address, size_t size, Gum.PageProtection prot);
+		public abstract bool mark_code (Gum.Address address, size_t size);
+	}
+
+	public class NativeProcessMemory : GLib.Object, Gum.ProcessMemory {
+		public NativeProcessMemory.local ();
+		public NativeProcessMemory.remote (Gum.ProcessId pid, void * handle);
+
+		public void * get_handle ();
+	}
+
+	[CCode (type_cname = "GumMapperInterface")]
+	public interface Mapper : GLib.Object {
+		public Gum.MemoryRange? range { get; }
+
+		public static Gum.Mapper new_from_file (string path, Gum.ModuleResolver resolver) throws Gum.Error;
+		public static Gum.Mapper new_take_blob (string name, owned GLib.Bytes blob, Gum.ModuleResolver resolver) throws Gum.Error;
+
+		public abstract void set_target (Gum.ProcessMemory target);
+		public abstract void add_apple_parameter (string key, string value);
+
+		public abstract bool map (size_t extra_size, out Gum.Address extra_address) throws Gum.Error;
+		public abstract void unmap ();
+
+		public abstract Gum.Address constructor ();
+		public abstract Gum.Address destructor ();
+		public abstract Gum.Address resolve (string symbol);
+		public abstract void enumerate_exports (Gum.FoundExportFunc func);
+	}
+
+	[CCode (has_target = false)]
+	public delegate void MapperConstructor ();
+	[CCode (has_target = false)]
+	public delegate void MapperDestructor ();
+
 	namespace Memory {
 		public bool is_readable (void * address, size_t len);
 		public bool query_protection (void * address, out Gum.PageProtection prot);
@@ -882,6 +946,408 @@ namespace Gum {
 		public EventType type;
 
 		public void * location;
+	}
+
+	public class PeModule : GLib.Object {
+		public PeModule.from_file (string path) throws Gum.Error;
+		public PeModule.from_blob (GLib.Bytes blob) throws Gum.Error;
+		public PeModule.from_memory (Gum.Address base_address) throws Gum.Error;
+
+		public uint pointer_size { get; }
+		public Gum.PeMachine machine { get; }
+		public uint64 image_base { get; }
+		public size_t size_of_image { get; }
+		public size_t size_of_headers { get; }
+		public uint32 entrypoint { get; }
+		public unowned GLib.Bytes? source_blob { get; }
+		public Gum.PeSourceMode source_mode { get; }
+
+		public unowned Gum.PeDataDirectory? get_directory (Gum.PeDirectoryIndex index);
+		public void * get_data_at_rva (uint32 rva);
+
+		public void enumerate_sections (Gum.FoundPeSectionFunc func);
+		public void enumerate_relocations (Gum.FoundPeRelocationFunc func);
+		public void enumerate_imports (Gum.FoundPeImportFunc func);
+		public bool find_export_by_name (string name, out Gum.PeExportDetails details);
+		public void enumerate_exports (Gum.FoundPeExportFunc func);
+		public bool get_tls_details (out Gum.PeTlsDetails details);
+		public void enumerate_tls_callbacks (Gum.FoundPeTlsCallbackFunc func);
+		public void enumerate_dependencies (Gum.FoundDependencyFunc func);
+		public uint get_function_count ();
+		public void enumerate_function_starts (Gum.FoundPeFunctionStartFunc func);
+	}
+
+	public enum PeMachine {
+		UNKNOWN,
+		I386,
+		ARMNT,
+		AMD64,
+		ARM64,
+	}
+
+	public enum PeSourceMode {
+		OFFLINE,
+		ONLINE,
+	}
+
+	[CCode (cprefix = "GUM_PE_DIRECTORY_")]
+	public enum PeDirectoryIndex {
+		EXPORT,
+		IMPORT,
+		EXCEPTION,
+		BASERELOC,
+		TLS,
+		DELAY_IMPORT,
+	}
+
+	public delegate bool FoundPeSectionFunc (Gum.PeSectionDetails details);
+	public delegate bool FoundPeRelocationFunc (Gum.PeRelocationDetails details);
+	public delegate bool FoundPeImportFunc (Gum.PeImportDetails details);
+	public delegate bool FoundPeExportFunc (Gum.PeExportDetails details);
+	public delegate bool FoundPeTlsCallbackFunc (Gum.Address rva);
+	public delegate bool FoundPeFunctionStartFunc (Gum.Address rva);
+
+	public struct PeDataDirectory {
+		public uint32 rva;
+		public uint32 size;
+	}
+
+	public struct PeSectionDetails {
+		public unowned string name;
+		public uint32 virtual_address;
+		public uint32 virtual_size;
+		public uint32 raw_data_offset;
+		public uint32 raw_data_size;
+		public uint32 characteristics;
+		public Gum.PageProtection protection;
+	}
+
+	public struct PeRelocationDetails {
+		public uint32 rva;
+		public Gum.PeRelocationType type;
+	}
+
+	public struct PeImportDetails {
+		public Gum.PeImportType type;
+		public Gum.PeImportLoadMode load_mode;
+		public unowned string module_name;
+		public uint32 slot_rva;
+
+		public unowned string name;
+
+		public uint16 ordinal;
+	}
+
+	public struct PeExportDetails {
+		public Gum.PeExportType type;
+		public uint16 ordinal;
+		public unowned string? name;
+
+		public uint32 rva;
+
+		public unowned string forwarder;
+	}
+
+	public struct PeTlsDetails {
+		public uint32 template_rva;
+		public size_t template_size;
+		public uint32 index_rva;
+	}
+
+	[CCode (cprefix = "GUM_PE_RELOCATION_")]
+	public enum PeRelocationType {
+		ABSOLUTE,
+		HIGH,
+		LOW,
+		HIGHLOW,
+		HIGHADJ,
+		DIR64,
+	}
+
+	[CCode (cprefix = "GUM_PE_IMPORT_")]
+	public enum PeImportType {
+		BY_NAME,
+		BY_ORDINAL,
+	}
+
+	public enum PeImportLoadMode {
+		REGULAR,
+		DELAYED,
+	}
+
+	[CCode (cprefix = "GUM_PE_EXPORT_")]
+	public enum PeExportType {
+		REGULAR,
+		FORWARDED,
+	}
+
+	public class MachoModule : GLib.Object {
+		public Filetype filetype;
+		public string? name;
+		public string? uuid;
+		public string? source_version;
+
+		public DarwinPort task;
+		public bool is_local;
+		public bool is_kernel;
+		public Gum.CpuType cpu_type;
+		public size_t pointer_size;
+		public size_t page_size;
+		public Gum.Address base_address;
+		public string? source_path;
+		public GLib.Bytes? source_blob;
+
+		public MachoModuleImage image;
+
+		public void * info;
+		public void * symtab;
+		public void * dysymtab;
+
+		public Gum.Address preferred_address;
+
+		public GLib.Array<MachoSegment> segments;
+
+		public bool lacks_exports_for_reexports {
+			get;
+		}
+
+		public Gum.Address slide {
+			get;
+		}
+
+		public enum Filetype {
+			OBJECT = 1,
+			EXECUTE,
+			FVMLIB,
+			CORE,
+			PRELOAD,
+			DYLIB,
+			DYLINKER,
+			BUNDLE,
+			DYLIB_STUB,
+			DSYM,
+			KEXT_BUNDLE,
+			FILESET,
+		}
+
+		[Flags]
+		public enum Flags {
+			NONE        = 0,
+			HEADER_ONLY = (1 << 0),
+		}
+
+		public MachoModule.from_file (string path, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.MachoModule.Flags flags = NONE) throws Gum.Error;
+		public MachoModule.from_blob (GLib.Bytes blob, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.MachoModule.Flags flags = NONE) throws Gum.Error;
+		public MachoModule.from_memory (string? name, Gum.DarwinPort task, Gum.Address base_address, Gum.MachoModule.Flags flags = NONE) throws Gum.Error;
+
+		public bool load () throws Gum.Error;
+
+		public bool resolve_export (string symbol, out Gum.MachoExportDetails details);
+		public Gum.Address resolve_symbol_address (string symbol);
+		public void enumerate_imports (Gum.FoundImportFunc func);
+		public void enumerate_exports (Gum.FoundMachoExportFunc func);
+		public void enumerate_symbols (Gum.FoundMachoSymbolFunc func);
+		public void enumerate_sections (Gum.FoundMachoSectionFunc func);
+		public bool is_address_in_text_section (Gum.Address address);
+		public void enumerate_chained_fixups (Gum.FoundMachoChainedFixupsFunc func);
+		public void enumerate_rebases (Gum.FoundMachoRebaseFunc func);
+		public void enumerate_binds (Gum.FoundMachoBindFunc func);
+		public void enumerate_lazy_binds (Gum.FoundMachoBindFunc func);
+		public void enumerate_init_pointers (Gum.FoundMachoInitPointersFunc func);
+		public void enumerate_init_offsets (Gum.FoundMachoInitOffsetsFunc func);
+		public void enumerate_term_pointers (Gum.FoundMachoTermPointersFunc func);
+		public void enumerate_dependencies (Gum.FoundDependencyFunc func);
+		public unowned string? get_dependency_by_ordinal (int ordinal);
+	}
+
+	public delegate bool FoundMachoExportFunc (Gum.MachoExportDetails details);
+	public delegate bool FoundMachoSymbolFunc (Gum.MachoSymbolDetails details);
+	public delegate bool FoundMachoSectionFunc (Gum.MachoSectionDetails details);
+	public delegate bool FoundMachoChainedFixupsFunc (Gum.MachoChainedFixupsDetails details);
+	public delegate bool FoundMachoRebaseFunc (Gum.MachoRebaseDetails details);
+	public delegate bool FoundMachoBindFunc (Gum.MachoBindDetails details);
+	public delegate bool FoundMachoInitPointersFunc (Gum.MachoInitPointersDetails details);
+	public delegate bool FoundMachoInitOffsetsFunc (Gum.MachoInitOffsetsDetails details);
+	public delegate bool FoundMachoTermPointersFunc (Gum.MachoTermPointersDetails details);
+
+	[Compact]
+	public class MachoModuleImage {
+		public void * data;
+		public uint64 size;
+		public void * linkedit;
+
+		public uint64 source_offset;
+		public uint64 source_size;
+		public uint64 shared_offset;
+		public uint64 shared_size;
+		public GLib.Array<Gum.MachoModuleImageSegment> shared_segments;
+
+		public GLib.Bytes bytes;
+		public void * malloc_data;
+	}
+
+	public struct MachoModuleImageSegment {
+		public uint64 offset;
+		public uint64 size;
+		public int protection;
+	}
+
+	public struct MachoSectionDetails {
+		public string segment_name;
+		public string section_name;
+		public Gum.Address vm_address;
+		public uint64 size;
+		public Gum.DarwinPageProtection protection;
+		public uint32 file_offset;
+		public uint32 flags;
+	}
+
+	public struct MachoChainedFixupsDetails {
+		public Gum.Address vm_address;
+		uint64 file_offset;
+		uint32 size;
+	}
+
+	public struct MachoRebaseDetails {
+		public Gum.MachoSegment? segment;
+		public uint64 offset;
+		public MachoRebaseType type;
+		public Gum.Address slide;
+	}
+
+	public struct MachoBindDetails {
+		public Gum.MachoSegment? segment;
+		public uint64 offset;
+		public Gum.MachoBindType type;
+		public Gum.MachoBindOrdinal library_ordinal;
+		public string symbol_name;
+		public Gum.MachoBindSymbolFlags symbol_flags;
+		public int64 addend;
+	}
+
+	public struct MachoThreadedItem {
+		public bool is_authenticated;
+		public Gum.MachoThreadedItemType type;
+		public uint16 delta;
+		public uint8 key;
+		public bool has_address_diversity;
+		public uint16 diversity;
+
+		public uint16 bind_ordinal;
+
+		public Gum.Address rebase_address;
+
+		public static void parse (uint64 value, out Gum.MachoThreadedItem result);
+	}
+
+	public struct MachoInitPointersDetails {
+		public Gum.Address address;
+		public uint64 count;
+	}
+
+	public struct MachoInitOffsetsDetails {
+		public Gum.Address address;
+		public uint64 count;
+	}
+
+	public struct MachoTermPointersDetails {
+		public Gum.Address address;
+		public uint64 count;
+	}
+
+	public struct MachoSegment {
+		public string name;
+		public Gum.Address vm_address;
+		public uint64 vm_size;
+		public uint64 file_offset;
+		public uint64 file_size;
+		public Gum.DarwinPageProtection protection;
+	}
+
+	public struct MachoExportDetails {
+		public string name;
+		public uint64 flags;
+
+		public uint64 offset;
+
+		public uint64 stub;
+		public uint64 resolver;
+
+		public int reexport_library_ordinal;
+		public string reexport_symbol;
+	}
+
+	public struct MachoSymbolDetails {
+		public string name;
+		public Gum.Address address;
+
+		public uint8 type;
+		public uint8 section;
+		public uint16 description;
+	}
+
+	[CCode (cprefix = "GUM_MACHO_REBASE_")]
+	public enum MachoRebaseType {
+		POINTER = 1,
+		TEXT_ABSOLUTE32,
+		TEXT_PCREL32,
+	}
+
+	[CCode (cprefix = "GUM_MACHO_BIND_")]
+	public enum MachoBindType {
+		POINTER = 1,
+		TEXT_ABSOLUTE32,
+		TEXT_PCREL32,
+		THREADED_TABLE,
+		THREADED_ITEMS,
+	}
+
+	[CCode (cprefix = "GUM_MACHO_THREADED_")]
+	public enum MachoThreadedItemType {
+		REBASE,
+		BIND
+	}
+
+	[CCode (cprefix = "GUM_MACHO_BIND_")]
+	public enum MachoBindOrdinal {
+		SELF            =  0,
+		MAIN_EXECUTABLE = -1,
+		FLAT_LOOKUP     = -2,
+		WEAK_LOOKUP     = -3,
+	}
+
+	[Flags]
+	[CCode (cprefix = "GUM_MACHO_BIND_")]
+	public enum MachoBindSymbolFlags {
+		WEAK_IMPORT         = 0x1,
+		NON_WEAK_DEFINITION = 0x8,
+	}
+
+	public const int MACHO_EXPORT_KIND_MASK;
+
+	[CCode (cprefix = "GUM_MACHO_EXPORT_")]
+	public enum MachoExportSymbolKind {
+		REGULAR,
+		THREAD_LOCAL,
+		ABSOLUTE
+	}
+
+	[Flags]
+	[CCode (cprefix = "GUM_MACHO_EXPORT_")]
+	public enum MachoExportSymbolFlags {
+		WEAK_DEFINITION   = 0x04,
+		REEXPORT          = 0x08,
+		STUB_AND_RESOLVER = 0x10,
+	}
+
+	[CCode (has_type_id = false)]
+	public struct DarwinPort : uint {
+		[CCode (cname = "GUM_DARWIN_PORT_NULL")]
+		public const DarwinPort NULL;
+	}
+
+	[CCode (has_type_id = false)]
+	public struct DarwinPageProtection : int {
 	}
 
 	public class ElfModule : GLib.Object {
@@ -1833,275 +2299,6 @@ namespace Gum {
 		GLOB_DAT,
 		COPY,
 		JUMP_SLOT,
-	}
-
-	public class DarwinModule : GLib.Object {
-		public Filetype filetype;
-		public string? name;
-		public string? uuid;
-		public string? source_version;
-
-		public DarwinPort task;
-		public bool is_local;
-		public bool is_kernel;
-		public Gum.CpuType cpu_type;
-		public size_t pointer_size;
-		public size_t page_size;
-		public Gum.Address base_address;
-		public string? source_path;
-		public GLib.Bytes? source_blob;
-
-		public DarwinModuleImage image;
-
-		public void * info;
-		public void * symtab;
-		public void * dysymtab;
-
-		public Gum.Address preferred_address;
-
-		public GLib.Array<DarwinSegment> segments;
-
-		public bool lacks_exports_for_reexports {
-			get;
-		}
-
-		public Gum.Address slide {
-			get;
-		}
-
-		public enum Filetype {
-			OBJECT = 1,
-			EXECUTE,
-			FVMLIB,
-			CORE,
-			PRELOAD,
-			DYLIB,
-			DYLINKER,
-			BUNDLE,
-			DYLIB_STUB,
-			DSYM,
-			KEXT_BUNDLE,
-			FILESET,
-		}
-
-		[Flags]
-		public enum Flags {
-			NONE        = 0,
-			HEADER_ONLY = (1 << 0),
-		}
-
-		public DarwinModule.from_file (string path, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.DarwinModule.Flags flags = NONE) throws Gum.Error;
-		public DarwinModule.from_blob (GLib.Bytes blob, Gum.CpuType cpu_type, Gum.PtrauthSupport ptrauth_support, Gum.DarwinModule.Flags flags = NONE) throws Gum.Error;
-		public DarwinModule.from_memory (string? name, Gum.DarwinPort task, Gum.Address base_address, Gum.DarwinModule.Flags flags = NONE) throws Gum.Error;
-
-		public bool load () throws Gum.Error;
-
-		public bool resolve_export (string symbol, out Gum.DarwinExportDetails details);
-		public Gum.Address resolve_symbol_address (string symbol);
-		public void enumerate_imports (Gum.FoundImportFunc func);
-		public void enumerate_exports (Gum.FoundDarwinExportFunc func);
-		public void enumerate_symbols (Gum.FoundDarwinSymbolFunc func);
-		public void enumerate_sections (Gum.FoundDarwinSectionFunc func);
-		public bool is_address_in_text_section (Gum.Address address);
-		public void enumerate_chained_fixups (Gum.FoundDarwinChainedFixupsFunc func);
-		public void enumerate_rebases (Gum.FoundDarwinRebaseFunc func);
-		public void enumerate_binds (Gum.FoundDarwinBindFunc func);
-		public void enumerate_lazy_binds (Gum.FoundDarwinBindFunc func);
-		public void enumerate_init_pointers (Gum.FoundDarwinInitPointersFunc func);
-		public void enumerate_init_offsets (Gum.FoundDarwinInitOffsetsFunc func);
-		public void enumerate_term_pointers (Gum.FoundDarwinTermPointersFunc func);
-		public void enumerate_dependencies (Gum.FoundDependencyFunc func);
-		public unowned string? get_dependency_by_ordinal (int ordinal);
-	}
-
-	public delegate bool FoundDarwinExportFunc (Gum.DarwinExportDetails details);
-	public delegate bool FoundDarwinSymbolFunc (Gum.DarwinSymbolDetails details);
-	public delegate bool FoundDarwinSectionFunc (Gum.DarwinSectionDetails details);
-	public delegate bool FoundDarwinChainedFixupsFunc (Gum.DarwinChainedFixupsDetails details);
-	public delegate bool FoundDarwinRebaseFunc (Gum.DarwinRebaseDetails details);
-	public delegate bool FoundDarwinBindFunc (Gum.DarwinBindDetails details);
-	public delegate bool FoundDarwinInitPointersFunc (Gum.DarwinInitPointersDetails details);
-	public delegate bool FoundDarwinInitOffsetsFunc (Gum.DarwinInitOffsetsDetails details);
-	public delegate bool FoundDarwinTermPointersFunc (Gum.DarwinTermPointersDetails details);
-
-	[Compact]
-	public class DarwinModuleImage {
-		public void * data;
-		public uint64 size;
-		public void * linkedit;
-
-		public uint64 source_offset;
-		public uint64 source_size;
-		public uint64 shared_offset;
-		public uint64 shared_size;
-		public GLib.Array<Gum.DarwinModuleImageSegment> shared_segments;
-
-		public GLib.Bytes bytes;
-		public void * malloc_data;
-	}
-
-	public struct DarwinModuleImageSegment {
-		public uint64 offset;
-		public uint64 size;
-		public int protection;
-	}
-
-	public struct DarwinSectionDetails {
-		public string segment_name;
-		public string section_name;
-		public Gum.Address vm_address;
-		public uint64 size;
-		public Gum.DarwinPageProtection protection;
-		public uint32 file_offset;
-		public uint32 flags;
-	}
-
-	public struct DarwinChainedFixupsDetails {
-		public Gum.Address vm_address;
-		uint64 file_offset;
-		uint32 size;
-	}
-
-	public struct DarwinRebaseDetails {
-		public Gum.DarwinSegment? segment;
-		public uint64 offset;
-		public DarwinRebaseType type;
-		public Gum.Address slide;
-	}
-
-	public struct DarwinBindDetails {
-		public Gum.DarwinSegment? segment;
-		public uint64 offset;
-		public Gum.DarwinBindType type;
-		public Gum.DarwinBindOrdinal library_ordinal;
-		public string symbol_name;
-		public Gum.DarwinBindSymbolFlags symbol_flags;
-		public int64 addend;
-	}
-
-	public struct DarwinThreadedItem {
-		public bool is_authenticated;
-		public Gum.DarwinThreadedItemType type;
-		public uint16 delta;
-		public uint8 key;
-		public bool has_address_diversity;
-		public uint16 diversity;
-
-		public uint16 bind_ordinal;
-
-		public Gum.Address rebase_address;
-
-		public static void parse (uint64 value, out Gum.DarwinThreadedItem result);
-	}
-
-	public struct DarwinInitPointersDetails {
-		public Gum.Address address;
-		public uint64 count;
-	}
-
-	public struct DarwinInitOffsetsDetails {
-		public Gum.Address address;
-		public uint64 count;
-	}
-
-	public struct DarwinTermPointersDetails {
-		public Gum.Address address;
-		public uint64 count;
-	}
-
-	public struct DarwinSegment {
-		public string name;
-		public Gum.Address vm_address;
-		public uint64 vm_size;
-		public uint64 file_offset;
-		public uint64 file_size;
-		public Gum.DarwinPageProtection protection;
-	}
-
-	public struct DarwinExportDetails {
-		public string name;
-		public uint64 flags;
-
-		public uint64 offset;
-
-		public uint64 stub;
-		public uint64 resolver;
-
-		public int reexport_library_ordinal;
-		public string reexport_symbol;
-	}
-
-	public struct DarwinSymbolDetails {
-		public string name;
-		public Gum.Address address;
-
-		public uint8 type;
-		public uint8 section;
-		public uint16 description;
-	}
-
-	[CCode (cprefix = "GUM_DARWIN_REBASE_")]
-	public enum DarwinRebaseType {
-		POINTER = 1,
-		TEXT_ABSOLUTE32,
-		TEXT_PCREL32,
-	}
-
-	[CCode (cprefix = "GUM_DARWIN_BIND_")]
-	public enum DarwinBindType {
-		POINTER = 1,
-		TEXT_ABSOLUTE32,
-		TEXT_PCREL32,
-		THREADED_TABLE,
-		THREADED_ITEMS,
-	}
-
-	[CCode (cprefix = "GUM_DARWIN_THREADED_")]
-	public enum DarwinThreadedItemType {
-		REBASE,
-		BIND
-	}
-
-	[CCode (cprefix = "GUM_DARWIN_BIND_")]
-	public enum DarwinBindOrdinal {
-		SELF            =  0,
-		MAIN_EXECUTABLE = -1,
-		FLAT_LOOKUP     = -2,
-		WEAK_LOOKUP     = -3,
-	}
-
-	[Flags]
-	[CCode (cprefix = "GUM_DARWIN_BIND_")]
-	public enum DarwinBindSymbolFlags {
-		WEAK_IMPORT         = 0x1,
-		NON_WEAK_DEFINITION = 0x8,
-	}
-
-	public const int DARWIN_EXPORT_KIND_MASK;
-
-	[CCode (cprefix = "GUM_DARWIN_EXPORT_")]
-	public enum DarwinExportSymbolKind {
-		REGULAR,
-		THREAD_LOCAL,
-		ABSOLUTE
-	}
-
-	[Flags]
-	[CCode (cprefix = "GUM_DARWIN_EXPORT_")]
-	public enum DarwinExportSymbolFlags {
-		WEAK_DEFINITION   = 0x04,
-		REEXPORT          = 0x08,
-		STUB_AND_RESOLVER = 0x10,
-	}
-
-	[CCode (has_type_id = false)]
-	public struct DarwinPort : uint {
-		[CCode (cname = "GUM_DARWIN_PORT_NULL")]
-		public const DarwinPort NULL;
-	}
-
-	[CCode (has_type_id = false)]
-	public struct DarwinPageProtection : int {
 	}
 
 	[Compact]
