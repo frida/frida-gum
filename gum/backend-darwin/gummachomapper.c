@@ -1632,8 +1632,6 @@ gum_emit_arm_runtime (GumMachoMapper * self,
       (GumFoundMachoBindFunc) gum_emit_arm_resolve_if_needed, &ctx);
   gum_macho_module_enumerate_lazy_binds (module,
       (GumFoundMachoBindFunc) gum_emit_arm_resolve_if_needed, &ctx);
-  gum_macho_module_enumerate_init_pointers (module,
-      (GumFoundMachoInitPointersFunc) gum_emit_arm_init_calls, &ctx);
 
   if (tlv->num_descriptors != 0)
   {
@@ -1642,6 +1640,9 @@ gum_emit_arm_runtime (GumMachoMapper * self,
         GUM_ARG_ADDRESS, self->pthread_key,
         GUM_ARG_ADDRESS, GUM_ADDRESS (0) /* destructor */);
   }
+
+  gum_macho_module_enumerate_init_pointers (module,
+      (GumFoundMachoInitPointersFunc) gum_emit_arm_init_calls, &ctx);
 
   gum_thumb_writer_put_pop_regs (&tw, 5, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_PC);
