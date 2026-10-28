@@ -7,6 +7,7 @@ core_sources = [
   'controlflowgraph.c',
   'cloak.c',
   'memory.c',
+  'processmemory.c',
   'process.c',
   'threadregistry.c',
   'moduleregistry.c',
@@ -16,6 +17,7 @@ core_sources = [
   'interceptor.c',
   'interceptor-callbacklistener.c',
   'interceptor-functiondatalistener.c',
+  'cmodule.c',
   'memoryaccessmonitor.c',
   'arch-x86' / 'x86writer.c',
   'arch-x86' / 'x86relocator.c',
@@ -28,6 +30,15 @@ core_sources = [
 ]
 
 core_c_args = []
+
+if host_os_family in ['windows', 'darwin', 'linux']
+  core_sources += 'mapper.c'
+endif
+
+if host_os_family == 'windows'
+  mapper_victim = executable('gum-tests-mapper-victim', 'mapper-victim.c')
+  core_c_args += '-DGUM_TESTS_MAPPER_VICTIM="' + mapper_victim.full_path() + '"'
+endif
 
 if host_os_family == 'darwin'
   core_sources += [
@@ -115,28 +126,3 @@ gum_tests_core = static_library('gum-tests-core', core_sources,
   dependencies: [gum_dep, lzma_dep],
   link_with: core_link_with,
 )
-
-if host_os_family == 'darwin'
-  symlist = 'mapper.symbols'
-
-  mapper_test_unsigned = executable('mapper-test-unsigned', 'mapper.c',
-    dependencies: [gum_dep],
-    link_args: ['-Wl,-exported_symbols_list,' + (meson.current_source_dir() / symlist)],
-    link_depends: [symlist],
-  )
-
-  custom_target('mapper-test-signed',
-    input: [
-      mapper_test_unsigned,
-      'mapper.xcent',
-    ],
-    output: 'mapper-test',
-    command: [
-      files('../sign.sh'),
-      host_os,
-      '@INPUT@',
-      '@OUTPUT@',
-    ],
-    build_by_default: true,
-  )
-endif

@@ -10045,15 +10045,22 @@ TESTCASE (cmodule_can_be_defined_with_toolchain)
 
 TESTCASE (cmodule_can_be_created_from_prebuilt_binary)
 {
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN) || defined (HAVE_ELF)
+  const gchar * module_name;
   gchar * data_dir, * module_path;
   gpointer module_contents;
   gsize module_size;
   GBytes * module_bytes;
   int (* answer_impl) (void);
 
+# ifdef HAVE_DARWIN
+  module_name = "prebuiltcmodule.dylib";
+# else
+  module_name = "prebuiltcmodule.so";
+# endif
+
   data_dir = test_util_get_data_dir ();
-  module_path = g_build_filename (data_dir, "prebuiltcmodule.dylib", NULL);
+  module_path = g_build_filename (data_dir, module_name, NULL);
   g_assert_true (g_file_get_contents (module_path, (gchar **) &module_contents,
       &module_size, NULL));
   module_bytes =

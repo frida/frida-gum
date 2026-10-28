@@ -1,3 +1,30 @@
+mapper_target_c_args = []
+mapper_target_link_args = []
+if host_os_family == 'windows'
+  if cc.get_argument_syntax() == 'msvc'
+    mapper_target_link_args += '/FILEALIGN:4096'
+  else
+    mapper_target_link_args += '-Wl,--file-alignment=4096'
+  endif
+endif
+if host_os_family == 'darwin'
+  mapper_target_c_args += '-fno-register-global-dtors-with-atexit'
+endif
+if host_os == 'android'
+  mapper_target_c_args += '-fno-emulated-tls'
+  mapper_target_link_args += [
+    '-Wl,--unresolved-symbols=ignore-all',
+    '-Wl,--pack-dyn-relocs=relr',
+  ]
+endif
+if host_os_family in ['windows', 'darwin', 'linux']
+  shared_library('mapper-target', 'mapper-target.c',
+    name_prefix: '',
+    c_args: mapper_target_c_args,
+    link_args: mapper_target_link_args,
+  )
+endif
+
 if host_os_family != 'windows'
   test_function_filenames = []
 
@@ -36,8 +63,9 @@ if host_os_family != 'windows'
     output: test_function_filenames,
     command: ['cp', '@INPUT@', '@OUTDIR@'],
   )
+  test_data_deps = [test_data]
   test_data_stamp = custom_target('gum-tests-data-stamp',
-    input: [test_data],
+    input: test_data_deps,
     output: '.stamp',
     command: ['touch', '@OUTPUT@'],
   )
