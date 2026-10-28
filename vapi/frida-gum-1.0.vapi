@@ -474,6 +474,13 @@ namespace Gum {
 
 	public delegate Gum.Address NativeModuleResolverLookupFunc (string symbol);
 
+	[CCode (cheader_filename = "gum/gumelfmoduleresolver.h")]
+	public class ElfModuleResolver : GLib.Object, Gum.ModuleResolver {
+		public ElfModuleResolver ();
+
+		public void add_module (Gum.ElfModule module, Gum.Address base_address);
+	}
+
 	[CCode (type_cname = "GumProcessMemoryInterface")]
 	public interface ProcessMemory : GLib.Object {
 		public abstract Gum.ProcessId get_pid ();

@@ -1884,6 +1884,15 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
       user_data);
 }
 
+void
+_gum_elf_module_enumerate_default_dynamic_symbols (GumElfModule * self,
+                                                   GumFoundElfSymbolFunc func,
+                                                   gpointer user_data)
+{
+  gum_elf_module_enumerate_dynamic_symbols_with_versions (self, FALSE, func,
+      user_data);
+}
+
 static void
 gum_elf_module_enumerate_dynamic_symbols_with_versions (
     GumElfModule * self,

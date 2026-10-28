@@ -7,6 +7,7 @@
 #include "gum/gummapper.h"
 
 #include "testutil.h"
+#include "gum/gumelfmoduleresolver.h"
 #include "gum/gumnativeprocessmemory.h"
 #ifdef HAVE_WINDOWS
 # include "gum/gumwindows.h"
@@ -22,6 +23,7 @@
 # include <windows.h>
 # include <psapi.h>
 #else
+# include <dlfcn.h>
 # include <signal.h>
 # include <unistd.h>
 # include <sys/wait.h>
@@ -75,6 +77,9 @@ TESTLIST_BEGIN (mapper)
   TESTENTRY (maps_tls_into_another_process)
 #ifdef HAVE_LINUX
   TESTENTRY (indirect_imports_are_resolved)
+#endif
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+  TESTENTRY (elf_resolver_agrees_with_loader)
 #endif
 #ifdef HAVE_WINDOWS
   TESTENTRY (code_is_shared_section_view)
@@ -520,6 +525,60 @@ TESTCASE (indirect_imports_are_resolved)
   gum_mapper_unmap (mapper);
   g_object_unref (mapper);
   g_object_unref (resolver);
+}
+
+#endif
+
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+
+TESTCASE (elf_resolver_agrees_with_loader)
+{
+  GumModule * libc;
+  void * libc_handle;
+  GumElfModule * elf;
+  GumElfModuleResolver * resolver;
+  GumDynamicSymbolDetails details;
+
+  libc = gum_process_get_libc_module ();
+  libc_handle = dlopen (gum_module_get_path (libc), RTLD_LAZY | RTLD_NOLOAD);
+  g_assert_nonnull (libc_handle);
+  elf = gum_elf_module_new_from_file (gum_module_get_path (libc), NULL);
+  g_assert_nonnull (elf);
+
+  resolver = gum_elf_module_resolver_new ();
+  gum_elf_module_resolver_add_module (resolver, elf,
+      gum_module_get_range (libc)->base_address);
+
+  g_assert_true (gum_module_resolver_find_dynamic_symbol (
+      GUM_MODULE_RESOLVER (resolver), "getpid", &details));
+  g_assert_false (details.indirect);
+  g_assert_cmphex (details.address, ==,
+      GUM_ADDRESS (dlsym (libc_handle, "getpid")));
+
+  g_assert_true (gum_module_resolver_find_dynamic_symbol (
+      GUM_MODULE_RESOLVER (resolver), "pthread_cond_wait", &details));
+  g_assert_cmphex (details.address, ==,
+      GUM_ADDRESS (dlsym (libc_handle, "pthread_cond_wait")));
+
+#ifdef HAVE_I386
+  if (GLIB_SIZEOF_VOID_P == 8)
+  {
+    gpointer (* resolve_strlen) (void);
+
+    g_assert_true (gum_module_resolver_find_dynamic_symbol (
+        GUM_MODULE_RESOLVER (resolver), "strlen", &details));
+    g_assert_true (details.indirect);
+    g_assert_cmphex (gum_module_resolver_find_dynamic_address (
+        GUM_MODULE_RESOLVER (resolver), "strlen"), ==, 0);
+
+    resolve_strlen = GSIZE_TO_POINTER (details.address);
+    g_assert_true (resolve_strlen () == dlsym (libc_handle, "strlen"));
+  }
+#endif
+
+  g_object_unref (resolver);
+  g_object_unref (elf);
+  dlclose (libc_handle);
 }
 
 #endif

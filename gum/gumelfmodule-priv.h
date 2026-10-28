@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2023-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -193,6 +193,9 @@ struct _GumElfSym32
   guint8 other;
   guint16 shndx;
 };
+
+G_GNUC_INTERNAL void _gum_elf_module_enumerate_default_dynamic_symbols (
+    GumElfModule * self, GumFoundElfSymbolFunc func, gpointer user_data);
 
 G_END_DECLS
 
