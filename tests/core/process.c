@@ -72,6 +72,9 @@ TESTLIST_BEGIN (process)
 #ifndef HAVE_ASAN
   TESTENTRY (module_export_matches_system_lookup)
 #endif
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+  TESTENTRY (module_exports_exclude_hidden_versions)
+#endif
 #ifdef HAVE_WINDOWS
   TESTENTRY (get_set_system_error)
   TESTENTRY (get_current_thread_id)
@@ -193,6 +196,10 @@ static gboolean store_import_details_if_test_symbol (
 #ifndef HAVE_WINDOWS
 static gboolean store_export_address_if_tricky_module_export (
     const GumExportDetails * details, gpointer user_data);
+#endif
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+static gboolean check_export_name_is_unique (const GumExportDetails * details,
+    gpointer user_data);
 #endif
 
 #ifdef HAVE_DARWIN
@@ -1233,6 +1240,35 @@ store_export_address_if_tricky_module_export (const GumExportDetails * details,
     *((GumAddress *) user_data) = details->address;
     return FALSE;
   }
+
+  return TRUE;
+}
+
+#endif
+
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+
+TESTCASE (module_exports_exclude_hidden_versions)
+{
+  GumModule * libc;
+  GHashTable * names;
+
+  libc = gum_process_get_libc_module ();
+  names = g_hash_table_new (g_str_hash, g_str_equal);
+
+  gum_module_enumerate_exports (libc, check_export_name_is_unique, names);
+  g_assert_cmpuint (g_hash_table_size (names), >, 0);
+
+  g_hash_table_unref (names);
+}
+
+static gboolean
+check_export_name_is_unique (const GumExportDetails * details,
+                             gpointer user_data)
+{
+  GHashTable * names = user_data;
+
+  g_assert_true (g_hash_table_add (names, (gpointer) details->name));
 
   return TRUE;
 }

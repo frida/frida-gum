@@ -24,6 +24,7 @@
 #include <string.h>
 
 #define GUM_ELF_DEFAULT_MAPPED_SIZE (64 * 1024)
+#define GUM_ELF_VERSYM_HIDDEN 0x8000
 #define GUM_ELF_PAGE_START(value, page_size) \
     (GUM_ADDRESS (value) & ~GUM_ADDRESS (page_size - 1))
 
@@ -152,6 +153,7 @@ struct _GumElfStoreSymtabParamsContext
   gpointer entries;
   gsize entry_size;
   gsize entry_count;
+  const guint16 * versions;
 
   GumElfModule * module;
 };
@@ -205,6 +207,9 @@ static gboolean gum_try_get_jump_slot_relocation_type_for_machine (
 static gboolean gum_maybe_collect_import_slot_from_relocation (
     const GumElfRelocationDetails * details, gpointer user_data);
 static gboolean gum_emit_elf_export (const GumElfSymbolDetails * details,
+    gpointer user_data);
+static void gum_elf_module_enumerate_dynamic_symbols_with_versions (
+    GumElfModule * self, gboolean include_hidden, GumFoundElfSymbolFunc func,
     gpointer user_data);
 static void gum_elf_module_parse_symbol (GumElfModule * self,
     const GumElfSym * sym, const gchar * strings, GumElfSymbolDetails * d);
@@ -1776,7 +1781,8 @@ gum_elf_module_enumerate_exports (GumElfModule * self,
   ctx.func = func;
   ctx.user_data = user_data;
 
-  gum_elf_module_enumerate_dynamic_symbols (self, gum_emit_elf_export, &ctx);
+  gum_elf_module_enumerate_dynamic_symbols_with_versions (self, FALSE,
+      gum_emit_elf_export, &ctx);
 }
 
 static gboolean
@@ -1820,6 +1826,17 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
                                           GumFoundElfSymbolFunc func,
                                           gpointer user_data)
 {
+  gum_elf_module_enumerate_dynamic_symbols_with_versions (self, TRUE, func,
+      user_data);
+}
+
+static void
+gum_elf_module_enumerate_dynamic_symbols_with_versions (
+    GumElfModule * self,
+    gboolean include_hidden,
+    GumFoundElfSymbolFunc func,
+    gpointer user_data)
+{
   GumElfStoreSymtabParamsContext ctx;
   gsize i;
   gconstpointer data;
@@ -1832,6 +1849,7 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
   ctx.entries = NULL;
   ctx.entry_size = 0;
   ctx.entry_count = 0;
+  ctx.versions = NULL;
 
   ctx.module = self;
 
@@ -1844,11 +1862,24 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
 
   data = gum_elf_module_get_live_data (self, &size);
 
+  if (ctx.versions != NULL)
+  {
+    GUM_CHECK_BOUNDS (ctx.versions, ctx.versions + ctx.entry_count,
+        "symbol versions");
+  }
+
   for (i = 1; i != ctx.entry_count; i++)
   {
     gconstpointer entry = (const guint8 *) ctx.entries + (i * ctx.entry_size);
     GumElfSym sym;
     GumElfSymbolDetails details;
+
+    if (!include_hidden && ctx.versions != NULL &&
+        (gum_elf_module_read_uint16 (self, &ctx.versions[i]) &
+         GUM_ELF_VERSYM_HIDDEN) != 0)
+    {
+      continue;
+    }
 
     gum_elf_module_read_symbol (self, entry, &sym);
 
@@ -1981,6 +2012,10 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       ctx->entry_size = details->val;
       ctx->pending--;
       break;
+    case GUM_ELF_DYNAMIC_VERSYM:
+      ctx->versions = gum_elf_module_resolve_dynamic_virtual_location (
+          ctx->module, details->val);
+      break;
     case GUM_ELF_DYNAMIC_HASH:
     {
       const guint32 * hash_params;
@@ -2097,7 +2132,7 @@ gum_store_symtab_params (const GumElfDynamicEntryDetails * details,
       break;
   }
 
-  return ctx->pending != 0;
+  return TRUE;
 
 propagate_error:
   {
