@@ -35,6 +35,7 @@ typedef enum {
   GUM_PE_DIRECTORY_EXCEPTION    = 3,
   GUM_PE_DIRECTORY_BASERELOC    = 5,
   GUM_PE_DIRECTORY_TLS          = 9,
+  GUM_PE_DIRECTORY_LOAD_CONFIG  = 10,
   GUM_PE_DIRECTORY_DELAY_IMPORT = 13,
 } GumPeDirectoryIndex;
 
@@ -173,6 +174,8 @@ GUM_API gboolean gum_pe_module_get_tls_details (GumPeModule * self,
     GumPeTlsDetails * details);
 GUM_API void gum_pe_module_enumerate_tls_callbacks (GumPeModule * self,
     GumFoundPeTlsCallbackFunc func, gpointer user_data);
+GUM_API guint32 gum_pe_module_get_security_cookie_rva (GumPeModule * self);
+GUM_API guint32 gum_pe_module_get_chpe_metadata_rva (GumPeModule * self);
 GUM_API void gum_pe_module_enumerate_dependencies (GumPeModule * self,
     GumFoundDependencyFunc func, gpointer user_data);
 GUM_API guint gum_pe_module_get_function_count (GumPeModule * self);

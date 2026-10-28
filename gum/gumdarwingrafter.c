@@ -8,8 +8,8 @@
 #include "gumdarwingrafter.h"
 
 #include "gumdarwingrafter-priv.h"
-#include "gumdarwinmodule-priv.h"
 #include "gumleb.h"
+#include "gummachomodule-priv.h"
 #include "arch-arm64/gumarm64relocator.h"
 
 #include <glib/gprintf.h>
@@ -32,13 +32,6 @@ typedef struct _GumCollectImportsOperation GumCollectImportsOperation;
 typedef struct _GumImport GumImport;
 typedef struct _GumBindState GumBindState;
 
-enum
-{
-  PROP_0,
-  PROP_PATH,
-  PROP_FLAGS,
-};
-
 struct _GumDarwinGrafter
 {
   GObject parent;
@@ -46,6 +39,13 @@ struct _GumDarwinGrafter
   gchar * path;
   GumDarwinGrafterFlags flags;
   GArray * code_offsets;
+};
+
+enum
+{
+  PROP_0,
+  PROP_PATH,
+  PROP_FLAGS,
 };
 
 struct _GumGraftedLayout
@@ -134,8 +134,8 @@ struct _GumBindState
 {
   guint segment_index;
   guint64 offset;
-  GumDarwinBindType type;
-  GumDarwinBindOrdinal library_ordinal;
+  GumMachoBindType type;
+  GumMachoBindOrdinal library_ordinal;
   gint64 addend;
   guint16 threaded_table_size;
 };
@@ -146,15 +146,15 @@ static void gum_darwin_grafter_get_property (GObject * object,
 static void gum_darwin_grafter_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 static gboolean gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
-    GumDarwinModule * module, GumGraftedLayout * layout, GArray ** code_offsets,
+    GumMachoModule * module, GumGraftedLayout * layout, GArray ** code_offsets,
     GArray ** imports, GError ** error);
-static void gum_collect_chained_imports (GumDarwinModule * module,
+static void gum_collect_chained_imports (GumMachoModule * module,
     GumCollectImportsOperation * op);
-static const GumDarwinSegment * gum_find_segment_by_offset (
-    GumDarwinModule * module, gsize offset);
+static const GumMachoSegment * gum_find_segment_by_offset (
+    GumMachoModule * module, gsize offset);
 static gboolean gum_collect_functions (
-    const GumDarwinFunctionStartsDetails * details, gpointer user_data);
-static gboolean gum_collect_import (const GumDarwinBindDetails * details,
+    const GumMachoFunctionStartsDetails * details, gpointer user_data);
+static gboolean gum_collect_import (const GumMachoBindDetails * details,
     gpointer user_data);
 static gboolean gum_darwin_grafter_measure_hook (gconstpointer instruction,
     GumAddress code_address, GumAddress on_invoke_address, guint * size,
@@ -353,7 +353,7 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
                           GError ** error)
 {
   gboolean success = FALSE;
-  GumDarwinModule * module;
+  GumMachoModule * module;
   guint i;
   GumGraftedLayout layout;
   GArray * code_offsets = NULL;
@@ -373,15 +373,15 @@ gum_darwin_grafter_graft (GumDarwinGrafter * self,
   layout.segment_pair_descriptors = NULL;
   layout.hook_trampoline_sizes = NULL;
 
-  module = gum_darwin_module_new_from_file (self->path, GUM_CPU_ARM64,
-      GUM_PTRAUTH_INVALID, GUM_DARWIN_MODULE_FLAGS_NONE, error);
+  module = gum_macho_module_new_from_file (self->path, GUM_CPU_ARM64,
+      GUM_PTRAUTH_INVALID, GUM_MACHO_MODULE_FLAGS_NONE, error);
   if (module == NULL)
     goto beach;
 
   for (i = 0; i != module->segments->len; i++)
   {
-    const GumDarwinSegment * segment =
-        &g_array_index (module->segments, GumDarwinSegment, i);
+    const GumMachoSegment * segment =
+        &g_array_index (module->segments, GumMachoSegment, i);
 
     if (g_str_has_prefix (segment->name, "__FRIDA_"))
       goto already_grafted;
@@ -507,7 +507,7 @@ beach:
 
 static gboolean
 gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
-                                   GumDarwinModule * module,
+                                   GumMachoModule * module,
                                    GumGraftedLayout * layout,
                                    GArray ** code_offsets,
                                    GArray ** imports,
@@ -529,8 +529,8 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
   layout->linkedit_offset_in = -1;
   for (i = 0; i != module->segments->len; i++)
   {
-    const GumDarwinSegment * segment =
-        &g_array_index (module->segments, GumDarwinSegment, i);
+    const GumMachoSegment * segment =
+        &g_array_index (module->segments, GumMachoSegment, i);
 
     if (strcmp (segment->name, "__TEXT") == 0)
     {
@@ -612,7 +612,7 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
     op.functions = *code_offsets;
     op.linkedit = module->image->data;
 
-    gum_darwin_module_enumerate_function_starts (module, gum_collect_functions,
+    gum_macho_module_enumerate_function_starts (module, gum_collect_functions,
         &op);
   }
   gum_normalize_code_offsets (*code_offsets);
@@ -625,8 +625,8 @@ gum_darwin_grafter_compute_layout (GumDarwinGrafter * self,
     op.text_address = layout->text_address;
 
     gum_collect_chained_imports (module, &op);
-    gum_darwin_module_enumerate_binds (module, gum_collect_import, &op);
-    gum_darwin_module_enumerate_lazy_binds (module, gum_collect_import, &op);
+    gum_macho_module_enumerate_binds (module, gum_collect_import, &op);
+    gum_macho_module_enumerate_lazy_binds (module, gum_collect_import, &op);
   }
 
   layout->segment_pair_descriptors = g_array_new (FALSE, FALSE,
@@ -823,22 +823,22 @@ beach:
 }
 
 static void
-gum_collect_chained_imports (GumDarwinModule * module,
+gum_collect_chained_imports (GumMachoModule * module,
                              GumCollectImportsOperation * op)
 {
-  const GumDarwinSegment * linkedit_segment, * segment;
+  const GumMachoSegment * linkedit_segment, * segment;
   gsize i;
-  GumDarwinModuleImage * image;
+  GumMachoModuleImage * image;
   const GumMachHeader64 * mach_header;
   gconstpointer command;
   gsize command_index;
 
-  if (!gum_darwin_module_ensure_image_loaded (module, NULL))
+  if (!gum_macho_module_ensure_image_loaded (module, NULL))
     return;
 
   linkedit_segment = NULL;
   i = 0;
-  while ((segment = gum_darwin_module_get_nth_segment (module, i++)) != NULL)
+  while ((segment = gum_macho_module_get_nth_segment (module, i++)) != NULL)
   {
     if (strcmp (segment->name, "__LINKEDIT") == 0)
     {
@@ -1015,14 +1015,14 @@ gum_collect_chained_imports (GumDarwinModule * module,
   }
 }
 
-static const GumDarwinSegment *
-gum_find_segment_by_offset (GumDarwinModule * module,
+static const GumMachoSegment *
+gum_find_segment_by_offset (GumMachoModule * module,
                             gsize offset)
 {
-  const GumDarwinSegment * segment;
+  const GumMachoSegment * segment;
   gsize i = 0;
 
-  while ((segment = gum_darwin_module_get_nth_segment (module, i++)) != NULL)
+  while ((segment = gum_macho_module_get_nth_segment (module, i++)) != NULL)
   {
     if (offset >= segment->file_offset &&
         offset < segment->file_offset + segment->file_size)
@@ -1035,7 +1035,7 @@ gum_find_segment_by_offset (GumDarwinModule * module,
 }
 
 static gboolean
-gum_collect_functions (const GumDarwinFunctionStartsDetails * details,
+gum_collect_functions (const GumMachoFunctionStartsDetails * details,
                        gpointer user_data)
 {
   GumCollectFunctionsOperation * op = user_data;
@@ -1063,11 +1063,11 @@ gum_collect_functions (const GumDarwinFunctionStartsDetails * details,
 }
 
 static gboolean
-gum_collect_import (const GumDarwinBindDetails * details,
+gum_collect_import (const GumMachoBindDetails * details,
                     gpointer user_data)
 {
   GumCollectImportsOperation * op = user_data;
-  const GumDarwinSegment * segment = details->segment;
+  const GumMachoSegment * segment = details->segment;
   GumImport import;
 
   import.slot_offset = segment->vm_address - op->text_address + details->offset;
@@ -1667,7 +1667,7 @@ gum_merge_lazy_binds_into_binds (const GumDyldInfoCommand * ic,
       const guint8 * opcode_start;
       guint8 opcode, immediate;
       gboolean keep;
-      GumDarwinBindOrdinal new_library_ordinal;
+      GumMachoBindOrdinal new_library_ordinal;
       gint64 new_addend;
       guint new_segment_index;
       guint64 new_offset;
@@ -1869,11 +1869,11 @@ gum_replay_bind_state_transitions (const guint8 * start,
         switch (immediate)
         {
           case GUM_BIND_SUBOPCODE_THREADED_SET_BIND_ORDINAL_TABLE_SIZE_ULEB:
-            state->type = GUM_DARWIN_BIND_THREADED_TABLE;
+            state->type = GUM_MACHO_BIND_THREADED_TABLE;
             state->threaded_table_size = gum_read_uleb128 (&p, end);
             break;
           case GUM_BIND_SUBOPCODE_THREADED_APPLY:
-            state->type = GUM_DARWIN_BIND_THREADED_ITEMS;
+            state->type = GUM_MACHO_BIND_THREADED_ITEMS;
             break;
           default:
             return;

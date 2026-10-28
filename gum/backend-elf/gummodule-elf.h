@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -36,8 +36,8 @@ struct _GumNativeModule
   gpointer cached_handle;
   gboolean attempted_handle_creation;
 
-  GumElfModule * cached_elf_module;
-  gboolean attempted_elf_module_creation;
+  GumElfModule * cached_elf;
+  gboolean attempted_elf_creation;
 };
 
 G_GNUC_INTERNAL GumNativeModule * _gum_native_module_make (const gchar * path,

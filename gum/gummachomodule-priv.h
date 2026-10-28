@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2015-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2022 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2023 Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_DARWIN_MODULE_PRIV_H__
-#define __GUM_DARWIN_MODULE_PRIV_H__
+#ifndef __GUM_MACHO_MODULE_PRIV_H__
+#define __GUM_MACHO_MODULE_PRIV_H__
 
-#include "gumdarwinmodule.h"
+#include "gummachomodule.h"
 
 #define GUM_FAT_CIGAM_32               0xbebafeca
 #define GUM_MH_MAGIC_32                0xfeedface
@@ -74,8 +74,8 @@ struct _GumFatHeader
 
 struct _GumFatArch32
 {
-  GumDarwinCpuType cputype;
-  GumDarwinCpuSubtype cpusubtype;
+  GumMachoCpuType cputype;
+  GumMachoCpuSubtype cpusubtype;
   guint32 offset;
   guint32 size;
   guint32 align;
@@ -84,8 +84,8 @@ struct _GumFatArch32
 struct _GumMachHeader32
 {
   guint32 magic;
-  GumDarwinCpuType cputype;
-  GumDarwinCpuSubtype cpusubtype;
+  GumMachoCpuType cputype;
+  GumMachoCpuSubtype cpusubtype;
   guint32 filetype;
   guint32 ncmds;
   guint32 sizeofcmds;
@@ -95,8 +95,8 @@ struct _GumMachHeader32
 struct _GumMachHeader64
 {
   guint32 magic;
-  GumDarwinCpuType cputype;
-  GumDarwinCpuSubtype cpusubtype;
+  GumMachoCpuType cputype;
+  GumMachoCpuSubtype cpusubtype;
   guint32 filetype;
   guint32 ncmds;
   guint32 sizeofcmds;

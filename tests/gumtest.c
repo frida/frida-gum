@@ -218,7 +218,7 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_DARWIN
   TESTLIST_REGISTER (interceptor_darwin);
   TESTLIST_REGISTER (unwind_broker);
-  TESTLIST_REGISTER (darwin_mapper);
+  TESTLIST_REGISTER (macho_mapper);
 #endif
 #if defined (HAVE_LINUX) && defined (HAVE_ARM64)
   TESTLIST_REGISTER (unwind_broker);

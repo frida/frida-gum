@@ -4,11 +4,11 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#include "testutil.h"
 #include "gum/gumdarwin.h"
-#include "gum/gumdarwinmapper.h"
+#include "gum/gummapper.h"
 #include "gum/gummemory.h"
 #include "gum/gumunwindbroker.h"
-#include "testutil.h"
 
 #include <mach/mach.h>
 #include <unwind.h>
@@ -75,7 +75,7 @@ static const GumMemoryRange * gum_test_sections_provider_get_range (
 static gboolean gum_test_sections_provider_fill (
     GumUnwindSectionsProvider * provider, GumAddress address, gpointer info);
 static gboolean gum_test_collect_section (
-    const GumDarwinSectionDetails * details, GumTestFillContext * ctx);
+    const GumMachoSectionDetails * details, GumTestFillContext * ctx);
 
 static void gum_test_backtrace_from_mapped_frame (gpointer user_data);
 static _Unwind_Reason_Code gum_test_examine_frame (
@@ -90,10 +90,7 @@ TESTCASE (can_unwind_through_manually_mapped_dylib)
 {
   GError * error = NULL;
   GumDarwinModuleResolver * resolver;
-  GumDarwinMapper * mapper;
-  gsize size;
-  mach_vm_address_t base = 0;
-  kern_return_t kr;
+  GumMapper * mapper;
   GumMemoryRange range;
   GumTestSectionsProvider * provider;
   GumUnwindBroker * broker;
@@ -104,31 +101,25 @@ TESTCASE (can_unwind_through_manually_mapped_dylib)
   resolver = gum_darwin_module_resolver_new (mach_task_self (), &error);
   g_assert_no_error (error);
 
-  mapper = gum_darwin_mapper_new_from_file (GUM_TESTS_MAPPER_UNWIND_TARGET,
-      resolver, &error);
+  mapper = gum_mapper_new_from_file (GUM_TESTS_MAPPER_UNWIND_TARGET,
+      GUM_MODULE_RESOLVER (resolver), &error);
   g_assert_no_error (error);
 
-  size = gum_darwin_mapper_size (mapper);
-  kr = mach_vm_allocate (mach_task_self (), &base, size, VM_FLAGS_ANYWHERE);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
-
-  gum_darwin_mapper_map (mapper, base, &error);
+  gum_mapper_map (mapper, 0, NULL, &error);
   g_assert_no_error (error);
 
-  range.base_address = base;
-  range.size = size;
+  range = *gum_mapper_get_range (mapper);
 
   provider = gum_test_sections_provider_new (&range);
   broker = gum_unwind_broker_obtain ();
   gum_unwind_broker_add_sections_provider (broker,
       GUM_UNWIND_SECTIONS_PROVIDER (provider));
 
-  constructor =
-      GSIZE_TO_POINTER (gum_darwin_mapper_constructor (mapper));
+  constructor = GSIZE_TO_POINTER (gum_mapper_constructor (mapper));
   constructor ();
 
   invoke = GSIZE_TO_POINTER (
-      gum_darwin_mapper_resolve (mapper, "gum_test_mapped_invoke"));
+      gum_mapper_resolve (mapper, "gum_test_mapped_invoke"));
   g_assert_nonnull (invoke);
 
   probe.mapped_range = range;
@@ -144,7 +135,7 @@ TESTCASE (can_unwind_through_manually_mapped_dylib)
   g_object_unref (broker);
   g_object_unref (provider);
 
-  mach_vm_deallocate (mach_task_self (), base, size);
+  gum_mapper_unmap (mapper);
   g_object_unref (mapper);
   g_object_unref (resolver);
 }
@@ -185,7 +176,7 @@ gum_test_sections_provider_new (const GumMemoryRange * range)
   GumTestSectionsProvider * provider;
   gsize page_size;
   guint8 * header, * end;
-  GumDarwinModule * module;
+  GumMachoModule * module;
   GumTestFillContext ctx;
 
   provider = g_object_new (GUM_TEST_TYPE_SECTIONS_PROVIDER, NULL);
@@ -203,14 +194,14 @@ gum_test_sections_provider_new (const GumMemoryRange * range)
 
   provider->sections.mh = header;
 
-  module = gum_darwin_module_new_from_memory ("mapped", mach_task_self (),
-      GPOINTER_TO_SIZE (header), GUM_DARWIN_MODULE_FLAGS_NONE, NULL);
+  module = gum_macho_module_new_from_memory ("mapped", mach_task_self (),
+      GPOINTER_TO_SIZE (header), GUM_MACHO_MODULE_FLAGS_NONE, NULL);
   g_assert_nonnull (module);
 
   ctx.sections = &provider->sections;
   ctx.remaining = 2;
-  gum_darwin_module_enumerate_sections (module,
-      (GumFoundDarwinSectionFunc) gum_test_collect_section, &ctx);
+  gum_macho_module_enumerate_sections (module,
+      (GumFoundMachoSectionFunc) gum_test_collect_section, &ctx);
 
   g_object_unref (module);
 
@@ -218,7 +209,7 @@ gum_test_sections_provider_new (const GumMemoryRange * range)
 }
 
 static gboolean
-gum_test_collect_section (const GumDarwinSectionDetails * details,
+gum_test_collect_section (const GumMachoSectionDetails * details,
                           GumTestFillContext * ctx)
 {
   if (strcmp (details->segment_name, "__TEXT") != 0)

@@ -1,23 +1,26 @@
 /*
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gum/gumdarwinmapper.h"
-#include "gum/guminterceptor.h"
+#include "gum/gummapper.h"
+
 #include "testutil.h"
+#include "gum/gumdarwin.h"
+#include "gum/guminterceptor.h"
 
 #include <limits.h>
 #include <mach/mach.h>
 #include <malloc/malloc.h>
 
 #define TESTCASE(NAME) \
-    void test_darwin_mapper_ ## NAME (void)
+    void test_macho_mapper_ ## NAME (void)
 #define TESTENTRY(NAME) \
-    TESTENTRY_SIMPLE ("Core/DarwinMapper", test_darwin_mapper, NAME)
+    TESTENTRY_SIMPLE ("Core/MachoMapper", test_macho_mapper, NAME)
 
-TESTLIST_BEGIN (darwin_mapper)
+TESTLIST_BEGIN (macho_mapper)
   TESTENTRY (tlv_storage_is_per_thread)
   TESTENTRY (tlv_storage_is_freed_on_thread_exit)
   TESTENTRY (tlv_storage_is_freed_by_destructor)
@@ -31,9 +34,7 @@ typedef struct _GumTestFreeProbe GumTestFreeProbe;
 struct _GumTestTlvTarget
 {
   GumDarwinModuleResolver * resolver;
-  GumDarwinMapper * mapper;
-  mach_vm_address_t base;
-  gsize size;
+  GumMapper * mapper;
 
   void (* constructor) (void);
   void (* destructor) (void);
@@ -191,25 +192,18 @@ static void
 gum_test_tlv_target_map (GumTestTlvTarget * target)
 {
   GError * error = NULL;
-  kern_return_t kr;
 
-  target->mapper = gum_darwin_mapper_new_from_file (
-      GUM_TESTS_MAPPER_TLV_TARGET, target->resolver, &error);
+  target->mapper = gum_mapper_new_from_file (GUM_TESTS_MAPPER_TLV_TARGET,
+      GUM_MODULE_RESOLVER (target->resolver), &error);
   g_assert_no_error (error);
 
-  target->size = gum_darwin_mapper_size (target->mapper);
-  target->base = 0;
-  kr = mach_vm_allocate (mach_task_self (), &target->base, target->size,
-      VM_FLAGS_ANYWHERE);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
-
-  gum_darwin_mapper_map (target->mapper, target->base, &error);
+  gum_mapper_map (target->mapper, 0, NULL, &error);
   g_assert_no_error (error);
 
   target->constructor =
-      GSIZE_TO_POINTER (gum_darwin_mapper_constructor (target->mapper));
+      GSIZE_TO_POINTER (gum_mapper_constructor (target->mapper));
   target->destructor =
-      GSIZE_TO_POINTER (gum_darwin_mapper_destructor (target->mapper));
+      GSIZE_TO_POINTER (gum_mapper_destructor (target->mapper));
   target->bump = gum_test_tlv_target_resolve (target, "gum_test_tlv_bump");
   target->counter_address =
       gum_test_tlv_target_resolve (target, "gum_test_tlv_counter_address");
@@ -221,8 +215,7 @@ gum_test_tlv_target_resolve (GumTestTlvTarget * target,
 {
   gpointer address;
 
-  address = GSIZE_TO_POINTER (
-      gum_darwin_mapper_resolve (target->mapper, symbol));
+  address = GSIZE_TO_POINTER (gum_mapper_resolve (target->mapper, symbol));
   g_assert_nonnull (address);
 
   return address;
@@ -231,7 +224,7 @@ gum_test_tlv_target_resolve (GumTestTlvTarget * target,
 static void
 gum_test_tlv_target_unmap (GumTestTlvTarget * target)
 {
-  mach_vm_deallocate (mach_task_self (), target->base, target->size);
+  gum_mapper_unmap (target->mapper);
   g_object_unref (target->mapper);
 }
 

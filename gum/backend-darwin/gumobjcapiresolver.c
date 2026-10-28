@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2020 Grant Douglas <grant@reconditorium.uk>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C) 2021-2025 Francesco Tamagni <mrmacete@protonmail.ch>
@@ -9,8 +9,8 @@
 
 #include "gumobjcapiresolver.h"
 
-#include "gumdarwinmodule.h"
 #include "guminterceptor.h"
+#include "gummachomodule.h"
 #include "gummetalarray.h"
 #include "gummodule-darwin.h"
 #include "gummoduleregistry.h"
@@ -556,7 +556,7 @@ gum_objc_api_resolver_collect_class_list (GumObjcApiResolver * self,
   GumObjcSectionContext ctx;
   Class * class_list;
   guint class_count, i;
-  GumDarwinModule * darwin_module;
+  GumMachoModule * macho_module;
 
   ctx.name = "__objc_classlist";
   ctx.address = 0;
@@ -568,11 +568,11 @@ gum_objc_api_resolver_collect_class_list (GumObjcApiResolver * self,
   if (ctx.address == 0 || ctx.size == 0)
     return;
 
-  darwin_module =
-      _gum_native_module_get_darwin_module (GUM_NATIVE_MODULE (module));
+  macho_module =
+      _gum_native_module_get_macho_module (GUM_NATIVE_MODULE (module));
 
   class_list = GSIZE_TO_POINTER (ctx.address);
-  class_count = ctx.size / darwin_module->pointer_size;
+  class_count = ctx.size / macho_module->pointer_size;
 
   for (i = 0; i != class_count; i++)
   {
@@ -588,7 +588,7 @@ gum_objc_api_resolver_collect_category_list (GumObjcApiResolver * self,
 {
   GumObjcSectionContext ctx;
   GumCategoryHeader ** cat_list;
-  GumDarwinModule * darwin_module;
+  GumMachoModule * macho_module;
   gsize pointer_size;
   guint cat_count, i;
 
@@ -602,10 +602,10 @@ gum_objc_api_resolver_collect_category_list (GumObjcApiResolver * self,
   if (ctx.address == 0 || ctx.size == 0)
     return;
 
-  darwin_module =
-      _gum_native_module_get_darwin_module (GUM_NATIVE_MODULE (module));
+  macho_module =
+      _gum_native_module_get_macho_module (GUM_NATIVE_MODULE (module));
 
-  pointer_size = darwin_module->pointer_size;
+  pointer_size = macho_module->pointer_size;
 
   cat_list = GSIZE_TO_POINTER (ctx.address);
   cat_count = ctx.size / pointer_size;

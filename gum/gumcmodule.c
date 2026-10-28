@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2019-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -14,7 +14,7 @@
 #include <gum/gum.h>
 #include <json-glib/json-glib.h>
 #ifdef HAVE_DARWIN
-# include <gum/gumdarwinmapper.h>
+# include <gum/gumdarwin.h>
 #endif
 
 #ifdef HAVE_TINYCC
@@ -48,11 +48,11 @@ static void gum_emit_standard_define (const GumCDefineDetails * details,
     gpointer user_data);
 static void gum_cmodule_add_define (GumCModule * self, const gchar * name,
     const gchar * value);
-static gboolean gum_cmodule_link_pre (GumCModule * self, gsize * size,
-    GString ** error_messages);
-static gboolean gum_cmodule_link_at (GumCModule * self, gpointer base,
+static gboolean gum_cmodule_load (GumCModule * self, GumMemoryRange * range,
     GString ** error_messages);
 static void gum_cmodule_link_post (GumCModule * self);
+static void gum_cmodule_unload (GumCModule * self,
+    const GumMemoryRange * range);
 static void gum_emit_builtin_define (const gchar * name, const gchar * value,
     GumFoundCDefineFunc func, gpointer user_data);
 static void gum_emit_builtin_define_str (const gchar * name,
@@ -106,7 +106,7 @@ gum_cmodule_finalize (GObject * object)
 
     gum_cloak_remove_range (r);
 
-    gum_memory_free (GSIZE_TO_POINTER (r->base_address), r->size);
+    gum_cmodule_unload (self, r);
   }
 
   gum_cmodule_drop_metadata (self);
@@ -205,32 +205,15 @@ gum_cmodule_link (GumCModule * self,
   gboolean success = FALSE;
   GumCModulePrivate * priv;
   GString * error_messages;
-  gsize size, page_size;
-  gboolean remap_supported;
-  GumPageProtection protection;
-  gpointer base;
+  GumMemoryRange * r;
 
   priv = gum_cmodule_get_instance_private (self);
+  r = &priv->range;
 
   error_messages = NULL;
-  if (!gum_cmodule_link_pre (self, &size, &error_messages))
-    goto beach;
-
-  page_size = gum_query_page_size ();
-  size = GUM_ALIGN_SIZE (size, page_size);
-
-  remap_supported = gum_memory_can_remap_writable ();
-  protection = remap_supported ? GUM_PAGE_RX : GUM_PAGE_RW;
-
-  base = gum_memory_allocate (NULL, size, page_size, protection);
-
-  if (gum_cmodule_link_at (self, base, &error_messages))
+  if (gum_cmodule_load (self, r, &error_messages))
   {
-    GumMemoryRange * r = &priv->range;
     GumCModuleInitFunc init;
-
-    r->base_address = GUM_ADDRESS (base);
-    r->size = size;
 
     gum_cloak_add_range (r);
 
@@ -244,12 +227,7 @@ gum_cmodule_link (GumCModule * self,
 
     success = TRUE;
   }
-  else
-  {
-    gum_memory_free (base, size);
-  }
 
-beach:
   gum_cmodule_link_post (self);
 
   if (error_messages != NULL)
@@ -263,25 +241,24 @@ beach:
 }
 
 static gboolean
-gum_cmodule_link_pre (GumCModule * self,
-                      gsize * size,
-                      GString ** error_messages)
+gum_cmodule_load (GumCModule * self,
+                  GumMemoryRange * range,
+                  GString ** error_messages)
 {
-  return GUM_CMODULE_GET_CLASS (self)->link_pre (self, size, error_messages);
-}
-
-static gboolean
-gum_cmodule_link_at (GumCModule * self,
-                     gpointer base,
-                     GString ** error_messages)
-{
-  return GUM_CMODULE_GET_CLASS (self)->link_at (self, base, error_messages);
+  return GUM_CMODULE_GET_CLASS (self)->load (self, range, error_messages);
 }
 
 static void
 gum_cmodule_link_post (GumCModule * self)
 {
   GUM_CMODULE_GET_CLASS (self)->link_post (self);
+}
+
+static void
+gum_cmodule_unload (GumCModule * self,
+                    const GumMemoryRange * range)
+{
+  GUM_CMODULE_GET_CLASS (self)->unload (self, range);
 }
 
 void
@@ -410,13 +387,14 @@ static void gum_tcc_cmodule_add_define (GumCModule * cm, const gchar * name,
     const gchar * value);
 static void gum_tcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
     gconstpointer value);
-static gboolean gum_tcc_cmodule_link_pre (GumCModule * cm, gsize * size,
+static gboolean gum_tcc_cmodule_load (GumCModule * cm, GumMemoryRange * range,
     GString ** error_messages);
-static gboolean gum_tcc_cmodule_link_at (GumCModule * cm, gpointer base,
-    GString ** error_messages);
+static gboolean gum_tcc_cmodule_relocate (GumTccCModule * self, gpointer base);
 static void gum_tcc_cmodule_relocate_views (gpointer writable_base,
     gpointer user_data);
 static void gum_tcc_cmodule_link_post (GumCModule * cm);
+static void gum_tcc_cmodule_unload (GumCModule * cm,
+    const GumMemoryRange * range);
 static void gum_tcc_cmodule_enumerate_symbols (GumCModule * cm,
     GumFoundCSymbolFunc func, gpointer user_data);
 static gpointer gum_tcc_cmodule_find_symbol_by_name (GumCModule * cm,
@@ -441,9 +419,9 @@ gum_tcc_cmodule_class_init (GumTccCModuleClass * klass)
 
   cmodule_class->add_define = gum_tcc_cmodule_add_define;
   cmodule_class->add_symbol = gum_tcc_cmodule_add_symbol;
-  cmodule_class->link_pre = gum_tcc_cmodule_link_pre;
-  cmodule_class->link_at = gum_tcc_cmodule_link_at;
+  cmodule_class->load = gum_tcc_cmodule_load;
   cmodule_class->link_post = gum_tcc_cmodule_link_post;
+  cmodule_class->unload = gum_tcc_cmodule_unload;
   cmodule_class->enumerate_symbols = gum_tcc_cmodule_enumerate_symbols;
   cmodule_class->find_symbol_by_name = gum_tcc_cmodule_find_symbol_by_name;
   cmodule_class->drop_metadata = gum_tcc_cmodule_drop_metadata;
@@ -540,13 +518,16 @@ gum_tcc_cmodule_add_symbol (GumCModule * cm,
 }
 
 static gboolean
-gum_tcc_cmodule_link_pre (GumCModule * cm,
-                          gsize * size,
-                          GString ** error_messages)
+gum_tcc_cmodule_load (GumCModule * cm,
+                      GumMemoryRange * range,
+                      GString ** error_messages)
 {
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
   TCCState * state = self->state;
   int res;
+  gsize page_size, size;
+  GumPageProtection protection;
+  gpointer base;
 
   tcc_set_error_func (state, error_messages, gum_append_tcc_error);
 
@@ -556,17 +537,32 @@ gum_tcc_cmodule_link_pre (GumCModule * cm,
 
   self->size = res;
 
-  *size = res;
+  page_size = gum_query_page_size ();
+  size = GUM_ALIGN_SIZE (res, page_size);
+
+  protection = gum_memory_can_remap_writable () ? GUM_PAGE_RX : GUM_PAGE_RW;
+
+  base = gum_memory_allocate (NULL, size, page_size, protection);
+
+  if (!gum_tcc_cmodule_relocate (self, base))
+    goto relocation_failed;
+
+  range->base_address = GUM_ADDRESS (base);
+  range->size = size;
+
   return TRUE;
+
+relocation_failed:
+  {
+    gum_memory_free (base, size);
+    return FALSE;
+  }
 }
 
 static gboolean
-gum_tcc_cmodule_link_at (GumCModule * cm,
-                         gpointer base,
-                         GString ** error_messages)
+gum_tcc_cmodule_relocate (GumTccCModule * self,
+                          gpointer base)
 {
-  GumTccCModule * self = GUM_TCC_CMODULE (cm);
-
   if (gum_memory_can_remap_writable ())
   {
     GumTccApplyContext ctx;
@@ -609,6 +605,13 @@ gum_tcc_cmodule_link_post (GumCModule * cm)
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
 
   tcc_set_error_func (self->state, NULL, NULL);
+}
+
+static void
+gum_tcc_cmodule_unload (GumCModule * cm,
+                        const GumMemoryRange * range)
+{
+  gum_memory_free (GSIZE_TO_POINTER (range->base_address), range->size);
 }
 
 static void
@@ -888,11 +891,11 @@ static void gum_gcc_cmodule_add_define (GumCModule * cm, const gchar * name,
     const gchar * value);
 static void gum_gcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
     gconstpointer value);
-static gboolean gum_gcc_cmodule_link_pre (GumCModule * cm, gsize * size,
-    GString ** error_messages);
-static gboolean gum_gcc_cmodule_link_at (GumCModule * cm, gpointer base,
+static gboolean gum_gcc_cmodule_load (GumCModule * cm, GumMemoryRange * range,
     GString ** error_messages);
 static void gum_gcc_cmodule_link_post (GumCModule * cm);
+static void gum_gcc_cmodule_unload (GumCModule * cm,
+    const GumMemoryRange * range);
 static gboolean gum_gcc_cmodule_do_link (GumCModule * cm, gpointer base,
     gpointer * contents, gsize * size, GString ** error_messages);
 static gboolean gum_gcc_cmodule_call_ld (GumGccCModule * self, gpointer base,
@@ -920,9 +923,9 @@ gum_gcc_cmodule_class_init (GumGccCModuleClass * klass)
 
   cmodule_class->add_define = gum_gcc_cmodule_add_define;
   cmodule_class->add_symbol = gum_gcc_cmodule_add_symbol;
-  cmodule_class->link_pre = gum_gcc_cmodule_link_pre;
-  cmodule_class->link_at = gum_gcc_cmodule_link_at;
+  cmodule_class->load = gum_gcc_cmodule_load;
   cmodule_class->link_post = gum_gcc_cmodule_link_post;
+  cmodule_class->unload = gum_gcc_cmodule_unload;
   cmodule_class->enumerate_symbols = gum_gcc_cmodule_enumerate_symbols;
   cmodule_class->find_symbol_by_name = gum_gcc_cmodule_find_symbol_by_name;
   cmodule_class->drop_metadata = gum_gcc_cmodule_drop_metadata;
@@ -1053,35 +1056,36 @@ gum_gcc_cmodule_add_symbol (GumCModule * cm,
 }
 
 static gboolean
-gum_gcc_cmodule_link_pre (GumCModule * cm,
-                          gsize * size,
-                          GString ** error_messages)
+gum_gcc_cmodule_load (GumCModule * cm,
+                      GumMemoryRange * range,
+                      GString ** error_messages)
 {
   gpointer contents;
+  gsize size, page_size, vm_size;
+  gpointer base;
 
-  if (!gum_gcc_cmodule_do_link (cm, 0, &contents, size, error_messages))
+  if (!gum_gcc_cmodule_do_link (cm, NULL, &contents, &size, error_messages))
     return FALSE;
-
   g_free (contents);
 
-  return TRUE;
-}
+  page_size = gum_query_page_size ();
+  vm_size = GUM_ALIGN_SIZE (size, page_size);
 
-static gboolean
-gum_gcc_cmodule_link_at (GumCModule * cm,
-                         gpointer base,
-                         GString ** error_messages)
-{
-  gpointer contents;
-  gsize size;
+  base = gum_memory_allocate (NULL, vm_size, page_size, GUM_PAGE_RW);
 
   if (!gum_gcc_cmodule_do_link (cm, base, &contents, &size, error_messages))
+  {
+    gum_memory_free (base, vm_size);
     return FALSE;
+  }
 
   memcpy (base, contents, size);
   gum_memory_mark_code (base, size);
 
   g_free (contents);
+
+  range->base_address = GUM_ADDRESS (base);
+  range->size = vm_size;
 
   return TRUE;
 }
@@ -1089,6 +1093,13 @@ gum_gcc_cmodule_link_at (GumCModule * cm,
 static void
 gum_gcc_cmodule_link_post (GumCModule * cm)
 {
+}
+
+static void
+gum_gcc_cmodule_unload (GumCModule * cm,
+                        const GumMemoryRange * range)
+{
+  gum_memory_free (GSIZE_TO_POINTER (range->base_address), range->size);
 }
 
 static gboolean
@@ -1385,8 +1396,8 @@ struct _GumDarwinCModule
   GHashTable * symbols;
 
   GumDarwinModuleResolver * resolver;
-  GumDarwinMapper * mapper;
-  GumDarwinModule * module;
+  GumMapper * mapper;
+  GumMachoModule * module;
 };
 
 struct _GumEnumerateExportsContext
@@ -1401,14 +1412,14 @@ static void gum_darwin_cmodule_add_define (GumCModule * cm, const gchar * name,
     const gchar * value);
 static void gum_darwin_cmodule_add_symbol (GumCModule * cm, const gchar * name,
     gconstpointer value);
-static gboolean gum_darwin_cmodule_link_pre (GumCModule * cm, gsize * size,
-    GString ** error_messages);
-static gboolean gum_darwin_cmodule_link_at (GumCModule * cm, gpointer base,
-    GString ** error_messages);
+static gboolean gum_darwin_cmodule_load (GumCModule * cm,
+    GumMemoryRange * range, GString ** error_messages);
 static void gum_darwin_cmodule_link_post (GumCModule * cm);
+static void gum_darwin_cmodule_unload (GumCModule * cm,
+    const GumMemoryRange * range);
 static void gum_darwin_cmodule_enumerate_symbols (GumCModule * cm,
     GumFoundCSymbolFunc func, gpointer user_data);
-static gboolean gum_emit_export (const GumDarwinExportDetails * details,
+static gboolean gum_emit_export (const GumMachoExportDetails * details,
     gpointer user_data);
 static gpointer gum_darwin_cmodule_find_symbol_by_name (GumCModule * cm,
     const gchar * name);
@@ -1425,9 +1436,9 @@ gum_darwin_cmodule_class_init (GumDarwinCModuleClass * klass)
 
   cmodule_class->add_define = gum_darwin_cmodule_add_define;
   cmodule_class->add_symbol = gum_darwin_cmodule_add_symbol;
-  cmodule_class->link_pre = gum_darwin_cmodule_link_pre;
-  cmodule_class->link_at = gum_darwin_cmodule_link_at;
+  cmodule_class->load = gum_darwin_cmodule_load;
   cmodule_class->link_post = gum_darwin_cmodule_link_post;
+  cmodule_class->unload = gum_darwin_cmodule_unload;
   cmodule_class->enumerate_symbols = gum_darwin_cmodule_enumerate_symbols;
   cmodule_class->find_symbol_by_name = gum_darwin_cmodule_find_symbol_by_name;
   cmodule_class->drop_metadata = gum_darwin_cmodule_drop_metadata;
@@ -1576,69 +1587,51 @@ gum_darwin_cmodule_add_symbol (GumCModule * cm,
 }
 
 static gboolean
-gum_darwin_cmodule_link_pre (GumCModule * cm,
-                             gsize * size,
-                             GString ** error_messages)
+gum_darwin_cmodule_load (GumCModule * cm,
+                         GumMemoryRange * range,
+                         GString ** error_messages)
 {
   GumDarwinCModule * self = GUM_DARWIN_CMODULE (cm);
-  gboolean success = FALSE;
+  GumCModulePrivate * priv = gum_cmodule_get_instance_private (cm);
   GError * error = NULL;
+  GumMapperConstructor ctor;
 
   self->resolver = gum_darwin_module_resolver_new (mach_task_self (), NULL);
   gum_darwin_module_resolver_set_dynamic_lookup_handler (self->resolver,
       gum_darwin_cmodule_resolve_symbol, self, NULL);
 
-  self->mapper = gum_darwin_mapper_new_take_blob (self->name,
-      g_steal_pointer (&self->binary), self->resolver, &error);
+  self->mapper = gum_mapper_new_take_blob (self->name,
+      g_steal_pointer (&self->binary), GUM_MODULE_RESOLVER (self->resolver),
+      &error);
   if (error != NULL)
     goto propagate_error;
 
   g_object_get (self->mapper, "module", &self->module, NULL);
 
-  *size = gum_darwin_mapper_size (self->mapper);
-
-  success = TRUE;
-  goto beach;
-
-propagate_error:
-  {
-    gum_append_error (error_messages, error->message);
-    g_error_free (error);
-    goto beach;
-  }
-beach:
-  {
-    return success;
-  }
-}
-
-static gboolean
-gum_darwin_cmodule_link_at (GumCModule * cm,
-                            gpointer base,
-                            GString ** error_messages)
-{
-  GumDarwinCModule * self;
-  GumCModulePrivate * priv;
-  GError * error = NULL;
-  GumDarwinMapperConstructor ctor;
-
-  self = GUM_DARWIN_CMODULE (cm);
-  priv = gum_cmodule_get_instance_private (cm);
-
-  gum_darwin_mapper_map (self->mapper, GUM_ADDRESS (base), &error);
+  gum_mapper_map (self->mapper, 0, NULL, &error);
   if (error != NULL)
-    goto propagate_error;
+    goto propagate_link_error;
 
-  ctor = GSIZE_TO_POINTER (gum_darwin_mapper_constructor (self->mapper));
+  *range = *gum_mapper_get_range (self->mapper);
+
+  ctor = GSIZE_TO_POINTER (gum_mapper_constructor (self->mapper));
   ctor ();
 
-  priv->destruct =
-      GSIZE_TO_POINTER (gum_darwin_mapper_destructor (self->mapper));
+  priv->destruct = GSIZE_TO_POINTER (gum_mapper_destructor (self->mapper));
 
   return TRUE;
 
 propagate_error:
   {
+    gum_append_error (error_messages, error->message);
+    g_error_free (error);
+
+    return FALSE;
+  }
+propagate_link_error:
+  {
+    g_clear_object (&self->mapper);
+
     if (g_error_matches (error, GUM_ERROR, GUM_ERROR_NOT_FOUND))
     {
       const gchar * name_start, * name_end;
@@ -1673,6 +1666,16 @@ gum_darwin_cmodule_link_post (GumCModule * cm)
 }
 
 static void
+gum_darwin_cmodule_unload (GumCModule * cm,
+                           const GumMemoryRange * range)
+{
+  GumDarwinCModule * self = GUM_DARWIN_CMODULE (cm);
+
+  gum_mapper_unmap (self->mapper);
+  g_clear_object (&self->mapper);
+}
+
+static void
 gum_darwin_cmodule_enumerate_symbols (GumCModule * cm,
                                       GumFoundCSymbolFunc func,
                                       gpointer user_data)
@@ -1685,11 +1688,11 @@ gum_darwin_cmodule_enumerate_symbols (GumCModule * cm,
 
   ctx.self = self;
 
-  gum_darwin_module_enumerate_exports (self->module, gum_emit_export, &ctx);
+  gum_macho_module_enumerate_exports (self->module, gum_emit_export, &ctx);
 }
 
 static gboolean
-gum_emit_export (const GumDarwinExportDetails * details,
+gum_emit_export (const GumMachoExportDetails * details,
                  gpointer user_data)
 {
   GumEnumerateExportsContext * ctx = user_data;
@@ -1741,7 +1744,6 @@ gum_darwin_cmodule_drop_metadata (GumCModule * cm)
   GumDarwinCModule * self = GUM_DARWIN_CMODULE (cm);
 
   g_clear_object (&self->module);
-  g_clear_object (&self->mapper);
   g_clear_object (&self->resolver);
 
   g_clear_pointer (&self->symbols, g_hash_table_unref);

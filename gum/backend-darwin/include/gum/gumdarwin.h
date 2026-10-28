@@ -9,10 +9,9 @@
 #ifndef __GUM_DARWIN_H__
 #define __GUM_DARWIN_H__
 
-#include "gumdarwinmapper.h"
-#include "gumdarwinmodule.h"
 #include "gumdarwinmoduleresolver.h"
 #include "gumdarwinsymbolicator.h"
+#include "gummachomodule.h"
 #include "gummemory.h"
 #include "gumprocess.h"
 

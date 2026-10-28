@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2022-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,12 +14,12 @@
 #define GUM_INT16_MASK 0x0000ffffU
 #define GUM_INT32_MASK 0xffffffffU
 
-typedef uint8_t GumDarwinThreadedItemType;
+typedef uint8_t GumMachoThreadedItemType;
 
-enum _GumDarwinThreadedItemType
+enum _GumMachoThreadedItemType
 {
-  GUM_DARWIN_THREADED_REBASE,
-  GUM_DARWIN_THREADED_BIND
+  GUM_MACHO_THREADED_REBASE,
+  GUM_MACHO_THREADED_BIND
 };
 
 static void * gum_sign_pointer (void * ptr, uint8_t key, uintptr_t diversity,
@@ -44,7 +44,7 @@ gum_process_threaded_items (uint64_t preferred_base_address,
     {
       uint64_t value;
       bool is_authenticated;
-      GumDarwinThreadedItemType type;
+      GumMachoThreadedItemType type;
       uint8_t key;
       bool has_address_diversity;
       uint16_t diversity;
@@ -59,7 +59,7 @@ gum_process_threaded_items (uint64_t preferred_base_address,
       has_address_diversity = (value >> 48) & 1;
       diversity             = (value >> 32) & GUM_INT16_MASK;
 
-      if (type == GUM_DARWIN_THREADED_BIND)
+      if (type == GUM_MACHO_THREADED_BIND)
       {
         uint16_t bind_ordinal;
 
@@ -67,7 +67,7 @@ gum_process_threaded_items (uint64_t preferred_base_address,
 
         bound_value = symbols[bind_ordinal];
       }
-      else if (type == GUM_DARWIN_THREADED_REBASE)
+      else if (type == GUM_MACHO_THREADED_REBASE)
       {
         uint64_t rebase_address;
 

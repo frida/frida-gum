@@ -13,10 +13,24 @@
 
 #include <stdlib.h>
 
+typedef struct _GumSectionView GumSectionView;
+
+struct _GumSectionView
+{
+  gpointer base;
+  gsize size;
+  HANDLE section;
+  guint64 offset;
+};
+
 static gpointer gum_virtual_alloc (gpointer address, gsize size,
     DWORD allocation_type, DWORD page_protection);
 static gboolean gum_memory_get_protection (gconstpointer address, gsize len,
     GumPageProtection * prot);
+static void gum_section_view_free (GumSectionView * view);
+
+static GMutex gum_section_views_lock;
+static GSList * gum_section_views = NULL;
 
 void
 _gum_memory_backend_init (void)
@@ -395,6 +409,94 @@ gum_memory_get_protection (gconstpointer address,
     *prot = gum_page_protection_from_windows (mbi.Protect);
 
   return success;
+}
+
+GBytes *
+gum_windows_bytes_new_from_section (HANDLE section,
+                                    guint64 offset,
+                                    gsize size,
+                                    GError ** error)
+{
+  HANDLE own_section;
+  gpointer base;
+  GumSectionView * view;
+
+  if (!DuplicateHandle (GetCurrentProcess (), section, GetCurrentProcess (),
+      &own_section, 0, FALSE, DUPLICATE_SAME_ACCESS))
+  {
+    goto failure;
+  }
+
+  base = MapViewOfFile (own_section, FILE_MAP_READ, (DWORD) (offset >> 32),
+      (DWORD) offset, size);
+  if (base == NULL)
+  {
+    CloseHandle (own_section);
+    goto failure;
+  }
+
+  view = g_slice_new (GumSectionView);
+  view->base = base;
+  view->size = size;
+  view->section = own_section;
+  view->offset = offset;
+
+  g_mutex_lock (&gum_section_views_lock);
+  gum_section_views = g_slist_prepend (gum_section_views, view);
+  g_mutex_unlock (&gum_section_views_lock);
+
+  return g_bytes_new_with_free_func (base, size,
+      (GDestroyNotify) gum_section_view_free, view);
+
+failure:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED,
+        "Unable to map section: 0x%08lx", GetLastError ());
+    return NULL;
+  }
+}
+
+static void
+gum_section_view_free (GumSectionView * view)
+{
+  g_mutex_lock (&gum_section_views_lock);
+  gum_section_views = g_slist_remove (gum_section_views, view);
+  g_mutex_unlock (&gum_section_views_lock);
+
+  UnmapViewOfFile (view->base);
+  CloseHandle (view->section);
+
+  g_slice_free (GumSectionView, view);
+}
+
+gboolean
+_gum_windows_find_section_view (gconstpointer data,
+                                gpointer * section,
+                                guint64 * offset)
+{
+  gboolean found = FALSE;
+  const guint8 * address = data;
+  GSList * cur;
+
+  g_mutex_lock (&gum_section_views_lock);
+
+  for (cur = gum_section_views; cur != NULL; cur = cur->next)
+  {
+    GumSectionView * view = cur->data;
+    const guint8 * base = view->base;
+
+    if (address >= base && address < base + view->size)
+    {
+      *section = view->section;
+      *offset = view->offset + (address - base);
+      found = TRUE;
+      break;
+    }
+  }
+
+  g_mutex_unlock (&gum_section_views_lock);
+
+  return found;
 }
 
 GumPageProtection

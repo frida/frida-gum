@@ -129,9 +129,9 @@ extern void os_unfair_lock_lock_with_options (os_unfair_lock_t lock,
 
 static void gum_deinit_libc_module (void);
 static gboolean gum_store_function_range_from_starts (
-    const GumDarwinFunctionStartsDetails * details, gpointer user_data);
+    const GumMachoFunctionStartsDetails * details, gpointer user_data);
 static gboolean gum_store_section_end_as_function_end (
-    const GumDarwinSectionDetails * details, gpointer user_data);
+    const GumMachoSectionDetails * details, gpointer user_data);
 static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
@@ -406,7 +406,7 @@ _gum_darwin_find_function_range_from_function_starts (gconstpointer address,
                                                       GumMemoryRange * range)
 {
   GumModule * module;
-  GumDarwinModule * darwin_module;
+  GumMachoModule * macho_module;
   GumFunctionStartsLookup lookup;
   gboolean contains_address;
 
@@ -414,19 +414,19 @@ _gum_darwin_find_function_range_from_function_starts (gconstpointer address,
   if (module == NULL)
     return FALSE;
 
-  darwin_module =
-      _gum_native_module_get_darwin_module (GUM_NATIVE_MODULE (module));
+  macho_module =
+      _gum_native_module_get_macho_module (GUM_NATIVE_MODULE (module));
 
   lookup.address = GUM_ADDRESS (address);
   lookup.image_base = gum_module_get_range (module)->base_address;
   lookup.range = range;
   lookup.found = FALSE;
-  gum_darwin_module_enumerate_function_starts (darwin_module,
+  gum_macho_module_enumerate_function_starts (macho_module,
       gum_store_function_range_from_starts, &lookup);
 
   if (lookup.found && range->size == 0)
   {
-    gum_darwin_module_enumerate_sections (darwin_module,
+    gum_macho_module_enumerate_sections (macho_module,
         gum_store_section_end_as_function_end, range);
   }
 
@@ -440,7 +440,7 @@ _gum_darwin_find_function_range_from_function_starts (gconstpointer address,
 
 static gboolean
 gum_store_function_range_from_starts (
-    const GumDarwinFunctionStartsDetails * details,
+    const GumMachoFunctionStartsDetails * details,
     gpointer user_data)
 {
   GumFunctionStartsLookup * lookup = user_data;
@@ -485,7 +485,7 @@ gum_store_function_range_from_starts (
 
 static gboolean
 gum_store_section_end_as_function_end (
-    const GumDarwinSectionDetails * details,
+    const GumMachoSectionDetails * details,
     gpointer user_data)
 {
   GumMemoryRange * range = user_data;

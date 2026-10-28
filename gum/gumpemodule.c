@@ -19,6 +19,11 @@
 #define GUM_PE_SCN_MEM_READ 0x40000000
 #define GUM_PE_SCN_MEM_WRITE 0x80000000
 
+#define GUM_PE_LOAD_CONFIG_SECURITY_COOKIE_OFFSET_32 0x3c
+#define GUM_PE_LOAD_CONFIG_SECURITY_COOKIE_OFFSET_64 0x58
+#define GUM_PE_LOAD_CONFIG_CHPE_METADATA_OFFSET_32 0x7c
+#define GUM_PE_LOAD_CONFIG_CHPE_METADATA_OFFSET_64 0xc8
+
 typedef struct _GumPeDosHeader GumPeDosHeader;
 typedef struct _GumPeFileHeader GumPeFileHeader;
 typedef struct _GumPeOptionalHeader32 GumPeOptionalHeader32;
@@ -250,6 +255,8 @@ static gboolean gum_emit_import (GumPeModule * self, const gchar * module_name,
     GumFoundPeImportFunc func, gpointer user_data);
 static gboolean gum_store_export (const GumPeExportDetails * details,
     gpointer user_data);
+static guint32 gum_pe_module_read_load_config_rva (GumPeModule * self,
+    guint offset_32, guint offset_64);
 static void gum_pe_module_read_tls_directory (GumPeModule * self,
     GumPeTlsDirectory64 * tls);
 static guint gum_pe_module_get_function_entry_size (GumPeModule * self);
@@ -871,6 +878,51 @@ gum_pe_module_read_tls_directory (GumPeModule * self,
     tls->size_of_zero_fill = tls32->size_of_zero_fill;
     tls->characteristics = tls32->characteristics;
   }
+}
+
+guint32
+gum_pe_module_get_security_cookie_rva (GumPeModule * self)
+{
+  return gum_pe_module_read_load_config_rva (self,
+      GUM_PE_LOAD_CONFIG_SECURITY_COOKIE_OFFSET_32,
+      GUM_PE_LOAD_CONFIG_SECURITY_COOKIE_OFFSET_64);
+}
+
+guint32
+gum_pe_module_get_chpe_metadata_rva (GumPeModule * self)
+{
+  return gum_pe_module_read_load_config_rva (self,
+      GUM_PE_LOAD_CONFIG_CHPE_METADATA_OFFSET_32,
+      GUM_PE_LOAD_CONFIG_CHPE_METADATA_OFFSET_64);
+}
+
+static guint32
+gum_pe_module_read_load_config_rva (GumPeModule * self,
+                                    guint offset_32,
+                                    guint offset_64)
+{
+  const GumPeDataDirectory * dir =
+      &self->data_directory[GUM_PE_DIRECTORY_LOAD_CONFIG];
+  const guint8 * load_config;
+  guint offset;
+  guint64 va;
+
+  if (dir->size == 0)
+    return 0;
+
+  load_config = gum_pe_module_get_data_at_rva (self, dir->rva);
+
+  offset = (self->pointer_size == 8) ? offset_64 : offset_32;
+  if (*((const guint32 *) load_config) < offset + self->pointer_size)
+    return 0;
+
+  va = (self->pointer_size == 8)
+      ? *((const guint64 *) (load_config + offset))
+      : *((const guint32 *) (load_config + offset));
+  if (va == 0)
+    return 0;
+
+  return va - self->image_base;
 }
 
 void

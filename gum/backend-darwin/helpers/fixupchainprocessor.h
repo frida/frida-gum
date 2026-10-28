@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,7 +10,7 @@
 #include <mach-o/loader.h>
 #include <stddef.h>
 
-# ifndef __GUM_DARWIN_MODULE_H__
+# ifndef __GUM_MACHO_MODULE_H__
 
 typedef struct _GumChainedFixupsHeader GumChainedFixupsHeader;
 

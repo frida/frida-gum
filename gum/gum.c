@@ -941,14 +941,14 @@ gum_do_query_cpu_features (void)
 {
   GumCpuFeatures features = 0;
   GumDarwinAllImageInfos infos;
-  GumDarwinCpuSubtype subtype;
+  GumMachoCpuSubtype subtype;
   gint mte = 0;
   size_t mte_size = sizeof (mte);
 
   gum_darwin_query_all_image_infos (mach_task_self (), &infos, NULL);
 
-  subtype = *((GumDarwinCpuSubtype *) (infos.dyld_image_load_address + 8));
-  if ((subtype & GUM_DARWIN_CPU_SUBTYPE_MASK) == GUM_DARWIN_CPU_SUBTYPE_ARM64E)
+  subtype = *((GumMachoCpuSubtype *) (infos.dyld_image_load_address + 8));
+  if ((subtype & GUM_MACHO_CPU_SUBTYPE_MASK) == GUM_MACHO_CPU_SUBTYPE_ARM64E)
     features |= GUM_CPU_PTRAUTH;
 
   sysctlbyname ("hw.optional.arm.FEAT_MTE", &mte, &mte_size, NULL, 0);

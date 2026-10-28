@@ -9,6 +9,7 @@
 #include "gumdarwin-priv.h"
 #include "gummodule-darwin.h"
 #include "gum/gumdarwin.h"
+#include "gum/gummoduleresolver.h"
 
 #include <stdlib.h>
 #include <mach-o/loader.h>
@@ -22,6 +23,8 @@ enum
   PROP_TASK
 };
 
+static void gum_darwin_module_resolver_iface_init (gpointer g_iface,
+    gpointer iface_data);
 static void gum_darwin_module_resolver_dispose (GObject * object);
 static void gum_darwin_module_resolver_finalize (GObject * object);
 static void gum_darwin_module_resolver_get_property (GObject * object,
@@ -32,15 +35,21 @@ static GPtrArray * gum_darwin_module_resolver_do_load (
     GumDarwinModuleResolver * self, GError ** error);
 static void gum_darwin_module_resolver_rebuild_indexes (
     GumDarwinModuleResolver * self, GPtrArray * latest_modules);
+static GumModule * gum_darwin_module_resolver_find_module_by_name (
+    GumModuleResolver * resolver, const gchar * name);
+static GumAddress gum_darwin_module_resolver_find_dynamic_address (
+    GumModuleResolver * resolver, const gchar * symbol);
 
-static gint gum_darwin_module_compare_base (GumDarwinModule ** lhs_module,
-    GumDarwinModule ** rhs_module);
-static gint gum_darwin_module_compare_to_key (const GumAddress * key_ptr,
-    GumDarwinModule ** member);
+static gint gum_macho_module_compare_base (GumMachoModule ** lhs_module,
+    GumMachoModule ** rhs_module);
+static gint gum_macho_module_compare_to_key (const GumAddress * key_ptr,
+    GumMachoModule ** member);
 
-G_DEFINE_TYPE (GumDarwinModuleResolver,
-               gum_darwin_module_resolver,
-               G_TYPE_OBJECT)
+G_DEFINE_TYPE_WITH_CODE (GumDarwinModuleResolver,
+                         gum_darwin_module_resolver,
+                         G_TYPE_OBJECT,
+                         G_IMPLEMENT_INTERFACE (GUM_TYPE_MODULE_RESOLVER,
+                             gum_darwin_module_resolver_iface_init))
 
 static void
 gum_darwin_module_resolver_class_init (GumDarwinModuleResolverClass * klass)
@@ -56,6 +65,17 @@ gum_darwin_module_resolver_class_init (GumDarwinModuleResolverClass * klass)
       g_param_spec_uint ("task", "task", "Mach task", 0, G_MAXUINT,
       MACH_PORT_NULL, G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS));
+}
+
+static void
+gum_darwin_module_resolver_iface_init (gpointer g_iface,
+                                       gpointer iface_data)
+{
+  GumModuleResolverInterface * iface = g_iface;
+
+  iface->find_module_by_name = gum_darwin_module_resolver_find_module_by_name;
+  iface->find_dynamic_address =
+      gum_darwin_module_resolver_find_dynamic_address;
 }
 
 static void
@@ -363,7 +383,7 @@ gum_darwin_module_resolver_rebuild_indexes (GumDarwinModuleResolver * self,
     }
   }
 
-  g_ptr_array_sort (sorted, (GCompareFunc) gum_darwin_module_compare_base);
+  g_ptr_array_sort (sorted, (GCompareFunc) gum_macho_module_compare_base);
 
   g_clear_pointer (&self->sorted_modules, g_ptr_array_unref);
   self->sorted_modules = sorted;
@@ -372,42 +392,32 @@ gum_darwin_module_resolver_rebuild_indexes (GumDarwinModuleResolver * self,
   self->module_by_name = by_name;
 }
 
-GumDarwinModule *
-gum_darwin_module_resolver_find_module_by_name (GumDarwinModuleResolver * self,
-                                                const gchar * name)
+GumMachoModule *
+gum_darwin_module_resolver_find_macho_module_by_name (
+    GumDarwinModuleResolver * self,
+    const gchar * name)
 {
-  GumDarwinModule * result;
-  GHashTable * module_by_name;
-  GumNativeModule * module;
+  GumMachoModule * result = NULL;
+  GumModule * module;
 
-  gum_darwin_module_resolver_fetch_modules (self, NULL, &module_by_name);
-
-  module = g_hash_table_lookup (module_by_name, name);
-  if (module == NULL && g_str_has_prefix (name, "/usr/lib/system/"))
+  module = gum_darwin_module_resolver_find_module_by_name (
+      GUM_MODULE_RESOLVER (self), name);
+  if (module != NULL)
   {
-    gchar * alias =
-        g_strconcat ("/usr/lib/system/introspection/", name + 16, NULL);
-
-    module = g_hash_table_lookup (module_by_name, alias);
-
-    g_free (alias);
+    result = g_object_ref (
+        _gum_native_module_get_macho_module (GUM_NATIVE_MODULE (module)));
+    g_object_unref (module);
   }
-
-  result = (module != NULL)
-      ? g_object_ref (_gum_native_module_get_darwin_module (module))
-      : NULL;
-
-  g_hash_table_unref (module_by_name);
 
   return result;
 }
 
-GumDarwinModule *
-gum_darwin_module_resolver_find_module_by_address (
+GumMachoModule *
+gum_darwin_module_resolver_find_macho_module_by_address (
     GumDarwinModuleResolver * self,
     GumAddress address)
 {
-  GumDarwinModule * result;
+  GumMachoModule * result;
   GPtrArray * modules;
   GumAddress bare_address;
   GumNativeModule ** entry;
@@ -417,9 +427,9 @@ gum_darwin_module_resolver_find_module_by_address (
   bare_address = gum_strip_code_address (address);
 
   entry = bsearch (&bare_address, modules->pdata, modules->len,
-      sizeof (GumModule *), (GCompareFunc) gum_darwin_module_compare_to_key);
+      sizeof (GumModule *), (GCompareFunc) gum_macho_module_compare_to_key);
   result = (entry != NULL)
-      ? g_object_ref (_gum_native_module_get_darwin_module (*entry))
+      ? g_object_ref (_gum_native_module_get_macho_module (*entry))
       : NULL;
 
   g_ptr_array_unref (modules);
@@ -429,7 +439,7 @@ gum_darwin_module_resolver_find_module_by_address (
 
 gboolean
 gum_darwin_module_resolver_find_export (GumDarwinModuleResolver * self,
-                                        GumDarwinModule * module,
+                                        GumMachoModule * module,
                                         const gchar * symbol,
                                         GumExportDetails * details)
 {
@@ -446,7 +456,7 @@ gum_darwin_module_resolver_find_export (GumDarwinModuleResolver * self,
 
 GumAddress
 gum_darwin_module_resolver_find_export_address (GumDarwinModuleResolver * self,
-                                                GumDarwinModule * module,
+                                                GumMachoModule * module,
                                                 const gchar * symbol)
 {
   GumExportDetails details;
@@ -460,33 +470,33 @@ gum_darwin_module_resolver_find_export_address (GumDarwinModuleResolver * self,
 gboolean
 gum_darwin_module_resolver_find_export_by_mangled_name (
     GumDarwinModuleResolver * self,
-    GumDarwinModule * module,
+    GumMachoModule * module,
     const gchar * symbol,
     GumExportDetails * details)
 {
-  GumDarwinModule * m;
-  GumDarwinExportDetails d;
+  GumMachoModule * m;
+  GumMachoExportDetails d;
   gboolean found;
 
-  found = gum_darwin_module_resolve_export (module, symbol, &d);
+  found = gum_macho_module_resolve_export (module, symbol, &d);
   if (found)
   {
     m = module;
   }
-  else if (gum_darwin_module_get_lacks_exports_for_reexports (module))
+  else if (gum_macho_module_get_lacks_exports_for_reexports (module))
   {
     GPtrArray * reexports = module->reexports;
     guint i;
 
     for (i = 0; !found && i != reexports->len; i++)
     {
-      GumDarwinModule * reexport;
+      GumMachoModule * reexport;
 
-      reexport = gum_darwin_module_resolver_find_module_by_name (self,
+      reexport = gum_darwin_module_resolver_find_macho_module_by_name (self,
           g_ptr_array_index (reexports, i));
       if (reexport != NULL)
       {
-        found = gum_darwin_module_resolve_export (reexport, symbol, &d);
+        found = gum_macho_module_resolve_export (reexport, symbol, &d);
         if (found)
           m = reexport;
 
@@ -508,19 +518,19 @@ gum_darwin_module_resolver_find_export_by_mangled_name (
 gboolean
 gum_darwin_module_resolver_resolve_export (
     GumDarwinModuleResolver * self,
-    GumDarwinModule * module,
-    const GumDarwinExportDetails * export,
+    GumMachoModule * module,
+    const GumMachoExportDetails * export,
     GumExportDetails * result)
 {
   if ((export->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
   {
     const gchar * target_module_name;
-    GumDarwinModule * target_module;
+    GumMachoModule * target_module;
     gboolean is_reexporting_itself, success;
 
-    target_module_name = gum_darwin_module_get_dependency_by_ordinal (module,
+    target_module_name = gum_macho_module_get_dependency_by_ordinal (module,
         export->reexport_library_ordinal);
-    target_module = gum_darwin_module_resolver_find_module_by_name (self,
+    target_module = gum_darwin_module_resolver_find_macho_module_by_name (self,
         target_module_name);
     if (target_module == NULL)
       return FALSE;
@@ -549,9 +559,9 @@ gum_darwin_module_resolver_resolve_export (
 
   result->name = gum_symbol_name_from_darwin (export->name);
 
-  switch (export->flags & GUM_DARWIN_EXPORT_KIND_MASK)
+  switch (export->flags & GUM_MACHO_EXPORT_KIND_MASK)
   {
-    case GUM_DARWIN_EXPORT_REGULAR:
+    case GUM_MACHO_EXPORT_REGULAR:
       if ((export->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
       {
         /* XXX: we ignore resolver and interposing */
@@ -562,10 +572,10 @@ gum_darwin_module_resolver_resolve_export (
         result->address = module->base_address + export->offset;
       }
       break;
-    case GUM_DARWIN_EXPORT_THREAD_LOCAL:
+    case GUM_MACHO_EXPORT_THREAD_LOCAL:
       result->address = module->base_address + export->offset;
       break;
-    case GUM_DARWIN_EXPORT_ABSOLUTE:
+    case GUM_MACHO_EXPORT_ABSOLUTE:
       result->address = export->offset;
       break;
     default:
@@ -574,7 +584,7 @@ gum_darwin_module_resolver_resolve_export (
   }
 
   result->type =
-      gum_darwin_module_is_address_in_text_section (module, result->address)
+      gum_macho_module_is_address_in_text_section (module, result->address)
       ? GUM_EXPORT_FUNCTION
       : GUM_EXPORT_VARIABLE;
 
@@ -589,10 +599,41 @@ gum_darwin_module_resolver_resolve_export (
   return TRUE;
 }
 
-GumAddress
-gum_darwin_module_resolver_find_dynamic_address (GumDarwinModuleResolver * self,
+static GumModule *
+gum_darwin_module_resolver_find_module_by_name (GumModuleResolver * resolver,
+                                                const gchar * name)
+{
+  GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (resolver);
+  GumModule * result;
+  GHashTable * module_by_name;
+  GumNativeModule * module;
+
+  gum_darwin_module_resolver_fetch_modules (self, NULL, &module_by_name);
+
+  module = g_hash_table_lookup (module_by_name, name);
+  if (module == NULL && g_str_has_prefix (name, "/usr/lib/system/"))
+  {
+    gchar * alias =
+        g_strconcat ("/usr/lib/system/introspection/", name + 16, NULL);
+
+    module = g_hash_table_lookup (module_by_name, alias);
+
+    g_free (alias);
+  }
+
+  result = (module != NULL) ? g_object_ref (GUM_MODULE (module)) : NULL;
+
+  g_hash_table_unref (module_by_name);
+
+  return result;
+}
+
+static GumAddress
+gum_darwin_module_resolver_find_dynamic_address (GumModuleResolver * resolver,
                                                  const gchar * symbol)
 {
+  GumDarwinModuleResolver * self = GUM_DARWIN_MODULE_RESOLVER (resolver);
+
   if (self->lookup_dynamic_func != NULL)
     return self->lookup_dynamic_func (symbol, self->lookup_dynamic_data);
 
@@ -600,8 +641,8 @@ gum_darwin_module_resolver_find_dynamic_address (GumDarwinModuleResolver * self,
 }
 
 static gint
-gum_darwin_module_compare_base (GumDarwinModule ** lhs_module,
-                                GumDarwinModule ** rhs_module)
+gum_macho_module_compare_base (GumMachoModule ** lhs_module,
+                               GumMachoModule ** rhs_module)
 {
   GumAddress lhs;
   GumAddress rhs;
@@ -619,11 +660,11 @@ gum_darwin_module_compare_base (GumDarwinModule ** lhs_module,
 }
 
 static gint
-gum_darwin_module_compare_to_key (const GumAddress * key_ptr,
-                                  GumDarwinModule ** member)
+gum_macho_module_compare_to_key (const GumAddress * key_ptr,
+                                 GumMachoModule ** member)
 {
   GumAddress key = *key_ptr;
-  GumDarwinModule * module = *member;
+  GumMachoModule * module = *member;
 
   if (key < module->base_address)
     return -1;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2018-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2021 Abdelrahman Eid <hot3eed@gmail.com>
  * Copyright (C)      2025 Francesco Tamagni <mrmacete@protonmail.ch>
  *
@@ -10,8 +10,8 @@
 
 #include "gum-init.h"
 #include "gumapiresolver.h"
-#include "gumdarwinmodule.h"
 #include "gumleb.h"
+#include "gummachomodule.h"
 #include "gummodule-darwin.h"
 #include "gummodulemap.h"
 #include "gumobjcapiresolver-priv.h"
@@ -77,7 +77,7 @@ struct _CSRange
 
 struct _GumCollectFunctionsOperation
 {
-  GumDarwinModule * module;
+  GumMachoModule * module;
   gconstpointer linkedit;
   GArray * functions;
 };
@@ -91,7 +91,7 @@ struct _GumFunction
 struct _GumSectionFromAddressOperation
 {
   GumAddress address;
-  GumDarwinSectionDetails sect_details;
+  GumMachoSectionDetails sect_details;
 };
 
 static void gum_darwin_symbolicator_dispose (GObject * object);
@@ -104,14 +104,14 @@ static gboolean gum_darwin_symbolicator_synthesize_details_from_address (
     GumDarwinSymbolicator * self, GumAddress address,
     GumDebugSymbolDetails * details);
 static GArray * gum_darwin_symbolicator_get_functions_for_module (
-    GumDarwinSymbolicator * self, GumDarwinModule * module,
+    GumDarwinSymbolicator * self, GumMachoModule * module,
     gboolean write_locked);
 static gboolean gum_collect_functions (
-    const GumDarwinFunctionStartsDetails * details, gpointer user_data);
+    const GumMachoFunctionStartsDetails * details, gpointer user_data);
 static gint gum_compare_functions (const GumFunction * key,
     const GumFunction * b);
 static gboolean gum_get_section_from_address (
-    const GumDarwinSectionDetails * details, gpointer user_data);
+    const GumMachoSectionDetails * details, gpointer user_data);
 
 static cpu_type_t gum_cpu_type_to_darwin (GumCpuType cpu_type);
 static GumAddress gum_cs_symbol_address (CSSymbolRef symbol);
@@ -532,7 +532,7 @@ gum_darwin_symbolicator_synthesize_details_from_address (
 {
   gboolean success = FALSE;
   GumModule * module = NULL;
-  GumDarwinModule * darwin_module;
+  GumMachoModule * macho_module;
   GArray * functions;
   GumFunction key, * match;
   gchar * symbol_name = NULL;
@@ -564,11 +564,11 @@ retry:
   if (module == NULL)
     goto beach;
 
-  darwin_module =
-      _gum_native_module_get_darwin_module (GUM_NATIVE_MODULE (module));
+  macho_module =
+      _gum_native_module_get_macho_module (GUM_NATIVE_MODULE (module));
 
   functions = gum_darwin_symbolicator_get_functions_for_module (
-      self, darwin_module, write_locked);
+      self, macho_module, write_locked);
   if (functions == NULL)
     goto write_lock;
 
@@ -596,9 +596,9 @@ beach:
   if (!success && module != NULL)
   {
     g_sprintf (details->symbol_name, "0x%zx (0x%zx)",
-        (size_t) (address - darwin_module->base_address),
-        (size_t) (darwin_module->preferred_address +
-          (address - darwin_module->base_address)));
+        (size_t) (address - macho_module->base_address),
+        (size_t) (macho_module->preferred_address +
+          (address - macho_module->base_address)));
     success = TRUE;
   }
 
@@ -621,7 +621,7 @@ write_lock:
 
 static GArray *
 gum_darwin_symbolicator_get_functions_for_module (GumDarwinSymbolicator * self,
-                                                  GumDarwinModule * module,
+                                                  GumMachoModule * module,
                                                   gboolean write_locked)
 {
   GArray * functions;
@@ -641,14 +641,14 @@ gum_darwin_symbolicator_get_functions_for_module (GumDarwinSymbolicator * self,
   op.linkedit = module->image->data;
   op.functions = functions;
 
-  gum_darwin_module_enumerate_function_starts (module, gum_collect_functions,
+  gum_macho_module_enumerate_function_starts (module, gum_collect_functions,
       &op);
 
   return functions;
 }
 
 static gboolean
-gum_collect_functions (const GumDarwinFunctionStartsDetails * details,
+gum_collect_functions (const GumMachoFunctionStartsDetails * details,
                        gpointer user_data)
 {
   GumCollectFunctionsOperation * op = user_data;
@@ -686,13 +686,13 @@ gum_collect_functions (const GumDarwinFunctionStartsDetails * details,
   {
     GumFunction * last_function;
     GumSectionFromAddressOperation sfa_op = { 0, };
-    const GumDarwinSectionDetails * sect;
+    const GumMachoSectionDetails * sect;
 
     last_function =
         &g_array_index (functions, GumFunction, functions->len - 1);
 
     sfa_op.address = last_function->address;
-    gum_darwin_module_enumerate_sections (op->module,
+    gum_macho_module_enumerate_sections (op->module,
         gum_get_section_from_address, &sfa_op);
 
     sect = &sfa_op.sect_details;
@@ -716,7 +716,7 @@ gum_compare_functions (const GumFunction * key,
 }
 
 static gboolean
-gum_get_section_from_address (const GumDarwinSectionDetails * details,
+gum_get_section_from_address (const GumMachoSectionDetails * details,
                               gpointer user_data)
 {
   GumSectionFromAddressOperation * op = user_data;

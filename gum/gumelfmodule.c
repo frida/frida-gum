@@ -55,25 +55,6 @@ typedef struct _GumElfStoreSymtabParamsContext GumElfStoreSymtabParamsContext;
 typedef struct _GumElfEnumerateSymbolsContext GumElfEnumerateSymbolsContext;
 typedef struct _GumElfEnumerateDepsContext GumElfEnumerateDepsContext;
 
-enum
-{
-  PROP_0,
-  PROP_ETYPE,
-  PROP_POINTER_SIZE,
-  PROP_BYTE_ORDER,
-  PROP_OS_ABI,
-  PROP_OS_ABI_VERSION,
-  PROP_MACHINE,
-  PROP_BASE_ADDRESS,
-  PROP_PREFERRED_ADDRESS,
-  PROP_MAPPED_SIZE,
-  PROP_ENTRYPOINT,
-  PROP_INTERPRETER,
-  PROP_SOURCE_PATH,
-  PROP_SOURCE_BLOB,
-  PROP_SOURCE_MODE,
-};
-
 struct _GumElfModule
 {
   GObject parent;
@@ -104,6 +85,25 @@ struct _GumElfModule
 
   GumElfModule * fallback_elf_module;
   gboolean attempted_fallback_load;
+};
+
+enum
+{
+  PROP_0,
+  PROP_ETYPE,
+  PROP_POINTER_SIZE,
+  PROP_BYTE_ORDER,
+  PROP_OS_ABI,
+  PROP_OS_ABI_VERSION,
+  PROP_MACHINE,
+  PROP_BASE_ADDRESS,
+  PROP_PREFERRED_ADDRESS,
+  PROP_MAPPED_SIZE,
+  PROP_ENTRYPOINT,
+  PROP_INTERPRETER,
+  PROP_SOURCE_PATH,
+  PROP_SOURCE_BLOB,
+  PROP_SOURCE_MODE,
 };
 
 enum _GumElfDynamicAddressState
@@ -310,7 +310,7 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
       g_param_spec_uint64 ("base-address", "Base Address",
       "Base virtual address, or zero when operating offline", 0,
       G_MAXUINT64, 0,
-      G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+      G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_PREFERRED_ADDRESS,
       g_param_spec_uint64 ("preferred-address", "Preferred Address",
       "Preferred virtual address", 0, G_MAXUINT64, 0,
@@ -1884,6 +1884,11 @@ gum_elf_module_parse_symbol (GumElfModule * self,
   {
     d->name = (section != NULL) ? section->name : NULL;
     d->address = self->base_address + sym->value;
+  }
+  else if (type == GUM_ELF_SYMBOL_TLS)
+  {
+    d->name = strings + sym->name;
+    d->address = sym->value;
   }
   else
   {

@@ -149,7 +149,7 @@ gum_native_module_dispose (GObject * object)
 
   GUM_NATIVE_MODULE_LOCK (self);
 
-  g_clear_object (&self->cached_elf_module);
+  g_clear_object (&self->cached_elf);
 
   if (self->destroy_handle != NULL)
     g_clear_pointer (&self->cached_handle, self->destroy_handle);
@@ -236,17 +236,17 @@ _gum_native_module_get_elf_module (GumNativeModule * self)
 {
   GUM_NATIVE_MODULE_LOCK (self);
 
-  if (!self->attempted_elf_module_creation)
+  if (!self->attempted_elf_creation)
   {
-    self->attempted_elf_module_creation = TRUE;
+    self->attempted_elf_creation = TRUE;
 
-    self->cached_elf_module = gum_elf_module_new_from_memory (self->path,
+    self->cached_elf = gum_elf_module_new_from_memory (self->path,
         self->range.base_address, NULL);
   }
 
   GUM_NATIVE_MODULE_UNLOCK (self);
 
-  return self->cached_elf_module;
+  return self->cached_elf;
 }
 
 static const gchar *
