@@ -55,6 +55,7 @@ typedef struct _GumElfEnumerateExportsContext GumElfEnumerateExportsContext;
 typedef struct _GumElfStoreSymtabParamsContext GumElfStoreSymtabParamsContext;
 typedef struct _GumElfEnumerateSymbolsContext GumElfEnumerateSymbolsContext;
 typedef struct _GumElfEnumerateDepsContext GumElfEnumerateDepsContext;
+typedef struct _GumElfStoreSonameContext GumElfStoreSonameContext;
 
 struct _GumElfModule
 {
@@ -102,6 +103,7 @@ enum
   PROP_MAPPED_SIZE,
   PROP_ENTRYPOINT,
   PROP_INTERPRETER,
+  PROP_SONAME,
   PROP_SOURCE_PATH,
   PROP_SOURCE_BLOB,
   PROP_SOURCE_MODE,
@@ -173,6 +175,12 @@ struct _GumElfEnumerateDepsContext
   GumElfModule * module;
 };
 
+struct _GumElfStoreSonameContext
+{
+  GumElfModule * module;
+  const gchar * soname;
+};
+
 static void gum_elf_module_dispose (GObject * object);
 static void gum_elf_module_finalize (GObject * object);
 static void gum_elf_module_get_property (GObject * object,
@@ -197,6 +205,8 @@ static GumElfModule * gum_elf_module_try_get_fallback_elf_module (
     GumElfModule * self);
 static gboolean gum_try_load_debugdata_as_fallback_module (
     const GumElfSectionDetails * details, gpointer user_data);
+static gboolean gum_store_soname (const GumElfDynamicEntryDetails * details,
+    gpointer user_data);
 static gboolean gum_elf_module_emit_relocations (GumElfModule * self,
     const GumElfRelocationGroup * g, GumFoundElfRelocationFunc func,
     gpointer user_data);
@@ -331,6 +341,9 @@ gum_elf_module_class_init (GumElfModuleClass * klass)
   g_object_class_install_property (object_class, PROP_INTERPRETER,
       g_param_spec_string ("interpreter", "Interpreter", "Interpreter", NULL,
       G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (object_class, PROP_SONAME,
+      g_param_spec_string ("soname", "Soname", "Shared object name", NULL,
+      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_SOURCE_PATH,
       g_param_spec_string ("source-path", "SourcePath", "Source path", NULL,
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
@@ -435,6 +448,9 @@ gum_elf_module_get_property (GObject * object,
       break;
     case PROP_INTERPRETER:
       g_value_set_string (value, gum_elf_module_get_interpreter (self));
+      break;
+    case PROP_SONAME:
+      g_value_set_string (value, gum_elf_module_get_soname (self));
       break;
     case PROP_SOURCE_PATH:
       g_value_set_string (value, gum_elf_module_get_source_path (self));
@@ -1277,6 +1293,44 @@ gum_elf_module_get_interpreter (GumElfModule * self)
   }
 
   return NULL;
+}
+
+const gchar *
+gum_elf_module_get_soname (GumElfModule * self)
+{
+  GumElfStoreSonameContext ctx;
+
+  ctx.module = self;
+  ctx.soname = NULL;
+
+  gum_elf_module_enumerate_dynamic_entries (self, gum_store_soname, &ctx);
+
+  return ctx.soname;
+}
+
+static gboolean
+gum_store_soname (const GumElfDynamicEntryDetails * details,
+                  gpointer user_data)
+{
+  GumElfStoreSonameContext * ctx = user_data;
+  GumElfModule * self = ctx->module;
+  gconstpointer data;
+  gsize size;
+  const gchar * soname;
+
+  if (details->tag != GUM_ELF_DYNAMIC_SONAME)
+    return TRUE;
+
+  data = gum_elf_module_get_live_data (self, &size);
+
+  soname = self->dynamic_strings + details->val;
+  if (gum_elf_module_check_str_bounds (self, soname, data, size, "soname",
+      NULL))
+  {
+    ctx->soname = soname;
+  }
+
+  return FALSE;
 }
 
 const gchar *

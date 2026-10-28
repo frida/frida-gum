@@ -993,6 +993,7 @@ GUM_API GumAddress gum_elf_module_get_preferred_address (GumElfModule * self);
 GUM_API guint64 gum_elf_module_get_mapped_size (GumElfModule * self);
 GUM_API GumAddress gum_elf_module_get_entrypoint (GumElfModule * self);
 GUM_API const gchar * gum_elf_module_get_interpreter (GumElfModule * self);
+GUM_API const gchar * gum_elf_module_get_soname (GumElfModule * self);
 GUM_API const gchar * gum_elf_module_get_source_path (GumElfModule * self);
 GUM_API GBytes * gum_elf_module_get_source_blob (GumElfModule * self);
 GUM_API GumElfSourceMode gum_elf_module_get_source_mode (GumElfModule * self);

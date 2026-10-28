@@ -1368,6 +1368,7 @@ namespace Gum {
 		public uint64 mapped_size { get; }
 		public Gum.Address entrypoint { get; }
 		public string interpreter { get; }
+		public string? soname { get; }
 		public unowned string? source_path { get; }
 		public unowned GLib.Bytes? source_blob { get; }
 		public Gum.ElfSourceMode source_mode { get; }

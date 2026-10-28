@@ -74,6 +74,7 @@ TESTLIST_BEGIN (process)
 #endif
 #if defined (HAVE_LINUX) && defined (__GLIBC__)
   TESTENTRY (module_exports_exclude_hidden_versions)
+  TESTENTRY (elf_module_soname_is_exposed)
 #endif
 #ifdef HAVE_WINDOWS
   TESTENTRY (get_set_system_error)
@@ -1260,6 +1261,19 @@ TESTCASE (module_exports_exclude_hidden_versions)
   g_assert_cmpuint (g_hash_table_size (names), >, 0);
 
   g_hash_table_unref (names);
+}
+
+TESTCASE (elf_module_soname_is_exposed)
+{
+  GumElfModule * libc;
+
+  libc = gum_elf_module_new_from_file (
+      gum_module_get_path (gum_process_get_libc_module ()), NULL);
+  g_assert_nonnull (libc);
+
+  g_assert_cmpstr (gum_elf_module_get_soname (libc), ==, "libc.so.6");
+
+  g_object_unref (libc);
 }
 
 static gboolean
