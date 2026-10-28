@@ -9,6 +9,7 @@
 
 #include "gummachomodule.h"
 
+#include "gumcloak.h"
 #include "gumkernel.h"
 #include "gumleb.h"
 #include "gummachomodule-priv.h"
@@ -113,8 +114,7 @@ struct _GumExportsTrieForeachContext
 
 struct _GumPageAllocation
 {
-  gpointer data;
-  gsize size;
+  GumMemoryRange range;
 };
 
 static void gum_macho_module_constructed (GObject * object);
@@ -2560,8 +2560,9 @@ gum_page_allocation_new_bytes (gpointer data,
   GumPageAllocation * allocation;
 
   allocation = g_slice_new (GumPageAllocation);
-  allocation->data = data;
-  allocation->size = allocation_size;
+  allocation->range.base_address = GUM_ADDRESS (data);
+  allocation->range.size = allocation_size;
+  gum_cloak_add_range (&allocation->range);
 
   return g_bytes_new_with_free_func (data, content_size,
       (GDestroyNotify) gum_page_allocation_free, allocation);
@@ -2570,7 +2571,9 @@ gum_page_allocation_new_bytes (gpointer data,
 static void
 gum_page_allocation_free (GumPageAllocation * self)
 {
-  gum_memory_free (self->data, self->size);
+  gum_memory_free (GSIZE_TO_POINTER (self->range.base_address),
+      self->range.size);
+  gum_cloak_remove_range (&self->range);
 
   g_slice_free (GumPageAllocation, self);
 }
