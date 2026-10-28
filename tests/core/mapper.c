@@ -80,6 +80,7 @@ TESTLIST_BEGIN (mapper)
 #endif
 #if defined (HAVE_LINUX) && defined (__GLIBC__)
   TESTENTRY (elf_resolver_agrees_with_loader)
+  TESTENTRY (elf_resolver_supports_memory_snapshot)
 #endif
 #ifdef HAVE_WINDOWS
   TESTENTRY (code_is_shared_section_view)
@@ -93,6 +94,9 @@ typedef struct _GumTestExportSearch GumTestExportSearch;
 typedef struct _GumTestTlsThreadContext GumTestTlsThreadContext;
 typedef struct _GumTestMultiTlsContext GumTestMultiTlsContext;
 typedef struct _GumTestRemote GumTestRemote;
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+typedef struct _GumTestSnapshot GumTestSnapshot;
+#endif
 #ifdef HAVE_WINDOWS
 typedef struct _GumTestLoaderComparison GumTestLoaderComparison;
 #endif
@@ -171,6 +175,14 @@ struct _GumTestPoolMemory
 };
 #endif
 
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+struct _GumTestSnapshot
+{
+  GumAddress base;
+  guint8 * data;
+};
+#endif
+
 #ifdef HAVE_LINUX
 struct _GumTestIndirectResolver
 {
@@ -209,6 +221,10 @@ static void gum_test_remote_spawn_victim (GumTestRemote * remote);
 static gboolean gum_test_remote_is_accessible (GumTestRemote * remote);
 static int gum_test_remote_call (GumTestRemote * remote, GumAddress function);
 static void gum_test_remote_kill_victim (GumTestRemote * remote);
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+static gboolean gum_test_copy_range (const GumRangeDetails * details,
+    gpointer user_data);
+#endif
 #ifdef HAVE_WINDOWS
 static gboolean gum_test_compare_with_loader (
     const GumPeExportDetails * details, gpointer user_data);
@@ -578,6 +594,57 @@ TESTCASE (elf_resolver_agrees_with_loader)
 
   g_object_unref (resolver);
   g_object_unref (elf);
+  dlclose (libc_handle);
+}
+
+TESTCASE (elf_resolver_supports_memory_snapshot)
+{
+  GumModule * libc;
+  const GumMemoryRange * range;
+  void * libc_handle;
+  GumTestSnapshot snapshot;
+  GBytes * blob;
+  GumElfModule * elf;
+  GError * error = NULL;
+  const gchar * soname;
+  GumElfModuleResolver * resolver;
+  GumDynamicSymbolDetails details;
+
+  libc = gum_process_get_libc_module ();
+  range = gum_module_get_range (libc);
+  libc_handle = dlopen (gum_module_get_path (libc), RTLD_LAZY | RTLD_NOLOAD);
+  g_assert_nonnull (libc_handle);
+
+  snapshot.base = range->base_address;
+  snapshot.data = g_malloc0 (range->size);
+  gum_module_enumerate_ranges (libc, GUM_PAGE_READ, gum_test_copy_range,
+      &snapshot);
+  blob = g_bytes_new_take (snapshot.data, range->size);
+
+  elf = g_object_new (GUM_TYPE_ELF_MODULE,
+      "base-address", range->base_address,
+      "source-path", gum_module_get_path (libc),
+      "source-blob", blob,
+      "source-mode", GUM_ELF_SOURCE_MODE_ONLINE,
+      NULL);
+  g_assert_true (gum_elf_module_load (elf, &error));
+  g_assert_no_error (error);
+
+  soname = gum_elf_module_get_soname (elf);
+  g_assert_true ((const guint8 *) soname >= snapshot.data &&
+      (const guint8 *) soname < snapshot.data + range->size);
+
+  resolver = gum_elf_module_resolver_new ();
+  gum_elf_module_resolver_add_module (resolver, elf, range->base_address);
+
+  g_assert_true (gum_module_resolver_find_dynamic_symbol (
+      GUM_MODULE_RESOLVER (resolver), "getpid", &details));
+  g_assert_cmphex (details.address, ==,
+      GUM_ADDRESS (dlsym (libc_handle, "getpid")));
+
+  g_object_unref (resolver);
+  g_object_unref (elf);
+  g_bytes_unref (blob);
   dlclose (libc_handle);
 }
 
@@ -1094,6 +1161,23 @@ gum_test_receive_task_port (mach_port_t channel)
 }
 
 #endif
+
+#endif
+
+#if defined (HAVE_LINUX) && defined (__GLIBC__)
+
+static gboolean
+gum_test_copy_range (const GumRangeDetails * details,
+                     gpointer user_data)
+{
+  GumTestSnapshot * snapshot = user_data;
+  const GumMemoryRange * range = details->range;
+
+  memcpy (snapshot->data + (range->base_address - snapshot->base),
+      GSIZE_TO_POINTER (range->base_address), range->size);
+
+  return TRUE;
+}
 
 #endif
 

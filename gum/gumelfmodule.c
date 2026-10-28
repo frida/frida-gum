@@ -255,6 +255,8 @@ static GumElfDynamicAddressState gum_elf_module_detect_dynamic_address_state (
     GumElfModule * self);
 static gpointer gum_elf_module_resolve_dynamic_virtual_location (
     GumElfModule * self, GumAddress address);
+static gpointer gum_elf_module_resolve_online_location (GumElfModule * self,
+    GumAddress address);
 static gboolean gum_store_dynamic_string_table (
     const GumElfDynamicEntryDetails * details, gpointer user_data);
 
@@ -1039,7 +1041,7 @@ gum_elf_module_load_dynamic_entries (GumElfModule * self,
   n = phdr->filesz / entry_size;
 
   start = (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
-      ? GSIZE_TO_POINTER (
+      ? gum_elf_module_resolve_online_location (self,
           gum_elf_module_translate_to_online (self, phdr->vaddr))
       : (const guint8 *) data + phdr->offset;
   end = (const guint8 *) start + (n * entry_size);
@@ -1108,8 +1110,8 @@ gum_elf_module_get_live_data (GumElfModule * self,
 {
   if (self->source_mode == GUM_ELF_SOURCE_MODE_ONLINE)
   {
-    *size = self->mapped_size;
-    return GSIZE_TO_POINTER (self->base_address);
+    *size = (self->source_blob != NULL) ? self->file_size : self->mapped_size;
+    return gum_elf_module_resolve_online_location (self, self->base_address);
   }
   else
   {
@@ -2603,10 +2605,10 @@ gum_elf_module_resolve_dynamic_virtual_location (GumElfModule * self,
     switch (self->dynamic_address_state)
     {
       case GUM_ELF_DYNAMIC_ADDRESS_PRISTINE:
-        return GSIZE_TO_POINTER (
+        return gum_elf_module_resolve_online_location (self,
             gum_elf_module_translate_to_online (self, address));
       case GUM_ELF_DYNAMIC_ADDRESS_ADJUSTED:
-        return GSIZE_TO_POINTER (address);
+        return gum_elf_module_resolve_online_location (self, address);
       default:
         g_assert_not_reached ();
     }
@@ -2622,6 +2624,16 @@ gum_elf_module_resolve_dynamic_virtual_location (GumElfModule * self,
 
     return (guint8 *) self->file_data + offset;
   }
+}
+
+static gpointer
+gum_elf_module_resolve_online_location (GumElfModule * self,
+                                        GumAddress address)
+{
+  if (self->source_blob != NULL)
+    return (guint8 *) self->file_data + (address - self->base_address);
+
+  return GSIZE_TO_POINTER (address);
 }
 
 static gboolean
