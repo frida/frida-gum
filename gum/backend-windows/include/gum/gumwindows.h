@@ -8,6 +8,7 @@
 #define __GUM_WINDOWS_H__
 
 #include <gum/gummemory.h>
+#include <gum/gumwindowsmoduleresolver.h>
 
 #include <glib.h>
 #ifndef WIN32_LEAN_AND_MEAN

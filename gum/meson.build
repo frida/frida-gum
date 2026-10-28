@@ -116,6 +116,7 @@ gum_backend_headers = []
 if host_os_family == 'windows'
   gum_backend_headers += [
     'backend-windows' / 'include' / 'gum' / 'gumwindows.h',
+    'backend-windows' / 'include' / 'gum' / 'gumwindowsmoduleresolver.h',
     'backend-dbghelp' / 'include' / 'gum' / 'gumdbghelp.h',
     'backend-dbghelp' / 'include' / 'gum' / 'gumdbghelpbacktracer.h',
   ]
@@ -127,6 +128,7 @@ if host_os_family == 'windows'
     'backend-windows' / 'gumthreadregistry-windows.c',
     'backend-windows' / 'gummoduleregistry-windows.c',
     'backend-windows' / 'gummodule-windows.c',
+    'backend-windows' / 'gumwindowsmoduleresolver.c',
     'backend-windows' / 'gumpemapper.c',
     'backend-windows' / 'gumtls-windows.c',
     'backend-dbghelp' / 'gumdbghelp.c',

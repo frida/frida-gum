@@ -78,6 +78,8 @@ TESTLIST_BEGIN (mapper)
 #endif
 #ifdef HAVE_WINDOWS
   TESTENTRY (code_is_shared_section_view)
+  TESTENTRY (windows_resolver_agrees_with_loader)
+  TESTENTRY (windows_resolver_supports_suspended_process)
 #endif
 TESTLIST_END ()
 
@@ -86,6 +88,9 @@ typedef struct _GumTestExportSearch GumTestExportSearch;
 typedef struct _GumTestTlsThreadContext GumTestTlsThreadContext;
 typedef struct _GumTestMultiTlsContext GumTestMultiTlsContext;
 typedef struct _GumTestRemote GumTestRemote;
+#ifdef HAVE_WINDOWS
+typedef struct _GumTestLoaderComparison GumTestLoaderComparison;
+#endif
 #ifdef HAVE_DARWIN
 typedef struct _GumTestTaskPortMessage GumTestTaskPortMessage;
 typedef struct _GumTestTaskPortReceipt GumTestTaskPortReceipt;
@@ -142,6 +147,14 @@ struct _GumTestRemote
 #endif
 };
 
+#ifdef HAVE_WINDOWS
+struct _GumTestLoaderComparison
+{
+  HMODULE local;
+  GumModule * resolved;
+};
+#endif
+
 #ifdef GUM_TEST_HAVE_POOL_MEMORY
 struct _GumTestPoolMemory
 {
@@ -191,6 +204,10 @@ static void gum_test_remote_spawn_victim (GumTestRemote * remote);
 static gboolean gum_test_remote_is_accessible (GumTestRemote * remote);
 static int gum_test_remote_call (GumTestRemote * remote, GumAddress function);
 static void gum_test_remote_kill_victim (GumTestRemote * remote);
+#ifdef HAVE_WINDOWS
+static gboolean gum_test_compare_with_loader (
+    const GumPeExportDetails * details, gpointer user_data);
+#endif
 #ifdef HAVE_DARWIN
 static void gum_test_send_task_port (void);
 static mach_port_t gum_test_receive_task_port (mach_port_t channel);
@@ -576,6 +593,55 @@ TESTCASE (code_is_shared_section_view)
   gum_test_target_close (&local);
 }
 
+TESTCASE (windows_resolver_agrees_with_loader)
+{
+  GumWindowsModuleResolver * resolver;
+  GumTestLoaderComparison comparison;
+  GumPeModule * pe;
+
+  resolver = gum_windows_module_resolver_new (GetCurrentProcess ());
+
+  comparison.local = GetModuleHandleW (L"kernel32.dll");
+  comparison.resolved = gum_module_resolver_find_module_by_name (
+      GUM_MODULE_RESOLVER (resolver), "kernel32.dll");
+  g_assert_nonnull (comparison.resolved);
+
+  pe = gum_pe_module_new_from_memory (GUM_ADDRESS (comparison.local), NULL);
+  gum_pe_module_enumerate_exports (pe, gum_test_compare_with_loader,
+      &comparison);
+  g_object_unref (pe);
+
+  g_object_unref (comparison.resolved);
+  g_object_unref (resolver);
+}
+
+TESTCASE (windows_resolver_supports_suspended_process)
+{
+  STARTUPINFOA si = { 0, };
+  PROCESS_INFORMATION pi;
+  GumWindowsModuleResolver * resolver;
+  GumModule * kernel32;
+
+  si.cb = sizeof (si);
+  g_assert_true (CreateProcessA (GUM_TESTS_MAPPER_VICTIM, NULL, NULL, NULL,
+      FALSE, CREATE_NO_WINDOW | CREATE_SUSPENDED, NULL, NULL, &si, &pi));
+  CloseHandle (pi.hThread);
+
+  resolver = gum_windows_module_resolver_new (pi.hProcess);
+
+  kernel32 = gum_module_resolver_find_module_by_name (
+      GUM_MODULE_RESOLVER (resolver), "kernel32.dll");
+  g_assert_nonnull (kernel32);
+  g_assert_cmphex (gum_module_get_range (kernel32)->base_address, ==,
+      GUM_ADDRESS (GetModuleHandleW (L"kernel32.dll")));
+
+  g_object_unref (kernel32);
+  g_object_unref (resolver);
+
+  TerminateProcess (pi.hProcess, 0);
+  CloseHandle (pi.hProcess);
+}
+
 #endif
 
 static void
@@ -661,7 +727,12 @@ gum_test_remote_open (GumTestRemote * remote)
 
   blob = gum_test_target_read ();
 
+#ifdef HAVE_WINDOWS
+  remote->resolver =
+      GUM_MODULE_RESOLVER (gum_windows_module_resolver_new (remote->process));
+#else
   remote->resolver = gum_test_resolver_new ();
+#endif
 
   remote->mapper = gum_mapper_new_take_blob (GUM_TEST_MAPPER_TARGET, blob,
       remote->resolver, &error);
@@ -964,6 +1035,26 @@ gum_test_receive_task_port (mach_port_t channel)
 }
 
 #endif
+
+#endif
+
+#ifdef HAVE_WINDOWS
+
+static gboolean
+gum_test_compare_with_loader (const GumPeExportDetails * details,
+                              gpointer user_data)
+{
+  GumTestLoaderComparison * comparison = user_data;
+
+  if (details->name == NULL)
+    return TRUE;
+
+  g_assert_cmphex (gum_module_find_export_by_name (comparison->resolved,
+      details->name), ==,
+      GUM_ADDRESS (GetProcAddress (comparison->local, details->name)));
+
+  return TRUE;
+}
 
 #endif
 

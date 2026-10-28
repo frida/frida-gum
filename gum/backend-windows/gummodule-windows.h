@@ -19,6 +19,10 @@ G_DECLARE_FINAL_TYPE (GumNativeModule, gum_native_module, GUM, NATIVE_MODULE,
                       GObject)
 
 G_GNUC_INTERNAL GumNativeModule * _gum_native_module_make (HMODULE handle);
+G_GNUC_INTERNAL GumNativeModule * _gum_native_module_make_remote (
+    HMODULE handle, HANDLE process, GumWindowsModuleResolver * resolver);
+G_GNUC_INTERNAL void _gum_native_module_detach_resolver (
+    GumNativeModule * self);
 
 G_GNUC_INTERNAL GumPeModule * _gum_native_module_get_pe_module (
     GumNativeModule * self);

@@ -1163,26 +1163,19 @@ gum_pe_mapper_resolve_ordinal (GumPeMapper * self,
                                GumModule * module,
                                guint16 ordinal)
 {
-  GumAddress result = 0;
-  const GumMemoryRange * range = gum_module_get_range (module);
-  GumPeModule * dependency;
   GumPeMatchOrdinalContext ctx;
-
-  dependency = gum_pe_module_new_from_memory (range->base_address, NULL);
-  if (dependency == NULL)
-    return 0;
 
   ctx.ordinal = ordinal;
   ctx.rva = 0;
   ctx.found = FALSE;
-  gum_pe_module_enumerate_exports (dependency, gum_match_ordinal, &ctx);
+  gum_pe_module_enumerate_exports (
+      _gum_native_module_get_pe_module (GUM_NATIVE_MODULE (module)),
+      gum_match_ordinal, &ctx);
 
-  if (ctx.found)
-    result = range->base_address + ctx.rva;
+  if (!ctx.found)
+    return 0;
 
-  g_object_unref (dependency);
-
-  return result;
+  return gum_module_get_range (module)->base_address + ctx.rva;
 }
 
 static gboolean
