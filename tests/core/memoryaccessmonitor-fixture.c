@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -86,6 +86,9 @@ put_return_instruction (gpointer mem,
 #endif
 #elif defined (HAVE_ARM64)
   *((guint32 *) mem) = GUINT32_TO_LE (0xd65f03c0);
+#elif defined (HAVE_MIPS)
+  ((guint32 *) mem)[0] = 0x03e00008;
+  ((guint32 *) mem)[1] = 0x00000000;
 #endif
 }
 
