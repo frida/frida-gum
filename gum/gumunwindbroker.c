@@ -7,6 +7,7 @@
 
 #include "gumunwindbroker.h"
 
+#include "guminterceptor-priv.h"
 #include "gumunwindbroker-priv.h"
 
 struct _GumUnwindBroker
@@ -82,7 +83,11 @@ gum_unwind_broker_dispose (GObject * object)
   g_ptr_array_set_size (self->pc_translators, 0);
   g_mutex_unlock (&self->mutex);
 
-  g_clear_object (&self->interceptor);
+  if (self->interceptor != NULL)
+  {
+    _gum_interceptor_release_unwind_broker (self->interceptor);
+    g_clear_object (&self->interceptor);
+  }
 
   G_OBJECT_CLASS (gum_unwind_broker_parent_class)->dispose (object);
 }
@@ -125,7 +130,10 @@ gum_unwind_broker_obtain (void)
   G_UNLOCK (the_unwind_broker);
 
   if (newly_created)
+  {
     broker->interceptor = gum_interceptor_obtain ();
+    _gum_interceptor_retain_unwind_broker (broker->interceptor);
+  }
 
   return broker;
 }

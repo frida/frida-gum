@@ -92,6 +92,11 @@ struct _GumFunctionContext
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
+G_GNUC_INTERNAL void _gum_interceptor_retain_unwind_broker (
+    GumInterceptor * self);
+G_GNUC_INTERNAL void _gum_interceptor_release_unwind_broker (
+    GumInterceptor * self);
+
 G_GNUC_INTERNAL void _gum_interceptor_forget_all_hooks_in_range (
     const GumMemoryRange * range);
 

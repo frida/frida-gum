@@ -78,6 +78,11 @@ struct _GumInterceptor
   GumInterceptorBackend * backend;
   GumCodeAllocator allocator;
 
+  gboolean is_singleton;
+  guint unwind_broker_refs;
+  gboolean needs_unwind_broker;
+  guint n_unwind_broker_contexts;
+
   GumInterceptorOptions options;
 
   volatile guint selected_thread_id;
@@ -156,11 +161,15 @@ struct _ListenerInvocationState
 
 static void gum_interceptor_dispose (GObject * object);
 static void gum_interceptor_finalize (GObject * object);
+static void gum_interceptor_options_init (GumInterceptorOptions * options);
 
 static GumReplaceReturn gum_interceptor_replace_with_type (
     GumInterceptor * self, GumInterceptorType type, gpointer function_address,
     gpointer replacement_function, gpointer replacement_data,
     gpointer * original_function, const GumInterceptorOptions * options);
+static void gum_interceptor_ensure_unwind_broker (GumInterceptor * self);
+static void gum_interceptor_activate_unwind_broker (GumInterceptor * self);
+static void gum_interceptor_deactivate_unwind_broker (GumInterceptor * self);
 static GumFunctionContext * gum_interceptor_instrument (GumInterceptor * self,
     GumInterceptorType type, gpointer function_address,
     const GumInterceptorOptions * instrumentation,
@@ -186,6 +195,9 @@ static void gum_interceptor_transaction_destroy (
 static void gum_interceptor_transaction_begin (
     GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
+static void gum_interceptor_release_unwind_broker_if_unused (
+    GumInterceptor * self);
+static void gum_interceptor_stop_needing_unwind_broker (GumInterceptor * self);
 static void gum_interceptor_transaction_perform_updates (
     GumInterceptorTransaction * self);
 static void gum_apply_updates (gpointer source_page, gpointer target_page,
@@ -433,8 +445,7 @@ gum_interceptor_init (GumInterceptor * self)
 
   gum_code_allocator_init (&self->allocator, GUM_INTERCEPTOR_CODE_SLICE_SIZE);
 
-  self->options.scenario = GUM_INTERCEPTOR_SCENARIO_ONLINE;
-  self->options.relocation_policy = GUM_RELOCATION_CHECKED;
+  gum_interceptor_options_init (&self->options);
 
   gum_interceptor_transaction_init (&self->current_transaction, self);
 }
@@ -449,12 +460,11 @@ gum_interceptor_dispose (GObject * object)
   was_singleton = _the_undisposed_interceptor == self;
   g_mutex_unlock (&_gum_interceptor_lock);
 
-#ifndef G_OS_NONE
-  if (was_singleton)
-    _gum_unwind_broker_backend_deactivate ();
-#endif
-
   GUM_INTERCEPTOR_LOCK (self);
+
+  if (self->needs_unwind_broker)
+    gum_interceptor_stop_needing_unwind_broker (self);
+
   gum_interceptor_transaction_begin (&self->current_transaction);
   self->current_transaction.is_dirty = TRUE;
 
@@ -504,7 +514,6 @@ GumInterceptor *
 gum_interceptor_obtain (void)
 {
   GumInterceptor * interceptor;
-  gboolean newly_created = FALSE;
 
   g_mutex_lock (&_gum_interceptor_lock);
 
@@ -520,17 +529,12 @@ gum_interceptor_obtain (void)
   if (interceptor == NULL)
   {
     interceptor = g_object_new (GUM_TYPE_INTERCEPTOR, NULL);
+    interceptor->is_singleton = TRUE;
     g_weak_ref_set (&_the_interceptor, interceptor);
     _the_undisposed_interceptor = interceptor;
-    newly_created = TRUE;
   }
 
   g_mutex_unlock (&_gum_interceptor_lock);
-
-#ifndef G_OS_NONE
-  if (newly_created)
-    _gum_unwind_broker_backend_activate (interceptor);
-#endif
 
   return interceptor;
 }
@@ -591,6 +595,8 @@ gum_interceptor_attach (GumInterceptor * self,
 
   if (options == NULL)
     options = &default_options;
+
+  gum_interceptor_ensure_unwind_broker (self);
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK (self);
@@ -798,6 +804,8 @@ gum_interceptor_replace_with_type (GumInterceptor * self,
   GumFunctionContext * function_ctx;
   GumInstrumentationError error;
 
+  gum_interceptor_ensure_unwind_broker (self);
+
   GUM_INTERCEPTOR_LOCK (self);
   gum_interceptor_transaction_begin (&self->current_transaction);
   self->current_transaction.is_dirty = TRUE;
@@ -854,6 +862,84 @@ beach:
 
     return result;
   }
+}
+
+static void
+gum_interceptor_ensure_unwind_broker (GumInterceptor * self)
+{
+  if (!self->is_singleton)
+    return;
+
+  GUM_INTERCEPTOR_LOCK (self);
+
+  if (!self->needs_unwind_broker)
+  {
+    self->needs_unwind_broker = TRUE;
+    _gum_interceptor_retain_unwind_broker (self);
+  }
+
+  GUM_INTERCEPTOR_UNLOCK (self);
+}
+
+void
+_gum_interceptor_retain_unwind_broker (GumInterceptor * self)
+{
+  GUM_INTERCEPTOR_LOCK (self);
+
+  if (self->unwind_broker_refs++ == 0)
+    gum_interceptor_activate_unwind_broker (self);
+
+  GUM_INTERCEPTOR_UNLOCK (self);
+}
+
+void
+_gum_interceptor_release_unwind_broker (GumInterceptor * self)
+{
+  GUM_INTERCEPTOR_LOCK (self);
+
+  if (--self->unwind_broker_refs == 0)
+    gum_interceptor_deactivate_unwind_broker (self);
+
+  GUM_INTERCEPTOR_UNLOCK (self);
+}
+
+static void
+gum_interceptor_activate_unwind_broker (GumInterceptor * self)
+{
+#ifndef G_OS_NONE
+  GumInterceptorOptions user_defaults;
+  guint n_contexts_before;
+
+  user_defaults = self->options;
+  gum_interceptor_options_init (&self->options);
+  n_contexts_before = g_hash_table_size (self->function_by_address);
+
+  _gum_unwind_broker_backend_activate (self);
+
+  self->n_unwind_broker_contexts =
+      g_hash_table_size (self->function_by_address) - n_contexts_before;
+  self->options = user_defaults;
+#endif
+}
+
+static void
+gum_interceptor_deactivate_unwind_broker (GumInterceptor * self)
+{
+#ifndef G_OS_NONE
+  _gum_unwind_broker_backend_deactivate ();
+
+  self->n_unwind_broker_contexts = 0;
+#endif
+}
+
+static void
+gum_interceptor_options_init (GumInterceptorOptions * options)
+{
+  static const GumInterceptorOptions no_options = { 0, };
+
+  *options = no_options;
+  options->scenario = GUM_INTERCEPTOR_SCENARIO_ONLINE;
+  options->relocation_policy = GUM_RELOCATION_CHECKED;
 }
 
 /**
@@ -1758,7 +1844,29 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   gum_interceptor_transaction_destroy (self);
 
 no_changes:
+  gum_interceptor_release_unwind_broker_if_unused (interceptor);
+
   gum_interceptor_unignore_current_thread (interceptor);
+}
+
+static void
+gum_interceptor_release_unwind_broker_if_unused (GumInterceptor * self)
+{
+  if (!self->needs_unwind_broker)
+    return;
+
+  if (g_hash_table_size (self->function_by_address) !=
+      self->n_unwind_broker_contexts)
+    return;
+
+  gum_interceptor_stop_needing_unwind_broker (self);
+}
+
+static void
+gum_interceptor_stop_needing_unwind_broker (GumInterceptor * self)
+{
+  self->needs_unwind_broker = FALSE;
+  _gum_interceptor_release_unwind_broker (self);
 }
 
 static void
