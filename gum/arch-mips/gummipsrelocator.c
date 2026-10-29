@@ -9,6 +9,8 @@
 
 #include "gummemory.h"
 
+#include <string.h>
+
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_DEFAULT_MIPS_MODE CS_MODE_MIPS32
 #else
@@ -223,6 +225,8 @@ gum_mips_relocator_read_one (GumMipsRelocator * self,
     case MIPS_INS_BLTZL:
     case MIPS_INS_BNE:
     case MIPS_INS_BNEL:
+    case MIPS_INS_BEQZ:
+    case MIPS_INS_BNEZ:
       self->eob = TRUE;
       self->eoi = FALSE;
       self->delay_slot_pending = TRUE;
@@ -373,7 +377,6 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
 
       break;
     }
-    case MIPS_INS_J:
     case MIPS_INS_BEQ:
     case MIPS_INS_BEQL:
     case MIPS_INS_BGEZ:
@@ -386,11 +389,33 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
     case MIPS_INS_BLTZL:
     case MIPS_INS_BNE:
     case MIPS_INS_BNEL:
-      /*
-       * No implementation for these yet. There is no conditional jump
-       * instruction for MIPS and the range of branch instructions is +-128 KB.
-       * This makes things a bit tricky.
-       */
+    case MIPS_INS_BEQZ:
+    case MIPS_INS_BNEZ:
+    {
+      const cs_mips_op * op;
+      guint32 branch;
+      gconstpointer not_taken = GSIZE_TO_POINTER (insn->address);
+
+      op = &ctx.detail->operands[ctx.detail->op_count - 1];
+      g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
+
+      memcpy (&branch, insn->bytes, sizeof (branch));
+      gum_mips_writer_put_instruction (ctx.output, (branch & 0xffff0000) | 3);
+      gum_mips_writer_put_bytes (ctx.output, delay_slot_insn->bytes,
+          delay_slot_insn->size);
+      gum_mips_writer_put_beq_reg_reg_label (ctx.output, MIPS_REG_ZERO,
+          MIPS_REG_ZERO, not_taken);
+
+      gum_mips_writer_put_la_reg_address (ctx.output, MIPS_REG_AT, op->imm);
+      gum_mips_writer_put_jr_reg (ctx.output, MIPS_REG_AT);
+
+      gum_mips_writer_put_label (ctx.output, not_taken);
+
+      rewritten = TRUE;
+
+      break;
+    }
+    case MIPS_INS_J:
       g_assert_not_reached ();
     default:
       rewritten = FALSE;
@@ -703,6 +728,8 @@ gum_mips_has_delay_slot (const cs_insn * insn)
     case MIPS_INS_BLTZL:
     case MIPS_INS_BNE:
     case MIPS_INS_BNEL:
+    case MIPS_INS_BEQZ:
+    case MIPS_INS_BNEZ:
       return TRUE;
     default:
       return FALSE;
