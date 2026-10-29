@@ -663,8 +663,8 @@ gum_mips_writer_put_ld_reg_reg_offset (GumMipsWriter * self,
   gum_mips_writer_describe_reg (self, dst_reg, &rd);
   gum_mips_writer_describe_reg (self, src_reg, &rs);
 
-  gum_mips_writer_put_instruction (self, 0x68000000 | (rs.index << 21) |
-      (rd.index << 16) | src_offset);
+  gum_mips_writer_put_instruction (self, 0xdc000000 | (rs.index << 21) |
+      (rd.index << 16) | (src_offset & 0xffff));
 }
 
 void
