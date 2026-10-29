@@ -700,6 +700,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
     data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+    if (ctx->trampoline_slice == NULL)
+      goto policy_violation;
     ctx->redirect_code = g_malloc (data->available_space);
 
     return TRUE;
@@ -744,6 +746,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     data->redirect_code_size = GUM_INTERCEPTOR_FULL_REDIRECT_SIZE;
 
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+    if (ctx->trampoline_slice == NULL)
+      goto policy_violation;
 
     if (data->scratch_reg == ARM64_REG_INVALID)
     {
@@ -810,6 +814,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     }
   }
 
+  if (ctx->trampoline_slice == NULL)
+    goto policy_violation;
+
   if (data->scratch_reg == ARM64_REG_INVALID)
   {
     if (!force)
@@ -822,6 +829,11 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
   return TRUE;
 
+policy_violation:
+  {
+    *error = GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION;
+    return FALSE;
+  }
 no_scratch_reg:
   {
     *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
@@ -872,6 +884,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     enter_thunks =
         gum_interceptor_backend_get_thunks (self, data->scratch_reg);
     leave_thunks = gum_interceptor_backend_get_thunks (self, leave_scratch_reg);
+    if (enter_thunks == NULL || leave_thunks == NULL)
+      goto policy_violation;
   }
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
@@ -1090,6 +1104,12 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   return TRUE;
 
+policy_violation:
+  {
+    *error = GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION;
+    _gum_interceptor_backend_destroy_trampoline (self, ctx);
+    return FALSE;
+  }
 relocation_failed:
   {
     *error = GUM_INSTRUMENTATION_ERROR_WRONG_SIGNATURE;
@@ -1365,6 +1385,8 @@ gum_interceptor_backend_get_thunks (GumInterceptorBackend * self,
   if (thunks == NULL)
   {
     thunks = gum_thunk_set_new (self, scratch_reg);
+    if (thunks == NULL)
+      return NULL;
     g_hash_table_insert (self->thunks_by_scratch_reg,
         GINT_TO_POINTER (scratch_reg), thunks);
   }
@@ -1379,17 +1401,21 @@ gum_thunk_set_new (GumInterceptorBackend * backend,
   GumThunkSet * thunks;
   gsize page_size, code_size;
   GumPageProtection protection;
+  gpointer page;
   GumMemoryRange range;
   GumEmitThunksContext ctx;
-
-  thunks = g_slice_new (GumThunkSet);
 
   page_size = gum_query_page_size ();
   code_size = page_size;
 
   protection = gum_memory_can_remap_writable () ? GUM_PAGE_RX : GUM_PAGE_RW;
 
-  thunks->page = gum_memory_allocate (NULL, code_size, page_size, protection);
+  page = gum_memory_allocate (NULL, code_size, page_size, protection);
+  if (page == NULL)
+    return NULL;
+
+  thunks = g_slice_new (GumThunkSet);
+  thunks->page = page;
 
   range.base_address = GUM_ADDRESS (thunks->page);
   range.size = code_size;

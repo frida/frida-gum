@@ -66,7 +66,7 @@ G_STATIC_ASSERT (sizeof (GumMipsFunctionContextData)
 
 static gboolean gum_interceptor_backend_write_custom_redirect (
     GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer target);
-static void gum_interceptor_backend_create_thunks (
+static gboolean gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
 static void gum_interceptor_backend_destroy_thunks (
     GumInterceptorBackend * self);
@@ -89,9 +89,18 @@ _gum_interceptor_backend_create (GRecMutex * mutex,
   gum_mips_writer_init (&backend->writer, NULL);
   gum_mips_relocator_init (&backend->relocator, NULL, &backend->writer);
 
-  gum_interceptor_backend_create_thunks (backend);
+  if (!gum_interceptor_backend_create_thunks (backend))
+    goto thunk_allocation_failed;
 
   return backend;
+
+thunk_allocation_failed:
+  {
+    gum_mips_relocator_clear (&backend->relocator);
+    gum_mips_writer_clear (&backend->writer);
+    g_slice_free (GumInterceptorBackend, backend);
+    return NULL;
+  }
 }
 
 void
@@ -158,6 +167,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
     data->redirect_code_size = GUM_HOOK_SIZE;
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+    if (ctx->trampoline_slice == NULL)
+      goto policy_violation;
     ctx->redirect_code = g_malloc (data->available_space);
 
     return TRUE;
@@ -175,6 +186,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     data->redirect_code_size = GUM_HOOK_SIZE;
 
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+    if (ctx->trampoline_slice == NULL)
+      goto policy_violation;
 
     if (data->scratch_reg == MIPS_REG_INVALID)
     {
@@ -215,6 +228,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     }
   }
 
+  if (ctx->trampoline_slice == NULL)
+    goto policy_violation;
+
   if (data->scratch_reg == MIPS_REG_INVALID)
   {
     if (!force)
@@ -229,6 +245,12 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   }
 
   return TRUE;
+
+policy_violation:
+  {
+    *error = GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION;
+    return FALSE;
+  }
 }
 
 gboolean
@@ -483,12 +505,14 @@ _gum_interceptor_backend_detect_hook_size (gconstpointer code,
   return 0;
 }
 
-static void
+static gboolean
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {
   GumMipsWriter * cw = &self->writer;
 
   self->enter_thunk = gum_code_allocator_alloc_slice (self->allocator);
+  if (self->enter_thunk == NULL)
+    goto allocation_failed;
   gum_mips_writer_reset (cw, self->enter_thunk->data);
   cw->pc = GUM_ADDRESS (self->enter_thunk->pc);
   gum_emit_enter_thunk (cw);
@@ -496,11 +520,21 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   g_assert (gum_mips_writer_offset (cw) <= self->enter_thunk->size);
 
   self->leave_thunk = gum_code_allocator_alloc_slice (self->allocator);
+  if (self->leave_thunk == NULL)
+    goto allocation_failed;
   gum_mips_writer_reset (cw, self->leave_thunk->data);
   cw->pc = GUM_ADDRESS (self->leave_thunk->pc);
   gum_emit_leave_thunk (cw);
   gum_mips_writer_flush (cw);
   g_assert (gum_mips_writer_offset (cw) <= self->leave_thunk->size);
+
+  return TRUE;
+
+allocation_failed:
+  {
+    g_clear_pointer (&self->enter_thunk, gum_code_slice_unref);
+    return FALSE;
+  }
 }
 
 static void

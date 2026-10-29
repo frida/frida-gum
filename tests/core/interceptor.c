@@ -98,6 +98,7 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (custom_redirect_can_be_declined)
   TESTENTRY (custom_redirect_default_is_inherited)
 #endif
+  TESTENTRY (attach_fails_when_code_allocation_is_denied)
 #ifdef HAVE_I386
   TESTENTRY (ibt_landing_pad_survives_attach)
 #endif
@@ -129,6 +130,9 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (attach_after_revert_fast_in_same_transaction)
   TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
+
+static gpointer gum_deny_code_allocation (const GumAddressSpec * spec,
+    gsize size, gsize alignment, GumPageProtection prot, gpointer user_data);
 
 static GString * gum_test_unwind_log = NULL;
 static jmp_buf gum_test_longjmp_buf;
@@ -1213,6 +1217,41 @@ test_interceptor_write_redirect (const GumRedirectWriteDetails * details,
 }
 
 #endif
+
+TESTCASE (attach_fails_when_code_allocation_is_denied)
+{
+  GumMemoryHooks hooks = { NULL, };
+
+  if (!gum_query_is_rwx_supported ())
+  {
+    g_print ("<skipping, not supported on this system> ");
+    return;
+  }
+
+  g_object_unref (fixture->interceptor);
+  fixture->interceptor = g_object_new (GUM_TYPE_INTERCEPTOR, NULL);
+
+  hooks.allocate = gum_deny_code_allocation;
+  gum_memory_set_hooks (&hooks);
+
+  g_assert_cmpint (interceptor_fixture_try_attach (fixture, 0, target_function,
+      '>', '<'), ==, GUM_ATTACH_POLICY_VIOLATION);
+
+  gum_memory_set_hooks (NULL);
+
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "|");
+}
+
+static gpointer
+gum_deny_code_allocation (const GumAddressSpec * spec,
+                          gsize size,
+                          gsize alignment,
+                          GumPageProtection prot,
+                          gpointer user_data)
+{
+  return NULL;
+}
 
 TESTCASE (cpu_register_clobber)
 {

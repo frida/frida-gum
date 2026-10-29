@@ -77,7 +77,7 @@ static gboolean gum_interceptor_backend_write_arm_custom_redirect (
 static gboolean gum_interceptor_backend_write_thumb_custom_redirect (
     GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer target);
 
-static void gum_interceptor_backend_create_thunks (
+static gboolean gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
 static void gum_interceptor_backend_destroy_thunks (
     GumInterceptorBackend * self);
@@ -111,9 +111,20 @@ _gum_interceptor_backend_create (GRecMutex * mutex,
   gum_thumb_relocator_init (&backend->thumb_relocator, NULL,
       &backend->thumb_writer);
 
-  gum_interceptor_backend_create_thunks (backend);
+  if (!gum_interceptor_backend_create_thunks (backend))
+    goto thunk_allocation_failed;
 
   return backend;
+
+thunk_allocation_failed:
+  {
+    gum_thumb_relocator_clear (&backend->thumb_relocator);
+    gum_thumb_writer_clear (&backend->thumb_writer);
+    gum_arm_relocator_clear (&backend->arm_relocator);
+    gum_arm_writer_clear (&backend->arm_writer);
+    g_slice_free (GumInterceptorBackend, backend);
+    return NULL;
+  }
 }
 
 void
@@ -185,6 +196,8 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
 
     data->redirect_code_size = data->full_redirect_size;
     ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+    if (ctx->trampoline_slice == NULL)
+      goto policy_violation;
     ctx->redirect_code = g_malloc (data->available_space);
 
     return TRUE;
@@ -248,7 +261,16 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   }
 
   ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
+  if (ctx->trampoline_slice == NULL)
+    goto policy_violation;
+
   return TRUE;
+
+policy_violation:
+  {
+    *error = GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION;
+    return FALSE;
+  }
 }
 
 gboolean
@@ -833,13 +855,15 @@ _gum_interceptor_backend_detect_hook_size (gconstpointer code,
   return 0;
 }
 
-static void
+static gboolean
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {
   GumArmWriter * aw = &self->arm_writer;
   GumThumbWriter * tw = &self->thumb_writer;
 
   self->arm_thunks = gum_code_allocator_alloc_slice (self->allocator);
+  if (self->arm_thunks == NULL)
+    goto allocation_failed;
   gum_arm_writer_reset (aw, self->arm_thunks->data);
   aw->pc = GUM_ADDRESS (self->arm_thunks->pc);
 
@@ -853,6 +877,8 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
   g_assert (gum_arm_writer_offset (aw) <= self->arm_thunks->size);
 
   self->thumb_thunks = gum_code_allocator_alloc_slice (self->allocator);
+  if (self->thumb_thunks == NULL)
+    goto allocation_failed;
   gum_thumb_writer_reset (tw, self->thumb_thunks->data);
   tw->pc = GUM_ADDRESS (self->thumb_thunks->pc);
 
@@ -866,6 +892,14 @@ gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 
   gum_thumb_writer_flush (tw);
   g_assert (gum_thumb_writer_offset (tw) <= self->thumb_thunks->size);
+
+  return TRUE;
+
+allocation_failed:
+  {
+    g_clear_pointer (&self->arm_thunks, gum_code_slice_unref);
+    return FALSE;
+  }
 }
 
 static void

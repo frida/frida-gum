@@ -1559,6 +1559,11 @@ gum_interceptor_instrument (GumInterceptor * self,
   {
     self->backend =
         _gum_interceptor_backend_create (&self->mutex, &self->allocator);
+    if (self->backend == NULL)
+    {
+      *error = GUM_INSTRUMENTATION_ERROR_POLICY_VIOLATION;
+      return NULL;
+    }
   }
 
   ctx = gum_function_context_new (self, function_address, type);
