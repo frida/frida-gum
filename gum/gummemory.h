@@ -27,6 +27,7 @@ typedef guint GumPtrauthSupport;
 typedef guint GumRwxSupport;
 typedef guint GumMemoryOperation;
 typedef guint GumPageProtection;
+typedef struct _GumMemoryHooks GumMemoryHooks;
 typedef struct _GumAddressSpec GumAddressSpec;
 typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumMemoryRange GumMemoryRange;
@@ -64,6 +65,17 @@ enum _GumPageProtection
   GUM_PAGE_READ      = (1 << 0),
   GUM_PAGE_WRITE     = (1 << 1),
   GUM_PAGE_EXECUTE   = (1 << 2),
+};
+
+struct _GumMemoryHooks
+{
+  gpointer (* allocate) (const GumAddressSpec * spec, gsize size,
+      gsize alignment, GumPageProtection prot, gpointer user_data);
+  gboolean (* protect) (gpointer address, gsize size, GumPageProtection prot,
+      gpointer user_data);
+  gboolean (* patch_code) (gpointer address, gconstpointer data, gsize size,
+      gpointer user_data);
+  gpointer user_data;
 };
 
 struct _GumAddressSpec
@@ -108,6 +120,8 @@ typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
 
 GUM_API void gum_internal_heap_ref (void);
 GUM_API void gum_internal_heap_unref (void);
+
+GUM_API void gum_memory_set_hooks (const GumMemoryHooks * hooks);
 
 GUM_API gpointer gum_sign_code_pointer (gpointer value);
 GUM_API gpointer gum_strip_code_pointer (gpointer value);

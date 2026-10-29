@@ -72,6 +72,9 @@ gum_memory_allocate (gpointer address,
                      gsize alignment,
                      GumPageProtection prot)
 {
+  if (_gum_memory_is_allocation_hooked (prot))
+    return _gum_memory_allocate_via_hooks (NULL, size, alignment, prot);
+
   return gum_memory_allocate_internal (address, size, alignment, prot, 0);
 }
 
@@ -125,6 +128,10 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
 {
   gpointer suggested_base, received_base;
   GumAllocNearContext ctx;
+
+  if (_gum_memory_is_allocation_hooked (prot))
+    return _gum_memory_allocate_via_hooks (spec, size, alignment,
+        prot);
 
   suggested_base = (spec != NULL) ? spec->near_address : NULL;
 

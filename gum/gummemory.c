@@ -167,11 +167,9 @@ static gboolean gum_memory_patch_code_pages_via_mprotect (
 static gboolean gum_memory_patch_code_pages_via_code_segment (
     GPtrArray * sorted_addresses, gboolean coalesce, gsize page_size,
     GumMemoryPatchPagesApplyFunc apply, gpointer apply_data);
-#ifdef HAVE_DARWIN
-static gboolean gum_memory_patch_code_pages_via_jailbreak (
+static gboolean gum_memory_patch_code_pages_via_hooks (
     GPtrArray * sorted_addresses, gboolean coalesce,
     GumMemoryPatchPagesApplyFunc apply, gpointer apply_data);
-#endif
 static gboolean gum_maybe_suspend_thread (const GumThreadDetails * details,
     gpointer user_data);
 
@@ -240,6 +238,7 @@ static mspace gum_mspace_main = NULL;
 static mspace gum_mspace_internal = NULL;
 #endif
 static guint gum_cached_page_size;
+static GumMemoryHooks gum_memory_hooks;
 
 #ifdef HAVE_ANDROID
 G_LOCK_DEFINE_STATIC (gum_softened_code_pages);
@@ -289,6 +288,47 @@ gum_internal_heap_unref (void)
   _gum_cloak_deinit ();
 
   _gum_memory_backend_deinit ();
+
+  gum_memory_set_hooks (NULL);
+}
+
+void
+gum_memory_set_hooks (const GumMemoryHooks * hooks)
+{
+  static const GumMemoryHooks no_hooks = { NULL, };
+
+  gum_memory_hooks = (hooks != NULL) ? *hooks : no_hooks;
+}
+
+gboolean
+_gum_memory_is_allocation_hooked (GumPageProtection prot)
+{
+  return gum_memory_hooks.allocate != NULL && (prot & GUM_PAGE_EXECUTE) != 0;
+}
+
+gpointer
+_gum_memory_allocate_via_hooks (const GumAddressSpec * spec,
+                                gsize size,
+                                gsize alignment,
+                                GumPageProtection prot)
+{
+  return gum_memory_hooks.allocate (spec, size, alignment, prot,
+      gum_memory_hooks.user_data);
+}
+
+gboolean
+_gum_memory_is_protection_hooked (void)
+{
+  return gum_memory_hooks.protect != NULL;
+}
+
+gboolean
+_gum_memory_protect_via_hooks (gpointer address,
+                               gsize size,
+                               GumPageProtection prot)
+{
+  return gum_memory_hooks.protect (address, size, prot,
+      gum_memory_hooks.user_data);
 }
 
 gpointer
@@ -481,13 +521,11 @@ gum_memory_patch_code_pages (GPtrArray * sorted_addresses,
   if (sorted_addresses->len == 0)
     return TRUE;
 
-#ifdef HAVE_DARWIN
-  if (_gum_darwin_has_jailbreak_memory_hooks ())
+  if (gum_memory_hooks.patch_code != NULL)
   {
-    return gum_memory_patch_code_pages_via_jailbreak (sorted_addresses,
-        coalesce, apply, apply_data);
+    return gum_memory_patch_code_pages_via_hooks (sorted_addresses, coalesce,
+        apply, apply_data);
   }
-#endif
 
   rwx_supported = gum_query_is_rwx_supported ();
   page_size = gum_query_page_size ();
@@ -987,13 +1025,11 @@ gum_memory_patch_code_pages_via_code_segment (
   return TRUE;
 }
 
-#ifdef HAVE_DARWIN
-
 static gboolean
-gum_memory_patch_code_pages_via_jailbreak (GPtrArray * sorted_addresses,
-                                           gboolean coalesce,
-                                           GumMemoryPatchPagesApplyFunc apply,
-                                           gpointer apply_data)
+gum_memory_patch_code_pages_via_hooks (GPtrArray * sorted_addresses,
+                                       gboolean coalesce,
+                                       GumMemoryPatchPagesApplyFunc apply,
+                                       gpointer apply_data)
 {
   gboolean success = FALSE;
   gsize page_size, size;
@@ -1034,9 +1070,12 @@ gum_memory_patch_code_pages_via_jailbreak (GPtrArray * sorted_addresses,
   }
 
   gum_metal_array_init (&suspend_op.suspended_threads, sizeof (GumThreadId));
-  suspend_op.current_thread_id = gum_process_get_current_thread_id ();
-  _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
-      GUM_THREAD_FLAGS_NONE);
+  if (!gum_query_is_rwx_supported ())
+  {
+    suspend_op.current_thread_id = gum_process_get_current_thread_id ();
+    _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
+        GUM_THREAD_FLAGS_NONE);
+  }
 
   for (i = 0; i != sorted_addresses->len; i++)
   {
@@ -1049,28 +1088,28 @@ gum_memory_patch_code_pages_via_jailbreak (GPtrArray * sorted_addresses,
 
     for (offset = 0; offset != page_size;)
     {
-      const gsize arm64_insn_size = 4;
+      const gsize granule_size = 4;
       gsize start;
-      kern_return_t kr;
 
-      if (memcmp (source + offset, original + offset, arm64_insn_size) == 0)
+      if (memcmp (source + offset, original + offset, granule_size) == 0)
       {
-        offset += arm64_insn_size;
+        offset += granule_size;
         continue;
       }
 
       start = offset;
       do
       {
-        offset += arm64_insn_size;
+        offset += granule_size;
       }
       while (offset != page_size &&
-          memcmp (source + offset, original + offset, arm64_insn_size) != 0);
+          memcmp (source + offset, original + offset, granule_size) != 0);
 
-      kr = _gum_darwin_jailbreak_patch_code (target + start, source + start,
-          offset - start);
-      if (kr != KERN_SUCCESS)
+      if (!gum_memory_hooks.patch_code (target + start, source + start,
+          offset - start, gum_memory_hooks.user_data))
+      {
         goto beach;
+      }
     }
   }
 
@@ -1083,15 +1122,15 @@ beach:
         &suspend_op.suspended_threads, i);
 
     gum_thread_resume (*id, NULL);
+#ifdef HAVE_DARWIN
     mach_port_mod_refs (mach_task_self (), *id, MACH_PORT_RIGHT_SEND, -1);
+#endif
   }
   gum_metal_array_free (&suspend_op.suspended_threads);
   g_free (scratch);
 
   return success;
 }
-
-#endif
 
 static gboolean
 gum_maybe_suspend_thread (const GumThreadDetails * details,

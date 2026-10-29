@@ -163,6 +163,9 @@ gum_try_mprotect (gpointer address,
 {
   DWORD win_prot, old_protect;
 
+  if (_gum_memory_is_protection_hooked ())
+    return _gum_memory_protect_via_hooks (address, size, prot);
+
   win_prot = gum_page_protection_to_windows (prot);
 
   return VirtualProtect (address, size, win_prot, &old_protect);
@@ -185,6 +188,9 @@ gum_memory_allocate (gpointer address,
   gpointer base, aligned_base;
   gsize padded_size;
   gint retries = 3;
+
+  if (_gum_memory_is_allocation_hooked (prot))
+    return _gum_memory_allocate_via_hooks (NULL, size, alignment, prot);
 
   allocation_type = (prot == GUM_PAGE_NO_ACCESS)
       ? MEM_RESERVE
@@ -233,6 +239,10 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
   gsize page_size, step_size;
   DWORD win_prot;
   guint8 * low_address, * high_address;
+
+  if (_gum_memory_is_allocation_hooked (prot))
+    return _gum_memory_allocate_via_hooks (spec, size, alignment,
+        prot);
 
   result = gum_memory_allocate (NULL, size, alignment, prot);
   if (result == NULL)

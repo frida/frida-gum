@@ -32,6 +32,14 @@ G_BEGIN_DECLS
 G_GNUC_INTERNAL void _gum_memory_backend_init (void);
 G_GNUC_INTERNAL void _gum_memory_backend_deinit (void);
 G_GNUC_INTERNAL guint _gum_memory_backend_query_page_size (void);
+G_GNUC_INTERNAL gboolean _gum_memory_is_allocation_hooked (
+    GumPageProtection prot);
+G_GNUC_INTERNAL gpointer _gum_memory_allocate_via_hooks (
+    const GumAddressSpec * spec, gsize size, gsize alignment,
+    GumPageProtection prot);
+G_GNUC_INTERNAL gboolean _gum_memory_is_protection_hooked (void);
+G_GNUC_INTERNAL gboolean _gum_memory_protect_via_hooks (gpointer address,
+    gsize size, GumPageProtection prot);
 G_GNUC_INTERNAL gint _gum_page_protection_to_posix (GumPageProtection prot);
 #ifdef HAVE_LINUX
 # include <sys/types.h>

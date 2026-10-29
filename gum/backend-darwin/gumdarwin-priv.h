@@ -278,10 +278,6 @@ G_GNUC_INTERNAL void _gum_page_plan_builder_add_pages (
 G_GNUC_INTERNAL gboolean _gum_page_plan_builder_post (
     GumPagePlanBuilder * self);
 
-G_GNUC_INTERNAL gboolean _gum_darwin_has_jailbreak_memory_hooks (void);
-G_GNUC_INTERNAL kern_return_t _gum_darwin_jailbreak_patch_code (
-    gpointer address, gconstpointer data, gsize size);
-
 G_END_DECLS
 
 #endif

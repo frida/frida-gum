@@ -189,6 +189,10 @@ gum_try_mprotect (gpointer address,
       GPOINTER_TO_SIZE (address) & ~(page_size - 1));
   aligned_size =
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
+
+  if (_gum_memory_is_protection_hooked ())
+    return _gum_memory_protect_via_hooks (aligned_address, aligned_size, prot);
+
   posix_prot = _gum_page_protection_to_posix (prot);
 
   result = mprotect (aligned_address, aligned_size, posix_prot);

@@ -526,6 +526,8 @@ namespace Gum {
 	public delegate void MapperDestructor ();
 
 	namespace Memory {
+		public void set_hooks (Gum.MemoryHooks? hooks);
+
 		public bool is_readable (void * address, size_t len);
 		public bool query_protection (void * address, out Gum.PageProtection prot);
 		public uint8[] read (Address address, size_t len);
@@ -544,6 +546,14 @@ namespace Gum {
 
 		public delegate void PatchApplyFunc (void * mem);
 		public delegate bool ScanMatchFunc (Address address, size_t size);
+
+		[CCode (has_target = false)]
+		public delegate void * AllocateHook (Gum.AddressSpec? spec, size_t size, size_t alignment, Gum.PageProtection prot,
+			void * user_data);
+		[CCode (has_target = false)]
+		public delegate bool ProtectHook (void * address, size_t size, Gum.PageProtection prot, void * user_data);
+		[CCode (has_target = false)]
+		public delegate bool PatchCodeHook (void * address, void * data, size_t size, void * user_data);
 	}
 
 	namespace InternalHeap {
@@ -834,6 +844,13 @@ namespace Gum {
 		public static Gum.Address from_pointer (void * p) {
 			return (Gum.Address) (uintptr) p;
 		}
+	}
+
+	public struct MemoryHooks {
+		public Gum.Memory.AllocateHook? allocate;
+		public Gum.Memory.ProtectHook? protect;
+		public Gum.Memory.PatchCodeHook? patch_code;
+		public void * user_data;
 	}
 
 	public struct AddressSpec {
