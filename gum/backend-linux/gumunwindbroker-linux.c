@@ -73,15 +73,14 @@ _gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
 void
 _gum_unwind_broker_backend_deactivate (void)
 {
-  if (gum_unwind_libunwind_interceptor == NULL)
+  GumInterceptor * interceptor;
+
+  interceptor = g_steal_pointer (&gum_unwind_libunwind_interceptor);
+  if (interceptor == NULL)
     return;
 
-  gum_interceptor_revert (gum_unwind_libunwind_interceptor,
-      __gxx_personality_v0);
-  gum_interceptor_revert (gum_unwind_libunwind_interceptor,
-      __gnu_Unwind_Find_exidx);
-
-  gum_unwind_libunwind_interceptor = NULL;
+  gum_interceptor_revert (interceptor, __gxx_personality_v0);
+  gum_interceptor_revert (interceptor, __gnu_Unwind_Find_exidx);
 }
 
 static _Unwind_Reason_Code
@@ -207,15 +206,15 @@ _gum_unwind_broker_backend_activate (GumInterceptor * interceptor)
 void
 _gum_unwind_broker_backend_deactivate (void)
 {
-  if (gum_unwind_libunwind_interceptor == NULL)
+  GumInterceptor * interceptor;
+
+  interceptor = g_steal_pointer (&gum_unwind_libunwind_interceptor);
+  if (interceptor == NULL)
     return;
 
-  gum_interceptor_revert (gum_unwind_libunwind_interceptor,
-      __gxx_personality_v0);
-  gum_interceptor_revert (gum_unwind_libunwind_interceptor, _Unwind_Find_FDE);
-  gum_interceptor_revert (gum_unwind_libunwind_interceptor, _Unwind_GetIP);
-
-  gum_unwind_libunwind_interceptor = NULL;
+  gum_interceptor_revert (interceptor, __gxx_personality_v0);
+  gum_interceptor_revert (interceptor, _Unwind_Find_FDE);
+  gum_interceptor_revert (interceptor, _Unwind_GetIP);
 }
 
 static _Unwind_Reason_Code
