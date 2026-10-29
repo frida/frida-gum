@@ -901,8 +901,8 @@ gum_mips_writer_put_prologue_trampoline (GumMipsWriter * self,
   }
   g_assert (self->pc % 8 == 0);
 
-  gum_mips_writer_put_instruction (self, address >> 32);
-  gum_mips_writer_put_instruction (self, address & 0xffffffff);
+  gum_mips_writer_put_bytes (self, (const guint8 *) &address,
+      sizeof (address));
   gum_mips_writer_put_jr_reg (self, reg);
 }
 
