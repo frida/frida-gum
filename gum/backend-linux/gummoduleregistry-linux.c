@@ -9,6 +9,7 @@
 #include "gummoduleregistry-elf.h"
 
 #include "gum-init.h"
+#include "gumelfmodule-priv.h"
 #include "gumlinux-priv.h"
 #include "gummodule-elf.h"
 #include "valgrind.h"
@@ -34,6 +35,7 @@ typedef struct _GumProgramRanges GumProgramRanges;
 typedef ElfW(auxv_t) * (* GumReadAuxvFunc) (void);
 
 typedef struct _GumFileId GumFileId;
+typedef struct _GumDebugEntrySearch GumDebugEntrySearch;
 
 #ifdef HAVE_MUSL
 typedef struct _GumRtldNotifierScan GumRtldNotifierScan;
@@ -58,6 +60,14 @@ struct _GumFileId
 {
   dev_t device;
   ino_t inode;
+};
+
+struct _GumDebugEntrySearch
+{
+  GumAddress dynamic;
+  guint index;
+  struct r_debug * debug;
+  struct r_debug ** debug_slot;
 };
 
 #ifdef HAVE_MUSL
@@ -596,12 +606,16 @@ gum_find_r_debug (GumModule * module,
 {
   struct r_debug ** dbg = user_data;
   GumElfModule * elf;
+  GumDebugEntrySearch search = { 0, };
 
   elf = _gum_native_module_get_elf_module (GUM_NATIVE_MODULE (module));
   if (elf == NULL)
     return TRUE;
 
-  gum_elf_module_enumerate_dynamic_entries (elf, gum_find_debug_entry, dbg);
+  search.dynamic = _gum_elf_module_get_dynamic_address (elf);
+  gum_elf_module_enumerate_dynamic_entries (elf, gum_find_debug_entry, &search);
+
+  *dbg = (search.debug_slot != NULL) ? *search.debug_slot : search.debug;
 
   return *dbg == NULL;
 }
@@ -610,13 +624,28 @@ static gboolean
 gum_find_debug_entry (const GumElfDynamicEntryDetails * details,
                       gpointer user_data)
 {
-  struct r_debug ** dbg = user_data;
+  GumDebugEntrySearch * search = user_data;
 
-  if (details->tag == GUM_ELF_DYNAMIC_DEBUG)
+  switch (details->tag)
   {
-    *dbg = GSIZE_TO_POINTER (details->val);
-    return FALSE;
+    case GUM_ELF_DYNAMIC_DEBUG:
+      search->debug = GSIZE_TO_POINTER (details->val);
+      break;
+#ifdef HAVE_MIPS
+    case GUM_ELF_DYNAMIC_MIPS_RLD_MAP:
+      if (search->debug_slot == NULL)
+        search->debug_slot = GSIZE_TO_POINTER (details->val);
+      break;
+    case GUM_ELF_DYNAMIC_MIPS_RLD_MAP_REL:
+      search->debug_slot = GSIZE_TO_POINTER (search->dynamic +
+          search->index * sizeof (ElfW(Dyn)) + details->val);
+      break;
+#endif
+    default:
+      break;
   }
+
+  search->index++;
 
   return TRUE;
 }

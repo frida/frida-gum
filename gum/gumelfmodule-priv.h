@@ -196,6 +196,8 @@ struct _GumElfSym32
 
 G_GNUC_INTERNAL void _gum_elf_module_enumerate_default_dynamic_symbols (
     GumElfModule * self, GumFoundElfSymbolFunc func, gpointer user_data);
+G_GNUC_INTERNAL GumAddress _gum_elf_module_get_dynamic_address (
+    GumElfModule * self);
 
 G_END_DECLS
 

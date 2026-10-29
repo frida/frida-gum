@@ -1895,6 +1895,18 @@ _gum_elf_module_enumerate_default_dynamic_symbols (GumElfModule * self,
       user_data);
 }
 
+GumAddress
+_gum_elf_module_get_dynamic_address (GumElfModule * self)
+{
+  const GumElfPhdr * phdr;
+
+  phdr = gum_elf_module_find_phdr_by_type (self, GUM_ELF_PHDR_DYNAMIC);
+  if (phdr == NULL)
+    return 0;
+
+  return gum_elf_module_translate_to_online (self, phdr->vaddr);
+}
+
 static void
 gum_elf_module_enumerate_dynamic_symbols_with_versions (
     GumElfModule * self,
