@@ -118,6 +118,8 @@ static GumMemoryOperation gum_infer_arm_memory_operation (cs_insn * insn);
 #elif defined (HAVE_ARM64)
 static GumMemoryOperation gum_infer_arm64_memory_operation (
     cs_insn * insn);
+#elif defined (HAVE_MIPS)
+static GumMemoryOperation gum_infer_mips_memory_operation (cs_insn * insn);
 #endif
 
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
@@ -692,6 +694,8 @@ gum_infer_memory_operation (gconstpointer address,
   op = gum_infer_arm_memory_operation (insn);
 #elif defined (HAVE_ARM64)
   op = gum_infer_arm64_memory_operation (insn);
+#elif defined (HAVE_MIPS)
+  op = gum_infer_mips_memory_operation (insn);
 #else
   op = GUM_MEMOP_READ;
 #endif
@@ -718,6 +722,8 @@ gum_disassemble_instruction_at (gconstpointer address,
       CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN, &capstone);
 #elif defined (HAVE_ARM64)
   err = cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &capstone);
+#elif defined (HAVE_MIPS)
+  err = cs_open (CS_ARCH_MIPS, GUM_DEFAULT_CS_MODE, &capstone);
 #else
   return NULL;
 #endif
@@ -865,6 +871,31 @@ gum_infer_arm64_memory_operation (cs_insn * insn)
     case ARM64_INS_STXRH:
     case ARM64_INS_STLXRH:
     case ARM64_INS_STXRB:
+      return GUM_MEMOP_WRITE;
+    default:
+      return GUM_MEMOP_READ;
+  }
+}
+
+#elif defined (HAVE_MIPS)
+
+static GumMemoryOperation
+gum_infer_mips_memory_operation (cs_insn * insn)
+{
+  switch (insn->id)
+  {
+    case MIPS_INS_SB:
+    case MIPS_INS_SH:
+    case MIPS_INS_SW:
+    case MIPS_INS_SWL:
+    case MIPS_INS_SWR:
+    case MIPS_INS_SD:
+    case MIPS_INS_SDL:
+    case MIPS_INS_SDR:
+    case MIPS_INS_SC:
+    case MIPS_INS_SCD:
+    case MIPS_INS_SWC1:
+    case MIPS_INS_SDC1:
       return GUM_MEMOP_WRITE;
     default:
       return GUM_MEMOP_READ;
