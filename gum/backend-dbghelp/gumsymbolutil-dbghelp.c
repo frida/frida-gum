@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -7,9 +7,8 @@
 
 #include "gumsymbolutil.h"
 
+#include "gumprocess.h"
 #include "gum/gumdbghelp.h"
-
-#include <psapi.h>
 
 /* HACK: don't have access to this enum */
 #define GUM_SymTagFunction       5
@@ -61,10 +60,6 @@ gum_symbol_details_from_address (gpointer address,
       GPOINTER_TO_SIZE (address), &displacement_qw, &si.sym_info);
   if (has_sym_info)
   {
-    HMODULE mod = GSIZE_TO_POINTER (si.sym_info.ModBase);
-
-    GetModuleBaseNameA (GetCurrentProcess (), mod, details->module_name,
-        sizeof (details->module_name) - 1);
     g_strlcpy (details->symbol_name, si.sym_info.Name,
         sizeof (details->symbol_name));
   }
@@ -79,6 +74,19 @@ gum_symbol_details_from_address (gpointer address,
   }
 
   dbghelp->Unlock ();
+
+  if (has_sym_info)
+  {
+    GumModule * module;
+
+    module = gum_process_find_module_by_address (details->address);
+    if (module != NULL)
+    {
+      g_strlcpy (details->module_name, gum_module_get_name (module),
+          sizeof (details->module_name));
+      g_object_unref (module);
+    }
+  }
 
   return (has_sym_info || has_file_info);
 }
