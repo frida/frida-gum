@@ -10,6 +10,9 @@
 #include "testutil.h"
 
 #include "gummemory-priv.h"
+#ifdef HAVE_WINDOWS
+# include "gum/gumwindows.h"
+#endif
 
 #define TESTCASE(NAME) \
     void test_memory_ ## NAME (void)
@@ -51,6 +54,10 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   TESTENTRY (allocate_handles_alignment)
   TESTENTRY (allocate_near_handles_alignment)
+#ifdef HAVE_WINDOWS
+  TESTENTRY (allocate_near_low_address_does_not_fall_back_to_any_address)
+  TESTENTRY (allocate_near_without_candidates_returns_null)
+#endif
   TESTENTRY (mprotect_handles_page_boundaries)
   TESTENTRY (allocate_routes_code_pages_through_hooks)
   TESTENTRY (allocate_near_passes_spec_to_hooks)
@@ -1011,6 +1018,62 @@ TESTCASE (allocate_near_handles_alignment)
 
   gum_memory_free (page, size);
 }
+
+#ifdef HAVE_WINDOWS
+
+TESTCASE (allocate_near_low_address_does_not_fall_back_to_any_address)
+{
+  SYSTEM_INFO si;
+  gpointer reservation;
+  GumAddressSpec spec;
+  guint page_size;
+  gpointer page;
+
+  GetSystemInfo (&si);
+  reservation = VirtualAlloc (si.lpMinimumApplicationAddress,
+      2 * si.dwAllocationGranularity, MEM_RESERVE, PAGE_NOACCESS);
+  if (reservation == NULL)
+  {
+    g_test_skip ("Low address range is unavailable");
+    return;
+  }
+
+  spec.near_address = reservation;
+  spec.max_distance = si.dwAllocationGranularity;
+  page_size = gum_query_page_size ();
+
+  page = gum_memory_allocate_near (&spec, page_size, page_size, GUM_PAGE_RW);
+
+  g_assert_null (page);
+
+  VirtualFree (reservation, 0, MEM_RELEASE);
+}
+
+TESTCASE (allocate_near_without_candidates_returns_null)
+{
+  GumAddressSpec spec;
+  guint page_size;
+  gpointer page;
+
+  spec.near_address = NULL;
+  spec.max_distance = 0;
+  page_size = gum_query_page_size ();
+
+  page = gum_memory_allocate_near (&spec, page_size, page_size, GUM_PAGE_RW);
+
+  g_assert_null (page);
+
+#if GLIB_SIZEOF_VOID_P == 8
+  spec.near_address = GSIZE_TO_POINTER (G_MAXSIZE);
+  spec.max_distance = G_MAXSSIZE;
+
+  page = gum_memory_allocate_near (&spec, page_size, page_size, GUM_PAGE_RW);
+
+  g_assert_null (page);
+#endif
+}
+
+#endif
 
 TESTCASE (mprotect_handles_page_boundaries)
 {

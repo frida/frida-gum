@@ -235,10 +235,11 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
                           gsize alignment,
                           GumPageProtection prot)
 {
-  gpointer result = NULL;
-  gsize page_size, step_size;
+  gpointer result;
+  SYSTEM_INFO si;
+  gsize step_size;
   DWORD win_prot;
-  guint8 * low_address, * high_address;
+  gsize near_address, min_address, max_address, low_address, high_address;
 
   if (_gum_memory_is_allocation_hooked (prot))
     return _gum_memory_allocate_via_hooks (spec, size, alignment,
@@ -251,35 +252,52 @@ gum_memory_allocate_near (const GumAddressSpec * spec,
     return result;
   gum_memory_free (result, size);
 
-  page_size = gum_query_page_size ();
-  step_size = MAX (page_size, GUM_ALIGN_SIZE (alignment, page_size));
+  GetSystemInfo (&si);
+  step_size = MAX (si.dwAllocationGranularity,
+      GUM_ALIGN_SIZE (alignment, si.dwAllocationGranularity));
   win_prot = gum_page_protection_to_windows (prot);
 
-  low_address = GSIZE_TO_POINTER (
-      (GPOINTER_TO_SIZE (spec->near_address) & ~(step_size - 1)));
+  near_address = GPOINTER_TO_SIZE (spec->near_address);
+  min_address = GPOINTER_TO_SIZE (si.lpMinimumApplicationAddress);
+  max_address = GPOINTER_TO_SIZE (si.lpMaximumApplicationAddress);
+  if (near_address > spec->max_distance)
+    min_address = MAX (min_address, near_address - spec->max_distance);
+  if (G_MAXSIZE - near_address >= spec->max_distance)
+    max_address = MIN (max_address, near_address + spec->max_distance);
+  if (min_address > max_address)
+    return NULL;
+
+  low_address = CLAMP (near_address, min_address, max_address) &
+      ~(step_size - 1);
   high_address = low_address;
 
-  do
+  while (TRUE)
   {
-    gsize cur_distance;
+    gboolean low_in_range, high_in_range;
 
-    low_address -= step_size;
-    high_address += step_size;
-    cur_distance = (gsize) high_address - (gsize) spec->near_address;
-    if (cur_distance > spec->max_distance)
-      break;
+    low_in_range = low_address >= min_address;
+    high_in_range = max_address - high_address >= step_size;
+    if (!low_in_range && !high_in_range)
+      return NULL;
 
-    result = VirtualAlloc (low_address, size, MEM_COMMIT | MEM_RESERVE,
-        win_prot);
-    if (result == NULL)
+    if (low_in_range)
     {
-      result = VirtualAlloc (high_address, size, MEM_COMMIT | MEM_RESERVE,
-          win_prot);
+      result = VirtualAlloc (GSIZE_TO_POINTER (low_address), size,
+          MEM_COMMIT | MEM_RESERVE, win_prot);
+      if (result != NULL)
+        return result;
+      low_address -= step_size;
+    }
+
+    if (high_in_range)
+    {
+      high_address += step_size;
+      result = VirtualAlloc (GSIZE_TO_POINTER (high_address), size,
+          MEM_COMMIT | MEM_RESERVE, win_prot);
+      if (result != NULL)
+        return result;
     }
   }
-  while (result == NULL);
-
-  return result;
 }
 
 static gpointer
