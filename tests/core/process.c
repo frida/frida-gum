@@ -48,6 +48,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (process_threads)
   TESTENTRY (process_threads_exclude_cloaked)
   TESTENTRY (process_threads_should_include_name)
+  TESTENTRY (main_module_is_the_executable)
   TESTENTRY (process_modules)
   TESTENTRY (process_ranges)
   TESTENTRY (process_ranges_exclude_cloaked)
@@ -79,6 +80,7 @@ TESTLIST_BEGIN (process)
 #ifdef HAVE_WINDOWS
   TESTENTRY (get_set_system_error)
   TESTENTRY (get_current_thread_id)
+  TESTENTRY (windows_modules_are_in_load_order)
 #endif
 #ifdef HAVE_DARWIN
   TESTENTRY (darwin_enumerate_modules)
@@ -415,6 +417,16 @@ check_thread_enumeration_testable (void)
   }
 
   return TRUE;
+}
+
+TESTCASE (main_module_is_the_executable)
+{
+  GumModule * module;
+
+  module = gum_process_get_main_module ();
+
+  g_assert_true (g_str_has_prefix (gum_module_get_name (module),
+      "gum-tests"));
 }
 
 TESTCASE (process_modules)
@@ -1291,6 +1303,9 @@ check_export_name_is_unique (const GumExportDetails * details,
 
 #ifdef HAVE_WINDOWS
 
+static gboolean store_lowercase_module_name (GumModule * module,
+    gpointer user_data);
+
 TESTCASE (get_current_thread_id)
 {
   g_assert_cmphex (gum_process_get_current_thread_id (), ==,
@@ -1303,6 +1318,36 @@ TESTCASE (get_set_system_error)
   g_assert_cmpint (GetLastError (), ==, 0x12345678);
   SetLastError (0x89ABCDEF);
   g_assert_cmpint (gum_thread_get_system_error (), ==, (gint) 0x89ABCDEF);
+}
+
+TESTCASE (windows_modules_are_in_load_order)
+{
+  GPtrArray * names;
+  guint ntdll_index, kernel32_index;
+
+  names = g_ptr_array_new_with_free_func (g_free);
+  gum_process_enumerate_modules (store_lowercase_module_name, names);
+
+  g_assert_true (g_str_has_prefix (g_ptr_array_index (names, 0),
+      "gum-tests"));
+  g_assert_true (g_ptr_array_find_with_equal_func (names, "ntdll.dll",
+      g_str_equal, &ntdll_index));
+  g_assert_true (g_ptr_array_find_with_equal_func (names, "kernel32.dll",
+      g_str_equal, &kernel32_index));
+  g_assert_cmpuint (ntdll_index, <, kernel32_index);
+
+  g_ptr_array_unref (names);
+}
+
+static gboolean
+store_lowercase_module_name (GumModule * module,
+                             gpointer user_data)
+{
+  GPtrArray * names = user_data;
+
+  g_ptr_array_add (names, g_ascii_strdown (gum_module_get_name (module), -1));
+
+  return TRUE;
 }
 
 #endif

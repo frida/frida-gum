@@ -42,7 +42,7 @@ static void gum_module_registry_on_loader_leave (GumInvocationContext * ic,
     gpointer user_data);
 static void gum_module_registry_synchronize_modules (
     GumModuleRegistry * registry);
-static GHashTable * gum_snapshot_loaded_modules (void);
+static GPtrArray * gum_snapshot_loaded_modules (void);
 static void gum_module_registry_add_module (GumModuleRegistry * registry,
     HMODULE handle);
 static void gum_module_registry_remove_module (GumModuleRegistry * registry,
@@ -167,16 +167,22 @@ gum_module_registry_on_loader_leave (GumInvocationContext * ic,
 static void
 gum_module_registry_synchronize_modules (GumModuleRegistry * registry)
 {
+  GPtrArray * handles;
   GHashTable * modules;
+  guint i;
   GHashTableIter iter;
   gpointer handle;
   GQueue removed = G_QUEUE_INIT;
 
   gum_module_registry_lock (registry);
 
-  modules = gum_snapshot_loaded_modules ();
-  if (modules == NULL)
+  handles = gum_snapshot_loaded_modules ();
+  if (handles == NULL)
     goto beach;
+
+  modules = g_hash_table_new (NULL, NULL);
+  for (i = 0; i != handles->len; i++)
+    g_hash_table_add (modules, g_ptr_array_index (handles, i));
 
   g_hash_table_iter_init (&iter, gum_current_modules);
   while (g_hash_table_iter_next (&iter, &handle, NULL))
@@ -188,53 +194,47 @@ gum_module_registry_synchronize_modules (GumModuleRegistry * registry)
   while ((handle = g_queue_pop_head (&removed)) != NULL)
     gum_module_registry_remove_module (registry, handle);
 
-  g_hash_table_iter_init (&iter, modules);
-  while (g_hash_table_iter_next (&iter, &handle, NULL))
-    gum_module_registry_add_module (registry, handle);
+  for (i = 0; i != handles->len; i++)
+    gum_module_registry_add_module (registry, g_ptr_array_index (handles, i));
 
   g_hash_table_unref (modules);
+  g_ptr_array_unref (handles);
 
 beach:
   gum_module_registry_unlock (registry);
 }
 
-static GHashTable *
+static GPtrArray *
 gum_snapshot_loaded_modules (void)
 {
-  GHashTable * modules;
+  GPtrArray * modules;
   HANDLE this_process;
-  HMODULE * handles;
-  DWORD size, needed;
-  guint n, i;
+  DWORD needed;
+
+  modules = g_ptr_array_sized_new (1);
+  g_ptr_array_set_size (modules, 1);
 
   this_process = GetCurrentProcess ();
 
-  size = sizeof (HMODULE);
-  handles = g_malloc (size);
-
   while (TRUE)
   {
-    if (!EnumProcessModules (this_process, handles, size, &needed))
+    if (!EnumProcessModules (this_process, (HMODULE *) modules->pdata,
+          modules->len * sizeof (HMODULE), &needed))
       goto failure;
-    if (needed <= size)
+
+    if (needed <= modules->len * sizeof (HMODULE))
       break;
-    size = needed;
-    handles = g_realloc (handles, size);
+
+    g_ptr_array_set_size (modules, needed / sizeof (HMODULE));
   }
 
-  modules = g_hash_table_new (NULL, NULL);
-
-  n = needed / sizeof (HMODULE);
-  for (i = 0; i != n; i++)
-    g_hash_table_add (modules, handles[i]);
-
-  g_free (handles);
+  g_ptr_array_set_size (modules, needed / sizeof (HMODULE));
 
   return modules;
 
 failure:
   {
-    g_free (handles);
+    g_ptr_array_unref (modules);
     return NULL;
   }
 }

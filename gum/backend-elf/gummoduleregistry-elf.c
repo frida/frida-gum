@@ -154,36 +154,47 @@ gum_module_registry_on_rtld_notification (GumInvocationContext * ic,
 static void
 gum_module_registry_synchronize_modules (void)
 {
-  GHashTable * modules;
-  GHashTableIter iter;
-  gpointer base_address;
+  GPtrArray * modules;
+  GHashTable * loaded_modules;
+  guint i;
   GumModule * module;
+  gpointer base_address;
   GQueue added = G_QUEUE_INIT;
+  GHashTableIter iter;
   GQueue removed = G_QUEUE_INIT;
 
-  modules = g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
+  modules = g_ptr_array_new_with_free_func (g_object_unref);
   _gum_module_registry_enumerate_loaded_modules (gum_store_module, modules);
+
+  loaded_modules = g_hash_table_new_full (NULL, NULL, NULL, g_object_unref);
 
   gum_module_registry_lock (gum_registry);
 
-  g_hash_table_iter_init (&iter, modules);
-  while (g_hash_table_iter_next (&iter, &base_address, (gpointer *) &module))
+  for (i = 0; i != modules->len; i++)
   {
+    module = g_ptr_array_index (modules, i);
+    base_address =
+        GSIZE_TO_POINTER (gum_module_get_range (module)->base_address);
+
     if (!g_hash_table_contains (gum_current_modules, base_address))
       g_queue_push_tail (&added, g_object_ref (module));
+
+    g_hash_table_insert (loaded_modules, base_address, g_object_ref (module));
   }
 
   g_hash_table_iter_init (&iter, gum_current_modules);
   while (g_hash_table_iter_next (&iter, &base_address, NULL))
   {
-    if (!g_hash_table_contains (modules, base_address))
+    if (!g_hash_table_contains (loaded_modules, base_address))
       g_queue_push_tail (&removed, base_address);
   }
 
   g_hash_table_unref (gum_current_modules);
-  gum_current_modules = modules;
+  gum_current_modules = loaded_modules;
 
   gum_module_registry_unlock (gum_registry);
+
+  g_ptr_array_unref (modules);
 
   while ((base_address = g_queue_pop_head (&removed)) != NULL)
     _gum_module_registry_unregister (gum_registry, GUM_ADDRESS (base_address));
@@ -199,11 +210,9 @@ static gboolean
 gum_store_module (GumModule * module,
                   gpointer user_data)
 {
-  GHashTable * modules = user_data;
+  GPtrArray * modules = user_data;
 
-  g_hash_table_insert (modules,
-      GSIZE_TO_POINTER (gum_module_get_range (module)->base_address),
-      g_object_ref (module));
+  g_ptr_array_add (modules, g_object_ref (module));
 
   return TRUE;
 }
