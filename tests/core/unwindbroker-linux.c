@@ -4,6 +4,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#include "gum/guminterceptor-priv.h"
 #include "gum/gumunwindbroker-priv.h"
 #include "testutil.h"
 
@@ -53,6 +54,7 @@ TESTCASE (exceptions_are_safe_during_activation)
     g_thread_yield ();
 
   interceptor = gum_interceptor_obtain ();
+  _gum_interceptor_retain_unwind_broker (interceptor);
 
   for (i = 0; i != GUM_TEST_ACTIVATION_ROUNDS; i++)
   {
@@ -67,6 +69,7 @@ TESTCASE (exceptions_are_safe_during_activation)
   for (i = 0; i != G_N_ELEMENTS (threads); i++)
     g_thread_join (threads[i]);
 
+  _gum_interceptor_release_unwind_broker (interceptor);
   g_object_unref (interceptor);
 
   g_assert_cmpint (state.failure_count, ==, 0);
