@@ -2436,10 +2436,12 @@ gboolean
 gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,
                                   gconstpointer address)
 {
-  gsize distance;
+  gsize near_address, candidate_address, distance;
 
-  distance =
-      ABS ((const guint8 *) spec->near_address - (const guint8 *) address);
+  near_address = GPOINTER_TO_SIZE (spec->near_address);
+  candidate_address = GPOINTER_TO_SIZE (address);
+  distance = MAX (near_address, candidate_address) -
+      MIN (near_address, candidate_address);
 
   return distance <= spec->max_distance;
 }

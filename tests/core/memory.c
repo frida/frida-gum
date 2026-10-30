@@ -46,6 +46,7 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (find_pointers_skips_inaccessible_range_in_parallel_scan)
   TESTENTRY (is_memory_readable_handles_mixed_page_protections)
   TESTENTRY (query_protection_of_unmapped_address_is_not_readable)
+  TESTENTRY (address_spec_handles_distant_addresses)
   TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
   TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   TESTENTRY (allocate_handles_alignment)
@@ -900,6 +901,19 @@ TESTCASE (query_protection_of_unmapped_address_is_not_readable)
 
   if (gum_memory_query_protection (pages, &prot))
     g_assert_cmpuint (prot & GUM_PAGE_READ, ==, 0);
+}
+
+TESTCASE (address_spec_handles_distant_addresses)
+{
+  GumAddressSpec spec;
+
+  spec.near_address = GSIZE_TO_POINTER (G_MAXSIZE);
+  spec.max_distance = G_MAXSSIZE;
+
+  g_assert_false (gum_address_spec_is_satisfied_by (&spec,
+      GSIZE_TO_POINTER (1)));
+  g_assert_true (gum_address_spec_is_satisfied_by (&spec,
+      GSIZE_TO_POINTER (G_MAXSIZE - G_MAXSSIZE)));
 }
 
 TESTCASE (alloc_n_pages_returns_aligned_rw_address)
