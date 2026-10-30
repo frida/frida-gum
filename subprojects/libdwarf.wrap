@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://github.com/frida/libdwarf.git
+url = https://github.com/frida-forks/libdwarf.git
 revision = 9ac8cc22cab54d72cb355a44e85db716a7006f47
 depth = 1
 

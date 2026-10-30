@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://github.com/frida/quickjs.git
+url = https://github.com/frida-forks/quickjs.git
 revision = cd41bdbf0c6c14a22f4a514bfe8efd6cbca50af3
 depth = 1
 

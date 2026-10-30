@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://github.com/frida/libffi.git
+url = https://github.com/frida-forks/libffi.git
 revision = 5cca756802a5d27988e7f9973e1299f684cfeff7
 depth = 1
 

@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://github.com/frida/xz.git
+url = https://github.com/frida-forks/xz.git
 revision = 68289232393af1ff1756bcf05164cedfd792df59
 depth = 1
 

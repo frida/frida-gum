@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://github.com/frida/glib-networking.git
+url = https://github.com/frida-forks/glib-networking.git
 revision = c8d811a906659f59eabc9f4dc3ad2ba22772bf0f
 depth = 1
 

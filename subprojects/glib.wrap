@@ -1,5 +1,5 @@
 [wrap-git]
-url = https://github.com/frida/glib.git
+url = https://github.com/frida-forks/glib.git
 revision = c366177b9292432a26f6903fa82a71d83e4927eb
 depth = 1
 
