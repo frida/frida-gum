@@ -1009,7 +1009,7 @@ gum_linker_api_try_init (void)
     pending--;
   }
 
-  gum_dl_api.trusted_caller = dlsym (RTLD_DEFAULT, "open");
+  gum_dl_api.trusted_caller = GUM_FUNCPTR_TO_POINTER (open);
 
   return (pending == 0) ? &gum_dl_api : NULL;
 }

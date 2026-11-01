@@ -501,11 +501,17 @@ static gboolean
 gum_try_resolve_dynamic_symbol (const gchar * name,
                                 Dl_info * info)
 {
+  GumGenericDlsymImpl dlsym_impl = dlsym;
   gpointer address;
 
-  address = dlsym (RTLD_NEXT, name);
+#ifdef HAVE_ANDROID
+  if (gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_NATIVE)
+    gum_android_find_unrestricted_dlsym (&dlsym_impl);
+#endif
+
+  address = dlsym_impl (RTLD_NEXT, name);
   if (address == NULL)
-    address = dlsym (RTLD_DEFAULT, name);
+    address = dlsym_impl (RTLD_DEFAULT, name);
   if (address == NULL)
     return FALSE;
 
