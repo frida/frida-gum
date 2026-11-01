@@ -104,3 +104,7 @@ shared_module('module-registry-dependent', 'module-registry-dependent.c',
   name_prefix: '',
   link_with: module_registry_dependency,
 )
+
+if host_os_family == 'windows'
+  executable('module-registry-program', 'module-registry-program.c')
+endif

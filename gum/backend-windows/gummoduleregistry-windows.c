@@ -32,7 +32,7 @@ struct _GumDllNotificationData
   ULONG size_of_image;
 };
 
-static gboolean gum_try_subscribe_to_loader (GumModuleRegistry * registry);
+static void gum_subscribe_to_loader (GumModuleRegistry * registry);
 static void gum_unsubscribe_from_loader (void);
 static void CALLBACK gum_module_registry_on_dll_notification (ULONG reason,
     const GumDllNotificationData * data, PVOID context);
@@ -60,8 +60,8 @@ _gum_module_registry_activate (GumModuleRegistry * self)
 {
   gum_current_modules = g_hash_table_new (NULL, NULL);
 
-  if (!gum_try_subscribe_to_loader (self))
-    gum_hook_loader (self);
+  gum_subscribe_to_loader (self);
+  gum_hook_loader (self);
   gum_module_registry_synchronize_modules (self);
 }
 
@@ -70,26 +70,23 @@ _gum_module_registry_deactivate (GumModuleRegistry * self)
 {
   if (gum_loader_subscription != NULL)
     gum_unsubscribe_from_loader ();
-  else
-    gum_unhook_loader ();
+  gum_unhook_loader ();
 
   g_clear_pointer (&gum_current_modules, g_hash_table_unref);
 }
 
-static gboolean
-gum_try_subscribe_to_loader (GumModuleRegistry * registry)
+static void
+gum_subscribe_to_loader (GumModuleRegistry * registry)
 {
   GumLdrRegisterDllNotificationFunc register_impl;
 
   register_impl = (GumLdrRegisterDllNotificationFunc) GetProcAddress (
       GetModuleHandleW (L"ntdll.dll"), "LdrRegisterDllNotification");
   if (register_impl == NULL)
-    return FALSE;
+    return;
 
   register_impl (0, gum_module_registry_on_dll_notification, registry,
       &gum_loader_subscription);
-
-  return TRUE;
 }
 
 static void
@@ -146,9 +143,6 @@ gum_hook_loader (GumModuleRegistry * registry)
 static void
 gum_unhook_loader (void)
 {
-  if (gum_loader_handler == NULL)
-    return;
-
   gum_interceptor_detach (gum_ldr_interceptor, gum_loader_handler);
 
   g_object_unref (gum_loader_handler);

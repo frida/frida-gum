@@ -33,6 +33,7 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (hooks_should_be_discarded_when_module_unloads)
   TESTENTRY (dependency_export_can_be_found)
   TESTENTRY (delay_loaded_modules_should_be_registered)
+  TESTENTRY (executable_images_should_be_registered)
   TESTENTRY (nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (displaced_nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (relocated_program_headers_can_be_parsed)
@@ -50,6 +51,7 @@ static void on_module_removed (GumModuleRegistry * registry, GumModule * module,
 # define GUM_DEPENDENT_MODULE_FILENAME "module-registry-dependent.dll"
 # define GUM_DEPENDENCY_MODULE_FILENAME "module-registry-dependency.dll"
 # define GUM_DELAY_LOADED_MODULE_FILENAME "windows.storage.dll"
+# define GUM_PROGRAM_MODULE_FILENAME "module-registry-program.exe"
 
 typedef struct _TestFindModuleContext TestFindModuleContext;
 
@@ -339,6 +341,43 @@ TESTCASE (delay_loaded_modules_should_be_registered)
   g_assert_cmphex (range->base_address, ==, GUM_ADDRESS (handle));
   g_assert_cmpuint (range->size, !=, 0);
   g_object_unref (module);
+#else
+  g_test_skip ("only supported on Windows");
+#endif
+}
+
+TESTCASE (executable_images_should_be_registered)
+{
+#ifdef HAVE_WINDOWS
+  gchar * data_dir, * program_path;
+  gunichar2 * program_path_utf16;
+  HMODULE handle;
+  GumModule * module;
+
+  gum_module_registry_obtain ();
+
+  data_dir = test_util_get_data_dir ();
+  program_path = g_build_filename (data_dir, GUM_PROGRAM_MODULE_FILENAME,
+      NULL);
+  program_path_utf16 = g_utf8_to_utf16 (program_path, -1, NULL, NULL, NULL);
+
+  handle = LoadLibraryExW ((LPCWSTR) program_path_utf16, NULL, 0);
+  g_assert_nonnull (handle);
+
+  module = find_registered_module (GUM_PROGRAM_MODULE_FILENAME);
+  g_assert_nonnull (module);
+  g_assert_cmphex (gum_module_get_range (module)->base_address, ==,
+      GUM_ADDRESS (handle));
+  g_object_unref (module);
+
+  FreeLibrary (handle);
+
+  module = find_registered_module (GUM_PROGRAM_MODULE_FILENAME);
+  g_assert_null (module);
+
+  g_free (program_path_utf16);
+  g_free (program_path);
+  g_free (data_dir);
 #else
   g_test_skip ("only supported on Windows");
 #endif
