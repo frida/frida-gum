@@ -155,7 +155,7 @@ gum_module_registry_obtain (void)
     GumModuleRegistry * registry;
 
     registry = g_object_new (GUM_TYPE_MODULE_REGISTRY, NULL);
-    _gum_register_destructor (gum_deinit_module_registry);
+    _gum_register_early_destructor (gum_deinit_module_registry);
 
     activate = TRUE;
 
