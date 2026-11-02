@@ -2645,7 +2645,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_deref_weak)
     return JS_EXCEPTION;
 
   ref = g_hash_table_lookup (core->weak_callbacks, GUINT_TO_POINTER (id));
-  if (ref == NULL)
+  if (ref == NULL || !JS_IsLiveObject (core->rt, ref->target))
     return JS_UNDEFINED;
 
   return JS_DupValue (ctx, ref->target);
