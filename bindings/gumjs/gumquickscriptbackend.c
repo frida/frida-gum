@@ -1018,6 +1018,7 @@ gum_compile_script_task_run (GumScriptTask * task,
   GError * error = NULL;
 
   rt = gum_quick_script_backend_make_runtime (self);
+  JS_SetStripInfo (rt, JS_STRIP_SOURCE);
   ctx = JS_NewContext (rt);
 
   program = gum_quick_script_backend_compile_program (self, ctx, d->name,
