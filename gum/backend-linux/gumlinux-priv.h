@@ -71,6 +71,7 @@ struct _GumLinuxPThreadSpec
 #elif defined (HAVE_ANDROID)
   GumLinuxPThread ** thread_list;
   pthread_rwlock_t * thread_list_lock;
+  guint tcb_offset;
 #endif
 
   gpointer start_impl;

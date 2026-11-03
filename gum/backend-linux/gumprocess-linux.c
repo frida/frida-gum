@@ -95,6 +95,20 @@ typedef struct _GumMipsDebugRegs GumDebugRegs;
 # define GUM_THREAD_STACK_SIZE             0x20000
 #endif
 
+#ifdef HAVE_ANDROID
+# define GUM_BIONIC_TCB_SEARCH_DEPTH             512
+# define GUM_TLS_SLOT_SELF                       0
+# define GUM_TLS_SLOT_THREAD_ID                  1
+# define GUM_TLS_SLOT_NATIVE_BRIDGE_GUEST_STATE  10
+# define GUM_NATIVE_BRIDGE_GUEST_STATE_SIGNATURE \
+    G_GUINT64_CONSTANT (0x5349524542524542)
+# define GUM_NATIVE_BRIDGE_ARCH_ARM64            2
+# define GUM_BERBERIS_FLAG_NEGATIVE              (1 << 15)
+# define GUM_BERBERIS_FLAG_ZERO                  (1 << 14)
+# define GUM_BERBERIS_FLAG_CARRY                 (1 << 8)
+# define GUM_BERBERIS_FLAG_OVERFLOW              (1 << 0)
+#endif
+
 typedef guint GumMipsWatchStyle;
 typedef struct _GumMips32WatchRegs GumMips32WatchRegs;
 typedef struct _GumMips64WatchRegs GumMips64WatchRegs;
@@ -359,6 +373,8 @@ struct _GumMuslStartArgs
 #elif defined (HAVE_ANDROID)
 
 typedef struct _GumFindFunctionByPrefixContext GumFindFunctionByPrefixContext;
+typedef struct _GumNativeBridgeGuestStateHeader GumNativeBridgeGuestStateHeader;
+typedef struct _GumBerberisArm64CpuState GumBerberisArm64CpuState;
 
 struct _GumFindFunctionByPrefixContext
 {
@@ -366,11 +382,34 @@ struct _GumFindFunctionByPrefixContext
   GumAddress address;
 };
 
+struct _GumNativeBridgeGuestStateHeader
+{
+  guint64 signature;
+  guint32 host_arch;
+  guint32 guest_arch;
+  gconstpointer guest_state_data;
+  gsize guest_state_data_size;
+};
+
+struct _GumBerberisArm64CpuState
+{
+  guint64 x[31];
+  guint16 flags;
+  guint32 cached_fpcr;
+  guint32 emulated_fpsr;
+  guint64 sp;
+  GumArm64VectorReg v[32];
+  guint64 insn_addr;
+};
+
 #endif
 
 static gboolean gum_try_resolve_dynamic_symbol (const gchar * name,
     Dl_info * info);
 
+static void gum_describe_pthread (GumThreadDetails * entry, pthread_t thread,
+    const GumLinuxPThreadSpec * spec, GumThreadFlags flags);
+static gboolean gum_runs_on_native_bridge (void);
 static void gum_collect_thread_entrypoint (GumThreadDetails * entry,
     pthread_t thread, const GumLinuxPThreadSpec * spec, GumThreadFlags flags);
 static gboolean gum_fill_thread_details (GumThreadDetails * entry,
@@ -470,10 +509,22 @@ static GumMuslStartArgs * gum_query_pthread_start_args (pthread_t thread,
     const GumLinuxPThreadSpec * spec);
 #endif
 #ifdef HAVE_ANDROID
+static gboolean gum_detect_bridge_host_pthread_internals (
+    GumLinuxPThreadSpec * spec);
+static GumModule * gum_find_bridge_host_libc (void);
+static gboolean gum_detect_bionic_tcb_offset (GumLinuxPThreadSpec * spec);
+static gboolean gum_try_find_bionic_tcb_offset (pthread_t thread,
+    guint * offset);
+static gboolean gum_detect_libc_pthread_internals (GumLinuxPThreadSpec * spec);
 static GumAddress gum_find_function_symbol_by_prefix (GumModule * module,
     const gchar * prefix);
 static gboolean gum_store_first_function_symbol_with_prefix (
     const GumSymbolDetails * details, gpointer user_data);
+static void gum_collect_guest_cpu_context (GumThreadDetails * entry,
+    pthread_t thread, const GumLinuxPThreadSpec * spec, GumThreadFlags flags);
+# ifdef HAVE_ARM64
+static guint64 gum_nzcv_from_berberis_flags (guint16 flags);
+# endif
 #endif
 
 static gssize gum_libc_clone (GumCloneFunc child_func, gpointer child_stack,
@@ -578,8 +629,7 @@ gum_process_find_thread_by_id (GumThreadId thread_id,
     if (gum_linux_query_pthread_tid (thread, spec) == thread_id)
     {
       details = g_slice_new0 (GumThreadDetails);
-      details->id = thread_id;
-      gum_collect_thread_entrypoint (details, thread, spec, flags);
+      gum_describe_pthread (details, thread, spec, flags);
       break;
     }
   }
@@ -1138,8 +1188,7 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   {
     GumThreadDetails entry = { 0, };
 
-    entry.id = gum_linux_query_pthread_tid (thread, spec);
-    gum_collect_thread_entrypoint (&entry, thread, spec, flags);
+    gum_describe_pthread (&entry, thread, spec, flags);
 
     g_array_append_val (entries, entry);
   }
@@ -1163,6 +1212,35 @@ _gum_process_enumerate_threads (GumFoundThreadFunc func,
   }
 
   g_array_unref (entries);
+}
+
+static void
+gum_describe_pthread (GumThreadDetails * entry,
+                      pthread_t thread,
+                      const GumLinuxPThreadSpec * spec,
+                      GumThreadFlags flags)
+{
+  entry->id = gum_linux_query_pthread_tid (thread, spec);
+
+#ifdef HAVE_ANDROID
+  if (gum_runs_on_native_bridge ())
+  {
+    gum_collect_guest_cpu_context (entry, thread, spec, flags);
+    return;
+  }
+#endif
+
+  gum_collect_thread_entrypoint (entry, thread, spec, flags);
+}
+
+static gboolean
+gum_runs_on_native_bridge (void)
+{
+#ifdef HAVE_ANDROID
+  return gum_android_get_linker_flavor () == GUM_ANDROID_LINKER_EMULATED;
+#else
+  return FALSE;
+#endif
 }
 
 static void
@@ -1212,7 +1290,8 @@ gum_fill_thread_details (GumThreadDetails * entry,
     entry->flags |= GUM_THREAD_FLAGS_STATE;
   }
 
-  if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0)
+  if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0 &&
+      !gum_runs_on_native_bridge ())
   {
     if (!gum_linux_query_thread_cpu_context (entry->id, &entry->cpu_context))
       return FALSE;
@@ -4584,6 +4663,142 @@ gum_linux_unlock_pthread_list (const GumLinuxPThreadSpec * spec)
 static gboolean
 gum_detect_pthread_internals (GumLinuxPThreadSpec * spec)
 {
+  if (gum_runs_on_native_bridge ())
+    return gum_detect_bridge_host_pthread_internals (spec);
+
+  return gum_detect_libc_pthread_internals (spec);
+}
+
+static gboolean
+gum_detect_bridge_host_pthread_internals (GumLinuxPThreadSpec * spec)
+{
+  GumModule * libc;
+
+  libc = gum_find_bridge_host_libc ();
+
+  spec->thread_list = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (libc,
+      "_ZL13g_thread_list"));
+  spec->thread_list_lock = GSIZE_TO_POINTER (gum_module_find_symbol_by_name (
+        libc, "_ZL18g_thread_list_lock"));
+
+  g_object_unref (libc);
+
+  if (spec->thread_list == NULL || spec->thread_list_lock == NULL)
+    return FALSE;
+
+  return gum_detect_bionic_tcb_offset (spec);
+}
+
+static GumModule *
+gum_find_bridge_host_libc (void)
+{
+  GumModule * libc = NULL;
+  const gchar * guest_libc_path;
+  GumProcMapsIter iter;
+  const gchar * line;
+  gchar * path;
+  GumAddress image_start = 0;
+
+  guest_libc_path = gum_module_get_path (gum_process_get_libc_module ());
+
+  gum_proc_maps_iter_init_for_self (&iter);
+  path = g_malloc (PATH_MAX);
+
+  while (libc == NULL && gum_proc_maps_iter_next (&iter, &line))
+  {
+    GumAddress start, end;
+    gchar perms[5] = { 0, };
+    guint64 offset;
+    gint n;
+
+    n = sscanf (line,
+        "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
+        "%4c "
+        "%" G_GINT64_MODIFIER "x %*s %*d "
+        "%[^\n]",
+        &start, &end,
+        perms,
+        &offset,
+        path);
+    if (n != 5 ||
+        !g_str_has_suffix (path, "/libc.so") ||
+        strcmp (path, guest_libc_path) == 0)
+      continue;
+
+    if (offset == 0)
+      image_start = start;
+
+    if (perms[1] == 'w')
+    {
+      GumMemoryRange range;
+
+      range.base_address = image_start;
+      range.size = end - image_start;
+
+      libc = GUM_MODULE (_gum_native_module_make_handleless (path, &range));
+    }
+  }
+
+  g_free (path);
+  gum_proc_maps_iter_destroy (&iter);
+
+  return libc;
+}
+
+static gboolean
+gum_detect_bionic_tcb_offset (GumLinuxPThreadSpec * spec)
+{
+  gboolean found = FALSE;
+  GumThreadId self_id;
+  GumLinuxPThreadIter iter;
+  pthread_t thread;
+
+  self_id = gum_process_get_current_thread_id ();
+
+  gum_linux_lock_pthread_list (spec);
+
+  gum_linux_pthread_iter_init (&iter, spec);
+  while (gum_linux_pthread_iter_next (&iter, &thread))
+  {
+    if (gum_linux_query_pthread_tid (thread, spec) == self_id)
+    {
+      found = gum_try_find_bionic_tcb_offset (thread, &spec->tcb_offset);
+      break;
+    }
+  }
+
+  gum_linux_unlock_pthread_list (spec);
+
+  return found;
+}
+
+static gboolean
+gum_try_find_bionic_tcb_offset (pthread_t thread,
+                                guint * offset)
+{
+  gpointer * fields = GSIZE_TO_POINTER (thread);
+  guint i;
+
+  for (i = 0; i != GUM_BIONIC_TCB_SEARCH_DEPTH; i++)
+  {
+    gpointer * candidate = fields[i];
+
+    if (candidate > fields &&
+        candidate < fields + GUM_BIONIC_TCB_SEARCH_DEPTH &&
+        candidate[GUM_TLS_SLOT_SELF] == candidate &&
+        candidate[GUM_TLS_SLOT_THREAD_ID] == fields)
+    {
+      *offset = i * sizeof (gpointer);
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_detect_libc_pthread_internals (GumLinuxPThreadSpec * spec)
+{
   GumModule * libc;
   gpointer start_prologue;
 #ifdef HAVE_ARM
@@ -4828,6 +5043,57 @@ gum_store_first_function_symbol_with_prefix (const GumSymbolDetails * details,
 
   return TRUE;
 }
+
+static void
+gum_collect_guest_cpu_context (GumThreadDetails * entry,
+                               pthread_t thread,
+                               const GumLinuxPThreadSpec * spec,
+                               GumThreadFlags flags)
+{
+#ifdef HAVE_ARM64
+  gpointer * tcb;
+  const GumNativeBridgeGuestStateHeader * header;
+  const GumBerberisArm64CpuState * state;
+  GumCpuContext * ctx = &entry->cpu_context;
+
+  if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) == 0)
+    return;
+
+  tcb = *((gpointer **) (GSIZE_TO_POINTER (thread) + spec->tcb_offset));
+  header = tcb[GUM_TLS_SLOT_NATIVE_BRIDGE_GUEST_STATE];
+  if (header == NULL ||
+      header->signature != GUM_NATIVE_BRIDGE_GUEST_STATE_SIGNATURE ||
+      header->guest_arch != GUM_NATIVE_BRIDGE_ARCH_ARM64)
+    return;
+
+  state = header->guest_state_data;
+  if (state->insn_addr == 0)
+    return;
+
+  ctx->pc = state->insn_addr;
+  ctx->sp = state->sp;
+  ctx->nzcv = gum_nzcv_from_berberis_flags (state->flags);
+  memcpy (ctx->x, state->x, sizeof (ctx->x));
+  ctx->fp = state->x[29];
+  ctx->lr = state->x[30];
+  memcpy (ctx->v, state->v, sizeof (ctx->v));
+
+  entry->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+#endif
+}
+
+#ifdef HAVE_ARM64
+
+static guint64
+gum_nzcv_from_berberis_flags (guint16 flags)
+{
+  return ((guint64) ((flags & GUM_BERBERIS_FLAG_NEGATIVE) != 0) << 31) |
+      ((guint64) ((flags & GUM_BERBERIS_FLAG_ZERO) != 0) << 30) |
+      ((guint64) ((flags & GUM_BERBERIS_FLAG_CARRY) != 0) << 29) |
+      ((guint64) ((flags & GUM_BERBERIS_FLAG_OVERFLOW) != 0) << 28);
+}
+
+#endif
 
 #endif
 
