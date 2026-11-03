@@ -137,6 +137,7 @@ struct _GumPeTlsDetails
 {
   guint32 template_rva;
   gsize template_size;
+  gsize zero_fill_size;
   guint32 index_rva;
 };
 

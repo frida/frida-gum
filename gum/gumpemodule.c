@@ -822,6 +822,7 @@ gum_pe_module_get_tls_details (GumPeModule * self,
   details->template_rva = tls.start_address_of_raw_data - self->image_base;
   details->template_size =
       tls.end_address_of_raw_data - tls.start_address_of_raw_data;
+  details->zero_fill_size = tls.size_of_zero_fill;
   details->index_rva = tls.address_of_index - self->image_base;
 
   return TRUE;
