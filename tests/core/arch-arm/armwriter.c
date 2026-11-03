@@ -52,7 +52,7 @@ TESTCASE (far_branch_should_not_touch_stack)
 
   gum_arm_writer_put_branch_address (&fixture->aw, target);
   gum_arm_writer_flush (&fixture->aw);
-  assert_output_n_equals (0, 0xe51ff004); /* ldr pc, [pc, #-4] */
+  assert_output_n_equals (0, 0xe51ff004);
   g_assert_cmphex (fixture->output[1 + 0], ==, (guint32) target);
 }
 
@@ -62,8 +62,8 @@ TESTCASE (far_call_should_not_touch_stack)
 
   gum_arm_writer_put_call_address_with_arguments (&fixture->aw, target, 0);
   gum_arm_writer_flush (&fixture->aw);
-  assert_output_n_equals (0, 0xe28fe000); /* add lr, pc, #0 */
-  assert_output_n_equals (1, 0xe51ff004); /* ldr pc, [pc, #-4] */
+  assert_output_n_equals (0, 0xe28fe000);
+  assert_output_n_equals (1, 0xe51ff004);
   g_assert_cmphex (fixture->output[2 + 0], ==, (guint32) target);
 }
 

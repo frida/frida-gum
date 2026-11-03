@@ -5202,3 +5202,30 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
 
   return TRUE;
 }
+
+#define GUM_V8_STACK_SIZE_DEFAULT (984 * 1024)
+#define GUM_V8_STACK_MARGIN (32 * 1024)
+
+GumV8StalkerStackScope::GumV8StalkerStackScope (v8::Isolate * isolate,
+    GumStalker * stalker)
+  : isolate (isolate),
+    active (FALSE),
+    host_limit (0)
+{
+  gpointer base, top;
+  volatile guint8 marker = 0;
+
+  if (!gum_stalker_get_current_stack_range (stalker, &base, &top))
+    return;
+
+  host_limit = GPOINTER_TO_SIZE (&marker) - GUM_V8_STACK_SIZE_DEFAULT;
+
+  isolate->SetStackLimit (GPOINTER_TO_SIZE (base) + GUM_V8_STACK_MARGIN);
+  active = TRUE;
+}
+
+GumV8StalkerStackScope::~GumV8StalkerStackScope ()
+{
+  if (active)
+    isolate->SetStackLimit (host_limit);
+}

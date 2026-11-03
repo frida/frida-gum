@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2020-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -117,6 +117,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_put_callout)
 GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_put_chaining_return)
+GUMJS_DECLARE_FUNCTION (gumjs_default_iterator_get_user_data_reg)
 
 static JSValue gum_quick_special_iterator_new (GumQuickStalker * parent,
     GumQuickSpecialIterator ** iterator);
@@ -128,6 +129,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_put_callout)
 GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_put_chaining_return)
+GUMJS_DECLARE_FUNCTION (gumjs_special_iterator_get_user_data_reg)
 
 static void gum_quick_callout_free (GumQuickCallout * callout);
 static void gum_quick_callout_on_invoke (GumCpuContext * cpu_context,
@@ -205,6 +207,7 @@ static const JSCFunctionListEntry gumjs_default_iterator_entries[] =
   JS_CFUNC_DEF ("putCallout", 0, gumjs_default_iterator_put_callout),
   JS_CFUNC_DEF ("putChainingReturn", 0,
       gumjs_default_iterator_put_chaining_return),
+  JS_CFUNC_DEF ("getUserDataReg", 0, gumjs_default_iterator_get_user_data_reg),
 };
 
 static const JSClassDef gumjs_special_iterator_def =
@@ -222,6 +225,7 @@ static const JSCFunctionListEntry gumjs_special_iterator_entries[] =
   JS_CFUNC_DEF ("putCallout", 0, gumjs_special_iterator_put_callout),
   JS_CFUNC_DEF ("putChainingReturn", 0,
       gumjs_special_iterator_put_chaining_return),
+  JS_CFUNC_DEF ("getUserDataReg", 0, gumjs_special_iterator_get_user_data_reg),
 };
 
 static const JSClassExoticMethods gumjs_probe_args_exotic_methods =
@@ -1024,6 +1028,18 @@ gum_quick_stalker_iterator_put_callout (GumQuickIterator * self,
 }
 
 static JSValue
+gum_quick_stalker_iterator_get_user_data_reg (GumQuickIterator * self,
+                                              JSContext * ctx)
+{
+  GumCpuReg reg;
+
+  reg = gum_stalker_iterator_get_user_data_reg (self->handle);
+
+  return JS_NewString (ctx, cs_reg_name (
+      gum_stalker_iterator_get_capstone (self->handle), reg));
+}
+
+static JSValue
 gum_quick_stalker_iterator_put_chaining_return (GumQuickIterator * self,
                                                 JSContext * ctx)
 {
@@ -1161,6 +1177,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_default_iterator_put_chaining_return)
   return gum_quick_stalker_iterator_put_chaining_return (&self->iterator, ctx);
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_default_iterator_get_user_data_reg)
+{
+  GumQuickDefaultIterator * self;
+
+  if (!gum_quick_default_iterator_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  return gum_quick_stalker_iterator_get_user_data_reg (&self->iterator, ctx);
+}
+
 static JSValue
 gum_quick_special_iterator_new (GumQuickStalker * parent,
                                 GumQuickSpecialIterator ** iterator)
@@ -1288,6 +1314,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_special_iterator_put_chaining_return)
     return JS_EXCEPTION;
 
   return gum_quick_stalker_iterator_put_chaining_return (&self->iterator, ctx);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_special_iterator_get_user_data_reg)
+{
+  GumQuickSpecialIterator * self;
+
+  if (!gum_quick_special_iterator_get (ctx, this_val, core, &self))
+    return JS_EXCEPTION;
+
+  return gum_quick_stalker_iterator_get_user_data_reg (&self->iterator, ctx);
 }
 
 static void

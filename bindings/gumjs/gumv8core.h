@@ -16,6 +16,7 @@
 
 #include <gum/gumexceptor.h>
 #include <gum/gumprocess.h>
+#include <gum/gumstalker-priv.h>
 #include <v8.h>
 #include <v8-external-memory-accounter.h>
 
@@ -183,5 +184,17 @@ G_GNUC_INTERNAL void _gum_v8_core_post (GumV8Core * self, const gchar * message,
 
 G_GNUC_INTERNAL void _gum_v8_core_push_job (GumV8Core * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
+
+class GumV8StalkerStackScope
+{
+public:
+  GumV8StalkerStackScope (v8::Isolate * isolate, GumStalker * stalker);
+  ~GumV8StalkerStackScope ();
+
+private:
+  v8::Isolate * isolate;
+  gboolean active;
+  gsize host_limit;
+};
 
 #endif

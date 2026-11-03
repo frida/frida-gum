@@ -494,6 +494,7 @@ TESTLIST_BEGIN (script)
 #if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
     TESTENTRY (execution_can_be_traced)
     TESTENTRY (execution_can_be_traced_with_custom_transformer)
+    TESTENTRY (get_user_data_reg_returns_register_name)
     TESTENTRY (execution_can_be_traced_with_faulty_transformer)
     TESTENTRY (execution_can_be_traced_during_immediate_native_function_call)
     TESTENTRY (execution_can_be_traced_during_scheduled_native_function_call)
@@ -693,6 +694,7 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
 static gpointer run_stalked_through_hooked_function (gpointer data);
 static gpointer run_stalked_through_block_invalidated_in_callout (
     gpointer data);
+static gpointer run_target_for_user_data_reg_name (gpointer data);
 static gpointer run_stalked_through_block_invalidated_by_request (
     gpointer data);
 static gpointer run_stalked_through_target_function (gpointer data);
@@ -5324,6 +5326,73 @@ TESTCASE (execution_can_be_traced)
   POST_MESSAGE ("{\"type\":\"stop\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"onCallSummary: true\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onReceive: true\"");
+}
+
+TESTCASE (get_user_data_reg_returns_register_name)
+{
+  StalkerDummyChannel channel;
+  GThread * thread;
+  GumThreadId thread_id;
+
+  sdc_init (&channel);
+
+  thread = g_thread_new ("stalker-test-target",
+      run_target_for_user_data_reg_name, &channel);
+  thread_id = sdc_await_thread_id (&channel);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const targetThreadId = %" G_GSIZE_FORMAT ";"
+      "let sent = false;"
+      "Stalker.follow(targetThreadId, {"
+      "  transform(iterator) {"
+      "    let instruction;"
+      "    while ((instruction = iterator.next()) !== null) {"
+      "      if (!sent) {"
+      "        sent = true;"
+      "        send(/^[a-z][a-z0-9]*$/.test(iterator.getUserDataReg()));"
+      "      }"
+      "      iterator.keep();"
+      "    }"
+      "  }"
+      "});"
+      "recv('stop', message => {"
+      "  Stalker.unfollow(targetThreadId);"
+      "  Stalker.flush();"
+      "  send('stopped');"
+      "});"
+      "send('ready');",
+      thread_id);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
+
+  EXPECT_NO_MESSAGES ();
+  sdc_put_follow_confirmation (&channel);
+
+  POST_MESSAGE ("{\"type\":\"stop\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"stopped\"");
+  EXPECT_NO_MESSAGES ();
+
+  sdc_put_finish_confirmation (&channel);
+
+  g_thread_join (thread);
+
+  sdc_finalize (&channel);
+}
+
+static gpointer
+run_target_for_user_data_reg_name (gpointer data)
+{
+  StalkerDummyChannel * channel = data;
+
+  sdc_put_thread_id (channel, gum_process_get_current_thread_id ());
+
+  sdc_await_follow_confirmation (channel);
+
+  target_function_int (42);
+
+  sdc_await_finish_confirmation (channel);
+
+  return NULL;
 }
 
 TESTCASE (execution_can_be_traced_with_custom_transformer)

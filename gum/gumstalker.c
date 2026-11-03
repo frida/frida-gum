@@ -61,6 +61,8 @@ static void gum_callback_stalker_transformer_finalize (GObject * object);
 static void gum_callback_stalker_transformer_transform_block (
     GumStalkerTransformer * transformer, GumStalkerIterator * iterator,
     GumStalkerOutput * output);
+static gpointer gum_callback_stalker_transformer_get_user_data (
+    GumStalkerTransformer * transformer, GumThreadId thread_id);
 
 static void gum_stalker_observer_default_init (
     GumStalkerObserverInterface * iface);
@@ -776,6 +778,7 @@ gum_callback_stalker_transformer_iface_init (gpointer g_iface,
   GumStalkerTransformerInterface * iface = g_iface;
 
   iface->transform_block = gum_callback_stalker_transformer_transform_block;
+  iface->get_user_data = gum_callback_stalker_transformer_get_user_data;
 }
 
 static void
@@ -806,6 +809,14 @@ gum_callback_stalker_transformer_transform_block (
       (GumCallbackStalkerTransformer *) transformer;
 
   self->callback (iterator, output, self->data);
+}
+
+static gpointer
+gum_callback_stalker_transformer_get_user_data (
+    GumStalkerTransformer * transformer,
+    GumThreadId thread_id)
+{
+  return ((GumCallbackStalkerTransformer *) transformer)->data;
 }
 
 /**
@@ -968,3 +979,15 @@ gum_stalker_observer_switch_callback (GumStalkerObserver * observer,
   iface->switch_callback (observer, from_address, start_address, from_insn,
       target);
 }
+
+#if !defined (HAVE_I386) && !defined (HAVE_ARM64)
+
+gboolean
+gum_stalker_get_current_stack_range (GumStalker * self,
+                                     gpointer * base,
+                                     gpointer * top)
+{
+  return FALSE;
+}
+
+#endif

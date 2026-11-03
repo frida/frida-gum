@@ -3485,3 +3485,49 @@ gum_get_jcc_opcode (x86_insn instruction_id)
       return 0xe3;
   }
 }
+
+GumX86Reg
+gum_x86_reg_from_capstone (x86_reg reg)
+{
+  switch (reg)
+  {
+    case X86_REG_EAX: return GUM_X86_EAX;
+    case X86_REG_ECX: return GUM_X86_ECX;
+    case X86_REG_EDX: return GUM_X86_EDX;
+    case X86_REG_EBX: return GUM_X86_EBX;
+    case X86_REG_ESP: return GUM_X86_ESP;
+    case X86_REG_EBP: return GUM_X86_EBP;
+    case X86_REG_ESI: return GUM_X86_ESI;
+    case X86_REG_EDI: return GUM_X86_EDI;
+    case X86_REG_R8D: return GUM_X86_R8D;
+    case X86_REG_R9D: return GUM_X86_R9D;
+    case X86_REG_R10D: return GUM_X86_R10D;
+    case X86_REG_R11D: return GUM_X86_R11D;
+    case X86_REG_R12D: return GUM_X86_R12D;
+    case X86_REG_R13D: return GUM_X86_R13D;
+    case X86_REG_R14D: return GUM_X86_R14D;
+    case X86_REG_R15D: return GUM_X86_R15D;
+    case X86_REG_EIP: return GUM_X86_EIP;
+
+    case X86_REG_RAX: return GUM_X86_RAX;
+    case X86_REG_RCX: return GUM_X86_RCX;
+    case X86_REG_RDX: return GUM_X86_RDX;
+    case X86_REG_RBX: return GUM_X86_RBX;
+    case X86_REG_RSP: return GUM_X86_RSP;
+    case X86_REG_RBP: return GUM_X86_RBP;
+    case X86_REG_RSI: return GUM_X86_RSI;
+    case X86_REG_RDI: return GUM_X86_RDI;
+    case X86_REG_R8: return GUM_X86_R8;
+    case X86_REG_R9: return GUM_X86_R9;
+    case X86_REG_R10: return GUM_X86_R10;
+    case X86_REG_R11: return GUM_X86_R11;
+    case X86_REG_R12: return GUM_X86_R12;
+    case X86_REG_R13: return GUM_X86_R13;
+    case X86_REG_R14: return GUM_X86_R14;
+    case X86_REG_R15: return GUM_X86_R15;
+    case X86_REG_RIP: return GUM_X86_RIP;
+
+    default:
+      return GUM_X86_NONE;
+  }
+}

@@ -1,6 +1,7 @@
 #ifndef __GUMDEFS_H__
 #define __GUMDEFS_H__
 
+#include <capstone.h>
 #include <glib.h>
 
 #define GUM_ADDRESS(a) ((GumAddress) (guintptr) (a))
@@ -16,6 +17,16 @@ typedef guint GumArgType;
 typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
 typedef struct _GumCpuContext GumCpuContext;
+#if defined (HAVE_I386)
+typedef guint GumX86Reg;
+typedef x86_reg GumCpuReg;
+#elif defined (HAVE_ARM)
+typedef arm_reg GumCpuReg;
+#elif defined (HAVE_ARM64)
+typedef arm64_reg GumCpuReg;
+#elif defined (HAVE_MIPS)
+typedef mips_reg GumCpuReg;
+#endif
 typedef union _GumX86VectorReg GumX86VectorReg;
 typedef union _GumArmVectorReg GumArmVectorReg;
 typedef union _GumArm64VectorReg GumArm64VectorReg;

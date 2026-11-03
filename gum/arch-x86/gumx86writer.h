@@ -18,7 +18,6 @@
 G_BEGIN_DECLS
 
 typedef struct _GumX86Writer GumX86Writer;
-typedef guint GumX86Reg;
 typedef guint GumX86PtrTarget;
 
 struct _GumX86Writer
@@ -124,6 +123,9 @@ GUM_API guint gum_x86_writer_offset (GumX86Writer * self);
 
 GUM_API gboolean gum_x86_writer_flush (GumX86Writer * self);
 
+#if !defined (GUM_GIR_COMPILATION)
+GUM_API GumX86Reg gum_x86_reg_from_capstone (x86_reg reg);
+#endif
 GUM_API GumX86Reg gum_x86_writer_get_cpu_register_for_nth_argument (
     GumX86Writer * self, guint n);
 
