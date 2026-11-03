@@ -18,6 +18,8 @@
 # define GUM_THREAD_PARAM_DETECT_MAGIC G_GUINT64_CONSTANT (0x1122334455667788)
 #endif
 
+typedef DWORD (WINAPI * GumGetThreadIdFunc) (HANDLE thread);
+
 static gboolean gum_add_existing_thread (const GumThreadDetails * thread,
     gpointer user_data);
 static void gum_thread_registry_on_thread_start (GumInvocationContext * ic,
@@ -33,6 +35,7 @@ static GumInterceptor * gum_thread_interceptor;
 static GumInvocationListener * gum_start_handler;
 static GumInvocationListener * gum_terminate_handler;
 static GumInvocationListener * gum_rename_handler = NULL;
+static GumGetThreadIdFunc gum_get_thread_id;
 
 void
 _gum_thread_registry_activate (GumThreadRegistry * self)
@@ -55,6 +58,8 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
       gum_thread_registry_on_thread_terminate, self, NULL);
   if (set_description_impl != NULL)
   {
+    gum_get_thread_id = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name (kernel32, "GetThreadId"));
     gum_rename_handler = gum_make_probe_listener (
         gum_thread_registry_on_set_thread_description, self, NULL);
   }
@@ -164,7 +169,7 @@ gum_thread_registry_on_set_thread_description (GumInvocationContext * ic,
   name_utf16 = gum_invocation_context_get_nth_argument (ic, 1);
   name = g_utf16_to_utf8 (name_utf16, -1, NULL, NULL, NULL);
 
-  _gum_thread_registry_rename (registry, GetThreadId (thread), name);
+  _gum_thread_registry_rename (registry, gum_get_thread_id (thread), name);
 
   g_free (name);
 }
