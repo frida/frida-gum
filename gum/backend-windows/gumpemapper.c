@@ -65,12 +65,15 @@
 # define GUM_PE_LDR_TLS_FLAGS_FIELD 0x94
 #endif
 
+#define GUM_PE_TLS_HEAD_MAX_INSNS 64
+
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 # define GUM_PE_TLS_ENTRY_REG X86_REG_ECX
-# define GUM_PE_TLS_FLAGS_REG X86_REG_EDX
+# define GUM_PE_TLS_ENTRY_SLOT 8
+# define GUM_PE_TLS_RETURN_REG X86_REG_EAX
 #elif defined (HAVE_I386)
 # define GUM_PE_TLS_ENTRY_REG X86_REG_RCX
-# define GUM_PE_TLS_FLAGS_REG X86_REG_RDX
+# define GUM_PE_TLS_RETURN_REG X86_REG_RAX
 #endif
 
 #define GUM_TYPE_PE_MAPPER (gum_pe_mapper_get_type ())
@@ -85,8 +88,11 @@ typedef struct _GumPeFindSectionContext GumPeFindSectionContext;
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 typedef struct _GumPeChpeMetadataX86 GumPeChpeMetadataX86;
 #endif
+#if defined (HAVE_I386)
+typedef struct _GumPeX86TlsScanner GumPeX86TlsScanner;
+typedef struct _GumPeX86FunctionHead GumPeX86FunctionHead;
+#endif
 #if GLIB_SIZEOF_VOID_P == 8 && !defined (HAVE_ARM64)
-typedef struct _GumPeX64TlsScanContext GumPeX64TlsScanContext;
 typedef struct _GumPeTlsShared GumPeTlsShared;
 typedef struct _GumPeTlsEntry GumPeTlsEntry;
 typedef struct _GumPeArm64Thunk GumPeArm64Thunk;
@@ -235,16 +241,27 @@ struct _GumPeChpeMetadataX86
 };
 #endif
 
-#if GLIB_SIZEOF_VOID_P == 8 && !defined (HAVE_ARM64)
-struct _GumPeX64TlsScanContext
+#if defined (HAVE_I386)
+struct _GumPeX86FunctionHead
 {
-  csh cs;
-  GumAddress base;
-  GumAddress limit;
-  GumAddress * handle;
-  GumAddress * release;
+  cs_insn insns[GUM_PE_TLS_HEAD_MAX_INSNS];
+  cs_detail details[GUM_PE_TLS_HEAD_MAX_INSNS];
+  size_t count;
 };
 
+struct _GumPeX86TlsScanner
+{
+  csh cs;
+  cs_insn * insn;
+  GumAddress base;
+  GumAddress limit;
+  GumAddress handle;
+  GumAddress release;
+  GumPeX86FunctionHead head;
+};
+#endif
+
+#if GLIB_SIZEOF_VOID_P == 8 && !defined (HAVE_ARM64)
 struct _GumPeTlsShared
 {
   guint64 magic;
@@ -299,6 +316,7 @@ static void gum_pe_mapper_enumerate_exports (GumMapper * mapper,
     GumFoundExportFunc func, gpointer user_data);
 static void gum_pe_mapper_init_footprint_budget (GumPeMapper * self);
 static gboolean gum_count_tls_callback (GumAddress rva, gpointer user_data);
+static gboolean gum_loader_supports_dynamic_tls (void);
 static gboolean gum_pe_mapper_map_shared (GumPeMapper * self,
     gsize extra_vm_size);
 static gsize gum_pe_mapper_compute_shareable_size (GumPeMapper * self);
@@ -353,19 +371,45 @@ static gboolean gum_scan_x64_function (GumAddress rva, gpointer user_data);
 # else
 static void gum_resolve_wowa64_dispatch_slots (GumPeModule * ntdll,
     GumAddress base);
-static void gum_resolve_x86_tls (GumAddress base, GumAddress limit,
+static void gum_resolve_x86_tls (GumPeModule * ntdll, GumAddress base,
     GumAddress * handle, GumAddress * release);
+static gboolean gum_find_text_section (const GumPeSectionDetails * details,
+    gpointer user_data);
+static GArray * gum_collect_x86_call_targets (GumAddress base,
+    GumAddress limit);
+static gint gum_compare_addresses (gconstpointer a, gconstpointer b);
 # endif
 #endif
 #if defined (HAVE_I386)
-static gboolean gum_function_is_ldr_handle_tls_data (cs_insn * insns,
-    size_t count);
-static gboolean gum_function_is_ldr_release_tls_entry (cs_insn * insns,
-    size_t count);
-# if GLIB_SIZEOF_VOID_P == 4
-static void gum_reg_set_update (x86_reg * regs, guint * n, x86_reg dst,
-    x86_reg src);
-# endif
+static GumPeX86TlsScanner * gum_pe_x86_tls_scanner_new (cs_mode mode,
+    GumAddress base, GumAddress limit);
+static gboolean gum_pe_x86_tls_scanner_consider (GumPeX86TlsScanner * self,
+    GumAddress function);
+static void gum_pe_x86_tls_scanner_free (GumPeX86TlsScanner * scanner);
+static void gum_pe_x86_tls_scanner_read_head (GumPeX86TlsScanner * self,
+    GumAddress function);
+static gboolean gum_pe_x86_function_head_contains (
+    const GumPeX86FunctionHead * head, GumAddress address);
+static GumAddress gum_pe_x86_tls_scanner_resolve_jump (
+    GumPeX86TlsScanner * self, const cs_insn * insn);
+static void gum_pe_x86_function_head_append (GumPeX86FunctionHead * head,
+    const cs_insn * insn);
+static gboolean gum_function_is_ldr_handle_tls_data (
+    const GumPeX86FunctionHead * head);
+static gboolean gum_x86_insn_passes_tls_directory (const cs_insn * insn);
+static gboolean gum_x86_insn_reads_dll_base (const cs_insn * insn,
+    const x86_reg * entry_regs, guint num_entry_regs);
+static gboolean gum_function_is_ldr_release_tls_entry (
+    const GumPeX86FunctionHead * head);
+static gboolean gum_x86_op_is_field_of (const cs_x86_op * op,
+    const x86_reg * regs, guint n);
+static void gum_entry_regs_track (x86_reg * regs, guint * n,
+    const cs_insn * insn);
+static gboolean gum_x86_op_is_entry_slot (const cs_x86_op * op);
+static void gum_reg_set_track (x86_reg * regs, guint * n,
+    const cs_insn * insn);
+static void gum_reg_set_add (x86_reg * regs, guint * n, x86_reg reg);
+static void gum_reg_set_remove (x86_reg * regs, guint * n, x86_reg reg);
 static gboolean gum_reg_set_contains (const x86_reg * regs, guint n,
     x86_reg reg);
 #endif
@@ -849,7 +893,8 @@ gum_pe_mapper_init_footprint_budget (GumPeMapper * self)
       != 0;
 
   self->has_static_tls =
-      gum_pe_module_get_directory (module, GUM_PE_DIRECTORY_TLS)->size != 0;
+      gum_pe_module_get_directory (module, GUM_PE_DIRECTORY_TLS)->size != 0 &&
+      gum_loader_supports_dynamic_tls ();
 
   runtime_size = GUM_PE_MAPPER_CODE_BASE_SIZE +
       (2 * self->tls_callback_count * GUM_PE_MAPPER_TLS_CALL_SIZE) +
@@ -874,6 +919,21 @@ gum_count_tls_callback (GumAddress rva,
   self->tls_callback_count++;
 
   return TRUE;
+}
+
+static gboolean
+gum_loader_supports_dynamic_tls (void)
+{
+  NTSTATUS (WINAPI * rtl_get_version) (PRTL_OSVERSIONINFOW info);
+  RTL_OSVERSIONINFOW info = { 0, };
+
+  rtl_get_version = (NTSTATUS (WINAPI *) (PRTL_OSVERSIONINFOW))
+      GetProcAddress (GetModuleHandleW (L"ntdll.dll"), "RtlGetVersion");
+
+  info.dwOSVersionInfoSize = sizeof (info);
+  rtl_get_version (&info);
+
+  return info.dwMajorVersion >= 6;
 }
 
 static gboolean
@@ -1256,16 +1316,13 @@ gum_collect_tls_callback (GumAddress rva,
 static void
 gum_pe_mapper_prepare_tls (GumPeMapper * self)
 {
-  const GumPeDataDirectory * tls =
-      gum_pe_module_get_directory (self->module, GUM_PE_DIRECTORY_TLS);
   GumAddress dll_base;
 
-  if (tls->size == 0)
+  if (!self->has_static_tls)
     return;
 
   gum_resolve_loader_tls ();
 
-  self->has_static_tls = TRUE;
   self->tls_handle = GUM_ADDRESS (gum_ldr_handle_tls_data);
   self->tls_release = GUM_ADDRESS (gum_ldr_release_tls_entry);
 #if GLIB_SIZEOF_VOID_P == 8 && !defined (HAVE_ARM64)
@@ -1335,7 +1392,8 @@ gum_resolve_loader_tls (void)
       gum_resolve_x64_tls (_gum_native_module_get_pe_module (ntdll), base,
           limit, &handle, &release);
 # else
-      gum_resolve_x86_tls (base, limit, &handle, &release);
+      gum_resolve_x86_tls (_gum_native_module_get_pe_module (ntdll), base,
+          &handle, &release);
 # endif
     }
 #endif
@@ -1731,47 +1789,26 @@ gum_resolve_x64_tls (GumPeModule * ntdll,
                      GumAddress * handle,
                      GumAddress * release)
 {
-  GumPeX64TlsScanContext ctx;
+  GumPeX86TlsScanner * scanner;
 
-  cs_arch_register_x86 ();
-  cs_open (CS_ARCH_X86, CS_MODE_64, &ctx.cs);
-  cs_option (ctx.cs, CS_OPT_DETAIL, CS_OPT_ON);
-  cs_option (ctx.cs, CS_OPT_SKIPDATA, CS_OPT_ON);
-  ctx.base = base;
-  ctx.limit = limit;
-  ctx.handle = handle;
-  ctx.release = release;
+  scanner = gum_pe_x86_tls_scanner_new (CS_MODE_64, base, limit);
 
-  gum_pe_module_enumerate_function_starts (ntdll, gum_scan_x64_function, &ctx);
+  gum_pe_module_enumerate_function_starts (ntdll, gum_scan_x64_function,
+      scanner);
 
-  cs_close (&ctx.cs);
+  *handle = scanner->handle;
+  *release = scanner->release;
+
+  gum_pe_x86_tls_scanner_free (scanner);
 }
 
 static gboolean
 gum_scan_x64_function (GumAddress rva,
                        gpointer user_data)
 {
-  GumPeX64TlsScanContext * ctx = user_data;
-  GumAddress fn = ctx->base + rva;
-  cs_insn * insns;
-  size_t n, scan;
+  GumPeX86TlsScanner * scanner = user_data;
 
-  n = cs_disasm (ctx->cs, GSIZE_TO_POINTER (fn), MIN (1024, ctx->limit - fn),
-      fn, 0, &insns);
-  if (n == 0)
-    return TRUE;
-
-  scan = MIN (n, 48);
-  if (*ctx->handle == 0 &&
-      gum_function_is_ldr_handle_tls_data (insns, scan))
-    *ctx->handle = fn;
-  if (*ctx->release == 0 &&
-      gum_function_is_ldr_release_tls_entry (insns, scan))
-    *ctx->release = fn;
-
-  cs_free (insns, n);
-
-  return *ctx->handle == 0 || *ctx->release == 0;
+  return gum_pe_x86_tls_scanner_consider (scanner, scanner->base + rva);
 }
 
 # else
@@ -1792,72 +1829,113 @@ gum_resolve_wowa64_dispatch_slots (GumPeModule * ntdll,
 }
 
 static void
-gum_resolve_x86_tls (GumAddress base,
-                     GumAddress limit,
+gum_resolve_x86_tls (GumPeModule * ntdll,
+                     GumAddress base,
                      GumAddress * handle,
                      GumAddress * release)
 {
-  const uint8_t * code = GSIZE_TO_POINTER (base);
-  uint64_t address = base;
-  csh cs, scan;
+  GumMemoryRange text;
+  GumAddress text_start, text_end;
+  GArray * functions;
+  GumPeX86TlsScanner * scanner;
+  guint i;
+
+  gum_pe_module_enumerate_sections (ntdll, gum_find_text_section, &text);
+  text_start = base + text.base_address;
+  text_end = text_start + text.size;
+
+  functions = gum_collect_x86_call_targets (text_start, text_end);
+  scanner = gum_pe_x86_tls_scanner_new (CS_MODE_32, text_start, text_end);
+
+  for (i = 0; i != functions->len; i++)
+  {
+    if (!gum_pe_x86_tls_scanner_consider (scanner,
+        g_array_index (functions, GumAddress, i)))
+      break;
+  }
+
+  *handle = scanner->handle;
+  *release = scanner->release;
+
+  gum_pe_x86_tls_scanner_free (scanner);
+  g_array_unref (functions);
+}
+
+static gboolean
+gum_find_text_section (const GumPeSectionDetails * details,
+                       gpointer user_data)
+{
+  GumMemoryRange * text = user_data;
+
+  if (strcmp (details->name, ".text") != 0)
+    return TRUE;
+
+  text->base_address = details->virtual_address;
+  text->size = details->virtual_size;
+
+  return FALSE;
+}
+
+static GArray *
+gum_collect_x86_call_targets (GumAddress base,
+                              GumAddress limit)
+{
+  GArray * targets;
+  GHashTable * seen;
+  csh cs;
   cs_insn * insn;
+  const uint8_t * code = GSIZE_TO_POINTER (base);
   size_t code_size = limit - base;
-  gboolean at_boundary = TRUE;
+  uint64_t address = base;
+
+  targets = g_array_new (FALSE, FALSE, sizeof (GumAddress));
+  seen = g_hash_table_new (NULL, NULL);
 
   cs_arch_register_x86 ();
   cs_open (CS_ARCH_X86, CS_MODE_32, &cs);
   cs_option (cs, CS_OPT_DETAIL, CS_OPT_ON);
   cs_option (cs, CS_OPT_SKIPDATA, CS_OPT_ON);
-
-  cs_open (CS_ARCH_X86, CS_MODE_32, &scan);
-  cs_option (scan, CS_OPT_DETAIL, CS_OPT_ON);
-  cs_option (scan, CS_OPT_SKIPDATA, CS_OPT_ON);
   insn = cs_malloc (cs);
 
-  while ((*handle == 0 || *release == 0) &&
-      cs_disasm_iter (cs, &code, &code_size, &address, insn))
+  while (cs_disasm_iter (cs, &code, &code_size, &address, insn))
   {
-    if (at_boundary && insn->id != X86_INS_INT3 && insn->id != X86_INS_NOP)
-    {
-      GumAddress fn = insn->address;
-      cs_insn * insns;
-      size_t n;
+    const cs_x86 * d = &insn->detail->x86;
+    GumAddress target;
 
-      n = cs_disasm (scan, GSIZE_TO_POINTER (fn), MIN (1024, limit - fn),
-          fn, 0, &insns);
-      if (n != 0)
-      {
-        size_t m;
-        size_t count = MIN (n, 48);
+    if (insn->id != X86_INS_CALL || d->op_count != 1 ||
+        d->operands[0].type != X86_OP_IMM)
+      continue;
 
-        for (m = 0; m != count; m++)
-        {
-          if (insns[m].id == X86_INS_RET || insns[m].id == X86_INS_JMP)
-          {
-            count = m + 1;
-            break;
-          }
-        }
+    target = d->operands[0].imm;
+    if (target < base || target >= limit ||
+        !g_hash_table_add (seen, GSIZE_TO_POINTER (target)))
+      continue;
 
-        if (*handle == 0 &&
-            gum_function_is_ldr_handle_tls_data (insns, count))
-          *handle = fn;
-        if (*release == 0 &&
-            gum_function_is_ldr_release_tls_entry (insns, count))
-          *release = fn;
-        cs_free (insns, n);
-      }
-
-      at_boundary = FALSE;
-    }
-
-    if (insn->id == X86_INS_RET || insn->id == X86_INS_JMP)
-      at_boundary = TRUE;
+    g_array_append_val (targets, target);
   }
 
   cs_free (insn, 1);
-  cs_close (&scan);
   cs_close (&cs);
+
+  g_hash_table_unref (seen);
+
+  g_array_sort (targets, gum_compare_addresses);
+
+  return targets;
+}
+
+static gint
+gum_compare_addresses (gconstpointer a,
+                       gconstpointer b)
+{
+  GumAddress lhs = *((const GumAddress *) a);
+  GumAddress rhs = *((const GumAddress *) b);
+
+  if (lhs < rhs)
+    return -1;
+  if (lhs > rhs)
+    return 1;
+  return 0;
 }
 
 # endif
@@ -1866,112 +1944,412 @@ gum_resolve_x86_tls (GumAddress base,
 
 #if defined (HAVE_I386)
 
+static GumPeX86TlsScanner *
+gum_pe_x86_tls_scanner_new (cs_mode mode,
+                            GumAddress base,
+                            GumAddress limit)
+{
+  GumPeX86TlsScanner * scanner;
+
+  scanner = g_new0 (GumPeX86TlsScanner, 1);
+
+  cs_arch_register_x86 ();
+  cs_open (CS_ARCH_X86, mode, &scanner->cs);
+  cs_option (scanner->cs, CS_OPT_DETAIL, CS_OPT_ON);
+  scanner->insn = cs_malloc (scanner->cs);
+
+  scanner->base = base;
+  scanner->limit = limit;
+
+  return scanner;
+}
+
 static gboolean
-gum_function_is_ldr_handle_tls_data (cs_insn * insns,
-                                     size_t count)
+gum_pe_x86_tls_scanner_consider (GumPeX86TlsScanner * self,
+                                 GumAddress function)
+{
+  GumPeX86FunctionHead * head = &self->head;
+
+  gum_pe_x86_tls_scanner_read_head (self, function);
+
+  if (self->handle == 0 && gum_function_is_ldr_handle_tls_data (head))
+    self->handle = function;
+  if (self->release == 0 && gum_function_is_ldr_release_tls_entry (head))
+    self->release = function;
+
+  return self->handle == 0 || self->release == 0;
+}
+
+static void
+gum_pe_x86_tls_scanner_free (GumPeX86TlsScanner * scanner)
+{
+  cs_free (scanner->insn, 1);
+  cs_close (&scanner->cs);
+
+  g_free (scanner);
+}
+
+static void
+gum_pe_x86_tls_scanner_read_head (GumPeX86TlsScanner * self,
+                                  GumAddress function)
+{
+  GumPeX86FunctionHead * head = &self->head;
+  cs_insn * insn = self->insn;
+  GumAddress pending[GUM_PE_TLS_HEAD_MAX_INSNS];
+  guint num_pending = 0;
+  GumAddress pc = function;
+
+  head->count = 0;
+
+  while (head->count != GUM_PE_TLS_HEAD_MAX_INSNS)
+  {
+    const uint8_t * code = GSIZE_TO_POINTER (pc);
+    size_t code_size = MIN (16, self->limit - pc);
+    uint64_t address = pc;
+
+    if (!gum_pe_x86_function_head_contains (head, pc) &&
+        cs_disasm_iter (self->cs, &code, &code_size, &address, insn))
+    {
+      GumAddress target = gum_pe_x86_tls_scanner_resolve_jump (self, insn);
+
+      gum_pe_x86_function_head_append (head, insn);
+
+      if (insn->id == X86_INS_JMP && target != 0)
+      {
+        pc = target;
+        continue;
+      }
+
+      if (insn->id != X86_INS_JMP && insn->id != X86_INS_RET &&
+          insn->id != X86_INS_INT3)
+      {
+        if (target != 0)
+          pending[num_pending++] = target;
+        pc = address;
+        continue;
+      }
+    }
+
+    if (num_pending == 0)
+      return;
+    pc = pending[--num_pending];
+  }
+}
+
+static gboolean
+gum_pe_x86_function_head_contains (const GumPeX86FunctionHead * head,
+                                   GumAddress address)
+{
+  size_t i;
+
+  for (i = 0; i != head->count; i++)
+  {
+    if (head->insns[i].address == address)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+static GumAddress
+gum_pe_x86_tls_scanner_resolve_jump (GumPeX86TlsScanner * self,
+                                     const cs_insn * insn)
+{
+  const cs_x86 * d = &insn->detail->x86;
+  GumAddress target;
+
+  if (!cs_insn_group (self->cs, insn, CS_GRP_JUMP) || d->op_count != 1 ||
+      d->operands[0].type != X86_OP_IMM)
+    return 0;
+
+  target = d->operands[0].imm;
+  if (target < self->base || target >= self->limit)
+    return 0;
+
+  return target;
+}
+
+static void
+gum_pe_x86_function_head_append (GumPeX86FunctionHead * head,
+                                 const cs_insn * insn)
+{
+  cs_insn * slot = &head->insns[head->count];
+  cs_detail * detail = &head->details[head->count];
+
+  *slot = *insn;
+  *detail = *insn->detail;
+  slot->detail = detail;
+
+  head->count++;
+}
+
+static gboolean
+gum_function_is_ldr_handle_tls_data (const GumPeX86FunctionHead * head)
 {
   x86_reg entry_regs[8];
-  size_t i;
   guint num_entry_regs = 1;
-  gboolean checked_flag = FALSE, read_dll_base = FALSE;
+  gboolean passed_tls_directory = FALSE, read_dll_base = FALSE;
+  size_t i;
 
   entry_regs[0] = GUM_PE_TLS_ENTRY_REG;
 
-  for (i = 0; i != count; i++)
+  for (i = 0; i != head->count; i++)
   {
-    cs_x86 * d = &insns[i].detail->x86;
+    const cs_insn * insn = &head->insns[i];
 
-#if GLIB_SIZEOF_VOID_P == 4
-    if (insns[i].id == X86_INS_MOV && d->op_count == 2 &&
-        d->operands[0].type == X86_OP_REG &&
-        d->operands[1].type == X86_OP_REG)
-      gum_reg_set_update (entry_regs, &num_entry_regs, d->operands[0].reg,
-          d->operands[1].reg);
-#endif
+    if (insn->id == X86_INS_CALL)
+    {
+      if (passed_tls_directory && read_dll_base)
+        return TRUE;
+      passed_tls_directory = FALSE;
+      read_dll_base = FALSE;
+      continue;
+    }
 
-    if (insns[i].id == X86_INS_CMP && d->op_count == 2 &&
-        d->operands[0].type == X86_OP_MEM &&
-        gum_reg_set_contains (entry_regs, num_entry_regs,
-            d->operands[0].mem.base) &&
-        d->operands[0].mem.disp == GUM_PE_LDR_TLS_FLAGS_FIELD &&
-        d->operands[1].type == X86_OP_IMM &&
-        d->operands[1].imm == 9)
-      checked_flag = TRUE;
+    if (gum_x86_insn_passes_tls_directory (insn))
+      passed_tls_directory = TRUE;
 
-    if (insns[i].id == X86_INS_MOV && d->op_count == 2 &&
-        d->operands[1].type == X86_OP_MEM &&
-        gum_reg_set_contains (entry_regs, num_entry_regs,
-            d->operands[1].mem.base) &&
-        d->operands[1].mem.disp == GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET)
+    if (gum_x86_insn_reads_dll_base (insn, entry_regs, num_entry_regs))
       read_dll_base = TRUE;
+
+    gum_entry_regs_track (entry_regs, &num_entry_regs, insn);
   }
 
-  return checked_flag && read_dll_base;
+  return FALSE;
 }
 
 static gboolean
-gum_function_is_ldr_release_tls_entry (cs_insn * insns,
-                                       size_t count)
+gum_x86_insn_passes_tls_directory (const cs_insn * insn)
 {
-  x86_reg flags_regs[8];
-  size_t i;
-  gboolean saved_entry = FALSE, tested_flags = FALSE, frees_bit = FALSE;
-  guint num_flags_regs = 1;
+  const cs_x86 * d = &insn->detail->x86;
+#if GLIB_SIZEOF_VOID_P == 8
+  const cs_x86_op * dst = &d->operands[0];
+  const cs_x86_op * src = &d->operands[1];
 
-  flags_regs[0] = GUM_PE_TLS_FLAGS_REG;
+  if (d->op_count != 2 || dst->type != X86_OP_REG ||
+      (dst->reg != X86_REG_R8D && dst->reg != X86_REG_R8W))
+    return FALSE;
 
-  for (i = 0; i != count; i++)
+  switch (insn->id)
   {
-    cs_x86 * d = &insns[i].detail->x86;
-
-    if (insns[i].id == X86_INS_MOV && d->op_count == 2 &&
-        d->operands[0].type == X86_OP_REG &&
-        d->operands[1].type == X86_OP_REG)
-    {
-      if (d->operands[1].reg == GUM_PE_TLS_ENTRY_REG)
-        saved_entry = TRUE;
-#if GLIB_SIZEOF_VOID_P == 4
-      gum_reg_set_update (flags_regs, &num_flags_regs, d->operands[0].reg,
-          d->operands[1].reg);
-#endif
-    }
-
-    if (insns[i].id == X86_INS_TEST && d->op_count == 2 &&
-        d->operands[0].type == X86_OP_REG &&
-        d->operands[1].type == X86_OP_REG &&
-        d->operands[0].reg == d->operands[1].reg &&
-        gum_reg_set_contains (flags_regs, num_flags_regs, d->operands[0].reg))
-      tested_flags = TRUE;
-
-    if (insns[i].id == X86_INS_BTR && d->op_count == 2 &&
-        d->operands[0].type == X86_OP_REG &&
-        d->operands[1].type == X86_OP_REG)
-      frees_bit = TRUE;
+    case X86_INS_MOV:
+      return src->type == X86_OP_IMM && src->imm == GUM_PE_DIRECTORY_TLS;
+    case X86_INS_LEA:
+      return src->mem.index == X86_REG_INVALID &&
+          src->mem.disp == GUM_PE_DIRECTORY_TLS;
+    default:
+      return FALSE;
   }
-
-  return saved_entry && tested_flags && frees_bit;
+#else
+  return insn->id == X86_INS_PUSH && d->op_count == 1 &&
+      d->operands[0].type == X86_OP_IMM &&
+      d->operands[0].imm == GUM_PE_DIRECTORY_TLS;
+#endif
 }
 
-#if GLIB_SIZEOF_VOID_P == 4
+static gboolean
+gum_x86_insn_reads_dll_base (const cs_insn * insn,
+                             const x86_reg * entry_regs,
+                             guint num_entry_regs)
+{
+  const cs_x86 * d = &insn->detail->x86;
+  const cs_x86_op * src;
+
+  if (insn->id == X86_INS_MOV && d->op_count == 2)
+    src = &d->operands[1];
+  else if (insn->id == X86_INS_PUSH && d->op_count == 1)
+    src = &d->operands[0];
+  else
+    return FALSE;
+
+  return gum_x86_op_is_field_of (src, entry_regs, num_entry_regs) &&
+      src->mem.disp == GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET;
+}
+
+static gboolean
+gum_function_is_ldr_release_tls_entry (const GumPeX86FunctionHead * head)
+{
+  x86_reg entry_regs[8], found_regs[8], flink_regs[8], blink_regs[8];
+  guint num_entry_regs = 1, num_found_regs = 0, num_flink_regs = 0,
+      num_blink_regs = 0;
+  gboolean passing_entry = TRUE, looked_up_entry = FALSE;
+  gboolean unlinked_blink = FALSE, unlinked_flink = FALSE;
+  gboolean pushed_found_field = FALSE, cleared_bit = FALSE;
+  x86_reg inverted_reg = X86_REG_INVALID;
+  size_t i;
+
+  entry_regs[0] = GUM_PE_TLS_ENTRY_REG;
+
+  for (i = 0; i != head->count; i++)
+  {
+    const cs_insn * insn = &head->insns[i];
+    const cs_x86 * d = &insn->detail->x86;
+    const cs_x86_op * dst = &d->operands[0];
+    const cs_x86_op * src = &d->operands[1];
+    gboolean is_mov = insn->id == X86_INS_MOV && d->op_count == 2;
+    gboolean loads_link = is_mov && dst->type == X86_OP_REG &&
+        gum_x86_op_is_field_of (src, found_regs, num_found_regs);
+
+    if (is_mov && dst->type == X86_OP_MEM && src->type == X86_OP_REG &&
+        dst->mem.index == X86_REG_INVALID)
+    {
+      if (dst->mem.disp == 0 &&
+          gum_reg_set_contains (blink_regs, num_blink_regs, dst->mem.base) &&
+          gum_reg_set_contains (flink_regs, num_flink_regs, src->reg))
+        unlinked_blink = TRUE;
+
+      if (dst->mem.disp == GLIB_SIZEOF_VOID_P &&
+          gum_reg_set_contains (flink_regs, num_flink_regs, dst->mem.base) &&
+          gum_reg_set_contains (blink_regs, num_blink_regs, src->reg))
+        unlinked_flink = TRUE;
+    }
+
+    if (is_mov && dst->type == X86_OP_REG && dst->reg == GUM_PE_TLS_ENTRY_REG)
+    {
+      passing_entry = (src->type == X86_OP_REG &&
+          gum_reg_set_contains (entry_regs, num_entry_regs, src->reg)) ||
+          gum_x86_op_is_entry_slot (src);
+    }
+
+    gum_entry_regs_track (entry_regs, &num_entry_regs, insn);
+    gum_reg_set_track (found_regs, &num_found_regs, insn);
+    gum_reg_set_track (flink_regs, &num_flink_regs, insn);
+    gum_reg_set_track (blink_regs, &num_blink_regs, insn);
+
+    if (loads_link && src->mem.disp == 0)
+      gum_reg_set_add (flink_regs, &num_flink_regs, dst->reg);
+    else if (loads_link && src->mem.disp == GLIB_SIZEOF_VOID_P)
+      gum_reg_set_add (blink_regs, &num_blink_regs, dst->reg);
+
+    if (unlinked_blink && unlinked_flink)
+    {
+      switch (insn->id)
+      {
+        case X86_INS_BTR:
+          if (d->op_count == 2 && src->type == X86_OP_REG)
+            cleared_bit = TRUE;
+          break;
+        case X86_INS_AND:
+          if (d->op_count == 2 && dst->type == X86_OP_MEM &&
+              src->type == X86_OP_REG && src->reg == inverted_reg)
+            cleared_bit = TRUE;
+          break;
+        case X86_INS_NOT:
+          if (d->op_count == 1 && dst->type == X86_OP_REG)
+            inverted_reg = dst->reg;
+          break;
+        case X86_INS_PUSH:
+          if (d->op_count == 1 &&
+              gum_x86_op_is_field_of (dst, found_regs, num_found_regs))
+            pushed_found_field = TRUE;
+          break;
+        case X86_INS_CALL:
+          if (pushed_found_field)
+            cleared_bit = TRUE;
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (insn->id == X86_INS_CALL)
+    {
+      if (passing_entry && !looked_up_entry &&
+          gum_reg_set_contains (entry_regs, num_entry_regs,
+              GUM_PE_TLS_ENTRY_REG))
+      {
+        looked_up_entry = TRUE;
+        found_regs[0] = GUM_PE_TLS_RETURN_REG;
+        num_found_regs = 1;
+      }
+      passing_entry = FALSE;
+    }
+  }
+
+  return looked_up_entry && unlinked_blink && unlinked_flink && cleared_bit;
+}
+
+static gboolean
+gum_x86_op_is_field_of (const cs_x86_op * op,
+                        const x86_reg * regs,
+                        guint n)
+{
+  return op->type == X86_OP_MEM &&
+      gum_reg_set_contains (regs, n, op->mem.base) &&
+      op->mem.index == X86_REG_INVALID;
+}
 
 static void
-gum_reg_set_update (x86_reg * regs,
-                    guint * n,
-                    x86_reg dst,
-                    x86_reg src)
+gum_entry_regs_track (x86_reg * regs,
+                      guint * n,
+                      const cs_insn * insn)
 {
-  guint i;
+  const cs_x86 * d = &insn->detail->x86;
 
-  if (gum_reg_set_contains (regs, *n, src))
+  if (insn->id == X86_INS_MOV && d->op_count == 2 &&
+      d->operands[0].type == X86_OP_REG &&
+      gum_x86_op_is_entry_slot (&d->operands[1]))
   {
-    if (!gum_reg_set_contains (regs, *n, dst) && *n != 8)
-      regs[(*n)++] = dst;
+    gum_reg_set_add (regs, n, d->operands[0].reg);
     return;
   }
 
+  gum_reg_set_track (regs, n, insn);
+}
+
+static gboolean
+gum_x86_op_is_entry_slot (const cs_x86_op * op)
+{
+#if GLIB_SIZEOF_VOID_P == 4
+  return op->type == X86_OP_MEM && op->mem.base == X86_REG_EBP &&
+      op->mem.index == X86_REG_INVALID &&
+      op->mem.disp == GUM_PE_TLS_ENTRY_SLOT;
+#else
+  return FALSE;
+#endif
+}
+
+static void
+gum_reg_set_track (x86_reg * regs,
+                   guint * n,
+                   const cs_insn * insn)
+{
+  const cs_x86 * d = &insn->detail->x86;
+  const cs_x86_op * dst = &d->operands[0];
+  x86_reg src = X86_REG_INVALID;
+
+  if (d->op_count == 0 || dst->type != X86_OP_REG ||
+      (dst->access & CS_AC_WRITE) == 0)
+    return;
+
+  if (insn->id == X86_INS_MOV && d->operands[1].type == X86_OP_REG)
+    src = d->operands[1].reg;
+
+  if (gum_reg_set_contains (regs, *n, src))
+    gum_reg_set_add (regs, n, dst->reg);
+  else
+    gum_reg_set_remove (regs, n, dst->reg);
+}
+
+static void
+gum_reg_set_add (x86_reg * regs,
+                 guint * n,
+                 x86_reg reg)
+{
+  if (!gum_reg_set_contains (regs, *n, reg) && *n != 8)
+    regs[(*n)++] = reg;
+}
+
+static void
+gum_reg_set_remove (x86_reg * regs,
+                    guint * n,
+                    x86_reg reg)
+{
+  guint i;
+
   for (i = 0; i != *n; i++)
   {
-    if (regs[i] == dst)
+    if (regs[i] == reg)
     {
       regs[i] = regs[*n - 1];
       (*n)--;
@@ -1979,8 +2357,6 @@ gum_reg_set_update (x86_reg * regs,
     }
   }
 }
-
-#endif
 
 static gboolean
 gum_reg_set_contains (const x86_reg * regs,
@@ -2307,8 +2683,12 @@ gum_emit_runtime (GumPeMapper * self,
     }
     else
     {
+      gum_x86_writer_put_mov_reg_reg (&cw, GUM_X86_XBP, GUM_X86_XSP);
       gum_x86_writer_put_mov_reg_address (&cw, GUM_X86_XCX, self->tls_entry);
-      gum_x86_writer_put_call_address (&cw, self->tls_handle);
+      gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_SYSAPI,
+          self->tls_handle, 1,
+          GUM_ARG_ADDRESS, self->tls_entry);
+      gum_x86_writer_put_mov_reg_reg (&cw, GUM_X86_XSP, GUM_X86_XBP);
     }
   }
 #if GLIB_SIZEOF_VOID_P == 8
@@ -2378,9 +2758,14 @@ gum_emit_runtime (GumPeMapper * self,
     }
     else
     {
+      gum_x86_writer_put_mov_reg_reg (&cw, GUM_X86_XBP, GUM_X86_XSP);
       gum_x86_writer_put_mov_reg_address (&cw, GUM_X86_XCX, self->tls_entry);
       gum_x86_writer_put_mov_reg_address (&cw, GUM_X86_XDX, (GumAddress) 0);
-      gum_x86_writer_put_call_address (&cw, self->tls_release);
+      gum_x86_writer_put_call_address_with_arguments (&cw, GUM_CALL_SYSAPI,
+          self->tls_release, 2,
+          GUM_ARG_ADDRESS, self->tls_entry,
+          GUM_ARG_ADDRESS, (GumAddress) 0);
+      gum_x86_writer_put_mov_reg_reg (&cw, GUM_X86_XSP, GUM_X86_XBP);
     }
   }
 #if GLIB_SIZEOF_VOID_P == 8
