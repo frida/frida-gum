@@ -34,14 +34,14 @@ void
 gum_barebone_register_thread (GumThreadRegistry * registry,
                               const GumThreadDetails * thread)
 {
-  _gum_thread_registry_register (registry, thread);
+  gum_thread_registry_register (registry, thread);
 }
 
 void
 gum_barebone_unregister_thread (GumThreadRegistry * registry,
                                 GumThreadId id)
 {
-  _gum_thread_registry_unregister (registry, id);
+  gum_thread_registry_unregister (registry, id);
 }
 
 void
@@ -49,5 +49,5 @@ gum_barebone_rename_thread (GumThreadRegistry * registry,
                             GumThreadId id,
                             const gchar * name)
 {
-  _gum_thread_registry_rename (registry, id, name);
+  gum_thread_registry_rename (registry, id, name);
 }

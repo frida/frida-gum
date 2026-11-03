@@ -120,7 +120,7 @@ gum_add_existing_thread (const GumThreadDetails * thread,
 {
   GumThreadRegistry * registry = user_data;
 
-  _gum_thread_registry_register (registry, thread);
+  gum_thread_registry_register (registry, thread);
 
   return TRUE;
 }
@@ -142,7 +142,7 @@ gum_thread_registry_on_thread_start (GumInvocationContext * ic,
       GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE |
       GUM_THREAD_FLAGS_ENTRYPOINT_PARAMETER;
 
-  _gum_thread_registry_register (registry, &thread);
+  gum_thread_registry_register (registry, &thread);
 }
 
 static void
@@ -151,7 +151,7 @@ gum_thread_registry_on_thread_terminate (GumInvocationContext * ic,
 {
   GumThreadRegistry * registry = user_data;
 
-  _gum_thread_registry_unregister (registry,
+  gum_thread_registry_unregister (registry,
       gum_process_get_current_thread_id ());
 }
 
@@ -169,7 +169,7 @@ gum_thread_registry_on_set_thread_description (GumInvocationContext * ic,
   name_utf16 = gum_invocation_context_get_nth_argument (ic, 1);
   name = g_utf16_to_utf8 (name_utf16, -1, NULL, NULL, NULL);
 
-  _gum_thread_registry_rename (registry, gum_get_thread_id (thread), name);
+  gum_thread_registry_rename (registry, gum_get_thread_id (thread), name);
 
   g_free (name);
 }

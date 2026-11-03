@@ -64,7 +64,7 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
 
     gum_compute_thread_details_from_pthread (thread, gum_pthread, &t);
 
-    _gum_thread_registry_register (self, &t);
+    gum_thread_registry_register (self, &t);
   }
 
   gum_darwin_unlock_pthread_list (gum_pthread);
@@ -107,13 +107,13 @@ gum_thread_registry_on_thread_event (unsigned int event,
 
       gum_compute_thread_details_from_pthread (thread, gum_pthread, &t);
 
-      _gum_thread_registry_register (gum_registry, &t);
+      gum_thread_registry_register (gum_registry, &t);
 
       break;
     }
     case PTHREAD_INTROSPECTION_THREAD_TERMINATE:
     {
-      _gum_thread_registry_unregister (gum_registry,
+      gum_thread_registry_unregister (gum_registry,
           pthread_mach_thread_np (thread));
       break;
     }
@@ -142,7 +142,7 @@ gum_thread_registry_on_setname (GumInvocationContext * ic,
   if (name[0] == '\0')
     name = NULL;
 
-  _gum_thread_registry_rename (registry, id, name);
+  gum_thread_registry_rename (registry, id, name);
 }
 
 static void

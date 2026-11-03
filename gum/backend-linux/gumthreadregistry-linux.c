@@ -85,7 +85,7 @@ _gum_thread_registry_activate (GumThreadRegistry * self)
 
     gum_compute_thread_details_from_pthread (thread, gum_pthread, &t, &storage);
 
-    _gum_thread_registry_register (self, &t);
+    gum_thread_registry_register (self, &t);
 
     g_free (storage);
   }
@@ -144,7 +144,7 @@ gum_thread_registry_on_pthread_start (GumInvocationContext * ic,
   gum_compute_thread_details_from_pthread (pthread_self (), gum_pthread,
       &thread, &storage);
 
-  _gum_thread_registry_register (registry, &thread);
+  gum_thread_registry_register (registry, &thread);
 
   g_free (storage);
 }
@@ -155,7 +155,7 @@ gum_thread_registry_on_pthread_terminate (GumInvocationContext * ic,
 {
   GumThreadRegistry * registry = user_data;
 
-  _gum_thread_registry_unregister (registry,
+  gum_thread_registry_unregister (registry,
       gum_process_get_current_thread_id ());
 }
 
@@ -171,7 +171,7 @@ gum_thread_registry_on_pthread_setname (GumInvocationContext * ic,
       GUM_PTHREAD_FROM_PTR (gum_invocation_context_get_nth_argument (ic, 0));
   name = gum_invocation_context_get_nth_argument (ic, 1);
 
-  _gum_thread_registry_rename (registry,
+  gum_thread_registry_rename (registry,
       gum_linux_query_pthread_tid (pthread, gum_pthread), name);
 }
 

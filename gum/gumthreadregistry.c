@@ -25,6 +25,7 @@ struct _GumThreadRegistry
   GRecMutex mutex;
   GumThreadRegistryState state;
   GPtrArray * threads;
+  GumThreadProvider * provider;
 };
 
 enum
@@ -38,14 +39,18 @@ enum
 static void gum_thread_registry_dispose (GObject * object);
 static void gum_thread_registry_finalize (GObject * object);
 
+static void gum_deinit_thread_provider (void);
 static void gum_deinit_thread_registry (void);
 
 static gboolean gum_thread_registry_index_of (GumThreadRegistry * self,
     GumThreadId id, guint * idx);
 
 G_DEFINE_TYPE (GumThreadRegistry, gum_thread_registry, G_TYPE_OBJECT)
+G_DEFINE_INTERFACE (GumThreadProvider, gum_thread_provider, G_TYPE_OBJECT)
 
 static guint gum_thread_registry_signals[LAST_SIGNAL] = { 0, };
+
+static GumThreadProvider * gum_thread_provider = NULL;
 
 static void
 gum_thread_registry_class_init (GumThreadRegistryClass * klass)
@@ -76,7 +81,15 @@ gum_thread_registry_init (GumThreadRegistry * self)
 
   GUM_THREAD_REGISTRY_LOCK (self);
 
-  _gum_thread_registry_activate (self);
+  if (gum_thread_provider != NULL)
+  {
+    self->provider = g_object_ref (gum_thread_provider);
+    gum_thread_provider_activate (self->provider, self);
+  }
+  else
+  {
+    _gum_thread_registry_activate (self);
+  }
   self->state = GUM_THREAD_REGISTRY_ACTIVATED;
 
   GUM_THREAD_REGISTRY_UNLOCK (self);
@@ -87,7 +100,10 @@ gum_thread_registry_dispose (GObject * object)
 {
   GumThreadRegistry * self = GUM_THREAD_REGISTRY (object);
 
-  _gum_thread_registry_deactivate (self);
+  if (self->provider != NULL)
+    gum_thread_provider_deactivate (self->provider);
+  else
+    _gum_thread_registry_deactivate (self);
 
   G_OBJECT_CLASS (gum_thread_registry_parent_class)->dispose (object);
 }
@@ -97,10 +113,33 @@ gum_thread_registry_finalize (GObject * object)
 {
   GumThreadRegistry * self = GUM_THREAD_REGISTRY (object);
 
+  g_clear_object (&self->provider);
   g_ptr_array_unref (self->threads);
   g_rec_mutex_clear (&self->mutex);
 
   G_OBJECT_CLASS (gum_thread_registry_parent_class)->finalize (object);
+}
+
+/**
+ * gum_thread_registry_set_provider:
+ * @provider: (nullable): provider to use instead of the built-in backend
+ *
+ * Makes the thread registry rely on @provider to learn about threads. Must be
+ * called before the registry is first obtained.
+ */
+void
+gum_thread_registry_set_provider (GumThreadProvider * provider)
+{
+  if (gum_thread_provider == NULL)
+    _gum_register_destructor (gum_deinit_thread_provider);
+
+  g_set_object (&gum_thread_provider, provider);
+}
+
+static void
+gum_deinit_thread_provider (void)
+{
+  g_clear_object (&gum_thread_provider);
 }
 
 /**
@@ -180,8 +219,8 @@ gum_thread_registry_unlock (GumThreadRegistry * self)
 }
 
 void
-_gum_thread_registry_register (GumThreadRegistry * self,
-                               const GumThreadDetails * thread)
+gum_thread_registry_register (GumThreadRegistry * self,
+                              const GumThreadDetails * thread)
 {
   gboolean being_observed;
 
@@ -209,8 +248,8 @@ already_registered:
 }
 
 void
-_gum_thread_registry_unregister (GumThreadRegistry * self,
-                                 GumThreadId id)
+gum_thread_registry_unregister (GumThreadRegistry * self,
+                                GumThreadId id)
 {
   guint i;
   GumThreadDetails * thread;
@@ -240,9 +279,9 @@ not_registered:
 }
 
 void
-_gum_thread_registry_rename (GumThreadRegistry * self,
-                             GumThreadId id,
-                             const gchar * name)
+gum_thread_registry_rename (GumThreadRegistry * self,
+                            GumThreadId id,
+                            const gchar * name)
 {
   guint i;
   GumThreadDetails * existing_thread, * thread;
@@ -308,4 +347,22 @@ gum_thread_registry_index_of (GumThreadRegistry * self,
   }
 
   return FALSE;
+}
+
+static void
+gum_thread_provider_default_init (GumThreadProviderInterface * iface)
+{
+}
+
+void
+gum_thread_provider_activate (GumThreadProvider * self,
+                              GumThreadRegistry * registry)
+{
+  GUM_THREAD_PROVIDER_GET_IFACE (self)->activate (self, registry);
+}
+
+void
+gum_thread_provider_deactivate (GumThreadProvider * self)
+{
+  GUM_THREAD_PROVIDER_GET_IFACE (self)->deactivate (self);
 }
