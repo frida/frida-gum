@@ -8,6 +8,7 @@
 
 #include "gumprocess-priv.h"
 
+#include "gum-init.h"
 #include "gummodule-windows.h"
 
 #include <intrin.h>

@@ -9,6 +9,8 @@
 
 #include "gummodule-windows.h"
 
+#include "gumprocess.h"
+
 #include <psapi.h>
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;

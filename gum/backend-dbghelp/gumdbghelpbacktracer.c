@@ -8,6 +8,7 @@
 #include "gum/gumdbghelpbacktracer.h"
 
 #include "guminterceptor.h"
+#include "gum/gumwindows.h"
 
 #if defined (HAVE_ARM64)
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_ARM64
