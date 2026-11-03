@@ -42,6 +42,7 @@ static void gum_thread_registry_finalize (GObject * object);
 static void gum_deinit_thread_provider (void);
 static void gum_deinit_thread_registry (void);
 
+static gboolean gum_thread_is_cloaked (const GumThreadDetails * thread);
 static gboolean gum_thread_registry_index_of (GumThreadRegistry * self,
     GumThreadId id, guint * idx);
 
@@ -196,7 +197,7 @@ gum_thread_registry_enumerate_threads (GumThreadRegistry * self,
   {
     GumThreadDetails * thread = g_ptr_array_index (self->threads, i);
 
-    if (gum_cloak_has_thread (thread->id))
+    if (gum_thread_is_cloaked (thread))
       continue;
 
     if (!func (thread, user_data))
@@ -235,7 +236,7 @@ gum_thread_registry_register (GumThreadRegistry * self,
 
   GUM_THREAD_REGISTRY_UNLOCK (self);
 
-  if (being_observed && !gum_cloak_has_thread (thread->id))
+  if (being_observed && !gum_thread_is_cloaked (thread))
     g_signal_emit (self, gum_thread_registry_signals[THREAD_ADDED], 0, thread);
 
   return;
@@ -263,7 +264,7 @@ gum_thread_registry_unregister (GumThreadRegistry * self,
 
   GUM_THREAD_REGISTRY_UNLOCK (self);
 
-  if (!gum_cloak_has_thread (thread->id))
+  if (!gum_thread_is_cloaked (thread))
     g_signal_emit (self, gum_thread_registry_signals[THREAD_REMOVED], 0,
         thread);
 
@@ -308,7 +309,7 @@ gum_thread_registry_rename (GumThreadRegistry * self,
 
   GUM_THREAD_REGISTRY_UNLOCK (self);
 
-  if (!gum_cloak_has_thread (id))
+  if (!gum_thread_is_cloaked (thread))
   {
     g_signal_emit (self, gum_thread_registry_signals[THREAD_RENAMED], 0,
         thread, previous_name);
@@ -324,6 +325,21 @@ not_registered:
     GUM_THREAD_REGISTRY_UNLOCK (self);
     return;
   }
+}
+
+static gboolean
+gum_thread_is_cloaked (const GumThreadDetails * thread)
+{
+  if (gum_cloak_has_thread (thread->id))
+    return TRUE;
+
+#ifdef HAVE_FRIDA_GLIB
+  return (thread->flags & GUM_THREAD_FLAGS_ENTRYPOINT_ROUTINE) != 0 &&
+      thread->entrypoint.routine ==
+          GUM_ADDRESS (g_thread_get_system_entrypoint ());
+#else
+  return FALSE;
+#endif
 }
 
 static gboolean
