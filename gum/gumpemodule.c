@@ -24,6 +24,9 @@
 #define GUM_PE_LOAD_CONFIG_CHPE_METADATA_OFFSET_32 0x7c
 #define GUM_PE_LOAD_CONFIG_CHPE_METADATA_OFFSET_64 0xc8
 
+#define GUM_PE_UNWIND_DATA_INDIRECT 0x1
+#define GUM_PE_UNWIND_FLAG_CHAININFO 0x4
+
 typedef struct _GumPeDosHeader GumPeDosHeader;
 typedef struct _GumPeFileHeader GumPeFileHeader;
 typedef struct _GumPeOptionalHeader32 GumPeOptionalHeader32;
@@ -260,6 +263,8 @@ static guint32 gum_pe_module_read_load_config_rva (GumPeModule * self,
 static void gum_pe_module_read_tls_directory (GumPeModule * self,
     GumPeTlsDirectory64 * tls);
 static guint gum_pe_module_get_function_entry_size (GumPeModule * self);
+static gboolean gum_pe_module_is_chained_function_entry (GumPeModule * self,
+    const guint32 * entry);
 
 static GumPageProtection gum_protection_from_characteristics (
     guint32 characteristics);
@@ -995,9 +1000,12 @@ gum_pe_module_enumerate_function_starts (GumPeModule * self,
 
   for (i = 0; i != count; i++)
   {
-    guint32 begin_rva = *((const guint32 *) (entries + (i * entry_size)));
+    const guint32 * entry = (const guint32 *) (entries + (i * entry_size));
 
-    if (!func (begin_rva, user_data))
+    if (gum_pe_module_is_chained_function_entry (self, entry))
+      continue;
+
+    if (!func (entry[0], user_data))
       return;
   }
 }
@@ -1006,6 +1014,25 @@ static guint
 gum_pe_module_get_function_entry_size (GumPeModule * self)
 {
   return (self->machine == GUM_PE_MACHINE_AMD64) ? 12 : 8;
+}
+
+static gboolean
+gum_pe_module_is_chained_function_entry (GumPeModule * self,
+                                         const guint32 * entry)
+{
+  guint32 unwind_data;
+  const guint8 * unwind_info;
+
+  if (self->machine != GUM_PE_MACHINE_AMD64)
+    return FALSE;
+
+  unwind_data = entry[2];
+  if ((unwind_data & GUM_PE_UNWIND_DATA_INDIRECT) != 0)
+    return TRUE;
+
+  unwind_info = gum_pe_module_get_data_at_rva (self, unwind_data);
+
+  return ((unwind_info[0] >> 3) & GUM_PE_UNWIND_FLAG_CHAININFO) != 0;
 }
 
 static GumPageProtection
