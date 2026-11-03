@@ -56,6 +56,9 @@
 
 typedef struct _GumCloakedRange GumCloakedRange;
 
+typedef void (* GumCloakObserverThreadFunc) (GumCloakObserver * observer,
+    GumThreadId id);
+
 typedef enum
 {
   GUM_KERNEL_CLOAK_ADD_THREAD = 1,
@@ -78,6 +81,8 @@ struct _GumCloakedRange
   const guint8 * end;
 };
 
+static void gum_cloak_notify_observers (GumCloakObserverThreadFunc func,
+    GumThreadId id);
 static gint gum_cloak_index_of_thread (GumThreadId id);
 static gint gum_thread_id_compare (gconstpointer element_a,
     gconstpointer element_b);
@@ -94,6 +99,9 @@ static GumSpinlock cloak_lock = GUM_SPINLOCK_INIT;
 static GumMetalArray cloaked_threads;
 static GumMetalArray cloaked_ranges;
 static GumMetalArray cloaked_fds;
+static GumMetalArray cloak_observers;
+
+G_DEFINE_INTERFACE (GumCloakObserver, gum_cloak_observer, G_TYPE_OBJECT)
 
 void
 _gum_cloak_init (void)
@@ -101,6 +109,7 @@ _gum_cloak_init (void)
   gum_metal_array_init (&cloaked_threads, sizeof (GumThreadId));
   gum_metal_array_init (&cloaked_ranges, sizeof (GumCloakedRange));
   gum_metal_array_init (&cloaked_fds, sizeof (gint));
+  gum_metal_array_init (&cloak_observers, sizeof (GumCloakObserver *));
 
   gum_kernel_cloak_init ();
 }
@@ -108,6 +117,7 @@ _gum_cloak_init (void)
 void
 _gum_cloak_deinit (void)
 {
+  gum_metal_array_free (&cloak_observers);
   gum_metal_array_free (&cloaked_fds);
   gum_metal_array_free (&cloaked_ranges);
   gum_metal_array_free (&cloaked_threads);
@@ -148,6 +158,8 @@ gum_cloak_add_thread (GumThreadId id)
   gum_spinlock_release (&cloak_lock);
 
   gum_kernel_cloak (GUM_KERNEL_CLOAK_ADD_THREAD, id, 0);
+
+  gum_cloak_notify_observers (gum_cloak_observer_thread_added, id);
 }
 
 /**
@@ -171,6 +183,34 @@ gum_cloak_remove_thread (GumThreadId id)
   gum_spinlock_release (&cloak_lock);
 
   gum_kernel_cloak (GUM_KERNEL_CLOAK_REMOVE_THREAD, id, 0);
+
+  gum_cloak_notify_observers (gum_cloak_observer_thread_removed, id);
+}
+
+static void
+gum_cloak_notify_observers (GumCloakObserverThreadFunc func,
+                            GumThreadId id)
+{
+  guint length, i;
+  GumCloakObserver ** observers;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  length = cloak_observers.length;
+  observers = g_alloca (length * sizeof (GumCloakObserver *));
+  for (i = 0; i != length; i++)
+  {
+    observers[i] = g_object_ref (*((GumCloakObserver **)
+        gum_metal_array_element_at (&cloak_observers, i)));
+  }
+
+  gum_spinlock_release (&cloak_lock);
+
+  for (i = 0; i != length; i++)
+  {
+    func (observers[i], id);
+    g_object_unref (observers[i]);
+  }
 }
 
 /**
@@ -791,6 +831,71 @@ gum_cloak_is_locked (void)
 
   gum_spinlock_release (&cloak_lock);
   return FALSE;
+}
+
+/**
+ * gum_cloak_add_observer:
+ * @observer: the observer to add
+ *
+ * Starts notifying `observer` whenever a thread gets cloaked or uncloaked.
+ */
+void
+gum_cloak_add_observer (GumCloakObserver * observer)
+{
+  gum_spinlock_acquire (&cloak_lock);
+
+  *((GumCloakObserver **) gum_metal_array_append (&cloak_observers)) =
+      g_object_ref (observer);
+
+  gum_spinlock_release (&cloak_lock);
+}
+
+/**
+ * gum_cloak_remove_observer:
+ * @observer: the observer to remove
+ *
+ * Stops notifying `observer` about cloak changes.
+ */
+void
+gum_cloak_remove_observer (GumCloakObserver * observer)
+{
+  GumCloakObserver ** elements;
+  guint i;
+
+  gum_spinlock_acquire (&cloak_lock);
+
+  elements = cloak_observers.data;
+  for (i = 0; i != cloak_observers.length; i++)
+  {
+    if (elements[i] == observer)
+    {
+      gum_metal_array_remove_at (&cloak_observers, i);
+      break;
+    }
+  }
+
+  gum_spinlock_release (&cloak_lock);
+
+  g_object_unref (observer);
+}
+
+static void
+gum_cloak_observer_default_init (GumCloakObserverInterface * iface)
+{
+}
+
+void
+gum_cloak_observer_thread_added (GumCloakObserver * self,
+                                 GumThreadId id)
+{
+  GUM_CLOAK_OBSERVER_GET_IFACE (self)->thread_added (self, id);
+}
+
+void
+gum_cloak_observer_thread_removed (GumCloakObserver * self,
+                                   GumThreadId id)
+{
+  GUM_CLOAK_OBSERVER_GET_IFACE (self)->thread_removed (self, id);
 }
 
 #ifdef HAVE_LINUX

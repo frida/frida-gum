@@ -580,10 +580,19 @@ namespace Gum {
 		public void with_lock_held (Gum.Cloak.LockedFunc func);
 		public bool is_locked ();
 
+		public void add_observer (Gum.Cloak.Observer observer);
+		public void remove_observer (Gum.Cloak.Observer observer);
+
 		public delegate bool FoundThreadFunc (Gum.ThreadId id);
 		public delegate bool FoundRangeFunc (Gum.MemoryRange range);
 		public delegate bool FoundFDFunc (int fd);
 		public delegate void LockedFunc ();
+
+		[CCode (type_cname = "GumCloakObserverInterface", type_id = "GUM_TYPE_CLOAK_OBSERVER")]
+		public interface Observer : GLib.Object {
+			public abstract void thread_added (Gum.ThreadId id);
+			public abstract void thread_removed (Gum.ThreadId id);
+		}
 	}
 
 	public struct CpuContext {

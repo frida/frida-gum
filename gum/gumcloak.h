@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2017-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -14,6 +14,18 @@
 G_BEGIN_DECLS
 
 typedef struct _GumCloak GumCloak;
+
+#define GUM_TYPE_CLOAK_OBSERVER (gum_cloak_observer_get_type ())
+G_DECLARE_INTERFACE (GumCloakObserver, gum_cloak_observer, GUM,
+                     CLOAK_OBSERVER, GObject)
+
+struct _GumCloakObserverInterface
+{
+  GTypeInterface parent;
+
+  void (* thread_added) (GumCloakObserver * self, GumThreadId id);
+  void (* thread_removed) (GumCloakObserver * self, GumThreadId id);
+};
 
 typedef gboolean (* GumCloakFoundThreadFunc) (GumThreadId id,
     gpointer user_data);
@@ -44,6 +56,14 @@ GUM_API void gum_cloak_enumerate_file_descriptors (GumCloakFoundFDFunc func,
 GUM_API void gum_cloak_with_lock_held (GumCloakLockedFunc func,
     gpointer user_data);
 GUM_API gboolean gum_cloak_is_locked (void);
+
+GUM_API void gum_cloak_add_observer (GumCloakObserver * observer);
+GUM_API void gum_cloak_remove_observer (GumCloakObserver * observer);
+
+GUM_API void gum_cloak_observer_thread_added (GumCloakObserver * self,
+    GumThreadId id);
+GUM_API void gum_cloak_observer_thread_removed (GumCloakObserver * self,
+    GumThreadId id);
 
 G_END_DECLS
 
