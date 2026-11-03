@@ -17,7 +17,15 @@
 # include <sys/wait.h>
 #endif
 
+#define STACK_CANARY G_GUINT64_CONSTANT (0xdeadbeefcafebabe)
+#define STACK_PROBE_OFFSET 0x90
+#define STACK_WINDOW_SIZE 0x100
+
+typedef void (* StackProbeFunc) (guint64 * slots);
+typedef void (* ScratchProbeFunc) (guint64 * table);
+
 TESTLIST_BEGIN (stalker)
+  TESTENTRY (blr_through_x16_should_follow_inline_cache)
 
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
   TESTGROUP_BEGIN ("ExceptionHandling")
@@ -41,6 +49,10 @@ TESTLIST_BEGIN (stalker)
 
   /* TRANSFORMERS */
   TESTENTRY (custom_transformer)
+  TESTENTRY (user_data_reg_should_hold_user_data_across_instructions)
+  TESTENTRY (user_data_reg_should_not_clobber_target_scratch_registers)
+  TESTENTRY (store_of_scratch_register_should_store_target_value)
+  TESTENTRY (callout_should_see_target_scratch_regs_while_held)
   TESTENTRY (transformer_should_be_able_to_skip_call)
   TESTENTRY (transformer_should_be_able_to_replace_call_with_callout)
   TESTENTRY (transformer_should_be_able_to_replace_tailjump_with_callout)
@@ -91,6 +103,15 @@ TESTLIST_BEGIN (stalker)
 #endif
   TESTENTRY (heap_api)
   TESTENTRY (no_register_clobber)
+  TESTENTRY (follow_me_should_restore_link_register)
+  TESTENTRY (user_data_should_not_disturb_scratch_registers)
+  TESTENTRY (callouts_should_not_write_below_stack_pointer)
+  TESTENTRY (no_writes_below_stack_pointer)
+  TESTENTRY (br_should_not_write_below_stack_pointer)
+  TESTENTRY (blr_should_not_write_below_stack_pointer)
+#ifdef HAVE_LINUX
+  TESTENTRY (svc_should_not_write_below_stack_pointer)
+#endif
   TESTENTRY (performance)
 
 #ifdef HAVE_LINUX
@@ -171,6 +192,12 @@ static void bump_num_callouts (GumCpuContext * cpu_context,
     gpointer user_data);
 static void unfollow_during_transform (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
+static void store_user_data_reg (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void store_user_data_reg_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void store_x27_and_x28 (GumCpuContext * cpu_context,
+    gpointer user_data);
 static gboolean test_is_finished (void);
 static void modify_to_return_true_after_three_calls (
     GumStalkerIterator * iterator, GumStalkerOutput * output,
@@ -555,6 +582,155 @@ store_x0 (GumCpuContext * cpu_context,
   guint64 * last_x0 = user_data;
 
   *last_x0 = cpu_context->x[0];
+}
+
+static const guint32 scratch_roundtrip_code[] = {
+    GUINT32_TO_LE (0xf81f0ffc),
+    GUINT32_TO_LE (0x91000400),
+    GUINT32_TO_LE (0xaa0003fc),
+    GUINT32_TO_LE (0xaa1c03e0),
+    GUINT32_TO_LE (0xf84107fc),
+    GUINT32_TO_LE (0xd65f03c0)
+};
+
+TESTCASE (user_data_reg_should_hold_user_data_across_instructions)
+{
+  static guint64 slots[2];
+  StalkerTestFunc func;
+
+  slots[1] = 0;
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_user_data_reg, slots, NULL);
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (
+      fixture, flat_code, sizeof (flat_code));
+  fixture->sink->mask = GUM_NOTHING;
+  g_assert_cmpint (test_arm64_stalker_fixture_follow_and_invoke (fixture,
+      func, -1), ==, 2);
+
+  g_assert_cmphex (slots[1], ==, GPOINTER_TO_SIZE (slots));
+}
+
+TESTCASE (user_data_reg_should_not_clobber_target_scratch_registers)
+{
+  static guint64 slots[2];
+  StalkerTestFunc func;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_user_data_reg, slots, NULL);
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (
+      fixture, scratch_roundtrip_code, sizeof (scratch_roundtrip_code));
+  fixture->sink->mask = GUM_NOTHING;
+  g_assert_cmpint (test_arm64_stalker_fixture_follow_and_invoke (fixture,
+      func, 41), ==, 42);
+}
+
+static void
+store_user_data_reg (GumStalkerIterator * iterator,
+                     GumStalkerOutput * output,
+                     gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    arm64_reg reg = gum_stalker_iterator_get_user_data_reg (iterator);
+
+    gum_arm64_writer_put_str_reg_reg_offset (output->writer.arm64, reg, reg,
+        8);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static const guint32 store_source_code[] = {
+    GUINT32_TO_LE (0xf81f0ffc),
+    GUINT32_TO_LE (0xf94003e0),
+    GUINT32_TO_LE (0xf84107fc),
+    GUINT32_TO_LE (0xd65f03c0)
+};
+
+TESTCASE (store_of_scratch_register_should_store_target_value)
+{
+  static guint64 slots[2];
+  StalkerTestFunc func;
+  gint ret;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_user_data_reg, slots, NULL);
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (
+      fixture, store_source_code, sizeof (store_source_code));
+  fixture->sink->mask = GUM_NOTHING;
+  ret = test_arm64_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpuint ((guint32) ret, !=, (guint32) GPOINTER_TO_SIZE (slots));
+}
+
+static gsize scratch_code_start;
+static gsize scratch_code_end;
+
+TESTCASE (callout_should_see_target_scratch_regs_while_held)
+{
+  static guint64 slots[4];
+  StalkerTestFunc func;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_user_data_reg_with_callout, slots, NULL);
+
+  func = (StalkerTestFunc) test_arm64_stalker_fixture_dup_code (
+      fixture, scratch_roundtrip_code, sizeof (scratch_roundtrip_code));
+  scratch_code_start = GPOINTER_TO_SIZE (fixture->code);
+  scratch_code_end = scratch_code_start + sizeof (scratch_roundtrip_code);
+  fixture->sink->mask = GUM_NOTHING;
+  g_assert_cmpint (test_arm64_stalker_fixture_follow_and_invoke (fixture,
+      func, 41), ==, 42);
+
+  g_assert_cmphex (slots[2], ==, 42);
+  g_assert_cmphex (slots[3], !=, GPOINTER_TO_SIZE (slots));
+}
+
+static void
+store_user_data_reg_with_callout (GumStalkerIterator * iterator,
+                                  GumStalkerOutput * output,
+                                  gpointer user_data)
+{
+  guint64 * slots = user_data;
+  const cs_insn * insn;
+  guint num_instructions = 0;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gsize address = insn->address;
+
+    if (address >= scratch_code_start && address < scratch_code_end)
+    {
+      arm64_reg reg;
+
+      if (num_instructions == 3)
+      {
+        gum_stalker_iterator_put_callout (iterator, store_x27_and_x28, slots,
+            NULL);
+      }
+
+      reg = gum_stalker_iterator_get_user_data_reg (iterator);
+      gum_arm64_writer_put_str_reg_reg_offset (output->writer.arm64, reg, reg,
+          8);
+      num_instructions++;
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+store_x27_and_x28 (GumCpuContext * cpu_context,
+                   gpointer user_data)
+{
+  guint64 * slots = user_data;
+
+  slots[2] = cpu_context->x[28];
+  slots[3] = cpu_context->x[27];
 }
 
 TESTCASE (transformer_should_be_able_to_skip_call)
@@ -2362,6 +2538,478 @@ TESTCASE (heap_api)
 }
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);
+
+static void
+user_data_transform (GumStalkerIterator * iterator,
+                     GumStalkerOutput * output,
+                     gpointer user_data)
+{
+  GumArm64Writer * cw = output->writer.arm64;
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    arm64_reg user_reg = gum_stalker_iterator_get_user_data_reg (iterator);
+
+    gum_arm64_writer_put_str_reg_reg_offset (cw, user_reg, user_reg, 0);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+TESTCASE (user_data_should_not_disturb_scratch_registers)
+{
+  gsize page_size;
+  guint8 * code;
+  GumArm64Writer cw;
+  ScratchProbeFunc func;
+  guint64 table[8] = { 0x1111, 0x2222, 0x3333, 0x4444, 0x5555, 0x6666,
+      0x7777, 0x8888 };
+  guint64 expected[8];
+  guint64 user_data[1] = { 0 };
+  GumStalkerTransformer * transformer;
+  guint i;
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X21, ARM64_REG_X22);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X23, ARM64_REG_X24);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X25, ARM64_REG_X26);
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X27, ARM64_REG_X28);
+
+  for (i = 0; i != 8; i++)
+  {
+    gum_arm64_writer_put_ldr_reg_reg_offset (&cw, ARM64_REG_X21 + i,
+        ARM64_REG_X0, i * sizeof (guint64));
+  }
+
+  gum_arm64_writer_put_add_reg_reg_reg (&cw, ARM64_REG_X21, ARM64_REG_X21,
+      ARM64_REG_X22);
+  gum_arm64_writer_put_eor_reg_reg_reg (&cw, ARM64_REG_X22, ARM64_REG_X22,
+      ARM64_REG_X23);
+  gum_arm64_writer_put_sub_reg_reg_reg (&cw, ARM64_REG_X23, ARM64_REG_X23,
+      ARM64_REG_X24);
+  gum_arm64_writer_put_add_reg_reg_reg (&cw, ARM64_REG_X24, ARM64_REG_X24,
+      ARM64_REG_X25);
+  gum_arm64_writer_put_eor_reg_reg_reg (&cw, ARM64_REG_X25, ARM64_REG_X25,
+      ARM64_REG_X26);
+  gum_arm64_writer_put_sub_reg_reg_reg (&cw, ARM64_REG_X26, ARM64_REG_X26,
+      ARM64_REG_X27);
+  gum_arm64_writer_put_add_reg_reg_reg (&cw, ARM64_REG_X27, ARM64_REG_X27,
+      ARM64_REG_X28);
+  gum_arm64_writer_put_eor_reg_reg_reg (&cw, ARM64_REG_X28, ARM64_REG_X28,
+      ARM64_REG_X21);
+
+  for (i = 0; i != 8; i++)
+  {
+    gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X21 + i,
+        ARM64_REG_X0, i * sizeof (guint64));
+  }
+
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X27, ARM64_REG_X28);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X25, ARM64_REG_X26);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X23, ARM64_REG_X24);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X21, ARM64_REG_X22);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_flush (&cw);
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  {
+    guint64 a = table[0], b = table[1], c = table[2], d = table[3];
+    guint64 e = table[4], f = table[5], g = table[6], h = table[7];
+
+    a = a + b;
+    b = b ^ c;
+    c = c - d;
+    d = d + e;
+    e = e ^ f;
+    f = f - g;
+    g = g + h;
+    h = h ^ a;
+
+    expected[0] = a;
+    expected[1] = b;
+    expected[2] = c;
+    expected[3] = d;
+    expected[4] = e;
+    expected[5] = f;
+    expected[6] = g;
+    expected[7] = h;
+  }
+
+  func = GUM_POINTER_TO_FUNCPTR (ScratchProbeFunc,
+      gum_sign_code_pointer (code));
+  transformer = gum_stalker_transformer_make_from_callback (
+      user_data_transform, user_data, NULL);
+
+  gum_stalker_follow_me (fixture->stalker, transformer, NULL);
+  func (table);
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_object_unref (transformer);
+
+  for (i = 0; i != 8; i++)
+    g_assert_cmphex (table[i], ==, expected[i]);
+  g_assert_cmphex (user_data[0], ==, GPOINTER_TO_SIZE (user_data));
+
+  gum_memory_free (code, page_size);
+}
+
+static void
+noop_callout (GumCpuContext * cpu_context,
+              gpointer user_data)
+{
+}
+
+static void
+callout_transform (GumStalkerIterator * iterator,
+                   GumStalkerOutput * output,
+                   gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gum_stalker_iterator_put_callout (iterator, noop_callout, NULL, NULL);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+TESTCASE (callouts_should_not_write_below_stack_pointer)
+{
+  gsize page_size;
+  guint8 * code;
+  GumArm64Writer cw;
+  StackProbeFunc probe;
+  guint64 slots[2];
+  GumStalkerTransformer * transformer;
+  guint i;
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_ldr_reg_u64 (&cw, ARM64_REG_X10, STACK_CANARY);
+  gum_arm64_writer_put_sub_reg_reg_imm (&cw, ARM64_REG_X9, ARM64_REG_SP,
+      STACK_PROBE_OFFSET);
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X10,
+      ARM64_REG_X9, 0);
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X10,
+      ARM64_REG_X9, sizeof (guint64));
+  for (i = 0; i != 8; i++)
+    gum_arm64_writer_put_nop (&cw);
+  gum_arm64_writer_put_sub_reg_reg_imm (&cw, ARM64_REG_X9, ARM64_REG_SP,
+      STACK_PROBE_OFFSET);
+  gum_arm64_writer_put_ldr_reg_reg_offset (&cw, ARM64_REG_X11,
+      ARM64_REG_X9, 0);
+  gum_arm64_writer_put_ldr_reg_reg_offset (&cw, ARM64_REG_X12,
+      ARM64_REG_X9, sizeof (guint64));
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X11,
+      ARM64_REG_X0, 0);
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X12,
+      ARM64_REG_X0, sizeof (guint64));
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_flush (&cw);
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  probe = GUM_POINTER_TO_FUNCPTR (StackProbeFunc, gum_sign_code_pointer (code));
+  transformer = gum_stalker_transformer_make_from_callback (
+      callout_transform, NULL, NULL);
+
+  gum_stalker_follow_me (fixture->stalker, transformer, NULL);
+  probe (slots);
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_object_unref (transformer);
+
+  g_assert_cmphex (slots[0], ==, STACK_CANARY);
+  g_assert_cmphex (slots[1], ==, STACK_CANARY);
+
+  gum_memory_free (code, page_size);
+}
+
+typedef enum
+{
+  STACK_PROBE_BR,
+  STACK_PROBE_BLR,
+  STACK_PROBE_SVC,
+} StackProbeKind;
+
+static gsize put_stack_probe (GumArm64Writer * cw, StackProbeKind kind,
+    guint64 target);
+static void run_stack_probe (StackProbeKind kind, GumStalker * stalker);
+
+TESTCASE (br_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_BR, fixture->stalker);
+}
+
+TESTCASE (blr_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_BLR, fixture->stalker);
+}
+
+#ifdef HAVE_LINUX
+TESTCASE (svc_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_SVC, fixture->stalker);
+}
+#endif
+
+static void
+run_stack_probe (StackProbeKind kind,
+                 GumStalker * stalker)
+{
+  gsize page_size, target_offset, i;
+  guint8 * code;
+  GumArm64Writer cw;
+  StackProbeFunc probe;
+  guint64 slots[2 + STACK_WINDOW_SIZE / sizeof (guint64)] = { 0, };
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+
+  gum_arm64_writer_init (&cw, code);
+  target_offset = put_stack_probe (&cw, kind, 0);
+  gum_arm64_writer_clear (&cw);
+
+  gum_arm64_writer_init (&cw, code);
+  g_assert_cmpuint (put_stack_probe (&cw, kind,
+      GPOINTER_TO_SIZE (code) + target_offset), ==, target_offset);
+  gum_arm64_writer_flush (&cw);
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  probe = GUM_POINTER_TO_FUNCPTR (StackProbeFunc, gum_sign_code_pointer (code));
+
+  gum_stalker_follow_me (stalker, NULL, NULL);
+  probe (slots);
+  gum_stalker_unfollow_me (stalker);
+
+  for (i = 2; i != G_N_ELEMENTS (slots); i++)
+    g_assert_cmphex (slots[i], ==, STACK_CANARY);
+
+  gum_memory_free (code, page_size);
+}
+
+static gsize
+put_stack_probe (GumArm64Writer * cw,
+                 StackProbeKind kind,
+                 guint64 target)
+{
+  gsize target_offset = 0;
+  guint i;
+
+  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X19, ARM64_REG_X30);
+  gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_X0);
+  gum_arm64_writer_put_ldr_reg_u64 (cw, ARM64_REG_X10, STACK_CANARY);
+  gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X9, ARM64_REG_SP,
+      STACK_WINDOW_SIZE);
+  for (i = 0; i != STACK_WINDOW_SIZE / sizeof (guint64); i++)
+  {
+    gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG_X10,
+        ARM64_REG_X9, i * sizeof (guint64));
+  }
+
+  switch (kind)
+  {
+    case STACK_PROBE_BR:
+      gum_arm64_writer_put_ldr_reg_u64 (cw, ARM64_REG_X11, target);
+      gum_arm64_writer_put_br_reg (cw, ARM64_REG_X11);
+      target_offset = gum_arm64_writer_offset (cw);
+      break;
+    case STACK_PROBE_BLR:
+      gum_arm64_writer_put_ldr_reg_u64 (cw, ARM64_REG_X11, target);
+      gum_arm64_writer_put_blr_reg (cw, ARM64_REG_X11);
+      break;
+    case STACK_PROBE_SVC:
+      gum_arm64_writer_put_ldr_reg_u64 (cw, ARM64_REG_X8, 172);
+      gum_arm64_writer_put_svc_imm (cw, 0);
+      break;
+  }
+
+  gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X9, ARM64_REG_SP,
+      STACK_WINDOW_SIZE);
+  for (i = 0; i != STACK_WINDOW_SIZE / sizeof (guint64); i++)
+  {
+    gum_arm64_writer_put_ldr_reg_reg_offset (cw, ARM64_REG_X11,
+        ARM64_REG_X9, i * sizeof (guint64));
+    gum_arm64_writer_put_str_reg_reg_offset (cw, ARM64_REG_X11,
+        ARM64_REG_X19, (2 + i) * sizeof (guint64));
+  }
+
+  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X19, ARM64_REG_X30);
+  gum_arm64_writer_put_ret (cw);
+
+  if (kind == STACK_PROBE_BLR)
+  {
+    target_offset = gum_arm64_writer_offset (cw);
+    gum_arm64_writer_put_ret (cw);
+  }
+
+  return target_offset;
+}
+
+TESTCASE (no_writes_below_stack_pointer)
+{
+  gsize page_size;
+  guint8 * code;
+  GumArm64Writer cw;
+  StackProbeFunc probe;
+  guint64 slots[2];
+  guint i;
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
+  gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_SP);
+  gum_arm64_writer_put_ldr_reg_u64 (&cw, ARM64_REG_X10, STACK_CANARY);
+  gum_arm64_writer_put_sub_reg_reg_imm (&cw, ARM64_REG_X9, ARM64_REG_SP,
+      STACK_PROBE_OFFSET);
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X10,
+      ARM64_REG_X9, 0);
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X10,
+      ARM64_REG_X9, sizeof (guint64));
+  gum_arm64_writer_put_bl_label (&cw, "stack_probe_callee");
+  gum_arm64_writer_put_b_label (&cw, "stack_probe_check");
+  gum_arm64_writer_put_label (&cw, "stack_probe_callee");
+  gum_arm64_writer_put_ret (&cw);
+  gum_arm64_writer_put_label (&cw, "stack_probe_check");
+  gum_arm64_writer_put_sub_reg_reg_imm (&cw, ARM64_REG_X9, ARM64_REG_SP,
+      STACK_PROBE_OFFSET);
+  gum_arm64_writer_put_ldr_reg_reg_offset (&cw, ARM64_REG_X11,
+      ARM64_REG_X9, 0);
+  gum_arm64_writer_put_ldr_reg_reg_offset (&cw, ARM64_REG_X12,
+      ARM64_REG_X9, sizeof (guint64));
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X11,
+      ARM64_REG_X0, 0);
+  gum_arm64_writer_put_str_reg_reg_offset (&cw, ARM64_REG_X12,
+      ARM64_REG_X0, sizeof (guint64));
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_flush (&cw);
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  probe = GUM_POINTER_TO_FUNCPTR (StackProbeFunc,
+      gum_sign_code_pointer (code));
+
+  gum_stalker_follow_me (fixture->stalker, NULL, NULL);
+  for (i = 0; i != 9; i++)
+  {
+    probe (slots);
+    if (slots[0] != STACK_CANARY || slots[1] != STACK_CANARY)
+      break;
+  }
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmphex (slots[0], ==, STACK_CANARY);
+  g_assert_cmphex (slots[1], ==, STACK_CANARY);
+
+  gum_memory_free (code, page_size);
+}
+
+static char blr_x16_loop_tag;
+static char blr_x16_callee_tag;
+
+typedef guint64 (* BlrX16Func) (guint64 arg);
+
+static gsize
+put_blr_x16_loop (GumArm64Writer * cw, guint64 callee)
+{
+  gum_arm64_writer_put_push_reg_reg (cw, ARM64_REG_X19, ARM64_REG_X30);
+  gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_X0);
+  gum_arm64_writer_put_ldr_reg_u64 (cw, ARM64_REG_X0, 0);
+  gum_arm64_writer_put_label (cw, &blr_x16_loop_tag);
+  gum_arm64_writer_put_ldr_reg_u64 (cw, ARM64_REG_X16, callee);
+  gum_arm64_writer_put_blr_reg (cw, ARM64_REG_X16);
+  gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X19, ARM64_REG_X19, 1);
+  gum_arm64_writer_put_cbnz_reg_label (cw, ARM64_REG_X19, &blr_x16_loop_tag);
+  gum_arm64_writer_put_pop_reg_reg (cw, ARM64_REG_X19, ARM64_REG_X30);
+  gum_arm64_writer_put_ret (cw);
+  gum_arm64_writer_put_label (cw, &blr_x16_callee_tag);
+  return gum_arm64_writer_offset (cw);
+}
+
+TESTCASE (blr_through_x16_should_follow_inline_cache)
+{
+  gsize page_size, callee_offset;
+  guint8 * code;
+  GumArm64Writer cw;
+  BlrX16Func func;
+  guint64 result;
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+
+  gum_arm64_writer_init (&cw, code);
+  callee_offset = put_blr_x16_loop (&cw, 0);
+  gum_arm64_writer_clear (&cw);
+  gum_arm64_writer_init (&cw, code);
+  put_blr_x16_loop (&cw, GPOINTER_TO_SIZE (code) + callee_offset);
+  gum_arm64_writer_put_add_reg_reg_imm (&cw, ARM64_REG_X0, ARM64_REG_X0, 1);
+  gum_arm64_writer_put_ret (&cw);
+  gum_arm64_writer_flush (&cw);
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  func = GUM_POINTER_TO_FUNCPTR (BlrX16Func, gum_sign_code_pointer (code));
+  gum_stalker_follow_me (fixture->stalker, NULL, NULL);
+  result = func (1000);
+  gum_stalker_unfollow_me (fixture->stalker);
+  g_assert_cmpuint (result, ==, 1000);
+
+  gum_memory_free (code, page_size);
+}
+
+typedef guint64 (* LinkRegisterFunc) (void);
+
+TESTCASE (follow_me_should_restore_link_register)
+{
+  gsize page_size, return_offset;
+  guint8 * code;
+  GumArm64Writer cw;
+  LinkRegisterFunc func;
+  guint64 link_register;
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_push_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
+  gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_SP);
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (NULL),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (NULL));
+  return_offset = gum_arm64_writer_offset (&cw);
+  gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X0, ARM64_REG_X30);
+  gum_arm64_writer_put_pop_reg_reg (&cw, ARM64_REG_X29, ARM64_REG_X30);
+  gum_arm64_writer_put_ret (&cw);
+  gum_arm64_writer_flush (&cw);
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  func = GUM_POINTER_TO_FUNCPTR (LinkRegisterFunc,
+      gum_sign_code_pointer (code));
+  link_register = func ();
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmphex (link_register, ==, GPOINTER_TO_SIZE (code) + return_offset);
+
+  gum_memory_free (code, page_size);
+}
 
 TESTCASE (no_register_clobber)
 {

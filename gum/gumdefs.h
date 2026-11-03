@@ -54,6 +54,7 @@ typedef struct _GumArgument GumArgument;
 typedef guint GumBranchHint;
 typedef struct _GumIA32CpuContext GumIA32CpuContext;
 typedef struct _GumX64CpuContext GumX64CpuContext;
+typedef guint GumX86Reg;
 typedef union _GumX86VectorReg GumX86VectorReg;
 typedef struct _GumArmCpuContext GumArmCpuContext;
 typedef union _GumArmVectorReg GumArmVectorReg;
@@ -74,6 +75,11 @@ typedef guint GumRelocationScenario;
 # define GUM_X86_XMM_REG_COUNT 8
 # define GUM_FXSAVE_OFFSET_XMM 160
 typedef GumIA32CpuContext GumCpuContext;
+# if defined (GUM_GIR_COMPILATION)
+  typedef guint GumCpuReg;
+# else
+  typedef x86_reg GumCpuReg;
+# endif
 #elif defined (_M_X64) || defined (__x86_64__)
 # define GUM_NATIVE_CPU GUM_CPU_AMD64
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
@@ -86,6 +92,11 @@ typedef GumIA32CpuContext GumCpuContext;
 # define GUM_X86_XMM_REG_COUNT 16
 # define GUM_FXSAVE_OFFSET_XMM 160
 typedef GumX64CpuContext GumCpuContext;
+# if defined (GUM_GIR_COMPILATION)
+  typedef guint GumCpuReg;
+# else
+  typedef x86_reg GumCpuReg;
+# endif
 #elif defined (_M_ARM) || defined (__arm__)
 # define GUM_NATIVE_CPU GUM_CPU_ARM
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM
@@ -97,6 +108,11 @@ typedef GumX64CpuContext GumCpuContext;
     ((cs_mode) (CS_MODE_ARM | CS_MODE_V8 | GUM_DEFAULT_CS_ENDIAN))
 # define GUM_PSR_T_BIT 0x20
 typedef GumArmCpuContext GumCpuContext;
+# if defined (GUM_GIR_COMPILATION)
+  typedef guint GumCpuReg;
+# else
+  typedef arm_reg GumCpuReg;
+# endif
 #elif defined (_M_ARM64) || defined (__aarch64__)
 # define GUM_NATIVE_CPU GUM_CPU_ARM64
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
@@ -106,6 +122,11 @@ typedef GumArmCpuContext GumCpuContext;
  */
 # define GUM_DEFAULT_CS_MODE GUM_DEFAULT_CS_ENDIAN
 typedef GumArm64CpuContext GumCpuContext;
+# if defined (GUM_GIR_COMPILATION)
+  typedef guint GumCpuReg;
+# else
+  typedef arm64_reg GumCpuReg;
+# endif
 #elif defined (__mips__)
 # define GUM_NATIVE_CPU GUM_CPU_MIPS
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
@@ -124,6 +145,11 @@ typedef GumArm64CpuContext GumCpuContext;
     (CS_MODE_MIPS64 | GUM_DEFAULT_CS_ENDIAN))
 # endif
 typedef GumMipsCpuContext GumCpuContext;
+# if defined (GUM_GIR_COMPILATION)
+  typedef guint GumCpuReg;
+# else
+  typedef mips_reg GumCpuReg;
+# endif
 #else
 # error Unsupported architecture.
 #endif

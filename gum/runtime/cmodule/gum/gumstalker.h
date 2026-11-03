@@ -139,5 +139,6 @@ GumMemoryAccess gum_stalker_iterator_get_memory_access (
 void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
     GumStalkerCallout callout, gpointer data, GDestroyNotify data_destroy);
 csh gum_stalker_iterator_get_capstone (GumStalkerIterator * self);
+GumCpuReg gum_stalker_iterator_get_user_data_reg (GumStalkerIterator * self);
 
 #endif

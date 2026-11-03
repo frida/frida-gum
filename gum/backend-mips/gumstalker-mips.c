@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -218,6 +218,13 @@ gum_stalker_iterator_put_callout (GumStalkerIterator * self,
 void
 gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
 {
+}
+
+GumCpuReg
+gum_stalker_iterator_get_user_data_reg (GumStalkerIterator * self)
+{
+  g_assert_not_reached ();
+  return MIPS_REG_INVALID;
 }
 
 csh

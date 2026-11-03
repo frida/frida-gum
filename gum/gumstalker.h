@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2010 Karl Trygve Kalleberg <karltk@boblycat.org>
  * Copyright (C)      2023 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -75,6 +75,9 @@ struct _GumStalkerTransformerInterface
 
   void (* transform_block) (GumStalkerTransformer * self,
       GumStalkerIterator * iterator, GumStalkerOutput * output);
+
+  gpointer (* get_user_data) (GumStalkerTransformer * self,
+      GumThreadId thread_id);
 };
 
 struct _GumStalkerObserverInterface
@@ -232,6 +235,8 @@ GUM_API void gum_stalker_iterator_put_callout (GumStalkerIterator * self,
 GUM_API void gum_stalker_iterator_put_chaining_return (
     GumStalkerIterator * self);
 GUM_API csh gum_stalker_iterator_get_capstone (GumStalkerIterator * self);
+GUM_API GumCpuReg gum_stalker_iterator_get_user_data_reg (
+    GumStalkerIterator * self);
 
 #define GUM_DECLARE_OBSERVER_INCREMENT(name) \
     GUM_API void gum_stalker_observer_increment_##name ( \

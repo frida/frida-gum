@@ -40,7 +40,7 @@
 #define GUM_SCRATCH_SLAB_SIZE       16384
 #define GUM_EXEC_BLOCK_MIN_CAPACITY 1024
 
-#define GUM_INVALIDATE_TRAMPOLINE_SIZE 12
+#define GUM_INVALIDATE_TRAMPOLINE_SIZE 20
 #define GUM_EXCLUSIVE_ACCESS_MAX_DEPTH  8
 
 #define GUM_INSTRUCTION_OFFSET_NONE (-1)
@@ -165,9 +165,64 @@ struct _GumCallProbe
   GDestroyNotify user_notify;
 };
 
+#define GUM_SCRATCH_REG_COUNT 4
+#define GUM_STALKER_STACK_SIZE (256 * 1024)
+
+static void gum_exec_ctx_seed_scratch_shadow (GumExecCtx * ctx,
+    const guint32 * scratch_values);
+static gpointer gum_exec_ctx_query_user_data (
+    GumStalkerTransformer * transformer, GumThreadId thread_id);
+static void gum_generator_context_release_user_data_reg (GumExecBlock * block,
+    GumGeneratorContext * gc);
+static void gum_generator_context_write_through_insn (GumExecBlock * block,
+    GumGeneratorContext * gc);
+static void gum_generator_context_write_through_mask (GumExecBlock * block,
+    GumGeneratorContext * gc, guint16 mask);
+static void gum_generator_context_write_through_writeback (GumExecBlock * block,
+    GumGeneratorContext * gc, const GumWriteback * writeback);
+static void gum_generator_context_write_through (GumExecBlock * block,
+    GumGeneratorContext * gc, const arm_reg * written, guint num_written);
+static arm_reg gum_generator_context_pick_write_through_base (
+    GumExecBlock * block, GumGeneratorContext * gc, const arm_reg * written,
+    guint num_written);
+static arm_reg gum_find_write_through_base (GumGeneratorContext * gc,
+    const arm_reg * written, guint num_written);
+static arm_reg gum_generator_context_pick_user_data_reg (
+    GumGeneratorContext * gc);
+static csh gum_instruction_capstone (GumGeneratorContext * gc);
+static gboolean gum_instruction_writes_reg (GumGeneratorContext * gc,
+    arm_reg reg);
+static gboolean gum_instruction_touches_reg (GumGeneratorContext * gc,
+    arm_reg reg);
+static void gum_generator_context_put_ldr_address (GumGeneratorContext * gc,
+    arm_reg reg, GumAddress address);
+static void gum_generator_context_put_ldr_offset (GumGeneratorContext * gc,
+    arm_reg dst_reg, arm_reg base_reg, gint offset);
+static void gum_generator_context_put_str_offset (GumGeneratorContext * gc,
+    arm_reg src_reg, arm_reg base_reg, gint offset);
+static void gum_generator_context_put_add_reg_reg_imm (GumGeneratorContext * gc,
+    arm_reg dst_reg, arm_reg src_reg, guint imm);
+static void gum_generator_context_put_sub_reg_reg_imm (GumGeneratorContext * gc,
+    arm_reg dst_reg, arm_reg src_reg, guint imm);
+static gboolean gum_mask_has_all_scratch_regs (guint16 mask);
+static gint gum_scratch_shadow_offset (arm_reg reg);
+static void gum_exec_ctx_seed_scratch_shadow_from_cpu_context (
+    GumExecCtx * ctx, const GumCpuContext * cpu_context);
+
+static const arm_reg gum_scratch_regs[GUM_SCRATCH_REG_COUNT] = {
+  ARM_REG_R3, ARM_REG_R6, ARM_REG_R9, ARM_REG_R11
+};
+
 struct _GumExecCtx
 {
   volatile gint state;
+  guint32 scratch_shadow[GUM_SCRATCH_REG_COUNT];
+  gpointer spill_lr;
+  guint32 spill_r1;
+  gpointer user_data;
+  gpointer app_stack;
+  gpointer stack_base;
+  gpointer stack_top;
   gint64 destroy_pending_since;
 
   GumStalker * stalker;
@@ -300,6 +355,7 @@ struct _GumGeneratorContext
   GumThumbWriter * thumb_writer;
 
   gpointer continuation_real_address;
+  arm_reg user_data_reg;
 };
 
 struct _GumInstruction
@@ -433,13 +489,13 @@ static void gum_stalker_finalize (GObject * object);
 
 G_GNUC_INTERNAL gpointer _gum_stalker_do_follow_me (GumStalker * self,
     GumStalkerTransformer * transformer, GumEventSink * sink,
-    gpointer ret_addr);
+    gpointer ret_addr, const guint32 * scratch_values);
 static void gum_stalker_infect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 static void gum_stalker_disinfect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 G_GNUC_INTERNAL gpointer _gum_stalker_do_activate (GumStalker * self,
-    gconstpointer target, gpointer ret_addr);
+    gconstpointer target, gpointer ret_addr, const guint32 * scratch_values);
 G_GNUC_INTERNAL gpointer _gum_stalker_do_deactivate (GumStalker * self,
     gpointer ret_addr);
 static gboolean gum_stalker_do_invalidate (GumExecCtx * ctx,
@@ -538,7 +594,8 @@ static void gum_stalker_get_writeback (const cs_insn * insn,
 static void gum_stalker_invoke_callout (GumCalloutEntry * entry,
     GumCpuContext * cpu_context);
 
-static void gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx, GumArmWriter * cw);
+static void gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx, GumArmWriter * cw,
+    gboolean switch_stack);
 static void gum_exec_ctx_write_arm_epilog (GumExecCtx * ctx, GumArmWriter * cw);
 
 static void gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx);
@@ -740,6 +797,444 @@ gboolean
 gum_stalker_is_supported (void)
 {
   return TRUE;
+}
+
+static gpointer
+gum_exec_ctx_query_user_data (GumStalkerTransformer * transformer,
+                              GumThreadId thread_id)
+{
+  GumStalkerTransformerInterface * iface =
+      GUM_STALKER_TRANSFORMER_GET_IFACE (transformer);
+
+  if (iface->get_user_data == NULL)
+    return NULL;
+
+  return iface->get_user_data (transformer, thread_id);
+}
+
+static void
+gum_generator_context_release_user_data_reg (GumExecBlock * block,
+                                             GumGeneratorContext * gc)
+{
+  arm_reg reg = gc->user_data_reg;
+
+  if (reg == ARM_REG_INVALID)
+    return;
+
+  gum_generator_context_put_ldr_address (gc, reg, GUM_ADDRESS (block->ctx));
+  gum_generator_context_put_ldr_offset (gc, reg, reg,
+      gum_scratch_shadow_offset (reg));
+  gc->user_data_reg = ARM_REG_INVALID;
+}
+
+static void
+gum_generator_context_write_through_insn (GumExecBlock * block,
+                                          GumGeneratorContext * gc)
+{
+  arm_reg written[GUM_SCRATCH_REG_COUNT];
+  guint num_written = 0;
+  guint i;
+
+  for (i = 0; i != GUM_SCRATCH_REG_COUNT; i++)
+  {
+    arm_reg reg = gum_scratch_regs[i];
+
+    if (gum_instruction_writes_reg (gc, reg))
+      written[num_written++] = reg;
+  }
+
+  gum_generator_context_write_through (block, gc, written, num_written);
+}
+
+static void
+gum_generator_context_write_through_mask (GumExecBlock * block,
+                                          GumGeneratorContext * gc,
+                                          guint16 mask)
+{
+  arm_reg written[GUM_SCRATCH_REG_COUNT];
+  guint num_written = 0;
+  guint i;
+
+  for (i = 0; i != GUM_SCRATCH_REG_COUNT; i++)
+  {
+    arm_reg reg = gum_scratch_regs[i];
+
+    if ((mask & (1 << (reg - ARM_REG_R0))) != 0)
+      written[num_written++] = reg;
+  }
+
+  gum_generator_context_write_through (block, gc, written, num_written);
+}
+
+static void
+gum_generator_context_write_through_writeback (GumExecBlock * block,
+                                               GumGeneratorContext * gc,
+                                               const GumWriteback * writeback)
+{
+  guint16 mask = 0;
+
+  if (writeback->target != ARM_REG_INVALID)
+    mask = 1 << (writeback->target - ARM_REG_R0);
+
+  gum_generator_context_write_through_mask (block, gc, mask);
+}
+
+static void
+gum_generator_context_write_through (GumExecBlock * block,
+                                     GumGeneratorContext * gc,
+                                     const arm_reg * written,
+                                     guint num_written)
+{
+  arm_reg base;
+  guint i;
+
+  if (num_written == 0)
+    return;
+
+  base = gum_generator_context_pick_write_through_base (block, gc, written,
+      num_written);
+
+  gum_generator_context_put_ldr_address (gc, base, GUM_ADDRESS (block->ctx));
+  for (i = 0; i != num_written; i++)
+  {
+    gum_generator_context_put_str_offset (gc, written[i], base,
+        gum_scratch_shadow_offset (written[i]));
+  }
+  gum_generator_context_put_ldr_offset (gc, base, base,
+      gum_scratch_shadow_offset (base));
+}
+
+static void
+gum_generator_context_write_through_load_pre (GumGeneratorContext * gc,
+                                              GumExecBlock * block,
+                                              arm_reg source_reg,
+                                              guint16 mask,
+                                              gint first_offset)
+{
+  arm_reg candidates[16];
+  guint num_candidates = 0;
+  arm_reg address_reg, value_reg, base_reg;
+  guint i;
+
+  for (i = 0; i != 16; i++)
+  {
+    arm_reg reg = ARM_REG_R0 + i;
+
+    if ((mask & (1 << i)) != 0 && reg != source_reg)
+      candidates[num_candidates++] = reg;
+  }
+
+  if (first_offset != 0)
+  {
+      address_reg = candidates[0];
+    value_reg = candidates[1];
+    base_reg = candidates[2];
+
+    if (first_offset < 0)
+    {
+      gum_generator_context_put_sub_reg_reg_imm (gc, address_reg, source_reg,
+          -first_offset);
+    }
+    else
+    {
+      gum_generator_context_put_add_reg_reg_imm (gc, address_reg, source_reg,
+          first_offset);
+    }
+  }
+  else
+  {
+      address_reg = source_reg;
+    value_reg = candidates[0];
+    base_reg = candidates[1];
+  }
+
+  gum_generator_context_put_ldr_address (gc, base_reg,
+      GUM_ADDRESS (block->ctx));
+  for (i = 0; i != GUM_SCRATCH_REG_COUNT; i++)
+  {
+    arm_reg reg = gum_scratch_regs[i];
+    guint bit = reg - ARM_REG_R0;
+    guint offset;
+
+    if ((mask & (1 << bit)) == 0)
+      continue;
+
+    offset = 4 * gum_count_bits_set (mask & ((1 << bit) - 1));
+    gum_generator_context_put_ldr_offset (gc, value_reg, address_reg, offset);
+    gum_generator_context_put_str_offset (gc, value_reg, base_reg,
+        gum_scratch_shadow_offset (reg));
+  }
+}
+
+static arm_reg
+gum_generator_context_pick_write_through_base (GumExecBlock * block,
+                                               GumGeneratorContext * gc,
+                                               const arm_reg * written,
+                                               guint num_written)
+{
+  arm_reg base = gum_find_write_through_base (gc, written, num_written);
+
+  if (base == ARM_REG_INVALID)
+  {
+    gum_generator_context_release_user_data_reg (block, gc);
+    base = gum_find_write_through_base (gc, written, num_written);
+  }
+
+  return base;
+}
+
+static arm_reg
+gum_find_write_through_base (GumGeneratorContext * gc,
+                             const arm_reg * written,
+                             guint num_written)
+{
+  guint i, j;
+
+  for (i = 0; i != GUM_SCRATCH_REG_COUNT; i++)
+  {
+    arm_reg candidate = gum_scratch_regs[i];
+    gboolean is_written = FALSE;
+
+    for (j = 0; j != num_written; j++)
+    {
+      if (written[j] == candidate)
+        is_written = TRUE;
+    }
+
+    if (!is_written && candidate != gc->user_data_reg)
+      return candidate;
+  }
+
+  return ARM_REG_INVALID;
+}
+
+static arm_reg
+gum_generator_context_pick_user_data_reg (GumGeneratorContext * gc)
+{
+  guint i;
+
+  for (i = 0; i != GUM_SCRATCH_REG_COUNT; i++)
+  {
+    if (!gum_instruction_touches_reg (gc, gum_scratch_regs[i]))
+      return gum_scratch_regs[i];
+  }
+
+  g_assert_not_reached ();
+  return ARM_REG_INVALID;
+}
+
+static csh
+gum_instruction_capstone (GumGeneratorContext * gc)
+{
+  return gc->is_thumb ? gc->thumb_relocator->capstone
+      : gc->arm_relocator->capstone;
+}
+
+static arm_reg
+gum_instruction_writeback_base (GumGeneratorContext * gc)
+{
+  const cs_arm * arm = &gc->instruction->ci->detail->arm;
+  guint i;
+
+  if (!arm->writeback)
+    return ARM_REG_INVALID;
+
+  for (i = 0; i != arm->op_count; i++)
+  {
+    if (arm->operands[i].type == ARM_OP_MEM)
+      return arm->operands[i].mem.base;
+  }
+
+  if (arm->op_count != 0 && arm->operands[0].type == ARM_OP_REG)
+    return arm->operands[0].reg;
+
+  return ARM_REG_INVALID;
+}
+
+static gboolean
+gum_instruction_writes_reg (GumGeneratorContext * gc,
+                            arm_reg reg)
+{
+  cs_regs regs_read, regs_written;
+  uint8_t num_regs_read, num_regs_written;
+  guint i;
+
+  cs_regs_access (gum_instruction_capstone (gc), gc->instruction->ci,
+      regs_read, &num_regs_read, regs_written, &num_regs_written);
+
+  for (i = 0; i != num_regs_written; i++)
+  {
+    if (regs_written[i] == reg)
+      return TRUE;
+  }
+
+  return gum_instruction_writeback_base (gc) == reg;
+}
+
+static gboolean
+gum_instruction_touches_reg (GumGeneratorContext * gc,
+                             arm_reg reg)
+{
+  cs_regs regs_read, regs_written;
+  uint8_t num_regs_read, num_regs_written;
+  guint i;
+
+  cs_regs_access (gum_instruction_capstone (gc), gc->instruction->ci,
+      regs_read, &num_regs_read, regs_written, &num_regs_written);
+
+  for (i = 0; i != num_regs_read; i++)
+  {
+    if (regs_read[i] == reg)
+      return TRUE;
+  }
+
+  return gum_instruction_writes_reg (gc, reg);
+}
+
+static gboolean
+gum_instruction_pre_write_through (GumExecBlock * block,
+                                   GumGeneratorContext * gc)
+{
+  const cs_insn * ci = gc->instruction->ci;
+  const cs_arm * arm = &ci->detail->arm;
+  arm_reg base;
+  guint16 mask = 0;
+  gint first_offset = 0;
+  guint num_regs, i;
+
+  if (arm->cc != ARM_CC_AL)
+    return FALSE;
+
+  if (ci->id == ARM_INS_POP)
+  {
+    base = ARM_REG_SP;
+    for (i = 0; i != arm->op_count; i++)
+    {
+      if (arm->operands[i].type == ARM_OP_REG)
+        mask |= 1 << (arm->operands[i].reg - ARM_REG_R0);
+    }
+  }
+  else if ((ci->id == ARM_INS_LDM || ci->id == ARM_INS_LDMDA ||
+      ci->id == ARM_INS_LDMDB || ci->id == ARM_INS_LDMIB) &&
+      arm->op_count >= 2 && arm->operands[0].type == ARM_OP_REG)
+  {
+    base = arm->operands[0].reg;
+    for (i = 1; i != arm->op_count; i++)
+    {
+      if (arm->operands[i].type == ARM_OP_REG)
+        mask |= 1 << (arm->operands[i].reg - ARM_REG_R0);
+    }
+  }
+  else
+  {
+    return FALSE;
+  }
+
+  if (!gum_mask_has_all_scratch_regs (mask))
+    return FALSE;
+
+  if (arm->writeback && (mask & (1 << (base - ARM_REG_R0))) != 0)
+    return FALSE;
+
+  num_regs = gum_count_bits_set (mask);
+  switch (ci->id)
+  {
+    case ARM_INS_LDMIB:
+      first_offset = 4;
+      break;
+    case ARM_INS_LDMDA:
+      first_offset = -4 * ((gint) num_regs - 1);
+      break;
+    case ARM_INS_LDMDB:
+      first_offset = -4 * (gint) num_regs;
+      break;
+    default:
+      first_offset = 0;
+      break;
+  }
+
+  gum_generator_context_write_through_load_pre (gc, block, base, mask,
+      first_offset);
+  return TRUE;
+}
+
+static void
+gum_generator_context_put_ldr_address (GumGeneratorContext * gc,
+                                       arm_reg reg,
+                                       GumAddress address)
+{
+  if (gc->is_thumb)
+    gum_thumb_writer_put_ldr_reg_address (gc->thumb_writer, reg, address);
+  else
+    gum_arm_writer_put_ldr_reg_address (gc->arm_writer, reg, address);
+}
+
+static void
+gum_generator_context_put_ldr_offset (GumGeneratorContext * gc,
+                                      arm_reg dst_reg,
+                                      arm_reg base_reg,
+                                      gint offset)
+{
+  if (gc->is_thumb)
+    gum_thumb_writer_put_ldr_reg_reg_offset (gc->thumb_writer, dst_reg,
+        base_reg, offset);
+  else
+    gum_arm_writer_put_ldr_reg_reg_offset (gc->arm_writer, dst_reg, base_reg,
+        offset);
+}
+
+static void
+gum_generator_context_put_str_offset (GumGeneratorContext * gc,
+                                      arm_reg src_reg,
+                                      arm_reg base_reg,
+                                      gint offset)
+{
+  if (gc->is_thumb)
+    gum_thumb_writer_put_str_reg_reg_offset (gc->thumb_writer, src_reg,
+        base_reg, offset);
+  else
+    gum_arm_writer_put_str_reg_reg_offset (gc->arm_writer, src_reg, base_reg,
+        offset);
+}
+
+static void
+gum_generator_context_put_add_reg_reg_imm (GumGeneratorContext * gc,
+                                           arm_reg dst_reg,
+                                           arm_reg src_reg,
+                                           guint imm)
+{
+  if (gc->is_thumb)
+    gum_thumb_writer_put_add_reg_reg_imm (gc->thumb_writer, dst_reg, src_reg,
+        imm);
+  else
+    gum_arm_writer_put_add_reg_reg_imm (gc->arm_writer, dst_reg, src_reg, imm);
+}
+
+static void
+gum_generator_context_put_sub_reg_reg_imm (GumGeneratorContext * gc,
+                                           arm_reg dst_reg,
+                                           arm_reg src_reg,
+                                           guint imm)
+{
+  if (gc->is_thumb)
+    gum_thumb_writer_put_sub_reg_reg_imm (gc->thumb_writer, dst_reg, src_reg,
+        imm);
+  else
+    gum_arm_writer_put_sub_reg_reg_imm (gc->arm_writer, dst_reg, src_reg, imm);
+}
+
+static gint
+gum_scratch_shadow_offset (arm_reg reg)
+{
+  guint i;
+
+  for (i = 0; i != GUM_SCRATCH_REG_COUNT; i++)
+  {
+    if (gum_scratch_regs[i] == reg)
+      break;
+  }
+
+  return G_STRUCT_OFFSET (GumExecCtx, scratch_shadow) + i * sizeof (guint32);
 }
 
 static void
@@ -1019,13 +1514,15 @@ gpointer
 _gum_stalker_do_follow_me (GumStalker * self,
                            GumStalkerTransformer * transformer,
                            GumEventSink * sink,
-                           gpointer ret_addr)
+                           gpointer ret_addr,
+                           const guint32 * scratch_values)
 {
   GumExecCtx * ctx;
   gpointer code_address;
 
   ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
       transformer, sink);
+  gum_exec_ctx_seed_scratch_shadow (ctx, scratch_values);
   g_private_set (&gum_stalker_exec_ctx_private,
       gum_stalker_mask_exec_ctx (ctx));
 
@@ -1141,6 +1638,7 @@ gum_stalker_infect (GumThreadId thread_id,
 
   ctx = gum_stalker_create_exec_ctx (self, thread_id,
       infect_context->transformer, infect_context->sink);
+  gum_exec_ctx_seed_scratch_shadow_from_cpu_context (ctx, cpu_context);
 
   if ((cpu_context->cpsr & GUM_PSR_T_BIT) == 0)
     pc = cpu_context->pc;
@@ -1165,7 +1663,7 @@ gum_stalker_infect (GumThreadId thread_id,
   cw = &ctx->arm_writer;
   gum_arm_writer_reset (cw, ctx->infect_thunk);
 
-  gum_exec_ctx_write_arm_prolog (ctx, cw);
+  gum_exec_ctx_write_arm_prolog (ctx, cw, TRUE);
   gum_arm_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (g_private_set), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (&gum_stalker_exec_ctx_private),
@@ -1205,16 +1703,34 @@ gum_stalker_disinfect (GumThreadId thread_id,
   }
 }
 
+static void
+gum_exec_ctx_seed_scratch_shadow_from_cpu_context (
+    GumExecCtx * ctx,
+    const GumCpuContext * cpu_context)
+{
+  guint32 values[GUM_SCRATCH_REG_COUNT];
+
+  values[0] = cpu_context->r[3];
+  values[1] = cpu_context->r[6];
+  values[2] = cpu_context->r9;
+  values[3] = cpu_context->r11;
+
+  gum_exec_ctx_seed_scratch_shadow (ctx, values);
+}
+
 gpointer
 _gum_stalker_do_activate (GumStalker * self,
                           gconstpointer target,
-                          gpointer ret_addr)
+                          gpointer ret_addr,
+                          const guint32 * scratch_values)
 {
   GumExecCtx * ctx;
 
   ctx = gum_stalker_get_exec_ctx ();
   if (ctx == NULL)
     return ret_addr;
+
+  gum_exec_ctx_seed_scratch_shadow (ctx, scratch_values);
 
   ctx->unfollow_called_while_still_following = FALSE;
   ctx->activation_target = target;
@@ -1233,6 +1749,13 @@ _gum_stalker_do_activate (GumStalker * self,
   }
 
   return ret_addr;
+}
+
+static void
+gum_exec_ctx_seed_scratch_shadow (GumExecCtx * ctx,
+                                  const guint32 * scratch_values)
+{
+  memcpy (ctx->scratch_shadow, scratch_values, sizeof (ctx->scratch_shadow));
 }
 
 gpointer
@@ -1655,6 +2178,7 @@ _gum_stalker_modify_to_run_on_thread (GumStalker * self,
   GumAddress cpu_context_copy, infect_body;
 
   ctx = gum_stalker_create_exec_ctx (self, thread_id, NULL, NULL);
+  gum_exec_ctx_seed_scratch_shadow_from_cpu_context (ctx, cpu_context);
 
   if ((cpu_context->cpsr & GUM_PSR_T_BIT) == 0)
     pc = cpu_context->pc;
@@ -1672,7 +2196,7 @@ _gum_stalker_modify_to_run_on_thread (GumStalker * self,
 
   infect_body = GUM_ADDRESS (gum_arm_writer_cur (cw));
 
-  gum_exec_ctx_write_arm_prolog (ctx, cw);
+  gum_exec_ctx_write_arm_prolog (ctx, cw, FALSE);
 
   gum_arm_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (func), 2,
@@ -1686,10 +2210,7 @@ _gum_stalker_modify_to_run_on_thread (GumStalker * self,
 
   gum_exec_ctx_write_arm_epilog (ctx, cw);
 
-  gum_arm_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
-  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0, pc);
-  gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
-  gum_arm_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_PC, pc);
 
   gum_arm_writer_flush (cw);
   gum_stalker_freeze (self, cw->base, gum_arm_writer_offset (cw));
@@ -1881,6 +2402,10 @@ gum_exec_ctx_new (GumStalker * stalker,
   ctx->state = GUM_EXEC_CTX_ACTIVE;
 
   ctx->stalker = g_object_ref (stalker);
+
+  ctx->stack_base = gum_memory_allocate (NULL, GUM_STALKER_STACK_SIZE,
+      stalker->page_size, GUM_PAGE_RW);
+  ctx->stack_top = (guint8 *) ctx->stack_base + GUM_STALKER_STACK_SIZE;
   ctx->thread_id = thread_id;
 
   gum_arm_writer_init (&ctx->arm_writer, NULL);
@@ -1898,6 +2423,7 @@ gum_exec_ctx_new (GumStalker * stalker,
     ctx->transformer = gum_stalker_transformer_make_default ();
   ctx->transform_block_impl =
       GUM_STALKER_TRANSFORMER_GET_IFACE (ctx->transformer)->transform_block;
+  ctx->user_data = gum_exec_ctx_query_user_data (ctx->transformer, thread_id);
 
   if (sink != NULL)
     ctx->sink = g_object_ref (sink);
@@ -1950,6 +2476,8 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   GumCodeSlab * code_slab;
 
   gum_metal_hash_table_unref (ctx->mappings);
+
+  gum_memory_free (ctx->stack_base, GUM_STALKER_STACK_SIZE);
 
 #ifdef GUM_HAVE_UNWIND_PC_TRANSLATION
   gum_metal_hash_table_unref (ctx->excluded_calls);
@@ -2456,6 +2984,7 @@ gum_exec_ctx_compile_arm_block (GumExecCtx * ctx,
   gc.arm_relocator = rl;
   gc.arm_writer = cw;
   gc.continuation_real_address = NULL;
+  gc.user_data_reg = ARM_REG_INVALID;
 
   iterator.exec_context = ctx;
   iterator.exec_block = block;
@@ -2467,6 +2996,10 @@ gum_exec_ctx_compile_arm_block (GumExecCtx * ctx,
 
   output.writer.arm = cw;
   output.encoding = GUM_INSTRUCTION_DEFAULT;
+
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3, GUM_ADDRESS (ctx));
+  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R3, ARM_REG_R3,
+      gum_scratch_shadow_offset (ARM_REG_R3));
 
   gum_exec_block_maybe_write_call_probe_code (block, &gc);
 
@@ -2529,6 +3062,7 @@ gum_exec_ctx_compile_thumb_block (GumExecCtx * ctx,
   gc.thumb_relocator = rl;
   gc.thumb_writer = cw;
   gc.continuation_real_address = NULL;
+  gc.user_data_reg = ARM_REG_INVALID;
 
   iterator.exec_context = ctx;
   iterator.exec_block = block;
@@ -2540,6 +3074,10 @@ gum_exec_ctx_compile_thumb_block (GumExecCtx * ctx,
 
   output.writer.thumb = cw;
   output.encoding = GUM_INSTRUCTION_SPECIAL;
+
+  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R3, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R3, ARM_REG_R3,
+      gum_scratch_shadow_offset (ARM_REG_R3));
 
   gum_exec_block_maybe_write_call_probe_code (block, &gc);
 
@@ -2598,11 +3136,17 @@ gum_stalker_iterator_next (GumStalkerIterator * self,
                            const cs_insn ** insn)
 {
   GumGeneratorContext * gc = self->generator_context;
+  gboolean has_next;
 
   if (gc->is_thumb)
-    return gum_stalker_iterator_thumb_next (self, insn);
+    has_next = gum_stalker_iterator_thumb_next (self, insn);
   else
-    return gum_stalker_iterator_arm_next (self, insn);
+    has_next = gum_stalker_iterator_arm_next (self, insn);
+
+  if (!has_next)
+    gum_generator_context_release_user_data_reg (self->exec_block, gc);
+
+  return has_next;
 }
 
 static gboolean
@@ -2648,6 +3192,12 @@ gum_stalker_iterator_arm_next (GumStalkerIterator * self,
   instruction->end = (guint8 *) rl->input_cur;
 
   self->generator_context->instruction = instruction;
+
+  if (gc->user_data_reg != ARM_REG_INVALID &&
+      gum_instruction_touches_reg (gc, gc->user_data_reg))
+  {
+    gum_generator_context_release_user_data_reg (self->exec_block, gc);
+  }
 
   if (is_first_instruction && (self->exec_context->sink_mask & GUM_BLOCK) != 0)
   {
@@ -2707,6 +3257,12 @@ gum_stalker_iterator_thumb_next (GumStalkerIterator * self,
   instruction->end = (guint8 *) rl->input_cur;
 
   self->generator_context->instruction = instruction;
+
+  if (gc->user_data_reg != ARM_REG_INVALID &&
+      gum_instruction_touches_reg (gc, gc->user_data_reg))
+  {
+    gum_generator_context_release_user_data_reg (self->exec_block, gc);
+  }
 
   if (is_first_instruction && (self->exec_context->sink_mask & GUM_BLOCK) != 0)
   {
@@ -2796,6 +3352,9 @@ gum_stalker_iterator_arm_keep (GumStalkerIterator * self)
   GumGeneratorContext * gc = self->generator_context;
   const cs_insn * insn = gc->instruction->ci;
 
+  if (gum_arm_relocator_eob (gc->arm_relocator) || insn->id == ARM_INS_SVC)
+    gum_generator_context_release_user_data_reg (block, gc);
+
   if (gum_arm_relocator_eob (gc->arm_relocator))
   {
     GumBranchTarget target;
@@ -2857,6 +3416,9 @@ gum_stalker_iterator_thumb_keep (GumStalkerIterator * self)
   GumExecBlock * block = self->exec_block;
   GumGeneratorContext * gc = self->generator_context;
   const cs_insn * insn = gc->instruction->ci;
+
+  if (gum_thumb_relocator_eob (gc->thumb_relocator) || insn->id == ARM_INS_SVC)
+    gum_generator_context_release_user_data_reg (block, gc);
 
   if (gum_thumb_relocator_eob (gc->thumb_relocator))
     gum_stalker_iterator_handle_thumb_branch_insn (self, insn);
@@ -3579,6 +4141,23 @@ gum_stalker_iterator_put_chaining_return (GumStalkerIterator * self)
   }
 }
 
+GumCpuReg
+gum_stalker_iterator_get_user_data_reg (GumStalkerIterator * self)
+{
+  GumGeneratorContext * gc = self->generator_context;
+  arm_reg reg;
+
+  if (gc->user_data_reg != ARM_REG_INVALID)
+    return gc->user_data_reg;
+
+  reg = gum_generator_context_pick_user_data_reg (gc);
+  gum_generator_context_put_ldr_address (gc, reg,
+      GUM_ADDRESS (self->exec_block->ctx->user_data));
+  gc->user_data_reg = reg;
+
+  return reg;
+}
+
 csh
 gum_stalker_iterator_get_capstone (GumStalkerIterator * self)
 {
@@ -3591,9 +4170,23 @@ gum_stalker_iterator_get_capstone (GumStalkerIterator * self)
 
 static void
 gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
-                               GumArmWriter * cw)
+                               GumArmWriter * cw,
+                               gboolean switch_stack)
 {
   const GumCpuFeatures cpu_features = ctx->stalker->cpu_features;
+
+  if (switch_stack)
+  {
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3, GUM_ADDRESS (ctx));
+    gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_SP, ARM_REG_R3,
+        G_STRUCT_OFFSET (GumExecCtx, app_stack));
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3,
+        GUM_ADDRESS (ctx->stack_top));
+    gum_arm_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R3);
+  }
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3, GUM_ADDRESS (ctx));
+  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R3, ARM_REG_R3,
+      gum_scratch_shadow_offset (ARM_REG_R3));
 
   /*
    * For our context, we want to build up the following structure so that
@@ -3626,9 +4219,17 @@ gum_exec_ctx_write_arm_prolog (GumExecCtx * ctx,
       ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
       ARM_REG_R6, ARM_REG_R7, ARM_REG_LR);
 
-  /* Take note of CPSR and where GumCpuContext ends/application stack begins */
   gum_arm_writer_put_mov_reg_cpsr (cw, ARM_REG_R5);
-  gum_arm_writer_put_add_reg_reg_imm (cw, ARM_REG_R4, ARM_REG_SP, 9 * 4);
+  if (switch_stack)
+  {
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R4, GUM_ADDRESS (ctx));
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R4, ARM_REG_R4,
+        G_STRUCT_OFFSET (GumExecCtx, app_stack));
+  }
+  else
+  {
+    gum_arm_writer_put_add_reg_reg_imm (cw, ARM_REG_R4, ARM_REG_SP, 9 * 4);
+  }
 
   /* Add padding followed by VFP registers */
   if ((cpu_features & GUM_CPU_VFP2) != 0)
@@ -3694,6 +4295,20 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
 {
   const GumCpuFeatures cpu_features = ctx->stalker->cpu_features;
 
+  gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_R3, ARM_REG_SP);
+  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R6, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_str_reg_reg_offset (cw, ARM_REG_R3, ARM_REG_R6,
+      G_STRUCT_OFFSET (GumExecCtx, app_stack));
+  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R3,
+      GUM_ADDRESS (ctx->stack_top));
+  gum_thumb_writer_put_mov_reg_reg (cw, ARM_REG_SP, ARM_REG_R3);
+  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R3, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R3, ARM_REG_R3,
+      gum_scratch_shadow_offset (ARM_REG_R3));
+  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R6, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R6, ARM_REG_R6,
+      gum_scratch_shadow_offset (ARM_REG_R6));
+
   gum_thumb_writer_put_push_regs (cw, 9,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
       ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
@@ -3706,7 +4321,9 @@ gum_exec_ctx_write_thumb_prolog (GumExecCtx * ctx,
    * and will clobber the flags.
    */
   gum_thumb_writer_put_mov_reg_cpsr (cw, ARM_REG_R5);
-  gum_thumb_writer_put_add_reg_reg_imm (cw, ARM_REG_R4, ARM_REG_SP, 9 * 4);
+  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R4, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R4, ARM_REG_R4,
+      G_STRUCT_OFFSET (GumExecCtx, app_stack));
 
   if ((cpu_features & GUM_CPU_VFP2) != 0)
   {
@@ -3805,6 +4422,9 @@ gum_exec_ctx_write_arm_epilog (GumExecCtx * ctx,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
       ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
       ARM_REG_R6, ARM_REG_R7, ARM_REG_LR);
+
+  gum_arm_writer_put_sub_reg_u16 (cw, ARM_REG_SP, 324);
+  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_SP, ARM_REG_SP, 0);
 }
 
 static void
@@ -3850,6 +4470,9 @@ gum_exec_ctx_write_thumb_epilog (GumExecCtx * ctx,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2,
       ARM_REG_R3, ARM_REG_R4, ARM_REG_R5,
       ARM_REG_R6, ARM_REG_R7, ARM_REG_LR);
+
+  gum_thumb_writer_put_sub_reg_imm (cw, ARM_REG_SP, 324);
+  gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_SP, ARM_REG_SP, 0);
 }
 
 static void
@@ -3863,11 +4486,23 @@ gum_exec_ctx_ensure_inline_helpers_reachable (GumExecCtx * ctx)
   ctx->code_slab->thumb_invalidator = ctx->last_thumb_invalidator;
 }
 
+#ifdef HAVE_LINUX
+static void
+gum_arm_writer_put_restore_scratch_r3 (GumArmWriter * cw,
+                                       GumExecCtx * ctx)
+{
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3,
+      GUM_ADDRESS (&ctx->scratch_shadow[0]));
+  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R3, ARM_REG_R3, 0);
+}
+
+#endif
+
 static void
 gum_exec_ctx_write_arm_invalidator (GumExecCtx * ctx,
                                     GumArmWriter * cw)
 {
-  gum_exec_ctx_write_arm_prolog (ctx, cw);
+  gum_exec_ctx_write_arm_prolog (ctx, cw, TRUE);
 
   gum_arm_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (gum_exec_ctx_recompile_and_switch_block), 2,
@@ -3875,7 +4510,9 @@ gum_exec_ctx_write_arm_invalidator (GumExecCtx * ctx,
       GUM_ARG_REGISTER, ARM_REG_LR);
 
   gum_exec_ctx_write_arm_epilog (ctx, cw);
-  gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_LR);
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_LR,
+      GUM_ADDRESS (&ctx->spill_lr));
+  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_LR, ARM_REG_LR, 0);
 
   gum_exec_block_write_arm_exec_generated_code (cw, ctx);
 }
@@ -4432,6 +5069,8 @@ gum_exec_block_invalidate (GumExecBlock * block)
     gum_thumb_writer_put_bl_imm (cw,
         GUM_ADDRESS (block->code_slab->thumb_invalidator));
     gum_thumb_writer_put_bytes (cw, (guint8 *) &block, sizeof (GumExecBlock *));
+    while (gum_thumb_writer_offset (cw) < trampoline_size)
+      gum_thumb_writer_put_nop (cw);
 
     gum_thumb_writer_flush (cw);
     g_assert (gum_thumb_writer_offset (cw) == trampoline_size);
@@ -4439,13 +5078,16 @@ gum_exec_block_invalidate (GumExecBlock * block)
   else
   {
     GumArmWriter * cw = &ctx->arm_writer;
+    gpointer spill_lr = &ctx->spill_lr;
 
     gum_arm_writer_reset (cw, block->code_start);
 
-    gum_arm_writer_put_push_regs (cw, 1, ARM_REG_LR);
+    gum_arm_writer_put_instruction (cw, 0xe59f3008);
+    gum_arm_writer_put_instruction (cw, 0xe583e000);
     gum_arm_writer_put_bl_imm (cw,
         GUM_ADDRESS (block->code_slab->arm_invalidator));
     gum_arm_writer_put_bytes (cw, (guint8 *) &block, sizeof (GumExecBlock *));
+    gum_arm_writer_put_bytes (cw, (guint8 *) &spill_lr, sizeof (gpointer));
 
     gum_arm_writer_flush (cw);
     g_assert (gum_arm_writer_offset (cw) == trampoline_size);
@@ -4668,6 +5310,7 @@ gum_exec_block_virtualize_arm_branch_insn (GumExecBlock * block,
   gum_exec_block_arm_close_prolog (block, gc);
 
   gum_exec_block_write_arm_handle_writeback (block, writeback, gc);
+  gum_generator_context_write_through_writeback (block, gc, writeback);
   gum_exec_block_write_arm_exec_generated_code (gc->arm_writer, block->ctx);
 }
 
@@ -4731,6 +5374,7 @@ gum_exec_block_virtualize_thumb_branch_insn (GumExecBlock * block,
   gum_exec_block_thumb_close_prolog (block, gc);
 
   gum_exec_block_write_thumb_handle_writeback (block, writeback, gc);
+  gum_generator_context_write_through_writeback (block, gc, writeback);
   gum_exec_block_write_thumb_exec_generated_code (cw, block->ctx);
 
   /*
@@ -4807,6 +5451,22 @@ gum_exec_block_virtualize_thumb_call_insn (GumExecBlock * block,
   gum_thumb_relocator_skip_one (gc->thumb_relocator);
 }
 
+static gboolean
+gum_mask_has_all_scratch_regs (guint16 mask)
+{
+  guint i;
+
+  for (i = 0; i != GUM_SCRATCH_REG_COUNT; i++)
+  {
+    arm_reg reg = gum_scratch_regs[i];
+
+    if ((mask & (1 << (reg - ARM_REG_R0))) == 0)
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
 static void
 gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
                                         const GumBranchTarget * target,
@@ -4816,6 +5476,7 @@ gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
                                         GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
+  gboolean write_through_done = FALSE;
 
   gum_exec_block_write_arm_handle_not_taken (block, target, cc, gc);
 
@@ -4848,6 +5509,13 @@ gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
 
     g_assert (target->type == GUM_TARGET_INDIRECT_REG_OFFSET);
 
+    if (gum_mask_has_all_scratch_regs (mask))
+    {
+      gum_generator_context_write_through_load_pre (gc, block, tv->reg, mask,
+          0);
+      write_through_done = TRUE;
+    }
+
     if (mask != 0)
     {
       if (tv->write_back)
@@ -4863,6 +5531,8 @@ gum_exec_block_virtualize_arm_ret_insn (GumExecBlock * block,
     }
   }
 
+  if (!write_through_done)
+    gum_generator_context_write_through_mask (block, gc, mask);
   gum_exec_block_write_arm_exec_generated_code (gc->arm_writer, block->ctx);
 
   gum_arm_relocator_skip_one (gc->arm_relocator);
@@ -4917,6 +5587,7 @@ gum_exec_block_virtualize_thumb_ret_insn (GumExecBlock * block,
         displacement);
   }
 
+  gum_generator_context_write_through_mask (block, gc, mask);
   gum_exec_block_write_thumb_exec_generated_code (gc->thumb_writer, block->ctx);
 }
 
@@ -4929,10 +5600,15 @@ gum_exec_block_virtualize_arm_svc_insn (GumExecBlock * block,
 #ifdef HAVE_LINUX
   {
     GumArmWriter * cw = gc->arm_writer;
+    GumExecCtx * ctx = block->ctx;
     gconstpointer not_cloned_child = cw->code + 1;
 
+    gum_generator_context_release_user_data_reg (block, gc);
+
     /* Save the flags */
-    gum_arm_writer_put_push_regs (cw, 1, ARM_REG_R1);
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3,
+        GUM_ADDRESS (&ctx->spill_r1));
+    gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R1, ARM_REG_R3, 0);
     gum_arm_writer_put_mov_reg_cpsr (cw, ARM_REG_R1);
 
     /* Check the SVC number */
@@ -4945,20 +5621,23 @@ gum_exec_block_virtualize_arm_svc_insn (GumExecBlock * block,
 
     /* Restore the flags */
     gum_arm_writer_put_mov_cpsr_reg (cw, ARM_REG_R1);
-    gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_R1);
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3,
+        GUM_ADDRESS (&ctx->spill_r1));
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R1, ARM_REG_R3, 0);
+    gum_arm_writer_put_restore_scratch_r3 (cw, ctx);
 
     /* Vector to the original next instruction */
-    gum_arm_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
-    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_PC,
         GUM_ADDRESS (gc->instruction->end));
-    gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
 
     gum_arm_writer_put_label (cw, not_cloned_child);
 
     /* Restore the flags */
     gum_arm_writer_put_mov_cpsr_reg (cw, ARM_REG_R1);
-    gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_R1);
+    gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3,
+        GUM_ADDRESS (&ctx->spill_r1));
+    gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R1, ARM_REG_R3, 0);
+    gum_arm_writer_put_restore_scratch_r3 (cw, ctx);
   }
 #endif
 }
@@ -5080,10 +5759,6 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
 
   gum_exec_block_arm_close_prolog (block, gc);
 
-  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
-      GUM_ADDRESS (&ctx->kuh_target));
-  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R12, ARM_REG_R12, 0);
-
   /*
    * Unlike an excluded range, where the function is executed by a call
    * instruction. It is quite common for kuser_helpers to instead be executed by
@@ -5107,9 +5782,16 @@ gum_exec_block_write_arm_handle_kuser_helper (GumExecBlock * block,
    * documentation states that all of the input and output make use of registers
    * rather than the stack.
    */
-  gum_arm_writer_put_push_regs (cw, 1, ARM_REG_LR);
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
+      GUM_ADDRESS (&ctx->spill_lr));
+  gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_LR, ARM_REG_R12, 0);
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R12,
+      GUM_ADDRESS (&ctx->kuh_target));
+  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R12, ARM_REG_R12, 0);
   gum_arm_writer_put_call_reg (cw, ARM_REG_R12);
-  gum_arm_writer_put_pop_regs (cw, 1, ARM_REG_LR);
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_LR,
+      GUM_ADDRESS (&ctx->spill_lr));
+  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_LR, ARM_REG_LR, 0);
 
   gum_exec_block_arm_open_prolog (block, gc);
 
@@ -5251,6 +5933,7 @@ gum_exec_block_dont_virtualize_arm_insn (GumExecBlock * block,
                                          GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
+  gboolean pre_written;
 
   if ((ec->sink_mask & GUM_EXEC) != 0)
   {
@@ -5259,7 +5942,12 @@ gum_exec_block_dont_virtualize_arm_insn (GumExecBlock * block,
     gum_exec_block_arm_close_prolog (block, gc);
   }
 
+  pre_written = gum_instruction_pre_write_through (block, gc);
+
   gum_arm_relocator_write_all (gc->arm_relocator);
+
+  if (!pre_written)
+    gum_generator_context_write_through_insn (block, gc);
 }
 
 static void
@@ -5267,6 +5955,7 @@ gum_exec_block_dont_virtualize_thumb_insn (GumExecBlock * block,
                                            GumGeneratorContext * gc)
 {
   GumExecCtx * ec = block->ctx;
+  gboolean pre_written;
 
   if ((ec->sink_mask & GUM_EXEC) != 0)
   {
@@ -5275,7 +5964,12 @@ gum_exec_block_dont_virtualize_thumb_insn (GumExecBlock * block,
     gum_exec_block_thumb_close_prolog (block, gc);
   }
 
+  pre_written = gum_instruction_pre_write_through (block, gc);
+
   gum_thumb_relocator_write_all (gc->thumb_relocator);
+
+  if (!pre_written)
+    gum_generator_context_write_through_insn (block, gc);
 }
 
 static void
@@ -5687,50 +6381,20 @@ static void
 gum_exec_block_write_arm_exec_generated_code (GumArmWriter * cw,
                                               GumExecCtx * ctx)
 {
-  /*
-   * This function writes code to vector to the address of the last instrumented
-   * block. Given that this code is emitted before the block is actually
-   * instrumented, the value of ctx->resume_at will change between this code
-   * being emitted and it being executed. It must therefore use &ctx->resume_at
-   * and re-read the value from memory at runtime.
-   *
-   * This however means that we must use a scratch register to calculate the
-   * final address. Given that this is also used to transition between blocks
-   * within a function, we cannot rely upon the fact the R12 is a callee saved
-   * register and clobber the value since it may be being used within the
-   * function scope. We therefore push and pop this register to and from the
-   * stack.
-   */
-
-  /*
-   * Here we push the values of R0 which we will use as scratch space and PC we
-   * will overwrite the value of PC on the stack at (SP+4) with the value from
-   * resume_at before we subsequently pop both registers. This allows us to
-   * branch to an arbitrary address without clobbering any registers.
-   */
-  gum_arm_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
-  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+  gum_arm_writer_put_ldr_reg_address (cw, ARM_REG_R3,
       GUM_ADDRESS (&ctx->resume_at));
-  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_R0, 0);
-
-  gum_arm_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
-  gum_arm_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+  gum_arm_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R3, ARM_REG_R3, 0);
+  gum_arm_writer_put_bx_reg (cw, ARM_REG_R3);
 }
 
 static void
 gum_exec_block_write_thumb_exec_generated_code (GumThumbWriter * cw,
                                                 GumExecCtx * ctx)
 {
-  /*
-   * We can't push PC in Thumb encoding without Thumb 2, and we clobber the
-   * value so it doesn't matter what we push. It ends up popped back into PC.
-   */
-  gum_thumb_writer_put_push_regs (cw, 2, ARM_REG_R0, ARM_REG_R1);
-  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R0,
+  gum_thumb_writer_put_ldr_reg_address (cw, ARM_REG_R3,
       GUM_ADDRESS (&ctx->resume_at));
-  gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_R0, 0);
-  gum_thumb_writer_put_str_reg_reg_offset (cw, ARM_REG_R0, ARM_REG_SP, 4);
-  gum_thumb_writer_put_pop_regs (cw, 2, ARM_REG_R0, ARM_REG_PC);
+  gum_thumb_writer_put_ldr_reg_reg_offset (cw, ARM_REG_R3, ARM_REG_R3, 0);
+  gum_thumb_writer_put_bx_reg (cw, ARM_REG_R3);
 }
 
 static void
@@ -6083,13 +6747,15 @@ static void
 gum_exec_block_arm_open_prolog (GumExecBlock * block,
                                 GumGeneratorContext * gc)
 {
-  gum_exec_ctx_write_arm_prolog (block->ctx, gc->arm_writer);
+  gum_generator_context_release_user_data_reg (block, gc);
+  gum_exec_ctx_write_arm_prolog (block->ctx, gc->arm_writer, TRUE);
 }
 
 static void
 gum_exec_block_thumb_open_prolog (GumExecBlock * block,
                                   GumGeneratorContext * gc)
 {
+  gum_generator_context_release_user_data_reg (block, gc);
   gum_exec_ctx_write_thumb_prolog (block->ctx, gc->thumb_writer);
 }
 

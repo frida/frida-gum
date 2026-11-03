@@ -12,6 +12,8 @@
 #include "gumv8enumeratecontext.h"
 #include "gumv8macros.h"
 #include "gumv8scope.h"
+#include "gumv8script-priv.h"
+#include "gumv8stalker.h"
 
 #include <string.h>
 #ifdef G_OS_NONE
@@ -81,6 +83,7 @@ struct GumV8RunOnThreadContext
   Global<Function> * user_func;
 
   GumV8Core * core;
+  GumStalker * stalker;
 };
 
 struct GumV8ModuleObserver
@@ -706,6 +709,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_run_on_thread)
   auto rc = g_slice_new (GumV8RunOnThreadContext);
   rc->user_func = new Global<Function> (isolate, user_func);
   rc->core = core;
+  rc->stalker = module->stalker;
 
   gboolean success;
   {
@@ -742,6 +746,9 @@ gum_do_call_on_thread (const GumCpuContext * cpu_context,
 
   ScriptScope scope (core->script);
   auto isolate = core->isolate;
+
+  GumV8StalkerStackScope stack_scope (isolate,
+      rc->stalker);
 
   auto user_func = Local<Function>::New (isolate, *rc->user_func);
   auto result = user_func->Call (isolate->GetCurrentContext (),

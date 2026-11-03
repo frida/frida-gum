@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -117,6 +117,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_put_callout)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_put_chaining_return)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_default_iterator_get_user_data_reg)
 
 static GumV8StalkerSpecialIterator *
     gum_v8_stalker_special_iterator_new_persistent (GumV8Stalker * parent);
@@ -134,6 +135,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_next)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_keep)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_put_callout)
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_put_chaining_return)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_special_iterator_get_user_data_reg)
 
 static void gum_v8_callout_free (GumV8Callout * callout);
 static void gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
@@ -213,6 +215,7 @@ static const GumV8Function gumjs_stalker_default_iterator_functions[] =
   { "keep", gumjs_stalker_default_iterator_keep },
   { "putCallout", gumjs_stalker_default_iterator_put_callout },
   { "putChainingReturn", gumjs_stalker_default_iterator_put_chaining_return },
+  { "getUserDataReg", gumjs_stalker_default_iterator_get_user_data_reg },
 
   { NULL, NULL }
 };
@@ -230,6 +233,7 @@ static const GumV8Function gumjs_stalker_special_iterator_functions[] =
   { "keep", gumjs_stalker_special_iterator_keep },
   { "putCallout", gumjs_stalker_special_iterator_put_callout },
   { "putChainingReturn", gumjs_stalker_special_iterator_put_chaining_return },
+  { "getUserDataReg", gumjs_stalker_special_iterator_get_user_data_reg },
 
   { NULL, NULL }
 };
@@ -868,6 +872,7 @@ gum_v8_callback_transformer_transform_block (
     ScriptScope scope (core->script);
     auto isolate = core->isolate;
     auto context = isolate->GetCurrentContext ();
+    GumV8StalkerStackScope stack_scope (isolate, _gum_v8_stalker_get (module));
 
     auto callback = Local<Function>::New (isolate, *self->callback);
 
@@ -1080,6 +1085,23 @@ gum_v8_stalker_iterator_put_chaining_return (GumV8StalkerIterator * self,
   gum_stalker_iterator_put_chaining_return (self->handle);
 }
 
+static void
+gum_v8_stalker_iterator_get_user_data_reg (
+    GumV8StalkerIterator * self,
+    const FunctionCallbackInfo<Value> & info,
+    Isolate * isolate)
+{
+  GumCpuReg reg;
+
+  if (!gum_v8_stalker_iterator_check_valid (self, isolate))
+    return;
+
+  reg = gum_stalker_iterator_get_user_data_reg (self->handle);
+
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate,
+      cs_reg_name (gum_stalker_iterator_get_capstone (self->handle), reg)));
+}
+
 static GumV8StalkerDefaultIterator *
 gum_v8_stalker_default_iterator_new_persistent (GumV8Stalker * parent)
 {
@@ -1174,6 +1196,13 @@ GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (
     GumV8StalkerDefaultIterator)
 {
   gum_v8_stalker_iterator_put_chaining_return (&self->iterator, isolate);
+}
+
+GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (
+    gumjs_stalker_default_iterator_get_user_data_reg,
+    GumV8StalkerDefaultIterator)
+{
+  gum_v8_stalker_iterator_get_user_data_reg (&self->iterator, info, isolate);
 }
 
 static GumV8StalkerSpecialIterator *
@@ -1272,6 +1301,13 @@ GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (
   gum_v8_stalker_iterator_put_chaining_return (&self->iterator, isolate);
 }
 
+GUMJS_DEFINE_DIRECT_SUBCLASS_METHOD (
+    gumjs_stalker_special_iterator_get_user_data_reg,
+    GumV8StalkerSpecialIterator)
+{
+  gum_v8_stalker_iterator_get_user_data_reg (&self->iterator, info, isolate);
+}
+
 static void
 gum_v8_callout_free (GumV8Callout * callout)
 {
@@ -1291,6 +1327,8 @@ gum_v8_callout_on_invoke (GumCpuContext * cpu_context,
   auto core = self->module->core;
   ScriptScope scope (core->script);
   auto isolate = core->isolate;
+  GumV8StalkerStackScope stack_scope (isolate,
+      _gum_v8_stalker_get (self->module));
   auto context = isolate->GetCurrentContext ();
 
   auto cpu_context_value = _gum_v8_cpu_context_new_mutable (cpu_context, core);
@@ -1325,6 +1363,8 @@ gum_v8_call_probe_on_fire (GumCallDetails * details,
   auto core = self->module->core;
   ScriptScope scope (core->script);
   auto isolate = core->isolate;
+  GumV8StalkerStackScope stack_scope (isolate,
+      _gum_v8_stalker_get (self->module));
   auto context = isolate->GetCurrentContext ();
 
   auto probe_args =

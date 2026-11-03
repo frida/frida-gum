@@ -18,14 +18,18 @@ gum_stalker_follow_me:
    * We don't use R0, as otherwise when restoring the stack, we would clobber
    * the return value from do_follow_me().
    */
-  stmdb sp!, {r3, lr}
+  stmdb sp!, {r3, r6, r9, r11, r12, lr}
   add r3, lr, #0
+  sub sp, sp, #8
+  add r12, sp, #8
+  str r12, [sp]
 #ifdef __APPLE__
   bl __gum_stalker_do_follow_me
 #else
   bl _gum_stalker_do_follow_me
 #endif
-  ldmia sp!, {r3, lr}
+  add sp, sp, #8
+  ldmia sp!, {r3, r6, r9, r11, r12, lr}
   bx r0
 
 #ifdef __APPLE__
@@ -36,14 +40,15 @@ _gum_stalker_activate:
   .type gum_stalker_activate, %function
 gum_stalker_activate:
 #endif
-  stmdb sp!, {r2, lr}
+  stmdb sp!, {r3, r6, r9, r11, r12, lr}
   add r2, lr, #0
+  add r3, sp, #0
 #ifdef __APPLE__
   bl __gum_stalker_do_activate
 #else
   bl _gum_stalker_do_activate
 #endif
-  ldmia sp!, {r2, lr}
+  ldmia sp!, {r3, r6, r9, r11, r12, lr}
   bx r0
 
 #ifdef __APPLE__

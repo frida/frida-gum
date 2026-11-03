@@ -30,6 +30,9 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (call_depth)
   TESTENTRY (call_probe)
   TESTENTRY (custom_transformer)
+  TESTENTRY (user_data_reg_should_hold_user_data_across_instructions)
+  TESTENTRY (user_data_reg_should_not_clobber_target_registers)
+  TESTENTRY (callout_should_see_target_regs_while_held)
   TESTENTRY (transformer_should_be_able_to_skip_call)
   TESTENTRY (transformer_should_be_able_to_replace_call_with_callout)
   TESTENTRY (transformer_should_be_able_to_replace_tailjump_with_callout)
@@ -112,6 +115,12 @@ TESTLIST_BEGIN (stalker)
 
 #ifndef HAVE_WINDOWS
   TESTENTRY (ic_var)
+#endif
+  TESTENTRY (callouts_should_not_write_below_stack_pointer)
+  TESTENTRY (jmp_should_not_write_below_stack_pointer)
+  TESTENTRY (call_should_not_write_below_stack_pointer)
+#ifdef HAVE_LINUX
+  TESTENTRY (syscall_should_not_write_below_stack_pointer)
 #endif
 
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
@@ -1012,6 +1021,159 @@ store_xax (GumCpuContext * cpu_context,
   gsize * last_xax = user_data;
 
   *last_xax = GUM_CPU_CONTEXT_XAX (cpu_context);
+}
+
+static void store_user_data_reg (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void store_user_data_reg_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void store_r12_and_r13 (GumCpuContext * cpu_context,
+    gpointer user_data);
+
+static gsize user_data_code_start;
+static gsize user_data_code_end;
+
+#if GLIB_SIZEOF_VOID_P == 8
+# define GUM_TEST_REG_A r12
+# define GUM_TEST_REG_B r13
+static const guint8 user_data_reg_code[] = {
+  0x90,
+  0x41, 0x54,
+  0x49, 0xc7, 0xc4, 0x29, 0x00, 0x00, 0x00,
+  0x49, 0xff, 0xc4,
+  0x4c, 0x89, 0xe0,
+  0x41, 0x5c,
+  0xc3
+};
+#else
+# define GUM_TEST_REG_A esi
+# define GUM_TEST_REG_B edi
+static const guint8 user_data_reg_code[] = {
+  0x90,
+  0x56,
+  0xbe, 0x29, 0x00, 0x00, 0x00,
+  0x46,
+  0x89, 0xf0,
+  0x5e,
+  0xc3
+};
+#endif
+
+TESTCASE (user_data_reg_should_hold_user_data_across_instructions)
+{
+  static guint64 slots[2];
+  StalkerTestFunc func;
+
+  slots[1] = 0;
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_user_data_reg, slots, NULL);
+
+  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
+      user_data_reg_code, sizeof (user_data_reg_code));
+  fixture->sink->mask = GUM_NOTHING;
+  g_assert_cmpint (test_stalker_fixture_follow_and_invoke (fixture, func, 0),
+      ==, 42);
+
+  g_assert_cmphex (slots[1], ==, GPOINTER_TO_SIZE (slots));
+}
+
+TESTCASE (user_data_reg_should_not_clobber_target_registers)
+{
+  static guint64 slots[2];
+  StalkerTestFunc func;
+
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_user_data_reg, slots, NULL);
+
+  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
+      user_data_reg_code, sizeof (user_data_reg_code));
+  fixture->sink->mask = GUM_NOTHING;
+  g_assert_cmpint (test_stalker_fixture_follow_and_invoke (fixture, func, 0),
+      ==, 42);
+}
+
+static void
+store_user_data_reg (GumStalkerIterator * iterator,
+                     GumStalkerOutput * output,
+                     gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    GumCpuReg reg = gum_stalker_iterator_get_user_data_reg (iterator);
+    GumX86Reg writer_reg = gum_x86_reg_from_capstone (reg);
+
+    gum_x86_writer_put_mov_reg_offset_ptr_reg (output->writer.x86,
+        writer_reg, 8, writer_reg);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+TESTCASE (callout_should_see_target_regs_while_held)
+{
+  static guint64 slots[4];
+  StalkerTestFunc func;
+
+  slots[2] = 0;
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_user_data_reg_with_callout, slots, NULL);
+
+  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
+      user_data_reg_code, sizeof (user_data_reg_code));
+  user_data_code_start = GPOINTER_TO_SIZE (fixture->code);
+  user_data_code_end = user_data_code_start + sizeof (user_data_reg_code);
+  fixture->sink->mask = GUM_NOTHING;
+  g_assert_cmpint (test_stalker_fixture_follow_and_invoke (fixture, func, 0),
+      ==, 42);
+
+  g_assert_cmphex (slots[2], ==, 42);
+  g_assert_cmphex (slots[3], !=, GPOINTER_TO_SIZE (slots));
+}
+
+static void
+store_user_data_reg_with_callout (GumStalkerIterator * iterator,
+                                  GumStalkerOutput * output,
+                                  gpointer user_data)
+{
+  guint64 * slots = user_data;
+  const cs_insn * insn;
+  guint num_instructions = 0;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gsize address = insn->address;
+    GumCpuReg reg;
+    GumX86Reg writer_reg;
+
+    if (address >= user_data_code_start && address < user_data_code_end)
+    {
+      reg = gum_stalker_iterator_get_user_data_reg (iterator);
+      writer_reg = gum_x86_reg_from_capstone (reg);
+
+      gum_x86_writer_put_mov_reg_offset_ptr_reg (output->writer.x86,
+          writer_reg, 8,
+          writer_reg);
+      if (num_instructions == 4)
+      {
+        gum_stalker_iterator_put_callout (iterator, store_r12_and_r13, slots,
+            NULL);
+      }
+      num_instructions++;
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+store_r12_and_r13 (GumCpuContext * cpu_context,
+                   gpointer user_data)
+{
+  guint64 * slots = user_data;
+
+  slots[2] = cpu_context->GUM_TEST_REG_A;
+  slots[3] = cpu_context->GUM_TEST_REG_B;
 }
 
 TESTCASE (transformer_should_be_able_to_skip_call)
@@ -3478,6 +3640,297 @@ TESTCASE (ic_var)
 }
 
 #endif
+
+#define STACK_PROBE_OFFSET 0x90
+#define STACK_WINDOW_SIZE 0x80
+#define STACK_WINDOW_SLOTS (STACK_WINDOW_SIZE / sizeof (gsize))
+
+#if GLIB_SIZEOF_VOID_P == 8
+# define STACK_CANARY G_GUINT64_CONSTANT (0xdeadbeefcafebabe)
+#else
+# define STACK_CANARY ((gsize) 0xcafebabe)
+#endif
+
+typedef void (* StackProbeFunc) (gsize * slots);
+
+typedef enum
+{
+  STACK_PROBE_CALLOUT,
+  STACK_PROBE_JMP,
+  STACK_PROBE_CALL,
+#ifdef HAVE_LINUX
+  STACK_PROBE_SYSCALL,
+#endif
+} StackProbeKind;
+
+static void run_stack_probe (StackProbeKind kind,
+    TestStalkerFixture * fixture);
+static GByteArray * build_stack_probe (StackProbeKind kind);
+static void append_stack_window_fill (GByteArray * code);
+static void append_stack_window_copy (GByteArray * code);
+static void stack_probe_transform (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void stack_probe_callout (GumCpuContext * cpu_context,
+    gpointer user_data);
+
+TESTCASE (callouts_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_CALLOUT, fixture);
+}
+
+TESTCASE (jmp_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_JMP, fixture);
+}
+
+TESTCASE (call_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_CALL, fixture);
+}
+
+#ifdef HAVE_LINUX
+TESTCASE (syscall_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_SYSCALL, fixture);
+}
+#endif
+
+static void
+run_stack_probe (StackProbeKind kind,
+                 TestStalkerFixture * fixture)
+{
+  GByteArray * code;
+  StackProbeFunc probe;
+  GumStalkerTransformer * transformer;
+  gsize slots[STACK_WINDOW_SLOTS] = { 0, };
+  guint i;
+
+  code = build_stack_probe (kind);
+  probe = GUM_POINTER_TO_FUNCPTR (StackProbeFunc,
+      test_stalker_fixture_dup_code (fixture, code->data, code->len));
+  g_byte_array_free (code, TRUE);
+
+  transformer = (kind == STACK_PROBE_CALLOUT)
+      ? gum_stalker_transformer_make_from_callback (stack_probe_transform,
+          NULL, NULL)
+      : NULL;
+
+  gum_stalker_follow_me (fixture->stalker, transformer, NULL);
+  probe (slots);
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_clear_object (&transformer);
+
+  for (i = 0; i != G_N_ELEMENTS (slots); i++)
+    g_assert_cmphex (slots[i], ==, STACK_CANARY);
+}
+
+static GByteArray *
+build_stack_probe (StackProbeKind kind)
+{
+  GByteArray * code;
+  const guint8 epilogue[] = { 0x5b, 0xc3 };
+  guint8 nop = 0x90;
+  guint i;
+
+#if GLIB_SIZEOF_VOID_P == 8
+# if GUM_NATIVE_ABI_IS_WINDOWS
+  const guint8 prologue[] = { 0x53, 0x48, 0x89, 0xcb };
+# else
+  const guint8 prologue[] = { 0x53, 0x48, 0x89, 0xfb };
+# endif
+#else
+  const guint8 prologue[] = { 0x53, 0x8b, 0x5c, 0x24, 0x08 };
+#endif
+
+  code = g_byte_array_new ();
+  g_byte_array_append (code, prologue, sizeof (prologue));
+  append_stack_window_fill (code);
+
+  switch (kind)
+  {
+    case STACK_PROBE_CALLOUT:
+      for (i = 0; i != 8; i++)
+        g_byte_array_append (code, &nop, 1);
+      append_stack_window_copy (code);
+      g_byte_array_append (code, epilogue, sizeof (epilogue));
+      break;
+    case STACK_PROBE_JMP:
+    {
+      const guint8 jmp_reg[] = { 0xff, 0xe0 };
+#if GLIB_SIZEOF_VOID_P == 8
+      const guint8 lea_rax_rip_2[] = { 0x48, 0x8d, 0x05, 0x02, 0x00, 0x00,
+          0x00 };
+
+      g_byte_array_append (code, lea_rax_rip_2, sizeof (lea_rax_rip_2));
+      g_byte_array_append (code, jmp_reg, sizeof (jmp_reg));
+#else
+      const guint8 call_next[] = { 0xe8, 0x00, 0x00, 0x00, 0x00 };
+      const guint8 pop_eax[] = { 0x58 };
+      const guint8 add_eax_imm32[] = { 0x05, 0x00, 0x00, 0x00, 0x00 };
+      guint pop_index, imm_index;
+
+      g_byte_array_append (code, call_next, sizeof (call_next));
+      pop_index = code->len;
+      g_byte_array_append (code, pop_eax, sizeof (pop_eax));
+      g_byte_array_append (code, add_eax_imm32, sizeof (add_eax_imm32));
+      imm_index = code->len - 4;
+      g_byte_array_append (code, jmp_reg, sizeof (jmp_reg));
+      *((gint32 *) (code->data + imm_index)) = code->len - pop_index;
+#endif
+      append_stack_window_copy (code);
+      g_byte_array_append (code, epilogue, sizeof (epilogue));
+      break;
+    }
+    case STACK_PROBE_CALL:
+    {
+      const guint8 call_reg[] = { 0xff, 0xd0 };
+      const guint8 ret = 0xc3;
+
+#if GLIB_SIZEOF_VOID_P == 8
+      gint32 target_disp = STACK_WINDOW_SLOTS * 12 + 4;
+      const guint8 lea_rax_rip[] = { 0x48, 0x8d, 0x05 };
+
+      g_byte_array_append (code, lea_rax_rip, sizeof (lea_rax_rip));
+      g_byte_array_append (code, (const guint8 *) &target_disp,
+          sizeof (target_disp));
+      g_byte_array_append (code, call_reg, sizeof (call_reg));
+      append_stack_window_copy (code);
+      g_byte_array_append (code, epilogue, sizeof (epilogue));
+      g_byte_array_append (code, &ret, 1);
+#else
+      const guint8 call_next[] = { 0xe8, 0x00, 0x00, 0x00, 0x00 };
+      const guint8 pop_eax[] = { 0x58 };
+      const guint8 add_eax_imm32[] = { 0x05, 0x00, 0x00, 0x00, 0x00 };
+      guint pop_index, imm_index, target_index;
+
+      g_byte_array_append (code, call_next, sizeof (call_next));
+      pop_index = code->len;
+      g_byte_array_append (code, pop_eax, sizeof (pop_eax));
+      g_byte_array_append (code, add_eax_imm32, sizeof (add_eax_imm32));
+      imm_index = code->len - 4;
+      g_byte_array_append (code, call_reg, sizeof (call_reg));
+      append_stack_window_copy (code);
+      g_byte_array_append (code, epilogue, sizeof (epilogue));
+      target_index = code->len;
+      g_byte_array_append (code, &ret, 1);
+      *((gint32 *) (code->data + imm_index)) = target_index - pop_index;
+#endif
+      break;
+    }
+#ifdef HAVE_LINUX
+    case STACK_PROBE_SYSCALL:
+    {
+#if GLIB_SIZEOF_VOID_P == 8
+      const guint8 mov_eax_getpid[] = { 0xb8, 0x27, 0x00, 0x00, 0x00 };
+      const guint8 syscall[] = { 0x0f, 0x05 };
+#else
+      const guint8 mov_eax_getpid[] = { 0xb8, 0x14, 0x00, 0x00, 0x00 };
+      const guint8 syscall[] = { 0xcd, 0x80 };
+#endif
+
+      g_byte_array_append (code, mov_eax_getpid, sizeof (mov_eax_getpid));
+      g_byte_array_append (code, syscall, sizeof (syscall));
+      append_stack_window_copy (code);
+      g_byte_array_append (code, epilogue, sizeof (epilogue));
+      break;
+    }
+#endif
+  }
+
+  return code;
+}
+
+static void
+append_stack_window_fill (GByteArray * code)
+{
+  guint i;
+
+#if GLIB_SIZEOF_VOID_P == 8
+  const guint8 movabs_rax[] = { 0x48, 0xb8 };
+  const guint8 mov_rsp_disp32_rax[] = { 0x48, 0x89, 0x84, 0x24 };
+  gsize canary = STACK_CANARY;
+
+  g_byte_array_append (code, movabs_rax, sizeof (movabs_rax));
+  g_byte_array_append (code, (const guint8 *) &canary, sizeof (canary));
+
+  for (i = 0; i != STACK_WINDOW_SLOTS; i++)
+  {
+    gint32 disp = -STACK_PROBE_OFFSET + i * sizeof (gsize);
+
+    g_byte_array_append (code, mov_rsp_disp32_rax,
+        sizeof (mov_rsp_disp32_rax));
+    g_byte_array_append (code, (const guint8 *) &disp, sizeof (disp));
+  }
+#else
+  const guint8 mov_esp_disp32_imm32[] = { 0xc7, 0x84, 0x24 };
+  gsize canary = STACK_CANARY;
+
+  for (i = 0; i != STACK_WINDOW_SLOTS; i++)
+  {
+    gint32 disp = -STACK_PROBE_OFFSET + i * sizeof (gsize);
+
+    g_byte_array_append (code, mov_esp_disp32_imm32,
+        sizeof (mov_esp_disp32_imm32));
+    g_byte_array_append (code, (const guint8 *) &disp, sizeof (disp));
+    g_byte_array_append (code, (const guint8 *) &canary, sizeof (canary));
+  }
+#endif
+}
+
+static void
+append_stack_window_copy (GByteArray * code)
+{
+  guint i;
+
+  for (i = 0; i != STACK_WINDOW_SLOTS; i++)
+  {
+    gint32 disp = -STACK_PROBE_OFFSET + i * sizeof (gsize);
+    guint8 slot_offset = i * sizeof (gsize);
+
+#if GLIB_SIZEOF_VOID_P == 8
+    const guint8 mov_rax_rsp_disp32[] = { 0x48, 0x8b, 0x84, 0x24 };
+    const guint8 mov_rbx_disp8_rax[] = { 0x48, 0x89, 0x43 };
+
+    g_byte_array_append (code, mov_rax_rsp_disp32,
+        sizeof (mov_rax_rsp_disp32));
+    g_byte_array_append (code, (const guint8 *) &disp, sizeof (disp));
+    g_byte_array_append (code, mov_rbx_disp8_rax,
+        sizeof (mov_rbx_disp8_rax));
+#else
+    const guint8 mov_eax_esp_disp32[] = { 0x8b, 0x84, 0x24 };
+    const guint8 mov_ebx_disp8_eax[] = { 0x89, 0x43 };
+
+    g_byte_array_append (code, mov_eax_esp_disp32,
+        sizeof (mov_eax_esp_disp32));
+    g_byte_array_append (code, (const guint8 *) &disp, sizeof (disp));
+    g_byte_array_append (code, mov_ebx_disp8_eax,
+        sizeof (mov_ebx_disp8_eax));
+#endif
+    g_byte_array_append (code, &slot_offset, 1);
+  }
+}
+
+static void
+stack_probe_transform (GumStalkerIterator * iterator,
+                       GumStalkerOutput * output,
+                       gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gum_stalker_iterator_put_callout (iterator, stack_probe_callout, NULL,
+        NULL);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+stack_probe_callout (GumCpuContext * cpu_context,
+                     gpointer user_data)
+{
+}
 
 #include "../stalker-exceptions.c"
 

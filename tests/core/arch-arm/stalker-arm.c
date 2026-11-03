@@ -61,6 +61,15 @@ TESTLIST_BEGIN (stalker)
    */
   TESTENTRY (arm_branch_link_cc_block_events_generated)
   TESTENTRY (arm_cc_excluded_range)
+  TESTENTRY (pop_of_all_shadowed_regs_should_update_shadows)
+  TESTENTRY (ldm_of_all_shadowed_regs_should_update_shadows)
+  TESTENTRY (thumb_ldm_of_all_shadowed_regs_should_update_shadows)
+  TESTENTRY (arm_callouts_should_not_write_below_stack_pointer)
+  TESTENTRY (arm_bl_should_not_write_below_stack_pointer)
+  TESTENTRY (arm_bx_should_not_write_below_stack_pointer)
+#ifdef HAVE_LINUX
+  TESTENTRY (arm_svc_should_not_write_below_stack_pointer)
+#endif
   TESTENTRY (arm_ldr_pc)
   TESTENTRY (arm_ldr_pc_pre_index_imm)
   TESTENTRY (arm_ldr_pc_post_index_imm)
@@ -98,6 +107,10 @@ TESTLIST_BEGIN (stalker)
   TESTENTRY (performance)
 
   TESTENTRY (custom_transformer)
+  TESTENTRY (arm_user_data_reg_should_hold_user_data_across_instructions)
+  TESTENTRY (arm_pop_of_scratch_regs_should_keep_shadow_current)
+  TESTENTRY (thumb_user_data_reg_should_hold_user_data_across_instructions)
+  TESTENTRY (arm_callout_should_see_target_regs_while_user_data_reg_is_held)
   TESTENTRY (arm_callout)
   TESTENTRY (thumb_callout)
   TESTENTRY (arm_transformer_should_be_able_to_replace_call_with_callout)
@@ -181,6 +194,13 @@ static gboolean test_log_fatal_func (const gchar * log_domain,
     GLogLevelFlags log_level, const gchar * message, gpointer user_data);
 static GLogWriterOutput test_log_writer_func (GLogLevelFlags log_level,
     const GLogField * fields, gsize n_fields, gpointer user_data);
+static void store_arm_user_data_reg (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void store_thumb_user_data_reg (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void store_arm_user_data_reg_with_callout (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void store_r3_and_r6 (GumCpuContext * cpu_context, gpointer user_data);
 static void duplicate_adds (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void transform_arm_return_value (GumStalkerIterator * iterator,
@@ -2658,6 +2678,163 @@ test_log_writer_func (GLogLevelFlags log_level,
   return G_LOG_WRITER_HANDLED;
 }
 
+TESTCODE (arm_user_data_reg_code,
+  0x00, 0x00, 0xa0, 0xe1,
+  0x29, 0x30, 0xa0, 0xe3,
+  0x01, 0x30, 0x83, 0xe2,
+  0x03, 0x00, 0xa0, 0xe1,
+  0x0e, 0xf0, 0xa0, 0xe1
+);
+
+TESTCODE (arm_pop_scratch_regs_code,
+  0x40, 0x4a, 0x2d, 0xe9,
+  0x29, 0x60, 0xa0, 0xe3,
+  0x01, 0x60, 0x86, 0xe2,
+  0x06, 0x00, 0xa0, 0xe1,
+  0x40, 0x8a, 0xbd, 0xe8
+);
+
+TESTCASE (arm_user_data_reg_should_hold_user_data_across_instructions)
+{
+  static guint32 slots[2];
+
+  slots[1] = 0;
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_arm_user_data_reg, slots, NULL);
+
+  INVOKE_ARM_EXPECTING (GUM_NOTHING, arm_user_data_reg_code, 42);
+
+  g_assert_cmphex (slots[1], ==, (guint32) GPOINTER_TO_SIZE (slots));
+}
+
+static void
+store_arm_user_data_reg (GumStalkerIterator * iterator,
+                         GumStalkerOutput * output,
+                         gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    GumCpuReg reg = gum_stalker_iterator_get_user_data_reg (iterator);
+
+    gum_arm_writer_put_str_reg_reg_offset (output->writer.arm, reg, reg, 4);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+TESTCASE (arm_pop_of_scratch_regs_should_keep_shadow_current)
+{
+  INVOKE_ARM_EXPECTING (GUM_NOTHING, arm_pop_scratch_regs_code, 42);
+}
+
+TESTCODE (thumb_user_data_reg_code,
+  0xc0, 0x46,
+  0x29, 0x23,
+  0x01, 0x33,
+  0x18, 0x46,
+  0x70, 0x47
+);
+
+static gsize user_data_code_start;
+static gsize user_data_code_end;
+
+TESTCASE (arm_callout_should_see_target_regs_while_user_data_reg_is_held)
+{
+  static guint32 slots[4];
+  GumAddress func;
+
+  slots[2] = 0;
+  slots[3] = 0;
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_arm_user_data_reg_with_callout, slots, NULL);
+
+  func = DUP_TESTCODE (arm_user_data_reg_code);
+  user_data_code_start = (gsize) fixture->code;
+  user_data_code_end =
+      user_data_code_start + CODE_SIZE (arm_user_data_reg_code);
+  fixture->sink->mask = GUM_NOTHING;
+  g_assert_cmpint (FOLLOW_AND_INVOKE (func), ==, 42);
+
+  g_assert_cmphex (slots[2], ==, 42);
+  g_assert_cmphex (slots[3], !=, (guint32) GPOINTER_TO_SIZE (slots));
+}
+
+static void
+store_arm_user_data_reg_with_callout (GumStalkerIterator * iterator,
+                                      GumStalkerOutput * output,
+                                      gpointer user_data)
+{
+  guint32 * slots = user_data;
+  const cs_insn * insn;
+  guint num_instructions = 0;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gsize address = insn->address;
+
+    if (address >= user_data_code_start && address < user_data_code_end)
+    {
+      GumCpuReg reg;
+
+      if (num_instructions == 3)
+      {
+        gum_stalker_iterator_put_callout (iterator, store_r3_and_r6, slots,
+            NULL);
+      }
+
+      reg = gum_stalker_iterator_get_user_data_reg (iterator);
+      gum_arm_writer_put_str_reg_reg_offset (output->writer.arm, reg, reg, 4);
+      num_instructions++;
+    }
+
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+store_r3_and_r6 (GumCpuContext * cpu_context,
+                 gpointer user_data)
+{
+  guint32 * slots = user_data;
+
+  slots[2] = cpu_context->r[3];
+  slots[3] = cpu_context->r[6];
+}
+
+TESTCASE (thumb_user_data_reg_should_hold_user_data_across_instructions)
+{
+  static guint32 slots[2];
+
+  slots[1] = 0;
+  fixture->transformer = gum_stalker_transformer_make_from_callback (
+      store_thumb_user_data_reg, slots, NULL);
+
+  INVOKE_THUMB_EXPECTING (GUM_NOTHING, thumb_user_data_reg_code, 42);
+
+  g_assert_cmphex (slots[1], ==, (guint32) GPOINTER_TO_SIZE (slots));
+}
+
+static void
+store_thumb_user_data_reg (GumStalkerIterator * iterator,
+                           GumStalkerOutput * output,
+                           gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    GumCpuReg reg = gum_stalker_iterator_get_user_data_reg (iterator);
+
+    if (output->encoding == GUM_INSTRUCTION_SPECIAL)
+      gum_thumb_writer_put_str_reg_reg_offset (output->writer.thumb, reg, reg,
+          4);
+    else
+      gum_arm_writer_put_str_reg_reg_offset (output->writer.arm, reg, reg, 4);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
 TESTCASE (custom_transformer)
 {
   fixture->transformer = gum_stalker_transformer_make_from_callback (
@@ -4184,4 +4361,380 @@ sleeping_dummy (gpointer data)
     g_thread_yield ();
 
   return NULL;
+}
+
+#define STACK_PROBE_OFFSET 0x90
+#define STACK_WINDOW_SLOTS 36
+#define STACK_CANARY ((gsize) 0xcafebabe)
+
+typedef void (* StackProbeFunc) (gsize * slots);
+
+typedef enum
+{
+  STACK_PROBE_CALLOUT,
+  STACK_PROBE_BL,
+  STACK_PROBE_BX,
+#ifdef HAVE_LINUX
+  STACK_PROBE_SVC,
+#endif
+} StackProbeKind;
+
+static void run_stack_probe (StackProbeKind kind,
+    TestArmStalkerFixture * fixture);
+static GByteArray * build_stack_probe (StackProbeKind kind);
+static void append_stack_arm_word (GByteArray * code, guint32 insn);
+static void append_stack_window_fill (GByteArray * code);
+static void append_stack_window_copy (GByteArray * code);
+static void stack_probe_transform (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
+static void stack_probe_callout (GumCpuContext * cpu_context,
+    gpointer user_data);
+
+TESTCASE (arm_callouts_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_CALLOUT, fixture);
+}
+
+TESTCASE (arm_bl_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_BL, fixture);
+}
+
+TESTCASE (arm_bx_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_BX, fixture);
+}
+
+#ifdef HAVE_LINUX
+TESTCASE (arm_svc_should_not_write_below_stack_pointer)
+{
+  run_stack_probe (STACK_PROBE_SVC, fixture);
+}
+#endif
+
+static void
+run_stack_probe (StackProbeKind kind,
+                 TestArmStalkerFixture * fixture)
+{
+  GByteArray * code;
+  StackProbeFunc probe;
+  GumStalkerTransformer * transformer;
+  gsize slots[STACK_WINDOW_SLOTS] = { 0, };
+  guint i;
+
+  code = build_stack_probe (kind);
+  probe = GUM_POINTER_TO_FUNCPTR (StackProbeFunc,
+      test_arm_stalker_fixture_dup_code (fixture,
+          (const guint32 *) code->data, code->len));
+  g_byte_array_free (code, TRUE);
+
+  transformer = (kind == STACK_PROBE_CALLOUT)
+      ? gum_stalker_transformer_make_from_callback (stack_probe_transform,
+          NULL, NULL)
+      : NULL;
+
+  gum_stalker_follow_me (fixture->stalker, transformer, NULL);
+  probe (slots);
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_clear_object (&transformer);
+
+  for (i = 0; i != G_N_ELEMENTS (slots); i++)
+    g_assert_cmphex (slots[i], ==, STACK_CANARY);
+}
+
+static GByteArray *
+build_stack_probe (StackProbeKind kind)
+{
+  GByteArray * code;
+  guint bl_index = 0, func_index = 0, i;
+
+  code = g_byte_array_new ();
+
+  append_stack_arm_word (code, 0xe92d4010);
+  append_stack_arm_word (code, 0xe1a04000);
+  append_stack_window_fill (code);
+
+  switch (kind)
+  {
+    case STACK_PROBE_CALLOUT:
+      for (i = 0; i != 8; i++)
+        append_stack_arm_word (code, 0xe1a00000);
+      append_stack_window_copy (code);
+      append_stack_arm_word (code, 0xe8bd8010);
+      break;
+    case STACK_PROBE_BL:
+      bl_index = code->len / 4;
+      append_stack_arm_word (code, 0xeb000000);
+      append_stack_window_copy (code);
+      append_stack_arm_word (code, 0xe8bd8010);
+      func_index = code->len / 4;
+      append_stack_arm_word (code, 0xe12fff1e);
+      *((guint32 *) (code->data + bl_index * 4)) = GUINT32_TO_LE (0xeb000000 |
+          ((func_index - bl_index - 2) & 0xffffff));
+      break;
+    case STACK_PROBE_BX:
+      append_stack_arm_word (code, 0xe28f2004);
+      append_stack_arm_word (code, 0xe12fff12);
+      append_stack_arm_word (code, 0xe1a00000);
+      append_stack_window_copy (code);
+      append_stack_arm_word (code, 0xe8bd8010);
+      break;
+#ifdef HAVE_LINUX
+    case STACK_PROBE_SVC:
+      append_stack_arm_word (code, 0xe3a07014);
+      append_stack_arm_word (code, 0xef000000);
+      append_stack_window_copy (code);
+      append_stack_arm_word (code, 0xe8bd8010);
+      break;
+#endif
+  }
+
+  return code;
+}
+
+static void
+append_stack_arm_word (GByteArray * code,
+                       guint32 insn)
+{
+  guint8 bytes[4];
+
+  bytes[0] = insn & 0xff;
+  bytes[1] = (insn >> 8) & 0xff;
+  bytes[2] = (insn >> 16) & 0xff;
+  bytes[3] = (insn >> 24) & 0xff;
+
+  g_byte_array_append (code, bytes, sizeof (bytes));
+}
+
+static void
+append_stack_window_fill (GByteArray * code)
+{
+  guint i;
+
+  append_stack_arm_word (code, 0xe30b1abe);
+  append_stack_arm_word (code, 0xe34c1afe);
+
+  for (i = 0; i != STACK_WINDOW_SLOTS; i++)
+  {
+    guint32 mag = STACK_PROBE_OFFSET - i * 4;
+
+    append_stack_arm_word (code, 0xe50d1000 | mag);
+  }
+}
+
+static void
+append_stack_window_copy (GByteArray * code)
+{
+  guint i;
+
+  for (i = 0; i != STACK_WINDOW_SLOTS; i++)
+  {
+    guint32 mag = STACK_PROBE_OFFSET - i * 4;
+
+    append_stack_arm_word (code, 0xe51d1000 | mag);
+    append_stack_arm_word (code, 0xe5841000 | (i * 4));
+  }
+}
+
+static void
+stack_probe_transform (GumStalkerIterator * iterator,
+                       GumStalkerOutput * output,
+                       gpointer user_data)
+{
+  const cs_insn * insn;
+
+  while (gum_stalker_iterator_next (iterator, &insn))
+  {
+    gum_stalker_iterator_put_callout (iterator, stack_probe_callout, NULL,
+        NULL);
+    gum_stalker_iterator_keep (iterator);
+  }
+}
+
+static void
+stack_probe_callout (GumCpuContext * cpu_context,
+                     gpointer user_data)
+{
+}
+
+static guint32
+run_ldm_of_all_shadowed_regs (TestArmStalkerFixture * fixture,
+                              guint32 setup_insn,
+                              guint32 ldm_insn)
+{
+  const guint32 insns[] = {
+    0xe92d4a48,
+    0xe3a03001,
+    0xe3a06002,
+    0xe3a09003,
+    0xe3a0b004,
+    0xe92d0a48,
+    0xe3a03000,
+    0xe3a06000,
+    0xe3a09000,
+    0xe3a0b000,
+    setup_insn,
+    ldm_insn,
+    0xe28dd010,
+    0xea000000,
+    0xe1a00000,
+    0xe1a00003,
+    0xe0800406,
+    0xe0800809,
+    0xe0800c0b,
+    0xe8bd4a48,
+    0xe12fff1e,
+  };
+  GByteArray * code;
+  guint32 (* func) (void);
+  guint i;
+  guint32 result;
+
+  code = g_byte_array_new ();
+  for (i = 0; i != G_N_ELEMENTS (insns); i++)
+    append_stack_arm_word (code, insns[i]);
+
+  func = GUM_POINTER_TO_FUNCPTR (guint32 (*) (void),
+      test_arm_stalker_fixture_dup_code (fixture, (const guint32 *) code->data,
+          code->len));
+  g_byte_array_free (code, TRUE);
+
+  gum_stalker_follow_me (fixture->stalker, NULL, NULL);
+  result = func ();
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  return result;
+}
+
+TESTCASE (ldm_of_all_shadowed_regs_should_update_shadows)
+{
+  g_assert_cmphex (run_ldm_of_all_shadowed_regs (fixture, 0xe1a0000d,
+      0xe8900a48), ==, 0x04030201);
+  g_assert_cmphex (run_ldm_of_all_shadowed_regs (fixture, 0xe24d0004,
+      0xe9900a48), ==, 0x04030201);
+  g_assert_cmphex (run_ldm_of_all_shadowed_regs (fixture, 0xe28d000c,
+      0xe8100a48), ==, 0x04030201);
+  g_assert_cmphex (run_ldm_of_all_shadowed_regs (fixture, 0xe28d0010,
+      0xe9100a48), ==, 0x04030201);
+  g_assert_cmphex (run_ldm_of_all_shadowed_regs (fixture, 0xe1a0300d,
+      0xe8930a48), ==, 0x04030201);
+}
+
+static void
+append_thumb_hw (GByteArray * code,
+                 guint16 hw)
+{
+  guint8 bytes[2];
+
+  bytes[0] = hw & 0xff;
+  bytes[1] = (hw >> 8) & 0xff;
+  g_byte_array_append (code, bytes, sizeof (bytes));
+}
+
+static guint32
+run_thumb_ldm_of_all_shadowed_regs (TestArmStalkerFixture * fixture,
+                                    guint16 setup_hw,
+                                    guint16 ldm_hw0,
+                                    guint16 ldm_hw1)
+{
+  GByteArray * code;
+  guint32 (* func) (void);
+  guint32 result;
+
+  code = g_byte_array_new ();
+  append_thumb_hw (code, 0xe92d);
+  append_thumb_hw (code, 0x4a48);
+  append_thumb_hw (code, 0xf04f);
+  append_thumb_hw (code, 0x0301);
+  append_thumb_hw (code, 0xf04f);
+  append_thumb_hw (code, 0x0602);
+  append_thumb_hw (code, 0xf04f);
+  append_thumb_hw (code, 0x0903);
+  append_thumb_hw (code, 0xf04f);
+  append_thumb_hw (code, 0x0b04);
+  append_thumb_hw (code, 0xe92d);
+  append_thumb_hw (code, 0x0a48);
+  append_thumb_hw (code, 0xf04f);
+  append_thumb_hw (code, 0x0300);
+  append_thumb_hw (code, 0xf04f);
+  append_thumb_hw (code, 0x0600);
+  append_thumb_hw (code, 0xf04f);
+  append_thumb_hw (code, 0x0900);
+  append_thumb_hw (code, 0xf04f);
+  append_thumb_hw (code, 0x0b00);
+  append_thumb_hw (code, setup_hw);
+  append_thumb_hw (code, ldm_hw0);
+  append_thumb_hw (code, ldm_hw1);
+  append_thumb_hw (code, 0xb004);
+  append_thumb_hw (code, 0xe7ff);
+  append_thumb_hw (code, 0x4618);
+  append_thumb_hw (code, 0x1980);
+  append_thumb_hw (code, 0x4448);
+  append_thumb_hw (code, 0x4458);
+  append_thumb_hw (code, 0xe8bd);
+  append_thumb_hw (code, 0x4a48);
+  append_thumb_hw (code, 0x4770);
+
+  func = GUM_POINTER_TO_FUNCPTR (guint32 (*) (void),
+      GPOINTER_TO_SIZE (test_arm_stalker_fixture_dup_code (fixture,
+          (const guint32 *) code->data, code->len)) | 1);
+  g_byte_array_free (code, TRUE);
+
+  gum_stalker_follow_me (fixture->stalker, NULL, NULL);
+  result = func ();
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  return result;
+}
+
+TESTCASE (thumb_ldm_of_all_shadowed_regs_should_update_shadows)
+{
+  g_assert_cmphex (run_thumb_ldm_of_all_shadowed_regs (fixture, 0x4668,
+      0xe890, 0x0a48), ==, 0x0a);
+  g_assert_cmphex (run_thumb_ldm_of_all_shadowed_regs (fixture, 0x466b,
+      0xe893, 0x0a48), ==, 0x0a);
+}
+
+TESTCASE (pop_of_all_shadowed_regs_should_update_shadows)
+{
+  static const guint32 insns[] = {
+    0xe92d4a48,
+    0xe3a03001,
+    0xe3a06002,
+    0xe3a09003,
+    0xe3a0b004,
+    0xe92d0a48,
+    0xe3a03000,
+    0xe3a06000,
+    0xe3a09000,
+    0xe3a0b000,
+    0xe8bd0a48,
+    0xea000000,
+    0xe1a00000,
+    0xe1a00003,
+    0xe0800406,
+    0xe0800809,
+    0xe0800c0b,
+    0xe8bd4a48,
+    0xe12fff1e,
+  };
+  GByteArray * code;
+  guint32 (* func) (void);
+  guint i;
+
+  code = g_byte_array_new ();
+  for (i = 0; i != G_N_ELEMENTS (insns); i++)
+    append_stack_arm_word (code, insns[i]);
+
+  func = GUM_POINTER_TO_FUNCPTR (guint32 (*) (void),
+      test_arm_stalker_fixture_dup_code (fixture, (const guint32 *) code->data,
+          code->len));
+  g_byte_array_free (code, TRUE);
+
+  gum_stalker_follow_me (fixture->stalker, NULL, NULL);
+  guint32 result = func ();
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmphex (result, ==, 0x04030201);
 }
