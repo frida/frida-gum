@@ -114,8 +114,14 @@ gum_unwind_broker_on_virtual_unwind_leave (GumInvocationContext * ic,
 static gpointer
 gum_find_virtual_unwind_impl (void)
 {
-  return gum_find_last_direct_call_target (GetProcAddress (
-      GetModuleHandleW (L"ntdll.dll"), "RtlVirtualUnwind"));
+  gpointer virtual_unwind, impl;
+
+  virtual_unwind = GetProcAddress (GetModuleHandleW (L"ntdll.dll"),
+      "RtlVirtualUnwind");
+
+  impl = gum_find_last_direct_call_target (virtual_unwind);
+
+  return (impl != NULL) ? impl : virtual_unwind;
 }
 
 static GumAddress
