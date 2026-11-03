@@ -27,6 +27,14 @@
 #define GUM_PE_UNWIND_DATA_INDIRECT 0x1
 #define GUM_PE_UNWIND_FLAG_CHAININFO 0x4
 
+#define GUM_PE_ARM_UNWIND_TYPE_MASK 0x3
+#define GUM_PE_ARM_UNWIND_TYPE_XDATA 0
+#define GUM_PE_ARM_UNWIND_TYPE_PACKED_FRAGMENT 2
+#define GUM_PE_ARM64_UNWIND_TYPE_LINK 3
+#define GUM_PE_ARM_XDATA_FRAGMENT (1U << 22)
+#define GUM_PE_ARM64_XDATA_SINGLE_EPILOG (1U << 21)
+#define GUM_PE_ARM64_UNWIND_CODE_END_C 0xe5
+
 typedef struct _GumPeDosHeader GumPeDosHeader;
 typedef struct _GumPeFileHeader GumPeFileHeader;
 typedef struct _GumPeOptionalHeader32 GumPeOptionalHeader32;
@@ -263,7 +271,13 @@ static guint32 gum_pe_module_read_load_config_rva (GumPeModule * self,
 static void gum_pe_module_read_tls_directory (GumPeModule * self,
     GumPeTlsDirectory64 * tls);
 static guint gum_pe_module_get_function_entry_size (GumPeModule * self);
-static gboolean gum_pe_module_is_chained_function_entry (GumPeModule * self,
+static gboolean gum_pe_module_is_function_fragment (GumPeModule * self,
+    const guint32 * entry);
+static gboolean gum_pe_module_is_amd64_function_fragment (GumPeModule * self,
+    const guint32 * entry);
+static gboolean gum_pe_module_is_arm64_function_fragment (GumPeModule * self,
+    const guint32 * entry);
+static gboolean gum_pe_module_is_arm_function_fragment (GumPeModule * self,
     const guint32 * entry);
 
 static GumPageProtection gum_protection_from_characteristics (
@@ -1003,7 +1017,7 @@ gum_pe_module_enumerate_function_starts (GumPeModule * self,
   {
     const guint32 * entry = (const guint32 *) (entries + (i * entry_size));
 
-    if (gum_pe_module_is_chained_function_entry (self, entry))
+    if (gum_pe_module_is_function_fragment (self, entry))
       continue;
 
     if (!func (entry[0], user_data))
@@ -1018,14 +1032,28 @@ gum_pe_module_get_function_entry_size (GumPeModule * self)
 }
 
 static gboolean
-gum_pe_module_is_chained_function_entry (GumPeModule * self,
-                                         const guint32 * entry)
+gum_pe_module_is_function_fragment (GumPeModule * self,
+                                    const guint32 * entry)
+{
+  switch (self->machine)
+  {
+    case GUM_PE_MACHINE_AMD64:
+      return gum_pe_module_is_amd64_function_fragment (self, entry);
+    case GUM_PE_MACHINE_ARM64:
+      return gum_pe_module_is_arm64_function_fragment (self, entry);
+    case GUM_PE_MACHINE_ARMNT:
+      return gum_pe_module_is_arm_function_fragment (self, entry);
+    default:
+      return FALSE;
+  }
+}
+
+static gboolean
+gum_pe_module_is_amd64_function_fragment (GumPeModule * self,
+                                          const guint32 * entry)
 {
   guint32 unwind_data;
   const guint8 * unwind_info;
-
-  if (self->machine != GUM_PE_MACHINE_AMD64)
-    return FALSE;
 
   unwind_data = entry[2];
   if ((unwind_data & GUM_PE_UNWIND_DATA_INDIRECT) != 0)
@@ -1034,6 +1062,68 @@ gum_pe_module_is_chained_function_entry (GumPeModule * self,
   unwind_info = gum_pe_module_get_data_at_rva (self, unwind_data);
 
   return ((unwind_info[0] >> 3) & GUM_PE_UNWIND_FLAG_CHAININFO) != 0;
+}
+
+static gboolean
+gum_pe_module_is_arm64_function_fragment (GumPeModule * self,
+                                          const guint32 * entry)
+{
+  guint32 unwind_data = entry[1];
+  const guint32 * xdata;
+  guint epilog_count, code_words;
+  const guint32 * scopes;
+  guint num_epilog_scopes;
+
+  switch (unwind_data & GUM_PE_ARM_UNWIND_TYPE_MASK)
+  {
+    case GUM_PE_ARM_UNWIND_TYPE_XDATA:
+      break;
+    case GUM_PE_ARM_UNWIND_TYPE_PACKED_FRAGMENT:
+    case GUM_PE_ARM64_UNWIND_TYPE_LINK:
+      return TRUE;
+    default:
+      return FALSE;
+  }
+
+  xdata = gum_pe_module_get_data_at_rva (self, unwind_data);
+
+  epilog_count = (xdata[0] >> 22) & 0x1f;
+  code_words = xdata[0] >> 27;
+  scopes = xdata + 1;
+  if (epilog_count == 0 && code_words == 0)
+  {
+    epilog_count = xdata[1] & 0xffff;
+    scopes++;
+  }
+
+  num_epilog_scopes = ((xdata[0] & GUM_PE_ARM64_XDATA_SINGLE_EPILOG) != 0)
+      ? 0
+      : epilog_count;
+
+  return *((const guint8 *) (scopes + num_epilog_scopes)) ==
+      GUM_PE_ARM64_UNWIND_CODE_END_C;
+}
+
+static gboolean
+gum_pe_module_is_arm_function_fragment (GumPeModule * self,
+                                        const guint32 * entry)
+{
+  guint32 unwind_data = entry[1];
+  const guint32 * xdata;
+
+  switch (unwind_data & GUM_PE_ARM_UNWIND_TYPE_MASK)
+  {
+    case GUM_PE_ARM_UNWIND_TYPE_XDATA:
+      break;
+    case GUM_PE_ARM_UNWIND_TYPE_PACKED_FRAGMENT:
+      return TRUE;
+    default:
+      return FALSE;
+  }
+
+  xdata = gum_pe_module_get_data_at_rva (self, unwind_data);
+
+  return (xdata[0] & GUM_PE_ARM_XDATA_FRAGMENT) != 0;
 }
 
 static GumPageProtection

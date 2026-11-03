@@ -11,6 +11,7 @@ core_sources = [
   'process.c',
   'threadregistry.c',
   'moduleregistry.c',
+  'pemodule.c',
   'symbolutil.c',
   'apiresolver.c',
   'backtracer.c',

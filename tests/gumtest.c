@@ -200,6 +200,7 @@ main (gint argc, gchar * argv[])
   TESTLIST_REGISTER (process);
   TESTLIST_REGISTER (thread_registry);
   TESTLIST_REGISTER (module_registry);
+  TESTLIST_REGISTER (pe_module);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   TESTLIST_REGISTER (symbolutil);
 #endif
