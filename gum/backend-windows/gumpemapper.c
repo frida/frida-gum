@@ -17,12 +17,14 @@
 #endif
 
 #include <capstone.h>
+#include <tlhelp32.h>
 #include <gio/gio.h>
 
 #define GUM_PE_MAPPER_CODE_BASE_SIZE 512
 #define GUM_PE_MAPPER_TLS_CALL_SIZE 128
 #define GUM_PE_MAPPER_UNWIND_SIZE 128
 #define GUM_PE_MAPPER_ENTRY_CALL_SIZE 128
+#define GUM_PE_MAPPER_LEGACY_TLS_SIZE 1536
 
 #define GUM_PE_TLS_THUNK_PATCH_SIZE 5
 #define GUM_PE_TLS_HOOK_MAX_DISTANCE 0x70000000
@@ -59,11 +61,26 @@
 # define GUM_PE_LOADER_ENTRY_SIZE 0x200
 # define GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET 0x30
 # define GUM_PE_LDR_TLS_FLAGS_FIELD 0x10c
+# define GUM_PE_TEB_SELF_OFFSET 0x30
+# define GUM_PE_TEB_PROCESS_ID_OFFSET 0x40
+# define GUM_PE_TEB_PEB_OFFSET 0x60
+# define GUM_PE_TEB_TLS_POINTER_OFFSET 0x58
+# define GUM_PE_PEB_PROCESS_HEAP_OFFSET 0x30
 #else
 # define GUM_PE_LOADER_ENTRY_SIZE 0x100
 # define GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET 0x18
 # define GUM_PE_LDR_TLS_FLAGS_FIELD 0x94
+# define GUM_PE_TEB_SELF_OFFSET 0x18
+# define GUM_PE_TEB_PROCESS_ID_OFFSET 0x20
+# define GUM_PE_TEB_PEB_OFFSET 0x30
+# define GUM_PE_TEB_TLS_POINTER_OFFSET 0x2c
+# define GUM_PE_PEB_PROCESS_HEAP_OFFSET 0x18
 #endif
+
+#define GUM_PE_THREAD_BASIC_INFORMATION 0
+#define GUM_PE_LEGACY_TLS_FRAME_SIZE \
+    (GUM_ALIGN_SIZE (sizeof (GumPeLegacyTlsFrame) + \
+        (3 * GLIB_SIZEOF_VOID_P), 16) - (3 * GLIB_SIZEOF_VOID_P))
 
 #define GUM_PE_TLS_HEAD_MAX_INSNS 64
 
@@ -71,9 +88,11 @@
 # define GUM_PE_TLS_ENTRY_REG X86_REG_ECX
 # define GUM_PE_TLS_ENTRY_SLOT 8
 # define GUM_PE_TLS_RETURN_REG X86_REG_EAX
+# define GUM_PE_TEB_SEGMENT_REG X86_REG_FS
 #elif defined (HAVE_I386)
 # define GUM_PE_TLS_ENTRY_REG X86_REG_RCX
 # define GUM_PE_TLS_RETURN_REG X86_REG_RAX
+# define GUM_PE_TEB_SEGMENT_REG X86_REG_GS
 #endif
 
 #define GUM_TYPE_PE_MAPPER (gum_pe_mapper_get_type ())
@@ -91,6 +110,9 @@ typedef struct _GumPeChpeMetadataX86 GumPeChpeMetadataX86;
 #if defined (HAVE_I386)
 typedef struct _GumPeX86TlsScanner GumPeX86TlsScanner;
 typedef struct _GumPeX86FunctionHead GumPeX86FunctionHead;
+typedef struct _GumPeLegacyTlsEntry GumPeLegacyTlsEntry;
+typedef struct _GumPeLegacyTlsFrame GumPeLegacyTlsFrame;
+typedef struct _GumPeThreadBasicInformation GumPeThreadBasicInformation;
 #endif
 #if GLIB_SIZEOF_VOID_P == 8 && !defined (HAVE_ARM64)
 typedef struct _GumPeTlsShared GumPeTlsShared;
@@ -113,6 +135,9 @@ typedef LONG (NTAPI * GumNtMapViewOfSectionFunc) (HANDLE section_handle,
     DWORD inherit_disposition, ULONG allocation_type, ULONG win32_protect);
 typedef LONG (NTAPI * GumNtUnmapViewOfSectionFunc) (HANDLE process_handle,
     PVOID base_address);
+#if defined (HAVE_I386)
+typedef void (* GumEmitThreadFunc) (GumPeMapper * self, GumX86Writer * cw);
+#endif
 #if !defined (HAVE_ARM64)
 typedef BOOL (WINAPI * GumIsWow64Process2Func) (HANDLE process,
     USHORT * process_machine, USHORT * native_machine);
@@ -165,6 +190,7 @@ struct _GumPeMapper
   gboolean has_static_tls;
   gboolean tls_via_thread;
   gboolean tls_via_run_once;
+  gboolean tls_via_legacy_loader;
   GumAddress tls_entry;
   GumAddress tls_handle;
   GumAddress tls_release;
@@ -177,6 +203,15 @@ struct _GumPeMapper
   GumAddress tls_thunks;
   GumAddress run_once_execute_once;
   GumAddress virtual_protect;
+  GumAddress lock_loader_lock;
+  GumAddress unlock_loader_lock;
+  GumAddress allocate_heap;
+  GumAddress free_heap;
+  GumAddress create_toolhelp_snapshot;
+  GumAddress thread32_first;
+  GumAddress thread32_next;
+  GumAddress open_thread;
+  GumAddress query_information_thread;
 };
 
 enum
@@ -255,9 +290,37 @@ struct _GumPeX86TlsScanner
   cs_insn * insn;
   GumAddress base;
   GumAddress limit;
+  gboolean legacy;
   GumAddress handle;
   GumAddress release;
+  GumAddress list;
+  GumAddress count;
   GumPeX86FunctionHead head;
+};
+
+struct _GumPeLegacyTlsEntry
+{
+  LIST_ENTRY links;
+  IMAGE_TLS_DIRECTORY tls;
+};
+
+struct _GumPeThreadBasicInformation
+{
+  LONG exit_status;
+  gpointer teb_base_address;
+  gpointer client_id[2];
+  ULONG_PTR affinity_mask;
+  LONG priority;
+  LONG base_priority;
+};
+
+struct _GumPeLegacyTlsFrame
+{
+  THREADENTRY32 thread;
+  GumPeThreadBasicInformation info;
+  gpointer heap;
+  ULONG_PTR cookie;
+  guint32 index;
 };
 #endif
 
@@ -344,6 +407,9 @@ static guint64 gum_generate_security_cookie_64 (void);
 static guint32 gum_generate_security_cookie_32 (void);
 static gboolean gum_collect_tls_callback (GumAddress rva, gpointer user_data);
 static void gum_pe_mapper_prepare_tls (GumPeMapper * self);
+#if defined (HAVE_I386)
+static void gum_pe_mapper_prepare_legacy_tls (GumPeMapper * self);
+#endif
 static void gum_resolve_loader_tls (void);
 #if defined (HAVE_ARM64)
 static void gum_resolve_arm64_tls (GumModule * ntdll, GumAddress base,
@@ -365,14 +431,14 @@ static gboolean gum_arm64_raw_parse_mov_reg (guint32 insn, guint * rd,
 static gboolean gum_arm64_raw_accesses_entry_field (guint32 insn,
     guint32 entry_regs, guint offset);
 # if GLIB_SIZEOF_VOID_P == 8
-static void gum_resolve_x64_tls (GumPeModule * ntdll, GumAddress base,
-    GumAddress limit, GumAddress * handle, GumAddress * release);
+static GumPeX86TlsScanner * gum_scan_x64_loader (GumPeModule * ntdll,
+    GumAddress base, GumAddress limit, gboolean legacy);
 static gboolean gum_scan_x64_function (GumAddress rva, gpointer user_data);
 # else
 static void gum_resolve_wowa64_dispatch_slots (GumPeModule * ntdll,
     GumAddress base);
-static void gum_resolve_x86_tls (GumPeModule * ntdll, GumAddress base,
-    GumAddress * handle, GumAddress * release);
+static GumPeX86TlsScanner * gum_scan_x86_loader (GumPeModule * ntdll,
+    GumAddress base, gboolean legacy);
 static gboolean gum_find_text_section (const GumPeSectionDetails * details,
     gpointer user_data);
 static GArray * gum_collect_x86_call_targets (GumAddress base,
@@ -382,7 +448,7 @@ static gint gum_compare_addresses (gconstpointer a, gconstpointer b);
 #endif
 #if defined (HAVE_I386)
 static GumPeX86TlsScanner * gum_pe_x86_tls_scanner_new (cs_mode mode,
-    GumAddress base, GumAddress limit);
+    GumAddress base, GumAddress limit, gboolean legacy);
 static gboolean gum_pe_x86_tls_scanner_consider (GumPeX86TlsScanner * self,
     GumAddress function);
 static void gum_pe_x86_tls_scanner_free (GumPeX86TlsScanner * scanner);
@@ -394,6 +460,14 @@ static GumAddress gum_pe_x86_tls_scanner_resolve_jump (
     GumPeX86TlsScanner * self, const cs_insn * insn);
 static void gum_pe_x86_function_head_append (GumPeX86FunctionHead * head,
     const cs_insn * insn);
+static gboolean gum_function_is_ldrp_allocate_tls (
+    const GumPeX86FunctionHead * head, GumAddress * list, GumAddress * count);
+static GumAddress gum_x86_insn_find_global_u32 (const cs_insn * insn);
+static gboolean gum_x86_insn_references_address (const cs_insn * insn,
+    GumAddress address);
+static GumAddress gum_x86_op_resolve_global (const cs_insn * insn,
+    const cs_x86_op * op);
+static gboolean gum_x86_op_is_teb_self (const cs_x86_op * op);
 static gboolean gum_function_is_ldr_handle_tls_data (
     const GumPeX86FunctionHead * head);
 static gboolean gum_x86_insn_passes_tls_directory (const cs_insn * insn);
@@ -439,6 +513,21 @@ static void gum_emit_call_on_new_thread (GumPeMapper * self, GumX86Writer * cw,
 static void gum_emit_call_via_run_once (GumPeMapper * self,
     GumX86Writer * cw, GumAddress routine);
 #endif
+#if defined (HAVE_I386)
+static void gum_emit_legacy_tls_attach (GumPeMapper * self,
+    GumX86Writer * cw);
+static void gum_emit_legacy_tls_enter (GumPeMapper * self, GumX86Writer * cw);
+static void gum_emit_mov_reg_teb_field (GumX86Writer * cw, GumX86Reg reg,
+    guint32 offset);
+static void gum_emit_for_each_thread (GumPeMapper * self, GumX86Writer * cw,
+    GumEmitThreadFunc func);
+static void gum_emit_attach_to_thread (GumPeMapper * self, GumX86Writer * cw);
+static void gum_emit_legacy_tls_leave (GumPeMapper * self, GumX86Writer * cw);
+static void gum_emit_legacy_tls_detach (GumPeMapper * self,
+    GumX86Writer * cw);
+static void gum_emit_detach_from_thread (GumPeMapper * self,
+    GumX86Writer * cw);
+#endif
 static void gum_pe_mapper_commit_image (GumPeMapper * self);
 static gboolean gum_protect_section (const GumPeSectionDetails * details,
     gpointer user_data);
@@ -470,6 +559,8 @@ G_DEFINE_TYPE_WITH_CODE (GumPeMapper,
 
 static GumLdrHandleTlsDataFunc gum_ldr_handle_tls_data;
 static GumLdrReleaseTlsEntryFunc gum_ldr_release_tls_entry;
+static GumAddress gum_ldrp_tls_list;
+static GumAddress gum_ldrp_number_of_tls_entries;
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 static GumAddress gum_dispatch_icall_slot;
 static GumAddress gum_dispatch_icall_cfg_slot;
@@ -893,8 +984,9 @@ gum_pe_mapper_init_footprint_budget (GumPeMapper * self)
       != 0;
 
   self->has_static_tls =
-      gum_pe_module_get_directory (module, GUM_PE_DIRECTORY_TLS)->size != 0 &&
-      gum_loader_supports_dynamic_tls ();
+      gum_pe_module_get_directory (module, GUM_PE_DIRECTORY_TLS)->size != 0;
+  self->tls_via_legacy_loader =
+      self->has_static_tls && !gum_loader_supports_dynamic_tls ();
 
   runtime_size = GUM_PE_MAPPER_CODE_BASE_SIZE +
       (2 * self->tls_callback_count * GUM_PE_MAPPER_TLS_CALL_SIZE) +
@@ -903,6 +995,8 @@ gum_pe_mapper_init_footprint_budget (GumPeMapper * self)
     runtime_size += 2 * GUM_PE_MAPPER_UNWIND_SIZE;
   if (self->has_static_tls)
     runtime_size += 4 * GUM_PE_MAPPER_TLS_CALL_SIZE;
+  if (self->tls_via_legacy_loader)
+    runtime_size += GUM_PE_MAPPER_LEGACY_TLS_SIZE;
 
   self->runtime_file_size = runtime_size;
   self->runtime_vm_size = GUM_ALIGN_SIZE (runtime_size, page_size);
@@ -1323,6 +1417,14 @@ gum_pe_mapper_prepare_tls (GumPeMapper * self)
 
   gum_resolve_loader_tls ();
 
+#if defined (HAVE_I386)
+  if (self->tls_via_legacy_loader)
+  {
+    gum_pe_mapper_prepare_legacy_tls (self);
+    return;
+  }
+#endif
+
   self->tls_handle = GUM_ADDRESS (gum_ldr_handle_tls_data);
   self->tls_release = GUM_ADDRESS (gum_ldr_release_tls_entry);
 #if GLIB_SIZEOF_VOID_P == 8 && !defined (HAVE_ARM64)
@@ -1358,6 +1460,51 @@ gum_pe_mapper_prepare_tls (GumPeMapper * self)
       self->pointer_size);
 }
 
+#if defined (HAVE_I386)
+
+static void
+gum_pe_mapper_prepare_legacy_tls (GumPeMapper * self)
+{
+  GumPeTlsDetails tls;
+  GumPeLegacyTlsEntry entry = { 0, };
+
+  self->lock_loader_lock = gum_module_resolver_find_dynamic_address (
+      self->resolver, "LdrLockLoaderLock");
+  self->unlock_loader_lock = gum_module_resolver_find_dynamic_address (
+      self->resolver, "LdrUnlockLoaderLock");
+  self->allocate_heap = gum_module_resolver_find_dynamic_address (
+      self->resolver, "RtlAllocateHeap");
+  self->free_heap = gum_module_resolver_find_dynamic_address (
+      self->resolver, "RtlFreeHeap");
+  self->create_toolhelp_snapshot = gum_module_resolver_find_dynamic_address (
+      self->resolver, "CreateToolhelp32Snapshot");
+  self->thread32_first = gum_module_resolver_find_dynamic_address (
+      self->resolver, "Thread32First");
+  self->thread32_next = gum_module_resolver_find_dynamic_address (
+      self->resolver, "Thread32Next");
+  self->open_thread = gum_module_resolver_find_dynamic_address (
+      self->resolver, "OpenThread");
+  self->query_information_thread = gum_module_resolver_find_dynamic_address (
+      self->resolver, "NtQueryInformationThread");
+  self->close_handle = gum_module_resolver_find_dynamic_address (
+      self->resolver, "CloseHandle");
+
+  gum_pe_module_get_tls_details (self->module, &tls);
+
+  entry.tls.StartAddressOfRawData = self->image_address + tls.template_rva;
+  entry.tls.EndAddressOfRawData =
+      entry.tls.StartAddressOfRawData + tls.template_size;
+  entry.tls.AddressOfIndex = self->image_address + tls.index_rva;
+  entry.tls.SizeOfZeroFill = tls.zero_fill_size;
+
+  self->tls_entry = gum_process_memory_alloc (self->target,
+      GUM_PE_LOADER_ENTRY_SIZE, gum_query_page_size ());
+  gum_process_memory_write (self->target, self->tls_entry, &entry,
+      sizeof (entry));
+}
+
+#endif
+
 static void
 gum_resolve_loader_tls (void)
 {
@@ -1367,12 +1514,14 @@ gum_resolve_loader_tls (void)
   {
     GumNativeModule * ntdll;
     const GumMemoryRange * range;
-    GumAddress base, limit, handle = 0, release = 0;
+    GumAddress base, limit, handle = 0, release = 0, list = 0, count = 0;
+    gboolean legacy;
 
     ntdll = _gum_native_module_make (GetModuleHandleW (L"ntdll.dll"));
     range = gum_module_get_range (GUM_MODULE (ntdll));
     base = range->base_address;
     limit = base + range->size;
+    legacy = !gum_loader_supports_dynamic_tls ();
 
 #if defined (HAVE_ARM64)
     gum_resolve_arm64_tls (GUM_MODULE (ntdll), base, limit, &handle, &release);
@@ -1388,22 +1537,33 @@ gum_resolve_loader_tls (void)
     }
     else
     {
+      GumPeX86TlsScanner * scanner;
+
 # if GLIB_SIZEOF_VOID_P == 8
-      gum_resolve_x64_tls (_gum_native_module_get_pe_module (ntdll), base,
-          limit, &handle, &release);
+      scanner = gum_scan_x64_loader (_gum_native_module_get_pe_module (ntdll),
+          base, limit, legacy);
 # else
-      gum_resolve_x86_tls (_gum_native_module_get_pe_module (ntdll), base,
-          &handle, &release);
+      scanner = gum_scan_x86_loader (_gum_native_module_get_pe_module (ntdll),
+          base, legacy);
 # endif
+
+      handle = scanner->handle;
+      release = scanner->release;
+      list = scanner->list;
+      count = scanner->count;
+
+      gum_pe_x86_tls_scanner_free (scanner);
     }
 #endif
 
     g_object_unref (ntdll);
 
-    if (handle == 0 || release == 0)
+    if (legacy ? (list == 0 || count == 0) : (handle == 0 || release == 0))
       g_error ("Unable to locate the ntdll loader TLS routines");
     gum_ldr_handle_tls_data = GSIZE_TO_POINTER (handle);
     gum_ldr_release_tls_entry = GSIZE_TO_POINTER (release);
+    gum_ldrp_tls_list = list;
+    gum_ldrp_number_of_tls_entries = count;
 
     g_once_init_leave (&initialized, 1);
   }
@@ -1782,24 +1942,20 @@ gum_arm64_raw_accesses_entry_field (guint32 insn,
 
 # if GLIB_SIZEOF_VOID_P == 8
 
-static void
-gum_resolve_x64_tls (GumPeModule * ntdll,
+static GumPeX86TlsScanner *
+gum_scan_x64_loader (GumPeModule * ntdll,
                      GumAddress base,
                      GumAddress limit,
-                     GumAddress * handle,
-                     GumAddress * release)
+                     gboolean legacy)
 {
   GumPeX86TlsScanner * scanner;
 
-  scanner = gum_pe_x86_tls_scanner_new (CS_MODE_64, base, limit);
+  scanner = gum_pe_x86_tls_scanner_new (CS_MODE_64, base, limit, legacy);
 
   gum_pe_module_enumerate_function_starts (ntdll, gum_scan_x64_function,
       scanner);
 
-  *handle = scanner->handle;
-  *release = scanner->release;
-
-  gum_pe_x86_tls_scanner_free (scanner);
+  return scanner;
 }
 
 static gboolean
@@ -1828,11 +1984,10 @@ gum_resolve_wowa64_dispatch_slots (GumPeModule * ntdll,
       base + metadata->dispatch_indirect_call_cfg_function_pointer;
 }
 
-static void
-gum_resolve_x86_tls (GumPeModule * ntdll,
+static GumPeX86TlsScanner *
+gum_scan_x86_loader (GumPeModule * ntdll,
                      GumAddress base,
-                     GumAddress * handle,
-                     GumAddress * release)
+                     gboolean legacy)
 {
   GumMemoryRange text;
   GumAddress text_start, text_end;
@@ -1845,7 +2000,8 @@ gum_resolve_x86_tls (GumPeModule * ntdll,
   text_end = text_start + text.size;
 
   functions = gum_collect_x86_call_targets (text_start, text_end);
-  scanner = gum_pe_x86_tls_scanner_new (CS_MODE_32, text_start, text_end);
+  scanner = gum_pe_x86_tls_scanner_new (CS_MODE_32, text_start, text_end,
+      legacy);
 
   for (i = 0; i != functions->len; i++)
   {
@@ -1854,11 +2010,9 @@ gum_resolve_x86_tls (GumPeModule * ntdll,
       break;
   }
 
-  *handle = scanner->handle;
-  *release = scanner->release;
-
-  gum_pe_x86_tls_scanner_free (scanner);
   g_array_unref (functions);
+
+  return scanner;
 }
 
 static gboolean
@@ -1947,7 +2101,8 @@ gum_compare_addresses (gconstpointer a,
 static GumPeX86TlsScanner *
 gum_pe_x86_tls_scanner_new (cs_mode mode,
                             GumAddress base,
-                            GumAddress limit)
+                            GumAddress limit,
+                            gboolean legacy)
 {
   GumPeX86TlsScanner * scanner;
 
@@ -1960,6 +2115,7 @@ gum_pe_x86_tls_scanner_new (cs_mode mode,
 
   scanner->base = base;
   scanner->limit = limit;
+  scanner->legacy = legacy;
 
   return scanner;
 }
@@ -1971,6 +2127,12 @@ gum_pe_x86_tls_scanner_consider (GumPeX86TlsScanner * self,
   GumPeX86FunctionHead * head = &self->head;
 
   gum_pe_x86_tls_scanner_read_head (self, function);
+
+  if (self->legacy)
+  {
+    return !gum_function_is_ldrp_allocate_tls (head, &self->list,
+        &self->count);
+  }
 
   if (self->handle == 0 && gum_function_is_ldr_handle_tls_data (head))
     self->handle = function;
@@ -2081,6 +2243,133 @@ gum_pe_x86_function_head_append (GumPeX86FunctionHead * head,
   slot->detail = detail;
 
   head->count++;
+}
+
+static gboolean
+gum_function_is_ldrp_allocate_tls (const GumPeX86FunctionHead * head,
+                                   GumAddress * list,
+                                   GumAddress * count)
+{
+  GumAddress first_counter = 0, list_head = 0;
+  x86_reg teb_regs[8];
+  guint num_teb_regs = 0;
+  gboolean stored_tls_pointer = FALSE, compared_list_head = FALSE;
+  size_t i;
+
+  for (i = 0; i != head->count; i++)
+  {
+    const cs_insn * insn = &head->insns[i];
+    const cs_x86 * d = &insn->detail->x86;
+    const cs_x86_op * dst = &d->operands[0];
+    const cs_x86_op * src = &d->operands[1];
+    gboolean is_mov = insn->id == X86_INS_MOV && d->op_count == 2;
+
+    if (first_counter == 0)
+      first_counter = gum_x86_insn_find_global_u32 (insn);
+
+    if (list_head != 0 && gum_x86_insn_references_address (insn, list_head))
+      compared_list_head = TRUE;
+
+    if (is_mov && gum_x86_op_is_field_of (dst, teb_regs, num_teb_regs) &&
+        dst->mem.disp == GUM_PE_TEB_TLS_POINTER_OFFSET)
+    {
+      stored_tls_pointer = TRUE;
+    }
+    else if (stored_tls_pointer && list_head == 0 && is_mov &&
+        dst->type == X86_OP_REG && src->size == GLIB_SIZEOF_VOID_P)
+    {
+      list_head = gum_x86_op_resolve_global (insn, src);
+    }
+
+    if (is_mov && dst->type == X86_OP_REG &&
+        (gum_x86_op_is_teb_self (src) || (src->type == X86_OP_REG &&
+            gum_reg_set_contains (teb_regs, num_teb_regs, src->reg))))
+    {
+      gum_reg_set_add (teb_regs, &num_teb_regs, dst->reg);
+    }
+  }
+
+  if (first_counter == 0 || !compared_list_head)
+    return FALSE;
+
+  *list = list_head;
+  *count = first_counter;
+
+  return TRUE;
+}
+
+static GumAddress
+gum_x86_insn_find_global_u32 (const cs_insn * insn)
+{
+  const cs_x86 * d = &insn->detail->x86;
+  uint8_t i;
+
+  for (i = 0; i != d->op_count; i++)
+  {
+    const cs_x86_op * op = &d->operands[i];
+
+    if (op->size == sizeof (guint32))
+    {
+      GumAddress address = gum_x86_op_resolve_global (insn, op);
+      if (address != 0)
+        return address;
+    }
+  }
+
+  return 0;
+}
+
+static gboolean
+gum_x86_insn_references_address (const cs_insn * insn,
+                                 GumAddress address)
+{
+  const cs_x86 * d = &insn->detail->x86;
+  uint8_t i;
+
+  for (i = 0; i != d->op_count; i++)
+  {
+    const cs_x86_op * op = &d->operands[i];
+
+    if (op->type == X86_OP_IMM && (GumAddress) op->imm == address)
+      return TRUE;
+
+    if (insn->id == X86_INS_LEA &&
+        gum_x86_op_resolve_global (insn, op) == address)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+static GumAddress
+gum_x86_op_resolve_global (const cs_insn * insn,
+                           const cs_x86_op * op)
+{
+  if (op->type != X86_OP_MEM || op->mem.segment != X86_REG_INVALID ||
+      op->mem.index != X86_REG_INVALID)
+    return 0;
+
+#if GLIB_SIZEOF_VOID_P == 8
+  if (op->mem.base != X86_REG_RIP)
+    return 0;
+
+  return insn->address + insn->size + op->mem.disp;
+#else
+  if (op->mem.base != X86_REG_INVALID)
+    return 0;
+
+  return (guint32) op->mem.disp;
+#endif
+}
+
+static gboolean
+gum_x86_op_is_teb_self (const cs_x86_op * op)
+{
+  return op->type == X86_OP_MEM &&
+      op->mem.segment == GUM_PE_TEB_SEGMENT_REG &&
+      op->mem.base == X86_REG_INVALID &&
+      op->mem.index == X86_REG_INVALID &&
+      op->mem.disp == GUM_PE_TEB_SELF_OFFSET;
 }
 
 static gboolean
@@ -2673,7 +2962,7 @@ gum_emit_runtime (GumPeMapper * self,
   }
 
   if (self->has_static_tls && !self->tls_via_thread &&
-      !self->tls_via_run_once)
+      !self->tls_via_run_once && !self->tls_via_legacy_loader)
   {
     if (self->pointer_size == 8)
     {
@@ -2698,6 +2987,8 @@ gum_emit_runtime (GumPeMapper * self,
   if (self->tls_via_run_once)
     gum_emit_call_via_run_once (self, &cw, self->tls_handle);
 #endif
+  if (self->tls_via_legacy_loader)
+    gum_emit_legacy_tls_attach (self, &cw);
 
   for (i = 0; i != self->tls_callbacks->len; i++)
   {
@@ -2747,7 +3038,7 @@ gum_emit_runtime (GumPeMapper * self,
   }
 
   if (self->has_static_tls && !self->tls_via_thread &&
-      !self->tls_via_run_once)
+      !self->tls_via_run_once && !self->tls_via_legacy_loader)
   {
     if (self->pointer_size == 8)
     {
@@ -2775,6 +3066,8 @@ gum_emit_runtime (GumPeMapper * self,
   if (self->tls_via_run_once)
     gum_emit_call_via_run_once (self, &cw, self->tls_release);
 #endif
+  if (self->tls_via_legacy_loader)
+    gum_emit_legacy_tls_detach (self, &cw);
 
   if (self->delete_function_table != 0)
   {
@@ -2924,6 +3217,320 @@ gum_emit_call_via_run_once (GumPeMapper * self,
 }
 
 #endif
+
+static void
+gum_emit_legacy_tls_attach (GumPeMapper * self,
+                            GumX86Writer * cw)
+{
+  gssize characteristics_offset =
+      G_STRUCT_OFFSET (GumPeLegacyTlsEntry, tls.Characteristics);
+  GumPeTlsDetails tls;
+
+  gum_pe_module_get_tls_details (self->module, &tls);
+
+  gum_emit_legacy_tls_enter (self, cw);
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX,
+      gum_ldrp_number_of_tls_entries);
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_EAX, GUM_X86_XCX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, index), GUM_X86_EAX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XDX,
+      self->image_address + tls.index_rva);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XDX, GUM_X86_EAX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XDX, self->tls_entry);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_XDX,
+      characteristics_offset, GUM_X86_EAX);
+  gum_x86_writer_put_inc_reg (cw, GUM_X86_EAX);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XCX, GUM_X86_EAX);
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XAX, gum_ldrp_tls_list);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XCX, GUM_X86_XAX,
+      GLIB_SIZEOF_VOID_P);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XDX, GUM_X86_XAX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_XDX,
+      GLIB_SIZEOF_VOID_P, GUM_X86_XCX);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XCX, GUM_X86_XDX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_XAX,
+      GLIB_SIZEOF_VOID_P, GUM_X86_XDX);
+
+  gum_emit_for_each_thread (self, cw, gum_emit_attach_to_thread);
+
+  gum_emit_legacy_tls_leave (self, cw);
+}
+
+static void
+gum_emit_legacy_tls_enter (GumPeMapper * self,
+                           GumX86Writer * cw)
+{
+  gum_x86_writer_put_push_reg (cw, GUM_X86_XBX);
+  gum_x86_writer_put_push_reg (cw, GUM_X86_XSI);
+  gum_x86_writer_put_push_reg (cw, GUM_X86_XDI);
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_X86_XSP,
+      GUM_PE_LEGACY_TLS_FRAME_SIZE);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XBP, GUM_X86_XSP);
+
+  gum_emit_mov_reg_teb_field (cw, GUM_X86_XAX, GUM_PE_TEB_PEB_OFFSET);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XAX, GUM_X86_XAX,
+      GUM_PE_PEB_PROCESS_HEAP_OFFSET);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, heap), GUM_X86_XAX);
+
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XAX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, cookie));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->lock_loader_lock, 3,
+      GUM_ARG_ADDRESS, (GumAddress) 0,
+      GUM_ARG_ADDRESS, (GumAddress) 0,
+      GUM_ARG_REGISTER, GUM_X86_XAX);
+}
+
+static void
+gum_emit_mov_reg_teb_field (GumX86Writer * cw,
+                            GumX86Reg reg,
+                            guint32 offset)
+{
+#if GLIB_SIZEOF_VOID_P == 8
+  gum_x86_writer_put_mov_reg_gs_u32_ptr (cw, reg, offset);
+#else
+  gum_x86_writer_put_mov_reg_fs_u32_ptr (cw, reg, offset);
+#endif
+}
+
+static void
+gum_emit_for_each_thread (GumPeMapper * self,
+                          GumX86Writer * cw,
+                          GumEmitThreadFunc func)
+{
+  gconstpointer loop = cw->code + 1;
+  gconstpointer next = cw->code + 2;
+  gconstpointer done = cw->code + 3;
+
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->create_toolhelp_snapshot, 2,
+      GUM_ARG_ADDRESS, (GumAddress) TH32CS_SNAPTHREAD,
+      GUM_ARG_ADDRESS, (GumAddress) 0);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XBX, GUM_X86_XAX);
+
+  gum_x86_writer_put_mov_reg_offset_ptr_u32 (cw, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, thread.dwSize),
+      sizeof (THREADENTRY32));
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSI, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, thread));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->thread32_first, 2,
+      GUM_ARG_REGISTER, GUM_X86_XBX,
+      GUM_ARG_REGISTER, GUM_X86_XSI);
+
+  gum_x86_writer_put_label (cw, loop);
+  gum_x86_writer_put_test_reg_reg (cw, GUM_X86_EAX, GUM_X86_EAX);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, done, GUM_NO_HINT);
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_EAX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, thread.th32OwnerProcessID));
+  gum_emit_mov_reg_teb_field (cw, GUM_X86_EDX, GUM_PE_TEB_PROCESS_ID_OFFSET);
+  gum_x86_writer_put_cmp_reg_reg (cw, GUM_X86_EAX, GUM_X86_EDX);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, next, GUM_NO_HINT);
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_EDI, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, thread.th32ThreadID));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->open_thread, 3,
+      GUM_ARG_ADDRESS, (GumAddress) THREAD_QUERY_INFORMATION,
+      GUM_ARG_ADDRESS, (GumAddress) FALSE,
+      GUM_ARG_REGISTER, GUM_X86_XDI);
+  gum_x86_writer_put_test_reg_reg (cw, GUM_X86_XAX, GUM_X86_XAX);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, next, GUM_NO_HINT);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XDI, GUM_X86_XAX);
+
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSI, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, info));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->query_information_thread, 5,
+      GUM_ARG_REGISTER, GUM_X86_XDI,
+      GUM_ARG_ADDRESS, (GumAddress) GUM_PE_THREAD_BASIC_INFORMATION,
+      GUM_ARG_REGISTER, GUM_X86_XSI,
+      GUM_ARG_ADDRESS, (GumAddress) sizeof (GumPeThreadBasicInformation),
+      GUM_ARG_ADDRESS, (GumAddress) 0);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XSI, GUM_X86_XAX);
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->close_handle, 1,
+      GUM_ARG_REGISTER, GUM_X86_XDI);
+  gum_x86_writer_put_test_reg_reg (cw, GUM_X86_ESI, GUM_X86_ESI);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JNE, next, GUM_NO_HINT);
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XSI, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, info.teb_base_address));
+  func (self, cw);
+
+  gum_x86_writer_put_label (cw, next);
+  gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_X86_XSI, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, thread));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->thread32_next, 2,
+      GUM_ARG_REGISTER, GUM_X86_XBX,
+      GUM_ARG_REGISTER, GUM_X86_XSI);
+  gum_x86_writer_put_jmp_near_label (cw, loop);
+
+  gum_x86_writer_put_label (cw, done);
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->close_handle, 1,
+      GUM_ARG_REGISTER, GUM_X86_XBX);
+}
+
+static void
+gum_emit_attach_to_thread (GumPeMapper * self,
+                           GumX86Writer * cw)
+{
+  gconstpointer copied = cw->code + 1;
+  gconstpointer freed = cw->code + 2;
+  const guint8 rep_movsb[] = { 0xf3, 0xa4 };
+  GumPeTlsDetails tls;
+
+  gum_pe_module_get_tls_details (self->module, &tls);
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_EAX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, index));
+  gum_x86_writer_put_inc_reg (cw, GUM_X86_EAX);
+  gum_x86_writer_put_shl_reg_u8 (cw, GUM_X86_EAX,
+      g_bit_nth_lsf (GLIB_SIZEOF_VOID_P, -1));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XCX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, heap));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->allocate_heap, 3,
+      GUM_ARG_REGISTER, GUM_X86_XCX,
+      GUM_ARG_ADDRESS, (GumAddress) HEAP_ZERO_MEMORY,
+      GUM_ARG_REGISTER, GUM_X86_XAX);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XDI, GUM_X86_XAX);
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XAX, GUM_X86_XSI,
+      GUM_PE_TEB_TLS_POINTER_OFFSET);
+  gum_x86_writer_put_test_reg_reg (cw, GUM_X86_XAX, GUM_X86_XAX);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, copied, GUM_NO_HINT);
+  gum_x86_writer_put_push_reg (cw, GUM_X86_XSI);
+  gum_x86_writer_put_push_reg (cw, GUM_X86_XDI);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XSI, GUM_X86_XAX);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_ECX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, index));
+  gum_x86_writer_put_shl_reg_u8 (cw, GUM_X86_ECX,
+      g_bit_nth_lsf (GLIB_SIZEOF_VOID_P, -1));
+  gum_x86_writer_put_cld (cw);
+  gum_x86_writer_put_bytes (cw, rep_movsb, sizeof (rep_movsb));
+  gum_x86_writer_put_pop_reg (cw, GUM_X86_XDI);
+  gum_x86_writer_put_pop_reg (cw, GUM_X86_XSI);
+  gum_x86_writer_put_label (cw, copied);
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XCX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, heap));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->allocate_heap, 3,
+      GUM_ARG_REGISTER, GUM_X86_XCX,
+      GUM_ARG_ADDRESS, (GumAddress) HEAP_ZERO_MEMORY,
+      GUM_ARG_ADDRESS, (GumAddress) (tls.template_size + tls.zero_fill_size));
+  gum_x86_writer_put_push_reg (cw, GUM_X86_XSI);
+  gum_x86_writer_put_push_reg (cw, GUM_X86_XDI);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_X86_XDI, GUM_X86_XAX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XSI,
+      self->image_address + tls.template_rva);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XCX, tls.template_size);
+  gum_x86_writer_put_bytes (cw, rep_movsb, sizeof (rep_movsb));
+  gum_x86_writer_put_pop_reg (cw, GUM_X86_XDI);
+  gum_x86_writer_put_pop_reg (cw, GUM_X86_XSI);
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_EDX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, index));
+  gum_x86_writer_put_shl_reg_u8 (cw, GUM_X86_EDX,
+      g_bit_nth_lsf (GLIB_SIZEOF_VOID_P, -1));
+  gum_x86_writer_put_add_reg_reg (cw, GUM_X86_XDX, GUM_X86_XDI);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XDX, GUM_X86_XAX);
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XAX, GUM_X86_XSI,
+      GUM_PE_TEB_TLS_POINTER_OFFSET);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_XSI,
+      GUM_PE_TEB_TLS_POINTER_OFFSET, GUM_X86_XDI);
+  gum_x86_writer_put_test_reg_reg (cw, GUM_X86_XAX, GUM_X86_XAX);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, freed, GUM_NO_HINT);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XCX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, heap));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->free_heap, 3,
+      GUM_ARG_REGISTER, GUM_X86_XCX,
+      GUM_ARG_ADDRESS, (GumAddress) 0,
+      GUM_ARG_REGISTER, GUM_X86_XAX);
+  gum_x86_writer_put_label (cw, freed);
+}
+
+static void
+gum_emit_legacy_tls_leave (GumPeMapper * self,
+                           GumX86Writer * cw)
+{
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XAX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, cookie));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->unlock_loader_lock, 2,
+      GUM_ARG_ADDRESS, (GumAddress) 0,
+      GUM_ARG_REGISTER, GUM_X86_XAX);
+
+  gum_x86_writer_put_add_reg_imm (cw, GUM_X86_XSP,
+      GUM_PE_LEGACY_TLS_FRAME_SIZE);
+  gum_x86_writer_put_pop_reg (cw, GUM_X86_XDI);
+  gum_x86_writer_put_pop_reg (cw, GUM_X86_XSI);
+  gum_x86_writer_put_pop_reg (cw, GUM_X86_XBX);
+}
+
+static void
+gum_emit_legacy_tls_detach (GumPeMapper * self,
+                            GumX86Writer * cw)
+{
+  gum_emit_legacy_tls_enter (self, cw);
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_X86_XDX, self->tls_entry);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_EAX, GUM_X86_XDX,
+      G_STRUCT_OFFSET (GumPeLegacyTlsEntry, tls.Characteristics));
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, index), GUM_X86_EAX);
+
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XDX);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XCX, GUM_X86_XDX,
+      GLIB_SIZEOF_VOID_P);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XCX, GUM_X86_XAX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_XAX,
+      GLIB_SIZEOF_VOID_P, GUM_X86_XCX);
+
+  gum_emit_for_each_thread (self, cw, gum_emit_detach_from_thread);
+
+  gum_emit_legacy_tls_leave (self, cw);
+}
+
+static void
+gum_emit_detach_from_thread (GumPeMapper * self,
+                             GumX86Writer * cw)
+{
+  gconstpointer freed = cw->code + 1;
+
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XDI, GUM_X86_XSI,
+      GUM_PE_TEB_TLS_POINTER_OFFSET);
+  gum_x86_writer_put_test_reg_reg (cw, GUM_X86_XDI, GUM_X86_XDI);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, freed, GUM_NO_HINT);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_EDX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, index));
+  gum_x86_writer_put_shl_reg_u8 (cw, GUM_X86_EDX,
+      g_bit_nth_lsf (GLIB_SIZEOF_VOID_P, -1));
+  gum_x86_writer_put_add_reg_reg (cw, GUM_X86_XDI, GUM_X86_XDX);
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_X86_XAX, GUM_X86_XDI);
+  gum_x86_writer_put_test_reg_reg (cw, GUM_X86_XAX, GUM_X86_XAX);
+  gum_x86_writer_put_jcc_near_label (cw, X86_INS_JE, freed, GUM_NO_HINT);
+  gum_x86_writer_put_xor_reg_reg (cw, GUM_X86_ECX, GUM_X86_ECX);
+  gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_X86_XDI, GUM_X86_XCX);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_X86_XCX, GUM_X86_XBP,
+      G_STRUCT_OFFSET (GumPeLegacyTlsFrame, heap));
+  gum_x86_writer_put_call_address_with_aligned_arguments (cw,
+      GUM_CALL_SYSAPI, self->free_heap, 3,
+      GUM_ARG_REGISTER, GUM_X86_XCX,
+      GUM_ARG_ADDRESS, (GumAddress) 0,
+      GUM_ARG_REGISTER, GUM_X86_XAX);
+  gum_x86_writer_put_label (cw, freed);
+}
 
 #elif defined (HAVE_ARM64)
 
