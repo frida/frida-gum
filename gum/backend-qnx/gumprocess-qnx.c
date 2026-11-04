@@ -14,6 +14,7 @@
 #include <devctl.h>
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <process.h>
 #include <sys/elf.h>
 #include <sys/neutrino.h>
 #include <sys/procfs.h>
@@ -627,46 +628,15 @@ beach:
 gchar *
 gum_qnx_query_program_path_for_self (GError ** error)
 {
-  gchar * program_path = NULL;
-  int fd;
-  struct
-  {
-    procfs_debuginfo info;
-    char buffer[PATH_MAX];
-  } name;
+  gchar path[PATH_MAX];
 
-  fd = open ("/proc/self/as", O_RDONLY);
-  if (fd == -1)
-    goto failure;
-
-  if (devctl (fd, DCMD_PROC_MAPDEBUG_BASE, &name, sizeof (name), 0) != EOK)
-    goto failure;
-
-  if (g_path_is_absolute (name.info.path))
-  {
-    program_path = g_strdup (name.info.path);
-  }
-  else
-  {
-    gchar * cwd = g_get_current_dir ();
-    program_path = g_canonicalize_filename (name.info.path, cwd);
-    g_free (cwd);
-  }
-
-  goto beach;
-
-failure:
+  if (_cmdname (path) == NULL)
   {
     g_set_error (error, GUM_ERROR, GUM_ERROR_FAILED, "%s", g_strerror (errno));
-    goto beach;
+    return NULL;
   }
-beach:
-  {
-    if (fd != -1)
-      close (fd);
 
-    return program_path;
-  }
+  return g_canonicalize_filename (path, "/");
 }
 
 static void
