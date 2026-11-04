@@ -39,6 +39,7 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (relocated_program_headers_can_be_parsed)
   TESTENTRY (online_elf_should_allow_padded_inline_program_headers)
   TESTENTRY (online_elf_should_bound_inline_program_headers)
+  TESTENTRY (online_elf_should_skip_unreadable_section_headers)
 TESTLIST_END ()
 
 static void on_module_added (GumModuleRegistry * registry, GumModule * module,
@@ -490,6 +491,61 @@ TESTCASE (online_elf_should_allow_padded_inline_program_headers)
 
   g_object_unref (module);
   gum_memory_free (page, page_size);
+#else
+  g_test_skip ("only supported on Linux");
+#endif
+}
+
+TESTCASE (online_elf_should_skip_unreadable_section_headers)
+{
+#ifdef HAVE_LINUX
+  guint page_size;
+  guint8 * pages;
+  ElfW(Ehdr) * ehdr;
+  ElfW(Phdr) * phdr;
+  GumElfModule * module;
+  GError * error = NULL;
+
+  page_size = gum_query_page_size ();
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size,
+      GUM_PAGE_RW);
+  g_assert_nonnull (pages);
+  gum_mprotect (pages + page_size, page_size, GUM_PAGE_NO_ACCESS);
+
+  memset (pages, 0, page_size);
+  ehdr = (ElfW(Ehdr) *) pages;
+  memcpy (ehdr->e_ident, ELFMAG, SELFMAG);
+  ehdr->e_ident[EI_CLASS] = GUM_TEST_ELF_CLASS;
+  ehdr->e_ident[EI_DATA] = GUM_TEST_ELF_ENCODING;
+  ehdr->e_ident[EI_VERSION] = EV_CURRENT;
+  ehdr->e_type = ET_DYN;
+  ehdr->e_version = EV_CURRENT;
+  ehdr->e_ehsize = sizeof (ElfW(Ehdr));
+  ehdr->e_phoff = ehdr->e_ehsize;
+  ehdr->e_phentsize = sizeof (ElfW(Phdr));
+  ehdr->e_phnum = 1;
+
+  phdr = (ElfW(Phdr) *) (pages + ehdr->e_phoff);
+  phdr->p_type = PT_LOAD;
+  phdr->p_flags = PF_R | PF_W;
+  phdr->p_offset = 0;
+  phdr->p_vaddr = 0;
+  phdr->p_paddr = 0;
+  phdr->p_filesz = 2 * page_size;
+  phdr->p_memsz = 2 * page_size;
+  phdr->p_align = page_size;
+
+  ehdr->e_shoff = page_size;
+  ehdr->e_shentsize = sizeof (ElfW(Shdr));
+  ehdr->e_shnum = 1;
+
+  module = gum_elf_module_new_from_memory (GUM_TEST_UNOPENABLE_PATH,
+      GUM_ADDRESS (pages), &error);
+  g_assert_no_error (error);
+  g_assert_nonnull (module);
+
+  g_object_unref (module);
+  gum_memory_free (pages, 2 * page_size);
 #else
   g_test_skip ("only supported on Linux");
 #endif

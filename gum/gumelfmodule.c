@@ -870,6 +870,15 @@ gum_elf_module_load_section_headers (GumElfModule * self,
     return TRUE;
   GUM_CHECK_BOUNDS (start, end, "section headers");
 
+  if (data == GSIZE_TO_POINTER (self->base_address) &&
+      !gum_memory_is_readable (start,
+        (const guint8 *) end - (const guint8 *) start))
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "Missing data while reading %s", "section headers");
+    goto propagate_error;
+  }
+
   g_array_set_size (self->shdrs, n);
 
   cursor = start;
@@ -961,6 +970,14 @@ gum_elf_module_load_section_details (GumElfModule * self,
   data = gum_elf_module_get_file_data (self, &size);
 
   strings = (const gchar *) data + strings_shdr->offset;
+
+  if (data == GSIZE_TO_POINTER (self->base_address) &&
+      !gum_memory_is_readable (strings, strings_shdr->size))
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "Missing data while reading %s", "section names");
+    goto propagate_error;
+  }
 
   n = self->shdrs->len;
 
