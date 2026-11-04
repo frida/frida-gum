@@ -38,6 +38,9 @@
 #ifdef HAVE_DARWIN
 # include <sys/sysctl.h>
 #endif
+#if defined (HAVE_ARM64) && defined (HAVE_LINUX)
+# include <sys/auxv.h>
+#endif
 
 #define DEBUG_HEAP_LEAKS 0
 
@@ -954,6 +957,21 @@ gum_do_query_cpu_features (void)
   sysctlbyname ("hw.optional.arm.FEAT_MTE", &mte, &mte_size, NULL, 0);
   if (mte)
     features |= GUM_CPU_MTE;
+
+  return features;
+}
+
+#elif defined (HAVE_ARM64) && defined (HAVE_LINUX)
+
+#define GUM_HWCAP_PACA (1UL << 30)
+
+static GumCpuFeatures
+gum_do_query_cpu_features (void)
+{
+  GumCpuFeatures features = 0;
+
+  if ((getauxval (AT_HWCAP) & GUM_HWCAP_PACA) != 0)
+    features |= GUM_CPU_PTRAUTH;
 
   return features;
 }
