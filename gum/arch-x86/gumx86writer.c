@@ -2085,10 +2085,10 @@ gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self,
 
   gum_x86_writer_put_u8 (self, 0x89);
 
-  if (dst_offset == 0 && dst.meta != GUM_X86_META_XBP)
+  if (dst_offset == 0 && (dst.index & 7) != 5)
   {
     gum_x86_writer_put_u8 (self, 0x00 | (src.index << 3) | dst.index);
-    if (dst.meta == GUM_X86_META_XSP)
+    if ((dst.index & 7) == 4)
       gum_x86_writer_put_u8 (self, 0x24);
   }
   else
@@ -2096,7 +2096,7 @@ gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self,
     gum_x86_writer_put_u8 (self, (offset_fits_in_i8 ? 0x40 : 0x80) |
         (src.index << 3) | dst.index);
 
-    if (dst.meta == GUM_X86_META_XSP)
+    if ((dst.index & 7) == 4)
       gum_x86_writer_put_u8 (self, 0x24);
 
     if (offset_fits_in_i8)
@@ -2245,7 +2245,8 @@ gum_x86_writer_put_mov_reg_near_ptr (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
 
-  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL))
+  if (!gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, &dst,
+      &dst, NULL))
     return FALSE;
 
   if (self->target_cpu == GUM_CPU_IA32 && dst.meta == GUM_X86_META_XAX)
@@ -2286,7 +2287,8 @@ gum_x86_writer_put_mov_near_ptr_reg (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
 
-  if (!gum_x86_writer_put_prefix_for_registers (self, &src, 32, &src, NULL))
+  if (!gum_x86_writer_put_prefix_for_registers (self, &src, 32, &src, &src,
+      &src, NULL))
     return FALSE;
 
   if (self->target_cpu == GUM_CPU_IA32 && src.meta == GUM_X86_META_XAX)
