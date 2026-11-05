@@ -2662,6 +2662,10 @@ def generate_class_type_definitions(name, arch, flavor, api):
         elif method.name == "set_scratch_reg":
             description = """Sets the register that exits from the relocated code may use when
      * it is still untouched by the relocated instructions"""
+        elif method.name == "set_scratch_spill_slot":
+            description = """Sets the memory location used to spill the scratch register when
+     * relocating RIP-relative memory operands, instead of pushing it onto the
+     * stack. PUSH instructions still push it"""
         elif method.name == "set_code_range":
             description = """Sets the range of code that register liveness analysis may look
      * at. Branches leaving it are assumed to clobber X16 and X17"""
@@ -2951,6 +2955,10 @@ def generate_class_api_reference(name, arch, flavor, api):
         elif method.name == "set_scratch_reg":
             description = """set the register that exits from the relocated code
     may use when it is still untouched by the relocated instructions"""
+        elif method.name == "set_scratch_spill_slot":
+            description = """set the memory location used to spill the scratch register when
+    relocating RIP-relative memory operands, instead of pushing it onto the
+    stack. PUSH instructions still push it"""
         elif method.name == "set_code_range":
             description = """set the range of code that register liveness
     analysis may look at. Branches leaving it are assumed to clobber X16 and

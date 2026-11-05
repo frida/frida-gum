@@ -32,6 +32,8 @@ struct _GumX86Relocator
 
   gboolean eob;
   gboolean eoi;
+
+  gpointer scratch_spill_slot;
 };
 
 GUM_API GumX86Relocator * gum_x86_relocator_new (gconstpointer input_code,
@@ -45,6 +47,8 @@ GUM_API void gum_x86_relocator_clear (GumX86Relocator * relocator);
 
 GUM_API void gum_x86_relocator_reset (GumX86Relocator * relocator,
     gconstpointer input_code, GumX86Writer * output);
+GUM_API void gum_x86_relocator_set_scratch_spill_slot (
+    GumX86Relocator * self, gpointer slot);
 
 GUM_API guint gum_x86_relocator_read_one (GumX86Relocator * self,
     const cs_insn ** instruction);
