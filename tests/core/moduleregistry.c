@@ -39,6 +39,8 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (relocated_program_headers_can_be_parsed)
   TESTENTRY (online_elf_should_allow_padded_inline_program_headers)
   TESTENTRY (online_elf_should_bound_inline_program_headers)
+  TESTENTRY (online_elf_should_skip_unreadable_section_headers)
+  TESTENTRY (online_elf_should_skip_unreadable_section_names)
 TESTLIST_END ()
 
 static void on_module_added (GumModuleRegistry * registry, GumModule * module,
@@ -102,6 +104,7 @@ static void assert_nonzero_vaddr_module_found_at_its_header (
     gboolean occupy_link_address);
 static void on_nonzero_vaddr_module_added (GumModuleRegistry * registry,
     GumModule * module, gpointer user_data);
+static void assert_online_elf_skips_unreadable_section_data (gboolean names);
 
 #endif
 
@@ -545,6 +548,38 @@ TESTCASE (online_elf_should_bound_inline_program_headers)
 #endif
 }
 
+TESTCASE (online_elf_should_skip_unreadable_section_headers)
+{
+#ifdef HAVE_LINUX
+  if (g_test_subprocess ())
+  {
+    assert_online_elf_skips_unreadable_section_data (FALSE);
+    return;
+  }
+
+  g_test_trap_subprocess (NULL, 0, (GTestSubprocessFlags) 0);
+  g_test_trap_assert_passed ();
+#else
+  g_test_skip ("only supported on Linux");
+#endif
+}
+
+TESTCASE (online_elf_should_skip_unreadable_section_names)
+{
+#ifdef HAVE_LINUX
+  if (g_test_subprocess ())
+  {
+    assert_online_elf_skips_unreadable_section_data (TRUE);
+    return;
+  }
+
+  g_test_trap_subprocess (NULL, 0, (GTestSubprocessFlags) 0);
+  g_test_trap_assert_passed ();
+#else
+  g_test_skip ("only supported on Linux");
+#endif
+}
+
 static void
 on_module_added (GumModuleRegistry * registry,
                  GumModule * module,
@@ -710,6 +745,72 @@ on_nonzero_vaddr_module_added (GumModuleRegistry * registry,
 
   ctx->seen = TRUE;
   ctx->range = *gum_module_get_range (module);
+}
+
+static void
+assert_online_elf_skips_unreadable_section_data (gboolean names)
+{
+  guint page_size;
+  gsize offset;
+  guint8 * pages;
+  ElfW(Ehdr) * ehdr;
+  ElfW(Phdr) * phdr;
+  ElfW(Shdr) * shdr;
+  GumElfModule * module;
+  GError * error = NULL;
+
+  page_size = gum_query_page_size ();
+  offset = page_size;
+  pages = gum_memory_allocate (NULL, 2 * page_size, page_size, GUM_PAGE_RW);
+  g_assert_nonnull (pages);
+  memset (pages, 0, page_size);
+  gum_mprotect (pages + offset, page_size, GUM_PAGE_NO_ACCESS);
+
+  ehdr = (ElfW(Ehdr) *) pages;
+  memcpy (ehdr->e_ident, ELFMAG, SELFMAG);
+  ehdr->e_ident[EI_CLASS] = GUM_TEST_ELF_CLASS;
+  ehdr->e_ident[EI_DATA] = GUM_TEST_ELF_ENCODING;
+  ehdr->e_ident[EI_VERSION] = EV_CURRENT;
+  ehdr->e_type = ET_DYN;
+  ehdr->e_version = EV_CURRENT;
+  ehdr->e_ehsize = sizeof (ElfW(Ehdr));
+  ehdr->e_phoff = ehdr->e_ehsize;
+  ehdr->e_phentsize = sizeof (ElfW(Phdr));
+  ehdr->e_phnum = 1;
+  ehdr->e_shentsize = sizeof (ElfW(Shdr));
+
+  phdr = (ElfW(Phdr) *) (pages + ehdr->e_phoff);
+  phdr->p_type = PT_LOAD;
+  phdr->p_flags = PF_R | PF_W;
+  phdr->p_filesz = 2 * page_size;
+  phdr->p_memsz = 2 * page_size;
+  phdr->p_align = page_size;
+
+  if (names)
+  {
+    ehdr->e_shoff = GUM_ALIGN_SIZE (
+        ehdr->e_phoff + ehdr->e_phentsize, sizeof (gpointer));
+    ehdr->e_shnum = 2;
+    ehdr->e_shstrndx = 1;
+
+    shdr = (ElfW(Shdr) *) (pages + ehdr->e_shoff) + 1;
+    shdr->sh_type = SHT_STRTAB;
+    shdr->sh_offset = offset;
+    shdr->sh_size = 1;
+  }
+  else
+  {
+    ehdr->e_shoff = offset;
+    ehdr->e_shnum = 1;
+  }
+
+  module = gum_elf_module_new_from_memory (GUM_TEST_UNOPENABLE_PATH,
+      GUM_ADDRESS (pages), &error);
+  g_assert_no_error (error);
+  g_assert_nonnull (module);
+
+  g_object_unref (module);
+  gum_memory_free (pages, 2 * page_size);
 }
 
 #endif

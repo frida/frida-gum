@@ -38,6 +38,13 @@
         goto propagate_error; \
     } \
     G_STMT_END
+#define GUM_CHECK_READABLE(l, r, name) \
+    G_STMT_START \
+    { \
+      if (!gum_elf_module_check_readable (self, l, r, data, name, error)) \
+        goto propagate_error; \
+    } \
+    G_STMT_END
 #define GUM_CHECK_STR_BOUNDS(s, name) \
     G_STMT_START \
     { \
@@ -262,6 +269,9 @@ static gboolean gum_store_dynamic_string_table (
 
 static gboolean gum_elf_module_check_bounds (GumElfModule * self,
     gconstpointer left, gconstpointer right, gconstpointer base, gsize size,
+    const gchar * name, GError ** error);
+static gboolean gum_elf_module_check_readable (GumElfModule * self,
+    gconstpointer left, gconstpointer right, gconstpointer base,
     const gchar * name, GError ** error);
 static gboolean gum_elf_module_check_str_bounds (GumElfModule * self,
     const gchar * str, gconstpointer base, gsize size, const gchar * name,
@@ -869,6 +879,7 @@ gum_elf_module_load_section_headers (GumElfModule * self,
   if (end == start)
     return TRUE;
   GUM_CHECK_BOUNDS (start, end, "section headers");
+  GUM_CHECK_READABLE (start, end, "section headers");
 
   g_array_set_size (self->shdrs, n);
 
@@ -961,6 +972,7 @@ gum_elf_module_load_section_details (GumElfModule * self,
   data = gum_elf_module_get_file_data (self, &size);
 
   strings = (const gchar *) data + strings_shdr->offset;
+  GUM_CHECK_READABLE (strings, strings + strings_shdr->size, "section names");
 
   n = self->shdrs->len;
 
@@ -2686,6 +2698,33 @@ gum_elf_module_check_bounds (GumElfModule * self,
   return TRUE;
 
 oob:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "Missing data while reading %s", name);
+    return FALSE;
+  }
+}
+
+static gboolean
+gum_elf_module_check_readable (GumElfModule * self,
+                               gconstpointer left,
+                               gconstpointer right,
+                               gconstpointer base,
+                               const gchar * name,
+                               GError ** error)
+{
+  const guint8 * l = left;
+  const guint8 * r = right;
+
+  if (base != GSIZE_TO_POINTER (self->base_address))
+    return TRUE;
+
+  if (!gum_memory_is_readable (l, r - l))
+    goto unreadable;
+
+  return TRUE;
+
+unreadable:
   {
     g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
         "Missing data while reading %s", name);
