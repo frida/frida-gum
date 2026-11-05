@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -482,10 +482,7 @@ gum_thumb_writer_put_branch_address (GumThumbWriter * self,
   }
   else
   {
-    gum_thumb_writer_put_push_regs (self, 2, ARM_REG_R0, ARM_REG_R1);
-    gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_R0, address | 1);
-    gum_thumb_writer_put_str_reg_reg_offset (self, ARM_REG_R0, ARM_REG_SP, 4);
-    gum_thumb_writer_put_pop_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_PC, address | 1);
   }
 }
 
