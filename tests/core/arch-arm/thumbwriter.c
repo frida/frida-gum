@@ -12,6 +12,7 @@ TESTLIST_BEGIN (thumbwriter)
   TESTENTRY (bne_label)
   TESTENTRY (b_cond_label_wide)
   TESTENTRY (cbz_reg_label)
+  TESTENTRY (far_branch_should_not_touch_stack)
   TESTENTRY (cbz_reg_label_too_short)
   TESTENTRY (cbz_reg_label_minimum)
   TESTENTRY (cbz_reg_label_maximum)
@@ -128,6 +129,16 @@ TESTCASE (b_cond_label_wide)
   assert_output_n_equals (2, 0xbf00); /* nop */
   assert_output_n_equals (3, 0xf47f); /* bne.w again */
   assert_output_n_equals (4, 0xaffb);
+}
+
+TESTCASE (far_branch_should_not_touch_stack)
+{
+  GumAddress target = fixture->tw.pc + 0x4000000;
+
+  gum_thumb_writer_put_branch_address (&fixture->tw, target);
+  gum_thumb_writer_flush (&fixture->tw);
+  assert_output_n_equals (0, 0xf8df);
+  assert_output_n_equals (1, 0xf000);
 }
 
 TESTCASE (cbz_reg_label)
