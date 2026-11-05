@@ -87,6 +87,7 @@ gum_x86_relocator_init (GumX86Relocator * relocator,
   relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   relocator->output = NULL;
+  relocator->scratch_spill_slot = NULL;
 
   gum_x86_relocator_reset (relocator, input_code, output);
 }
@@ -132,6 +133,13 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
+}
+
+void
+gum_x86_relocator_set_scratch_spill_slot (GumX86Relocator * self,
+                                          gpointer slot)
+{
+  self->scratch_spill_slot = slot;
 }
 
 static guint
@@ -702,6 +710,40 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 
   mod = 2;
   rm = rip_reg - GUM_X86_RAX;
+
+  if (self->scratch_spill_slot != NULL)
+  {
+    if (insn->id == X86_INS_PUSH)
+      gum_x86_writer_put_push_reg (cw, GUM_X86_RAX);
+
+    if (!gum_x86_writer_put_mov_near_ptr_reg (cw,
+        GUM_ADDRESS (self->scratch_spill_slot), rip_reg))
+    {
+      g_assert_not_reached ();
+    }
+    gum_x86_writer_put_mov_reg_address (cw, rip_reg, ctx->pc);
+
+    if (insn->id == X86_INS_PUSH)
+    {
+      gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, rip_reg, rip_reg,
+          x86->disp);
+      gum_x86_writer_put_mov_reg_offset_ptr_reg (cw, GUM_X86_RSP, 0, rip_reg);
+    }
+    else
+    {
+      gum_memcpy (code, insn->bytes, insn->size);
+      code[x86->encoding.modrm_offset] = (mod << 6) | (reg << 3) | rm;
+      gum_x86_writer_put_bytes (cw, code, insn->size);
+    }
+
+    if (!gum_x86_writer_put_mov_reg_near_ptr (cw, rip_reg,
+        GUM_ADDRESS (self->scratch_spill_slot)))
+    {
+      g_assert_not_reached ();
+    }
+
+    return TRUE;
+  }
 
   if (insn->id == X86_INS_PUSH)
   {
