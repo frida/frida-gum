@@ -37,6 +37,7 @@ cmodule_function_pattern = re.compile(
 cmodule_variable_pattern = re.compile(r"^(extern .+? )(\w+);", re.MULTILINE)
 capstone_include_pattern = re.compile(r'^#include "(\w+)\.h"$', re.MULTILINE)
 capstone_export_pattern = re.compile(r"^CAPSTONE_EXPORT$", re.MULTILINE)
+capstone_pragma_pattern = re.compile(r"^#pragma message.*\n", re.MULTILINE)
 
 c_comment_pattern = re.compile(r"\/\*(\*(?!\/)|[^*])*\*\/")
 cpp_comment_pattern = re.compile(r"\s+?\/\/.+")
@@ -68,8 +69,10 @@ def generate_runtime(
         return name == capstone_arch + ".h"
 
     def optimize_capstone_header(source):
-        result = capstone_include_pattern.sub(transform_capstone_include, source)
+        result = "#undef arm\n" + source
+        result = capstone_include_pattern.sub(transform_capstone_include, result)
         result = capstone_export_pattern.sub("", result)
+        result = capstone_pragma_pattern.sub("", result)
         result = result.replace("CAPSTONE_API ", "")
         return result
 
