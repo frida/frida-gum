@@ -196,11 +196,11 @@ static GLogWriterOutput test_log_writer_func (GLogLevelFlags log_level,
     const GLogField * fields, gsize n_fields, gpointer user_data);
 static void store_arm_user_data_reg (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
-static void store_thumb_user_data_reg (GumStalkerIterator * iterator,
-    GumStalkerOutput * output, gpointer user_data);
 static void store_arm_user_data_reg_with_callout (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void store_r3_and_r6 (GumCpuContext * cpu_context, gpointer user_data);
+static void store_thumb_user_data_reg (GumStalkerIterator * iterator,
+    GumStalkerOutput * output, gpointer user_data);
 static void duplicate_adds (GumStalkerIterator * iterator,
     GumStalkerOutput * output, gpointer user_data);
 static void transform_arm_return_value (GumStalkerIterator * iterator,
