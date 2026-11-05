@@ -168,8 +168,6 @@ struct _GumCallProbe
 #define GUM_SCRATCH_REG_COUNT 4
 #define GUM_STALKER_STACK_SIZE (256 * 1024)
 
-static void gum_exec_ctx_seed_scratch_shadow (GumExecCtx * ctx,
-    const guint32 * scratch_values);
 static gpointer gum_exec_ctx_query_user_data (
     GumStalkerTransformer * transformer, GumThreadId thread_id);
 static void gum_generator_context_release_user_data_reg (GumExecBlock * block,
@@ -204,10 +202,12 @@ static void gum_generator_context_put_add_reg_reg_imm (GumGeneratorContext * gc,
     arm_reg dst_reg, arm_reg src_reg, guint imm);
 static void gum_generator_context_put_sub_reg_reg_imm (GumGeneratorContext * gc,
     arm_reg dst_reg, arm_reg src_reg, guint imm);
-static gboolean gum_mask_has_all_scratch_regs (guint16 mask);
 static gint gum_scratch_shadow_offset (arm_reg reg);
 static void gum_exec_ctx_seed_scratch_shadow_from_cpu_context (
     GumExecCtx * ctx, const GumCpuContext * cpu_context);
+static void gum_exec_ctx_seed_scratch_shadow (GumExecCtx * ctx,
+    const guint32 * scratch_values);
+static gboolean gum_mask_has_all_scratch_regs (guint16 mask);
 
 static const arm_reg gum_scratch_regs[GUM_SCRATCH_REG_COUNT] = {
   ARM_REG_R3, ARM_REG_R6, ARM_REG_R9, ARM_REG_R11

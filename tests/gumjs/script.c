@@ -691,10 +691,10 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
 
 #if defined (HAVE_I386) || defined (HAVE_ARM) || defined (HAVE_ARM64)
+static gpointer run_target_for_user_data_reg_name (gpointer data);
 static gpointer run_stalked_through_hooked_function (gpointer data);
 static gpointer run_stalked_through_block_invalidated_in_callout (
     gpointer data);
-static gpointer run_target_for_user_data_reg_name (gpointer data);
 static gpointer run_stalked_through_block_invalidated_by_request (
     gpointer data);
 static gpointer run_stalked_through_target_function (gpointer data);

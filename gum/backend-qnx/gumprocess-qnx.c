@@ -34,11 +34,11 @@ static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
 static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
     debug_greg_t * gregs);
 
+static gboolean gum_transfer_thread_gregs (GumThreadId thread_id,
+    procfs_greg * gregs, gboolean write_back);
 static gboolean gum_collect_thread_details (GumThreadDetails * details,
     const debug_thread_t * thread, GumThreadFlags flags, gchar * name_buffer);
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
-static gboolean gum_transfer_thread_gregs (GumThreadId thread_id,
-    procfs_greg * gregs, gboolean write_back);
 
 static GumModule * gum_libc_module;
 
