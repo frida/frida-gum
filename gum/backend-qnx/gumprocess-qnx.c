@@ -37,6 +37,8 @@ static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
 static gboolean gum_collect_thread_details (GumThreadDetails * details,
     const debug_thread_t * thread, GumThreadFlags flags, gchar * name_buffer);
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
+static gboolean gum_transfer_thread_gregs (GumThreadId thread_id,
+    procfs_greg * gregs, gboolean write_back);
 
 static GumModule * gum_libc_module;
 
@@ -156,23 +158,44 @@ gum_process_modify_thread (GumThreadId thread_id,
 {
   gboolean success = FALSE;
   gboolean holding = FALSE;
-  pid_t child;
-  int status;
+  procfs_greg gregs;
+  GumCpuContext cpu_context;
 
   if (ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, GSIZE_TO_POINTER (thread_id)) == -1)
     goto beach;
   holding = TRUE;
 
+  if (!gum_transfer_thread_gregs (thread_id, &gregs, FALSE))
+    goto beach;
+
+  gum_cpu_context_from_qnx (&gregs, &cpu_context);
+  func (thread_id, &cpu_context, user_data);
+  gum_cpu_context_to_qnx (&cpu_context, &gregs);
+
+  success = gum_transfer_thread_gregs (thread_id, &gregs, TRUE);
+
+beach:
+  if (holding)
+    ThreadCtl (_NTO_TCTL_ONE_THREAD_CONT, GSIZE_TO_POINTER (thread_id));
+
+  return success;
+}
+
+static gboolean
+gum_transfer_thread_gregs (GumThreadId thread_id, procfs_greg * gregs,
+                           gboolean write_back)
+{
+  pid_t child;
+  int status;
+
   child = vfork ();
   if (child == -1)
-    goto beach;
+    return FALSE;
 
   if (child == 0)
   {
     gchar as_path[PATH_MAX];
     int fd, res G_GNUC_UNUSED;
-    procfs_greg gregs;
-    GumCpuContext cpu_context;
 
     sprintf (as_path, "/proc/%d/as", getppid ());
 
@@ -183,14 +206,10 @@ gum_process_modify_thread (GumThreadId thread_id,
         NULL);
     g_assert (res == 0);
 
-    res = devctl (fd, DCMD_PROC_GETGREG, &gregs, sizeof (gregs), NULL);
-    g_assert (res == 0);
-
-    gum_cpu_context_from_qnx (&gregs, &cpu_context);
-    func (thread_id, &cpu_context, user_data);
-    gum_cpu_context_to_qnx (&cpu_context, &gregs);
-
-    res = devctl (fd, DCMD_PROC_SETGREG, &gregs, sizeof (gregs), NULL);
+    if (write_back)
+      res = devctl (fd, DCMD_PROC_SETGREG, gregs, sizeof (*gregs), NULL);
+    else
+      res = devctl (fd, DCMD_PROC_GETGREG, gregs, sizeof (*gregs), NULL);
     g_assert (res == 0);
 
     close (fd);
@@ -199,13 +218,7 @@ gum_process_modify_thread (GumThreadId thread_id,
 
   waitpid (child, &status, 0);
 
-  success = TRUE;
-
-beach:
-  if (holding)
-    ThreadCtl (_NTO_TCTL_ONE_THREAD_CONT, GSIZE_TO_POINTER (thread_id));
-
-  return success;
+  return TRUE;
 }
 
 void
