@@ -401,22 +401,24 @@ gum_pe_module_load (GumPeModule * self,
   const GumPeDataDirectory * directories;
 
   dos = (const GumPeDosHeader *) data;
-  if (self->size >= sizeof (GumPeDosHeader) && dos->e_magic != GUM_PE_DOS_MAGIC)
+  if (self->size >= sizeof (GumPeDosHeader) &&
+      GUINT16_FROM_LE (dos->e_magic) != GUM_PE_DOS_MAGIC)
     goto invalid_data;
 
-  nt_offset = dos->e_lfanew;
-  signature = *((const guint32 *) (data + nt_offset));
+  nt_offset = GUINT32_FROM_LE (dos->e_lfanew);
+  signature = GUINT32_FROM_LE (*((const guint32 *) (data + nt_offset)));
   if (signature != GUM_PE_NT_SIGNATURE)
     goto invalid_data;
 
   file_header = (const GumPeFileHeader *) (data + nt_offset + 4);
   optional_header = (const guint8 *) (file_header + 1);
-  magic = *((const guint16 *) optional_header);
+  magic = GUINT16_FROM_LE (*((const guint16 *) optional_header));
 
-  self->machine = file_header->machine;
-  self->num_sections = file_header->number_of_sections;
+  self->machine = GUINT16_FROM_LE (file_header->machine);
+  self->num_sections = GUINT16_FROM_LE (file_header->number_of_sections);
   self->sections = (const GumPeSectionHeader *)
-      (optional_header + file_header->size_of_optional_header);
+      (optional_header +
+          GUINT16_FROM_LE (file_header->size_of_optional_header));
 
   if (magic == GUM_PE_OPTIONAL_MAGIC_PE32_PLUS)
   {
@@ -424,11 +426,11 @@ gum_pe_module_load (GumPeModule * self,
         (const GumPeOptionalHeader64 *) optional_header;
 
     self->pointer_size = 8;
-    self->image_base = oh->image_base;
-    self->size_of_image = oh->size_of_image;
-    self->size_of_headers = oh->size_of_headers;
-    self->entrypoint = oh->address_of_entry_point;
-    num_directories = oh->number_of_rva_and_sizes;
+    self->image_base = GUINT64_FROM_LE (oh->image_base);
+    self->size_of_image = GUINT32_FROM_LE (oh->size_of_image);
+    self->size_of_headers = GUINT32_FROM_LE (oh->size_of_headers);
+    self->entrypoint = GUINT32_FROM_LE (oh->address_of_entry_point);
+    num_directories = GUINT32_FROM_LE (oh->number_of_rva_and_sizes);
     directories = oh->data_directory;
   }
   else if (magic == GUM_PE_OPTIONAL_MAGIC_PE32)
@@ -437,11 +439,11 @@ gum_pe_module_load (GumPeModule * self,
         (const GumPeOptionalHeader32 *) optional_header;
 
     self->pointer_size = 4;
-    self->image_base = oh->image_base;
-    self->size_of_image = oh->size_of_image;
-    self->size_of_headers = oh->size_of_headers;
-    self->entrypoint = oh->address_of_entry_point;
-    num_directories = oh->number_of_rva_and_sizes;
+    self->image_base = GUINT32_FROM_LE (oh->image_base);
+    self->size_of_image = GUINT32_FROM_LE (oh->size_of_image);
+    self->size_of_headers = GUINT32_FROM_LE (oh->size_of_headers);
+    self->entrypoint = GUINT32_FROM_LE (oh->address_of_entry_point);
+    num_directories = GUINT32_FROM_LE (oh->number_of_rva_and_sizes);
     directories = oh->data_directory;
   }
   else
@@ -452,7 +454,10 @@ gum_pe_module_load (GumPeModule * self,
   if (num_directories > 16)
     num_directories = 16;
   for (i = 0; i != num_directories; i++)
-    self->data_directory[i] = directories[i];
+  {
+    self->data_directory[i].rva = GUINT32_FROM_LE (directories[i].rva);
+    self->data_directory[i].size = GUINT32_FROM_LE (directories[i].size);
+  }
 
   return TRUE;
 
@@ -534,11 +539,13 @@ gum_pe_module_get_data_at_rva (GumPeModule * self,
   for (i = 0; i != self->num_sections; i++)
   {
     const GumPeSectionHeader * s = &self->sections[i];
+    guint32 virtual_address = GUINT32_FROM_LE (s->virtual_address);
+    guint32 raw_size = GUINT32_FROM_LE (s->size_of_raw_data);
 
-    if (rva >= s->virtual_address &&
-        rva < s->virtual_address + s->size_of_raw_data)
+    if (rva >= virtual_address && rva < virtual_address + raw_size)
     {
-      return self->data + s->pointer_to_raw_data + (rva - s->virtual_address);
+      return self->data + GUINT32_FROM_LE (s->pointer_to_raw_data) +
+          (rva - virtual_address);
     }
   }
 
@@ -562,13 +569,13 @@ gum_pe_module_enumerate_sections (GumPeModule * self,
     name[8] = '\0';
 
     details.name = name;
-    details.virtual_address = s->virtual_address;
-    details.virtual_size = s->virtual_size;
-    details.raw_data_offset = s->pointer_to_raw_data;
-    details.raw_data_size = s->size_of_raw_data;
-    details.characteristics = s->characteristics;
+    details.virtual_address = GUINT32_FROM_LE (s->virtual_address);
+    details.virtual_size = GUINT32_FROM_LE (s->virtual_size);
+    details.raw_data_offset = GUINT32_FROM_LE (s->pointer_to_raw_data);
+    details.raw_data_size = GUINT32_FROM_LE (s->size_of_raw_data);
+    details.characteristics = GUINT32_FROM_LE (s->characteristics);
     details.protection =
-        gum_protection_from_characteristics (s->characteristics);
+        gum_protection_from_characteristics (details.characteristics);
 
     if (!func (&details, user_data))
       return;
@@ -595,25 +602,27 @@ gum_pe_module_enumerate_relocations (GumPeModule * self,
   {
     const GumPeBaseRelocationBlock * block =
         (const GumPeBaseRelocationBlock *) cursor;
+    guint32 block_size = GUINT32_FROM_LE (block->size_of_block);
+    guint32 virtual_address = GUINT32_FROM_LE (block->virtual_address);
     guint count, i;
     const guint16 * entries = (const guint16 *) (block + 1);
 
-    count = (block->size_of_block - sizeof (GumPeBaseRelocationBlock)) /
+    count = (block_size - sizeof (GumPeBaseRelocationBlock)) /
         sizeof (guint16);
 
     for (i = 0; i != count; i++)
     {
-      guint16 entry = entries[i];
+      guint16 entry = GUINT16_FROM_LE (entries[i]);
       GumPeRelocationDetails details;
 
-      details.rva = block->virtual_address + (entry & 0xfff);
+      details.rva = virtual_address + (entry & 0xfff);
       details.type = entry >> 12;
 
       if (!func (&details, user_data))
         return;
     }
 
-    cursor += block->size_of_block;
+    cursor += block_size;
   }
 }
 
@@ -633,19 +642,19 @@ gum_pe_module_enumerate_imports (GumPeModule * self,
     const GumPeImportDescriptor * desc =
         gum_pe_module_get_data_at_rva (self, imports->rva);
 
-    for (; desc->name != 0; desc++)
+    for (; GUINT32_FROM_LE (desc->name) != 0; desc++)
     {
       guint i;
       guint32 lookup_rva =
-          (desc->original_first_thunk != 0)
-          ? desc->original_first_thunk
-          : desc->first_thunk;
+          (GUINT32_FROM_LE (desc->original_first_thunk) != 0)
+          ? GUINT32_FROM_LE (desc->original_first_thunk)
+          : GUINT32_FROM_LE (desc->first_thunk);
       const guint8 * lookup =
           gum_pe_module_get_data_at_rva (self, lookup_rva);
       const gchar * module_name =
-          gum_pe_module_get_data_at_rva (self, desc->name);
+          gum_pe_module_get_data_at_rva (self, GUINT32_FROM_LE (desc->name));
 
-      if (desc->original_first_thunk == 0 &&
+      if (GUINT32_FROM_LE (desc->original_first_thunk) == 0 &&
           self->source_mode == GUM_PE_SOURCE_MODE_ONLINE)
         continue;
 
@@ -654,14 +663,15 @@ gum_pe_module_enumerate_imports (GumPeModule * self,
         guint64 value;
 
         value = (pointer_size == 8)
-            ? ((const guint64 *) lookup)[i]
-            : ((const guint32 *) lookup)[i];
+            ? GUINT64_FROM_LE (((const guint64 *) lookup)[i])
+            : GUINT32_FROM_LE (((const guint32 *) lookup)[i]);
         if (value == 0)
           break;
 
         if (!gum_emit_import (self, module_name, value,
             GUM_PE_IMPORT_LOAD_MODE_REGULAR,
-            desc->first_thunk + (i * pointer_size), func, user_data))
+            GUINT32_FROM_LE (desc->first_thunk) + (i * pointer_size), func,
+            user_data))
           return;
       }
     }
@@ -672,27 +682,29 @@ gum_pe_module_enumerate_imports (GumPeModule * self,
     const GumPeDelayDescriptor * desc =
         gum_pe_module_get_data_at_rva (self, delay->rva);
 
-    for (; desc->name != 0; desc++)
+    for (; GUINT32_FROM_LE (desc->name) != 0; desc++)
     {
       guint i;
       const guint8 * lookup =
-          gum_pe_module_get_data_at_rva (self, desc->import_name_table);
+          gum_pe_module_get_data_at_rva (self,
+              GUINT32_FROM_LE (desc->import_name_table));
       const gchar * module_name =
-          gum_pe_module_get_data_at_rva (self, desc->name);
+          gum_pe_module_get_data_at_rva (self, GUINT32_FROM_LE (desc->name));
 
       for (i = 0; ; i++)
       {
         guint64 value;
 
         value = (pointer_size == 8)
-            ? ((const guint64 *) lookup)[i]
-            : ((const guint32 *) lookup)[i];
+            ? GUINT64_FROM_LE (((const guint64 *) lookup)[i])
+            : GUINT32_FROM_LE (((const guint32 *) lookup)[i]);
         if (value == 0)
           break;
 
         if (!gum_emit_import (self, module_name, value,
             GUM_PE_IMPORT_LOAD_MODE_DELAYED,
-            desc->import_address_table + (i * pointer_size), func, user_data))
+            GUINT32_FROM_LE (desc->import_address_table) +
+            (i * pointer_size), func, user_data))
           return;
       }
     }
@@ -776,6 +788,7 @@ gum_pe_module_enumerate_exports (GumPeModule * self,
   const guint32 * names;
   const guint16 * ordinals;
   const gchar ** name_by_index;
+  guint32 number_of_functions, number_of_names;
   guint32 i;
   const guint32 * functions;
 
@@ -783,22 +796,26 @@ gum_pe_module_enumerate_exports (GumPeModule * self,
     return;
 
   exp = gum_pe_module_get_data_at_rva (self, dir->rva);
-  names = gum_pe_module_get_data_at_rva (self, exp->address_of_names);
-  ordinals =
-      gum_pe_module_get_data_at_rva (self, exp->address_of_name_ordinals);
+  number_of_functions = GUINT32_FROM_LE (exp->number_of_functions);
+  number_of_names = GUINT32_FROM_LE (exp->number_of_names);
+  names = gum_pe_module_get_data_at_rva (self,
+      GUINT32_FROM_LE (exp->address_of_names));
+  ordinals = gum_pe_module_get_data_at_rva (self,
+      GUINT32_FROM_LE (exp->address_of_name_ordinals));
 
-  name_by_index = g_new0 (const gchar *, exp->number_of_functions);
-  for (i = 0; i != exp->number_of_names; i++)
+  name_by_index = g_new0 (const gchar *, number_of_functions);
+  for (i = 0; i != number_of_names; i++)
   {
-    name_by_index[ordinals[i]] =
-        gum_pe_module_get_data_at_rva (self, names[i]);
+    name_by_index[GUINT16_FROM_LE (ordinals[i])] =
+        gum_pe_module_get_data_at_rva (self, GUINT32_FROM_LE (names[i]));
   }
 
-  functions = gum_pe_module_get_data_at_rva (self, exp->address_of_functions);
+  functions = gum_pe_module_get_data_at_rva (self,
+      GUINT32_FROM_LE (exp->address_of_functions));
 
-  for (i = 0; i != exp->number_of_functions; i++)
+  for (i = 0; i != number_of_functions; i++)
   {
-    guint32 func_rva = functions[i];
+    guint32 func_rva = GUINT32_FROM_LE (functions[i]);
     GumPeExportDetails details;
 
     if (func_rva == 0)
@@ -807,7 +824,7 @@ gum_pe_module_enumerate_exports (GumPeModule * self,
     details.type = (func_rva >= dir->rva && func_rva < dir->rva + dir->size)
         ? GUM_PE_EXPORT_FORWARDED
         : GUM_PE_EXPORT_REGULAR;
-    details.ordinal = exp->base + i;
+    details.ordinal = GUINT32_FROM_LE (exp->base) + i;
     details.name = name_by_index[i];
 
     if (details.type == GUM_PE_EXPORT_REGULAR)
@@ -865,8 +882,8 @@ gum_pe_module_enumerate_tls_callbacks (GumPeModule * self,
   for (i = 0; ; i++)
   {
     guint64 callback_va = (self->pointer_size == 8)
-        ? ((const guint64 *) callbacks)[i]
-        : ((const guint32 *) callbacks)[i];
+        ? GUINT64_FROM_LE (((const guint64 *) callbacks)[i])
+        : GUINT32_FROM_LE (((const guint32 *) callbacks)[i]);
 
     if (callback_va == 0)
       break;
@@ -885,18 +902,29 @@ gum_pe_module_read_tls_directory (GumPeModule * self,
 
   if (self->pointer_size == 8)
   {
-    *tls = *((const GumPeTlsDirectory64 *) raw);
+    const GumPeTlsDirectory64 * tls64 = raw;
+
+    tls->start_address_of_raw_data =
+        GUINT64_FROM_LE (tls64->start_address_of_raw_data);
+    tls->end_address_of_raw_data =
+        GUINT64_FROM_LE (tls64->end_address_of_raw_data);
+    tls->address_of_index = GUINT64_FROM_LE (tls64->address_of_index);
+    tls->address_of_callbacks = GUINT64_FROM_LE (tls64->address_of_callbacks);
+    tls->size_of_zero_fill = GUINT32_FROM_LE (tls64->size_of_zero_fill);
+    tls->characteristics = GUINT32_FROM_LE (tls64->characteristics);
   }
   else
   {
     const GumPeTlsDirectory32 * tls32 = raw;
 
-    tls->start_address_of_raw_data = tls32->start_address_of_raw_data;
-    tls->end_address_of_raw_data = tls32->end_address_of_raw_data;
-    tls->address_of_index = tls32->address_of_index;
-    tls->address_of_callbacks = tls32->address_of_callbacks;
-    tls->size_of_zero_fill = tls32->size_of_zero_fill;
-    tls->characteristics = tls32->characteristics;
+    tls->start_address_of_raw_data =
+        GUINT32_FROM_LE (tls32->start_address_of_raw_data);
+    tls->end_address_of_raw_data =
+        GUINT32_FROM_LE (tls32->end_address_of_raw_data);
+    tls->address_of_index = GUINT32_FROM_LE (tls32->address_of_index);
+    tls->address_of_callbacks = GUINT32_FROM_LE (tls32->address_of_callbacks);
+    tls->size_of_zero_fill = GUINT32_FROM_LE (tls32->size_of_zero_fill);
+    tls->characteristics = GUINT32_FROM_LE (tls32->characteristics);
   }
 }
 
@@ -933,12 +961,13 @@ gum_pe_module_read_load_config_rva (GumPeModule * self,
   load_config = gum_pe_module_get_data_at_rva (self, dir->rva);
 
   offset = (self->pointer_size == 8) ? offset_64 : offset_32;
-  if (*((const guint32 *) load_config) < offset + self->pointer_size)
+  if (GUINT32_FROM_LE (*((const guint32 *) load_config)) <
+      offset + self->pointer_size)
     return 0;
 
   va = (self->pointer_size == 8)
-      ? *((const guint64 *) (load_config + offset))
-      : *((const guint32 *) (load_config + offset));
+      ? GUINT64_FROM_LE (*((const guint64 *) (load_config + offset)))
+      : GUINT32_FROM_LE (*((const guint32 *) (load_config + offset)));
   if (va == 0)
     return 0;
 
@@ -963,9 +992,10 @@ gum_pe_module_enumerate_dependencies (GumPeModule * self,
 
     details.type = GUM_DEPENDENCY_REGULAR;
 
-    for (; desc->name != 0; desc++)
+    for (; GUINT32_FROM_LE (desc->name) != 0; desc++)
     {
-      details.name = gum_pe_module_get_data_at_rva (self, desc->name);
+      details.name =
+          gum_pe_module_get_data_at_rva (self, GUINT32_FROM_LE (desc->name));
 
       if (!func (&details, user_data))
         return;
@@ -979,9 +1009,10 @@ gum_pe_module_enumerate_dependencies (GumPeModule * self,
 
     details.type = GUM_DEPENDENCY_WEAK;
 
-    for (; desc->name != 0; desc++)
+    for (; GUINT32_FROM_LE (desc->name) != 0; desc++)
     {
-      details.name = gum_pe_module_get_data_at_rva (self, desc->name);
+      details.name =
+          gum_pe_module_get_data_at_rva (self, GUINT32_FROM_LE (desc->name));
 
       if (!func (&details, user_data))
         return;
@@ -1020,7 +1051,7 @@ gum_pe_module_enumerate_function_starts (GumPeModule * self,
     if (gum_pe_module_is_function_fragment (self, entry))
       continue;
 
-    if (!func (entry[0], user_data))
+    if (!func (GUINT32_FROM_LE (entry[0]), user_data))
       return;
   }
 }
@@ -1055,7 +1086,7 @@ gum_pe_module_is_amd64_function_fragment (GumPeModule * self,
   guint32 unwind_data;
   const guint8 * unwind_info;
 
-  unwind_data = entry[2];
+  unwind_data = GUINT32_FROM_LE (entry[2]);
   if ((unwind_data & GUM_PE_UNWIND_DATA_INDIRECT) != 0)
     return TRUE;
 
@@ -1068,8 +1099,9 @@ static gboolean
 gum_pe_module_is_arm64_function_fragment (GumPeModule * self,
                                           const guint32 * entry)
 {
-  guint32 unwind_data = entry[1];
+  guint32 unwind_data = GUINT32_FROM_LE (entry[1]);
   const guint32 * xdata;
+  guint32 header;
   guint epilog_count, code_words;
   const guint32 * scopes;
   guint num_epilog_scopes;
@@ -1086,17 +1118,18 @@ gum_pe_module_is_arm64_function_fragment (GumPeModule * self,
   }
 
   xdata = gum_pe_module_get_data_at_rva (self, unwind_data);
+  header = GUINT32_FROM_LE (xdata[0]);
 
-  epilog_count = (xdata[0] >> 22) & 0x1f;
-  code_words = xdata[0] >> 27;
+  epilog_count = (header >> 22) & 0x1f;
+  code_words = header >> 27;
   scopes = xdata + 1;
   if (epilog_count == 0 && code_words == 0)
   {
-    epilog_count = xdata[1] & 0xffff;
+    epilog_count = GUINT32_FROM_LE (xdata[1]) & 0xffff;
     scopes++;
   }
 
-  num_epilog_scopes = ((xdata[0] & GUM_PE_ARM64_XDATA_SINGLE_EPILOG) != 0)
+  num_epilog_scopes = ((header & GUM_PE_ARM64_XDATA_SINGLE_EPILOG) != 0)
       ? 0
       : epilog_count;
 
@@ -1108,7 +1141,7 @@ static gboolean
 gum_pe_module_is_arm_function_fragment (GumPeModule * self,
                                         const guint32 * entry)
 {
-  guint32 unwind_data = entry[1];
+  guint32 unwind_data = GUINT32_FROM_LE (entry[1]);
   const guint32 * xdata;
 
   switch (unwind_data & GUM_PE_ARM_UNWIND_TYPE_MASK)
@@ -1123,7 +1156,7 @@ gum_pe_module_is_arm_function_fragment (GumPeModule * self,
 
   xdata = gum_pe_module_get_data_at_rva (self, unwind_data);
 
-  return (xdata[0] & GUM_PE_ARM_XDATA_FRAGMENT) != 0;
+  return (GUINT32_FROM_LE (xdata[0]) & GUM_PE_ARM_XDATA_FRAGMENT) != 0;
 }
 
 static GumPageProtection

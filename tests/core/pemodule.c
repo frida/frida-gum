@@ -52,6 +52,8 @@ struct _GumTestExportCheckContext
 static GumPeModule * gum_test_make_pe_module (GumPeMachine machine,
     const guint32 * pdata, gsize pdata_size, const guint32 * xdata,
     gsize xdata_size);
+static void gum_test_copy_u32s_le (guint8 * dest, const guint32 * src,
+    gsize size);
 static GArray * gum_test_collect_function_starts (GumPeModule * module);
 static gboolean gum_test_collect_function_start (GumAddress rva,
     gpointer user_data);
@@ -251,35 +253,37 @@ gum_test_make_pe_module (GumPeMachine machine,
 
   image[0] = 'M';
   image[1] = 'Z';
-  *((guint32 *) (image + 0x3c)) = GUM_TEST_NT_OFFSET;
+  *((guint32 *) (image + 0x3c)) = GUINT32_TO_LE (GUM_TEST_NT_OFFSET);
 
   memcpy (image + GUM_TEST_NT_OFFSET, "PE\0\0", 4);
 
   file_header = image + GUM_TEST_NT_OFFSET + 4;
-  *((guint16 *) (file_header + 0)) = machine;
-  *((guint16 *) (file_header + 16)) = is_pe32_plus ? 0xf0 : 0xe0;
+  *((guint16 *) (file_header + 0)) = GUINT16_TO_LE (machine);
+  *((guint16 *) (file_header + 16)) =
+      GUINT16_TO_LE (is_pe32_plus ? 0xf0 : 0xe0);
 
   optional_header = file_header + 20;
-  *((guint16 *) (optional_header + 0)) = is_pe32_plus ? 0x20b : 0x10b;
-  *((guint32 *) (optional_header + 56)) = GUM_TEST_IMAGE_SIZE;
-  *((guint32 *) (optional_header + 60)) = GUM_TEST_IMAGE_SIZE;
+  *((guint16 *) (optional_header + 0)) =
+      GUINT16_TO_LE (is_pe32_plus ? 0x20b : 0x10b);
+  *((guint32 *) (optional_header + 56)) = GUINT32_TO_LE (GUM_TEST_IMAGE_SIZE);
+  *((guint32 *) (optional_header + 60)) = GUINT32_TO_LE (GUM_TEST_IMAGE_SIZE);
   if (is_pe32_plus)
   {
-    *((guint32 *) (optional_header + 108)) = 16;
+    *((guint32 *) (optional_header + 108)) = GUINT32_TO_LE (16);
     directories_offset = 112;
   }
   else
   {
-    *((guint32 *) (optional_header + 92)) = 16;
+    *((guint32 *) (optional_header + 92)) = GUINT32_TO_LE (16);
     directories_offset = 96;
   }
   *((guint32 *) (optional_header + directories_offset +
-      (GUM_PE_DIRECTORY_EXCEPTION * 8))) = GUM_TEST_PDATA_RVA;
+      (GUM_PE_DIRECTORY_EXCEPTION * 8))) = GUINT32_TO_LE (GUM_TEST_PDATA_RVA);
   *((guint32 *) (optional_header + directories_offset +
-      (GUM_PE_DIRECTORY_EXCEPTION * 8) + 4)) = pdata_size;
+      (GUM_PE_DIRECTORY_EXCEPTION * 8) + 4)) = GUINT32_TO_LE (pdata_size);
 
-  memcpy (image + GUM_TEST_PDATA_RVA, pdata, pdata_size);
-  memcpy (image + GUM_TEST_XDATA_RVA, xdata, xdata_size);
+  gum_test_copy_u32s_le (image + GUM_TEST_PDATA_RVA, pdata, pdata_size);
+  gum_test_copy_u32s_le (image + GUM_TEST_XDATA_RVA, xdata, xdata_size);
 
   blob = g_bytes_new_take (image, GUM_TEST_IMAGE_SIZE);
   module = gum_pe_module_new_from_blob (blob, NULL);
@@ -287,6 +291,18 @@ gum_test_make_pe_module (GumPeMachine machine,
   g_bytes_unref (blob);
 
   return module;
+}
+
+static void
+gum_test_copy_u32s_le (guint8 * dest,
+                       const guint32 * src,
+                       gsize size)
+{
+  guint32 * words = (guint32 *) dest;
+  gsize i;
+
+  for (i = 0; i != size / sizeof (guint32); i++)
+    words[i] = GUINT32_TO_LE (src[i]);
 }
 
 static GArray *
