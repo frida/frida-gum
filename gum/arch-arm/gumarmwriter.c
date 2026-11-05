@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -90,6 +90,7 @@ gum_arm_writer_init (GumArmWriter * writer,
   writer->cpu_features = GUM_CPU_THUMB_INTERWORK;
 
   writer->label_defs = NULL;
+  writer->literal_commit_inhibit = 0;
   writer->label_refs.data = NULL;
   writer->literal_refs.data = NULL;
 
@@ -428,11 +429,10 @@ gum_arm_writer_put_call_address_body (GumArmWriter * self,
   }
   else
   {
-    gum_arm_writer_put_add_reg_reg_imm (self, ARM_REG_LR, ARM_REG_PC, 3 * 4);
-    gum_arm_writer_put_push_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
-    gum_arm_writer_put_ldr_reg_address (self, ARM_REG_R0, address);
-    gum_arm_writer_put_str_reg_reg_offset (self, ARM_REG_R0, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
+    self->literal_commit_inhibit++;
+    gum_arm_writer_put_mov_reg_reg (self, ARM_REG_LR, ARM_REG_PC);
+    gum_arm_writer_put_ldr_reg_address (self, ARM_REG_PC, address);
+    self->literal_commit_inhibit--;
   }
 }
 
@@ -446,10 +446,7 @@ gum_arm_writer_put_branch_address (GumArmWriter * self,
   }
   else
   {
-    gum_arm_writer_put_push_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
-    gum_arm_writer_put_ldr_reg_address (self, ARM_REG_R0, address);
-    gum_arm_writer_put_str_reg_reg_offset (self, ARM_REG_R0, ARM_REG_SP, 4);
-    gum_arm_writer_put_pop_regs (self, 2, ARM_REG_R0, ARM_REG_PC);
+    gum_arm_writer_put_ldr_reg_address (self, ARM_REG_PC, address);
   }
 }
 
@@ -1177,7 +1174,8 @@ gum_arm_writer_maybe_commit_literals (GumArmWriter * self)
   gsize space_used;
   gconstpointer after_literals = self->code;
 
-  if (self->earliest_literal_insn == NULL)
+  if (self->earliest_literal_insn == NULL ||
+      self->literal_commit_inhibit != 0)
     return;
 
   space_used = (self->code - self->earliest_literal_insn) * sizeof (guint32);

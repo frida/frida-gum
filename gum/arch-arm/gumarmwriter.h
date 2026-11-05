@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,6 +34,7 @@ struct _GumArmWriter
   GumMetalArray label_refs;
   GumMetalArray literal_refs;
   const guint32 * earliest_literal_insn;
+  guint literal_commit_inhibit;
 };
 
 GUM_API GumArmWriter * gum_arm_writer_new (gpointer code_address);

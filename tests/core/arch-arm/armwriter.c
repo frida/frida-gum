@@ -9,6 +9,8 @@
 TESTLIST_BEGIN (armwriter)
   TESTENTRY (ldr_u32)
   TESTENTRY (ldr_pc_u32)
+  TESTENTRY (far_branch_should_not_touch_stack)
+  TESTENTRY (far_call_should_not_touch_stack)
 #ifdef HAVE_ARM
   TESTENTRY (ldr_in_large_block)
 #endif
@@ -42,6 +44,27 @@ TESTCASE (ldr_pc_u32)
   gum_arm_writer_flush (&fixture->aw);
   assert_output_n_equals (0, 0xe51ff004);
   g_assert_cmphex (fixture->output[1 + 0], ==, 0xdeadbeef);
+}
+
+TESTCASE (far_branch_should_not_touch_stack)
+{
+  GumAddress target = fixture->aw.pc + 0x4000000;
+
+  gum_arm_writer_put_branch_address (&fixture->aw, target);
+  gum_arm_writer_flush (&fixture->aw);
+  assert_output_n_equals (0, 0xe51ff004); /* ldr pc, [pc, #-4] */
+  g_assert_cmphex (fixture->output[1 + 0], ==, (guint32) target);
+}
+
+TESTCASE (far_call_should_not_touch_stack)
+{
+  GumAddress target = fixture->aw.pc + 0x4000000;
+
+  gum_arm_writer_put_call_address_with_arguments (&fixture->aw, target, 0);
+  gum_arm_writer_flush (&fixture->aw);
+  assert_output_n_equals (0, 0xe28fe000); /* add lr, pc, #0 */
+  assert_output_n_equals (1, 0xe51ff004); /* ldr pc, [pc, #-4] */
+  g_assert_cmphex (fixture->output[2 + 0], ==, (guint32) target);
 }
 
 #ifdef HAVE_ARM
