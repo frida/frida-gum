@@ -3,6 +3,7 @@
  * Copyright (C)      2019 Jon Wilson <jonwilson@zepler.net>
  * Copyright (C)      2021 Paul Schmidt <p.schmidt@tu-bs.de>
  * Copyright (C)      2026 Daniel Baier <admin@remoteshell-security.com>
+ * Copyright (C)      2026 Kaz Wolfe <root@kazwolfe.io>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1424,7 +1425,7 @@ gum_elf_module_enumerate_sections (GumElfModule * self,
 {
   guint i;
 
-  for (i = 0; i != self->shdrs->len; i++)
+  for (i = 0; i != self->sections->len; i++)
   {
     const GumElfSectionDetails * d = g_ptr_array_index (self->sections, i);
 
@@ -1490,7 +1491,7 @@ gum_elf_module_enumerate_relocations (GumElfModule * self,
           }
         }
 
-        g.parent = g_ptr_array_index (self->sections, i);
+        g.parent = gum_elf_module_find_section_details_by_index (self, i);
 
         if (!gum_elf_module_emit_relocations (self, &g, func, user_data))
           return;
