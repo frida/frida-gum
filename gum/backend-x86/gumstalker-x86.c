@@ -584,6 +584,7 @@ static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumEventSink * sink);
 static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
 static GumExecCtx * gum_stalker_get_exec_ctx (void);
+static gpointer gum_stalker_mask_exec_ctx (gpointer ctx);
 static GumExecCtx * gum_stalker_find_exec_ctx_by_thread_id (GumStalker * self,
     GumThreadId thread_id);
 
@@ -856,6 +857,7 @@ G_DEFINE_TYPE_WITH_CODE (GumStalker, gum_stalker, G_TYPE_OBJECT,
                              gum_stalker_unwind_translator_iface_init))
 
 static GPrivate gum_stalker_exec_ctx_private;
+static gsize gum_stalker_exec_ctx_cookie;
 
 static gpointer _gum_thread_exit_impl;
 
@@ -891,6 +893,13 @@ gum_stalker_class_init (GumStalkerClass * klass)
       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
 
   _gum_thread_exit_impl = gum_find_thread_exit_implementation ();
+
+#if GLIB_SIZEOF_VOID_P == 8
+  gum_stalker_exec_ctx_cookie = ((guint64) g_random_int () << 32) |
+      g_random_int ();
+#else
+  gum_stalker_exec_ctx_cookie = g_random_int ();
+#endif
 }
 
 static void
@@ -1293,7 +1302,8 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
   ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
       transformer, sink);
-  g_private_set (&gum_stalker_exec_ctx_private, ctx);
+  g_private_set (&gum_stalker_exec_ctx_private,
+      gum_stalker_mask_exec_ctx (ctx));
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr,
       &code_address);
@@ -1443,7 +1453,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_x86_writer_put_call_address_with_aligned_arguments (cw, GUM_CALL_CAPI,
       GUM_ADDRESS (g_private_set), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (&gum_stalker_exec_ctx_private),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gum_stalker_mask_exec_ctx (ctx)));
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, cw);
 
   gum_x86_writer_put_jmp_address (cw, GUM_ADDRESS (code_address));
@@ -2158,7 +2168,20 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
 static GumExecCtx *
 gum_stalker_get_exec_ctx (void)
 {
-  return g_private_get (&gum_stalker_exec_ctx_private);
+  gpointer masked_ctx;
+
+  masked_ctx = g_private_get (&gum_stalker_exec_ctx_private);
+  if (masked_ctx == NULL)
+    return NULL;
+
+  return gum_stalker_mask_exec_ctx (masked_ctx);
+}
+
+static gpointer
+gum_stalker_mask_exec_ctx (gpointer ctx)
+{
+  return GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (ctx) ^ gum_stalker_exec_ctx_cookie);
 }
 
 static GumExecCtx *

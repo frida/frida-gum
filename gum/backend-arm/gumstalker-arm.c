@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2009-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2023 Håvard Sørbø <havard@hsorbo.no>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -455,6 +455,7 @@ static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumEventSink * sink);
 static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
 static GumExecCtx * gum_stalker_get_exec_ctx (void);
+static gpointer gum_stalker_mask_exec_ctx (gpointer ctx);
 static GumExecCtx * gum_stalker_find_exec_ctx_by_thread_id (GumStalker * self,
     GumThreadId thread_id);
 
@@ -731,6 +732,7 @@ G_DEFINE_TYPE_WITH_CODE (GumStalker, gum_stalker, G_TYPE_OBJECT,
                              gum_stalker_unwind_translator_iface_init))
 
 static GPrivate gum_stalker_exec_ctx_private;
+static gsize gum_stalker_exec_ctx_cookie;
 
 static gpointer gum_thread_exit_address;
 
@@ -749,6 +751,8 @@ gum_stalker_class_init (GumStalkerClass * klass)
   object_class->finalize = gum_stalker_finalize;
 
   gum_thread_exit_address = gum_find_thread_exit_implementation ();
+
+  gum_stalker_exec_ctx_cookie = g_random_int ();
 }
 
 static void
@@ -1022,7 +1026,8 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
   ctx = gum_stalker_create_exec_ctx (self, gum_process_get_current_thread_id (),
       transformer, sink);
-  g_private_set (&gum_stalker_exec_ctx_private, ctx);
+  g_private_set (&gum_stalker_exec_ctx_private,
+      gum_stalker_mask_exec_ctx (ctx));
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, ret_addr,
       &code_address);
@@ -1164,7 +1169,7 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_arm_writer_put_call_address_with_arguments (cw,
       GUM_ADDRESS (g_private_set), 2,
       GUM_ARG_ADDRESS, GUM_ADDRESS (&gum_stalker_exec_ctx_private),
-      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx));
+      GUM_ARG_ADDRESS, GUM_ADDRESS (gum_stalker_mask_exec_ctx (ctx)));
   gum_exec_ctx_write_arm_epilog (ctx, cw);
 
   gum_exec_block_write_arm_exec_generated_code (cw, ctx);
@@ -1741,7 +1746,20 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
 static GumExecCtx *
 gum_stalker_get_exec_ctx (void)
 {
-  return g_private_get (&gum_stalker_exec_ctx_private);
+  gpointer masked_ctx;
+
+  masked_ctx = g_private_get (&gum_stalker_exec_ctx_private);
+  if (masked_ctx == NULL)
+    return NULL;
+
+  return gum_stalker_mask_exec_ctx (masked_ctx);
+}
+
+static gpointer
+gum_stalker_mask_exec_ctx (gpointer ctx)
+{
+  return GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (ctx) ^ gum_stalker_exec_ctx_cookie);
 }
 
 static GumExecCtx *
