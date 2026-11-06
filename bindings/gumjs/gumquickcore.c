@@ -1587,6 +1587,7 @@ _gum_quick_core_init (GumQuickCore * self,
   self->current_scope = NULL;
   self->current_owner = GUM_THREAD_ID_INVALID;
   self->transaction_released_owner = GUM_THREAD_ID_INVALID;
+  self->scope_mutex_epoch = 0;
 
   gum_quick_core_setup_atoms (self);
 
@@ -2052,6 +2053,8 @@ _gum_quick_scope_enter (GumQuickScope * self,
                         GumQuickCore * core)
 {
   self->core = core;
+
+  gum_quick_script_backend_sync_core_after_fork (core);
 
   if (core->interceptor != NULL)
     gum_interceptor_begin_transaction (core->interceptor->interceptor);
