@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/frida-forks/quickjs.git
-revision = cd41bdbf0c6c14a22f4a514bfe8efd6cbca50af3
+revision = 6f3b5b4827d4c81af85627d66fce2ec3c8ab70d0
 depth = 1
 
 [provide]
