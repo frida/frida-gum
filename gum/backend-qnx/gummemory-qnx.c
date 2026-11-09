@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2026 Kaz Wolfe <root@kazwolfe.io>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,6 +13,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -201,8 +203,9 @@ gum_try_mprotect (gpointer address,
   {
     int fd = -1;
     char * buffer;
+    gsize total_read_count = 0;
+    sigset_t all_signals, saved_signals;
     gpointer address_mmapped G_GNUC_UNUSED;
-    gint total_read_count = 0;
 
     fd = open ("/proc/self/as", O_RDONLY);
     g_assert (fd != -1);
@@ -214,22 +217,32 @@ gum_try_mprotect (gpointer address,
 
     while (total_read_count < aligned_size)
     {
-      gint read_count = read (fd, &buffer[total_read_count],
+      gssize read_count = read (fd, &buffer[total_read_count],
           aligned_size - total_read_count);
+      if (read_count <= 0)
+        break;
       total_read_count += read_count;
     }
 
-    ThreadCtl (_NTO_TCTL_THREADS_HOLD, 0);
+    if (total_read_count == aligned_size)
+    {
+      sigfillset (&all_signals);
+      pthread_sigmask (SIG_SETMASK, &all_signals, &saved_signals);
+      ThreadCtl (_NTO_TCTL_THREADS_HOLD, 0);
 
-    address_mmapped = mmap (aligned_address, aligned_size,
-        PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, NOFD, 0);
-    g_assert (address_mmapped == aligned_address);
+      address_mmapped = mmap (aligned_address, aligned_size,
+          PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, NOFD,
+          0);
+      g_assert (address_mmapped == aligned_address);
 
-    memcpy (aligned_address, buffer, aligned_size);
+      memcpy (aligned_address, buffer, aligned_size);
+      gum_clear_cache (aligned_address, aligned_size);
 
-    result = mprotect (aligned_address, aligned_size, posix_prot);
+      result = mprotect (aligned_address, aligned_size, posix_prot);
 
-    ThreadCtl (_NTO_TCTL_THREADS_CONT, 0);
+      ThreadCtl (_NTO_TCTL_THREADS_CONT, 0);
+      pthread_sigmask (SIG_SETMASK, &saved_signals, NULL);
+    }
 
     close (fd);
   }
