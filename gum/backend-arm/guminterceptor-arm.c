@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2025 Francesco Tamagni <mrmacete@protonmail.ch>
+ * Copyright (C) 2026 Kaz Wolfe <root@kazwolfe.io>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -209,8 +210,12 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     if ((GPOINTER_TO_SIZE (function_address) & 3) != 0)
       data->full_redirect_size += 2;
 
-    if (gum_thumb_relocator_can_relocate (function_address,
-          data->full_redirect_size, scenario, &redirect_limit))
+    gum_thumb_relocator_can_relocate (function_address,
+        data->full_redirect_size, scenario, &redirect_limit);
+    if (ctx->redirect_space_hint != 0)
+      redirect_limit = MIN (redirect_limit, ctx->redirect_space_hint);
+
+    if (redirect_limit >= data->full_redirect_size)
     {
       data->redirect_code_size = data->full_redirect_size;
     }
@@ -237,8 +242,12 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   {
     data->full_redirect_size = GUM_INTERCEPTOR_ARM_FULL_REDIRECT_SIZE;
 
-    if (gum_arm_relocator_can_relocate (function_address,
-        data->full_redirect_size, &redirect_limit))
+    gum_arm_relocator_can_relocate (function_address,
+        data->full_redirect_size, &redirect_limit);
+    if (ctx->redirect_space_hint != 0)
+      redirect_limit = MIN (redirect_limit, ctx->redirect_space_hint);
+
+    if (redirect_limit >= data->full_redirect_size)
     {
       data->redirect_code_size = data->full_redirect_size;
     }
