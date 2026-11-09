@@ -3,6 +3,7 @@
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2026 Jiska Classen <jclassen@seemoo.tu-darmstadt.de>
+ * Copyright (C) 2026 Kaz Wolfe <root@kazwolfe.io>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -101,6 +102,10 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (attach_fails_when_code_allocation_is_denied)
 #ifdef HAVE_I386
   TESTENTRY (ibt_landing_pad_survives_attach)
+#endif
+#ifdef HAVE_ARM
+  TESTENTRY (attach_honors_redirect_space_hint)
+  TESTENTRY (attach_fails_when_redirect_space_hint_is_too_small)
 #endif
 #ifdef HAVE_ARM64
   TESTENTRY (attach_to_busy_ip_registers)
@@ -1252,6 +1257,61 @@ gum_deny_code_allocation (const GumAddressSpec * spec,
 {
   return NULL;
 }
+
+#ifdef HAVE_ARM
+
+TESTCASE (attach_honors_redirect_space_hint)
+{
+  gsize page_size;
+  guint8 * code;
+  GumArmWriter cw;
+  gint (* neighbour) (gint arg);
+  GumAttachOptions options = { 0, };
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_arm_writer_init (&cw, code);
+  gum_arm_writer_put_bl_imm (&cw, GUM_ADDRESS (code + 4));
+  gum_arm_writer_put_add_reg_reg_imm (&cw, ARM_REG_R0, ARM_REG_R0, 1);
+  gum_arm_writer_put_ret (&cw);
+  gum_arm_writer_clear (&cw);
+  gum_mprotect (code, page_size, GUM_PAGE_RX);
+  neighbour = (gint (*) (gint)) (code + 4);
+
+  options.instrumentation.redirect_space_hint = 4;
+  g_assert_cmpint (interceptor_fixture_try_attach_with_options (fixture, 0,
+      code, '>', '<', &options), ==, GUM_ATTACH_OK);
+
+  g_assert_cmpint (neighbour (41), ==, 42);
+
+  interceptor_fixture_detach (fixture, 0);
+
+  gum_memory_free (code, page_size);
+}
+
+TESTCASE (attach_fails_when_redirect_space_hint_is_too_small)
+{
+  gsize page_size;
+  guint8 * code;
+  GumArmWriter cw;
+  GumAttachOptions options = { 0, };
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_arm_writer_init (&cw, code);
+  gum_arm_writer_put_add_reg_reg_imm (&cw, ARM_REG_R0, ARM_REG_R0, 1);
+  gum_arm_writer_put_ret (&cw);
+  gum_arm_writer_clear (&cw);
+  gum_mprotect (code, page_size, GUM_PAGE_RX);
+
+  options.instrumentation.redirect_space_hint = 2;
+  g_assert_cmpint (interceptor_fixture_try_attach_with_options (fixture, 0,
+      code, '>', '<', &options), ==, GUM_ATTACH_WRONG_SIGNATURE);
+
+  gum_memory_free (code, page_size);
+}
+
+#endif
 
 TESTCASE (cpu_register_clobber)
 {
