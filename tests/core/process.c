@@ -6,6 +6,7 @@
  * Copyright (C) 2025 William Tan <1284324+Ninja3047@users.noreply.github.com>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2026 T Shivanesh Kumar <tshivaneshk@users.noreply.github.com>
+ * Copyright (C) 2026 lianping <503407184@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -81,6 +82,7 @@ TESTLIST_BEGIN (process)
   TESTENTRY (get_set_system_error)
   TESTENTRY (get_current_thread_id)
   TESTENTRY (windows_modules_are_in_load_order)
+  TESTENTRY (windows_module_version_is_exposed)
 #endif
 #ifdef HAVE_DARWIN
   TESTENTRY (darwin_enumerate_modules)
@@ -1348,6 +1350,21 @@ store_lowercase_module_name (GumModule * module,
   g_ptr_array_add (names, g_ascii_strdown (gum_module_get_name (module), -1));
 
   return TRUE;
+}
+
+TESTCASE (windows_module_version_is_exposed)
+{
+  GumModule * module;
+  guint major, minor, build, revision;
+  gchar trailer;
+
+  module = gum_process_find_module_by_name (SYSTEM_MODULE_NAME);
+
+  g_assert_cmpint (sscanf (gum_module_get_version (module), "%u.%u.%u.%u%c",
+      &major, &minor, &build, &revision, &trailer), ==, 4);
+  g_assert_cmpuint (major, >=, 6);
+
+  g_object_unref (module);
 }
 
 #endif

@@ -3,6 +3,7 @@
  * Copyright (C) 2023 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2025 William Tan <1284324+Ninja3047@users.noreply.github.com>
  * Copyright (C) 2026 T Shivanesh Kumar <tshivaneshk@users.noreply.github.com>
+ * Copyright (C) 2026 lianping <503407184@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -76,6 +77,7 @@ static void gum_native_module_iface_init (gpointer g_iface,
 static void gum_native_module_dispose (GObject * object);
 static void gum_native_module_finalize (GObject * object);
 static const gchar * gum_native_module_get_name (GumModule * module);
+static const gchar * gum_native_module_get_version (GumModule * module);
 static const gchar * gum_native_module_get_path (GumModule * module);
 static const GumMemoryRange * gum_native_module_get_range (GumModule * module);
 static void gum_native_module_ensure_initialized (GumModule * module);
@@ -138,6 +140,7 @@ gum_native_module_iface_init (gpointer g_iface,
   GumModuleInterface * iface = g_iface;
 
   iface->get_name = gum_native_module_get_name;
+  iface->get_version = gum_native_module_get_version;
   iface->get_path = gum_native_module_get_path;
   iface->get_range = gum_native_module_get_range;
   iface->ensure_initialized = gum_native_module_ensure_initialized;
@@ -231,6 +234,12 @@ static const gchar *
 gum_native_module_get_name (GumModule * module)
 {
   return GUM_NATIVE_MODULE (module)->name;
+}
+
+static const gchar *
+gum_native_module_get_version (GumModule * module)
+{
+  return gum_pe_module_get_version (GUM_NATIVE_MODULE (module)->pe);
 }
 
 static const gchar *
