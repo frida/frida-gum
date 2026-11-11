@@ -9,6 +9,7 @@
  * Copyright (C) 2024 Håvard Sørbø <havard@hsorbo.no>
  * Copyright (C) 2024 Simon Zuckerbraun <Simon_Zuckerbraun@trendmicro.com>
  * Copyright (C) 2026 Thanos Petsas <thanpetsas@gmail.com>
+ * Copyright (C) 2026 lianping <503407184@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -6460,6 +6461,14 @@ TESTCASE (process_module_can_be_looked_up_from_name)
       "send(Object.keys(Process.getModuleByName('%s').toJSON()).length > 0);",
       SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("true");
+
+#ifdef HAVE_WINDOWS
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(/^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test("
+          "Process.getModuleByName('%s').version));",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#endif
 }
 
 TESTCASE (process_ranges_can_be_enumerated)
