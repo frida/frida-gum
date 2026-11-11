@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 lianping <503407184@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -35,6 +36,10 @@
 #define GUM_PE_ARM64_XDATA_SINGLE_EPILOG (1U << 21)
 #define GUM_PE_ARM64_UNWIND_CODE_END_C 0xe5
 
+#define GUM_PE_RESOURCE_TYPE_VERSION 16
+#define GUM_PE_RESOURCE_SUBDIRECTORY_FLAG 0x80000000U
+#define GUM_PE_FIXED_FILE_INFO_SIGNATURE 0xfeef04bd
+
 typedef struct _GumPeDosHeader GumPeDosHeader;
 typedef struct _GumPeFileHeader GumPeFileHeader;
 typedef struct _GumPeOptionalHeader32 GumPeOptionalHeader32;
@@ -46,8 +51,14 @@ typedef struct _GumPeDelayDescriptor GumPeDelayDescriptor;
 typedef struct _GumPeExportDirectory GumPeExportDirectory;
 typedef struct _GumPeTlsDirectory32 GumPeTlsDirectory32;
 typedef struct _GumPeTlsDirectory64 GumPeTlsDirectory64;
+typedef struct _GumPeResourceDirectory GumPeResourceDirectory;
+typedef struct _GumPeResourceDirectoryEntry GumPeResourceDirectoryEntry;
+typedef struct _GumPeResourceDataEntry GumPeResourceDataEntry;
+typedef struct _GumPeVersionInfo GumPeVersionInfo;
+typedef struct _GumPeFixedFileInfo GumPeFixedFileInfo;
 
 typedef struct _GumPeFindExportContext GumPeFindExportContext;
+typedef struct _GumPeResources GumPeResources;
 
 struct _GumPeDosHeader
 {
@@ -228,6 +239,57 @@ struct _GumPeTlsDirectory64
   guint32 characteristics;
 };
 
+struct _GumPeResourceDirectory
+{
+  guint32 characteristics;
+  guint32 time_date_stamp;
+  guint16 major_version;
+  guint16 minor_version;
+  guint16 number_of_named_entries;
+  guint16 number_of_id_entries;
+};
+
+struct _GumPeResourceDirectoryEntry
+{
+  guint32 name;
+  guint32 offset_to_data;
+};
+
+struct _GumPeResourceDataEntry
+{
+  guint32 offset_to_data;
+  guint32 size;
+  guint32 code_page;
+  guint32 reserved;
+};
+
+struct _GumPeFixedFileInfo
+{
+  guint32 signature;
+  guint32 struc_version;
+  guint32 file_version_ms;
+  guint32 file_version_ls;
+  guint32 product_version_ms;
+  guint32 product_version_ls;
+  guint32 file_flags_mask;
+  guint32 file_flags;
+  guint32 file_os;
+  guint32 file_type;
+  guint32 file_subtype;
+  guint32 file_date_ms;
+  guint32 file_date_ls;
+};
+
+struct _GumPeVersionInfo
+{
+  guint16 length;
+  guint16 value_length;
+  guint16 type;
+  gunichar2 key[16];
+  guint16 padding;
+  GumPeFixedFileInfo value;
+};
+
 struct _GumPeModule
 {
   GObject parent;
@@ -248,6 +310,9 @@ struct _GumPeModule
   const GumPeSectionHeader * sections;
   guint16 num_sections;
   GumPeDataDirectory data_directory[16];
+
+  gsize version_initialized;
+  gchar * version;
 };
 
 struct _GumPeFindExportContext
@@ -255,6 +320,12 @@ struct _GumPeFindExportContext
   const gchar * name;
   GumPeExportDetails * details;
   gboolean found;
+};
+
+struct _GumPeResources
+{
+  const guint8 * data;
+  gsize size;
 };
 
 static void gum_pe_module_finalize (GObject * object);
@@ -281,6 +352,9 @@ static gboolean gum_pe_module_is_arm64_function_fragment (GumPeModule * self,
     const guint32 * entry);
 static gboolean gum_pe_module_is_arm_function_fragment (GumPeModule * self,
     const guint32 * entry);
+static gchar * gum_pe_module_read_version (GumPeModule * self);
+static const GumPeVersionInfo * gum_pe_module_find_version_info (
+    GumPeModule * self);
 static gconstpointer gum_pe_module_get_data_range_at_rva (GumPeModule * self,
     guint32 rva, gsize size);
 static gconstpointer gum_pe_module_get_array_at_rva (GumPeModule * self,
@@ -292,6 +366,18 @@ static gconstpointer gum_pe_module_resolve_rva (GumPeModule * self,
 
 static GumPageProtection gum_protection_from_characteristics (
     guint32 characteristics);
+static const GumPeResourceDirectoryEntry * gum_pe_resources_find_entry (
+    const GumPeResources * self, guint32 directory_offset, guint32 id);
+static const GumPeResourceDirectoryEntry * gum_pe_resources_get_first_child (
+    const GumPeResources * self, const GumPeResourceDirectoryEntry * entry);
+static const GumPeResourceDataEntry * gum_pe_resources_get_data_entry (
+    const GumPeResources * self, const GumPeResourceDirectoryEntry * entry);
+static const GumPeResourceDirectory * gum_pe_resources_get_directory (
+    const GumPeResources * self, guint32 offset);
+static gconstpointer gum_pe_resources_get_data (const GumPeResources * self,
+    guint32 offset, gsize size);
+static guint gum_resource_directory_count_entries (
+    const GumPeResourceDirectory * directory);
 static gboolean gum_span_contains (gsize span_size, gsize offset, gsize size);
 
 G_DEFINE_TYPE (GumPeModule, gum_pe_module, G_TYPE_OBJECT)
@@ -314,6 +400,7 @@ gum_pe_module_finalize (GObject * object)
 {
   GumPeModule * self = GUM_PE_MODULE (object);
 
+  g_free (self->version);
   g_clear_pointer (&self->blob, g_bytes_unref);
 
   if (self->file_mapped_range.size != 0)
@@ -1269,6 +1356,80 @@ gum_pe_module_is_arm_function_fragment (GumPeModule * self,
   return (GUINT32_FROM_LE (xdata[0]) & GUM_PE_ARM_XDATA_FRAGMENT) != 0;
 }
 
+const gchar *
+gum_pe_module_get_version (GumPeModule * self)
+{
+  if (g_once_init_enter (&self->version_initialized))
+  {
+    self->version = gum_pe_module_read_version (self);
+    g_once_init_leave (&self->version_initialized, TRUE);
+  }
+
+  return self->version;
+}
+
+static gchar *
+gum_pe_module_read_version (GumPeModule * self)
+{
+  const GumPeVersionInfo * info;
+  const GumPeFixedFileInfo * fixed;
+  guint32 ms, ls;
+
+  info = gum_pe_module_find_version_info (self);
+  if (info == NULL || GUINT16_FROM_LE (info->value_length) == 0)
+    return NULL;
+
+  fixed = &info->value;
+  if (GUINT32_FROM_LE (fixed->signature) != GUM_PE_FIXED_FILE_INFO_SIGNATURE)
+    return NULL;
+
+  ms = GUINT32_FROM_LE (fixed->file_version_ms);
+  ls = GUINT32_FROM_LE (fixed->file_version_ls);
+
+  return g_strdup_printf ("%u.%u.%u.%u",
+      ms >> 16, ms & 0xffff,
+      ls >> 16, ls & 0xffff);
+}
+
+static const GumPeVersionInfo *
+gum_pe_module_find_version_info (GumPeModule * self)
+{
+  const GumPeDataDirectory * dir =
+      &self->data_directory[GUM_PE_DIRECTORY_RESOURCE];
+  GumPeResources resources;
+  const GumPeResourceDirectoryEntry * type, * name, * language;
+  const GumPeResourceDataEntry * data;
+
+  if (dir->size == 0)
+    return NULL;
+
+  resources.data =
+      gum_pe_module_get_data_range_at_rva (self, dir->rva, dir->size);
+  resources.size = dir->size;
+  if (resources.data == NULL)
+    return NULL;
+
+  type = gum_pe_resources_find_entry (&resources, 0,
+      GUM_PE_RESOURCE_TYPE_VERSION);
+  if (type == NULL)
+    return NULL;
+
+  name = gum_pe_resources_get_first_child (&resources, type);
+  if (name == NULL)
+    return NULL;
+
+  language = gum_pe_resources_get_first_child (&resources, name);
+  if (language == NULL)
+    return NULL;
+
+  data = gum_pe_resources_get_data_entry (&resources, language);
+  if (data == NULL || GUINT32_FROM_LE (data->size) < sizeof (GumPeVersionInfo))
+    return NULL;
+
+  return gum_pe_module_get_data_range_at_rva (self,
+      GUINT32_FROM_LE (data->offset_to_data), sizeof (GumPeVersionInfo));
+}
+
 static gconstpointer
 gum_pe_module_get_data_range_at_rva (GumPeModule * self,
                                      guint32 rva,
@@ -1375,6 +1536,101 @@ gum_protection_from_characteristics (guint32 characteristics)
     prot |= GUM_PAGE_EXECUTE;
 
   return prot;
+}
+
+static const GumPeResourceDirectoryEntry *
+gum_pe_resources_find_entry (const GumPeResources * self,
+                             guint32 directory_offset,
+                             guint32 id)
+{
+  const GumPeResourceDirectory * directory;
+  const GumPeResourceDirectoryEntry * entries;
+  guint first_id_index, end_index, i;
+
+  directory = gum_pe_resources_get_directory (self, directory_offset);
+  if (directory == NULL)
+    return NULL;
+
+  entries = (const GumPeResourceDirectoryEntry *) (directory + 1);
+  first_id_index = GUINT16_FROM_LE (directory->number_of_named_entries);
+  end_index = gum_resource_directory_count_entries (directory);
+
+  for (i = first_id_index; i != end_index; i++)
+  {
+    if (GUINT32_FROM_LE (entries[i].name) == id)
+      return &entries[i];
+  }
+
+  return NULL;
+}
+
+static const GumPeResourceDirectoryEntry *
+gum_pe_resources_get_first_child (const GumPeResources * self,
+                                  const GumPeResourceDirectoryEntry * entry)
+{
+  guint32 offset = GUINT32_FROM_LE (entry->offset_to_data);
+  const GumPeResourceDirectory * directory;
+
+  if ((offset & GUM_PE_RESOURCE_SUBDIRECTORY_FLAG) == 0)
+    return NULL;
+
+  directory = gum_pe_resources_get_directory (self,
+      offset & ~GUM_PE_RESOURCE_SUBDIRECTORY_FLAG);
+  if (directory == NULL ||
+      gum_resource_directory_count_entries (directory) == 0)
+  {
+    return NULL;
+  }
+
+  return (const GumPeResourceDirectoryEntry *) (directory + 1);
+}
+
+static const GumPeResourceDataEntry *
+gum_pe_resources_get_data_entry (const GumPeResources * self,
+                                 const GumPeResourceDirectoryEntry * entry)
+{
+  guint32 offset = GUINT32_FROM_LE (entry->offset_to_data);
+
+  if ((offset & GUM_PE_RESOURCE_SUBDIRECTORY_FLAG) != 0)
+    return NULL;
+
+  return gum_pe_resources_get_data (self, offset,
+      sizeof (GumPeResourceDataEntry));
+}
+
+static const GumPeResourceDirectory *
+gum_pe_resources_get_directory (const GumPeResources * self,
+                                guint32 offset)
+{
+  const GumPeResourceDirectory * directory;
+
+  directory = gum_pe_resources_get_data (self, offset,
+      sizeof (GumPeResourceDirectory));
+  if (directory == NULL)
+    return NULL;
+
+  return gum_pe_resources_get_data (self, offset,
+      sizeof (GumPeResourceDirectory) +
+      (gum_resource_directory_count_entries (directory) *
+          sizeof (GumPeResourceDirectoryEntry)));
+}
+
+static gconstpointer
+gum_pe_resources_get_data (const GumPeResources * self,
+                           guint32 offset,
+                           gsize size)
+{
+  if (!gum_span_contains (self->size, offset, size))
+    return NULL;
+
+  return self->data + offset;
+}
+
+static guint
+gum_resource_directory_count_entries (const GumPeResourceDirectory * directory)
+{
+  return GUINT16_FROM_LE (directory->number_of_named_entries) +
+      GUINT16_FROM_LE (directory->number_of_id_entries);
 }
 
 static gboolean

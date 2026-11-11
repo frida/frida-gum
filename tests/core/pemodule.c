@@ -30,6 +30,10 @@
 #define GUM_TEST_ARM64_END_C 0xe5
 #define GUM_TEST_ARM_XDATA_FRAGMENT (1U << 22)
 
+#define GUM_TEST_RSRC_DIRECTORY(num_id_entries) \
+    0, 0, 0, ((num_id_entries) << 16)
+#define GUM_TEST_RSRC_SUBDIRECTORY(offset) (0x80000000U | (offset))
+
 TESTLIST_BEGIN (pe_module)
   TESTENTRY (amd64_function_starts_skip_chained_entries)
   TESTENTRY (arm64_function_starts_skip_fragments)
@@ -37,6 +41,10 @@ TESTLIST_BEGIN (pe_module)
   TESTENTRY (truncated_image_is_rejected)
   TESTENTRY (empty_relocation_block_ends_enumeration)
   TESTENTRY (malformed_export_names_are_skipped)
+  TESTENTRY (version_is_read_from_resources)
+  TESTENTRY (version_is_absent_without_resources)
+  TESTENTRY (version_is_absent_with_truncated_resources)
+  TESTENTRY (version_is_absent_with_out_of_range_resources)
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8
   TESTENTRY (function_starts_include_system_exports)
 #endif
@@ -56,6 +64,8 @@ struct _GumTestExportCheckContext
 static GumPeModule * gum_test_make_pe_module (GumPeMachine machine,
     const guint32 * pdata, gsize pdata_size, const guint32 * xdata,
     gsize xdata_size);
+static GumPeModule * gum_test_make_pe_module_with_resources (
+    guint32 resources_rva, guint32 resources_size);
 static guint8 * gum_test_make_pe_image (GumPeMachine machine);
 static void gum_test_set_pe_directory (guint8 * image,
     GumPeDirectoryIndex index, guint32 rva, guint32 size);
@@ -249,6 +259,54 @@ TESTCASE (malformed_export_names_are_skipped)
   g_object_unref (module);
 }
 
+TESTCASE (version_is_read_from_resources)
+{
+  GumPeModule * module;
+
+  module = gum_test_make_pe_module_with_resources (GUM_TEST_DATA_RVA,
+      0xb4);
+
+  g_assert_cmpstr (gum_pe_module_get_version (module), ==, "10.0.26100.2861");
+
+  g_object_unref (module);
+}
+
+TESTCASE (version_is_absent_without_resources)
+{
+  GumPeModule * module;
+
+  module = gum_test_load_pe_image (
+      gum_test_make_pe_image (GUM_PE_MACHINE_AMD64));
+
+  g_assert_null (gum_pe_module_get_version (module));
+
+  g_object_unref (module);
+}
+
+TESTCASE (version_is_absent_with_truncated_resources)
+{
+  GumPeModule * module;
+
+  module = gum_test_make_pe_module_with_resources (GUM_TEST_DATA_RVA,
+      0x40);
+
+  g_assert_null (gum_pe_module_get_version (module));
+
+  g_object_unref (module);
+}
+
+TESTCASE (version_is_absent_with_out_of_range_resources)
+{
+  GumPeModule * module;
+
+  module = gum_test_make_pe_module_with_resources (GUM_TEST_IMAGE_SIZE - 8,
+      0xb4);
+
+  g_assert_null (gum_pe_module_get_version (module));
+
+  g_object_unref (module);
+}
+
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8
 
 TESTCASE (function_starts_include_system_exports)
@@ -331,6 +389,33 @@ gum_test_make_pe_module (GumPeMachine machine,
       GUM_TEST_PDATA_RVA, pdata_size);
   gum_test_copy_u32s_le (image + GUM_TEST_PDATA_RVA, pdata, pdata_size);
   gum_test_copy_u32s_le (image + GUM_TEST_XDATA_RVA, xdata, xdata_size);
+
+  return gum_test_load_pe_image (image);
+}
+
+static GumPeModule *
+gum_test_make_pe_module_with_resources (guint32 resources_rva,
+                                        guint32 resources_size)
+{
+  const guint32 resources[] = {
+    GUM_TEST_RSRC_DIRECTORY (1),
+    16, GUM_TEST_RSRC_SUBDIRECTORY (0x18),
+    GUM_TEST_RSRC_DIRECTORY (1),
+    1, GUM_TEST_RSRC_SUBDIRECTORY (0x30),
+    GUM_TEST_RSRC_DIRECTORY (1),
+    0x409, 0x48,
+    GUM_TEST_DATA_RVA + 0x58, 92, 0, 0,
+    92 | (52 << 16), 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0xfeef04bd, 0x00010000, 0x000a0000, 0x65f40b2d,
+    0, 0, 0, 0, 0, 0, 0, 0, 0,
+  };
+  guint8 * image;
+
+  image = gum_test_make_pe_image (GUM_PE_MACHINE_AMD64);
+  gum_test_set_pe_directory (image, GUM_PE_DIRECTORY_RESOURCE, resources_rva,
+      resources_size);
+  gum_test_copy_u32s_le (image + GUM_TEST_DATA_RVA, resources,
+      sizeof (resources));
 
   return gum_test_load_pe_image (image);
 }

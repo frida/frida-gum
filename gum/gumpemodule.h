@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2026 lianping <503407184@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -32,6 +33,7 @@ typedef enum {
 typedef enum {
   GUM_PE_DIRECTORY_EXPORT       = 0,
   GUM_PE_DIRECTORY_IMPORT       = 1,
+  GUM_PE_DIRECTORY_RESOURCE     = 2,
   GUM_PE_DIRECTORY_EXCEPTION    = 3,
   GUM_PE_DIRECTORY_BASERELOC    = 5,
   GUM_PE_DIRECTORY_TLS          = 9,
@@ -182,6 +184,7 @@ GUM_API void gum_pe_module_enumerate_dependencies (GumPeModule * self,
 GUM_API guint gum_pe_module_get_function_count (GumPeModule * self);
 GUM_API void gum_pe_module_enumerate_function_starts (GumPeModule * self,
     GumFoundPeFunctionStartFunc func, gpointer user_data);
+GUM_API const gchar * gum_pe_module_get_version (GumPeModule * self);
 
 G_END_DECLS
 
