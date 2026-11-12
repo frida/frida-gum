@@ -20,6 +20,7 @@
 #define GUM_TEST_NT_OFFSET 0x40
 #define GUM_TEST_PDATA_RVA 0x400
 #define GUM_TEST_XDATA_RVA 0x800
+#define GUM_TEST_DATA_RVA 0xc00
 
 #define GUM_TEST_XDATA(index) (GUM_TEST_XDATA_RVA + ((index) * 4))
 
@@ -34,6 +35,8 @@ TESTLIST_BEGIN (pe_module)
   TESTENTRY (arm64_function_starts_skip_fragments)
   TESTENTRY (arm_function_starts_skip_fragments)
   TESTENTRY (truncated_image_is_rejected)
+  TESTENTRY (empty_relocation_block_ends_enumeration)
+  TESTENTRY (malformed_export_names_are_skipped)
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8
   TESTENTRY (function_starts_include_system_exports)
 #endif
@@ -64,6 +67,10 @@ static gboolean gum_test_collect_function_start (GumAddress rva,
     gpointer user_data);
 static void gum_test_assert_function_starts (GArray * starts,
     const guint32 * expected, guint n);
+static gboolean gum_test_count_relocation (
+    const GumPeRelocationDetails * details, gpointer user_data);
+static gboolean gum_test_count_unnamed_export (
+    const GumPeExportDetails * details, gpointer user_data);
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8
 static guint gum_test_check_exports_are_function_starts (
     const gchar * module_name);
@@ -185,6 +192,61 @@ TESTCASE (truncated_image_is_rejected)
 
   g_error_free (error);
   g_bytes_unref (blob);
+}
+
+TESTCASE (empty_relocation_block_ends_enumeration)
+{
+  const guint32 relocations[] = { 0x1000, 0 };
+  guint8 * image;
+  GumPeModule * module;
+  guint count = 0;
+
+  image = gum_test_make_pe_image (GUM_PE_MACHINE_AMD64);
+  gum_test_set_pe_directory (image, GUM_PE_DIRECTORY_BASERELOC,
+      GUM_TEST_DATA_RVA, sizeof (relocations));
+  gum_test_copy_u32s_le (image + GUM_TEST_DATA_RVA, relocations,
+      sizeof (relocations));
+  module = gum_test_load_pe_image (image);
+
+  gum_pe_module_enumerate_relocations (module, gum_test_count_relocation,
+      &count);
+  g_assert_cmpuint (count, ==, 0);
+
+  g_object_unref (module);
+}
+
+TESTCASE (malformed_export_names_are_skipped)
+{
+  const guint32 exports[] = {
+    0, 0, 0, 0, 1, 2, 2,
+    GUM_TEST_DATA_RVA + 0x30,
+    GUM_TEST_DATA_RVA + 0x38,
+    GUM_TEST_DATA_RVA + 0x40,
+    0, 0,
+    0x500, 0x504,
+    GUM_TEST_DATA_RVA + 0x44, GUM_TEST_IMAGE_SIZE - 4,
+    (1 << 16) | 0x1234,
+    0x00636261,
+  };
+  const guint32 unterminated_name = 0x68676665;
+  guint8 * image;
+  GumPeModule * module;
+  guint count = 0;
+
+  image = gum_test_make_pe_image (GUM_PE_MACHINE_AMD64);
+  gum_test_set_pe_directory (image, GUM_PE_DIRECTORY_EXPORT,
+      GUM_TEST_DATA_RVA, sizeof (exports));
+  gum_test_copy_u32s_le (image + GUM_TEST_DATA_RVA, exports,
+      sizeof (exports));
+  gum_test_copy_u32s_le (image + GUM_TEST_IMAGE_SIZE - 4, &unterminated_name,
+      sizeof (unterminated_name));
+  module = gum_test_load_pe_image (image);
+
+  gum_pe_module_enumerate_exports (module, gum_test_count_unnamed_export,
+      &count);
+  g_assert_cmpuint (count, ==, 2);
+
+  g_object_unref (module);
 }
 
 #if defined (HAVE_WINDOWS) && GLIB_SIZEOF_VOID_P == 8
@@ -379,4 +441,27 @@ gum_test_assert_function_starts (GArray * starts,
   g_assert_cmpuint (starts->len, ==, n);
   for (i = 0; i != n; i++)
     g_assert_cmphex (g_array_index (starts, guint32, i), ==, expected[i]);
+}
+
+static gboolean
+gum_test_count_relocation (const GumPeRelocationDetails * details,
+                           gpointer user_data)
+{
+  guint * count = user_data;
+
+  (*count)++;
+
+  return TRUE;
+}
+
+static gboolean
+gum_test_count_unnamed_export (const GumPeExportDetails * details,
+                               gpointer user_data)
+{
+  guint * count = user_data;
+
+  g_assert_null (details->name);
+  (*count)++;
+
+  return TRUE;
 }
