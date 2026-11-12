@@ -3561,7 +3561,7 @@ gum_exec_ctx_write_prolog_helper (GumExecCtx * ctx,
       sizeof (GumCpuContext));
 
 #ifndef G_OS_NONE
-  for (i = 0; i != ((type == GUM_PROLOG_FULL) ? 32 : 8); i += 2)
+  for (i = 0; i != 32; i += 2)
   {
     gum_arm64_writer_put_stp_reg_reg_reg_offset (cw,
         ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,
@@ -3638,7 +3638,7 @@ gum_exec_ctx_write_epilog_helper (GumExecCtx * ctx,
   gum_arm64_writer_put_mov_reg_reg (cw, ARM64_REG_X19, ARM64_REG_LR);
 
 #ifndef G_OS_NONE
-  for (i = 0; i != ((type == GUM_PROLOG_FULL) ? 32 : 8); i += 2)
+  for (i = 0; i != 32; i += 2)
   {
     gum_arm64_writer_put_ldp_reg_reg_reg_offset (cw,
         ARM64_REG_Q0 + i, ARM64_REG_Q1 + i,

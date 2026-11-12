@@ -103,6 +103,7 @@ TESTLIST_BEGIN (stalker)
 #endif
   TESTENTRY (heap_api)
   TESTENTRY (no_register_clobber)
+  TESTENTRY (no_vector_register_clobber)
   TESTENTRY (follow_me_should_restore_link_register)
   TESTENTRY (user_data_should_not_disturb_scratch_registers)
   TESTENTRY (callouts_should_not_write_below_stack_pointer)
@@ -2538,6 +2539,8 @@ TESTCASE (heap_api)
 }
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);
+typedef void (* VectorClobberFunc) (const GumArm64VectorReg * input,
+    GumArm64VectorReg * output);
 
 static void
 user_data_transform (GumStalkerIterator * iterator,
@@ -3088,6 +3091,75 @@ TESTCASE (no_register_clobber)
   }
   g_assert_cmphex (ctx.fp, ==, ARM64_REG_FP);
   g_assert_cmphex (ctx.lr, ==, ARM64_REG_LR);
+
+  gum_memory_free (code, page_size);
+#endif
+}
+
+TESTCASE (no_vector_register_clobber)
+{
+#ifndef HAVE_DARWIN
+  gsize page_size;
+  guint8 * code;
+  GumArm64Writer cw;
+  GumArm64VectorReg input[32], output[32];
+  guint i;
+  VectorClobberFunc func;
+
+  for (i = 0; i != G_N_ELEMENTS (input); i++)
+    memset (input[i].q, 0x10 + i, sizeof (input[i].q));
+  memset (output, 0, sizeof (output));
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_arm64_writer_init (&cw, code);
+
+  gum_arm64_writer_put_push_all_x_registers (&cw);
+  gum_arm64_writer_put_push_all_q_registers (&cw);
+  gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X19, ARM64_REG_X0);
+  gum_arm64_writer_put_mov_reg_reg (&cw, ARM64_REG_X20, ARM64_REG_X1);
+
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_follow_me), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->transformer),
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->sink));
+
+  for (i = 0; i != G_N_ELEMENTS (input); i += 2)
+  {
+    gum_arm64_writer_put_ldp_reg_reg_reg_offset (&cw,
+        ARM64_REG_Q0 + i, ARM64_REG_Q1 + i, ARM64_REG_X19,
+        i * sizeof (GumArm64VectorReg), GUM_INDEX_SIGNED_OFFSET);
+  }
+
+  gum_arm64_writer_put_b_label (&cw, "next");
+  gum_arm64_writer_put_label (&cw, "next");
+
+  for (i = 0; i != G_N_ELEMENTS (output); i += 2)
+  {
+    gum_arm64_writer_put_stp_reg_reg_reg_offset (&cw,
+        ARM64_REG_Q0 + i, ARM64_REG_Q1 + i, ARM64_REG_X20,
+        i * sizeof (GumArm64VectorReg), GUM_INDEX_SIGNED_OFFSET);
+  }
+
+  gum_arm64_writer_put_call_address_with_arguments (&cw,
+      GUM_ADDRESS (gum_stalker_unfollow_me), 1,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (fixture->stalker));
+
+  gum_arm64_writer_put_pop_all_q_registers (&cw);
+  gum_arm64_writer_put_pop_all_x_registers (&cw);
+  gum_arm64_writer_put_ret (&cw);
+
+  gum_arm64_writer_flush (&cw);
+  gum_memory_mark_code (code, gum_arm64_writer_offset (&cw));
+  gum_arm64_writer_clear (&cw);
+
+  fixture->sink->mask = GUM_COMPILE;
+  func = GUM_POINTER_TO_FUNCPTR (VectorClobberFunc, code);
+  func (input, output);
+
+  for (i = 0; i != G_N_ELEMENTS (input); i++)
+    g_assert_cmpmem (output[i].q, 16, input[i].q, 16);
 
   gum_memory_free (code, page_size);
 #endif
