@@ -6,6 +6,7 @@
  * Copyright (C) 2024 Francesco Tamagni <mrmacete@protonmail.ch>
  * Copyright (C) 2024 Alex Soler <asoler@nowsecure.com>
  * Copyright (C) 2024 Sai Cao <1665673333@qq.com>
+ * Copyright (C) 2026 Christopher Pruijsen <christopher.pruijsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -34,6 +35,9 @@
 #ifdef HAVE_LINUX
 # include <unwind.h>
 # include <sys/syscall.h>
+# ifndef __NR_clone3
+#  define __NR_clone3 435
+# endif
 #endif
 
 #if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
@@ -4577,6 +4581,10 @@ gum_exec_block_virtualize_linux_sysenter (GumExecBlock * block,
 
   gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X17,
       ARM64_REG_X8, __NR_clone);
+  gum_arm64_writer_put_cbz_reg_label (cw, ARM64_REG_X17,
+      perform_clone_syscall);
+  gum_arm64_writer_put_sub_reg_reg_imm (cw, ARM64_REG_X17,
+      ARM64_REG_X8, __NR_clone3);
   gum_arm64_writer_put_cbz_reg_label (cw, ARM64_REG_X17,
       perform_clone_syscall);
   gum_arm64_writer_put_b_label (cw, perform_regular_syscall);
