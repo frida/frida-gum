@@ -261,6 +261,8 @@ static void gum_pe_module_finalize (GObject * object);
 static GumPeModule * gum_pe_module_new (GBytes * blob, GumAddress online_base,
     GumPeSourceMode mode, GError ** error);
 static gboolean gum_pe_module_load (GumPeModule * self, GError ** error);
+static gconstpointer gum_pe_module_get_header_data (GumPeModule * self,
+    gsize offset, gsize size);
 static gboolean gum_emit_import (GumPeModule * self, const gchar * module_name,
     guint64 value, GumPeImportLoadMode load_mode, guint32 slot_rva,
     GumFoundPeImportFunc func, gpointer user_data);
@@ -282,6 +284,7 @@ static gboolean gum_pe_module_is_arm_function_fragment (GumPeModule * self,
 
 static GumPageProtection gum_protection_from_characteristics (
     guint32 characteristics);
+static gboolean gum_span_contains (gsize span_size, gsize offset, gsize size);
 
 G_DEFINE_TYPE (GumPeModule, gum_pe_module, G_TYPE_OBJECT)
 
@@ -391,39 +394,54 @@ static gboolean
 gum_pe_module_load (GumPeModule * self,
                     GError ** error)
 {
-  const guint8 * data = self->data;
   const GumPeDosHeader * dos;
-  guint32 nt_offset, signature;
+  gsize nt_offset, optional_header_offset, directories_offset;
+  const guint32 * signature;
   const GumPeFileHeader * file_header;
+  guint16 optional_header_size;
   const guint8 * optional_header;
   guint16 magic;
   guint num_directories, i;
   const GumPeDataDirectory * directories;
 
-  dos = (const GumPeDosHeader *) data;
-  if (self->size >= sizeof (GumPeDosHeader) &&
-      GUINT16_FROM_LE (dos->e_magic) != GUM_PE_DOS_MAGIC)
+  dos = gum_pe_module_get_header_data (self, 0, sizeof (GumPeDosHeader));
+  if (dos == NULL || GUINT16_FROM_LE (dos->e_magic) != GUM_PE_DOS_MAGIC)
     goto invalid_data;
 
   nt_offset = GUINT32_FROM_LE (dos->e_lfanew);
-  signature = GUINT32_FROM_LE (*((const guint32 *) (data + nt_offset)));
-  if (signature != GUM_PE_NT_SIGNATURE)
+  signature = gum_pe_module_get_header_data (self, nt_offset,
+      sizeof (guint32) + sizeof (GumPeFileHeader));
+  if (signature == NULL || GUINT32_FROM_LE (*signature) != GUM_PE_NT_SIGNATURE)
     goto invalid_data;
 
-  file_header = (const GumPeFileHeader *) (data + nt_offset + 4);
-  optional_header = (const guint8 *) (file_header + 1);
+  file_header = (const GumPeFileHeader *) (signature + 1);
+  optional_header_offset =
+      nt_offset + sizeof (guint32) + sizeof (GumPeFileHeader);
+  optional_header_size =
+      GUINT16_FROM_LE (file_header->size_of_optional_header);
+  optional_header = gum_pe_module_get_header_data (self,
+      optional_header_offset, optional_header_size);
+  if (optional_header == NULL || optional_header_size < sizeof (guint16))
+    goto invalid_data;
   magic = GUINT16_FROM_LE (*((const guint16 *) optional_header));
 
   self->machine = GUINT16_FROM_LE (file_header->machine);
   self->num_sections = GUINT16_FROM_LE (file_header->number_of_sections);
-  self->sections = (const GumPeSectionHeader *)
-      (optional_header +
-          GUINT16_FROM_LE (file_header->size_of_optional_header));
+  self->sections = gum_pe_module_get_header_data (self,
+      optional_header_offset + optional_header_size,
+      self->num_sections * sizeof (GumPeSectionHeader));
+  if (self->sections == NULL)
+    goto invalid_data;
 
   if (magic == GUM_PE_OPTIONAL_MAGIC_PE32_PLUS)
   {
     const GumPeOptionalHeader64 * oh =
         (const GumPeOptionalHeader64 *) optional_header;
+
+    directories_offset =
+        G_STRUCT_OFFSET (GumPeOptionalHeader64, data_directory);
+    if (optional_header_size < directories_offset)
+      goto invalid_data;
 
     self->pointer_size = 8;
     self->image_base = GUINT64_FROM_LE (oh->image_base);
@@ -438,6 +456,11 @@ gum_pe_module_load (GumPeModule * self,
     const GumPeOptionalHeader32 * oh =
         (const GumPeOptionalHeader32 *) optional_header;
 
+    directories_offset =
+        G_STRUCT_OFFSET (GumPeOptionalHeader32, data_directory);
+    if (optional_header_size < directories_offset)
+      goto invalid_data;
+
     self->pointer_size = 4;
     self->image_base = GUINT32_FROM_LE (oh->image_base);
     self->size_of_image = GUINT32_FROM_LE (oh->size_of_image);
@@ -451,8 +474,13 @@ gum_pe_module_load (GumPeModule * self,
     goto invalid_data;
   }
 
-  if (num_directories > 16)
-    num_directories = 16;
+  if (gum_pe_module_get_header_data (self, 0, self->size_of_headers) == NULL)
+    goto invalid_data;
+
+  num_directories = MIN (num_directories,
+      (optional_header_size - directories_offset) /
+          sizeof (GumPeDataDirectory));
+  num_directories = MIN (num_directories, G_N_ELEMENTS (self->data_directory));
   for (i = 0; i != num_directories; i++)
   {
     self->data_directory[i].rva = GUINT32_FROM_LE (directories[i].rva);
@@ -467,6 +495,20 @@ invalid_data:
         "Not a valid PE image");
     return FALSE;
   }
+}
+
+static gconstpointer
+gum_pe_module_get_header_data (GumPeModule * self,
+                               gsize offset,
+                               gsize size)
+{
+  if (self->source_mode == GUM_PE_SOURCE_MODE_OFFLINE &&
+      !gum_span_contains (self->size, offset, size))
+  {
+    return NULL;
+  }
+
+  return self->data + offset;
 }
 
 guint
@@ -1172,4 +1214,12 @@ gum_protection_from_characteristics (guint32 characteristics)
     prot |= GUM_PAGE_EXECUTE;
 
   return prot;
+}
+
+static gboolean
+gum_span_contains (gsize span_size,
+                   gsize offset,
+                   gsize size)
+{
+  return offset <= span_size && size <= span_size - offset;
 }
