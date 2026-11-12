@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2024 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
+ * Copyright (C) 2026 lianping <503407184@qq.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -19,6 +20,7 @@ static void gum_module_facade_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_module_facade_dispose (GObject * object);
 static const gchar * gum_module_facade_get_name (GumModule * module);
+static const gchar * gum_module_facade_get_version (GumModule * module);
 static const gchar * gum_module_facade_get_path (GumModule * module);
 static const GumMemoryRange * gum_module_facade_get_range (GumModule * module);
 static void gum_module_facade_ensure_initialized (GumModule * module);
@@ -64,6 +66,7 @@ gum_module_facade_iface_init (gpointer g_iface,
   GumModuleInterface * iface = g_iface;
 
   iface->get_name = gum_module_facade_get_name;
+  iface->get_version = gum_module_facade_get_version;
   iface->get_path = gum_module_facade_get_path;
   iface->get_range = gum_module_facade_get_range;
   iface->ensure_initialized = gum_module_facade_ensure_initialized;
@@ -118,6 +121,12 @@ static const gchar *
 gum_module_facade_get_name (GumModule * module)
 {
   return gum_module_get_name (GUM_MODULE_FACADE (module)->module);
+}
+
+static const gchar *
+gum_module_facade_get_version (GumModule * module)
+{
+  return gum_module_get_version (GUM_MODULE_FACADE (module)->module);
 }
 
 static const gchar *
