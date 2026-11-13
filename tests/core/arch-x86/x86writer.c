@@ -8,6 +8,7 @@
 
 TESTLIST_BEGIN (x86writer)
   TESTENTRY (jump_label)
+  TESTENTRY (loop_label)
   TESTENTRY (call_label)
   TESTENTRY (call_indirect)
   TESTENTRY (call_indirect_label)
@@ -123,6 +124,34 @@ TESTCASE (jump_label)
 
   gum_x86_writer_put_label (&fixture->cw, handle_error_lbl);
   gum_x86_writer_put_breakpoint (&fixture->cw);
+
+  gum_x86_writer_put_label (&fixture->cw, beach_lbl);
+  gum_x86_writer_put_nop (&fixture->cw);
+  gum_x86_writer_put_jmp_short_label (&fixture->cw, start_lbl);
+
+  assert_output_equals (expected_code);
+}
+
+TESTCASE (loop_label)
+{
+  const guint8 expected_code[] = {
+    0xe2, 0x04,                   /* loop   beach */
+    0xe1, 0x02,                   /* loope  beach */
+    0xe0, 0x00,                   /* loopne beach */
+  /* beach: */
+    0x90,                         /* nop          */
+    0xeb, 0xf7                    /* jmp start    */
+  };
+  const gchar * start_lbl = "start";
+  const gchar * beach_lbl = "beach";
+
+  gum_x86_writer_put_label (&fixture->cw, start_lbl);
+  gum_x86_writer_put_jcc_short_label (&fixture->cw, X86_INS_LOOP, beach_lbl,
+      GUM_NO_HINT);
+  gum_x86_writer_put_jcc_short_label (&fixture->cw, X86_INS_LOOPE, beach_lbl,
+      GUM_NO_HINT);
+  gum_x86_writer_put_jcc_short_label (&fixture->cw, X86_INS_LOOPNE, beach_lbl,
+      GUM_NO_HINT);
 
   gum_x86_writer_put_label (&fixture->cw, beach_lbl);
   gum_x86_writer_put_nop (&fixture->cw);

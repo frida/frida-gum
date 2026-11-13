@@ -2262,6 +2262,7 @@ writer_enums = {
         ("x86_instruction_id", "x86_insn", "X86_INS_", [
             "jo", "jno", "jb", "jae", "je", "jne", "jbe", "ja", "js", "jns",
             "jp", "jnp", "jl", "jge", "jle", "jg", "jcxz", "jecxz", "jrcxz",
+            "loopne", "loope", "loop",
         ]),
         ("x86_branch_hint", "GumBranchHint", "GUM_", [
             "no-hint", "likely", "unlikely",

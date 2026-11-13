@@ -47,6 +47,8 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (relocation_of_early_call)
   TESTENTRY (attach_to_block_ending_in_jmp_to_next_instruction)
   TESTENTRY (attach_to_block_with_jmp_to_next_at_redirect_boundary)
+  TESTENTRY (attach_to_block_beginning_with_loop_taken)
+  TESTENTRY (attach_to_block_beginning_with_loop_fall_through)
 # if GLIB_SIZEOF_VOID_P == 8
   TESTENTRY (relocation_of_early_rip_relative_call)
 # endif
@@ -171,6 +173,10 @@ static void gum_test_fiber_inner (void);
 #endif
 
 static gpointer obtain_and_release_repeatedly (gpointer data);
+#ifdef HAVE_I386
+static void check_attach_to_block_beginning_with_loop (
+    TestInterceptorFixture * fixture, guint32 xcx, gint expected_result);
+#endif
 #ifdef HAVE_ARM64
 static gsize gum_return_1337 (void);
 #endif
@@ -1054,6 +1060,55 @@ TESTCASE (attach_to_block_with_jmp_to_next_at_redirect_boundary)
   interceptor_fixture_detach (fixture, 0);
 
   gum_memory_free (code, page_size);
+}
+
+TESTCASE (attach_to_block_beginning_with_loop_taken)
+{
+  check_attach_to_block_beginning_with_loop (fixture, 2, 222);
+}
+
+TESTCASE (attach_to_block_beginning_with_loop_fall_through)
+{
+  check_attach_to_block_beginning_with_loop (fixture, 1, 107);
+}
+
+static void
+check_attach_to_block_beginning_with_loop (TestInterceptorFixture * fixture,
+                                           guint32 xcx,
+                                           gint expected_result)
+{
+  const guint8 loop_short[] = { 0xe2, 0x06 }; /* loop +6 */
+  gsize page_size;
+  guint8 * page;
+  GumX86Writer cw;
+  gint (* target) (void);
+  gint (* invoke) (void);
+
+  page_size = gum_query_page_size ();
+  page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_x86_writer_init (&cw, page);
+  gum_x86_writer_put_bytes (&cw, loop_short, sizeof (loop_short));
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EAX, 107);
+  gum_x86_writer_put_ret (&cw);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EAX, 222);
+  gum_x86_writer_put_ret (&cw);
+  gum_x86_writer_reset (&cw, page + 0x100);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_ECX, xcx);
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_X86_XAX, GUM_ADDRESS (page));
+  gum_x86_writer_put_jmp_reg (&cw, GUM_X86_XAX);
+  gum_x86_writer_clear (&cw);
+  gum_mprotect (page, page_size, GUM_PAGE_RX);
+  target = (gint (*) (void)) page;
+  invoke = GUM_POINTER_TO_FUNCPTR (gint (*) (void), page + 0x100);
+
+  interceptor_fixture_attach (fixture, 0, target, '>', '<');
+
+  g_assert_cmpint (invoke (), ==, expected_result);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  interceptor_fixture_detach (fixture, 0);
+
+  gum_memory_free (page, page_size);
 }
 
 TESTCASE (ibt_landing_pad_survives_attach)

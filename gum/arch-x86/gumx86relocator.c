@@ -195,6 +195,9 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
 
   switch (insn->id)
   {
+    case X86_INS_LOOP:
+    case X86_INS_LOOPE:
+    case X86_INS_LOOPNE:
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
       self->eob = TRUE;
@@ -319,6 +322,9 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
       rewritten = gum_x86_relocator_rewrite_unconditional_branch (self, &ctx);
       break;
 
+    case X86_INS_LOOP:
+    case X86_INS_LOOPE:
+    case X86_INS_LOOPNE:
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
       rewritten = gum_x86_relocator_rewrite_conditional_branch (self, &ctx);
@@ -576,10 +582,23 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
                                               GumCodeGenCtx * ctx)
 {
   cs_x86_op * op = &ctx->insn->detail->x86.operands[0];
+  gboolean is_short_only;
+  gboolean has_addr_size_prefix;
+
+  is_short_only =
+      ctx->insn->id == X86_INS_LOOP || ctx->insn->id == X86_INS_LOOPE ||
+      ctx->insn->id == X86_INS_LOOPNE ||
+      ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ;
+
+  has_addr_size_prefix =
+      is_short_only && ctx->insn->detail->x86.prefix[3] == X86_PREFIX_ADDRSIZE;
 
   if (op->type == X86_OP_IMM)
   {
     GumAddress target = op->imm;
+
+    if (has_addr_size_prefix)
+      gum_x86_writer_put_u8 (ctx->code_writer, X86_PREFIX_ADDRSIZE);
 
     if (target >= self->input_pc - (self->input_cur - self->input_start) &&
         target < self->input_pc)
@@ -587,7 +606,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
       gum_x86_writer_put_jcc_short_label (ctx->code_writer, ctx->insn->id,
           GSIZE_TO_POINTER (target), GUM_NO_HINT);
     }
-    else if (ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ ||
+    else if (is_short_only ||
         !gum_x86_writer_put_jcc_near (ctx->code_writer, ctx->insn->id,
           GSIZE_TO_POINTER (target), GUM_NO_HINT))
     {
