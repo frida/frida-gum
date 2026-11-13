@@ -138,9 +138,6 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
 
-static gpointer gum_deny_code_allocation (const GumAddressSpec * spec,
-    gsize size, gsize alignment, GumPageProtection prot, gpointer user_data);
-
 static GString * gum_test_unwind_log = NULL;
 static jmp_buf gum_test_longjmp_buf;
 static void gum_test_longjmp_outer (void);
@@ -149,9 +146,6 @@ static void gum_test_longjmp_inner (void);
 static gboolean gum_test_seh_unwinder_is_emulated (void);
 static void gum_test_seh_outer (void);
 static void gum_test_seh_inner (void);
-#endif
-#ifdef HAVE_ARM64
-static gsize gum_return_1337 (void);
 #endif
 #ifdef GUM_TEST_HAVE_FIBERS
 static ucontext_t gum_test_uctx_main;
@@ -176,11 +170,16 @@ static void gum_test_fiber_b_with_longjmp (void);
 static void gum_test_fiber_inner (void);
 #endif
 
+static gpointer obtain_and_release_repeatedly (gpointer data);
+#ifdef HAVE_ARM64
+static gsize gum_return_1337 (void);
+#endif
+static gpointer gum_deny_code_allocation (const GumAddressSpec * spec,
+    gsize size, gsize alignment, GumPageProtection prot, gpointer user_data);
 static gpointer replacement_target_function (GString * str);
 #ifdef HAVE_WINDOWS
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
-static gpointer obtain_and_release_repeatedly (gpointer data);
 static gpointer replacement_malloc (gsize size);
 static gpointer (* target_function_fast) (GString * str) = NULL;
 static gpointer replacement_target_function_fast (GString * str);
