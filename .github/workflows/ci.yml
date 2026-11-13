@@ -208,7 +208,9 @@ jobs:
         arch: [x86, x86_64, x86_64-musl, armhf, arm64, arm64-musl, mips, mipsel, mips64, mips64el]
       fail-fast: false
     runs-on: ubuntu-latest
-    container: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
+    container:
+      image: ghcr.io/frida/x-tools-linux-${{ matrix.arch }}:latest
+      options: --security-opt seccomp=unconfined
     steps:
       - name: Check out repo
         uses: actions/checkout@v6
