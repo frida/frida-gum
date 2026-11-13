@@ -141,12 +141,42 @@ jobs:
     strategy:
       matrix:
         include:
-          - { id: windows-x86_64-mingw, opts: '--host=x86_64-w64-mingw32 --without-prebuilds=sdk:host', pkg: g++-mingw-w64-x86-64        }
-          - { id: windows-x86-mingw,    opts: '--host=i686-w64-mingw32 --without-prebuilds=sdk:host',   pkg: g++-mingw-w64-i686          }
-          - { id: linux-mips,           opts: '--host=mips-linux-gnu',                                  pkg: g++-mips-linux-gnu          }
-          - { id: linux-mipsel,         opts: '--host=mipsel-linux-gnu',                                pkg: g++-mipsel-linux-gnu        }
-          - { id: linux-mips64,         opts: '--host=mips64-linux-gnuabi64',                           pkg: g++-mips64-linux-gnuabi64   }
-          - { id: linux-mips64el,       opts: '--host=mips64el-linux-gnuabi64',                         pkg: g++-mips64el-linux-gnuabi64 }
+          - { id: windows-x86_64-mingw, opts: '--host=x86_64-w64-mingw32 --without-prebuilds=sdk:host', pkg: g++-mingw-w64-x86-64 }
+          - { id: windows-x86-mingw,    opts: '--host=i686-w64-mingw32 --without-prebuilds=sdk:host',   pkg: g++-mingw-w64-i686   }
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install ${{ matrix.pkg }}
+      - name: Build
+        run: |
+          ./configure ${{ matrix.opts }} ${{ env.GUM_OPTIONS }}
+          make
+      - name: Upload Gum devkit
+        uses: actions/upload-artifact@v7
+        with:
+          name: gum-devkit-${{ matrix.id }}
+          path: build/gum/devkit/
+      - name: Upload GumJS devkit
+        uses: actions/upload-artifact@v7
+        with:
+          name: gumjs-devkit-${{ matrix.id }}
+          path: build/bindings/gumjs/devkit/
+
+  debian-cross:
+    strategy:
+      matrix:
+        include:
+          - { id: linux-mips,     host: mips-linux-gnu          }
+          - { id: linux-mipsel,   host: mipsel-linux-gnu        }
+          - { id: linux-mips64,   host: mips64-linux-gnuabi64   }
+          - { id: linux-mips64el, host: mips64el-linux-gnuabi64 }
       fail-fast: false
     runs-on: ubuntu-latest
     container: debian:stable
@@ -158,31 +188,19 @@ jobs:
               ca-certificates \
               curl \
               g++ \
+              g++-${{ matrix.host }} \
               git \
               make \
               python3 \
-              xz-utils \
-              ${{ matrix.pkg }}
+              xz-utils
       - name: Check out repo
         uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Build
         run: |
-          ./configure ${{ matrix.opts }} ${{ env.GUM_OPTIONS }}
+          ./configure --host=${{ matrix.host }} ${{ env.GUM_OPTIONS }}
           make
-      - name: Upload Gum devkit
-        if: ${{ !startsWith(matrix.id, 'linux-') }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: gum-devkit-${{ matrix.id }}
-          path: build/gum/devkit/
-      - name: Upload GumJS devkit
-        if: ${{ !startsWith(matrix.id, 'linux-') }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: gumjs-devkit-${{ matrix.id }}
-          path: build/bindings/gumjs/devkit/
 
   manylinux:
     strategy:
