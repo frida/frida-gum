@@ -27,6 +27,9 @@ TESTLIST_BEGIN (x86relocator)
   TESTENTRY (jcc_near_outside_block)
   TESTENTRY (jcxz_short_within_block)
   TESTENTRY (jcxz_short_outside_block)
+  TESTENTRY (loop_short_within_block)
+  TESTENTRY (loop_short_within_block_with_address_size_prefix)
+  TESTENTRY (loop_short_outside_block)
   TESTENTRY (peek_next_write)
   TESTENTRY (skip_instruction)
   TESTENTRY (eob_and_eoi_on_jmp)
@@ -34,6 +37,7 @@ TESTLIST_BEGIN (x86relocator)
   TESTENTRY (eob_and_eoi_on_ret)
   TESTENTRY (eob_but_not_eoi_on_jcc)
   TESTENTRY (eob_but_not_eoi_on_jcxz)
+  TESTENTRY (eob_but_not_eoi_on_loop)
 
 #if GLIB_SIZEOF_VOID_P == 8
   TESTENTRY (rip_relative_move_different_target)
@@ -509,6 +513,106 @@ TESTCASE (jcxz_short_outside_block)
   assert_output_equals (expected_output);
 }
 
+TESTCASE (loop_short_within_block)
+{
+  guint8 input[] = {
+    0xe2, 0x02,                         /* loop beach        */
+    0xff, 0xc0,                         /* inc eax           */
+
+/* beach:                                                    */
+    0xc3                                /* retn              */
+  };
+  const guint8 expected_output[] = {
+    0xe2, 0x04,                         /* loop beach        */
+    0xff, 0xc0,                         /* inc eax           */
+    0xff, 0xc0,                         /* inc eax           */
+
+/* beach:                                                    */
+    0xc3                                /* retn              */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 4);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
+
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_X86_EAX);
+  gum_x86_relocator_write_one (&fixture->rl);
+
+  gum_x86_writer_flush (&fixture->cw);
+
+  assert_output_equals (expected_output);
+}
+
+TESTCASE (loop_short_within_block_with_address_size_prefix)
+{
+  guint8 input[] = {
+    0x67, 0xe2, 0x02,                   /* loop beach        */
+    0xff, 0xc0,                         /* inc eax           */
+
+/* beach:                                                    */
+    0xc3                                /* retn              */
+  };
+  const guint8 expected_output[] = {
+    0x67, 0xe2, 0x04,                   /* loop beach        */
+    0xff, 0xc0,                         /* inc eax           */
+    0xff, 0xc0,                         /* inc eax           */
+
+/* beach:                                                    */
+    0xc3                                /* retn              */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 6);
+
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_X86_EAX);
+  gum_x86_relocator_write_one (&fixture->rl);
+
+  gum_x86_writer_flush (&fixture->cw);
+
+  assert_output_equals (expected_output);
+}
+
+TESTCASE (loop_short_outside_block)
+{
+  guint8 input[] = {
+    0xe2, 0xfd, /* loop -3             */
+    0xc3        /* retn                */
+  };
+  const gssize retn_start = GPOINTER_TO_SIZE (input) + 2;
+  guint8 expected_output[] = {
+    0xe2, 0x02, /* loop is_true        */
+    0xeb, 0x05, /* jmp is_false        */
+
+/* is_true:                            */
+    0xe9, 0xaa, 0xaa, 0xaa, 0xaa,
+
+/* is_false:                           */
+    0xc3        /* retn                */
+  };
+
+  *((gint32 *) (expected_output + 5)) =
+      (retn_start - 3) - ((gssize) (fixture->output + 9));
+
+  SETUP_RELOCATOR_WITH (input);
+
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_all (&fixture->rl);
+
+  gum_x86_writer_flush (&fixture->cw);
+
+  assert_output_equals (expected_output);
+}
+
 TESTCASE (peek_next_write)
 {
   guint8 input[] = {
@@ -634,6 +738,23 @@ TESTCASE (eob_but_not_eoi_on_jcxz)
   guint8 input[] = {
     0xe3, 0x01, /* jecxz/jrcxz +1 */
     0xc3        /* ret            */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
+  g_assert_true (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
+}
+
+TESTCASE (eob_but_not_eoi_on_loop)
+{
+  guint8 input[] = {
+    0xe2, 0x01, /* loop +1 */
+    0xc3        /* ret     */
   };
 
   SETUP_RELOCATOR_WITH (input);

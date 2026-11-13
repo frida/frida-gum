@@ -3239,6 +3239,9 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     case X86_INS_SYSENTER:
     case X86_INS_SYSCALL:
     case X86_INS_INT:
+    case X86_INS_LOOP:
+    case X86_INS_LOOPE:
+    case X86_INS_LOOPNE:
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
       gum_generator_context_release_user_data_reg (block, gc, gc->code_writer);
@@ -3268,6 +3271,9 @@ gum_stalker_iterator_keep (GumStalkerIterator * self)
     case X86_INS_INT:
       requirements = gum_exec_block_virtualize_int_insn (block, gc);
       break;
+    case X86_INS_LOOP:
+    case X86_INS_LOOPE:
+    case X86_INS_LOOPNE:
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
       requirements = gum_exec_block_virtualize_branch_insn (block, gc);
@@ -5020,7 +5026,9 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     gum_x86_relocator_skip_one_no_label (gc->relocator);
     gum_exec_block_write_call_invoke_code (block, &target, gc);
   }
-  else if (insn->ci->id == X86_INS_JECXZ || insn->ci->id == X86_INS_JRCXZ)
+  else if (insn->ci->id == X86_INS_LOOP || insn->ci->id == X86_INS_LOOPE ||
+      insn->ci->id == X86_INS_LOOPNE || insn->ci->id == X86_INS_JECXZ ||
+      insn->ci->id == X86_INS_JRCXZ)
   {
     gpointer is_true;
     GumBranchTarget false_target = { 0, };
@@ -5032,7 +5040,10 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
     gum_exec_block_close_prolog (block, gc, gc->code_writer);
 
-    gum_x86_writer_put_jcc_short_label (cw, X86_INS_JMP, is_true, GUM_NO_HINT);
+    if (insn->ci->detail->x86.prefix[3] == X86_PREFIX_ADDRSIZE)
+      gum_x86_writer_put_u8 (cw, X86_PREFIX_ADDRSIZE);
+    gum_x86_writer_put_jcc_short_label (cw, insn->ci->id, is_true,
+        GUM_NO_HINT);
 
     false_target.is_indirect = FALSE;
     false_target.absolute_address = insn->end;
@@ -5042,8 +5053,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     gum_x86_writer_put_label (cw, is_true);
 
     /*
-     * x86/64 only supports short jumps for JECXZ/JRCXZ so we can't backpatch
-     * the Jcc instruction itself.
+     * x86/64 only supports short jumps for the LOOP family, JECXZ and JRCXZ,
+     * so we can't backpatch the branch instruction itself.
      */
     gum_exec_block_write_jmp_transfer_code (block, &target,
         GUM_ENTRYGATE (jmp_cond_jcxz), gc, X86_INS_JMP, GUM_ADDRESS (0));

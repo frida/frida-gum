@@ -3478,6 +3478,12 @@ gum_get_jcc_opcode (x86_insn instruction_id)
       return 0x7e;
     case X86_INS_JG:
       return 0x7f;
+    case X86_INS_LOOPNE:
+      return 0xe0;
+    case X86_INS_LOOPE:
+      return 0xe1;
+    case X86_INS_LOOP:
+      return 0xe2;
     case X86_INS_JCXZ:
     case X86_INS_JECXZ:
     case X86_INS_JRCXZ:
