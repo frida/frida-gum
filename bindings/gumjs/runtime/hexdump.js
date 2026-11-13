@@ -58,8 +58,8 @@ export function hexdump(target, options = {}) {
   }
 
   let offset = startOffset;
-  for (let bufferOffset = 0; bufferOffset < length; bufferOffset += 16) {
-    if (bufferOffset !== 0)
+  while (offset < length) {
+    if (offset !== startOffset)
       result.push('\n');
 
     result.push(
