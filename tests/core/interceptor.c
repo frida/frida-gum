@@ -45,6 +45,8 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (absolute_indirect_proxy_function)
   TESTENTRY (two_indirects_to_function)
   TESTENTRY (relocation_of_early_call)
+  TESTENTRY (attach_to_block_ending_in_jmp_to_next_instruction)
+  TESTENTRY (attach_to_block_with_jmp_to_next_at_redirect_boundary)
 # if GLIB_SIZEOF_VOID_P == 8
   TESTENTRY (relocation_of_early_rip_relative_call)
 # endif
@@ -993,6 +995,67 @@ TESTCASE (custom_redirect)
 }
 
 #ifdef HAVE_I386
+
+TESTCASE (attach_to_block_ending_in_jmp_to_next_instruction)
+{
+  const guint8 jmp_to_next[] = { 0xeb, 0x00 }; /* jmp +0 */
+  gsize page_size;
+  guint8 * code;
+  GumX86Writer cw;
+  gint (* target) (void);
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_x86_writer_init (&cw, code);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_bytes (&cw, jmp_to_next, sizeof (jmp_to_next));
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EAX, 1337);
+  gum_x86_writer_put_ret (&cw);
+  gum_x86_writer_clear (&cw);
+  gum_mprotect (code, page_size, GUM_PAGE_RX);
+  target = (gint (*) (void)) code;
+
+  interceptor_fixture_attach (fixture, 0, target, '>', '<');
+
+  g_assert_cmpint (target (), ==, 1337);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  interceptor_fixture_detach (fixture, 0);
+
+  gum_memory_free (code, page_size);
+}
+
+TESTCASE (attach_to_block_with_jmp_to_next_at_redirect_boundary)
+{
+  const guint8 jmp_to_next[] = { 0xeb, 0x00 }; /* jmp +0 */
+  gsize page_size;
+  guint8 * code;
+  GumX86Writer cw;
+  gint (* target) (void);
+
+  page_size = gum_query_page_size ();
+  code = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  gum_x86_writer_init (&cw, code);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_bytes (&cw, jmp_to_next, sizeof (jmp_to_next));
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_X86_EAX, 1337);
+  gum_x86_writer_put_ret (&cw);
+  gum_x86_writer_clear (&cw);
+  gum_mprotect (code, page_size, GUM_PAGE_RX);
+  target = (gint (*) (void)) code;
+
+  interceptor_fixture_attach (fixture, 0, target, '>', '<');
+
+  g_assert_cmpint (target (), ==, 1337);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  interceptor_fixture_detach (fixture, 0);
+
+  gum_memory_free (code, page_size);
+}
 
 TESTCASE (ibt_landing_pad_survives_attach)
 {
