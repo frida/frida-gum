@@ -36,7 +36,7 @@ static gboolean gum_x86_relocator_rewrite_conditional_branch (
 static gboolean gum_x86_relocator_rewrite_if_rip_relative (
     GumX86Relocator * self, GumCodeGenCtx * ctx);
 
-static gboolean gum_x86_call_is_to_next_instruction (cs_insn * insn);
+static gboolean gum_x86_branch_is_to_next_instruction (cs_insn * insn);
 static gboolean gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
     GumCpuType cpu_type, GumX86Reg * pc_reg);
 
@@ -201,6 +201,10 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
       break;
 
     case X86_INS_JMP:
+      self->eob = TRUE;
+      self->eoi = !gum_x86_branch_is_to_next_instruction (insn);
+      break;
+
     case X86_INS_RET:
     case X86_INS_RETF:
       self->eob = TRUE;
@@ -208,7 +212,7 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
       break;
 
     case X86_INS_CALL:
-      self->eob = !gum_x86_call_is_to_next_instruction (insn) &&
+      self->eob = !gum_x86_branch_is_to_next_instruction (insn) &&
           !gum_x86_call_try_parse_get_pc_thunk (insn, self->output->target_cpu,
               NULL);
       self->eoi = FALSE;
@@ -508,7 +512,7 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
   {
     GumX86Reg pc_reg;
 
-    if (gum_x86_call_is_to_next_instruction (insn))
+    if (gum_x86_branch_is_to_next_instruction (insn))
     {
       if (cw->target_cpu == GUM_CPU_AMD64)
       {
@@ -529,6 +533,10 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
       gum_x86_writer_put_mov_reg_u32 (cw, pc_reg, ctx->pc);
       return TRUE;
     }
+  }
+  else if (gum_x86_branch_is_to_next_instruction (insn))
+  {
+    return TRUE;
   }
 
   if (op->type == X86_OP_IMM)
@@ -784,7 +792,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 }
 
 static gboolean
-gum_x86_call_is_to_next_instruction (cs_insn * insn)
+gum_x86_branch_is_to_next_instruction (cs_insn * insn)
 {
   cs_x86_op * op = &insn->detail->x86.operands[0];
 

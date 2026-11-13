@@ -19,6 +19,9 @@ TESTLIST_BEGIN (x86relocator)
   TESTENTRY (jmp_near_outside_block)
   TESTENTRY (jmp_register)
   TESTENTRY (jmp_indirect)
+  TESTENTRY (jmp_short_to_next_instruction)
+  TESTENTRY (jmp_near_to_next_instruction)
+  TESTENTRY (jcc_to_jmp_to_next_instruction)
   TESTENTRY (jcc_short_within_block)
   TESTENTRY (jcc_short_outside_block)
   TESTENTRY (jcc_near_outside_block)
@@ -230,6 +233,71 @@ TESTCASE (jmp_short_outside_block)
   reloc_distance = *((gint32 *) (fixture->output + 1));
   expected_distance = (input_end + 1) - ((gssize) (fixture->output + 5));
   g_assert_cmpint (reloc_distance, ==, expected_distance);
+}
+
+TESTCASE (jmp_short_to_next_instruction)
+{
+  guint8 input[] = {
+    0xeb, 0x00, /* jmp +0 */
+    0x58        /* pop eax */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
+  gum_x86_relocator_write_all (&fixture->rl);
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, 1);
+  g_assert_cmphex (fixture->output[0], ==, 0x58);
+}
+
+TESTCASE (jmp_near_to_next_instruction)
+{
+  guint8 input[] = {
+    0xe9, 0x00, 0x00, 0x00, 0x00, /* jmp +0 */
+    0x58                          /* pop eax */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
+  g_assert_true (gum_x86_relocator_eob (&fixture->rl));
+  g_assert_false (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 6);
+  gum_x86_relocator_write_all (&fixture->rl);
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, 1);
+  g_assert_cmphex (fixture->output[0], ==, 0x58);
+}
+
+TESTCASE (jcc_to_jmp_to_next_instruction)
+{
+  guint8 input[] = {
+    0x90,       /* nop     */
+    0x90,       /* nop     */
+    0x74, 0x00, /* je +0   */
+    0xeb, 0x00, /* jmp +0  */
+    0x58        /* pop eax */
+  };
+  guint8 expected_output[] = {
+    0x90, 0x90, 0x74, 0x00, 0x58
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 1);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 4);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 6);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 7);
+  gum_x86_relocator_write_all (&fixture->rl);
+  gum_x86_writer_flush (&fixture->cw);
+
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
+      sizeof (expected_output));
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
 }
 
 TESTCASE (jmp_near_outside_block)
