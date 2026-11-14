@@ -35,6 +35,7 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (delay_loaded_modules_should_be_registered)
   TESTENTRY (executable_images_should_be_registered)
   TESTENTRY (global_export_lookup_should_survive_module_loading)
+  TESTENTRY (registry_should_have_modules_for_every_thread_obtaining_it)
   TESTENTRY (nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (displaced_nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (relocated_program_headers_can_be_parsed)
@@ -55,6 +56,7 @@ static void on_module_removed (GumModuleRegistry * registry, GumModule * module,
 # define GUM_DEPENDENCY_MODULE_FILENAME "module-registry-dependency.dll"
 # define GUM_DELAY_LOADED_MODULE_FILENAME "windows.storage.dll"
 # define GUM_PROGRAM_MODULE_FILENAME "module-registry-program.exe"
+# define GUM_RACER_PROGRAM_FILENAME "module-registry-racer.exe"
 
 typedef struct _TestFindModuleContext TestFindModuleContext;
 
@@ -91,6 +93,7 @@ static DWORD WINAPI load_and_unload_module (LPVOID data);
 # define GUM_NONZERO_VADDR_MODULE_FILENAME \
     "module-registry-target-nonzero-vaddr.so"
 # define GUM_NONZERO_VADDR_MODULE_LINK_ADDRESS 0x400000
+# define GUM_RACER_PROGRAM_FILENAME "module-registry-racer"
 
 typedef struct _TestModuleHooks TestModuleHooks;
 typedef struct _TestNonzeroVaddrContext TestNonzeroVaddrContext;
@@ -122,6 +125,13 @@ static void assert_online_elf_skips_unreadable_section_data (gboolean names);
 
 #if defined (HAVE_WINDOWS) || defined (HAVE_LINUX)
 # define GUM_DEPENDENCY_MODULE_EXPORT "gum_module_registry_dependency_function"
+#endif
+
+#if defined (HAVE_WINDOWS) || \
+    (defined (HAVE_LINUX) && !defined (HAVE_ANDROID))
+# define GUM_HAVE_MODULE_REGISTRY_RACER 1
+
+static gboolean run_module_registry_racer (void);
 #endif
 
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID) && \
@@ -436,6 +446,18 @@ TESTCASE (global_export_lookup_should_survive_module_loading)
   g_free (data_dir);
 #else
   g_test_skip ("only supported on Windows");
+#endif
+}
+
+TESTCASE (registry_should_have_modules_for_every_thread_obtaining_it)
+{
+#ifdef GUM_HAVE_MODULE_REGISTRY_RACER
+  guint i;
+
+  for (i = 0; i != 20; i++)
+    g_assert_true (run_module_registry_racer ());
+#else
+  g_test_skip ("only supported on Windows and Linux");
 #endif
 }
 
@@ -903,6 +925,62 @@ assert_online_elf_skips_unreadable_section_data (gboolean names)
 
   g_object_unref (module);
   gum_memory_free (pages, 2 * page_size);
+}
+
+#endif
+
+#ifdef GUM_HAVE_MODULE_REGISTRY_RACER
+
+static gboolean
+run_module_registry_racer (void)
+{
+  gboolean passed;
+  gchar * data_dir, * racer_path;
+
+  data_dir = test_util_get_data_dir ();
+  racer_path = g_build_filename (data_dir, GUM_RACER_PROGRAM_FILENAME, NULL);
+
+#ifdef HAVE_WINDOWS
+  {
+    gunichar2 * racer_path_utf16;
+    STARTUPINFOW si = { 0, };
+    PROCESS_INFORMATION pi;
+    DWORD exit_code = 1;
+
+    racer_path_utf16 = g_utf8_to_utf16 (racer_path, -1, NULL, NULL, NULL);
+
+    si.cb = sizeof (si);
+    g_assert_true (CreateProcessW ((LPCWSTR) racer_path_utf16, NULL, NULL,
+        NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi));
+    CloseHandle (pi.hThread);
+
+    WaitForSingleObject (pi.hProcess, INFINITE);
+    GetExitCodeProcess (pi.hProcess, &exit_code);
+    CloseHandle (pi.hProcess);
+
+    g_free (racer_path_utf16);
+
+    passed = exit_code == 0;
+  }
+#else
+  {
+    gchar * argv[2];
+    gint wait_status = -1;
+
+    argv[0] = racer_path;
+    argv[1] = NULL;
+
+    g_assert_true (g_spawn_sync (NULL, argv, NULL, G_SPAWN_DEFAULT, NULL, NULL,
+        NULL, NULL, &wait_status, NULL));
+
+    passed = wait_status == 0;
+  }
+#endif
+
+  g_free (racer_path);
+  g_free (data_dir);
+
+  return passed;
 }
 
 #endif

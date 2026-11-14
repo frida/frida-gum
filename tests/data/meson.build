@@ -108,3 +108,9 @@ shared_module('module-registry-dependent', 'module-registry-dependent.c',
 if host_os_family == 'windows'
   executable('module-registry-program', 'module-registry-program.c')
 endif
+
+if host_os_family == 'windows' or host_os == 'linux'
+  executable('module-registry-racer', 'module-registry-racer.c',
+    dependencies: [gum_dep],
+  )
+endif
