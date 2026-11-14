@@ -18,7 +18,6 @@ typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumEnumerateSymbolsContext GumEnumerateSymbolsContext;
 typedef struct _GumEnumerateSectionsContext GumEnumerateSectionsContext;
-typedef struct _GumFindExportContext GumFindExportContext;
 
 struct _GumNativeModule
 {
@@ -66,12 +65,6 @@ struct _GumEnumerateSectionsContext
   guint index;
 };
 
-struct _GumFindExportContext
-{
-  const gchar * symbol_name;
-  GumAddress result;
-};
-
 static void gum_native_module_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_native_module_dispose (GObject * object);
@@ -109,8 +102,7 @@ static GumAddress gum_native_module_find_remote_export (GumNativeModule * self,
     const gchar * symbol_name);
 static gchar * gum_native_module_resolve_api_set_host (GumNativeModule * self,
     const gchar * symbol_name);
-static gboolean gum_store_address_if_module_has_export (GumModule * module,
-    gpointer user_data);
+static gboolean gum_collect_module (GumModule * module, gpointer user_data);
 
 static GumNativeModule * gum_native_module_new (HMODULE handle,
     HANDLE process, GumWindowsModuleResolver * resolver);
@@ -601,25 +593,33 @@ gum_native_module_resolve_api_set_host (GumNativeModule * self,
 GumAddress
 gum_module_find_global_export_by_name (const gchar * symbol_name)
 {
-  GumFindExportContext ctx;
+  GumAddress result = 0;
+  GPtrArray * modules;
+  guint i;
 
-  ctx.symbol_name = symbol_name;
-  ctx.result = 0;
+  modules = g_ptr_array_new_with_free_func (g_object_unref);
+  gum_process_enumerate_modules (gum_collect_module, modules);
 
-  gum_process_enumerate_modules (gum_store_address_if_module_has_export, &ctx);
+  for (i = 0; i != modules->len && result == 0; i++)
+  {
+    result = gum_module_find_export_by_name (g_ptr_array_index (modules, i),
+        symbol_name);
+  }
 
-  return ctx.result;
+  g_ptr_array_unref (modules);
+
+  return result;
 }
 
 static gboolean
-gum_store_address_if_module_has_export (GumModule * module,
-                                        gpointer user_data)
+gum_collect_module (GumModule * module,
+                    gpointer user_data)
 {
-  GumFindExportContext * ctx = user_data;
+  GPtrArray * modules = user_data;
 
-  ctx->result = gum_module_find_export_by_name (module, ctx->symbol_name);
+  g_ptr_array_add (modules, g_object_ref (module));
 
-  return ctx->result == 0;
+  return TRUE;
 }
 
 static GumNativeModule *
