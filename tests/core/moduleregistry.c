@@ -34,6 +34,7 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (dependency_export_can_be_found)
   TESTENTRY (delay_loaded_modules_should_be_registered)
   TESTENTRY (executable_images_should_be_registered)
+  TESTENTRY (global_export_lookup_should_survive_module_loading)
   TESTENTRY (nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (displaced_nonzero_vaddr_module_should_be_found_at_its_header)
   TESTENTRY (relocated_program_headers_can_be_parsed)
@@ -63,11 +64,22 @@ struct _TestFindModuleContext
   GumModule * module;
 };
 
+typedef struct _TestLoaderRace TestLoaderRace;
+
+struct _TestLoaderRace
+{
+  const gunichar2 * module_path;
+  guint num_loads;
+  gboolean lookups_done;
+};
+
 static void on_delay_loaded_module_added (GumModuleRegistry * registry,
     GumModule * module, gpointer user_data);
 static GumModule * find_registered_module (const gchar * name);
 static gboolean store_module_if_named (GumModule * module,
     gpointer user_data);
+static DWORD WINAPI look_up_missing_exports (LPVOID data);
+static DWORD WINAPI load_and_unload_module (LPVOID data);
 
 #endif
 
@@ -386,6 +398,47 @@ TESTCASE (executable_images_should_be_registered)
 #endif
 }
 
+TESTCASE (global_export_lookup_should_survive_module_loading)
+{
+#ifdef HAVE_WINDOWS
+  gchar * data_dir, * target_path;
+  gunichar2 * target_path_utf16;
+  TestLoaderRace race;
+  HANDLE threads[2];
+
+  gum_module_registry_obtain ();
+
+  data_dir = test_util_get_data_dir ();
+  target_path = g_build_filename (data_dir, GUM_DEPENDENT_MODULE_FILENAME,
+      NULL);
+  target_path_utf16 = g_utf8_to_utf16 (target_path, -1, NULL, NULL, NULL);
+
+  race.module_path = target_path_utf16;
+  race.num_loads = 0;
+  race.lookups_done = FALSE;
+
+  threads[0] = CreateThread (NULL, 0, look_up_missing_exports, &race, 0, NULL);
+  threads[1] = CreateThread (NULL, 0, load_and_unload_module, &race, 0, NULL);
+
+  if (WaitForMultipleObjects (G_N_ELEMENTS (threads), threads, TRUE, 10000) !=
+      WAIT_OBJECT_0)
+  {
+    g_printerr ("\nFAIL: lookup and module loading are deadlocked\n\n");
+    TerminateProcess (GetCurrentProcess (), 1);
+  }
+  g_assert_cmpuint (race.num_loads, >, 0);
+
+  CloseHandle (threads[1]);
+  CloseHandle (threads[0]);
+
+  g_free (target_path_utf16);
+  g_free (target_path);
+  g_free (data_dir);
+#else
+  g_test_skip ("only supported on Windows");
+#endif
+}
+
 TESTCASE (nonzero_vaddr_module_should_be_found_at_its_header)
 {
 #ifdef HAVE_LINUX
@@ -634,6 +687,45 @@ store_module_if_named (GumModule * module,
   ctx->module = g_object_ref (module);
 
   return FALSE;
+}
+
+static DWORD WINAPI
+look_up_missing_exports (LPVOID data)
+{
+  TestLoaderRace * race = data;
+  guint i;
+
+  for (i = 0; i != 2000; i++)
+  {
+    g_assert_cmphex (
+        gum_module_find_global_export_by_name ("gum_test_no_such_export"),
+        ==, 0);
+  }
+
+  g_atomic_int_set (&race->lookups_done, TRUE);
+
+  return 0;
+}
+
+static DWORD WINAPI
+load_and_unload_module (LPVOID data)
+{
+  TestLoaderRace * race = data;
+
+  do
+  {
+    HMODULE handle;
+
+    handle = LoadLibraryExW ((LPCWSTR) race->module_path, NULL,
+        LOAD_WITH_ALTERED_SEARCH_PATH);
+    g_assert_nonnull (handle);
+    FreeLibrary (handle);
+
+    race->num_loads++;
+  }
+  while (!g_atomic_int_get (&race->lookups_done));
+
+  return 0;
 }
 
 #endif
