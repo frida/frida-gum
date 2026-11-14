@@ -22,7 +22,7 @@
  */
 
 #ifdef HAVE_WINDOWS
-static gboolean gum_collect_heap_api_if_crt_module (GumModule * module,
+static gboolean gum_collect_module_if_crt (GumModule * module,
     gpointer user_data);
 #endif
 static void gum_collect_heap_api_from_libc_module (GumModule * libc,
@@ -58,7 +58,21 @@ gum_process_find_heap_apis (void)
 #endif
 
 #ifdef HAVE_WINDOWS
-  gum_process_enumerate_modules (gum_collect_heap_api_if_crt_module, list);
+  {
+    GPtrArray * crt_modules;
+    guint i;
+
+    crt_modules = g_ptr_array_new_with_free_func (g_object_unref);
+    gum_process_enumerate_modules (gum_collect_module_if_crt, crt_modules);
+
+    for (i = 0; i != crt_modules->len; i++)
+    {
+      gum_collect_heap_api_from_libc_module (
+          g_ptr_array_index (crt_modules, i), list);
+    }
+
+    g_ptr_array_unref (crt_modules);
+  }
 #else
   gum_collect_heap_api_from_libc_module (gum_process_get_libc_module (), list);
 #endif
@@ -69,16 +83,16 @@ gum_process_find_heap_apis (void)
 #ifdef HAVE_WINDOWS
 
 static gboolean
-gum_collect_heap_api_if_crt_module (GumModule * module,
-                                    gpointer user_data)
+gum_collect_module_if_crt (GumModule * module,
+                           gpointer user_data)
 {
-  GumHeapApiList * list = (GumHeapApiList *) user_data;
+  GPtrArray * crt_modules = user_data;
   const gchar * module_name;
 
   module_name = gum_module_get_name (module);
 
   if (g_ascii_strncasecmp (module_name, "msvcr", 5) == 0)
-    gum_collect_heap_api_from_libc_module (module, list);
+    g_ptr_array_add (crt_modules, g_object_ref (module));
 
   return TRUE;
 }
