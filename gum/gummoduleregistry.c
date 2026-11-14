@@ -157,6 +157,8 @@ gum_module_registry_obtain (void)
     registry = g_object_new (GUM_TYPE_MODULE_REGISTRY, NULL);
     _gum_register_early_destructor (gum_deinit_module_registry);
 
+    GUM_MODULE_REGISTRY_LOCK (registry);
+
     activate = TRUE;
 
     g_once_init_leave (&cached_result, GPOINTER_TO_SIZE (registry));
@@ -165,7 +167,11 @@ gum_module_registry_obtain (void)
   registry = GSIZE_TO_POINTER (cached_result);
 
   if (activate)
+  {
     gum_module_registry_activate (registry);
+
+    GUM_MODULE_REGISTRY_UNLOCK (registry);
+  }
 
   return registry;
 }
@@ -173,12 +179,8 @@ gum_module_registry_obtain (void)
 static void
 gum_module_registry_activate (GumModuleRegistry * self)
 {
-  GUM_MODULE_REGISTRY_LOCK (self);
-
   _gum_module_registry_activate (self);
   self->state = GUM_MODULE_REGISTRY_ACTIVATED;
-
-  GUM_MODULE_REGISTRY_UNLOCK (self);
 }
 
 static void
