@@ -155,7 +155,11 @@ static gboolean gum_macho_module_take_image (GumMachoModule * self,
     GumMachoModuleImage * image, GError ** error);
 static gboolean gum_macho_module_check_load_commands (
     const GumMachoModuleImage * image);
+static gboolean gum_macho_module_check_load_command (
+    const GumLoadCommand * lc);
 static gboolean gum_macho_module_check_segment (const GumLoadCommand * lc);
+static gboolean gum_macho_module_check_string (const GumLoadCommand * lc,
+    guint32 offset);
 static gboolean gum_macho_module_get_header_offset_size (
     GumMachoModule * self, gpointer data, gsize data_size, gsize * out_offset,
     gsize * out_size, GError ** error);
@@ -2721,7 +2725,7 @@ gum_macho_module_take_image (GumMachoModule * self,
           guint raw_path_len;
 
           raw_path = (const gchar *) command + dl->name.offset;
-          raw_path_len = lc->cmdsize - sizeof (GumDylibCommand);
+          raw_path_len = lc->cmdsize - dl->name.offset;
 
           self->name = g_strndup (raw_path, raw_path_len);
         }
@@ -2737,7 +2741,7 @@ gum_macho_module_take_image (GumMachoModule * self,
           guint raw_path_len;
 
           raw_path = (const gchar *) command + dl->name.offset;
-          raw_path_len = lc->cmdsize - sizeof (GumDylinkerCommand);
+          raw_path_len = lc->cmdsize - dl->name.offset;
 
           self->name = g_strndup (raw_path, raw_path_len);
         }
@@ -3020,16 +3024,52 @@ gum_macho_module_check_load_commands (const GumMachoModuleImage * image)
       return FALSE;
     }
 
-    if ((lc->cmd == GUM_LC_SEGMENT_32 || lc->cmd == GUM_LC_SEGMENT_64) &&
-        !gum_macho_module_check_segment (lc))
-    {
+    if (!gum_macho_module_check_load_command (lc))
       return FALSE;
-    }
 
     cursor += lc->cmdsize;
   }
 
   return TRUE;
+}
+
+static gboolean
+gum_macho_module_check_load_command (const GumLoadCommand * lc)
+{
+  switch (lc->cmd)
+  {
+    case GUM_LC_SEGMENT_32:
+    case GUM_LC_SEGMENT_64:
+      return gum_macho_module_check_segment (lc);
+    case GUM_LC_ID_DYLIB:
+    case GUM_LC_LOAD_DYLIB:
+    case GUM_LC_LOAD_WEAK_DYLIB:
+    case GUM_LC_REEXPORT_DYLIB:
+    case GUM_LC_LOAD_UPWARD_DYLIB:
+      return lc->cmdsize >= sizeof (GumDylibCommand) &&
+          gum_macho_module_check_string (lc,
+              ((const GumDylibCommand *) lc)->dylib.name.offset);
+    case GUM_LC_ID_DYLINKER:
+      return lc->cmdsize >= sizeof (GumDylinkerCommand) &&
+          gum_macho_module_check_string (lc,
+              ((const GumDylinkerCommand *) lc)->name.offset);
+    case GUM_LC_UUID:
+      return lc->cmdsize >= sizeof (GumUUIDCommand);
+    case GUM_LC_SOURCE_VERSION:
+      return lc->cmdsize >= sizeof (GumSourceVersionCommand);
+    case GUM_LC_DYLD_INFO_ONLY:
+      return lc->cmdsize >= sizeof (GumDyldInfoCommand);
+    case GUM_LC_SYMTAB:
+      return lc->cmdsize >= sizeof (GumSymtabCommand);
+    case GUM_LC_DYSYMTAB:
+      return lc->cmdsize >= sizeof (GumDysymtabCommand);
+    case GUM_LC_DYLD_EXPORTS_TRIE:
+    case GUM_LC_DYLD_CHAINED_FIXUPS:
+    case GUM_LC_FUNCTION_STARTS:
+      return lc->cmdsize >= sizeof (GumLinkeditDataCommand);
+    default:
+      return TRUE;
+  }
 }
 
 static gboolean
@@ -3051,6 +3091,14 @@ gum_macho_module_check_segment (const GumLoadCommand * lc)
         sc->nsects <= (lc->cmdsize - sizeof (GumSegmentCommand64)) /
             sizeof (GumSection64);
   }
+}
+
+static gboolean
+gum_macho_module_check_string (const GumLoadCommand * lc,
+                               guint32 offset)
+{
+  return offset < lc->cmdsize &&
+      memchr ((const guint8 *) lc + offset, '\0', lc->cmdsize - offset) != NULL;
 }
 
 static void
