@@ -163,9 +163,16 @@ static gboolean gum_macho_module_check_string (const GumLoadCommand * lc,
 static gboolean gum_macho_module_get_header_offset_size (
     GumMachoModule * self, gpointer data, gsize data_size, gsize * out_offset,
     gsize * out_size, GError ** error);
+static void gum_macho_module_image_resolve_linkedit_range (
+    const GumMachoModuleImage * image, guint32 offset, guint32 size,
+    const guint8 ** start, const guint8 ** end);
+static gboolean gum_macho_module_image_has_linkedit_range (
+    const GumMachoModuleImage * image, guint64 offset, guint64 size);
 static void gum_macho_module_read_and_assign (GumMachoModule * self,
     GumAddress address, gsize size, const guint8 ** start, const guint8 ** end,
     gpointer * malloc_data);
+static const gchar * gum_macho_string_table_lookup (const guint8 * strings,
+    gsize size, guint32 offset);
 static gboolean gum_find_linkedit (const guint8 * module, gsize module_size,
     GumAddress * linkedit);
 static gboolean gum_macho_module_section_data_is_valid (
@@ -886,6 +893,7 @@ gum_macho_module_enumerate_symbols (GumMachoModule * self,
   GumMachoModuleImage * image;
   const GumSymtabCommand * symtab;
   GumAddress slide;
+  gsize symbol_size;
   const guint8 * symbols, * strings;
   gpointer symbols_malloc_data = NULL;
   gpointer strings_malloc_data = NULL;
@@ -905,23 +913,33 @@ gum_macho_module_enumerate_symbols (GumMachoModule * self,
 
   slide = gum_macho_module_get_slide (self);
 
+  symbol_size = (self->pointer_size == 8)
+      ? sizeof (GumNList64)
+      : sizeof (GumNList32);
+
   if (image->linkedit != NULL)
   {
+    if (!gum_macho_module_image_has_linkedit_range (image, symtab->symoff,
+        (guint64) symtab->nsyms * symbol_size))
+    {
+      goto beach;
+    }
+    if (!gum_macho_module_image_has_linkedit_range (image, symtab->stroff,
+        symtab->strsize))
+    {
+      goto beach;
+    }
+
     symbols = (guint8 *) image->linkedit + symtab->symoff;
     strings = (guint8 *) image->linkedit + symtab->stroff;
   }
   else
   {
     GumAddress linkedit;
-    gsize symbol_size;
 
     if (!gum_find_linkedit (image->data, image->size, &linkedit))
       goto beach;
     linkedit += slide;
-
-    symbol_size = (self->pointer_size == 8)
-        ? sizeof (GumNList64)
-        : sizeof (GumNList32);
 
     gum_macho_module_read_and_assign (self, linkedit + symtab->symoff,
         symtab->nsyms * symbol_size, &symbols, NULL, &symbols_malloc_data);
@@ -934,6 +952,7 @@ gum_macho_module_enumerate_symbols (GumMachoModule * self,
   for (symbol_index = 0; symbol_index != symtab->nsyms; symbol_index++)
   {
     GumMachoSymbolDetails details;
+    guint32 name_offset;
     gboolean carry_on;
 
     if (self->pointer_size == 8)
@@ -942,7 +961,7 @@ gum_macho_module_enumerate_symbols (GumMachoModule * self,
 
       symbol = (GumNList64 *) (symbols + (symbol_index * sizeof (GumNList64)));
 
-      details.name = (const gchar *) (strings + symbol->n_strx);
+      name_offset = symbol->n_strx;
       details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
 
       details.type = symbol->n_type;
@@ -955,13 +974,18 @@ gum_macho_module_enumerate_symbols (GumMachoModule * self,
 
       symbol = (GumNList32 *) (symbols + (symbol_index * sizeof (GumNList32)));
 
-      details.name = (const gchar *) (strings + symbol->n_strx);
+      name_offset = symbol->n_strx;
       details.address = (symbol->n_value != 0) ? symbol->n_value + slide : 0;
 
       details.type = symbol->n_type;
       details.section = symbol->n_sect;
       details.description = symbol->n_desc;
     }
+
+    details.name =
+        gum_macho_string_table_lookup (strings, symtab->strsize, name_offset);
+    if (details.name == NULL)
+      continue;
 
     carry_on = func (&details, user_data);
     if (!carry_on)
@@ -971,6 +995,23 @@ gum_macho_module_enumerate_symbols (GumMachoModule * self,
 beach:
   g_free (strings_malloc_data);
   g_free (symbols_malloc_data);
+}
+
+static const gchar *
+gum_macho_string_table_lookup (const guint8 * strings,
+                               gsize size,
+                               guint32 offset)
+{
+  const gchar * str;
+
+  if (offset >= size)
+    return NULL;
+
+  str = (const gchar *) strings + offset;
+  if (memchr (str, '\0', size - offset) == NULL)
+    return NULL;
+
+  return str;
 }
 
 GumAddress
@@ -1384,8 +1425,9 @@ gum_macho_module_enumerate_binds (GumMachoModule * self,
       case GUM_BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM:
         details.symbol_name = (gchar *) p;
         details.symbol_flags = immediate;
-        while (*p != '\0')
-          p++;
+        p = memchr (p, '\0', end - p);
+        if (p == NULL)
+          return;
         p++;
         break;
       case GUM_BIND_OPCODE_SET_TYPE_IMM:
@@ -1543,8 +1585,9 @@ gum_macho_module_enumerate_lazy_binds (GumMachoModule * self,
       case GUM_BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM:
         details.symbol_name = (gchar *) p;
         details.symbol_flags = immediate;
-        while (*p != '\0')
-          p++;
+        p = memchr (p, '\0', end - p);
+        if (p == NULL)
+          return;
         p++;
         break;
       case GUM_BIND_OPCODE_SET_TYPE_IMM:
@@ -2895,9 +2938,9 @@ gum_macho_module_take_image (GumMachoModule * self,
     {
       if (image->linkedit != NULL)
       {
-        self->exports =
-            (const guint8 *) image->linkedit + exports_trie->dataoff;
-        self->exports_end = self->exports + exports_trie->datasize;
+        gum_macho_module_image_resolve_linkedit_range (image,
+            exports_trie->dataoff, exports_trie->datasize,
+            &self->exports, &self->exports_end);
         self->exports_malloc_data = NULL;
       }
       else
@@ -2919,21 +2962,24 @@ gum_macho_module_take_image (GumMachoModule * self,
   }
   else if (image->linkedit != NULL)
   {
-    self->rebases = (const guint8 *) image->linkedit + self->info->rebase_off;
-    self->rebases_end = self->rebases + self->info->rebase_size;
+    gum_macho_module_image_resolve_linkedit_range (image,
+        self->info->rebase_off, self->info->rebase_size,
+        &self->rebases, &self->rebases_end);
     self->rebases_malloc_data = NULL;
 
-    self->binds = (const guint8 *) image->linkedit + self->info->bind_off;
-    self->binds_end = self->binds + self->info->bind_size;
+    gum_macho_module_image_resolve_linkedit_range (image,
+        self->info->bind_off, self->info->bind_size,
+        &self->binds, &self->binds_end);
     self->binds_malloc_data = NULL;
 
-    self->lazy_binds =
-        (const guint8 *) image->linkedit + self->info->lazy_bind_off;
-    self->lazy_binds_end = self->lazy_binds + self->info->lazy_bind_size;
+    gum_macho_module_image_resolve_linkedit_range (image,
+        self->info->lazy_bind_off, self->info->lazy_bind_size,
+        &self->lazy_binds, &self->lazy_binds_end);
     self->lazy_binds_malloc_data = NULL;
 
-    self->exports = (const guint8 *) image->linkedit + self->info->export_off;
-    self->exports_end = self->exports + self->info->export_size;
+    gum_macho_module_image_resolve_linkedit_range (image,
+        self->info->export_off, self->info->export_size,
+        &self->exports, &self->exports_end);
     self->exports_malloc_data = NULL;
   }
   else
@@ -3099,6 +3145,50 @@ gum_macho_module_check_string (const GumLoadCommand * lc,
 {
   return offset < lc->cmdsize &&
       memchr ((const guint8 *) lc + offset, '\0', lc->cmdsize - offset) != NULL;
+}
+
+static void
+gum_macho_module_image_resolve_linkedit_range (
+    const GumMachoModuleImage * image,
+    guint32 offset,
+    guint32 size,
+    const guint8 ** start,
+    const guint8 ** end)
+{
+  if (!gum_macho_module_image_has_linkedit_range (image, offset, size))
+  {
+    *start = NULL;
+    *end = NULL;
+    return;
+  }
+
+  *start = (const guint8 *) image->linkedit + offset;
+  *end = *start + size;
+}
+
+static gboolean
+gum_macho_module_image_has_linkedit_range (const GumMachoModuleImage * image,
+                                           guint64 offset,
+                                           guint64 size)
+{
+  const guint8 * linkedit = image->linkedit;
+  const guint8 * end;
+  guint64 available;
+
+  end = (const guint8 *) image->data + image->size;
+  if (image->bytes != NULL)
+  {
+    const guint8 * bytes_start;
+    gsize bytes_size;
+
+    bytes_start = g_bytes_get_data (image->bytes, &bytes_size);
+    if (linkedit >= bytes_start && linkedit < bytes_start + bytes_size)
+      end = bytes_start + bytes_size;
+  }
+
+  available = end - linkedit;
+
+  return offset <= available && size <= available - offset;
 }
 
 static void

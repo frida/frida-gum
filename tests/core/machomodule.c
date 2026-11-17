@@ -17,8 +17,14 @@
     TESTENTRY_SIMPLE ("Core/MachoModule", test_macho_module, NAME)
 
 #define GUM_TEST_IMAGE_SIZE 0x1000
+#define GUM_TEST_DATA_OFFSET 0x800
+#define GUM_TEST_STRINGS_OFFSET 0x900
 
 TESTLIST_BEGIN (macho_module)
+  TESTENTRY (symbols_with_malformed_names_are_skipped)
+  TESTENTRY (out_of_range_symbol_table_is_ignored)
+  TESTENTRY (out_of_range_export_trie_is_ignored)
+  TESTENTRY (unterminated_bind_symbol_ends_enumeration)
   TESTENTRY (dylib_name_is_read_from_its_offset)
   TESTENTRY (unterminated_dylib_name_is_rejected)
   TESTENTRY (out_of_range_fat_slice_is_rejected)
@@ -27,8 +33,105 @@ TESTLIST_END ()
 static guint8 * gum_test_make_macho_image (void);
 static void gum_test_add_load_command (guint8 * image, gconstpointer command,
     gsize size);
+static void gum_test_add_symtab (guint8 * image, guint32 symoff, guint32 nsyms,
+    guint32 stroff, guint32 strsize);
+static void gum_test_add_exports_trie (guint8 * image, guint32 dataoff,
+    guint32 datasize);
 static GumMachoModule * gum_test_load_macho_image (guint8 * image);
 static GumMachoModule * gum_test_try_load_macho_image (guint8 * image);
+static gboolean gum_test_count_symbol (const GumMachoSymbolDetails * details,
+    gpointer user_data);
+static gboolean gum_test_count_export (const GumMachoExportDetails * details,
+    gpointer user_data);
+static gboolean gum_test_count_bind (const GumMachoBindDetails * details,
+    gpointer user_data);
+
+TESTCASE (symbols_with_malformed_names_are_skipped)
+{
+  const gchar strings[8] = { '\0', '_', 'a', '\0', 'z', 'z', 'z', 'z' };
+  const guint32 name_offsets[] = { 1, 0x100, 4 };
+  guint8 * image;
+  GumNList64 * symbols;
+  guint i;
+  GumMachoModule * module;
+  guint count = 0;
+
+  image = gum_test_make_macho_image ();
+  symbols = (GumNList64 *) (image + GUM_TEST_DATA_OFFSET);
+  for (i = 0; i != G_N_ELEMENTS (name_offsets); i++)
+    symbols[i].n_strx = name_offsets[i];
+  memcpy (image + GUM_TEST_STRINGS_OFFSET, strings, sizeof (strings));
+  gum_test_add_symtab (image, GUM_TEST_DATA_OFFSET,
+      G_N_ELEMENTS (name_offsets), GUM_TEST_STRINGS_OFFSET, sizeof (strings));
+  module = gum_test_load_macho_image (image);
+
+  gum_macho_module_enumerate_symbols (module, gum_test_count_symbol, &count);
+  g_assert_cmpuint (count, ==, 1);
+
+  g_object_unref (module);
+}
+
+TESTCASE (out_of_range_symbol_table_is_ignored)
+{
+  guint8 * image;
+  GumMachoModule * module;
+  guint count = 0;
+
+  image = gum_test_make_macho_image ();
+  gum_test_add_symtab (image, GUM_TEST_IMAGE_SIZE - sizeof (GumNList64), 2,
+      GUM_TEST_STRINGS_OFFSET, 8);
+  module = gum_test_load_macho_image (image);
+
+  gum_macho_module_enumerate_symbols (module, gum_test_count_symbol, &count);
+  g_assert_cmpuint (count, ==, 0);
+
+  g_object_unref (module);
+}
+
+TESTCASE (out_of_range_export_trie_is_ignored)
+{
+  const guint32 trie_offset = GUM_TEST_IMAGE_SIZE - 0x10;
+  guint8 * image;
+  GumMachoModule * module;
+  guint count = 0;
+
+  image = gum_test_make_macho_image ();
+  image[trie_offset + 1] = 1;
+  memset (image + trie_offset + 2, 'x', GUM_TEST_IMAGE_SIZE - trie_offset - 2);
+  gum_test_add_exports_trie (image, trie_offset, 0x100);
+  module = gum_test_load_macho_image (image);
+
+  gum_macho_module_enumerate_exports (module, gum_test_count_export, &count);
+  g_assert_cmpuint (count, ==, 0);
+
+  g_object_unref (module);
+}
+
+TESTCASE (unterminated_bind_symbol_ends_enumeration)
+{
+  const guint8 binds[] = {
+    GUM_BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM, 'a', 'b', 'c',
+  };
+  const guint32 binds_offset = GUM_TEST_IMAGE_SIZE - sizeof (binds);
+  guint8 * image;
+  GumDyldInfoCommand info = { 0, };
+  GumMachoModule * module;
+  guint count = 0;
+
+  image = gum_test_make_macho_image ();
+  memcpy (image + binds_offset, binds, sizeof (binds));
+  info.cmd = GUM_LC_DYLD_INFO_ONLY;
+  info.cmdsize = sizeof (info);
+  info.bind_off = binds_offset;
+  info.bind_size = sizeof (binds);
+  gum_test_add_load_command (image, &info, sizeof (info));
+  module = gum_test_load_macho_image (image);
+
+  gum_macho_module_enumerate_binds (module, gum_test_count_bind, &count);
+  g_assert_cmpuint (count, ==, 0);
+
+  g_object_unref (module);
+}
 
 TESTCASE (dylib_name_is_read_from_its_offset)
 {
@@ -142,6 +245,40 @@ gum_test_add_load_command (guint8 * image,
   header->sizeofcmds += size;
 }
 
+static void
+gum_test_add_symtab (guint8 * image,
+                     guint32 symoff,
+                     guint32 nsyms,
+                     guint32 stroff,
+                     guint32 strsize)
+{
+  GumSymtabCommand symtab = { 0, };
+
+  symtab.cmd = GUM_LC_SYMTAB;
+  symtab.cmdsize = sizeof (symtab);
+  symtab.symoff = symoff;
+  symtab.nsyms = nsyms;
+  symtab.stroff = stroff;
+  symtab.strsize = strsize;
+
+  gum_test_add_load_command (image, &symtab, sizeof (symtab));
+}
+
+static void
+gum_test_add_exports_trie (guint8 * image,
+                           guint32 dataoff,
+                           guint32 datasize)
+{
+  GumLinkeditDataCommand trie = { 0, };
+
+  trie.cmd = GUM_LC_DYLD_EXPORTS_TRIE;
+  trie.cmdsize = sizeof (trie);
+  trie.dataoff = dataoff;
+  trie.datasize = datasize;
+
+  gum_test_add_load_command (image, &trie, sizeof (trie));
+}
+
 static GumMachoModule *
 gum_test_load_macho_image (guint8 * image)
 {
@@ -165,4 +302,38 @@ gum_test_try_load_macho_image (guint8 * image)
   g_bytes_unref (blob);
 
   return module;
+}
+
+static gboolean
+gum_test_count_symbol (const GumMachoSymbolDetails * details,
+                       gpointer user_data)
+{
+  guint * count = user_data;
+
+  g_assert_cmpstr (details->name, ==, "_a");
+  (*count)++;
+
+  return TRUE;
+}
+
+static gboolean
+gum_test_count_export (const GumMachoExportDetails * details,
+                       gpointer user_data)
+{
+  guint * count = user_data;
+
+  (*count)++;
+
+  return TRUE;
+}
+
+static gboolean
+gum_test_count_bind (const GumMachoBindDetails * details,
+                     gpointer user_data)
+{
+  guint * count = user_data;
+
+  (*count)++;
+
+  return TRUE;
 }
