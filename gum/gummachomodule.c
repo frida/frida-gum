@@ -153,6 +153,9 @@ static gboolean gum_macho_module_can_load (GumMachoModule * self,
     GumMachoCpuType cpu_type, GumMachoCpuSubtype cpu_subtype);
 static gboolean gum_macho_module_take_image (GumMachoModule * self,
     GumMachoModuleImage * image, GError ** error);
+static gboolean gum_macho_module_check_load_commands (
+    const GumMachoModuleImage * image);
+static gboolean gum_macho_module_check_segment (const GumLoadCommand * lc);
 static gboolean gum_macho_module_get_header_offset_size (
     GumMachoModule * self, gpointer data, gsize data_size, gsize * out_offset,
     gsize * out_size, GError ** error);
@@ -2446,8 +2449,13 @@ gum_macho_module_load_image_from_blob (GumMachoModule * self,
       found = gum_macho_module_can_load (self, cpu_type, cpu_subtype);
       if (found)
       {
-        data = blob_start + GUINT32_FROM_BE (fat_arch->offset);
+        guint32 offset = GUINT32_FROM_BE (fat_arch->offset);
+
         size = GUINT32_FROM_BE (fat_arch->size);
+        if (offset > blob_size || size > blob_size - offset)
+          goto invalid_blob;
+
+        data = blob_start + offset;
       }
     }
 
@@ -2630,6 +2638,9 @@ gum_macho_module_take_image (GumMachoModule * self,
   self->image = image;
 
   header = (GumMachHeader32 *) image->data;
+
+  if (!gum_macho_module_check_load_commands (image))
+    goto beach;
 
   self->filetype = header->filetype;
 
@@ -2924,6 +2935,75 @@ beach:
   }
 
   return success;
+}
+
+static gboolean
+gum_macho_module_check_load_commands (const GumMachoModuleImage * image)
+{
+  const GumMachHeader32 * header = image->data;
+  gsize header_size;
+  gboolean is_local_memory;
+  const guint8 * cursor, * end;
+  guint32 i;
+
+  header_size = (header->magic == GUM_MH_MAGIC_32)
+      ? sizeof (GumMachHeader32)
+      : sizeof (GumMachHeader64);
+
+  is_local_memory = image->bytes == NULL && image->malloc_data == NULL;
+  if (!is_local_memory &&
+      (header_size > image->size ||
+       header->sizeofcmds > image->size - header_size))
+  {
+    return FALSE;
+  }
+
+  cursor = (const guint8 *) image->data + header_size;
+  end = cursor + header->sizeofcmds;
+
+  for (i = 0; i != header->ncmds; i++)
+  {
+    const GumLoadCommand * lc = (const GumLoadCommand *) cursor;
+
+    if ((gsize) (end - cursor) < sizeof (GumLoadCommand))
+      return FALSE;
+    if (lc->cmdsize < sizeof (GumLoadCommand) ||
+        lc->cmdsize > (gsize) (end - cursor))
+    {
+      return FALSE;
+    }
+
+    if ((lc->cmd == GUM_LC_SEGMENT_32 || lc->cmd == GUM_LC_SEGMENT_64) &&
+        !gum_macho_module_check_segment (lc))
+    {
+      return FALSE;
+    }
+
+    cursor += lc->cmdsize;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_macho_module_check_segment (const GumLoadCommand * lc)
+{
+  if (lc->cmd == GUM_LC_SEGMENT_32)
+  {
+    const GumSegmentCommand32 * sc = (const GumSegmentCommand32 *) lc;
+
+    return lc->cmdsize >= sizeof (GumSegmentCommand32) &&
+        sc->nsects <= (lc->cmdsize - sizeof (GumSegmentCommand32)) /
+            sizeof (GumSection32);
+  }
+  else
+  {
+    const GumSegmentCommand64 * sc = (const GumSegmentCommand64 *) lc;
+
+    return lc->cmdsize >= sizeof (GumSegmentCommand64) &&
+        sc->nsects <= (lc->cmdsize - sizeof (GumSegmentCommand64)) /
+            sizeof (GumSection64);
+  }
 }
 
 static void
