@@ -23,6 +23,8 @@
 TESTLIST_BEGIN (macho_module)
   TESTENTRY (symbols_with_malformed_names_are_skipped)
   TESTENTRY (out_of_range_symbol_table_is_ignored)
+  TESTENTRY (cyclic_export_trie_is_visited_once)
+  TESTENTRY (malformed_export_trie_is_ignored)
   TESTENTRY (out_of_range_export_trie_is_ignored)
   TESTENTRY (unterminated_bind_symbol_ends_enumeration)
   TESTENTRY (rebase_repeats_stay_within_segment)
@@ -87,6 +89,58 @@ TESTCASE (out_of_range_symbol_table_is_ignored)
 
   gum_macho_module_enumerate_symbols (module, gum_test_count_symbol, &count);
   g_assert_cmpuint (count, ==, 0);
+
+  g_object_unref (module);
+}
+
+TESTCASE (cyclic_export_trie_is_visited_once)
+{
+  const guint8 trie[] = {
+    0x00, 0x01, '_', 'a', '\0', 0x06,
+    0x02, 0x00, 0x10, 0x01, 'b', '\0', 0x06,
+  };
+  guint8 * image;
+  GumMachoModule * module;
+  guint count = 0;
+  GumMachoExportDetails details;
+
+  image = gum_test_make_macho_image ();
+  memcpy (image + GUM_TEST_DATA_OFFSET, trie, sizeof (trie));
+  gum_test_add_exports_trie (image, GUM_TEST_DATA_OFFSET, sizeof (trie));
+  module = gum_test_load_macho_image (image);
+
+  gum_macho_module_enumerate_exports (module, gum_test_count_export, &count);
+  g_assert_cmpuint (count, ==, 1);
+
+  g_assert_true (gum_macho_module_resolve_export (module, "_a", &details));
+  g_assert_cmpuint (details.offset, ==, 0x10);
+  g_assert_false (gum_macho_module_resolve_export (module, "_ac", &details));
+
+  g_object_unref (module);
+}
+
+TESTCASE (malformed_export_trie_is_ignored)
+{
+  const guint8 trie[] = {
+    0x00, 0x02, '_', 'a', '\0', 0x40,
+    '_', 'b',
+  };
+  guint8 * image;
+  GumMachoModule * module;
+  guint count = 0;
+  GumMachoExportDetails details;
+
+  image = gum_test_make_macho_image ();
+  memcpy (image + GUM_TEST_DATA_OFFSET, trie, sizeof (trie));
+  memset (image + GUM_TEST_DATA_OFFSET + sizeof (trie), 'c', 16);
+  gum_test_add_exports_trie (image, GUM_TEST_DATA_OFFSET, sizeof (trie));
+  module = gum_test_load_macho_image (image);
+
+  gum_macho_module_enumerate_exports (module, gum_test_count_export, &count);
+  g_assert_cmpuint (count, ==, 0);
+
+  g_assert_false (gum_macho_module_resolve_export (module, "_a", &details));
+  g_assert_false (gum_macho_module_resolve_export (module, "_b", &details));
 
   g_object_unref (module);
 }

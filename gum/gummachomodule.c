@@ -32,6 +32,7 @@ typedef struct _GumEmitInitOffsetsContext GumEmitInitOffsetsContext;
 typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
 
 typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
+typedef struct _GumExportsTrieCursor GumExportsTrieCursor;
 typedef struct _GumPageAllocation GumPageAllocation;
 
 enum
@@ -112,6 +113,13 @@ struct _GumExportsTrieForeachContext
   const guint8 * exports_end;
 };
 
+struct _GumExportsTrieCursor
+{
+  const guint8 * next_child;
+  guint remaining_children;
+  gsize prefix_length;
+};
+
 struct _GumPageAllocation
 {
   GumMemoryRange range;
@@ -190,12 +198,23 @@ static gboolean gum_exports_trie_foreach (const guint8 * exports,
 static gboolean gum_exports_trie_foreach_with_prefix (const guint8 * exports,
     const guint8 * exports_end, const gchar * prefix,
     GumFoundMachoExportFunc func, gpointer user_data);
-static gboolean gum_exports_trie_traverse (const guint8 * p,
+static gboolean gum_exports_trie_traverse (const guint8 * root,
     GumExportsTrieForeachContext * ctx);
+static gboolean gum_exports_trie_visit (const guint8 * node,
+    GumExportsTrieForeachContext * ctx, GHashTable * visited,
+    GumExportsTrieCursor * cursor, gboolean * carry_on);
+static gboolean gum_exports_trie_read_node (const guint8 * node,
+    const guint8 * exports_end, const guint8 ** terminal,
+    const guint8 ** terminal_end, guint8 * child_count,
+    const guint8 ** children);
+static gboolean gum_exports_trie_read_edge (const guint8 ** p,
+    const guint8 * exports_end, const gchar ** edge, gsize * length);
+static const guint8 * gum_exports_trie_read_child (const guint8 ** p,
+    const guint8 * exports, const guint8 * exports_end);
 
-static void gum_macho_export_details_init_from_node (
-    GumMachoExportDetails * details, const gchar * name, const guint8 * node,
-    const guint8 * exports_end);
+static gboolean gum_macho_export_details_init_from_node (
+    GumMachoExportDetails * details, const gchar * name,
+    const guint8 * terminal, const guint8 * terminal_end);
 
 static void gum_macho_module_enumerate_chained_binds (GumMachoModule * self,
     GumFoundMachoBindFunc func, gpointer user_data);
@@ -3419,67 +3438,54 @@ gum_exports_trie_find (const guint8 * exports,
                        GumMachoExportDetails * details)
 {
   const gchar * s;
-  const guint8 * p;
+  const guint8 * node;
 
   if (exports == exports_end)
     return FALSE;
 
   s = name;
-  p = exports;
-  while (p != NULL)
+  node = exports;
+  while (node != NULL)
   {
-    gint64 terminal_size;
-    const guint8 * children;
-    guint8 child_count, i;
-    guint64 node_offset;
+    const guint8 * terminal, * terminal_end;
+    guint8 child_count;
+    const guint8 * p, * next;
+    guint8 i;
 
-    terminal_size = gum_read_uleb128 (&p, exports_end);
-
-    if (*s == '\0' && terminal_size != 0)
+    if (!gum_exports_trie_read_node (node, exports_end, &terminal,
+        &terminal_end, &child_count, &p))
     {
-      gum_macho_export_details_init_from_node (details, name, p, exports_end);
-      return TRUE;
+      return FALSE;
     }
 
-    children = p + terminal_size;
-    child_count = *children++;
-    p = children;
-    node_offset = 0;
+    if (*s == '\0' && terminal != terminal_end)
+    {
+      return gum_macho_export_details_init_from_node (details, name, terminal,
+          terminal_end);
+    }
+
+    next = NULL;
     for (i = 0; i != child_count; i++)
     {
-      const gchar * symbol_cur;
+      const gchar * edge;
+      gsize edge_length;
       gboolean matching_edge;
 
-      symbol_cur = s;
-      matching_edge = TRUE;
-      while (*p != '\0')
-      {
-        if (matching_edge)
-        {
-          if (*p != *symbol_cur)
-            matching_edge = FALSE;
-          symbol_cur++;
-        }
-        p++;
-      }
-      p++;
+      if (!gum_exports_trie_read_edge (&p, exports_end, &edge, &edge_length))
+        return FALSE;
 
+      matching_edge = edge_length != 0 && strncmp (edge, s, edge_length) == 0;
       if (matching_edge)
       {
-        node_offset = gum_read_uleb128 (&p, exports_end);
-        s = symbol_cur;
+        next = gum_exports_trie_read_child (&p, exports, exports_end);
+        s += edge_length;
         break;
       }
-      else
-      {
-        gum_skip_leb128 (&p, exports_end);
-      }
+
+      gum_skip_leb128 (&p, exports_end);
     }
 
-    if (node_offset != 0)
-      p = exports + node_offset;
-    else
-      p = NULL;
+    node = next;
   }
 
   return FALSE;
@@ -3521,7 +3527,7 @@ gum_exports_trie_foreach_with_prefix (const guint8 * exports,
   GumExportsTrieForeachContext ctx;
   gboolean carry_on;
   const gchar * s;
-  const guint8 * p;
+  const guint8 * node;
 
   if (exports == exports_end)
     return TRUE;
@@ -3536,55 +3542,48 @@ gum_exports_trie_foreach_with_prefix (const guint8 * exports,
   carry_on = TRUE;
 
   s = prefix;
-  p = exports;
-  while (p != NULL)
+  node = exports;
+  while (node != NULL)
   {
-    guint64 terminal_size;
-    guint8 child_count, i;
-    const guint8 * child;
+    const guint8 * terminal, * terminal_end;
+    guint8 child_count;
+    const guint8 * p, * next;
+    guint8 i;
 
     if (*s == '\0')
     {
-      carry_on = gum_exports_trie_traverse (p, &ctx);
+      carry_on = gum_exports_trie_traverse (node, &ctx);
       break;
     }
 
-    terminal_size = gum_read_uleb128 (&p, exports_end);
-    p += terminal_size;
-    child_count = *p++;
-    child = NULL;
-    for (i = 0; i != child_count && child == NULL; i++)
+    if (!gum_exports_trie_read_node (node, exports_end, &terminal,
+        &terminal_end, &child_count, &p))
     {
-      const guint8 * edge = p;
-      const gchar * symbol_cur = s;
-      gboolean matching_edge = TRUE;
-
-      while (*p != '\0')
-      {
-        if (matching_edge && *symbol_cur != '\0')
-        {
-          if (*p != *symbol_cur)
-            matching_edge = FALSE;
-          symbol_cur++;
-        }
-        p++;
-      }
-      p++;
-
-      if (matching_edge)
-      {
-        g_string_append_len (ctx.prefix, (const gchar *) edge,
-            (p - 1) - edge);
-        child = exports + gum_read_uleb128 (&p, exports_end);
-        s = symbol_cur;
-      }
-      else
-      {
-        gum_skip_leb128 (&p, exports_end);
-      }
+      break;
     }
 
-    p = child;
+    next = NULL;
+    for (i = 0; i != child_count; i++)
+    {
+      const gchar * edge;
+      gsize edge_length, prefix_length;
+
+      if (!gum_exports_trie_read_edge (&p, exports_end, &edge, &edge_length))
+        break;
+
+      prefix_length = MIN (edge_length, strlen (s));
+      if (edge_length != 0 && strncmp (edge, s, prefix_length) == 0)
+      {
+        g_string_append_len (ctx.prefix, edge, edge_length);
+        next = gum_exports_trie_read_child (&p, exports, exports_end);
+        s += prefix_length;
+        break;
+      }
+
+      gum_skip_leb128 (&p, exports_end);
+    }
+
+    node = next;
   }
 
   g_string_free (ctx.prefix, TRUE);
@@ -3593,78 +3592,178 @@ gum_exports_trie_foreach_with_prefix (const guint8 * exports,
 }
 
 static gboolean
-gum_exports_trie_traverse (const guint8 * p,
+gum_exports_trie_traverse (const guint8 * root,
                            GumExportsTrieForeachContext * ctx)
 {
-  GString * prefix = ctx->prefix;
-  const guint8 * exports = ctx->exports;
-  const guint8 * exports_end = ctx->exports_end;
-  gboolean carry_on;
+  gboolean carry_on = TRUE;
+  GHashTable * visited;
+  GArray * pending;
+  GumExportsTrieCursor cursor;
+
+  visited = g_hash_table_new (NULL, NULL);
+  pending = g_array_new (FALSE, FALSE, sizeof (GumExportsTrieCursor));
+
+  if (!gum_exports_trie_visit (root, ctx, visited, &cursor, &carry_on))
+    goto beach;
+  g_array_append_val (pending, cursor);
+
+  while (carry_on && pending->len != 0)
+  {
+    GumExportsTrieCursor * top;
+    const gchar * edge;
+    gsize edge_length;
+    const guint8 * child;
+
+    top = &g_array_index (pending, GumExportsTrieCursor, pending->len - 1);
+    if (top->remaining_children == 0 ||
+        !gum_exports_trie_read_edge (&top->next_child, ctx->exports_end,
+            &edge, &edge_length))
+    {
+      g_array_set_size (pending, pending->len - 1);
+      continue;
+    }
+    top->remaining_children--;
+
+    g_string_truncate (ctx->prefix, top->prefix_length);
+    g_string_append_len (ctx->prefix, edge, edge_length);
+
+    child = gum_exports_trie_read_child (&top->next_child, ctx->exports,
+        ctx->exports_end);
+    if (child == NULL)
+      continue;
+
+    if (gum_exports_trie_visit (child, ctx, visited, &cursor, &carry_on))
+      g_array_append_val (pending, cursor);
+  }
+
+beach:
+  g_array_free (pending, TRUE);
+  g_hash_table_unref (visited);
+
+  return carry_on;
+}
+
+static gboolean
+gum_exports_trie_visit (const guint8 * node,
+                        GumExportsTrieForeachContext * ctx,
+                        GHashTable * visited,
+                        GumExportsTrieCursor * cursor,
+                        gboolean * carry_on)
+{
+  const guint8 * terminal, * terminal_end;
+  guint8 child_count;
+  GumMachoExportDetails details;
+
+  if (!g_hash_table_add (visited, (gpointer) node))
+    return FALSE;
+
+  if (!gum_exports_trie_read_node (node, ctx->exports_end, &terminal,
+      &terminal_end, &child_count, &cursor->next_child))
+  {
+    return FALSE;
+  }
+  cursor->remaining_children = child_count;
+  cursor->prefix_length = ctx->prefix->len;
+
+  if (terminal != terminal_end &&
+      gum_macho_export_details_init_from_node (&details, ctx->prefix->str,
+          terminal, terminal_end))
+  {
+    *carry_on = ctx->func (&details, ctx->user_data);
+  }
+
+  return *carry_on;
+}
+
+static gboolean
+gum_exports_trie_read_node (const guint8 * node,
+                            const guint8 * exports_end,
+                            const guint8 ** terminal,
+                            const guint8 ** terminal_end,
+                            guint8 * child_count,
+                            const guint8 ** children)
+{
+  const guint8 * p = node;
   guint64 terminal_size;
-  guint8 child_count, i;
 
   terminal_size = gum_read_uleb128 (&p, exports_end);
-  if (terminal_size != 0)
-  {
-    GumMachoExportDetails details;
+  if (terminal_size >= (guint64) (exports_end - p))
+    return FALSE;
 
-    gum_macho_export_details_init_from_node (&details, prefix->str, p,
-        exports_end);
-
-    carry_on = ctx->func (&details, ctx->user_data);
-    if (!carry_on)
-      return FALSE;
-  }
-
-  p += terminal_size;
-  child_count = *p++;
-  for (i = 0; i != child_count; i++)
-  {
-    gsize length = 0;
-
-    while (*p != '\0')
-    {
-      g_string_append_c (prefix, *p++);
-      length++;
-    }
-    p++;
-
-    carry_on = gum_exports_trie_traverse (
-        exports + gum_read_uleb128 (&p, exports_end),
-        ctx);
-    if (!carry_on)
-      return FALSE;
-
-    g_string_truncate (prefix, prefix->len - length);
-  }
+  *terminal = p;
+  *terminal_end = p + terminal_size;
+  *child_count = **terminal_end;
+  *children = *terminal_end + 1;
 
   return TRUE;
 }
 
-static void
+static gboolean
+gum_exports_trie_read_edge (const guint8 ** p,
+                            const guint8 * exports_end,
+                            const gchar ** edge,
+                            gsize * length)
+{
+  const guint8 * terminator;
+
+  terminator = memchr (*p, '\0', exports_end - *p);
+  if (terminator == NULL)
+    return FALSE;
+
+  *edge = (const gchar *) *p;
+  *length = terminator - *p;
+  *p = terminator + 1;
+
+  return TRUE;
+}
+
+static const guint8 *
+gum_exports_trie_read_child (const guint8 ** p,
+                             const guint8 * exports,
+                             const guint8 * exports_end)
+{
+  guint64 offset;
+
+  offset = gum_read_uleb128 (p, exports_end);
+  if (offset == 0 || offset >= (guint64) (exports_end - exports))
+    return NULL;
+
+  return exports + offset;
+}
+
+static gboolean
 gum_macho_export_details_init_from_node (GumMachoExportDetails * details,
                                          const gchar * name,
-                                         const guint8 * node,
-                                         const guint8 * exports_end)
+                                         const guint8 * terminal,
+                                         const guint8 * terminal_end)
 {
-  const guint8 * p = node;
+  const guint8 * p = terminal;
 
   details->name = name;
-  details->flags = gum_read_uleb128 (&p, exports_end);
+  details->flags = gum_read_uleb128 (&p, terminal_end);
   if ((details->flags & GUM_EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
   {
-    details->reexport_library_ordinal = gum_read_uleb128 (&p, exports_end);
-    details->reexport_symbol = (*p != '\0') ? (gchar *) p : name;
+    const guint8 * reexport_symbol;
+
+    details->reexport_library_ordinal = gum_read_uleb128 (&p, terminal_end);
+
+    reexport_symbol = p;
+    if (memchr (reexport_symbol, '\0', terminal_end - reexport_symbol) == NULL)
+      return FALSE;
+    details->reexport_symbol =
+        (*reexport_symbol != '\0') ? (const gchar *) reexport_symbol : name;
   }
   else if ((details->flags & GUM_EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
   {
-    details->stub = gum_read_uleb128 (&p, exports_end);
-    details->resolver = gum_read_uleb128 (&p, exports_end);
+    details->stub = gum_read_uleb128 (&p, terminal_end);
+    details->resolver = gum_read_uleb128 (&p, terminal_end);
   }
   else
   {
-    details->offset = gum_read_uleb128 (&p, exports_end);
+    details->offset = gum_read_uleb128 (&p, terminal_end);
   }
+
+  return TRUE;
 }
 
 static GumCpuType
