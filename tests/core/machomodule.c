@@ -28,12 +28,14 @@ TESTLIST_BEGIN (macho_module)
   TESTENTRY (out_of_range_export_trie_is_ignored)
   TESTENTRY (unterminated_bind_symbol_ends_enumeration)
   TESTENTRY (rebase_repeats_stay_within_segment)
+  TESTENTRY (out_of_range_function_starts_are_skipped)
   TESTENTRY (dylib_name_is_read_from_its_offset)
   TESTENTRY (unterminated_dylib_name_is_rejected)
   TESTENTRY (out_of_range_fat_slice_is_rejected)
 TESTLIST_END ()
 
 static guint8 * gum_test_make_macho_image (void);
+static void gum_test_add_segment (guint8 * image, const gchar * name);
 static void gum_test_add_load_command (guint8 * image, gconstpointer command,
     gsize size);
 static void gum_test_add_symtab (guint8 * image, guint32 symoff, guint32 nsyms,
@@ -50,6 +52,8 @@ static gboolean gum_test_count_bind (const GumMachoBindDetails * details,
     gpointer user_data);
 static gboolean gum_test_count_rebase (const GumMachoRebaseDetails * details,
     gpointer user_data);
+static gboolean gum_test_count_function_starts (
+    const GumMachoFunctionStartsDetails * details, gpointer user_data);
 
 TESTCASE (symbols_with_malformed_names_are_skipped)
 {
@@ -216,6 +220,37 @@ TESTCASE (rebase_repeats_stay_within_segment)
   g_object_unref (module);
 }
 
+TESTCASE (out_of_range_function_starts_are_skipped)
+{
+  const guint32 ranges[][2] = {
+    { GUM_TEST_DATA_OFFSET, 4 },
+    { GUM_TEST_IMAGE_SIZE - 4, 8 },
+  };
+  guint8 * image;
+  guint i;
+  GumMachoModule * module;
+  guint count = 0;
+
+  image = gum_test_make_macho_image ();
+  for (i = 0; i != G_N_ELEMENTS (ranges); i++)
+  {
+    GumLinkeditDataCommand starts = { 0, };
+
+    starts.cmd = GUM_LC_FUNCTION_STARTS;
+    starts.cmdsize = sizeof (starts);
+    starts.dataoff = ranges[i][0];
+    starts.datasize = ranges[i][1];
+    gum_test_add_load_command (image, &starts, sizeof (starts));
+  }
+  module = gum_test_load_macho_image (image);
+
+  gum_macho_module_enumerate_function_starts (module,
+      gum_test_count_function_starts, &count);
+  g_assert_cmpuint (count, ==, 1);
+
+  g_object_unref (module);
+}
+
 TESTCASE (dylib_name_is_read_from_its_offset)
 {
   guint8 command[sizeof (GumDylibCommand) + 16] = { 0, };
@@ -296,7 +331,6 @@ gum_test_make_macho_image (void)
 {
   guint8 * image;
   GumMachHeader64 * header;
-  GumSegmentCommand64 text = { 0, };
 
   image = g_malloc0 (GUM_TEST_IMAGE_SIZE);
 
@@ -305,14 +339,25 @@ gum_test_make_macho_image (void)
   header->cputype = GUM_MACHO_CPU_ARM64;
   header->filetype = GUM_MH_EXECUTE;
 
-  text.cmd = GUM_LC_SEGMENT_64;
-  text.cmdsize = sizeof (text);
-  strcpy (text.segname, "__TEXT");
-  text.vmsize = GUM_TEST_IMAGE_SIZE;
-  text.filesize = GUM_TEST_IMAGE_SIZE;
-  gum_test_add_load_command (image, &text, sizeof (text));
+  gum_test_add_segment (image, "__TEXT");
+  gum_test_add_segment (image, "__LINKEDIT");
 
   return image;
+}
+
+static void
+gum_test_add_segment (guint8 * image,
+                      const gchar * name)
+{
+  GumSegmentCommand64 segment = { 0, };
+
+  segment.cmd = GUM_LC_SEGMENT_64;
+  segment.cmdsize = sizeof (segment);
+  strcpy (segment.segname, name);
+  segment.vmsize = GUM_TEST_IMAGE_SIZE;
+  segment.filesize = GUM_TEST_IMAGE_SIZE;
+
+  gum_test_add_load_command (image, &segment, sizeof (segment));
 }
 
 static void
@@ -427,6 +472,18 @@ gum_test_count_rebase (const GumMachoRebaseDetails * details,
 {
   guint * count = user_data;
 
+  (*count)++;
+
+  return TRUE;
+}
+
+static gboolean
+gum_test_count_function_starts (const GumMachoFunctionStartsDetails * details,
+                                gpointer user_data)
+{
+  guint * count = user_data;
+
+  g_assert_cmpuint (details->file_offset, ==, GUM_TEST_DATA_OFFSET);
   (*count)++;
 
   return TRUE;

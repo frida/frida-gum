@@ -185,6 +185,8 @@ static gboolean gum_find_linkedit (const guint8 * module, gsize module_size,
     GumAddress * linkedit);
 static gboolean gum_macho_module_section_data_is_valid (
     GumMachoModule * self, const GumMachoSectionDetails * details);
+static gboolean gum_macho_module_image_has_linkedit_data (
+    const GumMachoModuleImage * image, const GumLinkeditDataCommand * data);
 static gboolean gum_add_text_range_if_text_section (
     const GumMachoSectionDetails * details, gpointer user_data);
 static gboolean gum_section_flags_indicate_text_section (guint32 flags);
@@ -1235,7 +1237,8 @@ gum_macho_module_enumerate_chained_fixups (
   {
     const GumLoadCommand * lc = command;
 
-    if (lc->cmd == GUM_LC_DYLD_CHAINED_FIXUPS)
+    if (lc->cmd == GUM_LC_DYLD_CHAINED_FIXUPS &&
+        gum_macho_module_image_has_linkedit_data (image, command))
     {
       const GumLinkeditDataCommand * fixups = command;
       GumAddress linkedit;
@@ -1256,6 +1259,17 @@ gum_macho_module_enumerate_chained_fixups (
 
     command = (const guint8 *) command + lc->cmdsize;
   }
+}
+
+static gboolean
+gum_macho_module_image_has_linkedit_data (const GumMachoModuleImage * image,
+                                          const GumLinkeditDataCommand * data)
+{
+  if (image->linkedit == NULL)
+    return TRUE;
+
+  return gum_macho_module_image_has_linkedit_range (image, data->dataoff,
+      data->datasize);
 }
 
 /**
@@ -2147,7 +2161,8 @@ gum_macho_module_enumerate_function_starts (
   {
     const GumLoadCommand * lc = command;
 
-    if (lc->cmd == GUM_LC_FUNCTION_STARTS)
+    if (lc->cmd == GUM_LC_FUNCTION_STARTS &&
+        gum_macho_module_image_has_linkedit_data (image, command))
     {
       const GumLinkeditDataCommand * starts = command;
       GumAddress linkedit;
