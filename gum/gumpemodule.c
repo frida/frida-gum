@@ -663,11 +663,18 @@ gum_pe_module_get_directory (GumPeModule * self,
 
 gconstpointer
 gum_pe_module_get_data_at_rva (GumPeModule * self,
-                               guint32 rva)
+                               guint32 rva,
+                               gsize * size)
 {
+  gconstpointer data;
   gsize available;
 
-  return gum_pe_module_resolve_rva (self, rva, &available);
+  data = gum_pe_module_resolve_rva (self, rva, &available);
+
+  if (size != NULL)
+    *size = available;
+
+  return data;
 }
 
 void

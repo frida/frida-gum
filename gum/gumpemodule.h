@@ -161,7 +161,7 @@ GUM_API GumPeSourceMode gum_pe_module_get_source_mode (GumPeModule * self);
 GUM_API const GumPeDataDirectory * gum_pe_module_get_directory (
     GumPeModule * self, GumPeDirectoryIndex index);
 GUM_API gconstpointer gum_pe_module_get_data_at_rva (GumPeModule * self,
-    guint32 rva);
+    guint32 rva, gsize * size);
 
 GUM_API void gum_pe_module_enumerate_sections (GumPeModule * self,
     GumFoundPeSectionFunc func, gpointer user_data);

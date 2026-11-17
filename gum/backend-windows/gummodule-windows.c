@@ -671,7 +671,7 @@ gum_native_module_file_matches_image (GumNativeModule * self)
   const IMAGE_NT_HEADERS * nt;
   IMAGE_FILE_HEADER image_header;
 
-  dos = gum_pe_module_get_data_at_rva (self->pe, 0);
+  dos = gum_pe_module_get_data_at_rva (self->pe, 0, NULL);
   nt = (const IMAGE_NT_HEADERS *) ((const guint8 *) dos + dos->e_lfanew);
 
   if (!ReadProcessMemory (self->process,

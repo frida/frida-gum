@@ -1188,7 +1188,7 @@ gum_pe_mapper_copy_image (GumPeMapper * self)
   GumPeModule * module = self->module;
   guint8 * image = GUM_PE_STAGED (self, self->image_address);
 
-  memcpy (image, gum_pe_module_get_data_at_rva (module, 0),
+  memcpy (image, gum_pe_module_get_data_at_rva (module, 0, NULL),
       gum_pe_module_get_size_of_headers (module));
 
   gum_pe_module_enumerate_sections (module, gum_copy_section, self);
@@ -1199,15 +1199,17 @@ gum_copy_section (const GumPeSectionDetails * details,
                   gpointer user_data)
 {
   GumPeMapper * self = user_data;
-  gconstpointer source;
   guint8 * image = GUM_PE_STAGED (self, self->image_address);
+  gconstpointer source;
+  gsize available;
 
   if (details->raw_data_size == 0)
     return TRUE;
 
   source = gum_pe_module_get_data_at_rva (self->module,
-      details->virtual_address);
-  memcpy (image + details->virtual_address, source, details->raw_data_size);
+      details->virtual_address, &available);
+  memcpy (image + details->virtual_address, source,
+      MIN (details->raw_data_size, available));
 
   return TRUE;
 }
@@ -1976,7 +1978,7 @@ gum_resolve_wowa64_dispatch_slots (GumPeModule * ntdll,
   const GumPeChpeMetadataX86 * metadata;
 
   metadata = gum_pe_module_get_data_at_rva (ntdll,
-      gum_pe_module_get_chpe_metadata_rva (ntdll));
+      gum_pe_module_get_chpe_metadata_rva (ntdll), NULL);
 
   gum_dispatch_icall_slot =
       base + metadata->dispatch_indirect_call_function_pointer;

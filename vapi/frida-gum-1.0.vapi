@@ -1018,7 +1018,8 @@ namespace Gum {
 		public Gum.PeSourceMode source_mode { get; }
 
 		public unowned Gum.PeDataDirectory? get_directory (Gum.PeDirectoryIndex index);
-		public void * get_data_at_rva (uint32 rva);
+		[CCode (array_length_pos = 1.1, array_length_type = "gsize")]
+		public unowned uint8[]? get_data_at_rva (uint32 rva);
 
 		public void enumerate_sections (Gum.FoundPeSectionFunc func);
 		public void enumerate_relocations (Gum.FoundPeRelocationFunc func);
