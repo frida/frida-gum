@@ -31,6 +31,7 @@ TESTLIST_BEGIN (macho_module)
   TESTENTRY (out_of_range_function_starts_are_skipped)
   TESTENTRY (dylib_name_is_read_from_its_offset)
   TESTENTRY (unterminated_dylib_name_is_rejected)
+  TESTENTRY (wrapping_segment_is_rejected)
   TESTENTRY (out_of_range_fat_slice_is_rejected)
 TESTLIST_END ()
 
@@ -286,6 +287,19 @@ TESTCASE (unterminated_dylib_name_is_rejected)
 
   image = gum_test_make_macho_image ();
   gum_test_add_load_command (image, command, sizeof (command));
+
+  g_assert_null (gum_test_try_load_macho_image (image));
+}
+
+TESTCASE (wrapping_segment_is_rejected)
+{
+  guint8 * image;
+  GumSegmentCommand64 * text;
+
+  image = gum_test_make_macho_image ();
+  text = (GumSegmentCommand64 *) (image + sizeof (GumMachHeader64));
+  text->vmaddr = 0x1000;
+  text->vmsize = G_MAXUINT64;
 
   g_assert_null (gum_test_try_load_macho_image (image));
 }

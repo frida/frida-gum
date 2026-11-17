@@ -3167,7 +3167,8 @@ gum_macho_module_check_segment (const GumLoadCommand * lc)
 
     return lc->cmdsize >= sizeof (GumSegmentCommand32) &&
         sc->nsects <= (lc->cmdsize - sizeof (GumSegmentCommand32)) /
-            sizeof (GumSection32);
+            sizeof (GumSection32) &&
+        sc->vmsize <= G_MAXUINT32 - sc->vmaddr;
   }
   else
   {
@@ -3175,7 +3176,8 @@ gum_macho_module_check_segment (const GumLoadCommand * lc)
 
     return lc->cmdsize >= sizeof (GumSegmentCommand64) &&
         sc->nsects <= (lc->cmdsize - sizeof (GumSegmentCommand64)) /
-            sizeof (GumSection64);
+            sizeof (GumSection64) &&
+        sc->vmsize <= G_MAXUINT64 - sc->vmaddr;
   }
 }
 
