@@ -271,6 +271,8 @@ static gboolean gum_store_dynamic_string_table (
 static gboolean gum_elf_module_check_bounds (GumElfModule * self,
     gconstpointer left, gconstpointer right, gconstpointer base, gsize size,
     const gchar * name, GError ** error);
+static gboolean gum_elf_module_file_range_is_valid (GumElfModule * self,
+    guint64 offset, guint64 size);
 static gboolean gum_elf_module_check_readable (GumElfModule * self,
     gconstpointer left, gconstpointer right, gconstpointer base,
     const gchar * name, GError ** error);
@@ -972,6 +974,11 @@ gum_elf_module_load_section_details (GumElfModule * self,
 
   data = gum_elf_module_get_file_data (self, &size);
 
+  if (!gum_elf_module_file_range_is_valid (self, strings_shdr->offset,
+      strings_shdr->size))
+  {
+    return TRUE;
+  }
   strings = (const gchar *) data + strings_shdr->offset;
   GUM_CHECK_READABLE (strings, strings + strings_shdr->size, "section names");
 
@@ -1429,9 +1436,23 @@ gum_elf_module_enumerate_sections (GumElfModule * self,
   {
     const GumElfSectionDetails * d = g_ptr_array_index (self->sections, i);
 
+    if (d->type != GUM_ELF_SECTION_NOBITS &&
+        !gum_elf_module_file_range_is_valid (self, d->offset, d->size))
+    {
+      continue;
+    }
+
     if (!func (d, user_data))
       return;
   }
+}
+
+static gboolean
+gum_elf_module_file_range_is_valid (GumElfModule * self,
+                                    guint64 offset,
+                                    guint64 size)
+{
+  return offset <= self->file_size && size <= self->file_size - offset;
 }
 
 /**
