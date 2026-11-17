@@ -25,6 +25,7 @@ TESTLIST_BEGIN (macho_module)
   TESTENTRY (out_of_range_symbol_table_is_ignored)
   TESTENTRY (out_of_range_export_trie_is_ignored)
   TESTENTRY (unterminated_bind_symbol_ends_enumeration)
+  TESTENTRY (rebase_repeats_stay_within_segment)
   TESTENTRY (dylib_name_is_read_from_its_offset)
   TESTENTRY (unterminated_dylib_name_is_rejected)
   TESTENTRY (out_of_range_fat_slice_is_rejected)
@@ -44,6 +45,8 @@ static gboolean gum_test_count_symbol (const GumMachoSymbolDetails * details,
 static gboolean gum_test_count_export (const GumMachoExportDetails * details,
     gpointer user_data);
 static gboolean gum_test_count_bind (const GumMachoBindDetails * details,
+    gpointer user_data);
+static gboolean gum_test_count_rebase (const GumMachoRebaseDetails * details,
     gpointer user_data);
 
 TESTCASE (symbols_with_malformed_names_are_skipped)
@@ -129,6 +132,32 @@ TESTCASE (unterminated_bind_symbol_ends_enumeration)
 
   gum_macho_module_enumerate_binds (module, gum_test_count_bind, &count);
   g_assert_cmpuint (count, ==, 0);
+
+  g_object_unref (module);
+}
+
+TESTCASE (rebase_repeats_stay_within_segment)
+{
+  const guint8 rebases[] = {
+    GUM_REBASE_OPCODE_DO_REBASE_ULEB_TIMES,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01,
+  };
+  guint8 * image;
+  GumDyldInfoCommand info = { 0, };
+  GumMachoModule * module;
+  guint count = 0;
+
+  image = gum_test_make_macho_image ();
+  memcpy (image + GUM_TEST_DATA_OFFSET, rebases, sizeof (rebases));
+  info.cmd = GUM_LC_DYLD_INFO_ONLY;
+  info.cmdsize = sizeof (info);
+  info.rebase_off = GUM_TEST_DATA_OFFSET;
+  info.rebase_size = sizeof (rebases);
+  gum_test_add_load_command (image, &info, sizeof (info));
+  module = gum_test_load_macho_image (image);
+
+  gum_macho_module_enumerate_rebases (module, gum_test_count_rebase, &count);
+  g_assert_cmpuint (count, ==, GUM_TEST_IMAGE_SIZE / 8);
 
   g_object_unref (module);
 }
@@ -330,6 +359,17 @@ gum_test_count_export (const GumMachoExportDetails * details,
 static gboolean
 gum_test_count_bind (const GumMachoBindDetails * details,
                      gpointer user_data)
+{
+  guint * count = user_data;
+
+  (*count)++;
+
+  return TRUE;
+}
+
+static gboolean
+gum_test_count_rebase (const GumMachoRebaseDetails * details,
+                       gpointer user_data)
 {
   guint * count = user_data;
 

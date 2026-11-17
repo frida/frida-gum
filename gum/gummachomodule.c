@@ -1323,6 +1323,8 @@ gum_macho_module_enumerate_rebases (GumMachoModule * self,
         count = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; i++)
         {
+          if (details.offset >= details.segment->vm_size)
+            return;
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size;
@@ -1343,6 +1345,8 @@ gum_macho_module_enumerate_rebases (GumMachoModule * self,
         skip = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; ++i)
         {
+          if (details.offset >= details.segment->vm_size)
+            return;
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size + skip;
@@ -1472,6 +1476,8 @@ gum_macho_module_enumerate_binds (GumMachoModule * self,
         skip = gum_read_uleb128 (&p, end);
         for (i = 0; i != count; ++i)
         {
+          if (details.offset >= details.segment->vm_size)
+            return;
           if (!func (&details, user_data))
             return;
           details.offset += self->pointer_size + skip;
