@@ -164,6 +164,8 @@ static void gum_macho_module_read_and_assign (GumMachoModule * self,
     gpointer * malloc_data);
 static gboolean gum_find_linkedit (const guint8 * module, gsize module_size,
     GumAddress * linkedit);
+static gboolean gum_macho_module_section_data_is_valid (
+    GumMachoModule * self, const GumMachoSectionDetails * details);
 static gboolean gum_add_text_range_if_text_section (
     const GumMachoSectionDetails * details, gpointer user_data);
 static gboolean gum_section_flags_indicate_text_section (guint32 flags);
@@ -1075,12 +1077,37 @@ gum_macho_module_enumerate_sections (GumMachoModule * self,
           details.flags = s->flags;
         }
 
+        if (!gum_macho_module_section_data_is_valid (self, &details))
+          continue;
+
         if (!func (&details, user_data))
           return;
       }
     }
 
     command = (const guint8 *) command + lc->cmdsize;
+  }
+}
+
+static gboolean
+gum_macho_module_section_data_is_valid (GumMachoModule * self,
+                                        const GumMachoSectionDetails * details)
+{
+  const GumMachoModuleImage * image = self->image;
+  gboolean is_file_backed = image->bytes != NULL;
+
+  if (!is_file_backed)
+    return TRUE;
+
+  switch (details->flags & GUM_SECTION_TYPE_MASK)
+  {
+    case GUM_S_ZEROFILL:
+    case GUM_S_GB_ZEROFILL:
+    case GUM_S_THREAD_LOCAL_ZEROFILL:
+      return TRUE;
+    default:
+      return details->file_offset <= image->size &&
+          details->size <= image->size - details->file_offset;
   }
 }
 

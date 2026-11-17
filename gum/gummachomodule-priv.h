@@ -307,8 +307,10 @@ struct _GumLinkeditDataCommand
 
 enum _GumSectionType
 {
+  GUM_S_ZEROFILL               = 0x01,
   GUM_S_MOD_INIT_FUNC_POINTERS = 0x09,
   GUM_S_MOD_TERM_FUNC_POINTERS = 0x0a,
+  GUM_S_GB_ZEROFILL            = 0x0c,
   GUM_S_INIT_FUNC_OFFSETS      = 0x16,
 };
 
