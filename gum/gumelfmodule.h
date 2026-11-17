@@ -14,6 +14,9 @@ G_BEGIN_DECLS
 #define GUM_TYPE_ELF_MODULE (gum_elf_module_get_type ())
 G_DECLARE_FINAL_TYPE (GumElfModule, gum_elf_module, GUM, ELF_MODULE, GObject)
 
+#define GUM_TYPE_ELF_SECTION_DETAILS (gum_elf_section_details_get_type ())
+#define GUM_TYPE_ELF_SYMBOL_DETAILS (gum_elf_symbol_details_get_type ())
+
 typedef enum {
   GUM_ELF_NONE,
   GUM_ELF_REL,
