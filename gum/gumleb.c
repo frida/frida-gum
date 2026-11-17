@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2021 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -71,16 +71,11 @@ gum_skip_leb128 (const guint8 ** data,
 {
   const guint8 * p = *data;
 
-  while ((*p & 0x80) != 0)
-  {
-    if (p == end)
-      goto beach;
-
+  while (p != end && (*p & 0x80) != 0)
     p++;
-  }
 
-  p++;
+  if (p != end)
+    p++;
 
-beach:
   *data = p;
 }
