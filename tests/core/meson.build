@@ -12,6 +12,7 @@ core_sources = [
   'threadregistry.c',
   'moduleregistry.c',
   'pemodule.c',
+  'machomodule.c',
   'symbolutil.c',
   'apiresolver.c',
   'backtracer.c',

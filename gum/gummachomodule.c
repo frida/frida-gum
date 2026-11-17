@@ -2225,41 +2225,49 @@ gum_macho_module_load_image_header_from_filesystem (GumMachoModule * self,
 {
   gboolean success;
   GMappedFile * file;
-  gsize page_size, size, size_in_pages;
+  const guint8 * contents;
+  gsize file_size, page_size;
   gpointer data;
-  gsize data_size;
-  GBytes * blob;
-  gsize header_size, cursor;
+  gsize data_size, header_size, cursor;
   gboolean is_fat;
+  gsize size_in_pages;
+  GBytes * blob;
 
   file = g_mapped_file_new (path, FALSE, NULL);
   if (file == NULL)
     goto not_found;
+  contents = (const guint8 *) g_mapped_file_get_contents (file);
+  file_size = g_mapped_file_get_length (file);
 
   page_size = gum_query_page_size ();
   data = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
   data_size = page_size;
-  size = page_size;
 
   header_size = 0;
   cursor = 0;
   do
   {
+    gsize available;
     gsize header_offset = 0;
 
-    memcpy (data, g_mapped_file_get_contents (file) + cursor, size);
-    if (!gum_macho_module_get_header_offset_size (self, data, size,
+    if (cursor >= file_size)
+      goto invalid_image;
+    available = MIN (file_size - cursor, page_size);
+
+    memcpy (data, contents + cursor, available);
+    if (!gum_macho_module_get_header_offset_size (self, data, available,
         &header_offset, &header_size, error))
     {
-      gum_memory_free (data, data_size);
-      g_clear_pointer (&file, g_mapped_file_unref);
-      return FALSE;
+      goto propagate_error;
     }
 
     cursor += header_offset;
     is_fat = header_offset > 0;
   }
   while (is_fat);
+
+  if (header_size > file_size - cursor)
+    goto invalid_image;
 
   size_in_pages = header_size / page_size;
   if (header_size % page_size != 0)
@@ -2272,7 +2280,7 @@ gum_macho_module_load_image_header_from_filesystem (GumMachoModule * self,
     data = gum_memory_allocate (NULL, data_size, page_size, GUM_PAGE_RW);
   }
 
-  memcpy (data, g_mapped_file_get_contents (file) + cursor, header_size);
+  memcpy (data, contents + cursor, header_size);
 
   g_clear_pointer (&file, g_mapped_file_unref);
 
@@ -2288,6 +2296,18 @@ not_found:
   {
     g_set_error (error, GUM_ERROR, GUM_ERROR_NOT_FOUND,
         "Module not found at \"%s\"", path);
+    return FALSE;
+  }
+invalid_image:
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "Invalid Mach-O image");
+    goto propagate_error;
+  }
+propagate_error:
+  {
+    gum_memory_free (data, data_size);
+    g_mapped_file_unref (file);
     return FALSE;
   }
 }
