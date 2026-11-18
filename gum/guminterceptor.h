@@ -87,6 +87,7 @@ typedef enum
   GUM_ATTACH_ALREADY_ATTACHED    = -3,
   GUM_ATTACH_POLICY_VIOLATION    = -4,
   GUM_ATTACH_WRONG_TYPE          = -5,
+  GUM_ATTACH_NOT_MAPPED          = -6,
 } GumAttachReturn;
 
 typedef enum
@@ -97,6 +98,7 @@ typedef enum
   GUM_REPLACE_ALREADY_REPLACED    = -3,
   GUM_REPLACE_POLICY_VIOLATION    = -4,
   GUM_REPLACE_WRONG_TYPE          = -5,
+  GUM_REPLACE_NOT_MAPPED          = -6,
 } GumReplaceReturn;
 
 GUM_API GumInterceptor * gum_interceptor_obtain (void);

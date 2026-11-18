@@ -636,6 +636,9 @@ instrumentation_error:
       case GUM_INSTRUMENTATION_ERROR_WRONG_TYPE:
         result = GUM_ATTACH_WRONG_TYPE;
         break;
+      case GUM_INSTRUMENTATION_ERROR_NOT_MAPPED:
+        result = GUM_ATTACH_NOT_MAPPED;
+        break;
       default:
         g_assert_not_reached ();
     }
@@ -844,6 +847,9 @@ instrumentation_error:
         break;
       case GUM_INSTRUMENTATION_ERROR_WRONG_TYPE:
         result = GUM_REPLACE_WRONG_TYPE;
+        break;
+      case GUM_INSTRUMENTATION_ERROR_NOT_MAPPED:
+        result = GUM_REPLACE_NOT_MAPPED;
         break;
       default:
         g_assert_not_reached ();
@@ -1553,6 +1559,18 @@ gum_interceptor_instrument (GumInterceptor * self,
       return NULL;
     }
     return ctx;
+  }
+
+  /*
+   * Instrumenting a function we have no context for means reading, relocating
+   * and patching its prologue. If the target is no longer mapped (e.g. its
+   * module was dlclose()d, or JIT-compiled code was freed) this would read and
+   * write freed memory and crash. Refuse gracefully instead.
+   */
+  if (!gum_memory_is_readable (function_address, 16))
+  {
+    *error = GUM_INSTRUMENTATION_ERROR_NOT_MAPPED;
+    return NULL;
   }
 
   if (self->backend == NULL)
@@ -3044,6 +3062,17 @@ gum_interceptor_resolve (GumInterceptor * self,
     gpointer target;
 
     gum_ensure_code_readable (address, max_redirect_size);
+
+    /*
+     * The target may have been unmapped since it was last instrumented, e.g. a
+     * shared library that has been dlclose()d, or JIT-compiled code that has
+     * been freed. gum_ensure_code_readable() only softens execute-only pages;
+     * it does not fault in pages that are gone. Disassembling freed memory to
+     * follow redirects would crash, so bail out and let instrumentation report
+     * the target as not mapped.
+     */
+    if (!gum_memory_is_readable (address, max_redirect_size))
+      return address;
 
     /* Avoid following grafted branches. */
     if (gum_process_get_code_signing_policy () == GUM_CODE_SIGNING_REQUIRED)
