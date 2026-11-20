@@ -51,6 +51,8 @@ G_GNUC_INTERNAL GumESProgram * gum_quick_script_backend_read_program (
     GError ** error);
 G_GNUC_INTERNAL GRecMutex * gum_quick_script_backend_get_scope_mutex (
     GumQuickScriptBackend * self);
+G_GNUC_INTERNAL void gum_quick_script_backend_recover_from_fork_in_child (
+    void);
 G_GNUC_INTERNAL GumScriptScheduler * gum_quick_script_backend_get_scheduler (
     GumQuickScriptBackend * self);
 G_GNUC_INTERNAL gboolean gum_quick_script_backend_is_scope_mutex_trapped (
