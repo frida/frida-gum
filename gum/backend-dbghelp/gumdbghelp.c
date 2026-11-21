@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2020 Matt Oh <oh.jeongwook@gmail.com>
+ * Copyright (C) 2026 Zephyr Lykos <git@mochaa.ws>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -45,6 +46,8 @@ static HMODULE WINAPI gum_load_library_ex_a (LPCSTR name, HANDLE file,
 static HMODULE WINAPI gum_load_library_ex_w (LPCWSTR name, HANDLE file,
     DWORD flags);
 static FARPROC WINAPI gum_get_proc_address (HMODULE module, LPCSTR name);
+static DWORD WINAPI gum_get_module_file_name_w (HMODULE module, LPWSTR name,
+    DWORD size);
 static BOOL WINAPI gum_free_library (HMODULE module);
 static gboolean gum_is_symsrv (const gchar * name);
 static gboolean gum_is_symsrv_utf16 (LPCWSTR name);
@@ -68,6 +71,7 @@ static const GumImportRedirect gum_symsrv_redirects[] =
   { "LoadLibraryExA", G_CALLBACK (gum_load_library_ex_a) },
   { "LoadLibraryExW", G_CALLBACK (gum_load_library_ex_w) },
   { "GetProcAddress", G_CALLBACK (gum_get_proc_address) },
+  { "GetModuleFileNameW", G_CALLBACK (gum_get_module_file_name_w) },
   { "FreeLibrary", G_CALLBACK (gum_free_library) },
 };
 
@@ -320,6 +324,17 @@ gum_get_proc_address (HMODULE module,
   }
 
   return GetProcAddress (module, name);
+}
+
+static DWORD WINAPI
+gum_get_module_file_name_w (HMODULE module,
+                            LPWSTR name,
+                            DWORD size)
+{
+  if (module == gum_mapped_dbghelp)
+    return GetModuleFileNameW (NULL, name, size);
+
+  return GetModuleFileNameW (module, name, size);
 }
 
 static BOOL WINAPI
