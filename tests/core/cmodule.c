@@ -9,6 +9,7 @@
 TESTLIST_BEGIN (cmodule)
   TESTENTRY (source_is_compiled_and_host_symbol_resolved)
   TESTENTRY (symbols_can_be_enumerated)
+  TESTENTRY (compilation_error_is_reported)
   TESTENTRY (undefined_symbol_is_reported)
   if (GPOINTER_TO_UINT (fixture_data) == GUM_CMODULE_TOOLCHAIN_EXTERNAL)
     TESTENTRY (prebuilt_binary_is_loaded)
@@ -61,6 +62,23 @@ TESTCASE (symbols_can_be_enumerated)
   g_assert_nonnull (search.address);
   g_assert_true (search.address ==
       gum_cmodule_find_symbol_by_name (fixture->cmodule, "compute"));
+}
+
+TESTCASE (compilation_error_is_reported)
+{
+  GError * error = NULL;
+
+  if (!test_cmodule_fixture_has_toolchain (fixture))
+    return;
+
+  fixture->cmodule = gum_cmodule_new ("this is not C", NULL,
+      &fixture->options, &error);
+  if (error == NULL)
+    gum_cmodule_link (fixture->cmodule, &error);
+
+  g_assert_nonnull (error);
+  g_assert_true (g_str_has_prefix (error->message, "Compilation failed: "));
+  g_error_free (error);
 }
 
 TESTCASE (undefined_symbol_is_reported)

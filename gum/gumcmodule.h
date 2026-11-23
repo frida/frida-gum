@@ -37,8 +37,7 @@ struct _GumCModuleClass
   void (* add_symbol) (GumCModule * cm, const gchar * name,
       gconstpointer value);
   gboolean (* load) (GumCModule * cm, GumMemoryRange * range,
-      GString ** error_messages);
-  void (* link_post) (GumCModule * cm);
+      GError ** error);
   void (* unload) (GumCModule * cm, const GumMemoryRange * range);
   void (* enumerate_symbols) (GumCModule * cm, GumFoundCSymbolFunc func,
       gpointer user_data);

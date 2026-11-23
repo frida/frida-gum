@@ -70,8 +70,7 @@ static void gum_emit_standard_define (const GumCDefineDetails * details,
 static void gum_cmodule_add_define (GumCModule * self, const gchar * name,
     const gchar * value);
 static gboolean gum_cmodule_load (GumCModule * self, GumMemoryRange * range,
-    GString ** error_messages);
-static void gum_cmodule_link_post (GumCModule * self);
+    GError ** error);
 static void gum_cmodule_unload (GumCModule * self,
     const GumMemoryRange * range);
 static void gum_emit_builtin_define (const gchar * name, const gchar * value,
@@ -89,7 +88,6 @@ static void gum_append_quoted_argument (GString * command_line,
     const gchar * arg);
 # endif
 #endif
-static void gum_append_error (GString ** messages, const char * msg);
 
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (GumCModule, gum_cmodule, G_TYPE_OBJECT);
 
@@ -223,56 +221,35 @@ gboolean
 gum_cmodule_link (GumCModule * self,
                   GError ** error)
 {
-  gboolean success = FALSE;
   GumCModulePrivate * priv;
-  GString * error_messages;
   GumMemoryRange * r;
+  GumCModuleInitFunc init;
 
   priv = gum_cmodule_get_instance_private (self);
   r = &priv->range;
 
-  error_messages = NULL;
-  if (gum_cmodule_load (self, r, &error_messages))
-  {
-    GumCModuleInitFunc init;
+  if (!gum_cmodule_load (self, r, error))
+    return FALSE;
 
-    gum_cloak_add_range (r);
+  gum_cloak_add_range (r);
 
-    init = GUM_POINTER_TO_FUNCPTR (GumCModuleInitFunc,
-        gum_cmodule_find_symbol_by_name (self, "init"));
-    if (init != NULL)
-      init ();
+  init = GUM_POINTER_TO_FUNCPTR (GumCModuleInitFunc,
+      gum_cmodule_find_symbol_by_name (self, "init"));
+  if (init != NULL)
+    init ();
 
-    priv->finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
-        gum_cmodule_find_symbol_by_name (self, "finalize"));
+  priv->finalize = GUM_POINTER_TO_FUNCPTR (GumCModuleFinalizeFunc,
+      gum_cmodule_find_symbol_by_name (self, "finalize"));
 
-    success = TRUE;
-  }
-
-  gum_cmodule_link_post (self);
-
-  if (error_messages != NULL)
-  {
-    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
-        "Linking failed: %s", error_messages->str);
-    g_string_free (error_messages, TRUE);
-  }
-
-  return success;
+  return TRUE;
 }
 
 static gboolean
 gum_cmodule_load (GumCModule * self,
                   GumMemoryRange * range,
-                  GString ** error_messages)
+                  GError ** error)
 {
-  return GUM_CMODULE_GET_CLASS (self)->load (self, range, error_messages);
-}
-
-static void
-gum_cmodule_link_post (GumCModule * self)
-{
-  GUM_CMODULE_GET_CLASS (self)->link_post (self);
+  return GUM_CMODULE_GET_CLASS (self)->load (self, range, error);
 }
 
 static void
@@ -409,11 +386,12 @@ static void gum_tcc_cmodule_add_define (GumCModule * cm, const gchar * name,
 static void gum_tcc_cmodule_add_symbol (GumCModule * cm, const gchar * name,
     gconstpointer value);
 static gboolean gum_tcc_cmodule_load (GumCModule * cm, GumMemoryRange * range,
-    GString ** error_messages);
+    GError ** error);
+static gboolean gum_tcc_cmodule_map (GumTccCModule * self,
+    GumMemoryRange * range);
 static gboolean gum_tcc_cmodule_relocate (GumTccCModule * self, gpointer base);
 static void gum_tcc_cmodule_relocate_views (gpointer writable_base,
     gpointer user_data);
-static void gum_tcc_cmodule_link_post (GumCModule * cm);
 static void gum_tcc_cmodule_unload (GumCModule * cm,
     const GumMemoryRange * range);
 static void gum_tcc_cmodule_enumerate_symbols (GumCModule * cm,
@@ -441,7 +419,6 @@ gum_tcc_cmodule_class_init (GumTccCModuleClass * klass)
   cmodule_class->add_define = gum_tcc_cmodule_add_define;
   cmodule_class->add_symbol = gum_tcc_cmodule_add_symbol;
   cmodule_class->load = gum_tcc_cmodule_load;
-  cmodule_class->link_post = gum_tcc_cmodule_link_post;
   cmodule_class->unload = gum_tcc_cmodule_unload;
   cmodule_class->enumerate_symbols = gum_tcc_cmodule_enumerate_symbols;
   cmodule_class->find_symbol_by_name = gum_tcc_cmodule_find_symbol_by_name;
@@ -541,18 +518,38 @@ gum_tcc_cmodule_add_symbol (GumCModule * cm,
 static gboolean
 gum_tcc_cmodule_load (GumCModule * cm,
                       GumMemoryRange * range,
-                      GString ** error_messages)
+                      GError ** error)
 {
   GumTccCModule * self = GUM_TCC_CMODULE (cm);
-  TCCState * state = self->state;
+  gboolean success;
+  GString * error_messages = NULL;
+
+  tcc_set_error_func (self->state, &error_messages, gum_append_tcc_error);
+  success = gum_tcc_cmodule_map (self, range);
+  tcc_set_error_func (self->state, NULL, NULL);
+
+  if (!success)
+  {
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "Linking failed: %s", error_messages->str);
+  }
+
+  if (error_messages != NULL)
+    g_string_free (error_messages, TRUE);
+
+  return success;
+}
+
+static gboolean
+gum_tcc_cmodule_map (GumTccCModule * self,
+                     GumMemoryRange * range)
+{
   int res;
   gsize page_size, size;
   GumPageProtection protection;
   gpointer base;
 
-  tcc_set_error_func (state, error_messages, gum_append_tcc_error);
-
-  res = tcc_relocate_ex (state, NULL, 0);
+  res = tcc_relocate_ex (self->state, NULL, 0);
   if (res == -1)
     return FALSE;
 
@@ -621,14 +618,6 @@ gum_tcc_cmodule_relocate_views (gpointer writable_base,
 }
 
 static void
-gum_tcc_cmodule_link_post (GumCModule * cm)
-{
-  GumTccCModule * self = GUM_TCC_CMODULE (cm);
-
-  tcc_set_error_func (self->state, NULL, NULL);
-}
-
-static void
 gum_tcc_cmodule_unload (GumCModule * cm,
                         const GumMemoryRange * range)
 {
@@ -641,7 +630,15 @@ gum_append_tcc_error (void * opaque,
 {
   GString ** messages = opaque;
 
-  gum_append_error (messages, msg);
+  if (*messages == NULL)
+  {
+    *messages = g_string_new (msg);
+  }
+  else
+  {
+    g_string_append_c (*messages, '\n');
+    g_string_append (*messages, msg);
+  }
 }
 
 static void
@@ -926,9 +923,8 @@ static void gum_external_cmodule_add_define (GumCModule * cm,
 static void gum_external_cmodule_add_symbol (GumCModule * cm,
     const gchar * name, gconstpointer value);
 static gboolean gum_external_cmodule_load (GumCModule * cm,
-    GumMemoryRange * range, GString ** error_messages);
-static void gum_append_link_error (GString ** messages, const GError * error);
-static void gum_external_cmodule_link_post (GumCModule * cm);
+    GumMemoryRange * range, GError ** error);
+static void gum_set_link_error (GError ** error, const GError * cause);
 static void gum_external_cmodule_unload (GumCModule * cm,
     const GumMemoryRange * range);
 static void gum_external_cmodule_enumerate_symbols (GumCModule * cm,
@@ -972,7 +968,6 @@ gum_external_cmodule_class_init (GumExternalCModuleClass * klass)
   cmodule_class->add_define = gum_external_cmodule_add_define;
   cmodule_class->add_symbol = gum_external_cmodule_add_symbol;
   cmodule_class->load = gum_external_cmodule_load;
-  cmodule_class->link_post = gum_external_cmodule_link_post;
   cmodule_class->unload = gum_external_cmodule_unload;
   cmodule_class->enumerate_symbols = gum_external_cmodule_enumerate_symbols;
   cmodule_class->find_symbol_by_name =
@@ -1037,28 +1032,28 @@ gum_external_cmodule_add_symbol (GumCModule * cm,
 static gboolean
 gum_external_cmodule_load (GumCModule * cm,
                            GumMemoryRange * range,
-                           GString ** error_messages)
+                           GError ** error)
 {
   GumExternalCModule * self = GUM_EXTERNAL_CMODULE (cm);
-  GError * error = NULL;
-  GumMapperConstructor ctor;
   GumCModulePrivate * priv = gum_cmodule_get_instance_private (cm);
+  GError * mapper_error = NULL;
+  GumMapperConstructor ctor;
 
   if (self->binary == NULL)
   {
-    self->binary = gum_external_cmodule_compile (self, &error);
-    if (error != NULL)
-      goto propagate_error;
+    self->binary = gum_external_cmodule_compile (self, error);
+    if (self->binary == NULL)
+      return FALSE;
   }
 
   self->resolver = gum_external_cmodule_create_resolver (self);
 
   self->mapper = gum_mapper_new_take_blob (GUM_EXTERNAL_CMODULE_BINARY_NAME,
-      g_steal_pointer (&self->binary), self->resolver, &error);
-  if (error != NULL)
-    goto propagate_error;
+      g_steal_pointer (&self->binary), self->resolver, &mapper_error);
+  if (mapper_error != NULL)
+    goto propagate_mapper_error;
 
-  if (!gum_mapper_map (self->mapper, 0, NULL, &error))
+  if (!gum_mapper_map (self->mapper, 0, NULL, &mapper_error))
     goto propagate_link_error;
 
   *range = *gum_mapper_get_range (self->mapper);
@@ -1070,49 +1065,45 @@ gum_external_cmodule_load (GumCModule * cm,
 
   return TRUE;
 
-propagate_error:
+propagate_mapper_error:
   {
-    gum_append_error (error_messages, error->message);
-    g_error_free (error);
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "Linking failed: %s", mapper_error->message);
+    g_error_free (mapper_error);
     return FALSE;
   }
 propagate_link_error:
   {
-    gum_append_link_error (error_messages, error);
-    g_error_free (error);
+    gum_set_link_error (error, mapper_error);
+    g_error_free (mapper_error);
     g_clear_object (&self->mapper);
     return FALSE;
   }
 }
 
 static void
-gum_append_link_error (GString ** messages,
-                       const GError * error)
+gum_set_link_error (GError ** error,
+                    const GError * cause)
 {
   const gchar * name_start, * name_end;
-  gchar * name, * message;
+  gchar * name;
 
-  if (!g_error_matches (error, GUM_ERROR, GUM_ERROR_NOT_FOUND))
+  if (!g_error_matches (cause, GUM_ERROR, GUM_ERROR_NOT_FOUND))
   {
-    gum_append_error (messages, error->message);
+    g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+        "Linking failed: %s", cause->message);
     return;
   }
 
-  name_start = g_utf8_find_next_char (strstr (error->message, "“"), NULL);
+  name_start = g_utf8_find_next_char (strstr (cause->message, "“"), NULL);
   name_end = strstr (name_start, "”");
 
   name = g_strndup (name_start, name_end - name_start);
-  message = g_strdup_printf ("undefined reference to `%s'", name);
 
-  gum_append_error (messages, message);
+  g_set_error (error, GUM_ERROR, GUM_ERROR_INVALID_ARGUMENT,
+      "Linking failed: undefined reference to `%s'", name);
 
-  g_free (message);
   g_free (name);
-}
-
-static void
-gum_external_cmodule_link_post (GumCModule * cm)
-{
 }
 
 static void
@@ -1787,18 +1778,3 @@ propagate_error:
 #endif
 
 #endif /* !G_OS_NONE */
-
-static void
-gum_append_error (GString ** messages,
-                  const char * msg)
-{
-  if (*messages == NULL)
-  {
-    *messages = g_string_new (msg);
-  }
-  else
-  {
-    g_string_append_c (*messages, '\n');
-    g_string_append (*messages, msg);
-  }
-}
