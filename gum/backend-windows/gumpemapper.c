@@ -41,7 +41,6 @@
 #define GUM_ARM64_LDR_X16_PC_PLUS_12 0x58000070
 #define GUM_ARM64_BR_X16 0xd61f0200
 #define GUM_ARM64_RET 0xd65f03c0
-#define GUM_ARM64_MOV_W2_TLS_DIRECTORY 0x52800122
 
 #define GUM_PE_DLL_PROCESS_DETACH 0
 #define GUM_PE_DLL_PROCESS_ATTACH 1
@@ -60,7 +59,6 @@
 #if GLIB_SIZEOF_VOID_P == 8
 # define GUM_PE_LOADER_ENTRY_SIZE 0x200
 # define GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET 0x30
-# define GUM_PE_LDR_TLS_FLAGS_FIELD 0x10c
 # define GUM_PE_TEB_SELF_OFFSET 0x30
 # define GUM_PE_TEB_PROCESS_ID_OFFSET 0x40
 # define GUM_PE_TEB_PEB_OFFSET 0x60
@@ -69,7 +67,6 @@
 #else
 # define GUM_PE_LOADER_ENTRY_SIZE 0x100
 # define GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET 0x18
-# define GUM_PE_LDR_TLS_FLAGS_FIELD 0x94
 # define GUM_PE_TEB_SELF_OFFSET 0x18
 # define GUM_PE_TEB_PROCESS_ID_OFFSET 0x20
 # define GUM_PE_TEB_PEB_OFFSET 0x30
@@ -83,6 +80,19 @@
         (3 * GLIB_SIZEOF_VOID_P), 16) - (3 * GLIB_SIZEOF_VOID_P))
 
 #define GUM_PE_TLS_HEAD_MAX_INSNS 64
+#define GUM_PE_NT_HEADERS_TLS_DIRECTORY_OFFSET \
+    G_STRUCT_OFFSET (IMAGE_NT_HEADERS, \
+        OptionalHeader.DataDirectory[GUM_PE_DIRECTORY_TLS])
+
+#define GUM_PE_ARM64_MAX_VALUES (5 * GUM_PE_TLS_HEAD_MAX_INSNS)
+#define GUM_PE_ARM64_MAX_FUNCTION_INSNS 4096
+#define GUM_PE_ARM64_IP0 16
+#define GUM_PE_ARM64_PLATFORM_REG 18
+#define GUM_PE_ARM64_SP 31
+#define GUM_PE_ARM64_ZR 31
+#define GUM_PE_ARM64_UNKNOWN 0
+#define GUM_PE_ARM64_ENTRY 1
+#define GUM_PE_ARM64_STACK 2
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 # define GUM_PE_TLS_ENTRY_REG X86_REG_ECX
@@ -104,6 +114,13 @@ typedef struct _GumPeTlsCollectContext GumPeTlsCollectContext;
 typedef struct _GumPeEnumerateExportsContext GumPeEnumerateExportsContext;
 typedef struct _GumPeMatchOrdinalContext GumPeMatchOrdinalContext;
 typedef struct _GumPeFindSectionContext GumPeFindSectionContext;
+typedef enum _GumPeArm64InsnKind GumPeArm64InsnKind;
+typedef struct _GumPeArm64Insn GumPeArm64Insn;
+typedef enum _GumPeArm64ValueKind GumPeArm64ValueKind;
+typedef struct _GumPeArm64Value GumPeArm64Value;
+typedef enum _GumPeArm64EventKind GumPeArm64EventKind;
+typedef struct _GumPeArm64Event GumPeArm64Event;
+typedef struct _GumPeArm64Flow GumPeArm64Flow;
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 typedef struct _GumPeChpeMetadataX86 GumPeChpeMetadataX86;
 #endif
@@ -263,6 +280,84 @@ struct _GumPeFindSectionContext
   GumPageProtection protection;
 };
 
+enum _GumPeArm64InsnKind
+{
+  GUM_PE_ARM64_INSN_OTHER,
+  GUM_PE_ARM64_INSN_MOV_REG,
+  GUM_PE_ARM64_INSN_MOV_IMM,
+  GUM_PE_ARM64_INSN_ADD_IMM,
+  GUM_PE_ARM64_INSN_AND_IMM,
+  GUM_PE_ARM64_INSN_LOAD,
+  GUM_PE_ARM64_INSN_LOAD_PAIR,
+  GUM_PE_ARM64_INSN_STORE,
+  GUM_PE_ARM64_INSN_CALL,
+  GUM_PE_ARM64_INSN_CALL_INDIRECT,
+  GUM_PE_ARM64_INSN_JUMP,
+  GUM_PE_ARM64_INSN_BRANCH_IF,
+  GUM_PE_ARM64_INSN_EXIT,
+  GUM_PE_ARM64_INSN_CLEAR_BITS,
+  GUM_PE_ARM64_INSN_INVERT,
+  GUM_PE_ARM64_INSN_AND_REG,
+  GUM_PE_ARM64_INSN_WRITE
+};
+
+struct _GumPeArm64Insn
+{
+  GumPeArm64InsnKind kind;
+  guint rt;
+  guint rt2;
+  guint rn;
+  guint rm;
+  gint64 imm;
+  guint size;
+};
+
+enum _GumPeArm64ValueKind
+{
+  GUM_PE_ARM64_VALUE_UNKNOWN,
+  GUM_PE_ARM64_VALUE_ENTRY,
+  GUM_PE_ARM64_VALUE_STACK,
+  GUM_PE_ARM64_VALUE_CONSTANT,
+  GUM_PE_ARM64_VALUE_CALL_RESULT,
+  GUM_PE_ARM64_VALUE_LOAD,
+  GUM_PE_ARM64_VALUE_ADDRESS,
+  GUM_PE_ARM64_VALUE_INVERTED
+};
+
+struct _GumPeArm64Value
+{
+  GumPeArm64ValueKind kind;
+  guint parent;
+  gint64 offset;
+};
+
+enum _GumPeArm64EventKind
+{
+  GUM_PE_ARM64_EVENT_CALL,
+  GUM_PE_ARM64_EVENT_LOAD,
+  GUM_PE_ARM64_EVENT_STORE,
+  GUM_PE_ARM64_EVENT_CLEAR_BITS
+};
+
+struct _GumPeArm64Event
+{
+  GumPeArm64EventKind kind;
+  guint value;
+  guint address;
+  guint size;
+  guint args[4];
+};
+
+struct _GumPeArm64Flow
+{
+  GumPeArm64Value values[GUM_PE_ARM64_MAX_VALUES];
+  guint num_values;
+  GumPeArm64Event events[GUM_PE_TLS_HEAD_MAX_INSNS];
+  guint num_events;
+  guint regs[32];
+  guint num_calls;
+};
+
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
 struct _GumPeChpeMetadataX86
 {
@@ -411,25 +506,55 @@ static void gum_pe_mapper_prepare_tls (GumPeMapper * self);
 static void gum_pe_mapper_prepare_legacy_tls (GumPeMapper * self);
 #endif
 static void gum_resolve_loader_tls (void);
-#if defined (HAVE_ARM64)
+#if !defined (HAVE_ARM64)
+static gboolean gum_is_emulated (void);
+#endif
 static void gum_resolve_arm64_tls (GumModule * ntdll, GumAddress base,
     GumAddress limit, GumAddress * handle, GumAddress * release);
-static gboolean gum_arm64_is_handle_tls_data (cs_insn * insns, size_t count);
-static gboolean gum_arm64_is_release_tls_entry (cs_insn * insns, size_t count);
-#else
-static gboolean gum_is_emulated (void);
-static void gum_resolve_arm64_tls_emulated (GumModule * ntdll, GumAddress base,
-    GumAddress limit, GumAddress * handle, GumAddress * release);
+static GumAddress gum_find_arm64_loader_function (GumModule * ntdll,
+    const gchar * name);
+#if !defined (HAVE_ARM64)
 static gpointer gum_follow_x86_thunk (gpointer fn);
-static guint gum_arm64_raw_count_until_exit (const guint32 * code, guint n);
-static gboolean gum_arm64_raw_is_handle_tls_data (const guint32 * code,
-    guint n);
-static gboolean gum_arm64_raw_is_release_tls_entry (const guint32 * code,
-    guint n);
-static gboolean gum_arm64_raw_parse_mov_reg (guint32 insn, guint * rd,
-    guint * rm);
-static gboolean gum_arm64_raw_accesses_entry_field (guint32 insn,
-    guint32 entry_regs, guint offset);
+#endif
+static void gum_pe_arm64_flow_trace (GumPeArm64Flow * self,
+    GumAddress function, GumAddress base, GumAddress limit);
+static void gum_pe_arm64_flow_reset (GumPeArm64Flow * self);
+static guint gum_pe_arm64_flow_intern (GumPeArm64Flow * self,
+    GumPeArm64ValueKind kind, guint parent, gint64 offset);
+static gboolean gum_address_list_contains (const GumAddress * addresses,
+    guint n, GumAddress address);
+static void gum_pe_arm64_insn_decode (guint32 code, GumPeArm64Insn * insn);
+static gint64 gum_sign_extend (guint32 value, guint bits);
+static gboolean gum_arm64_code_writes_rt (guint32 code);
+static void gum_pe_arm64_flow_step (GumPeArm64Flow * self,
+    const GumPeArm64Insn * insn, GumAddress pc, GumAddress base,
+    GumAddress limit);
+static void gum_pe_arm64_flow_set (GumPeArm64Flow * self, guint reg,
+    guint value);
+static guint gum_pe_arm64_flow_resolve_address (GumPeArm64Flow * self,
+    guint reg, gint64 offset);
+static guint gum_pe_arm64_flow_get (GumPeArm64Flow * self, guint reg);
+static guint gum_pe_arm64_flow_mask (GumPeArm64Flow * self, guint value);
+static void gum_pe_arm64_flow_add_event (GumPeArm64Flow * self,
+    GumPeArm64EventKind kind, guint value, guint address, guint size);
+static guint gum_pe_arm64_flow_load (GumPeArm64Flow * self, guint address,
+    gint64 offset);
+static gboolean gum_pe_arm64_call_preserves_arguments (GumAddress target,
+    GumAddress base, GumAddress limit);
+static void gum_pe_arm64_flow_call (GumPeArm64Flow * self);
+static void gum_pe_arm64_flow_clear_bits (GumPeArm64Flow * self, guint reg);
+static gboolean gum_pe_arm64_flow_is_inverted (GumPeArm64Flow * self,
+    guint reg);
+static gboolean gum_pe_arm64_flow_is_handle_tls_data (GumPeArm64Flow * self);
+static gboolean gum_uint_list_contains (const guint * values, guint n,
+    guint value);
+static gboolean gum_pe_arm64_flow_is_release_tls_entry (
+    GumPeArm64Flow * self);
+static gboolean gum_pe_arm64_flow_passes_field_of (GumPeArm64Flow * self,
+    const GumPeArm64Event * event, guint record);
+static void gum_enqueue_arm64_callees (GumAddress function, GumAddress base,
+    GumAddress limit, GHashTable * visited, GQueue * queue);
+#if !defined (HAVE_ARM64)
 # if GLIB_SIZEOF_VOID_P == 8
 static GumPeX86TlsScanner * gum_scan_x64_loader (GumPeModule * ntdll,
     GumAddress base, GumAddress limit, gboolean legacy);
@@ -1530,7 +1655,7 @@ gum_resolve_loader_tls (void)
 #else
     if (gum_is_emulated ())
     {
-      gum_resolve_arm64_tls_emulated (GUM_MODULE (ntdll), base, limit, &handle,
+      gum_resolve_arm64_tls (GUM_MODULE (ntdll), base, limit, &handle,
           &release);
 # if GLIB_SIZEOF_VOID_P == 4
       gum_resolve_wowa64_dispatch_slots (
@@ -1571,154 +1696,7 @@ gum_resolve_loader_tls (void)
   }
 }
 
-#if defined (HAVE_ARM64)
-
-static void
-gum_resolve_arm64_tls (GumModule * ntdll,
-                       GumAddress base,
-                       GumAddress limit,
-                       GumAddress * handle,
-                       GumAddress * release)
-{
-  csh cs;
-  GHashTable * visited;
-  guint i;
-  const gchar * anchors[] = { "LdrLoadDll", "LdrUnloadDll" };
-  GQueue queue = G_QUEUE_INIT;
-  guint budget = 0;
-
-  cs_arch_register_arm64 ();
-  cs_open (CS_ARCH_ARM64, GUM_DEFAULT_CS_ENDIAN, &cs);
-  cs_option (cs, CS_OPT_DETAIL, CS_OPT_ON);
-  cs_option (cs, CS_OPT_SKIPDATA, CS_OPT_ON);
-
-  visited = g_hash_table_new (NULL, NULL);
-  for (i = 0; i != G_N_ELEMENTS (anchors); i++)
-  {
-    gpointer a = GSIZE_TO_POINTER (
-        gum_module_find_export_by_name (ntdll, anchors[i]));
-
-    g_hash_table_add (visited, a);
-    g_queue_push_tail (&queue, a);
-  }
-
-  while (!g_queue_is_empty (&queue) && (*handle == 0 || *release == 0) &&
-      budget++ != 100000)
-  {
-    GumAddress fn = GPOINTER_TO_SIZE (g_queue_pop_head (&queue));
-    cs_insn * insns;
-    size_t n, scan, j;
-
-    n = cs_disasm (cs, GSIZE_TO_POINTER (fn), MIN (1024, limit - fn), fn, 0,
-        &insns);
-    if (n == 0)
-      continue;
-
-    scan = MIN (n, 48);
-    if (*handle == 0 && gum_arm64_is_handle_tls_data (insns, scan))
-      *handle = fn;
-    if (*release == 0 && gum_arm64_is_release_tls_entry (insns, scan))
-      *release = fn;
-
-    for (j = 0; j != n; j++)
-    {
-      cs_insn * in = &insns[j];
-      GumAddress target;
-
-      if (in->id != ARM64_INS_BL)
-        continue;
-      target = in->detail->arm64.operands[0].imm;
-      if (target < base || target >= limit)
-        continue;
-      if (g_hash_table_add (visited, GSIZE_TO_POINTER (target)))
-        g_queue_push_tail (&queue, GSIZE_TO_POINTER (target));
-    }
-
-    cs_free (insns, n);
-  }
-
-  g_hash_table_unref (visited);
-  g_queue_clear (&queue);
-  cs_close (&cs);
-}
-
-static gboolean
-gum_arm64_is_handle_tls_data (cs_insn * insns,
-                              size_t count)
-{
-  size_t i;
-  gboolean checked_flag = FALSE, read_dll_base = FALSE;
-
-  for (i = 0; i != count; i++)
-  {
-    cs_arm64 * d = &insns[i].detail->arm64;
-    size_t k;
-
-    if (!(insns[i].id == ARM64_INS_LDR && d->op_count >= 2 &&
-        d->operands[1].type == ARM64_OP_MEM &&
-        d->operands[1].mem.base == ARM64_REG_X0))
-    {
-      continue;
-    }
-
-    if (d->operands[1].mem.disp == GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET)
-      read_dll_base = TRUE;
-
-    if (d->operands[1].mem.disp != GUM_PE_LDR_TLS_FLAGS_FIELD)
-      continue;
-
-    for (k = i + 1; k != count && k != i + 6; k++)
-    {
-      cs_arm64 * c = &insns[k].detail->arm64;
-      cs_arm64_op * last;
-
-      if (insns[k].id != ARM64_INS_CMP && insns[k].id != ARM64_INS_SUBS)
-        continue;
-      if (c->op_count < 2)
-        continue;
-
-      last = &c->operands[c->op_count - 1];
-      if (last->type == ARM64_OP_IMM && last->imm == 9)
-        checked_flag = TRUE;
-    }
-  }
-
-  return checked_flag && read_dll_base;
-}
-
-static gboolean
-gum_arm64_is_release_tls_entry (cs_insn * insns,
-                                size_t count)
-{
-  size_t i;
-  gboolean saved_entry = FALSE, saved_flags = FALSE, branches_on_flags = FALSE;
-
-  for (i = 0; i != count; i++)
-  {
-    cs_arm64 * d = &insns[i].detail->arm64;
-
-    if (insns[i].id == ARM64_INS_MOV && d->op_count == 2 &&
-        d->operands[0].type == ARM64_OP_REG &&
-        d->operands[1].type == ARM64_OP_REG)
-    {
-      if (d->operands[0].reg == ARM64_REG_X19 &&
-          d->operands[1].reg == ARM64_REG_X0)
-        saved_entry = TRUE;
-      if (d->operands[0].reg == ARM64_REG_X20 &&
-          d->operands[1].reg == ARM64_REG_X1)
-        saved_flags = TRUE;
-    }
-
-    if (insns[i].id == ARM64_INS_CBNZ && d->op_count >= 1 &&
-        d->operands[0].type == ARM64_OP_REG &&
-        d->operands[0].reg == ARM64_REG_X20)
-      branches_on_flags = TRUE;
-  }
-
-  return saved_entry && saved_flags && branches_on_flags;
-}
-
-#else
+#if !defined (HAVE_ARM64)
 
 static gboolean
 gum_is_emulated (void)
@@ -1738,70 +1716,71 @@ gum_is_emulated (void)
   return native_machine == IMAGE_FILE_MACHINE_ARM64;
 }
 
+#endif
+
 static void
-gum_resolve_arm64_tls_emulated (GumModule * ntdll,
-                                GumAddress base,
-                                GumAddress limit,
-                                GumAddress * handle,
-                                GumAddress * release)
+gum_resolve_arm64_tls (GumModule * ntdll,
+                       GumAddress base,
+                       GumAddress limit,
+                       GumAddress * handle,
+                       GumAddress * release)
 {
   GHashTable * visited;
   guint i;
   const gchar * anchors[] = { "LdrLoadDll", "LdrUnloadDll" };
   GQueue queue = G_QUEUE_INIT;
+  GumPeArm64Flow * flow;
   guint budget = 0;
 
   visited = g_hash_table_new (NULL, NULL);
   for (i = 0; i != G_N_ELEMENTS (anchors); i++)
   {
-    gpointer a = gum_follow_x86_thunk (GSIZE_TO_POINTER (
-        gum_module_find_export_by_name (ntdll, anchors[i])));
+    gpointer a = GSIZE_TO_POINTER (
+        gum_find_arm64_loader_function (ntdll, anchors[i]));
 
     g_hash_table_add (visited, a);
     g_queue_push_tail (&queue, a);
   }
 
+  flow = g_new (GumPeArm64Flow, 1);
+
   while (!g_queue_is_empty (&queue) && (*handle == 0 || *release == 0) &&
       budget++ != 100000)
   {
     GumAddress fn = GPOINTER_TO_SIZE (g_queue_pop_head (&queue));
-    guint n, scan, j;
-    const guint32 * code = GSIZE_TO_POINTER (fn);
 
     if (fn < base || fn >= limit)
       continue;
 
-    n = MIN (1024, (guint) ((limit - fn) / sizeof (guint32)));
-    scan = gum_arm64_raw_count_until_exit (code, MIN (n, 48));
+    gum_pe_arm64_flow_trace (flow, fn, base, limit);
 
-    if (*handle == 0 && gum_arm64_raw_is_handle_tls_data (code, scan))
+    if (*handle == 0 && gum_pe_arm64_flow_is_handle_tls_data (flow))
       *handle = fn;
-    if (*release == 0 && gum_arm64_raw_is_release_tls_entry (code, scan))
+    if (*release == 0 && gum_pe_arm64_flow_is_release_tls_entry (flow))
       *release = fn;
 
-    for (j = 0; j != n; j++)
-    {
-      guint32 insn = code[j];
-      gint64 imm;
-      GumAddress target;
-
-      if ((insn & 0xfc000000) != 0x94000000)
-        continue;
-
-      imm = insn & 0x3ffffff;
-      if ((imm & 0x2000000) != 0)
-        imm |= ~((gint64) 0x3ffffff);
-      target = fn + (j * sizeof (guint32)) + (imm * 4);
-      if (target < base || target >= limit)
-        continue;
-      if (g_hash_table_add (visited, GSIZE_TO_POINTER (target)))
-        g_queue_push_tail (&queue, GSIZE_TO_POINTER (target));
-    }
+    gum_enqueue_arm64_callees (fn, base, limit, visited, &queue);
   }
 
+  g_free (flow);
   g_hash_table_unref (visited);
   g_queue_clear (&queue);
 }
+
+static GumAddress
+gum_find_arm64_loader_function (GumModule * ntdll,
+                                const gchar * name)
+{
+  GumAddress address = gum_module_find_export_by_name (ntdll, name);
+
+#if defined (HAVE_ARM64)
+  return address;
+#else
+  return GUM_ADDRESS (gum_follow_x86_thunk (GSIZE_TO_POINTER (address)));
+#endif
+}
+
+#if !defined (HAVE_ARM64)
 
 static gpointer
 gum_follow_x86_thunk (gpointer fn)
@@ -1822,125 +1801,660 @@ gum_follow_x86_thunk (gpointer fn)
   return fn;
 }
 
-static guint
-gum_arm64_raw_count_until_exit (const guint32 * code,
-                                guint n)
-{
-  guint i;
-
-  for (i = 0; i != n; i++)
-  {
-    if (code[i] == GUM_ARM64_RET || (code[i] & 0xfc000000) == 0x14000000)
-      return i + 1;
-  }
-
-  return n;
-}
-
-static gboolean
-gum_arm64_raw_is_handle_tls_data (const guint32 * code,
-                                  guint n)
-{
-  guint i;
-  guint32 entry_regs = 1 << 0;
-  gboolean checked_flag = FALSE, read_dll_base = FALSE,
-      queries_tls_directory = FALSE;
-
-  for (i = 0; i != n; i++)
-  {
-    guint rd, rm, k;
-
-    if (gum_arm64_raw_parse_mov_reg (code[i], &rd, &rm) &&
-        (entry_regs & (1 << rm)) != 0)
-      entry_regs |= 1 << rd;
-
-    if (code[i] == GUM_ARM64_MOV_W2_TLS_DIRECTORY)
-      queries_tls_directory = TRUE;
-
-    if (gum_arm64_raw_accesses_entry_field (code[i], entry_regs,
-        GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET))
-      read_dll_base = TRUE;
-
-    if (!gum_arm64_raw_accesses_entry_field (code[i], entry_regs,
-        GUM_PE_LDR_TLS_FLAGS_FIELD))
-      continue;
-
-    for (k = i + 1; k != n && k != i + 6; k++)
-    {
-      if ((code[k] & 0x7f000000) == 0x71000000 &&
-          ((code[k] >> 10) & 0xfff) == 9)
-        checked_flag = TRUE;
-    }
-  }
-
-  return checked_flag && read_dll_base && queries_tls_directory;
-}
-
-static gboolean
-gum_arm64_raw_is_release_tls_entry (const guint32 * code,
-                                    guint n)
-{
-  guint i;
-  gboolean saved_entry = FALSE, saved_flags = FALSE, branches_on_flags = FALSE;
-
-  for (i = 0; i != n; i++)
-  {
-    guint32 insn = code[i];
-    guint rd, rm;
-
-    if ((insn & 0xfc000000) == 0x94000000)
-      break;
-
-    if (gum_arm64_raw_parse_mov_reg (insn, &rd, &rm))
-    {
-      if (rd == 19 && rm == 0)
-        saved_entry = TRUE;
-      if (rd == 20 && rm == 1)
-        saved_flags = TRUE;
-    }
-
-    if ((insn & 0x7f000000) == 0x35000000 && (insn & 0x1f) == 20)
-      branches_on_flags = TRUE;
-  }
-
-  return saved_entry && saved_flags && branches_on_flags;
-}
-
-static gboolean
-gum_arm64_raw_parse_mov_reg (guint32 insn,
-                             guint * rd,
-                             guint * rm)
-{
-  if ((insn & 0x7fe0ffe0) != 0x2a0003e0)
-    return FALSE;
-
-  *rd = insn & 0x1f;
-  *rm = (insn >> 16) & 0x1f;
-
-  return TRUE;
-}
-
-static gboolean
-gum_arm64_raw_accesses_entry_field (guint32 insn,
-                                    guint32 entry_regs,
-                                    guint offset)
-{
-  guint base = (insn >> 5) & 0x1f;
-  guint imm12 = (insn >> 10) & 0xfff;
-
-  if ((entry_regs & (1 << base)) == 0)
-    return FALSE;
-
-#if GLIB_SIZEOF_VOID_P == 8
-  if ((insn & 0xffc00000) == 0xb9400000)
-    return imm12 * 4 == offset;
-  if ((insn & 0xffc00000) == 0xf9400000)
-    return imm12 * 8 == offset;
-  return FALSE;
-#else
-  return (insn & 0xffc00000) == 0x11000000 && imm12 == offset;
 #endif
+
+static void
+gum_pe_arm64_flow_trace (GumPeArm64Flow * self,
+                         GumAddress function,
+                         GumAddress base,
+                         GumAddress limit)
+{
+  guint num_visited = 0, num_pending = 0;
+  GumAddress pc = function;
+  GumAddress visited[GUM_PE_TLS_HEAD_MAX_INSNS];
+  GumAddress pending[GUM_PE_TLS_HEAD_MAX_INSNS];
+
+  gum_pe_arm64_flow_reset (self);
+
+  while (num_visited != GUM_PE_TLS_HEAD_MAX_INSNS)
+  {
+    if (pc >= base && pc < limit &&
+        !gum_address_list_contains (visited, num_visited, pc))
+    {
+      GumPeArm64Insn insn;
+
+      gum_pe_arm64_insn_decode (*((const guint32 *) GSIZE_TO_POINTER (pc)),
+          &insn);
+      visited[num_visited++] = pc;
+
+      if (insn.kind == GUM_PE_ARM64_INSN_JUMP)
+      {
+        pc += insn.imm;
+        continue;
+      }
+
+      if (insn.kind != GUM_PE_ARM64_INSN_EXIT)
+      {
+        if (insn.kind == GUM_PE_ARM64_INSN_BRANCH_IF)
+          pending[num_pending++] = pc + insn.imm;
+        gum_pe_arm64_flow_step (self, &insn, pc, base, limit);
+        pc += sizeof (guint32);
+        continue;
+      }
+    }
+
+    if (num_pending == 0)
+      return;
+    pc = pending[--num_pending];
+  }
 }
+
+static void
+gum_pe_arm64_flow_reset (GumPeArm64Flow * self)
+{
+  guint i;
+
+  self->num_values = 0;
+  self->num_events = 0;
+  self->num_calls = 0;
+
+  gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_UNKNOWN, 0, 0);
+  gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_ENTRY, 0, 0);
+  gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_STACK, 0, 0);
+
+  for (i = 0; i != G_N_ELEMENTS (self->regs); i++)
+    self->regs[i] = GUM_PE_ARM64_UNKNOWN;
+  self->regs[0] = GUM_PE_ARM64_ENTRY;
+}
+
+static guint
+gum_pe_arm64_flow_intern (GumPeArm64Flow * self,
+                          GumPeArm64ValueKind kind,
+                          guint parent,
+                          gint64 offset)
+{
+  guint i;
+  GumPeArm64Value * value;
+
+  for (i = 0; i != self->num_values; i++)
+  {
+    value = &self->values[i];
+    if (value->kind == kind && value->parent == parent &&
+        value->offset == offset)
+      return i;
+  }
+
+  value = &self->values[self->num_values];
+  value->kind = kind;
+  value->parent = parent;
+  value->offset = offset;
+
+  return self->num_values++;
+}
+
+static gboolean
+gum_address_list_contains (const GumAddress * addresses,
+                           guint n,
+                           GumAddress address)
+{
+  guint i;
+
+  for (i = 0; i != n; i++)
+  {
+    if (addresses[i] == address)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+static void
+gum_pe_arm64_insn_decode (guint32 code,
+                          GumPeArm64Insn * insn)
+{
+  insn->kind = GUM_PE_ARM64_INSN_OTHER;
+  insn->rt = code & 0x1f;
+  insn->rt2 = (code >> 10) & 0x1f;
+  insn->rn = (code >> 5) & 0x1f;
+  insn->rm = (code >> 16) & 0x1f;
+  insn->imm = 0;
+  insn->size = 0;
+
+  if ((code & 0x7fe0ffe0) == 0x2a0003e0)
+  {
+    insn->kind = (insn->rm == GUM_PE_ARM64_ZR)
+        ? GUM_PE_ARM64_INSN_MOV_IMM
+        : GUM_PE_ARM64_INSN_MOV_REG;
+  }
+  else if ((code & 0x7f800000) == 0x52800000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_MOV_IMM;
+    insn->imm = (gint64) ((code >> 5) & 0xffff) << (((code >> 21) & 3) * 16);
+  }
+  else if ((code & 0x7f800000) == 0x11000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_ADD_IMM;
+    insn->imm = ((code >> 10) & 0xfff) << (((code >> 22) & 1) * 12);
+  }
+  else if ((code & 0x7f800000) == 0x12000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_AND_IMM;
+  }
+  else if ((code & 0x3fc00000) == 0x39400000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_LOAD;
+    insn->size = 1 << (code >> 30);
+    insn->imm = ((code >> 10) & 0xfff) * insn->size;
+  }
+  else if ((code & 0x3fc00000) == 0x39000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_STORE;
+    insn->size = 1 << (code >> 30);
+    insn->imm = ((code >> 10) & 0xfff) * insn->size;
+  }
+  else if ((code & 0x3e400000) == 0x28400000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_LOAD_PAIR;
+    insn->size = ((code >> 31) != 0) ? 8 : 4;
+    if (((code >> 23) & 3) != 1)
+      insn->imm = gum_sign_extend ((code >> 15) & 0x7f, 7) * insn->size;
+  }
+  else if ((code & 0x3e400000) == 0x28000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_OTHER;
+  }
+  else if ((code & 0xfc000000) == 0x94000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_CALL;
+    insn->imm = gum_sign_extend (code & 0x3ffffff, 26) * 4;
+  }
+  else if ((code & 0xfffffc1f) == 0xd63f0000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_CALL_INDIRECT;
+  }
+  else if ((code & 0xfc000000) == 0x14000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_JUMP;
+    insn->imm = gum_sign_extend (code & 0x3ffffff, 26) * 4;
+  }
+  else if ((code & 0xff000010) == 0x54000000 ||
+      (code & 0x7e000000) == 0x34000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_BRANCH_IF;
+    insn->imm = gum_sign_extend ((code >> 5) & 0x7ffff, 19) * 4;
+  }
+  else if ((code & 0x7e000000) == 0x36000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_BRANCH_IF;
+    insn->imm = gum_sign_extend ((code >> 5) & 0x3fff, 14) * 4;
+  }
+  else if (code == GUM_ARM64_RET || (code & 0xfffffc1f) == 0xd61f0000 ||
+      (code & 0xffe0001f) == 0xd4200000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_EXIT;
+  }
+  else if ((code & 0x7f200000) == 0x0a200000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_CLEAR_BITS;
+  }
+  else if ((code & 0x7f2003e0) == 0x2a2003e0)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_INVERT;
+  }
+  else if ((code & 0x7f200000) == 0x0a000000)
+  {
+    insn->kind = GUM_PE_ARM64_INSN_AND_REG;
+  }
+  else if (gum_arm64_code_writes_rt (code))
+  {
+    insn->kind = GUM_PE_ARM64_INSN_WRITE;
+  }
+}
+
+static gint64
+gum_sign_extend (guint32 value,
+                 guint bits)
+{
+  guint shift = 64 - bits;
+
+  return ((gint64) ((guint64) value << shift)) >> shift;
+}
+
+static gboolean
+gum_arm64_code_writes_rt (guint32 code)
+{
+  if ((code & 0x1c000000) == 0x10000000 || (code & 0x0e000000) == 0x0a000000)
+    return TRUE;
+
+  if ((code & 0x0a000000) != 0x08000000 || (code & 0x04000000) != 0)
+    return FALSE;
+
+  switch ((code >> 27) & 7)
+  {
+    case 3:
+      return TRUE;
+    case 7:
+      return (code & 0x00c00000) != 0 ||
+          (code & 0x00200c00) == 0x00200000;
+    default:
+      return (code & 0x00400000) != 0;
+  }
+}
+
+static void
+gum_pe_arm64_flow_step (GumPeArm64Flow * self,
+                        const GumPeArm64Insn * insn,
+                        GumAddress pc,
+                        GumAddress base,
+                        GumAddress limit)
+{
+  guint address;
+
+  switch (insn->kind)
+  {
+    case GUM_PE_ARM64_INSN_MOV_REG:
+      gum_pe_arm64_flow_set (self, insn->rt, self->regs[insn->rm]);
+      break;
+    case GUM_PE_ARM64_INSN_MOV_IMM:
+      gum_pe_arm64_flow_set (self, insn->rt, gum_pe_arm64_flow_intern (self,
+          GUM_PE_ARM64_VALUE_CONSTANT, 0, insn->imm));
+      break;
+    case GUM_PE_ARM64_INSN_ADD_IMM:
+      gum_pe_arm64_flow_set (self, insn->rt,
+          gum_pe_arm64_flow_resolve_address (self, insn->rn, insn->imm));
+      break;
+    case GUM_PE_ARM64_INSN_AND_IMM:
+      gum_pe_arm64_flow_set (self, insn->rt, gum_pe_arm64_flow_mask (self,
+          gum_pe_arm64_flow_get (self, insn->rn)));
+      break;
+    case GUM_PE_ARM64_INSN_LOAD:
+      address = gum_pe_arm64_flow_resolve_address (self, insn->rn, insn->imm);
+      gum_pe_arm64_flow_add_event (self, GUM_PE_ARM64_EVENT_LOAD,
+          GUM_PE_ARM64_UNKNOWN, address, insn->size);
+      gum_pe_arm64_flow_set (self, insn->rt,
+          gum_pe_arm64_flow_load (self, address, 0));
+      break;
+    case GUM_PE_ARM64_INSN_LOAD_PAIR:
+      address = gum_pe_arm64_flow_resolve_address (self, insn->rn, insn->imm);
+      gum_pe_arm64_flow_set (self, insn->rt,
+          gum_pe_arm64_flow_load (self, address, 0));
+      gum_pe_arm64_flow_set (self, insn->rt2,
+          gum_pe_arm64_flow_load (self, address, insn->size));
+      break;
+    case GUM_PE_ARM64_INSN_STORE:
+      gum_pe_arm64_flow_add_event (self, GUM_PE_ARM64_EVENT_STORE,
+          self->regs[insn->rt],
+          gum_pe_arm64_flow_resolve_address (self, insn->rn, insn->imm),
+          insn->size);
+      break;
+    case GUM_PE_ARM64_INSN_CALL:
+      if (!gum_pe_arm64_call_preserves_arguments (pc + insn->imm, base, limit))
+        gum_pe_arm64_flow_call (self);
+      break;
+    case GUM_PE_ARM64_INSN_CALL_INDIRECT:
+      gum_pe_arm64_flow_call (self);
+      break;
+    case GUM_PE_ARM64_INSN_CLEAR_BITS:
+      gum_pe_arm64_flow_clear_bits (self, insn->rt);
+      break;
+    case GUM_PE_ARM64_INSN_INVERT:
+      gum_pe_arm64_flow_set (self, insn->rt, gum_pe_arm64_flow_intern (self,
+          GUM_PE_ARM64_VALUE_INVERTED, self->regs[insn->rm], 0));
+      break;
+    case GUM_PE_ARM64_INSN_AND_REG:
+      if (gum_pe_arm64_flow_is_inverted (self, insn->rn) ||
+          gum_pe_arm64_flow_is_inverted (self, insn->rm))
+        gum_pe_arm64_flow_clear_bits (self, insn->rt);
+      else
+        gum_pe_arm64_flow_set (self, insn->rt, GUM_PE_ARM64_UNKNOWN);
+      break;
+    case GUM_PE_ARM64_INSN_WRITE:
+      gum_pe_arm64_flow_set (self, insn->rt, GUM_PE_ARM64_UNKNOWN);
+      break;
+    default:
+      break;
+  }
+}
+
+static void
+gum_pe_arm64_flow_set (GumPeArm64Flow * self,
+                       guint reg,
+                       guint value)
+{
+  if (reg != GUM_PE_ARM64_ZR)
+    self->regs[reg] = value;
+}
+
+static guint
+gum_pe_arm64_flow_resolve_address (GumPeArm64Flow * self,
+                                   guint reg,
+                                   gint64 offset)
+{
+  guint base = gum_pe_arm64_flow_get (self, reg);
+  const GumPeArm64Value * value = &self->values[base];
+
+  if (base == GUM_PE_ARM64_UNKNOWN)
+    return GUM_PE_ARM64_UNKNOWN;
+
+  if (value->kind == GUM_PE_ARM64_VALUE_ADDRESS)
+  {
+    return gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_ADDRESS,
+        value->parent, value->offset + offset);
+  }
+
+  return gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_ADDRESS, base,
+      offset);
+}
+
+static guint
+gum_pe_arm64_flow_get (GumPeArm64Flow * self,
+                       guint reg)
+{
+  return (reg == GUM_PE_ARM64_SP) ? GUM_PE_ARM64_STACK : self->regs[reg];
+}
+
+static guint
+gum_pe_arm64_flow_mask (GumPeArm64Flow * self,
+                        guint value)
+{
+  return (self->values[value].kind == GUM_PE_ARM64_VALUE_LOAD)
+      ? value
+      : GUM_PE_ARM64_UNKNOWN;
+}
+
+static void
+gum_pe_arm64_flow_add_event (GumPeArm64Flow * self,
+                             GumPeArm64EventKind kind,
+                             guint value,
+                             guint address,
+                             guint size)
+{
+  GumPeArm64Event * event = &self->events[self->num_events++];
+
+  event->kind = kind;
+  event->value = value;
+  event->address = address;
+  event->size = size;
+}
+
+static guint
+gum_pe_arm64_flow_load (GumPeArm64Flow * self,
+                        guint address,
+                        gint64 offset)
+{
+  const GumPeArm64Value * value = &self->values[address];
+
+  if (address == GUM_PE_ARM64_UNKNOWN)
+    return GUM_PE_ARM64_UNKNOWN;
+
+  return gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_LOAD,
+      value->parent, value->offset + offset);
+}
+
+static gboolean
+gum_pe_arm64_call_preserves_arguments (GumAddress target,
+                                       GumAddress base,
+                                       GumAddress limit)
+{
+  const guint32 * code = GSIZE_TO_POINTER (target);
+  guint i;
+
+  if (target < base || target + (8 * sizeof (guint32)) > limit)
+    return FALSE;
+
+  for (i = 0; i != 8; i++)
+  {
+    GumPeArm64Insn insn;
+
+    gum_pe_arm64_insn_decode (code[i], &insn);
+
+    switch (insn.kind)
+    {
+      case GUM_PE_ARM64_INSN_EXIT:
+        return code[i] == GUM_ARM64_RET;
+      case GUM_PE_ARM64_INSN_CALL:
+      case GUM_PE_ARM64_INSN_CALL_INDIRECT:
+      case GUM_PE_ARM64_INSN_JUMP:
+      case GUM_PE_ARM64_INSN_BRANCH_IF:
+        return FALSE;
+      case GUM_PE_ARM64_INSN_LOAD_PAIR:
+        if (insn.rt < GUM_PE_ARM64_IP0 ||
+            insn.rt2 < GUM_PE_ARM64_IP0)
+          return FALSE;
+        break;
+      case GUM_PE_ARM64_INSN_STORE:
+      case GUM_PE_ARM64_INSN_OTHER:
+        break;
+      default:
+        if (insn.rt < GUM_PE_ARM64_IP0)
+          return FALSE;
+        break;
+    }
+  }
+
+  return FALSE;
+}
+
+static void
+gum_pe_arm64_flow_call (GumPeArm64Flow * self)
+{
+  GumPeArm64Event * event = &self->events[self->num_events++];
+  guint i;
+
+  event->kind = GUM_PE_ARM64_EVENT_CALL;
+  memcpy (event->args, self->regs, sizeof (event->args));
+  event->value = gum_pe_arm64_flow_intern (self,
+      GUM_PE_ARM64_VALUE_CALL_RESULT, 0, self->num_calls++);
+
+  for (i = 0; i != GUM_PE_ARM64_PLATFORM_REG; i++)
+    self->regs[i] = GUM_PE_ARM64_UNKNOWN;
+  self->regs[0] = event->value;
+}
+
+static void
+gum_pe_arm64_flow_clear_bits (GumPeArm64Flow * self,
+                              guint reg)
+{
+  gum_pe_arm64_flow_add_event (self, GUM_PE_ARM64_EVENT_CLEAR_BITS,
+      GUM_PE_ARM64_UNKNOWN, GUM_PE_ARM64_UNKNOWN, 0);
+  gum_pe_arm64_flow_set (self, reg, GUM_PE_ARM64_UNKNOWN);
+}
+
+static gboolean
+gum_pe_arm64_flow_is_inverted (GumPeArm64Flow * self,
+                               guint reg)
+{
+  return self->values[gum_pe_arm64_flow_get (self, reg)].kind ==
+      GUM_PE_ARM64_VALUE_INVERTED;
+}
+
+static gboolean
+gum_pe_arm64_flow_is_handle_tls_data (GumPeArm64Flow * self)
+{
+  guint dll_base, tls_directory;
+  guint out_values[GUM_PE_TLS_HEAD_MAX_INSNS];
+  guint num_out_values = 0;
+  guint i;
+
+  dll_base = gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_LOAD,
+      GUM_PE_ARM64_ENTRY, GUM_PE_LOADER_ENTRY_DLL_BASE_OFFSET);
+  tls_directory = gum_pe_arm64_flow_intern (self,
+      GUM_PE_ARM64_VALUE_CONSTANT, 0, GUM_PE_DIRECTORY_TLS);
+
+  for (i = 0; i != self->num_events; i++)
+  {
+    const GumPeArm64Event * event = &self->events[i];
+
+    if (event->kind == GUM_PE_ARM64_EVENT_CALL &&
+        (event->args[0] == dll_base || event->args[1] == dll_base))
+    {
+      const GumPeArm64Value * out = &self->values[event->args[3]];
+
+      if (event->args[2] == tls_directory)
+        return TRUE;
+
+      if (out->kind == GUM_PE_ARM64_VALUE_ADDRESS)
+      {
+        out_values[num_out_values++] = gum_pe_arm64_flow_intern (self,
+            GUM_PE_ARM64_VALUE_LOAD, out->parent, out->offset);
+      }
+    }
+    else if (event->kind == GUM_PE_ARM64_EVENT_LOAD &&
+        event->size == sizeof (guint32) &&
+        event->address != GUM_PE_ARM64_UNKNOWN)
+    {
+      const GumPeArm64Value * address = &self->values[event->address];
+
+      if (address->offset == GUM_PE_NT_HEADERS_TLS_DIRECTORY_OFFSET &&
+          gum_uint_list_contains (out_values, num_out_values,
+              address->parent))
+        return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_uint_list_contains (const guint * values,
+                        guint n,
+                        guint value)
+{
+  guint i;
+
+  for (i = 0; i != n; i++)
+  {
+    if (values[i] == value)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_pe_arm64_flow_is_release_tls_entry (GumPeArm64Flow * self)
+{
+  guint record = GUM_PE_ARM64_UNKNOWN, flink = 0, blink = 0;
+  guint flink_back_link = 0, blink_forward_link = 0;
+  gboolean unlinked_blink = FALSE, unlinked_flink = FALSE;
+  guint i;
+
+  for (i = 0; i != self->num_events; i++)
+  {
+    const GumPeArm64Event * event = &self->events[i];
+
+    if (record == GUM_PE_ARM64_UNKNOWN)
+    {
+      if (event->kind == GUM_PE_ARM64_EVENT_CALL &&
+          event->args[0] == GUM_PE_ARM64_ENTRY)
+      {
+        record = event->value;
+        flink = gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_LOAD,
+            record, 0);
+        blink = gum_pe_arm64_flow_intern (self, GUM_PE_ARM64_VALUE_LOAD,
+            record, GLIB_SIZEOF_VOID_P);
+        flink_back_link = gum_pe_arm64_flow_intern (self,
+            GUM_PE_ARM64_VALUE_ADDRESS, flink, GLIB_SIZEOF_VOID_P);
+        blink_forward_link = gum_pe_arm64_flow_intern (self,
+            GUM_PE_ARM64_VALUE_ADDRESS, blink, 0);
+      }
+      continue;
+    }
+
+    if (event->kind == GUM_PE_ARM64_EVENT_STORE)
+    {
+      if (event->value == flink && event->address == blink_forward_link)
+        unlinked_blink = TRUE;
+      if (event->value == blink && event->address == flink_back_link)
+        unlinked_flink = TRUE;
+    }
+    else if (unlinked_blink && unlinked_flink &&
+        (event->kind == GUM_PE_ARM64_EVENT_CLEAR_BITS ||
+         (event->kind == GUM_PE_ARM64_EVENT_CALL &&
+          gum_pe_arm64_flow_passes_field_of (self, event, record))))
+    {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_pe_arm64_flow_passes_field_of (GumPeArm64Flow * self,
+                                   const GumPeArm64Event * event,
+                                   guint record)
+{
+  guint i;
+
+  for (i = 0; i != G_N_ELEMENTS (event->args); i++)
+  {
+    const GumPeArm64Value * arg = &self->values[event->args[i]];
+
+    if (arg->kind == GUM_PE_ARM64_VALUE_LOAD && arg->parent == record)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+static void
+gum_enqueue_arm64_callees (GumAddress function,
+                           GumAddress base,
+                           GumAddress limit,
+                           GHashTable * visited,
+                           GQueue * queue)
+{
+  GHashTable * seen;
+  GQueue pending = G_QUEUE_INIT;
+
+  seen = g_hash_table_new (NULL, NULL);
+  g_queue_push_tail (&pending, GSIZE_TO_POINTER (function));
+
+  while (!g_queue_is_empty (&pending))
+  {
+    GumAddress pc = GPOINTER_TO_SIZE (g_queue_pop_tail (&pending));
+
+    while (pc >= base && pc < limit &&
+        g_hash_table_size (seen) != GUM_PE_ARM64_MAX_FUNCTION_INSNS &&
+        g_hash_table_add (seen, GSIZE_TO_POINTER (pc)))
+    {
+      GumPeArm64Insn insn;
+      GumAddress target;
+
+      gum_pe_arm64_insn_decode (*((const guint32 *) GSIZE_TO_POINTER (pc)),
+          &insn);
+
+      if (insn.kind == GUM_PE_ARM64_INSN_JUMP)
+      {
+        pc += insn.imm;
+        continue;
+      }
+
+      if (insn.kind == GUM_PE_ARM64_INSN_EXIT)
+        break;
+
+      target = pc + insn.imm;
+      if (insn.kind == GUM_PE_ARM64_INSN_BRANCH_IF)
+      {
+        g_queue_push_tail (&pending, GSIZE_TO_POINTER (target));
+      }
+      else if (insn.kind == GUM_PE_ARM64_INSN_CALL && target >= base &&
+          target < limit && g_hash_table_add (visited,
+              GSIZE_TO_POINTER (target)))
+      {
+        g_queue_push_tail (queue, GSIZE_TO_POINTER (target));
+      }
+
+      pc += sizeof (guint32);
+    }
+  }
+
+  g_queue_clear (&pending);
+  g_hash_table_unref (seen);
+}
+
+#if !defined (HAVE_ARM64)
 
 # if GLIB_SIZEOF_VOID_P == 8
 
