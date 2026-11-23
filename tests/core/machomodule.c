@@ -326,8 +326,9 @@ TESTCASE (out_of_range_fat_slice_is_rejected)
   fd = g_file_open_tmp ("machomodule-XXXXXX", &path, NULL);
   g_assert_cmpint (fd, !=, -1);
   g_close (fd, NULL);
-  g_assert_true (g_file_set_contents (path, (const gchar *) image,
-      GUM_TEST_IMAGE_SIZE, NULL));
+  g_file_set_contents_full (path, (const gchar *) image, GUM_TEST_IMAGE_SIZE,
+      G_FILE_SET_CONTENTS_NONE, 0600, &error);
+  g_assert_no_error (error);
 
   module = gum_macho_module_new_from_file (path, GUM_CPU_ARM64,
       GUM_PTRAUTH_INVALID, GUM_MACHO_MODULE_FLAGS_HEADER_ONLY, &error);
