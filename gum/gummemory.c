@@ -170,6 +170,12 @@ static gboolean gum_memory_patch_code_pages_via_code_segment (
 static gboolean gum_memory_patch_code_pages_via_hooks (
     GPtrArray * sorted_addresses, gboolean coalesce,
     GumMemoryPatchPagesApplyFunc apply, gpointer apply_data);
+#if defined (HAVE_DARWIN) && defined (HAVE_ARM64)
+static guint gum_swap_in_code_pages (guint8 * scratch,
+    GPtrArray * sorted_addresses, gsize page_size);
+static gboolean gum_try_swap_in_code_run (gpointer source_pages,
+    gpointer target_pages, gsize size);
+#endif
 static gboolean gum_maybe_suspend_thread (const GumThreadDetails * details,
     gpointer user_data);
 
@@ -712,6 +718,7 @@ gum_memory_patch_code_pages_via_mprotect (GPtrArray * sorted_addresses,
   guint i;
   guint8 * apply_start, * apply_target_start;
   guint apply_num_pages;
+  guint first_unswapped;
   GumSuspendOperation suspend_op = { 0, };
   guint num_suspended;
   guint8 * scratch, * source_page, * pristine, * pristine_page;
@@ -860,12 +867,22 @@ gum_memory_patch_code_pages_via_mprotect (GPtrArray * sorted_addresses,
   if (apply_num_pages != 0)
     apply (apply_start, apply_target_start, apply_num_pages, apply_data);
 
-  gum_metal_array_init (&suspend_op.suspended_threads, sizeof (GumThreadId));
-  suspend_op.current_thread_id = gum_process_get_current_thread_id ();
-  _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
-      GUM_THREAD_FLAGS_NONE);
+#if defined (HAVE_DARWIN) && defined (HAVE_ARM64)
+  first_unswapped = gum_swap_in_code_pages (scratch, sorted_addresses,
+      page_size);
+#else
+  first_unswapped = 0;
+#endif
 
-  for (i = 0; i != sorted_addresses->len; i++)
+  gum_metal_array_init (&suspend_op.suspended_threads, sizeof (GumThreadId));
+  if (first_unswapped != sorted_addresses->len)
+  {
+    suspend_op.current_thread_id = gum_process_get_current_thread_id ();
+    _gum_process_enumerate_threads (gum_maybe_suspend_thread, &suspend_op,
+        GUM_THREAD_FLAGS_NONE);
+  }
+
+  for (i = first_unswapped; i != sorted_addresses->len; i++)
   {
     gpointer target_page = g_ptr_array_index (sorted_addresses, i);
 
@@ -873,7 +890,7 @@ gum_memory_patch_code_pages_via_mprotect (GPtrArray * sorted_addresses,
     {
       guint j;
 
-      for (j = 0; j != i; j++)
+      for (j = first_unswapped; j != i; j++)
       {
         gum_try_mprotect (g_ptr_array_index (sorted_addresses, j), page_size,
             GUM_PAGE_RX);
@@ -886,9 +903,9 @@ gum_memory_patch_code_pages_via_mprotect (GPtrArray * sorted_addresses,
 
   if (result)
   {
-    source_page = scratch;
-    pristine_page = pristine;
-    for (i = 0; i != sorted_addresses->len; i++)
+    source_page = scratch + first_unswapped * page_size;
+    pristine_page = pristine + first_unswapped * page_size;
+    for (i = first_unswapped; i != sorted_addresses->len; i++)
     {
       guint8 * target_page = g_ptr_array_index (sorted_addresses, i);
       gsize offset;
@@ -1131,6 +1148,74 @@ beach:
 
   return success;
 }
+
+#if defined (HAVE_DARWIN) && defined (HAVE_ARM64)
+
+static guint
+gum_swap_in_code_pages (guint8 * scratch,
+                        GPtrArray * sorted_addresses,
+                        gsize page_size)
+{
+  guint num_swapped;
+  guint8 * run_start;
+  guint run_length;
+
+  if (!gum_try_mprotect (scratch, sorted_addresses->len * page_size,
+      GUM_PAGE_RX))
+  {
+    return 0;
+  }
+
+  gum_clear_cache (scratch, sorted_addresses->len * page_size);
+
+  num_swapped = 0;
+  while (num_swapped != sorted_addresses->len)
+  {
+    run_start = g_ptr_array_index (sorted_addresses, num_swapped);
+
+    run_length = 1;
+    while (num_swapped + run_length != sorted_addresses->len &&
+        (guint8 *) g_ptr_array_index (sorted_addresses,
+            num_swapped + run_length) == run_start + run_length * page_size)
+    {
+      run_length++;
+    }
+
+    if (!gum_try_swap_in_code_run (scratch + num_swapped * page_size,
+        run_start, run_length * page_size))
+    {
+      break;
+    }
+
+    num_swapped += run_length;
+  }
+
+  return num_swapped;
+}
+
+static gboolean
+gum_try_swap_in_code_run (gpointer source_pages,
+                          gpointer target_pages,
+                          gsize size)
+{
+  mach_vm_address_t address;
+  vm_prot_t cur_prot, max_prot;
+
+  address = GPOINTER_TO_SIZE (target_pages);
+  if (mach_vm_remap (mach_task_self (), &address, size, 0,
+      VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, mach_task_self (),
+      GPOINTER_TO_SIZE (source_pages), TRUE, &cur_prot, &max_prot,
+      VM_INHERIT_COPY) != KERN_SUCCESS)
+  {
+    return FALSE;
+  }
+
+  gum_clear_cache (target_pages, size);
+
+  return TRUE;
+}
+
+#endif
 
 static gboolean
 gum_maybe_suspend_thread (const GumThreadDetails * details,
