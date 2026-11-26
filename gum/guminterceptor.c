@@ -60,7 +60,6 @@ typedef void (* GumUpdateTaskFunc) (GumInterceptor * self,
 struct _GumInterceptorTransaction
 {
   gboolean is_dirty;
-  gint level;
   GQueue * pending_destroy_tasks;
   GHashTable * pending_update_tasks;
 
@@ -117,6 +116,7 @@ struct _InterceptorThreadContext
   GumInvocationBackend replacement_backend;
 
   gint ignore_level;
+  gint transaction_level;
 
   GumInvocationStack * stack;
 
@@ -195,6 +195,7 @@ static void gum_interceptor_transaction_destroy (
 static void gum_interceptor_transaction_begin (
     GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
+static gboolean gum_interceptor_transaction_is_open_on_current_thread (void);
 static void gum_interceptor_release_unwind_broker_if_unused (
     GumInterceptor * self);
 static void gum_interceptor_stop_needing_unwind_broker (GumInterceptor * self);
@@ -310,8 +311,8 @@ static gint gum_page_address_compare (gconstpointer * a, gconstpointer * b);
  *   pointer for this.)
  *
  * A batch of changes can be grouped into a transaction so that they are
- * activated as a unit, which is both faster and atomic from the target's point
- * of view; see [method@Gum.Interceptor.begin_transaction].
+ * activated together, which is faster; see
+ * [method@Gum.Interceptor.begin_transaction].
  *
  * ## Attaching a listener
  *
@@ -577,7 +578,8 @@ gum_interceptor_set_default_options (GumInterceptor * self,
  * only `on_enter` acts as a probe and may be placed at an arbitrary
  * instruction to observe execution reaching that point.
  *
- * The change takes effect immediately unless a transaction is open.
+ * The change takes effect immediately unless the calling thread has a
+ * transaction open.
  *
  * Returns: %GUM_ATTACH_OK on success, or another [enum@Gum.AttachReturn]
  *   describing why the function could not be instrumented
@@ -665,7 +667,8 @@ beach:
  * any [method@Gum.Interceptor.attach] calls made with it. Functions left
  * without any listeners or replacement are restored to their original state.
  *
- * The change takes effect immediately unless a transaction is open.
+ * The change takes effect immediately unless the calling thread has a
+ * transaction open.
  */
 void
 gum_interceptor_detach (GumInterceptor * self,
@@ -729,7 +732,7 @@ gum_interceptor_detach (GumInterceptor * self,
  * if a pointer is more convenient.
  *
  * Undo with [method@Gum.Interceptor.revert]. The change takes effect
- * immediately unless a transaction is open.
+ * immediately unless the calling thread has a transaction open.
  *
  * Returns: %GUM_REPLACE_OK on success, or another [enum@Gum.ReplaceReturn]
  *   describing why the function could not be instrumented
@@ -950,7 +953,8 @@ gum_interceptor_options_init (GumInterceptorOptions * options)
  * Reverts a previous [method@Gum.Interceptor.replace] of @target, restoring the
  * original function. Has no effect if the function was not replaced.
  *
- * The change takes effect immediately unless a transaction is open.
+ * The change takes effect immediately unless the calling thread has a
+ * transaction open.
  */
 void
 gum_interceptor_revert (GumInterceptor * self,
@@ -986,11 +990,13 @@ beach:
  * gum_interceptor_begin_transaction:
  * @self: the interceptor
  *
- * Begins a transaction, deferring activation of any attach, replace and revert
- * operations until the matching [method@Gum.Interceptor.end_transaction].
- * Batching changes this way is faster and lets a set of modifications be
- * applied as a unit. Transactions nest; only ending the outermost one applies
- * the changes.
+ * Begins a transaction on the calling thread, deferring activation of any
+ * attach, replace and revert operations until the matching
+ * [method@Gum.Interceptor.end_transaction]. Batching changes this way is
+ * faster. Transactions nest per thread; only ending the outermost one applies
+ * the changes. A transaction does not hold back other threads: when one of
+ * them ends its outermost transaction, or makes a change outside of one,
+ * everything pending is applied, including changes made inside this one.
  */
 void
 gum_interceptor_begin_transaction (GumInterceptor * self)
@@ -1004,8 +1010,10 @@ gum_interceptor_begin_transaction (GumInterceptor * self)
  * gum_interceptor_end_transaction:
  * @self: the interceptor
  *
- * Ends a transaction started with [method@Gum.Interceptor.begin_transaction].
- * Ending the outermost transaction activates all changes made since it began.
+ * Ends a transaction started with [method@Gum.Interceptor.begin_transaction]
+ * on the calling thread. Ending the calling thread's outermost transaction
+ * activates all pending changes, including those made by other threads that
+ * are still inside their own transactions.
  */
 void
 gum_interceptor_end_transaction (GumInterceptor * self)
@@ -1023,8 +1031,8 @@ gum_interceptor_end_transaction (GumInterceptor * self)
  * a listener is detached or a replacement reverted the hook stops firing
  * immediately, but the memory backing its instrumentation can only be released
  * once no thread is left executing inside it, so that step is deferred. Call
- * this to force a pass and learn whether it finished. Does nothing while a
- * transaction is open.
+ * this to force a pass and learn whether it finished. Does nothing while the
+ * calling thread has a transaction open.
  *
  * Returns: %TRUE if no teardown remains pending, %FALSE if some instrumented
  *   code may still be executing
@@ -1036,7 +1044,7 @@ gum_interceptor_flush (GumInterceptor * self)
 
   GUM_INTERCEPTOR_LOCK (self);
 
-  if (self->current_transaction.level == 0)
+  if (!gum_interceptor_transaction_is_open_on_current_thread ())
   {
     gum_interceptor_transaction_begin (&self->current_transaction);
     gum_interceptor_transaction_end (&self->current_transaction);
@@ -1069,7 +1077,7 @@ gum_interceptor_flush_function (GumInterceptor * self,
 
   GUM_INTERCEPTOR_LOCK (self);
 
-  if (self->current_transaction.level == 0)
+  if (!gum_interceptor_transaction_is_open_on_current_thread ())
   {
     gpointer target;
     GList * cur;
@@ -1121,7 +1129,7 @@ gum_interceptor_flush_listener (GumInterceptor * self,
 
   GUM_INTERCEPTOR_LOCK (self);
 
-  if (self->current_transaction.level == 0)
+  if (!gum_interceptor_transaction_is_open_on_current_thread ())
   {
     GList * cur;
 
@@ -1763,7 +1771,6 @@ gum_interceptor_transaction_init (GumInterceptorTransaction * transaction,
                                   GumInterceptor * interceptor)
 {
   transaction->is_dirty = FALSE;
-  transaction->level = 0;
   transaction->pending_destroy_tasks = g_queue_new ();
   transaction->pending_update_tasks = g_hash_table_new_full (
       NULL, NULL, NULL, (GDestroyNotify) g_array_unref);
@@ -1790,17 +1797,20 @@ gum_interceptor_transaction_destroy (GumInterceptorTransaction * transaction)
 static void
 gum_interceptor_transaction_begin (GumInterceptorTransaction * self)
 {
-  self->level++;
+  get_interceptor_thread_context ()->transaction_level++;
 }
 
 static void
 gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 {
   GumInterceptor * interceptor = self->interceptor;
+  InterceptorThreadContext * interceptor_ctx;
   GumInterceptorTransaction transaction_copy;
+  gpointer previous_guard;
 
-  self->level--;
-  if (self->level > 0)
+  interceptor_ctx = get_interceptor_thread_context ();
+  interceptor_ctx->transaction_level--;
+  if (interceptor_ctx->transaction_level > 0)
     return;
 
   if (!self->is_dirty)
@@ -1822,7 +1832,10 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   gum_interceptor_transaction_init (&interceptor->current_transaction,
       interceptor);
 
+  previous_guard = gum_tls_key_get_value (gum_interceptor_guard_key);
+  gum_tls_key_set_value (gum_interceptor_guard_key, interceptor);
   gum_interceptor_transaction_perform_updates (self);
+  gum_tls_key_set_value (gum_interceptor_guard_key, previous_guard);
 
   {
     GumDestroyTask * task;
@@ -1852,6 +1865,12 @@ no_changes:
   gum_interceptor_release_unwind_broker_if_unused (interceptor);
 
   gum_interceptor_unignore_current_thread (interceptor);
+}
+
+static gboolean
+gum_interceptor_transaction_is_open_on_current_thread (void)
+{
+  return get_interceptor_thread_context ()->transaction_level != 0;
 }
 
 static void
@@ -2681,6 +2700,7 @@ interceptor_thread_context_new (void)
   context->replacement_backend.state = context;
 
   context->ignore_level = 0;
+  context->transaction_level = 0;
 
   context->stack = g_array_sized_new (FALSE, TRUE,
       sizeof (GumInvocationStackEntry), GUM_MAX_CALL_DEPTH);

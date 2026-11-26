@@ -94,6 +94,8 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (ignore_other_threads)
   TESTENTRY (detach)
   TESTENTRY (attach_after_detach_in_same_transaction)
+  TESTENTRY (attach_takes_effect_while_other_thread_is_in_transaction)
+  TESTENTRY (pending_changes_take_effect_when_other_thread_commits)
   TESTENTRY (listener_ref_count)
   TESTENTRY (function_data)
 
@@ -140,6 +142,19 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (fast_interceptor_performance)
 TESTLIST_END ()
 
+typedef struct _TestTransactionHolder TestTransactionHolder;
+
+struct _TestTransactionHolder
+{
+  TestInterceptorFixture * fixture;
+  gboolean attach;
+
+  GMutex mutex;
+  GCond cond;
+  gboolean inside;
+  gboolean released;
+};
+
 static GString * gum_test_unwind_log = NULL;
 static jmp_buf gum_test_longjmp_buf;
 static void gum_test_longjmp_outer (void);
@@ -173,6 +188,11 @@ static void gum_test_fiber_inner (void);
 #endif
 
 static gpointer obtain_and_release_repeatedly (gpointer data);
+static GThread * start_transaction_holder (TestTransactionHolder * holder,
+    TestInterceptorFixture * fixture, gboolean attach);
+static void stop_transaction_holder (TestTransactionHolder * holder,
+    GThread * thread);
+static gpointer hold_transaction (gpointer data);
 #ifdef HAVE_I386
 static void check_attach_to_block_beginning_with_loop (
     TestInterceptorFixture * fixture, guint32 xcx, gint expected_result);
@@ -869,6 +889,107 @@ TESTCASE (attach_after_detach_in_same_transaction)
 
   interceptor_fixture_detach (fixture, 1);
   g_assert_cmpmem (original, sizeof (original), code, sizeof (original));
+}
+
+TESTCASE (attach_takes_effect_while_other_thread_is_in_transaction)
+{
+  TestTransactionHolder holder;
+  GThread * thread;
+
+  thread = start_transaction_holder (&holder, fixture, FALSE);
+
+  interceptor_fixture_attach (fixture, 0, target_function, 'a', 'b');
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "a|b");
+
+  stop_transaction_holder (&holder, thread);
+
+  interceptor_fixture_detach (fixture, 0);
+}
+
+TESTCASE (pending_changes_take_effect_when_other_thread_commits)
+{
+  TestTransactionHolder holder;
+  GThread * thread;
+
+  thread = start_transaction_holder (&holder, fixture, TRUE);
+
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "|");
+
+  gum_interceptor_begin_transaction (fixture->interceptor);
+  gum_interceptor_end_transaction (fixture->interceptor);
+
+  g_string_truncate (fixture->result, 0);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "c|d");
+
+  stop_transaction_holder (&holder, thread);
+
+  interceptor_fixture_detach (fixture, 1);
+}
+
+static GThread *
+start_transaction_holder (TestTransactionHolder * holder,
+                          TestInterceptorFixture * fixture,
+                          gboolean attach)
+{
+  GThread * thread;
+
+  holder->fixture = fixture;
+  holder->attach = attach;
+  g_mutex_init (&holder->mutex);
+  g_cond_init (&holder->cond);
+  holder->inside = FALSE;
+  holder->released = FALSE;
+
+  thread = g_thread_new ("interceptor-test-transaction-holder",
+      hold_transaction, holder);
+
+  g_mutex_lock (&holder->mutex);
+  while (!holder->inside)
+    g_cond_wait (&holder->cond, &holder->mutex);
+  g_mutex_unlock (&holder->mutex);
+
+  return thread;
+}
+
+static void
+stop_transaction_holder (TestTransactionHolder * holder,
+                         GThread * thread)
+{
+  g_mutex_lock (&holder->mutex);
+  holder->released = TRUE;
+  g_cond_signal (&holder->cond);
+  g_mutex_unlock (&holder->mutex);
+
+  g_thread_join (thread);
+
+  g_cond_clear (&holder->cond);
+  g_mutex_clear (&holder->mutex);
+}
+
+static gpointer
+hold_transaction (gpointer data)
+{
+  TestTransactionHolder * holder = data;
+  GumInterceptor * interceptor = holder->fixture->interceptor;
+
+  gum_interceptor_begin_transaction (interceptor);
+
+  if (holder->attach)
+    interceptor_fixture_attach (holder->fixture, 1, target_function, 'c', 'd');
+
+  g_mutex_lock (&holder->mutex);
+  holder->inside = TRUE;
+  g_cond_signal (&holder->cond);
+  while (!holder->released)
+    g_cond_wait (&holder->cond, &holder->mutex);
+  g_mutex_unlock (&holder->mutex);
+
+  gum_interceptor_end_transaction (interceptor);
+
+  return NULL;
 }
 
 TESTCASE (listener_ref_count)
