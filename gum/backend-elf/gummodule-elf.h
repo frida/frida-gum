@@ -33,8 +33,7 @@ struct _GumNativeModule
 
   GRecMutex mutex;
 
-  gpointer cached_handle;
-  gboolean attempted_handle_creation;
+  gint initialized;
 
   GumElfModule * cached_elf;
   gboolean attempted_elf_creation;
@@ -47,7 +46,6 @@ G_GNUC_INTERNAL GumNativeModule * _gum_native_module_make (const gchar * path,
 G_GNUC_INTERNAL GumNativeModule * _gum_native_module_make_handleless (
     const gchar * path, const GumMemoryRange * range);
 
-G_GNUC_INTERNAL gpointer _gum_native_module_get_handle (GumNativeModule * self);
 G_GNUC_INTERNAL GumElfModule * _gum_native_module_get_elf_module (
     GumNativeModule * self);
 
