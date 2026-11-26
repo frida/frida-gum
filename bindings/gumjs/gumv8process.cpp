@@ -151,8 +151,10 @@ static GumV8ModuleObserver * gum_v8_module_observer_ref (
     GumV8ModuleObserver * observer);
 static void gum_v8_module_observer_unref (GumV8ModuleObserver * observer);
 static void gum_v8_module_observer_destroy (GumV8ModuleObserver * self);
-static gboolean gum_emit_existing_module (GumModule * module,
-    GumV8ModuleObserver * observer);
+static gboolean gum_store_existing_module (GumModule * module,
+    GPtrArray * modules);
+static void gum_v8_module_observer_replay (GumV8ModuleObserver * self,
+    GPtrArray * modules);
 static void gum_emit_added_module (GumModuleRegistry * registry,
     GumModule * module, GumV8ModuleObserver * observer);
 static void gum_emit_removed_module (GumModuleRegistry * registry,
@@ -892,7 +894,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
 
     auto registry = gum_module_registry_obtain ();
 
-    gum_module_registry_lock (registry);
+    gum_module_registry_begin_replay (registry);
 
     if (observe_added)
     {
@@ -914,13 +916,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
           (GConnectFlags) 0);
     }
 
+    GPtrArray * existing_modules = nullptr;
     if (observe_added)
     {
+      existing_modules = g_ptr_array_new_with_free_func (g_object_unref);
       gum_module_registry_enumerate_modules (registry,
-          (GumFoundModuleFunc) gum_emit_existing_module, observer);
+          (GumFoundModuleFunc) gum_store_existing_module, existing_modules);
     }
 
     gum_module_registry_unlock (registry);
+
+    if (observe_added)
+      gum_v8_module_observer_replay (observer, existing_modules);
+
+    gum_module_registry_end_replay (registry);
   }
 
   auto observer_template_value (Local<Object>::New (isolate,
@@ -990,12 +999,25 @@ gum_v8_process_detach_module_observer (GumV8Process * self,
 }
 
 static gboolean
-gum_emit_existing_module (GumModule * module,
-                          GumV8ModuleObserver * observer)
+gum_store_existing_module (GumModule * module,
+                           GPtrArray * modules)
 {
-  gum_v8_module_observer_invoke (observer, observer->on_added, module);
+  g_ptr_array_add (modules, g_object_ref (module));
 
   return TRUE;
+}
+
+static void
+gum_v8_module_observer_replay (GumV8ModuleObserver * self,
+                               GPtrArray * modules)
+{
+  for (guint i = 0; i != modules->len; i++)
+  {
+    gum_v8_module_observer_invoke (self, self->on_added,
+        GUM_MODULE (g_ptr_array_index (modules, i)));
+  }
+
+  g_ptr_array_unref (modules);
 }
 
 static void

@@ -160,8 +160,10 @@ static GumQuickModuleObserver * gum_quick_module_observer_ref (
     GumQuickModuleObserver * observer);
 static void gum_quick_module_observer_unref (GumQuickModuleObserver * observer);
 static void gum_quick_module_observer_destroy (GumQuickModuleObserver * self);
-static gboolean gum_emit_existing_module (GumModule * module,
-    GumQuickModuleObserver * observer);
+static gboolean gum_store_existing_module (GumModule * module,
+    GPtrArray * modules);
+static void gum_quick_module_observer_replay (GumQuickModuleObserver * self,
+    GPtrArray * modules);
 static void gum_emit_added_module (GumModuleRegistry * registry,
     GumModule * module, GumQuickModuleObserver * observer);
 static void gum_emit_removed_module (GumModuleRegistry * registry,
@@ -914,6 +916,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
   GumQuickModuleObserver * observer;
   GumQuickScope scope = GUM_QUICK_SCOPE_INIT (core);
   GumModuleRegistry * registry;
+  GPtrArray * existing_modules = NULL;
 
   parent = gumjs_get_parent_module (core);
 
@@ -943,7 +946,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
 
   registry = gum_module_registry_obtain ();
 
-  gum_module_registry_lock (registry);
+  gum_module_registry_begin_replay (registry);
 
   if (observe_added)
   {
@@ -967,11 +970,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_attach_module_observer)
 
   if (observe_added)
   {
+    existing_modules = g_ptr_array_new_with_free_func (g_object_unref);
     gum_module_registry_enumerate_modules (registry,
-        (GumFoundModuleFunc) gum_emit_existing_module, observer);
+        (GumFoundModuleFunc) gum_store_existing_module, existing_modules);
   }
 
   gum_module_registry_unlock (registry);
+
+  if (observe_added)
+    gum_quick_module_observer_replay (observer, existing_modules);
+
+  gum_module_registry_end_replay (registry);
 
   _gum_quick_scope_resume (&scope);
 
@@ -1059,12 +1068,27 @@ gum_quick_process_detach_module_observer (GumQuickProcess * self,
 }
 
 static gboolean
-gum_emit_existing_module (GumModule * module,
-                          GumQuickModuleObserver * observer)
+gum_store_existing_module (GumModule * module,
+                           GPtrArray * modules)
 {
-  gum_quick_module_observer_invoke (observer, observer->on_added, module);
+  g_ptr_array_add (modules, g_object_ref (module));
 
   return TRUE;
+}
+
+static void
+gum_quick_module_observer_replay (GumQuickModuleObserver * self,
+                                  GPtrArray * modules)
+{
+  guint i;
+
+  for (i = 0; i != modules->len; i++)
+  {
+    gum_quick_module_observer_invoke (self, self->on_added,
+        g_ptr_array_index (modules, i));
+  }
+
+  g_ptr_array_unref (modules);
 }
 
 static void

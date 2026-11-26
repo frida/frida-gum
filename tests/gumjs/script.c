@@ -192,6 +192,8 @@ TESTLIST_BEGIN (script)
     TESTENTRY (process_threads_have_names)
     TESTENTRY (process_modules_can_be_enumerated)
     TESTENTRY (process_modules_can_be_observed)
+    TESTENTRY (process_modules_can_be_observed_while_hooks_use_modules)
+    TESTENTRY (process_modules_loaded_during_replay_are_observed_before_use)
     TESTENTRY (process_module_can_be_looked_up_from_address)
     TESTENTRY (process_module_can_be_looked_up_from_name)
     TESTENTRY (process_ranges_can_be_enumerated)
@@ -582,6 +584,8 @@ typedef struct _TestNativeReturnStruct TestNativeReturnStruct;
 typedef struct _TestNativeReturnNestedStruct TestNativeReturnNestedStruct;
 typedef struct _TestNativeSmallStruct TestNativeSmallStruct;
 typedef struct _GumHotNamedSleeperContext GumHotNamedSleeperContext;
+typedef struct _TestModuleObserverRace TestModuleObserverRace;
+typedef struct _TestModuleLoadRace TestModuleLoadRace;
 
 struct _GumInvokeTargetContext
 {
@@ -665,6 +669,27 @@ struct _GumHotNamedSleeperContext
   gboolean hot;
 };
 
+struct _TestModuleObserverRace
+{
+  GMutex mutex;
+  GCond cond;
+  gboolean hook_entered;
+  GThread * caller;
+};
+
+struct _TestModuleLoadRace
+{
+  GMutex mutex;
+  GCond cond;
+  gchar * path;
+  GThread * loader;
+  gpointer handle;
+  gboolean load_returned;
+  gboolean added;
+  gboolean added_before_load_returned;
+  gboolean first_call_hooked;
+};
+
 static size_t gum_get_size_max (void);
 static gboolean gum_test_size_max (size_t sz);
 static size_t gum_add_size (size_t sz);
@@ -705,6 +730,13 @@ static gpointer run_stalked_through_target_function (gpointer data);
 
 static gpointer sleeping_dummy (gpointer data);
 G_GNUC_UNUSED static gpointer named_sleeper (gpointer data);
+static void start_hooked_call (TestModuleObserverRace * race);
+static gpointer call_hooked_function (gpointer data);
+static void announce_hook_entered (TestModuleObserverRace * race);
+static void start_module_load (TestModuleLoadRace * race);
+static gpointer load_target_module (gpointer data);
+static void note_module_added (TestModuleLoadRace * race);
+static void note_first_call (TestModuleLoadRace * race);
 static GThread * create_sleeping_dummy_thread_sync (gboolean * done,
     GumThreadId * thread_id);
 static gpointer sleeping_dummy_func (gpointer data);
@@ -6353,6 +6385,228 @@ TESTCASE (process_modules_can_be_observed)
       "observer.detach();");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (process_modules_can_be_observed_while_hooks_use_modules)
+{
+  TestModuleObserverRace race = { 0, };
+
+  g_mutex_init (&race.mutex);
+  g_cond_init (&race.cond);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const race = " GUM_PTR_CONST ";"
+      "const startHookedCall = new NativeFunction(" GUM_PTR_CONST ","
+      "    'void', ['pointer']);"
+      "const announceHookEntered = new NativeFunction(" GUM_PTR_CONST ","
+      "    'void', ['pointer']);"
+      "const other = " GUM_PTR_CONST ";"
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter() {"
+      "    announceHookEntered(race);"
+      "    Process.enumerateModules();"
+      "    Interceptor.attach(other, { onEnter() {} });"
+      "  }"
+      "});"
+      "setTimeout(() => {"
+      "  let replayed = 0;"
+      "  const observer = Process.attachModuleObserver({"
+      "    onAdded(module) {"
+      "      if (replayed++ === 0)"
+      "        startHookedCall(race);"
+      "    }"
+      "  });"
+      "  observer.detach();"
+      "  send(replayed > 0);"
+      "}, 0);",
+      &race, start_hooked_call, announce_hook_entered,
+      target_function_nested_c, target_function_int);
+  PUSH_TIMEOUT (5000);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  POP_TIMEOUT ();
+  EXPECT_NO_MESSAGES ();
+
+  g_thread_join (race.caller);
+
+  g_cond_clear (&race.cond);
+  g_mutex_clear (&race.mutex);
+}
+
+static void
+start_hooked_call (TestModuleObserverRace * race)
+{
+  race->caller = g_thread_new ("script-test-hooked-caller",
+      call_hooked_function, race);
+
+  g_mutex_lock (&race->mutex);
+  while (!race->hook_entered)
+    g_cond_wait (&race->cond, &race->mutex);
+  g_mutex_unlock (&race->mutex);
+
+  g_usleep (G_USEC_PER_SEC / 20);
+}
+
+static gpointer
+call_hooked_function (gpointer data)
+{
+  target_function_int (7);
+
+  return NULL;
+}
+
+static void
+announce_hook_entered (TestModuleObserverRace * race)
+{
+  g_mutex_lock (&race->mutex);
+  race->hook_entered = TRUE;
+  g_cond_signal (&race->cond);
+  g_mutex_unlock (&race->mutex);
+}
+
+TESTCASE (process_modules_loaded_during_replay_are_observed_before_use)
+{
+  const gchar * module_name;
+  gchar * data_dir;
+  TestModuleLoadRace race = { 0, };
+
+#if defined (HAVE_WINDOWS)
+  module_name = "module-observer-target.dll";
+#elif defined (HAVE_DARWIN)
+  module_name = "module-observer-target.dylib";
+#else
+  module_name = "module-observer-target.so";
+#endif
+
+  data_dir = test_util_get_data_dir ();
+
+  g_mutex_init (&race.mutex);
+  g_cond_init (&race.cond);
+  race.path = g_build_filename (data_dir, module_name, NULL);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const race = " GUM_PTR_CONST ";"
+      "const startModuleLoad = new NativeFunction(" GUM_PTR_CONST ","
+      "    'void', ['pointer']);"
+      "const noteModuleAdded = new NativeFunction(" GUM_PTR_CONST ","
+      "    'void', ['pointer']);"
+      "const noteFirstCall = new NativeFunction(" GUM_PTR_CONST ","
+      "    'void', ['pointer']);"
+      "setTimeout(() => {"
+      "  let replayed = 0;"
+      "  Process.attachModuleObserver({"
+      "    onAdded(module) {"
+      "      if (module.name === '%s') {"
+      "        const target = module.enumerateExports().find(e =>"
+      "            e.name === 'gum_module_observer_target_function');"
+      "        Interceptor.attach(target.address, {"
+      "          onEnter() {"
+      "            noteFirstCall(race);"
+      "          }"
+      "        });"
+      "        noteModuleAdded(race);"
+      "      } else if (replayed++ === 0) {"
+      "        startModuleLoad(race);"
+      "      }"
+      "    }"
+      "  });"
+      "  send('replayed');"
+      "}, 0);",
+      &race, start_module_load, note_module_added, note_first_call,
+      module_name);
+  PUSH_TIMEOUT (5000);
+  EXPECT_SEND_MESSAGE_WITH ("\"replayed\"");
+  POP_TIMEOUT ();
+
+  g_thread_join (race.loader);
+
+  EXPECT_NO_MESSAGES ();
+  g_assert_true (race.added_before_load_returned);
+  g_assert_true (race.first_call_hooked);
+
+  UNLOAD_SCRIPT ();
+#ifdef HAVE_WINDOWS
+  FreeLibrary (race.handle);
+#else
+  dlclose (race.handle);
+#endif
+
+  g_free (race.path);
+  g_cond_clear (&race.cond);
+  g_mutex_clear (&race.mutex);
+  g_free (data_dir);
+}
+
+static void
+start_module_load (TestModuleLoadRace * race)
+{
+  gint64 deadline;
+
+  race->loader = g_thread_new ("script-test-module-loader",
+      load_target_module, race);
+
+  deadline = g_get_monotonic_time () + (G_TIME_SPAN_SECOND / 5);
+
+  g_mutex_lock (&race->mutex);
+  while (!race->load_returned)
+  {
+    if (!g_cond_wait_until (&race->cond, &race->mutex, deadline))
+      break;
+  }
+  g_mutex_unlock (&race->mutex);
+}
+
+static gpointer
+load_target_module (gpointer data)
+{
+  TestModuleLoadRace * race = data;
+#ifdef HAVE_WINDOWS
+  gunichar2 * path_utf16;
+#endif
+  gpointer handle;
+  int (* target_function) (int n);
+
+#ifdef HAVE_WINDOWS
+  path_utf16 = g_utf8_to_utf16 (race->path, -1, NULL, NULL, NULL);
+  handle = LoadLibraryW ((LPCWSTR) path_utf16);
+  g_free (path_utf16);
+#else
+  handle = dlopen (race->path, RTLD_NOW | RTLD_LOCAL);
+#endif
+  g_assert_nonnull (handle);
+
+  g_mutex_lock (&race->mutex);
+  race->handle = handle;
+  race->load_returned = TRUE;
+  race->added_before_load_returned = race->added;
+  g_cond_signal (&race->cond);
+  g_mutex_unlock (&race->mutex);
+
+#ifdef HAVE_WINDOWS
+  target_function = GUM_POINTER_TO_FUNCPTR (int (*) (int),
+      GetProcAddress (handle, "gum_module_observer_target_function"));
+#else
+  target_function = GUM_POINTER_TO_FUNCPTR (int (*) (int),
+      dlsym (handle, "gum_module_observer_target_function"));
+#endif
+  g_assert_cmpint (target_function (4), ==, 64);
+
+  return NULL;
+}
+
+static void
+note_module_added (TestModuleLoadRace * race)
+{
+  g_mutex_lock (&race->mutex);
+  race->added = TRUE;
+  g_mutex_unlock (&race->mutex);
+}
+
+static void
+note_first_call (TestModuleLoadRace * race)
+{
+  g_mutex_lock (&race->mutex);
+  race->first_call_hooked = TRUE;
+  g_mutex_unlock (&race->mutex);
 }
 
 TESTCASE (process_module_can_be_looked_up_from_address)

@@ -26,6 +26,9 @@ GUM_API void gum_module_registry_enumerate_modules (GumModuleRegistry * self,
 GUM_API void gum_module_registry_lock (GumModuleRegistry * self);
 GUM_API void gum_module_registry_unlock (GumModuleRegistry * self);
 
+GUM_API void gum_module_registry_begin_replay (GumModuleRegistry * self);
+GUM_API void gum_module_registry_end_replay (GumModuleRegistry * self);
+
 G_END_DECLS
 
 #endif
