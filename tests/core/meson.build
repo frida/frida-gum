@@ -44,6 +44,7 @@ endif
 
 if host_os_family == 'darwin'
   core_sources += [
+    'exceptor-darwin.c',
     'interceptor-darwin.c',
     'unwindbroker-darwin.c',
     'machomapper.c',

@@ -21,8 +21,15 @@ G_DECLARE_FINAL_TYPE (GumExceptorBackend, gum_exceptor_backend, GUM,
 
 G_GNUC_INTERNAL GumExceptorBackend * gum_exceptor_backend_new (
     GumExceptionHandler handler, gpointer user_data);
+#ifdef HAVE_DARWIN
+G_GNUC_INTERNAL void _gum_exceptor_backend_prepare_try (
+    GumExceptorBackend * self);
+G_GNUC_INTERNAL gboolean _gum_exceptor_backend_supports_thread_ports (void);
+#endif
 
 G_GNUC_INTERNAL GumExceptorMode _gum_exceptor_get_mode (void);
+G_GNUC_INTERNAL gboolean _gum_exceptor_handle_scope_exception (
+    GumExceptionDetails * details, gpointer user_data);
 
 G_END_DECLS
 

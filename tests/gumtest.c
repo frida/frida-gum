@@ -228,6 +228,7 @@ main (gint argc, gchar * argv[])
   TESTLIST_REGISTER (mapper);
 #endif
 #ifdef HAVE_DARWIN
+  TESTLIST_REGISTER (exceptor_darwin);
   TESTLIST_REGISTER (interceptor_darwin);
   TESTLIST_REGISTER (unwind_broker);
   TESTLIST_REGISTER (macho_mapper);

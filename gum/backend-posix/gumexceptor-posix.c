@@ -7,6 +7,7 @@
 #include "gumexceptorbackend.h"
 
 #include "guminterceptor.h"
+#include "gumtls.h"
 #ifdef HAVE_DARWIN
 # include "gum/gumdarwin.h"
 #endif
@@ -55,10 +56,30 @@
 # include <unix.h>
 #endif
 
+#if (defined (HAVE_MACOS) || defined (HAVE_IOS)) && defined (HAVE_ARM64)
+# define GUM_HAVE_THREAD_EXCEPTION_PORTS 1
+#endif
+
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+# define GUM_THREAD_EXCEPTION_MASK \
+    (EXC_MASK_BAD_ACCESS | EXC_MASK_BAD_INSTRUCTION | EXC_MASK_ARITHMETIC)
+# define GUM_THREAD_PORT_INSTALLED GSIZE_TO_POINTER (1)
+# define GUM_THREAD_PORT_DECLINED GSIZE_TO_POINTER (2)
+# define GUM_EXCEPTION_SERVER_STOP 1
+# define GUM_ESR_EC_MASK 0xfc000000
+# define GUM_ESR_EC_INSTRUCTION_ABORT 0x80000000
+# define GUM_ESR_WNR (1 << 6)
+#endif
+
 #if defined (HAVE_DARWIN) || defined (HAVE_FREEBSD) || defined (HAVE_QNX)
 typedef sig_t GumSignalHandler;
 #else
 typedef sighandler_t GumSignalHandler;
+#endif
+
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+typedef struct _GumExceptionRequest GumExceptionRequest;
+typedef struct _GumExceptionReply GumExceptionReply;
 #endif
 
 struct _GumExceptorBackend
@@ -74,9 +95,68 @@ struct _GumExceptorBackend
   gint num_old_handlers;
 
   GumInterceptor * interceptor;
+
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+  GumTlsKey thread_port_key;
+  mach_port_t port_set;
+  mach_port_t control_port;
+  GThread * server_thread;
+#endif
 };
 
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+
+#pragma pack (push, 4)
+
+struct _GumExceptionRequest
+{
+  mach_msg_header_t header;
+  NDR_record_t ndr;
+  exception_type_t exception;
+  mach_msg_type_number_t code_count;
+  gint64 code[EXCEPTION_CODE_MAX];
+  int flavor;
+  mach_msg_type_number_t old_state_count;
+  GumDarwinUnifiedThreadState old_state;
+  mach_msg_max_trailer_t trailer;
+};
+
+struct _GumExceptionReply
+{
+  mach_msg_header_t header;
+  NDR_record_t ndr;
+  kern_return_t result;
+  int flavor;
+  mach_msg_type_number_t new_state_count;
+  GumDarwinUnifiedThreadState new_state;
+};
+
+#pragma pack (pop)
+
+#endif
+
 static void gum_exceptor_backend_dispose (GObject * object);
+
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+static gboolean gum_exceptor_backend_install_thread_port (
+    GumExceptorBackend * self);
+static gboolean gum_swap_in_thread_exception_port (GumThreadId thread,
+    mach_port_t port);
+static mach_port_t gum_exceptor_backend_ensure_server (
+    GumExceptorBackend * self);
+static void gum_exceptor_backend_stop_server (GumExceptorBackend * self);
+static gpointer gum_exceptor_backend_serve (GumExceptorBackend * self);
+static void gum_exceptor_backend_reply_to_exception (GumExceptorBackend * self,
+    GumExceptionRequest * request, GumExceptionReply * reply);
+static gboolean gum_exceptor_backend_handle_thread_exception (
+    GumExceptorBackend * self, GumExceptionRequest * request,
+    GumDarwinUnifiedThreadState * new_state);
+static GumMemoryOperation gum_query_memory_operation (GumThreadId thread);
+static void gum_parse_exception_state (
+    const GumDarwinUnifiedThreadState * state, GumCpuContext * ctx);
+static void gum_unparse_exception_state (const GumCpuContext * ctx,
+    GumDarwinUnifiedThreadState * state);
+#endif
 
 static void gum_exceptor_backend_attach (GumExceptorBackend * self);
 static void gum_exceptor_backend_detach (GumExceptorBackend * self);
@@ -125,6 +205,9 @@ static GumMemoryOperation gum_infer_mips_memory_operation (cs_insn * insn);
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+G_LOCK_DEFINE_STATIC (gum_exception_server);
+#endif
 
 static GumSignalHandler (* gum_original_signal) (int signum,
     GumSignalHandler handler);
@@ -144,6 +227,15 @@ _gum_exceptor_backend_recover_from_fork_in_parent (void)
 void
 _gum_exceptor_backend_recover_from_fork_in_child (void)
 {
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+  if (the_backend == NULL)
+    return;
+
+  the_backend->port_set = MACH_PORT_NULL;
+  the_backend->control_port = MACH_PORT_NULL;
+  the_backend->server_thread = NULL;
+  gum_tls_key_set_value (the_backend->thread_port_key, NULL);
+#endif
 }
 
 static void
@@ -208,6 +300,10 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
 {
   self->interceptor = gum_interceptor_obtain ();
 
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+  self->thread_port_key = gum_tls_key_new ();
+#endif
+
   the_backend = self;
 }
 
@@ -221,6 +317,11 @@ gum_exceptor_backend_dispose (GObject * object)
     self->disposed = TRUE;
 
     gum_exceptor_backend_detach (self);
+
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+    gum_exceptor_backend_stop_server (self);
+    gum_tls_key_free (self->thread_port_key);
+#endif
 
     g_object_unref (self->interceptor);
     self->interceptor = NULL;
@@ -245,6 +346,359 @@ gum_exceptor_backend_new (GumExceptionHandler handler,
 
   return backend;
 }
+
+#ifdef HAVE_DARWIN
+
+void
+_gum_exceptor_backend_prepare_try (GumExceptorBackend * self)
+{
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+  if (gum_tls_key_get_value (self->thread_port_key) != NULL)
+    return;
+
+  gum_tls_key_set_value (self->thread_port_key,
+      gum_exceptor_backend_install_thread_port (self)
+          ? GUM_THREAD_PORT_INSTALLED
+          : GUM_THREAD_PORT_DECLINED);
+#endif
+}
+
+gboolean
+_gum_exceptor_backend_supports_thread_ports (void)
+{
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+  return !gum_darwin_query_hardened () && !gum_process_is_debugger_attached ();
+#else
+  return FALSE;
+#endif
+}
+
+#endif
+
+#ifdef GUM_HAVE_THREAD_EXCEPTION_PORTS
+
+static gboolean
+gum_exceptor_backend_install_thread_port (GumExceptorBackend * self)
+{
+  gboolean installed;
+  mach_port_t port_set, self_task, port, previous;
+  GumThreadId thread;
+
+  if (!_gum_exceptor_backend_supports_thread_ports ())
+    return FALSE;
+
+  port_set = gum_exceptor_backend_ensure_server (self);
+
+  self_task = mach_task_self ();
+  thread = gum_process_get_current_thread_id ();
+
+  mach_port_allocate (self_task, MACH_PORT_RIGHT_RECEIVE, &port);
+  mach_port_insert_right (self_task, port, port, MACH_MSG_TYPE_MAKE_SEND);
+  mach_port_set_context (self_task, port, thread);
+  mach_port_insert_member (self_task, port, port_set);
+
+  installed = gum_swap_in_thread_exception_port (thread, port);
+  if (installed)
+  {
+    mach_port_request_notification (self_task, port, MACH_NOTIFY_NO_SENDERS,
+        0, port, MACH_MSG_TYPE_MAKE_SEND_ONCE, &previous);
+    mach_port_mod_refs (self_task, port, MACH_PORT_RIGHT_SEND, -1);
+  }
+  else
+  {
+    mach_port_destruct (self_task, port, -1, 0);
+  }
+
+  return installed;
+}
+
+static gboolean
+gum_swap_in_thread_exception_port (GumThreadId thread,
+                                   mach_port_t port)
+{
+  gboolean has_own_port;
+  mach_port_t self_task;
+  mach_msg_type_number_t count, i;
+  exception_mask_t masks[EXC_TYPES_COUNT];
+  mach_port_t handlers[EXC_TYPES_COUNT];
+  exception_behavior_t behaviors[EXC_TYPES_COUNT];
+  thread_state_flavor_t flavors[EXC_TYPES_COUNT];
+  kern_return_t kr;
+
+  self_task = mach_task_self ();
+
+  count = EXC_TYPES_COUNT;
+  kr = thread_swap_exception_ports (thread, GUM_THREAD_EXCEPTION_MASK, port,
+      EXCEPTION_STATE | MACH_EXCEPTION_CODES, GUM_DARWIN_THREAD_STATE_FLAVOR,
+      masks, &count, handlers, behaviors, flavors);
+  if (kr != KERN_SUCCESS)
+    return FALSE;
+
+  has_own_port = FALSE;
+  for (i = 0; i != count; i++)
+  {
+    if (MACH_PORT_VALID (handlers[i]))
+      has_own_port = TRUE;
+  }
+
+  for (i = 0; i != count; i++)
+  {
+    if (has_own_port)
+    {
+      thread_set_exception_ports (thread, masks[i], handlers[i], behaviors[i],
+          flavors[i]);
+    }
+
+    if (MACH_PORT_VALID (handlers[i]))
+      mach_port_deallocate (self_task, handlers[i]);
+  }
+
+  return !has_own_port;
+}
+
+static mach_port_t
+gum_exceptor_backend_ensure_server (GumExceptorBackend * self)
+{
+  mach_port_t port_set, self_task;
+
+  G_LOCK (gum_exception_server);
+
+  if (self->port_set == MACH_PORT_NULL)
+  {
+    self_task = mach_task_self ();
+
+    mach_port_allocate (self_task, MACH_PORT_RIGHT_PORT_SET, &self->port_set);
+    mach_port_allocate (self_task, MACH_PORT_RIGHT_RECEIVE,
+        &self->control_port);
+    mach_port_insert_right (self_task, self->control_port, self->control_port,
+        MACH_MSG_TYPE_MAKE_SEND);
+    mach_port_insert_member (self_task, self->control_port, self->port_set);
+
+    self->server_thread = g_thread_new ("gum-exception-server",
+        (GThreadFunc) gum_exceptor_backend_serve, self);
+  }
+
+  port_set = self->port_set;
+
+  G_UNLOCK (gum_exception_server);
+
+  return port_set;
+}
+
+static void
+gum_exceptor_backend_stop_server (GumExceptorBackend * self)
+{
+  mach_port_t self_task;
+  mach_msg_header_t stop;
+  mach_port_name_array_t members;
+  mach_msg_type_number_t count, i;
+
+  if (self->server_thread == NULL)
+    return;
+
+  self_task = mach_task_self ();
+
+  stop.msgh_bits = MACH_MSGH_BITS (MACH_MSG_TYPE_COPY_SEND, 0);
+  stop.msgh_size = sizeof (stop);
+  stop.msgh_remote_port = self->control_port;
+  stop.msgh_local_port = MACH_PORT_NULL;
+  stop.msgh_voucher_port = MACH_PORT_NULL;
+  stop.msgh_id = GUM_EXCEPTION_SERVER_STOP;
+  mach_msg_send (&stop);
+
+  g_thread_join (g_steal_pointer (&self->server_thread));
+
+  mach_port_mod_refs (self_task, self->control_port, MACH_PORT_RIGHT_SEND, -1);
+  self->control_port = MACH_PORT_NULL;
+
+  mach_port_get_set_status (self_task, self->port_set, &members, &count);
+  for (i = 0; i != count; i++)
+    mach_port_mod_refs (self_task, members[i], MACH_PORT_RIGHT_RECEIVE, -1);
+  vm_deallocate (self_task, (vm_address_t) members,
+      count * sizeof (mach_port_name_t));
+
+  mach_port_mod_refs (self_task, self->port_set, MACH_PORT_RIGHT_PORT_SET, -1);
+  self->port_set = MACH_PORT_NULL;
+}
+
+static gpointer
+gum_exceptor_backend_serve (GumExceptorBackend * self)
+{
+  mach_port_t self_task;
+  GumExceptionRequest request;
+  GumExceptionReply reply;
+  G_GNUC_UNUSED kern_return_t kr;
+
+  self_task = mach_task_self ();
+
+  while (TRUE)
+  {
+    kr = mach_msg (&request.header, MACH_RCV_MSG, 0, sizeof (request),
+        self->port_set, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+    g_assert (kr == KERN_SUCCESS);
+
+    if (request.header.msgh_id == GUM_EXCEPTION_SERVER_STOP)
+      break;
+
+    if (request.header.msgh_id == MACH_NOTIFY_NO_SENDERS)
+    {
+      mach_port_mod_refs (self_task, request.header.msgh_local_port,
+          MACH_PORT_RIGHT_RECEIVE, -1);
+      continue;
+    }
+
+    gum_exceptor_backend_reply_to_exception (self, &request, &reply);
+
+    mach_msg (&reply.header, MACH_SEND_MSG, reply.header.msgh_size, 0,
+        MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+  }
+
+  return NULL;
+}
+
+static void
+gum_exceptor_backend_reply_to_exception (GumExceptorBackend * self,
+                                         GumExceptionRequest * request,
+                                         GumExceptionReply * reply)
+{
+  reply->header.msgh_bits =
+      MACH_MSGH_BITS (MACH_MSGH_BITS_REMOTE (request->header.msgh_bits), 0);
+  reply->header.msgh_remote_port = request->header.msgh_remote_port;
+  reply->header.msgh_local_port = MACH_PORT_NULL;
+  reply->header.msgh_voucher_port = MACH_PORT_NULL;
+  reply->header.msgh_id = request->header.msgh_id + 100;
+  reply->ndr = NDR_record;
+
+  if (gum_exceptor_backend_handle_thread_exception (self, request,
+      &reply->new_state))
+  {
+    reply->header.msgh_size = sizeof (GumExceptionReply);
+    reply->result = KERN_SUCCESS;
+    reply->flavor = request->flavor;
+    reply->new_state_count = request->old_state_count;
+  }
+  else
+  {
+    reply->header.msgh_size = sizeof (mig_reply_error_t);
+    reply->result = KERN_FAILURE;
+  }
+}
+
+static gboolean
+gum_exceptor_backend_handle_thread_exception (
+    GumExceptorBackend * self,
+    GumExceptionRequest * request,
+    GumDarwinUnifiedThreadState * new_state)
+{
+  GumExceptionDetails ed;
+  GumExceptionMemoryDetails * md = &ed.memory;
+  GumCpuContext * cpu_context = &ed.context;
+  mach_port_context_t thread_id;
+
+  mach_port_get_context (mach_task_self (), request->header.msgh_local_port,
+      &thread_id);
+  if (!gum_exceptor_has_scope (self->handler_data, thread_id))
+    return FALSE;
+
+  ed.thread_id = thread_id;
+
+  switch (request->exception)
+  {
+    case EXC_BAD_ACCESS:
+      ed.type = GUM_EXCEPTION_ACCESS_VIOLATION;
+      break;
+    case EXC_BAD_INSTRUCTION:
+      ed.type = GUM_EXCEPTION_ILLEGAL_INSTRUCTION;
+      break;
+    case EXC_ARITHMETIC:
+      ed.type = GUM_EXCEPTION_ARITHMETIC;
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+
+  gum_parse_exception_state (&request->old_state, cpu_context);
+  ed.native_context = new_state;
+
+  ed.address = GSIZE_TO_POINTER (cpu_context->pc);
+
+  if (request->exception == EXC_BAD_ACCESS)
+  {
+    md->operation = gum_query_memory_operation (thread_id);
+    md->address = GSIZE_TO_POINTER (request->code[1]);
+  }
+  else
+  {
+    md->operation = GUM_MEMOP_INVALID;
+    md->address = NULL;
+  }
+
+  if (!_gum_exceptor_handle_scope_exception (&ed, self->handler_data))
+    return FALSE;
+
+  *new_state = request->old_state;
+  gum_unparse_exception_state (cpu_context, new_state);
+
+  return TRUE;
+}
+
+static GumMemoryOperation
+gum_query_memory_operation (GumThreadId thread)
+{
+  arm_exception_state64_t es;
+  mach_msg_type_number_t count;
+
+  count = ARM_EXCEPTION_STATE64_COUNT;
+  if (thread_get_state (thread, ARM_EXCEPTION_STATE64, (thread_state_t) &es,
+      &count) != KERN_SUCCESS)
+  {
+    return GUM_MEMOP_READ;
+  }
+
+  if ((es.__esr & GUM_ESR_EC_MASK) == GUM_ESR_EC_INSTRUCTION_ABORT)
+    return GUM_MEMOP_EXECUTE;
+
+  if ((es.__esr & GUM_ESR_WNR) != 0)
+    return GUM_MEMOP_WRITE;
+
+  return GUM_MEMOP_READ;
+}
+
+static void
+gum_parse_exception_state (const GumDarwinUnifiedThreadState * state,
+                           GumCpuContext * ctx)
+{
+  gum_darwin_parse_unified_thread_state (state, ctx);
+
+#ifdef HAVE_PTRAUTH
+  ctx->pc = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (ctx->pc),
+      ptrauth_key_process_independent_code));
+  ctx->lr = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (ctx->lr),
+      ptrauth_key_process_independent_code));
+  ctx->sp = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (ctx->sp),
+      ptrauth_key_process_independent_data));
+  ctx->fp = GPOINTER_TO_SIZE (ptrauth_strip (GSIZE_TO_POINTER (ctx->fp),
+      ptrauth_key_process_independent_data));
+#endif
+}
+
+static void
+gum_unparse_exception_state (const GumCpuContext * ctx,
+                             GumDarwinUnifiedThreadState * state)
+{
+  gum_darwin_unparse_unified_thread_state (ctx, state);
+
+#ifdef HAVE_PTRAUTH
+  __darwin_arm_thread_state64_set_pc_fptr (state->ts_64,
+      gum_sign_code_pointer (GSIZE_TO_POINTER (ctx->pc)));
+  __darwin_arm_thread_state64_set_lr_fptr (state->ts_64,
+      gum_sign_code_pointer (GSIZE_TO_POINTER (ctx->lr)));
+  __darwin_arm_thread_state64_set_sp (state->ts_64, ctx->sp);
+  __darwin_arm_thread_state64_set_fp (state->ts_64, ctx->fp);
+#endif
+}
+
+#endif
 
 static void
 gum_exceptor_backend_attach (GumExceptorBackend * self)
