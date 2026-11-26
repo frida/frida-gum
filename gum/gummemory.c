@@ -170,7 +170,7 @@ static gboolean gum_memory_patch_code_pages_via_code_segment (
 static gboolean gum_memory_patch_code_pages_via_hooks (
     GPtrArray * sorted_addresses, gboolean coalesce,
     GumMemoryPatchPagesApplyFunc apply, gpointer apply_data);
-#if defined (HAVE_DARWIN) && defined (HAVE_ARM64)
+#if defined (HAVE_MACOS) && defined (HAVE_ARM64)
 static guint gum_swap_in_code_pages (guint8 * scratch,
     GPtrArray * sorted_addresses, gsize page_size);
 static gboolean gum_try_swap_in_code_run (gpointer source_pages,
@@ -867,7 +867,7 @@ gum_memory_patch_code_pages_via_mprotect (GPtrArray * sorted_addresses,
   if (apply_num_pages != 0)
     apply (apply_start, apply_target_start, apply_num_pages, apply_data);
 
-#if defined (HAVE_DARWIN) && defined (HAVE_ARM64)
+#if defined (HAVE_MACOS) && defined (HAVE_ARM64)
   first_unswapped = gum_swap_in_code_pages (scratch, sorted_addresses,
       page_size);
 #else
@@ -1149,7 +1149,7 @@ beach:
   return success;
 }
 
-#if defined (HAVE_DARWIN) && defined (HAVE_ARM64)
+#if defined (HAVE_MACOS) && defined (HAVE_ARM64)
 
 static guint
 gum_swap_in_code_pages (guint8 * scratch,
