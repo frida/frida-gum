@@ -14,6 +14,10 @@
 # include "gum/gumwindows.h"
 #endif
 
+#ifdef HAVE_DARWIN
+# include <unistd.h>
+#endif
+
 #define TESTCASE(NAME) \
     void test_memory_ ## NAME (void)
 #define TESTENTRY(NAME) \
@@ -65,6 +69,9 @@ TESTLIST_BEGIN (memory)
   TESTENTRY (patch_code_routes_through_hooks)
   TESTENTRY (code_allocator_keeps_reusing_freed_slice)
   TESTENTRY (patch_code_does_not_apply_while_threads_suspended)
+#ifdef HAVE_DARWIN
+  TESTENTRY (patch_code_keeps_shared_cache_page_executable)
+#endif
 TESTLIST_END ()
 
 typedef struct _TestForEachContext {
@@ -101,6 +108,9 @@ static gboolean apply_patch (gpointer address, gconstpointer data, gsize size,
 static void write_ret (gpointer mem, gpointer user_data);
 static gpointer gum_patch_lock_holder (gpointer data);
 static void gum_patch_gated_apply (gpointer mem, gpointer user_data);
+#ifdef HAVE_DARWIN
+static void put_instruction (gpointer mem, gpointer user_data);
+#endif
 
 static GMutex gum_patch_gate;
 static volatile gint gum_patch_holder_ready;
@@ -1351,3 +1361,35 @@ gum_patch_gated_apply (gpointer mem,
   g_mutex_lock (&gum_patch_gate);
   g_mutex_unlock (&gum_patch_gate);
 }
+
+#ifdef HAVE_DARWIN
+
+TESTCASE (patch_code_keeps_shared_cache_page_executable)
+{
+  pid_t (* get_pid) (void) = getpid;
+  pid_t expected_pid;
+  guint32 * code;
+  guint32 first_instruction;
+  GumPageProtection prot;
+
+  expected_pid = get_pid ();
+
+  code = gum_strip_code_pointer (GUM_FUNCPTR_TO_POINTER (get_pid));
+  first_instruction = code[0];
+  g_assert_true (gum_memory_patch_code (code, sizeof (first_instruction),
+      put_instruction, &first_instruction));
+
+  g_assert_true (gum_memory_query_protection (code, &prot));
+  g_assert_cmpuint (prot & GUM_PAGE_RX, ==, GUM_PAGE_RX);
+  g_assert_cmphex (code[0], ==, first_instruction);
+  g_assert_cmpint (get_pid (), ==, expected_pid);
+}
+
+static void
+put_instruction (gpointer mem,
+                 gpointer user_data)
+{
+  *((guint32 *) mem) = *((const guint32 *) user_data);
+}
+
+#endif
