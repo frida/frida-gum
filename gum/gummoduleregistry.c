@@ -27,6 +27,11 @@ struct _GumModuleRegistry
   GRecMutex mutex;
   GumModuleRegistryState state;
   GPtrArray * modules;
+
+  GMutex replay_mutex;
+  GCond replay_cond;
+  GumThreadId replay_owner;
+  guint replay_depth;
 };
 
 enum
@@ -43,6 +48,8 @@ static void gum_module_registry_activate (GumModuleRegistry * self);
 static void gum_deinit_module_registry (void);
 static void gum_deinit_rtld_notifier_offsets (void);
 
+static void gum_module_registry_lock_outside_replay (GumModuleRegistry * self);
+static void gum_module_registry_wait_for_replay (GumModuleRegistry * self);
 static gboolean gum_is_cloaked_module (GumModule * module);
 
 /**
@@ -58,7 +65,9 @@ static gboolean gum_is_cloaked_module (GumModule * module);
  * [signal@Gum.ModuleRegistry::module-added] and
  * [signal@Gum.ModuleRegistry::module-removed] signals. Hold
  * [method@Gum.ModuleRegistry.lock] across a sequence of operations that need a
- * stable view.
+ * stable view, and use [method@Gum.ModuleRegistry.begin_replay] to hand the
+ * modules already loaded to a new observer without holding the lock while it
+ * runs.
  */
 
 /**
@@ -106,6 +115,11 @@ gum_module_registry_init (GumModuleRegistry * self)
   g_rec_mutex_init (&self->mutex);
   self->state = GUM_MODULE_REGISTRY_CREATED;
   self->modules = g_ptr_array_new_full (0, g_object_unref);
+
+  g_mutex_init (&self->replay_mutex);
+  g_cond_init (&self->replay_cond);
+  self->replay_owner = GUM_THREAD_ID_INVALID;
+  self->replay_depth = 0;
 }
 
 static void
@@ -129,6 +143,9 @@ static void
 gum_module_registry_finalize (GObject * object)
 {
   GumModuleRegistry * self = GUM_MODULE_REGISTRY (object);
+
+  g_cond_clear (&self->replay_cond);
+  g_mutex_clear (&self->replay_mutex);
 
   g_ptr_array_unref (self->modules);
   g_rec_mutex_clear (&self->mutex);
@@ -290,12 +307,13 @@ gum_module_registry_enumerate_modules (GumModuleRegistry * self,
  * Use this to keep the module set stable across several operations, for example
  * while holding on to a #GumModule obtained from it. Balance with
  * [method@Gum.ModuleRegistry.unlock]. Enumeration already takes the lock
- * internally.
+ * internally. Waits while another thread is replaying modules, see
+ * [method@Gum.ModuleRegistry.begin_replay].
  */
 void
 gum_module_registry_lock (GumModuleRegistry * self)
 {
-  GUM_MODULE_REGISTRY_LOCK (self);
+  gum_module_registry_lock_outside_replay (self);
 }
 
 /**
@@ -308,6 +326,97 @@ void
 gum_module_registry_unlock (GumModuleRegistry * self)
 {
   GUM_MODULE_REGISTRY_UNLOCK (self);
+}
+
+/**
+ * gum_module_registry_begin_replay:
+ * @self: module registry
+ *
+ * Acquires the registry lock like [method@Gum.ModuleRegistry.lock], and makes
+ * the calling thread the one replaying modules until the matching
+ * [method@Gum.ModuleRegistry.end_replay]. Use this to connect to the signals
+ * and take the modules already loaded under the lock, then release it with
+ * [method@Gum.ModuleRegistry.unlock] before handing them to the observer.
+ *
+ * Until the replay ends, signals for modules loaded or unloaded on other
+ * threads, and [method@Gum.ModuleRegistry.lock] on other threads, wait for it,
+ * so the observer sees them after the replay and before the loading thread
+ * goes on. Enumeration and lookups do not wait. Replays nest, and only one
+ * thread replays at a time.
+ */
+void
+gum_module_registry_begin_replay (GumModuleRegistry * self)
+{
+  gum_module_registry_lock_outside_replay (self);
+
+  g_mutex_lock (&self->replay_mutex);
+  self->replay_owner = gum_process_get_current_thread_id ();
+  self->replay_depth++;
+  g_mutex_unlock (&self->replay_mutex);
+}
+
+/**
+ * gum_module_registry_end_replay:
+ * @self: module registry
+ *
+ * Ends a replay started with [method@Gum.ModuleRegistry.begin_replay], letting
+ * the signals and lock holders waiting for it go on.
+ */
+void
+gum_module_registry_end_replay (GumModuleRegistry * self)
+{
+  g_mutex_lock (&self->replay_mutex);
+
+  self->replay_depth--;
+  if (self->replay_depth == 0)
+  {
+    self->replay_owner = GUM_THREAD_ID_INVALID;
+    g_cond_broadcast (&self->replay_cond);
+  }
+
+  g_mutex_unlock (&self->replay_mutex);
+}
+
+static void
+gum_module_registry_lock_outside_replay (GumModuleRegistry * self)
+{
+  GumThreadId current_thread;
+
+  current_thread = gum_process_get_current_thread_id ();
+
+  GUM_MODULE_REGISTRY_LOCK (self);
+  g_mutex_lock (&self->replay_mutex);
+
+  while (self->replay_owner != GUM_THREAD_ID_INVALID &&
+      self->replay_owner != current_thread)
+  {
+    GUM_MODULE_REGISTRY_UNLOCK (self);
+    g_cond_wait (&self->replay_cond, &self->replay_mutex);
+    g_mutex_unlock (&self->replay_mutex);
+
+    GUM_MODULE_REGISTRY_LOCK (self);
+    g_mutex_lock (&self->replay_mutex);
+  }
+
+  g_mutex_unlock (&self->replay_mutex);
+}
+
+static void
+gum_module_registry_wait_for_replay (GumModuleRegistry * self)
+{
+  GumThreadId current_thread;
+
+  current_thread = gum_process_get_current_thread_id ();
+
+  g_mutex_lock (&self->replay_mutex);
+
+  while (self->replay_owner != GUM_THREAD_ID_INVALID &&
+      self->replay_owner != current_thread)
+  {
+    g_cond_wait (&self->replay_cond, &self->replay_mutex);
+  }
+
+  g_mutex_unlock (&self->replay_mutex);
 }
 
 void
@@ -345,7 +454,10 @@ _gum_module_registry_register (GumModuleRegistry * self,
   GUM_MODULE_REGISTRY_UNLOCK (self);
 
   if (being_observed && !gum_is_cloaked_module (mod))
+  {
+    gum_module_registry_wait_for_replay (self);
     g_signal_emit (self, gum_module_registry_signals[MODULE_ADDED], 0, mod);
+  }
 }
 
 void
@@ -390,7 +502,10 @@ _gum_module_registry_unregister (GumModuleRegistry * self,
   _gum_interceptor_forget_all_hooks_in_range (gum_module_get_range (mod));
 
   if (being_observed && !gum_is_cloaked_module (mod))
+  {
+    gum_module_registry_wait_for_replay (self);
     g_signal_emit (self, gum_module_registry_signals[MODULE_REMOVED], 0, mod);
+  }
 
   g_object_unref (mod);
 }

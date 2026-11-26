@@ -105,6 +105,10 @@ shared_module('module-registry-dependent', 'module-registry-dependent.c',
   link_with: module_registry_dependency,
 )
 
+shared_module('module-observer-target', 'module-observer-target.c',
+  name_prefix: '',
+)
+
 if host_os_family == 'windows'
   executable('module-registry-program', 'module-registry-program.c')
 endif
