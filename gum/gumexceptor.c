@@ -46,8 +46,6 @@ static void the_exceptor_weak_notify (gpointer data,
 
 static gboolean gum_exceptor_handle_exception (GumExceptionDetails * details,
     GumExceptor * self);
-static gboolean gum_exceptor_handle_scope_exception (
-    GumExceptionDetails * details, gpointer user_data);
 
 static void gum_exceptor_scope_perform_longjmp (GumExceptorScope * scope);
 #if defined (G_OS_WIN32) && defined (HAVE_ARM64)
@@ -184,7 +182,7 @@ gum_exceptor_init (GumExceptor * self)
 
   self->scopes = g_hash_table_new (NULL, NULL);
 
-  gum_exceptor_add (self, gum_exceptor_handle_scope_exception, self);
+  gum_exceptor_add (self, _gum_exceptor_handle_scope_exception, self);
 
   gum_exceptor_reset (self);
 }
@@ -204,7 +202,7 @@ gum_exceptor_finalize (GObject * object)
 {
   GumExceptor * self = GUM_EXCEPTOR (object);
 
-  gum_exceptor_remove (self, gum_exceptor_handle_scope_exception, self);
+  gum_exceptor_remove (self, _gum_exceptor_handle_scope_exception, self);
 
   g_hash_table_unref (self->scopes);
 
@@ -413,6 +411,11 @@ _gum_exceptor_prepare_try (GumExceptor * self,
 
   thread_id_key = GSIZE_TO_POINTER (gum_process_get_current_thread_id ());
 
+#ifdef HAVE_DARWIN
+  if (self->backend != NULL)
+    _gum_exceptor_backend_prepare_try (self->backend);
+#endif
+
   scope->exception_occurred = FALSE;
 
   GUM_EXCEPTOR_LOCK ();
@@ -526,9 +529,9 @@ gum_exception_details_to_string (const GumExceptionDetails * details)
   return g_string_free (message, FALSE);
 }
 
-static gboolean
-gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
-                                     gpointer user_data)
+gboolean
+_gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
+                                      gpointer user_data)
 {
   GumExceptor * self = GUM_EXCEPTOR (user_data);
   GumExceptorScope * scope;
@@ -603,14 +606,17 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
    * per-signal kernel-private token that we cannot reproduce. Long-jump
    * straight from the signal handler instead.
    */
-  gum_exceptor_scope_perform_longjmp (scope);
-  g_assert_not_reached ();
-# else
+  if (details->thread_id == gum_process_get_current_thread_id ())
+  {
+    gum_exceptor_scope_perform_longjmp (scope);
+    g_assert_not_reached ();
+  }
+# endif
   {
     gsize pc, sp, lr;
 
-    pc = GPOINTER_TO_SIZE (
-        GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
+    pc = GPOINTER_TO_SIZE (gum_strip_code_pointer (
+        GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp)));
     sp = context->sp;
 
     /* Align to 16 byte boundary */
@@ -627,7 +633,6 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 
     context->x[0] = GPOINTER_TO_SIZE (scope);
   }
-# endif
 #elif defined (HAVE_MIPS)
   context->pc = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_perform_longjmp));
