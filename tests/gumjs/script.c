@@ -229,6 +229,7 @@ TESTLIST_BEGIN (script)
     TESTENTRY (module_symbol_can_be_found_by_name)
     TESTENTRY (module_can_be_loaded)
     TESTENTRY (module_can_be_forcibly_initialized)
+    TESTENTRY (module_can_be_unloaded_after_being_used)
   TESTGROUP_END ()
 
   TESTGROUP_BEGIN ("ModuleMap")
@@ -7164,6 +7165,68 @@ TESTCASE (module_can_be_forcibly_initialized)
   COMPILE_AND_LOAD_SCRIPT ("Process.getModuleByName('%s').ensureInitialized();",
       SYSTEM_MODULE_NAME);
   EXPECT_NO_MESSAGES ();
+}
+
+TESTCASE (module_can_be_unloaded_after_being_used)
+{
+  const gchar * module_name;
+  gchar * data_dir, * path;
+#ifdef HAVE_WINDOWS
+  gunichar2 * path_utf16;
+#endif
+  gpointer handle;
+
+#if defined (HAVE_WINDOWS)
+  module_name = "module-observer-target.dll";
+#elif defined (HAVE_DARWIN)
+  module_name = "module-observer-target.dylib";
+#else
+  module_name = "module-observer-target.so";
+#endif
+
+  data_dir = test_util_get_data_dir ();
+  path = g_build_filename (data_dir, module_name, NULL);
+
+#ifdef HAVE_WINDOWS
+  path_utf16 = g_utf8_to_utf16 (path, -1, NULL, NULL, NULL);
+  handle = LoadLibraryW ((LPCWSTR) path_utf16);
+  g_free (path_utf16);
+#else
+  handle = dlopen (path, RTLD_NOW | RTLD_LOCAL);
+#endif
+  g_assert_nonnull (handle);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "const name = '%s';"
+      "const exportName = 'gum_module_observer_target_function';"
+      "Process.attachModuleObserver({"
+      "  onRemoved(m) {"
+      "    if (m.name === name)"
+      "      send('removed');"
+      "  }"
+      "});"
+      "const m = Process.getModuleByName(name);"
+      "m.ensureInitialized();"
+      "send(m.getExportByName(exportName) !== null);"
+      "recv('unloaded', () => {"
+      "  send(m.findExportByName(exportName));"
+      "});",
+      module_name);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+#ifdef HAVE_WINDOWS
+  FreeLibrary (handle);
+#else
+  dlclose (handle);
+#endif
+  EXPECT_SEND_MESSAGE_WITH ("\"removed\"");
+
+  POST_MESSAGE ("{\"type\":\"unloaded\"}");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_NO_MESSAGES ();
+
+  g_free (path);
+  g_free (data_dir);
 }
 
 TESTCASE (module_map_values_should_have_module_prototype)

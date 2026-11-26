@@ -35,8 +35,7 @@ struct _GumNativeModule
 
   GMutex mutex;
 
-  gpointer cached_handle;
-  gboolean attempted_handle_creation;
+  gint initialized;
 
   GumMachoModule * cached_macho;
   gboolean attempted_macho_creation;
@@ -171,7 +170,6 @@ gum_native_module_dispose (GObject * object)
   GUM_NATIVE_MODULE_LOCK (self);
 
   g_clear_object (&self->cached_macho);
-  g_clear_pointer (&self->cached_handle, dlclose);
 
   GUM_NATIVE_MODULE_UNLOCK (self);
 
@@ -261,24 +259,6 @@ _gum_native_module_detach_resolver (GumNativeModule * self)
   self->resolver = NULL;
 }
 
-gpointer
-_gum_native_module_get_handle (GumNativeModule * self)
-{
-  GUM_NATIVE_MODULE_LOCK (self);
-
-  if (!self->attempted_handle_creation)
-  {
-    self->attempted_handle_creation = TRUE;
-
-    if (self->resolver->task == mach_task_self ())
-      self->cached_handle = dlopen (self->path, RTLD_LAZY);
-  }
-
-  GUM_NATIVE_MODULE_UNLOCK (self);
-
-  return self->cached_handle;
-}
-
 GumMachoModule *
 _gum_native_module_get_macho_module (GumNativeModule * self)
 {
@@ -328,7 +308,29 @@ gum_native_module_get_range (GumModule * module)
 static void
 gum_native_module_ensure_initialized (GumModule * module)
 {
-  _gum_native_module_get_handle (GUM_NATIVE_MODULE (module));
+  GumNativeModule * self;
+  gpointer loaded_handle, handle;
+
+  self = GUM_NATIVE_MODULE (module);
+
+  if (self->resolver->task != mach_task_self ())
+    return;
+
+  if (g_atomic_int_get (&self->initialized))
+    return;
+
+  loaded_handle = dlopen (self->path, RTLD_LAZY | RTLD_NOLOAD);
+  if (loaded_handle == NULL)
+    return;
+
+  handle = dlopen (self->path, RTLD_LAZY);
+  if (handle != NULL)
+  {
+    dlclose (handle);
+    g_atomic_int_set (&self->initialized, TRUE);
+  }
+
+  dlclose (loaded_handle);
 }
 
 static void

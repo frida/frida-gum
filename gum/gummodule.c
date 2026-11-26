@@ -7,6 +7,8 @@
 
 #include "gummodule.h"
 
+#include "gummoduleregistry-priv.h"
+
 #include <string.h>
 
 typedef struct _GumEmitExportWithPrefixContext
@@ -235,12 +237,19 @@ gum_module_get_range (GumModule * self)
  * @self: module
  *
  * Ensures the module's initializers have run, loading it fully if it was only
- * partially loaded, so that calling into its APIs is safe.
+ * partially loaded, so that calling into its APIs is safe. Does nothing once
+ * the module has been unloaded.
  */
 void
 gum_module_ensure_initialized (GumModule * self)
 {
   GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (_gum_module_registry_query_liveness (self) ==
+      GUM_MODULE_LIVENESS_UNLOADED)
+  {
+    return;
+  }
 
   if (iface->ensure_initialized != NULL)
     iface->ensure_initialized (self);
@@ -422,13 +431,20 @@ gum_module_enumerate_dependencies (GumModule * self,
  *
  * Resolves an exported symbol in this module.
  *
- * Returns: the export's address, or 0 if not found
+ * Returns: the export's address, or 0 if not found or once the module has been
+ *   unloaded
  */
 GumAddress
 gum_module_find_export_by_name (GumModule * self,
                                 const gchar * symbol_name)
 {
   GumModuleInterface * iface = GUM_MODULE_GET_IFACE (self);
+
+  if (_gum_module_registry_query_liveness (self) ==
+      GUM_MODULE_LIVENESS_UNLOADED)
+  {
+    return 0;
+  }
 
   if (iface->find_export_by_name != NULL)
     return iface->find_export_by_name (self, symbol_name);

@@ -56,6 +56,8 @@ static void gum_deinit_rtld_notifier_offsets (void);
 
 static void gum_module_registry_lock_outside_replay (GumModuleRegistry * self);
 static void gum_module_registry_wait_for_replay (GumModuleRegistry * self);
+static void gum_module_set_liveness (GumModule * module,
+    GumModuleLiveness liveness);
 static gboolean gum_module_removal_is_visible (GumModule * module);
 static gboolean gum_is_cloaked_module (GumModule * module);
 
@@ -97,6 +99,7 @@ G_DEFINE_TYPE (GumModuleRegistry, gum_module_registry, G_TYPE_OBJECT)
 
 static guint gum_module_registry_signals[LAST_SIGNAL] = { 0, };
 static GQuark gum_module_visibility_quark;
+static GQuark gum_module_liveness_quark;
 
 static guint * gum_rtld_notifier_offsets = NULL;
 static guint gum_rtld_notifier_n_offsets = 0;
@@ -118,6 +121,8 @@ gum_module_registry_class_init (GumModuleRegistryClass * klass)
 
   gum_module_visibility_quark =
       g_quark_from_static_string ("gum-module-visibility");
+  gum_module_liveness_quark =
+      g_quark_from_static_string ("gum-module-liveness");
 }
 
 static void
@@ -433,7 +438,15 @@ gum_module_registry_wait_for_replay (GumModuleRegistry * self)
 void
 _gum_module_registry_reset (GumModuleRegistry * self)
 {
+  guint i;
+
   GUM_MODULE_REGISTRY_LOCK (self);
+
+  for (i = 0; i != self->modules->len; i++)
+  {
+    gum_module_set_liveness (g_ptr_array_index (self->modules, i),
+        GUM_MODULE_LIVENESS_UNTRACKED);
+  }
 
   g_ptr_array_remove_range (self->modules, 0, self->modules->len);
 
@@ -456,6 +469,7 @@ _gum_module_registry_register (GumModuleRegistry * self,
       ? g_ptr_array_copy (self->modules, (GCopyFunc) g_object_ref, NULL)
       : self->modules;
   g_ptr_array_add (modules, g_object_ref (mod));
+  gum_module_set_liveness (mod, GUM_MODULE_LIVENESS_LOADED);
 
   announce = FALSE;
   if (being_observed)
@@ -510,6 +524,8 @@ _gum_module_registry_unregister (GumModuleRegistry * self,
   }
   g_assert (mod != NULL);
 
+  gum_module_set_liveness (mod, GUM_MODULE_LIVENESS_UNLOADED);
+
   if (being_observed)
   {
     g_ptr_array_unref (self->modules);
@@ -527,6 +543,21 @@ _gum_module_registry_unregister (GumModuleRegistry * self,
   }
 
   g_object_unref (mod);
+}
+
+GumModuleLiveness
+_gum_module_registry_query_liveness (GumModule * module)
+{
+  return GPOINTER_TO_INT (g_object_get_qdata (G_OBJECT (module),
+      gum_module_liveness_quark));
+}
+
+static void
+gum_module_set_liveness (GumModule * module,
+                         GumModuleLiveness liveness)
+{
+  g_object_set_qdata (G_OBJECT (module), gum_module_liveness_quark,
+      GINT_TO_POINTER (liveness));
 }
 
 static gboolean

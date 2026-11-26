@@ -7,6 +7,7 @@
 
 #include "gummodule-elf.h"
 
+#include "gummoduleregistry-priv.h"
 #ifdef HAVE_ANDROID
 # include "gum/gumandroid.h"
 #endif
@@ -86,6 +87,9 @@ static void gum_native_module_enumerate_dependencies (GumModule * module,
     GumFoundDependencyFunc func, gpointer user_data);
 static GumAddress gum_native_module_find_export_by_name (GumModule * module,
     const gchar * symbol_name);
+static gpointer gum_native_module_open_handle (GumNativeModule * self);
+static void gum_native_module_close_handle (GumNativeModule * self,
+    gpointer handle);
 static GumAddress gum_find_export_by_name_in_table (GumModule * module,
     const gchar * symbol_name);
 static gboolean gum_try_resolve_export_by_name (
@@ -147,11 +151,6 @@ gum_native_module_dispose (GObject * object)
 
   g_clear_object (&self->cached_elf);
 
-  if (self->destroy_handle != NULL)
-    g_clear_pointer (&self->cached_handle, self->destroy_handle);
-  else
-    self->cached_handle = NULL;
-
   GUM_NATIVE_MODULE_UNLOCK (self);
 
   G_OBJECT_CLASS (gum_native_module_parent_class)->dispose (object);
@@ -206,27 +205,6 @@ _gum_native_module_make_handleless (const gchar * path,
   return _gum_native_module_make (path, range, NULL, NULL, NULL, NULL);
 }
 
-gpointer
-_gum_native_module_get_handle (GumNativeModule * self)
-{
-  GUM_NATIVE_MODULE_LOCK (self);
-
-  if (!self->attempted_handle_creation)
-  {
-    self->attempted_handle_creation = TRUE;
-
-    if (self->create_handle != NULL)
-    {
-      self->cached_handle = self->create_handle (self,
-          self->create_handle_data);
-    }
-  }
-
-  GUM_NATIVE_MODULE_UNLOCK (self);
-
-  return self->cached_handle;
-}
-
 GumElfModule *
 _gum_native_module_get_elf_module (GumNativeModule * self)
 {
@@ -266,7 +244,20 @@ gum_native_module_get_range (GumModule * module)
 static void
 gum_native_module_ensure_initialized (GumModule * module)
 {
-  _gum_native_module_get_handle (GUM_NATIVE_MODULE (module));
+  GumNativeModule * self;
+  gpointer handle;
+
+  self = GUM_NATIVE_MODULE (module);
+
+  if (g_atomic_int_get (&self->initialized))
+    return;
+
+  handle = gum_native_module_open_handle (self);
+  if (handle != NULL)
+  {
+    gum_native_module_close_handle (self, handle);
+    g_atomic_int_set (&self->initialized, TRUE);
+  }
 }
 
 static void
@@ -540,6 +531,7 @@ gum_native_module_find_export_by_name (GumModule * module,
                                        const gchar * symbol_name)
 {
   GumNativeModule * self;
+  GumAddress address;
   gpointer handle;
 
   self = GUM_NATIVE_MODULE (module);
@@ -554,11 +546,40 @@ gum_native_module_find_export_by_name (GumModule * module,
   }
 #endif
 
-  handle = _gum_native_module_get_handle (self);
+  handle = gum_native_module_open_handle (self);
   if (handle == NULL)
-    return gum_find_export_by_name_in_table (module, symbol_name);
+  {
+    if (_gum_module_registry_query_liveness (module) ==
+        GUM_MODULE_LIVENESS_UNLOADED)
+    {
+      return 0;
+    }
 
-  return gum_dlsym (handle, symbol_name);
+    return gum_find_export_by_name_in_table (module, symbol_name);
+  }
+
+  address = gum_dlsym (handle, symbol_name);
+
+  gum_native_module_close_handle (self, handle);
+
+  return address;
+}
+
+static gpointer
+gum_native_module_open_handle (GumNativeModule * self)
+{
+  if (self->create_handle == NULL)
+    return NULL;
+
+  return self->create_handle (self, self->create_handle_data);
+}
+
+static void
+gum_native_module_close_handle (GumNativeModule * self,
+                                gpointer handle)
+{
+  if (self->destroy_handle != NULL)
+    self->destroy_handle (handle);
 }
 
 static GumAddress

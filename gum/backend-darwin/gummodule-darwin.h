@@ -22,7 +22,6 @@ G_GNUC_INTERNAL GumNativeModule * _gum_native_module_make (const gchar * path,
 G_GNUC_INTERNAL void _gum_native_module_detach_resolver (
     GumNativeModule * self);
 
-G_GNUC_INTERNAL gpointer _gum_native_module_get_handle (GumNativeModule * self);
 G_GNUC_INTERNAL GumMachoModule * _gum_native_module_get_macho_module (
     GumNativeModule * self);
 

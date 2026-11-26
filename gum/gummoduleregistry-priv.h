@@ -11,6 +11,12 @@
 
 G_BEGIN_DECLS
 
+typedef enum {
+  GUM_MODULE_LIVENESS_UNTRACKED,
+  GUM_MODULE_LIVENESS_LOADED,
+  GUM_MODULE_LIVENESS_UNLOADED,
+} GumModuleLiveness;
+
 G_GNUC_INTERNAL GUM_API GPtrArray * _gum_module_registry_get_modules (
     GumModuleRegistry * self);
 
@@ -25,6 +31,9 @@ G_GNUC_INTERNAL void _gum_module_registry_register (GumModuleRegistry * self,
     GumModule * mod);
 G_GNUC_INTERNAL void _gum_module_registry_unregister (GumModuleRegistry * self,
     GumAddress base_address);
+
+G_GNUC_INTERNAL GumModuleLiveness _gum_module_registry_query_liveness (
+    GumModule * module);
 
 G_END_DECLS
 

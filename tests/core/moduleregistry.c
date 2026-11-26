@@ -33,6 +33,8 @@
 TESTLIST_BEGIN (module_registry)
   TESTENTRY (module_registry_should_emit_signal_on_add)
   TESTENTRY (module_removal_should_be_emitted_after_its_range_is_cloaked)
+  TESTENTRY (module_should_unload_after_export_lookup)
+  TESTENTRY (module_should_unload_after_being_initialized)
   TESTENTRY (hooks_should_be_discarded_when_module_unloads)
   TESTENTRY (dependency_export_can_be_found)
   TESTENTRY (delay_loaded_modules_should_be_registered)
@@ -48,7 +50,14 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (online_elf_should_skip_unreadable_section_names)
 TESTLIST_END ()
 
+typedef enum _TestModuleUse TestModuleUse;
 typedef struct _TestModuleRemoval TestModuleRemoval;
+
+enum _TestModuleUse
+{
+  TEST_MODULE_USE_EXPORT_LOOKUP,
+  TEST_MODULE_USE_INITIALIZATION,
+};
 
 struct _TestModuleRemoval
 {
@@ -60,10 +69,14 @@ static void on_module_added (GumModuleRegistry * registry, GumModule * module,
     gpointer user_data);
 static void on_module_removed (GumModuleRegistry * registry, GumModule * module,
     gpointer user_data);
+static void assert_module_unloads_after_use (TestModuleUse use);
 static void on_observer_target_removed (GumModuleRegistry * registry,
     GumModule * module, gpointer user_data);
 static gpointer load_library (const gchar * path);
 static void unload_library (gpointer handle);
+#ifndef HAVE_QNX
+static gboolean library_is_loaded (const gchar * path);
+#endif
 
 #if defined (HAVE_WINDOWS)
 # define GUM_OBSERVER_TARGET_MODULE_FILENAME "module-observer-target.dll"
@@ -72,6 +85,7 @@ static void unload_library (gpointer handle);
 #else
 # define GUM_OBSERVER_TARGET_MODULE_FILENAME "module-observer-target.so"
 #endif
+#define GUM_OBSERVER_TARGET_MODULE_EXPORT "gum_module_observer_target_function"
 
 #ifdef HAVE_WINDOWS
 
@@ -266,6 +280,16 @@ TESTCASE (module_removal_should_be_emitted_after_its_range_is_cloaked)
   g_free (path);
   g_free (data_dir);
 #endif
+}
+
+TESTCASE (module_should_unload_after_export_lookup)
+{
+  assert_module_unloads_after_use (TEST_MODULE_USE_EXPORT_LOOKUP);
+}
+
+TESTCASE (module_should_unload_after_being_initialized)
+{
+  assert_module_unloads_after_use (TEST_MODULE_USE_INITIALIZATION);
 }
 
 TESTCASE (hooks_should_be_discarded_when_module_unloads)
@@ -745,6 +769,70 @@ on_module_removed (GumModuleRegistry * registry,
 }
 
 static void
+assert_module_unloads_after_use (TestModuleUse use)
+{
+#ifdef G_OS_NONE
+  g_test_skip ("dynamic libraries are not supported by the Barebone backend");
+#else
+  gchar * data_dir, * path;
+  GumModuleRegistry * registry;
+  TestModuleRemoval removal = { GUM_OBSERVER_TARGET_MODULE_FILENAME, 0 };
+  gulong handler;
+  gpointer handle;
+  GumModule * module, * reloaded_module;
+
+  data_dir = test_util_get_data_dir ();
+  path = g_build_filename (data_dir, GUM_OBSERVER_TARGET_MODULE_FILENAME,
+      NULL);
+
+  registry = gum_module_registry_obtain ();
+  handler = g_signal_connect (registry, "module-removed",
+      G_CALLBACK (on_observer_target_removed), &removal);
+
+  handle = load_library (path);
+  module =
+      gum_process_find_module_by_name (GUM_OBSERVER_TARGET_MODULE_FILENAME);
+  g_assert_nonnull (module);
+
+  if (use == TEST_MODULE_USE_EXPORT_LOOKUP)
+  {
+    g_assert_cmphex (gum_module_find_export_by_name (module,
+        GUM_OBSERVER_TARGET_MODULE_EXPORT), !=, 0);
+  }
+  else
+  {
+    gum_module_ensure_initialized (module);
+  }
+
+  unload_library (handle);
+
+  g_assert_cmpuint (removal.count, ==, 1);
+#ifndef HAVE_QNX
+  g_assert_false (library_is_loaded (path));
+#endif
+  g_assert_null (
+      gum_process_find_module_by_name (GUM_OBSERVER_TARGET_MODULE_FILENAME));
+  g_assert_cmphex (gum_module_find_export_by_name (module,
+      GUM_OBSERVER_TARGET_MODULE_EXPORT), ==, 0);
+
+  handle = load_library (path);
+  reloaded_module =
+      gum_process_find_module_by_name (GUM_OBSERVER_TARGET_MODULE_FILENAME);
+  g_assert_nonnull (reloaded_module);
+  g_assert_true (reloaded_module != module);
+  unload_library (handle);
+
+  g_assert_cmpuint (removal.count, ==, 2);
+
+  g_object_unref (reloaded_module);
+  g_object_unref (module);
+  g_signal_handler_disconnect (registry, handler);
+  g_free (path);
+  g_free (data_dir);
+#endif
+}
+
+static void
 on_observer_target_removed (GumModuleRegistry * registry,
                             GumModule * module,
                             gpointer user_data)
@@ -784,6 +872,32 @@ unload_library (gpointer handle)
   dlclose (handle);
 #endif
 }
+
+#ifndef HAVE_QNX
+
+static gboolean
+library_is_loaded (const gchar * path)
+{
+  gboolean loaded;
+#ifdef HAVE_WINDOWS
+  gunichar2 * path_utf16;
+
+  path_utf16 = g_utf8_to_utf16 (path, -1, NULL, NULL, NULL);
+  loaded = GetModuleHandleW ((LPCWSTR) path_utf16) != NULL;
+  g_free (path_utf16);
+#else
+  gpointer handle;
+
+  handle = dlopen (path, RTLD_LAZY | RTLD_NOLOAD);
+  loaded = handle != NULL;
+  if (loaded)
+    dlclose (handle);
+#endif
+
+  return loaded;
+}
+
+#endif
 
 #endif
 
