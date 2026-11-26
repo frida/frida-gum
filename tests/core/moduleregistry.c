@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2025-2026 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2026 Sam Sun <samsun@nvidia.com>
  * Copyright (C) 2026 Håvard Sørbø <havard@hsorbo.no>
  *
@@ -8,6 +8,7 @@
 
 #include "gummoduleregistry.h"
 
+#include "gumcloak.h"
 #include "gumelfmodule.h"
 #include "guminterceptor.h"
 #include "testutil.h"
@@ -15,10 +16,11 @@
 #ifdef HAVE_WINDOWS
 # include <windows.h>
 # include <shlobj.h>
+#elif !defined (G_OS_NONE)
+# include <dlfcn.h>
 #endif
 #ifdef HAVE_LINUX
 # include "interceptor-callbacklistener.h"
-# include <dlfcn.h>
 # include <link.h>
 # include <sys/mman.h>
 #endif
@@ -30,6 +32,7 @@
 
 TESTLIST_BEGIN (module_registry)
   TESTENTRY (module_registry_should_emit_signal_on_add)
+  TESTENTRY (module_removal_should_be_emitted_after_its_range_is_cloaked)
   TESTENTRY (hooks_should_be_discarded_when_module_unloads)
   TESTENTRY (dependency_export_can_be_found)
   TESTENTRY (delay_loaded_modules_should_be_registered)
@@ -45,10 +48,30 @@ TESTLIST_BEGIN (module_registry)
   TESTENTRY (online_elf_should_skip_unreadable_section_names)
 TESTLIST_END ()
 
+typedef struct _TestModuleRemoval TestModuleRemoval;
+
+struct _TestModuleRemoval
+{
+  const gchar * name;
+  guint count;
+};
+
 static void on_module_added (GumModuleRegistry * registry, GumModule * module,
     gpointer user_data);
 static void on_module_removed (GumModuleRegistry * registry, GumModule * module,
     gpointer user_data);
+static void on_observer_target_removed (GumModuleRegistry * registry,
+    GumModule * module, gpointer user_data);
+static gpointer load_library (const gchar * path);
+static void unload_library (gpointer handle);
+
+#if defined (HAVE_WINDOWS)
+# define GUM_OBSERVER_TARGET_MODULE_FILENAME "module-observer-target.dll"
+#elif defined (HAVE_DARWIN)
+# define GUM_OBSERVER_TARGET_MODULE_FILENAME "module-observer-target.dylib"
+#else
+# define GUM_OBSERVER_TARGET_MODULE_FILENAME "module-observer-target.so"
+#endif
 
 #ifdef HAVE_WINDOWS
 
@@ -193,6 +216,56 @@ TESTCASE (module_registry_should_emit_signal_on_add)
   g_printerr ("Sleeping in PID %u...\n", gum_process_get_id ());
   while (TRUE)
     g_usleep (60 * G_USEC_PER_SEC);
+}
+
+TESTCASE (module_removal_should_be_emitted_after_its_range_is_cloaked)
+{
+#ifdef G_OS_NONE
+  g_test_skip ("dynamic libraries are not supported by the Barebone backend");
+#else
+  gchar * data_dir, * path;
+  GumModuleRegistry * registry;
+  TestModuleRemoval removal = { GUM_OBSERVER_TARGET_MODULE_FILENAME, 0 };
+  gulong handler;
+  gpointer handle;
+  GumModule * module;
+  GumMemoryRange range;
+
+  data_dir = test_util_get_data_dir ();
+  path = g_build_filename (data_dir, GUM_OBSERVER_TARGET_MODULE_FILENAME,
+      NULL);
+
+  registry = gum_module_registry_obtain ();
+  handler = g_signal_connect (registry, "module-removed",
+      G_CALLBACK (on_observer_target_removed), &removal);
+
+  handle = load_library (path);
+  module =
+      gum_process_find_module_by_name (GUM_OBSERVER_TARGET_MODULE_FILENAME);
+  g_assert_nonnull (module);
+  range = *gum_module_get_range (module);
+  g_object_unref (module);
+
+  gum_cloak_add_range (&range);
+  unload_library (handle);
+  gum_cloak_remove_range (&range);
+
+  module =
+      gum_process_find_module_by_name (GUM_OBSERVER_TARGET_MODULE_FILENAME);
+  if (module != NULL)
+  {
+    g_object_unref (module);
+    g_test_skip ("the loader kept the module loaded");
+  }
+  else
+  {
+    g_assert_cmpuint (removal.count, ==, 1);
+  }
+
+  g_signal_handler_disconnect (registry, handler);
+  g_free (path);
+  g_free (data_dir);
+#endif
 }
 
 TESTCASE (hooks_should_be_discarded_when_module_unloads)
@@ -670,6 +743,49 @@ on_module_removed (GumModuleRegistry * registry,
 {
   g_printerr ("%s: path=\"%s\"\n", G_STRFUNC, gum_module_get_path (module));
 }
+
+static void
+on_observer_target_removed (GumModuleRegistry * registry,
+                            GumModule * module,
+                            gpointer user_data)
+{
+  TestModuleRemoval * removal = user_data;
+
+  if (strcmp (gum_module_get_name (module), removal->name) == 0)
+    removal->count++;
+}
+
+#ifndef G_OS_NONE
+
+static gpointer
+load_library (const gchar * path)
+{
+  gpointer handle;
+#ifdef HAVE_WINDOWS
+  gunichar2 * path_utf16;
+
+  path_utf16 = g_utf8_to_utf16 (path, -1, NULL, NULL, NULL);
+  handle = LoadLibraryW ((LPCWSTR) path_utf16);
+  g_free (path_utf16);
+#else
+  handle = dlopen (path, RTLD_NOW | RTLD_LOCAL);
+#endif
+  g_assert_nonnull (handle);
+
+  return handle;
+}
+
+static void
+unload_library (gpointer handle)
+{
+#ifdef HAVE_WINDOWS
+  FreeLibrary (handle);
+#else
+  dlclose (handle);
+#endif
+}
+
+#endif
 
 #ifdef HAVE_WINDOWS
 

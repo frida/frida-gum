@@ -41,6 +41,12 @@ enum
   LAST_SIGNAL
 };
 
+typedef enum {
+  GUM_MODULE_VISIBILITY_UNDECIDED,
+  GUM_MODULE_VISIBILITY_ANNOUNCED,
+  GUM_MODULE_VISIBILITY_CLOAKED,
+} GumModuleVisibility;
+
 static void gum_module_registry_dispose (GObject * object);
 static void gum_module_registry_finalize (GObject * object);
 static void gum_module_registry_activate (GumModuleRegistry * self);
@@ -50,6 +56,7 @@ static void gum_deinit_rtld_notifier_offsets (void);
 
 static void gum_module_registry_lock_outside_replay (GumModuleRegistry * self);
 static void gum_module_registry_wait_for_replay (GumModuleRegistry * self);
+static gboolean gum_module_removal_is_visible (GumModule * module);
 static gboolean gum_is_cloaked_module (GumModule * module);
 
 /**
@@ -89,6 +96,7 @@ static gboolean gum_is_cloaked_module (GumModule * module);
 G_DEFINE_TYPE (GumModuleRegistry, gum_module_registry, G_TYPE_OBJECT)
 
 static guint gum_module_registry_signals[LAST_SIGNAL] = { 0, };
+static GQuark gum_module_visibility_quark;
 
 static guint * gum_rtld_notifier_offsets = NULL;
 static guint gum_rtld_notifier_n_offsets = 0;
@@ -107,6 +115,9 @@ gum_module_registry_class_init (GumModuleRegistryClass * klass)
   gum_module_registry_signals[MODULE_REMOVED] = g_signal_new ("module-removed",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST, 0, NULL, NULL,
       g_cclosure_marshal_VOID__OBJECT, G_TYPE_NONE, 1, GUM_TYPE_MODULE);
+
+  gum_module_visibility_quark =
+      g_quark_from_static_string ("gum-module-visibility");
 }
 
 static void
@@ -435,6 +446,7 @@ _gum_module_registry_register (GumModuleRegistry * self,
 {
   gboolean being_observed;
   GPtrArray * modules;
+  gboolean announce;
 
   GUM_MODULE_REGISTRY_LOCK (self);
 
@@ -445,15 +457,22 @@ _gum_module_registry_register (GumModuleRegistry * self,
       : self->modules;
   g_ptr_array_add (modules, g_object_ref (mod));
 
+  announce = FALSE;
   if (being_observed)
   {
     g_ptr_array_unref (self->modules);
     self->modules = modules;
+
+    announce = !gum_is_cloaked_module (mod);
+    g_object_set_qdata (G_OBJECT (mod), gum_module_visibility_quark,
+        GINT_TO_POINTER (announce
+            ? GUM_MODULE_VISIBILITY_ANNOUNCED
+            : GUM_MODULE_VISIBILITY_CLOAKED));
   }
 
   GUM_MODULE_REGISTRY_UNLOCK (self);
 
-  if (being_observed && !gum_is_cloaked_module (mod))
+  if (announce)
   {
     gum_module_registry_wait_for_replay (self);
     g_signal_emit (self, gum_module_registry_signals[MODULE_ADDED], 0, mod);
@@ -501,13 +520,27 @@ _gum_module_registry_unregister (GumModuleRegistry * self,
 
   _gum_interceptor_forget_all_hooks_in_range (gum_module_get_range (mod));
 
-  if (being_observed && !gum_is_cloaked_module (mod))
+  if (being_observed && gum_module_removal_is_visible (mod))
   {
     gum_module_registry_wait_for_replay (self);
     g_signal_emit (self, gum_module_registry_signals[MODULE_REMOVED], 0, mod);
   }
 
   g_object_unref (mod);
+}
+
+static gboolean
+gum_module_removal_is_visible (GumModule * module)
+{
+  GumModuleVisibility visibility;
+
+  visibility = GPOINTER_TO_INT (g_object_get_qdata (G_OBJECT (module),
+      gum_module_visibility_quark));
+
+  if (visibility == GUM_MODULE_VISIBILITY_UNDECIDED)
+    return !gum_is_cloaked_module (module);
+
+  return visibility == GUM_MODULE_VISIBILITY_ANNOUNCED;
 }
 
 static gboolean
