@@ -27,6 +27,12 @@
 #if defined (HAVE_LINUX) && defined (HAVE_SYS_AUXV_H)
 # include <sys/auxv.h>
 #endif
+#ifdef HAVE_LINUX
+# include <unistd.h>
+# include <sys/prctl.h>
+# include <sys/ptrace.h>
+# include <sys/wait.h>
+#endif
 
 #if defined (HAVE_LINUX)
 # include "gum/gumlinux.h"
@@ -36,6 +42,10 @@
 # define IMPORT_SLOT_TEST_SYMBOL "VirtualAlloc"
 #else
 # define IMPORT_SLOT_TEST_SYMBOL "malloc"
+#endif
+
+#if defined (HAVE_LINUX) && !defined (PR_SET_PTRACER)
+# define PR_SET_PTRACER 0x59616d61
 #endif
 
 #define TESTCASE(NAME) \
@@ -100,6 +110,9 @@ TESTLIST_BEGIN (process)
 #endif
 #if defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
   TESTENTRY (linux_process_modules)
+#endif
+#ifdef HAVE_LINUX
+  TESTENTRY (linux_process_threads_include_traced)
 #endif
 #if defined (HAVE_LINUX) && defined (HAVE_SYS_AUXV_H)
   TESTENTRY (linux_get_cpu_from_auxv_null_32bit)
@@ -392,6 +405,95 @@ TESTCASE (process_threads_should_include_name)
   g_free ((gpointer) d.name);
 #endif
 }
+
+#ifdef HAVE_LINUX
+
+TESTCASE (linux_process_threads_include_traced)
+{
+  volatile gboolean done = FALSE;
+  GThread * thread;
+  GumThreadId thread_id;
+  int to_tracer[2], from_tracer[2];
+  pid_t tracer;
+  int tracer_status;
+  gchar ack;
+  TestThreadContext ctx;
+  GumThreadDetails * details;
+
+  if (!check_thread_enumeration_testable ())
+    return;
+
+  thread = create_sleeping_dummy_thread_sync ("traced", &done, &thread_id);
+
+  g_assert_cmpint (pipe (to_tracer), ==, 0);
+  g_assert_cmpint (pipe (from_tracer), ==, 0);
+
+  tracer = fork ();
+  g_assert_cmpint (tracer, >=, 0);
+
+  if (tracer == 0)
+  {
+    pid_t tid = thread_id;
+    gboolean attached;
+    int status;
+
+    close (to_tracer[1]);
+    close (from_tracer[0]);
+
+    if (read (to_tracer[0], &ack, 1) != 1)
+      _exit (1);
+
+    attached = ptrace (PTRACE_ATTACH, tid, NULL, NULL) == 0 &&
+        waitpid (tid, &status, __WALL) == tid;
+
+    ack = attached ? 'y' : 'n';
+    if (write (from_tracer[1], &ack, 1) != 1)
+      _exit (1);
+
+    if (attached && read (to_tracer[0], &ack, 1) == 0)
+      ptrace (PTRACE_DETACH, tid, NULL, NULL);
+
+    _exit (0);
+  }
+
+  close (to_tracer[0]);
+  close (from_tracer[1]);
+
+  prctl (PR_SET_PTRACER, tracer);
+
+  ack = 'g';
+  g_assert_cmpint (write (to_tracer[1], &ack, 1), ==, 1);
+  g_assert_cmpint (read (from_tracer[0], &ack, 1), ==, 1);
+
+  if (ack == 'y')
+  {
+    ctx.needle = thread_id;
+    ctx.found = FALSE;
+    gum_process_enumerate_threads (thread_check_cb, &ctx, GUM_THREAD_FLAGS_ALL);
+    g_assert_true (ctx.found);
+
+    details = gum_process_find_thread_by_id (thread_id, GUM_THREAD_FLAGS_ALL);
+    g_assert_nonnull (details);
+    g_assert_true ((details->flags & GUM_THREAD_FLAGS_CPU_CONTEXT) == 0);
+    g_assert_cmpuint (details->state, ==, GUM_THREAD_STOPPED);
+    gum_thread_details_free (details);
+  }
+  else
+  {
+    g_print ("<skipping, unable to ptrace() the thread> ");
+  }
+
+  close (to_tracer[1]);
+  close (from_tracer[0]);
+  g_assert_cmpint (waitpid (tracer, &tracer_status, 0), ==, tracer);
+  g_assert_true (WIFEXITED (tracer_status));
+  g_assert_cmpint (WEXITSTATUS (tracer_status), ==, 0);
+
+  done = TRUE;
+  g_thread_join (thread);
+}
+
+#endif
 
 static gboolean
 check_thread_enumeration_testable (void)

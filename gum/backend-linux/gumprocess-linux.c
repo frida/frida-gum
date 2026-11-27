@@ -1293,9 +1293,10 @@ gum_fill_thread_details (GumThreadDetails * entry,
   if ((flags & GUM_THREAD_FLAGS_CPU_CONTEXT) != 0 &&
       !gum_runs_on_native_bridge ())
   {
-    if (!gum_linux_query_thread_cpu_context (entry->id, &entry->cpu_context))
+    if (gum_linux_query_thread_cpu_context (entry->id, &entry->cpu_context))
+      entry->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
+    else if (!gum_process_has_thread (entry->id))
       return FALSE;
-    entry->flags |= GUM_THREAD_FLAGS_CPU_CONTEXT;
   }
 
   return TRUE;
