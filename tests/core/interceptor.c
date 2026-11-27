@@ -106,6 +106,7 @@ TESTLIST_BEGIN (interceptor)
   TESTENTRY (custom_redirect_default_is_inherited)
 #endif
   TESTENTRY (attach_fails_when_code_allocation_is_denied)
+  TESTENTRY (attach_fails_when_target_not_mapped)
 #ifdef HAVE_I386
   TESTENTRY (ibt_landing_pad_survives_attach)
 #endif
@@ -1494,6 +1495,21 @@ gum_deny_code_allocation (const GumAddressSpec * spec,
                           gpointer user_data)
 {
   return NULL;
+}
+
+TESTCASE (attach_fails_when_target_not_mapped)
+{
+  gsize page_size;
+  gpointer freed_page;
+
+  page_size = gum_query_page_size ();
+
+  freed_page = gum_memory_allocate (NULL, page_size, page_size, GUM_PAGE_RW);
+  g_assert_nonnull (freed_page);
+  gum_memory_free (freed_page, page_size);
+
+  g_assert_cmpint (interceptor_fixture_try_attach (fixture, 0, freed_page,
+      '>', '<'), ==, GUM_ATTACH_NOT_MAPPED);
 }
 
 #ifdef HAVE_ARM
